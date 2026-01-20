@@ -1,0 +1,1616 @@
+{
+  "app": {
+    "name": "نظام تخطيط موارد المؤسسات",
+    "shortName": "نظام ERP",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "جودة تستحق الثقة",
+      "fullName": "TexaCore - نظام إدارة موارد المؤسسات"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "لوحة التحكم",
+    "accounting": "المحاسبة",
+    "sales": "المبيعات",
+    "purchases": "المشتريات",
+    "inventory": "المخزون",
+    "crm": "إدارة العملاء",
+    "hr": "الموارد البشرية",
+    "pos": "نقاط البيع",
+    "exchange": "الصرافة",
+    "realEstate": "العقارات",
+    "manufacturing": "التصنيع",
+    "ecommerce": "التجارة الإلكترونية",
+    "saasControl": "إدارة SaaS",
+    "aiAnalytics": "تحليلات الذكاء الاصطناعي",
+    "activityLog": "سجل الأحداث",
+    "systemConfig": "إعدادات النظام",
+    "componentLab": "مختبر المكونات",
+    "settings": "الإعدادات"
+  },
+
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "create": "إنشاء",
+    "update": "تحديث",
+    "search": "بحث",
+    "filter": "تصفية",
+    "export": "تصدير",
+    "import": "استيراد",
+    "print": "طباعة",
+    "refresh": "تحديث",
+    "close": "إغلاق",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "submit": "إرسال",
+    "reset": "إعادة تعيين",
+    "clear": "مسح",
+    "select": "اختيار",
+    "selectAll": "تحديد الكل",
+    "deselectAll": "إلغاء تحديد الكل",
+    "yes": "نعم",
+    "no": "لا",
+    "ok": "موافق",
+    "loading": "جاري التحميل...",
+    "noData": "لا توجد بيانات",
+    "error": "حدث خطأ",
+    "success": "تمت العملية بنجاح",
+    "warning": "تحذير",
+    "info": "معلومات",
+    "required": "مطلوب",
+    "optional": "اختياري",
+    "total": "الإجمالي",
+    "subtotal": "المجموع الفرعي",
+    "balance": "الرصيد",
+    "amount": "المبلغ",
+    "quantity": "الكمية",
+    "price": "السعر",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "status": "الحالة",
+    "type": "النوع",
+    "name": "الاسم",
+    "description": "الوصف",
+    "notes": "ملاحظات",
+    "reference": "المرجع",
+    "code": "الرمز",
+    "number": "الرقم",
+    "actions": "الإجراءات",
+    "details": "التفاصيل",
+    "history": "السجل",
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "enabled": "مفعل",
+    "disabled": "معطل",
+    "all": "الكل",
+    "none": "لا شيء",
+    "other": "أخرى",
+    "default": "افتراضي",
+    "custom": "مخصص",
+    "orders": "الطلبات",
+    "country": "البلد",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "language": "اللغة",
+    "timezone": "المنطقة الزمنية",
+    "city": "المدينة",
+    "countries": {
+      "saudiArabia": "المملكة العربية السعودية",
+      "uae": "الإمارات",
+      "kuwait": "الكويت"
+    },
+    "languages": {
+      "arabic": "العربية",
+      "english": "English"
+    },
+    "timezones": {
+      "riyadh": "الرياض (GMT+3)",
+      "dubai": "دبي (GMT+4)"
+    },
+    "company": "الشركة",
+    "project": "المشروع",
+    "printedOn": "تاريخ الطباعة",
+    "googleSheets": "جداول غوغل",
+    "noDataToExport": "لا توجد بيانات للتصدير",
+    "copyFailed": "فشل نسخ البيانات",
+    "voucherType": "نوع القيد",
+    "voucherNo": "رقم القيد",
+    "financeBook": "الدفتر المالي",
+    "allItems": "الكل",
+    "showCancelledEntries": "إظهار الملغاة"
+  },
+
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "register": "التسجيل",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "resetPassword": "إعادة تعيين كلمة المرور",
+    "changePassword": "تغيير كلمة المرور",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "rememberMe": "تذكرني",
+    "welcome": "مرحباً",
+    "profile": "الملف الشخصي",
+    "account": "الحساب",
+    "userInitial": "م",
+    "systemAdmin": "مدير النظام",
+    "loginDescription": "سجل الدخول إلى حسابك",
+    "registerDescription": "أنشئ حساباً وشركة جديدة",
+    "emailPlaceholder": "أدخل بريدك الإلكتروني",
+    "passwordPlaceholder": "أدخل كلمة المرور",
+    "fullName": "الاسم الكامل",
+    "fullNamePlaceholder": "أدخل اسمك الكامل",
+    "companyName": "اسم الشركة",
+    "companyNamePlaceholder": "أدخل اسم الشركة",
+    "confirmPasswordPlaceholder": "أكد كلمة المرور",
+    "noAccount": "ليس لديك حساب؟",
+    "haveAccount": "لديك حساب بالفعل؟",
+    "fillAllFields": "يرجى ملء جميع الحقول",
+    "passwordsDoNotMatch": "كلمات المرور غير متطابقة",
+    "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+    "registrationFailed": "فشل التسجيل. يرجى المحاولة مرة أخرى.",
+    "profileCreationFailed": "فشل إنشاء الملف الشخصي",
+    "companyWillBeCreated": "سيتم إنشاء شركة جديدة تلقائياً",
+    "creatingAccount": "جاري إنشاء الحساب...",
+    "checkEmail": "يرجى التحقق من بريدك الإلكتروني لتأكيد حسابك"
+  },
+
+  "header": {
+    "search": "بحث...",
+    "notifications": "الإشعارات",
+    "quickAdd": "إضافة سريعة",
+    "language": "اللغة",
+    "theme": "المظهر",
+    "darkMode": "الوضع الداكن",
+    "lightMode": "الوضع الفاتح"
+  },
+
+  "sidebar": {
+    "needHelp": "تحتاج مساعدة؟",
+    "contactSupport": "تواصل مع الدعم",
+    "collapse": "طي",
+    "expand": "توسيع"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "فاتورة مبيعات جديدة",
+    "newPurchaseInvoice": "فاتورة مشتريات جديدة",
+    "receiptVoucher": "سند قبض",
+    "paymentVoucher": "سند صرف",
+    "newProduct": "منتج جديد",
+    "newCustomer": "عميل جديد",
+    "newSupplier": "مورد جديد",
+    "journalEntry": "قيد محاسبي"
+  },
+
+  "filters": {
+    "selectBranch": "اختر الفرع",
+    "allBranches": "جميع الفروع",
+    "selectCurrency": "اختر العملة",
+    "selectPeriod": "اختر الفترة",
+    "today": "اليوم",
+    "yesterday": "أمس",
+    "thisWeek": "هذا الأسبوع",
+    "lastWeek": "الأسبوع الماضي",
+    "thisMonth": "هذا الشهر",
+    "lastMonth": "الشهر الماضي",
+    "thisYear": "هذه السنة",
+    "lastYear": "السنة الماضية",
+    "customRange": "نطاق مخصص",
+    "from": "من",
+    "to": "إلى"
+  },
+
+  "tabs": {
+    "overview": "نظرة عامة",
+    "ledger": "دفتر الأستاذ",
+    "invoices": "الفواتير",
+    "payments": "المدفوعات",
+    "reservations": "الحجوزات",
+    "aiAnalysis": "تحليل الذكاء الاصطناعي",
+    "events": "الأحداث",
+    "details": "التفاصيل",
+    "history": "السجل",
+    "settings": "الإعدادات",
+    "reports": "التقارير",
+    "notes": "الملاحظات",
+    "documents": "المستندات",
+    "activity": "النشاط",
+    "writeNote": "اكتب ملاحظة جديدة...",
+    "addNote": "إضافة ملاحظة",
+    "noNotes": "لا توجد ملاحظات بعد",
+    "noDocuments": "لا توجد مستندات بعد",
+    "noActivity": "لا يوجد نشاط بعد",
+    "uploadDocument": "رفع مستند",
+    "allActivity": "كل النشاط",
+    "filterActivity": "تصفية النشاط",
+    "analyzing": "جاري التحليل...",
+    "aiSuggestions": "اقتراحات الذكاء الاصطناعي",
+    "noReservations": "لا توجد حجوزات"
+  },
+
+  "status": {
+    "draft": "مسودة",
+    "pending": "معلق",
+    "inProgress": "قيد التنفيذ",
+    "confirmed": "مؤكد",
+    "completed": "مكتمل",
+    "partial": "جزئي",
+    "paid": "مدفوع",
+    "unpaid": "غير مدفوع",
+    "overdue": "متأخر",
+    "cancelled": "ملغي",
+    "rejected": "مرفوض",
+    "approved": "موافق عليه",
+    "submitted": "مقدم",
+    "closed": "مغلق",
+    "open": "مفتوح",
+    "warning": "تحذير"
+  },
+
+  "stats": {
+    "totalSales": "إجمالي المبيعات",
+    "totalRevenue": "إجمالي الإيرادات",
+    "totalExpenses": "إجمالي المصروفات",
+    "netProfit": "صافي الربح",
+    "grossProfit": "إجمالي الربح",
+    "totalOrders": "إجمالي الطلبات",
+    "pendingOrders": "الطلبات المعلقة",
+    "completedOrders": "الطلبات المكتملة",
+    "totalCustomers": "إجمالي العملاء",
+    "activeCustomers": "العملاء النشطون",
+    "newCustomers": "العملاء الجدد",
+    "totalSuppliers": "إجمالي الموردين",
+    "totalProducts": "إجمالي المنتجات",
+    "lowStock": "مخزون منخفض",
+    "outOfStock": "نفذ من المخزون"
+  },
+
+  "currencies": {
+    "SAR": "ريال سعودي",
+    "USD": "دولار أمريكي",
+    "EUR": "يورو",
+    "GBP": "جنيه إسترليني",
+    "AED": "درهم إماراتي",
+    "KWD": "دينار كويتي",
+    "QAR": "ريال قطري",
+    "BHD": "دينار بحريني",
+    "OMR": "ريال عماني",
+    "EGP": "جنيه مصري",
+    "JOD": "دينار أردني",
+    "TRY": "ليرة تركية",
+    "RUB": "روبل روسي",
+    "UAH": "هريفنيا أوكرانية",
+    "PLN": "زلوتي بولندي",
+    "RON": "ليو روماني"
+  },
+
+  "branches": {
+    "main": "الفرع الرئيسي",
+    "all": "جميع الفروع"
+  },
+
+  "dashboard": {
+    "title": "لوحة التحكم",
+    "subtitle": "نظرة شاملة على جميع وحدات النظام",
+    "welcomeMessage": "مرحباً بك في نظام تخطيط موارد المؤسسات",
+    "recentOrders": "الطلبات الأخيرة",
+    "recentInvoices": "الفواتير الأخيرة",
+    "recentPayments": "المدفوعات الأخيرة",
+    "quickStats": "إحصائيات سريعة",
+    "viewAll": "عرض الكل",
+    "chartsPlaceholder": "سيتم إضافة الرسوم البيانية هنا"
+  },
+
+  "accounting": {
+    "module": "المحاسبة",
+    "dashboard": "لوحة المحاسبة",
+    "chartOfAccounts": "شجرة الحسابات",
+    "chartOfAccountsDescription": "إدارة شجرة الحسابات مع البنية الهرمية",
+    "journalEntries": "القيود اليومية",
+    "receipts": "سندات القبض",
+    "payments": "سندات الصرف",
+    "generalLedger": "دفتر الأستاذ",
+    "funds": "الصناديق والبنوك",
+    "parties": "الجهات",
+    "settings": "إعدادات المحاسبة",
+    "reports": "التقارير المحاسبية",
+    "trialBalance": "ميزان المراجعة",
+    "incomeStatement": "قائمة الدخل",
+    "balanceSheet": "الميزانية العمومية",
+    "cashFlow": "التدفقات النقدية",
+    "costCenters": "مراكز التكلفة",
+    "budgets": "الموازنات",
+    "fiscalYear": "السنة المالية",
+    "closingEntries": "قيود الإقفال",
+    "addAccount": "إضافة حساب",
+    "addNewRow": "إضافة سطر جديد",
+    "addRow": "إضافة سطر",
+    "balanceEntry": "موازنة القيد",
+    "duplicateRow": "نسخ السطر",
+    "copyAccountDown": "نسخ الحقل من السطر الأعلى",
+    "save": "حفظ",
+    "editAccount": "تعديل حساب",
+    "totalAccounts": "إجمالي الحسابات",
+    "activeAccounts": "الحسابات النشطة",
+    "groupsCount": "المجموعات",
+    "totalBalance": "إجمالي الرصيد",
+    "isGroup": "حساب مجموعة",
+    "noParent": "لا يوجد حساب رئيسي (حساب جذر)",
+    "accountCodeHint": "رمز الحساب بنمط ERPNext (مثال: 1000, 1100, 1110)",
+    "treeView": "عرض الشجرة",
+    "tableView": "عرض الجدول",
+    "expandAll": "فتح الكل",
+    "collapseAll": "إغلاق الكل",
+    "searchPlaceholder": "بحث في الحسابات...",
+    "editGroup": "تعديل المجموعة",
+    "addSubGroup": "إضافة مجموعة فرعية",
+    "addSubAccount": "إضافة حساب فرعي",
+    "printReport": "طباعة التقرير",
+    "addGroup": "إضافة مجموعة",
+    "group": "مجموعة",
+    "detail": "تفصيلي",
+    "deleteAccount": "حذف حساب",
+    "deleteAccountConfirm": "هل أنت متأكد من حذف هذا الحساب؟",
+    "deleteAccountWarning": "لا يمكن التراجع عن هذا الإجراء. سيتم حذف الحساب نهائياً إذا لم يكن لديه حركات أو حسابات فرعية.",
+    "deleteAccountError": "لا يمكن حذف الحساب",
+    "deleteAccountHasTransactions": "لا يمكن حذف الحساب الذي لديه حركات. الحساب يحتوي على حركات.",
+    "deleteAccountHasChildren": "لا يمكن حذف الحساب الذي لديه حسابات فرعية. يرجى حذف أو نقل الحسابات الفرعية أولاً.",
+    "selectGroupToView": "اختر مجموعة من الشجرة لعرض حساباتها",
+    "noCompanySelected": "لم يتم تحديد شركة",
+    "createCompanyFirst": "يرجى تشغيل SQL script في Supabase لإنشاء شركة تجريبية.",
+    "runSQLScript": "شغّل SQL script: supabase/create_test_company.sql",
+    "accountTypes": {
+      "asset": "أصول",
+      "liability": "خصوم",
+      "equity": "حقوق ملكية",
+      "revenue": "إيرادات",
+      "expense": "مصروفات"
+    },
+    "account": {
+      "name": "اسم الحساب",
+      "nameEn": "اسم الحساب (إنجليزي)",
+      "code": "رمز الحساب",
+      "type": "نوع الحساب",
+      "parent": "الحساب الرئيسي",
+      "balance": "الرصيد",
+      "currency": "العملة",
+      "select": "اختر حساب...",
+      "notFound": "لم يتم العثور على حساب",
+      "treeSelector": "الشجرة المحاسبية",
+      "treeSelectorDescription": "اختر الحسابات من الشجرة - اضغط مرتين لإضافة الحساب",
+      "closeTree": "إغلاق الشجرة",
+      "selectedCount": "محدد",
+      "doubleClickToAdd": "اضغط مرتين لإضافة الحساب",
+      "onlyAccounts": "الحسابات فقط (ليس المجموعات)"
+    },
+    "entry": {
+      "number": "رقم القيد",
+      "date": "تاريخ القيد",
+      "reference": "المرجع",
+      "description": "الوصف",
+      "debit": "مدين",
+      "credit": "دائن",
+      "total": "الإجمالي"
+    },
+    "receipt": {
+      "title": "سند قبض",
+      "number": "رقم السند",
+      "date": "تاريخ السند",
+      "customer": "العميل",
+      "amount": "المبلغ",
+      "paymentMethod": "طريقة الدفع",
+      "fund": "الصندوق",
+      "notes": "ملاحظات",
+      "customerInfo": "معلومات العميل"
+    },
+    "payment": {
+      "title": "سند صرف",
+      "number": "رقم السند",
+      "date": "تاريخ السند",
+      "supplier": "المورد",
+      "amount": "المبلغ",
+      "paymentMethod": "طريقة الدفع",
+      "fund": "الصندوق",
+      "notes": "ملاحظات"
+    },
+    "labels": {
+      "debitTotal": "إجمالي المدين",
+      "creditTotal": "إجمالي الدائن",
+      "balance": "الرصيد",
+      "difference": "الفرق",
+      "marked": "مؤشر"
+    },
+    "currentBalance": "الرصيد الحالي",
+    "openingBalance": "الرصيد الافتتاحي",
+    "closingBalance": "الرصيد الختامي",
+    "periodMovement": "حركة الفترة",
+    "dashboard": {
+      "title": "لوحة المحاسبة",
+      "customize": "تخصيص",
+      "customizeDialog": {
+        "title": "تخصيص لوحة المعلومات",
+        "description": "اختر الويدجت التي تريد إظهارها في لوحة المعلومات. يمكنك سحب وإفلات الويدجت لإعادة ترتيبها.",
+        "reset": "إعادة تعيين",
+        "done": "تم"
+      },
+      "widgetTypes": {
+        "kpi": "مؤشر",
+        "chart": "رسم بياني",
+        "list": "قائمة",
+        "alert": "تنبيهات"
+      },
+      "widgetSizes": {
+        "small": "صغير",
+        "medium": "متوسط",
+        "large": "كبير"
+      },
+      "widgets": {
+        "liquidity": "نسبة السيولة",
+        "profitMargin": "هامش الربح الصافي",
+        "dso": "أيام الذمم المدينة",
+        "dpo": "أيام الذمم الدائنة",
+        "cashFlowChart": "التدفق النقدي الشهري",
+        "expenseBreakdown": "توزيع المصروفات",
+        "overdueAlerts": "تنبيهات الذمم المتأخرة",
+        "vatSummary": "ملخص ضريبة القيمة المضافة",
+        "pendingItems": "البنود المعلقة",
+        "revenueComparison": "مقارنة الإيرادات"
+      },
+      "currentRatio": "النسبة الحالية",
+      "netMargin": "صافي الهامش",
+      "avgCollection": "متوسط التحصيل",
+      "avgPayment": "متوسط السداد",
+      "target": "الهدف",
+      "days": "يوم",
+      "healthy": "صحي",
+      "onTarget": "ضمن الهدف",
+      "vatSummary": "ضريبة القيمة المضافة",
+      "collected": "محصّلة",
+      "paid": "مدفوعة",
+      "net": "صافي",
+      "due": "موعد التقديم",
+      "overdueReceivables": "ذمم متأخرة",
+      "pendingItems": "بنود معلقة",
+      "cashFlow": "التدفق النقدي",
+      "in": "وارد",
+      "out": "صادر"
+    },
+    "receipts": "سندات القبض",
+    "payments": "سندات الصرف",
+    "cashJournal": "يومية صندوق",
+    "transfer": "تحويل",
+    "exchange": "صرافة",
+    "journalEntry": "قيد محاسبي",
+    "recentTransactions": "المعاملات الأخيرة",
+    "accountsWatchlist": "قائمة المراقبة",
+    "addToWatchlist": "إضافة إلى قائمة المراقبة",
+    "entryTabs": {
+      "journal": {
+        "title": "قيد محاسبي",
+        "description": "تسجيل قيد محاسبي جديد"
+      },
+      "receipt": {
+        "title": "سند قبض",
+        "description": "تسجيل مبالغ مستلمة"
+      },
+      "payment": {
+        "title": "سند صرف",
+        "description": "تسجيل مبالغ مدفوعة"
+      },
+      "cash": {
+        "title": "يومية صندوق",
+        "description": "حركات الصندوق النقدي"
+      },
+      "transfer": {
+        "title": "تحويل",
+        "description": "تحويل بين الصناديق"
+      },
+      "exchange": {
+        "title": "صرافة",
+        "description": "تصريف عملات"
+      }
+    },
+    "cashJournalPage": {
+      "addCashJournal": "إضافة يومية صندوق",
+      "count": "عدد يومية الصندوق",
+      "totalDebit": "إجمالي المدين",
+      "totalCredit": "إجمالي الدائن",
+      "posted": "مرحّل",
+      "drafts": "مسودات",
+      "searchPlaceholder": "بحث في القيود...",
+      "filter": "فلترة",
+      "type": "النوع",
+      "status": "الحالة",
+      "origin": "المنشأ",
+      "period": "الفترة",
+      "entryNumber": "رقم القيد",
+      "reference": "المرجع",
+      "pickRange": "اختر الفترة",
+      "debit": "مدين",
+      "credit": "دائن",
+      "ref": "المرجع",
+      "noMatchingEntries": "لا توجد يومية صندوق مطابقة",
+      "clearFilters": "مسح الفلاتر",
+      "countLabel": "عدد:",
+      "postedDraftPending": "{posted} مرحّل • {draft} مسودة • {pending} معلّق",
+      "googleSheets": "جداول غوغل",
+      "print": "طباعة"
+    },
+    "entryTypes": {
+      "all": "الكل",
+      "receipt": "مقبوضات",
+      "payment": "مدفوعات",
+      "cash": "يومية الصندوق",
+      "sales": "قيد مبيعات",
+      "purchase": "قيد مشتريات",
+      "expense": "قيد مصروفات",
+      "payroll": "قيد رواتب",
+      "adjustment": "قيد تسوية",
+      "mixed": "قيد مختلف"
+    },
+    "statusTypes": {
+      "all": "الكل",
+      "posted": "مرحّل",
+      "draft": "مسودة",
+      "pending": "قيد المراجعة",
+      "cancelled": "ملغي"
+    },
+    "originTypes": {
+      "all": "الكل",
+      "manual": "يدوي",
+      "sales": "المبيعات",
+      "purchases": "المشتريات",
+      "inventory": "المستودعات",
+      "payroll": "الرواتب",
+      "system": "النظام"
+    },
+    "datePresets": {
+      "all": "كل الفترات",
+      "today": "اليوم",
+      "yesterday": "أمس",
+      "thisWeek": "هذا الأسبوع",
+      "lastWeek": "الأسبوع الماضي",
+      "thisMonth": "هذا الشهر",
+      "lastMonth": "الشهر الماضي",
+      "last7Days": "آخر 7 أيام",
+      "last30Days": "آخر 30 يوم",
+      "last90Days": "آخر 90 يوم",
+      "thisYear": "هذه السنة",
+      "custom": "فترة مخصصة"
+    },
+    "reconciliationColors": {
+      "none": "بدون",
+      "green": "أخضر",
+      "red": "أحمر",
+      "yellow": "أصفر",
+      "blue": "أزرق",
+      "purple": "بنفسجي",
+      "orange": "برتقالي",
+      "gray": "رمادي",
+      "pink": "وردي",
+      "cyan": "سماوي"
+    },
+    "partiesStats": {
+      "totalCustomers": "إجمالي العملاء",
+      "totalReceivables": "إجمالي المستحقات",
+      "totalSuppliers": "إجمالي الموردين",
+      "totalPayables": "إجمالي المستحقات عليك"
+    },
+    "partiesDescription": "إدارة العملاء والموردين والذمم المدينة والدائنة",
+    "customers": "العملاء",
+    "suppliers": "الموردين",
+    "settingsSections": {
+      "company": "إعدادات الشركة",
+      "companyDesc": "المعلومات الأساسية للشركة",
+      "fiscalYear": "السنة المالية",
+      "fiscalYearDesc": "تحديد فترة السنة المالية",
+      "tax": "إعدادات الضريبة",
+      "taxDesc": "تكوين ضريبة القيمة المضافة والضرائب الأخرى",
+      "workflow": "سير العمل",
+      "workflowDesc": "إعدادات الموافقات والترحيل التلقائي"
+    },
+    "settingsFields": {
+      "companyName": "اسم الشركة",
+      "baseCurrency": "العملة الأساسية",
+      "fiscalYearStart": "بداية السنة المالية",
+      "fiscalYearEnd": "نهاية السنة المالية",
+      "enableTax": "تفعيل الضريبة",
+      "enableTaxDesc": "تفعيل احتساب ضريبة القيمة المضافة",
+      "vatRate": "نسبة ضريبة القيمة المضافة",
+      "autoPostEntries": "ترحيل القيود تلقائياً",
+      "autoPostEntriesDesc": "ترحيل القيود اليومية مباشرة بدون مراجعة",
+      "requireApproval": "تتطلب موافقة",
+      "requireApprovalDesc": "طلب موافقة المدير قبل الترحيل"
+    },
+    "settingsInfo": {
+      "title": "معلومات مهمة",
+      "desc1": "تغيير العملة الأساسية قد يؤثر على التقارير المالية.",
+      "desc2": "تأكد من مراجعة الإعدادات قبل الحفظ."
+    },
+    "settingsDescription": "تخصيص إعدادات المحاسبة والسنة المالية والضرائب",
+    "reportsDescription": "عرض التقارير المالية والمحاسبية",
+    "fundsDescription": "إدارة الصناديق النقدية والحسابات البنكية",
+    "selectAccountPrompt": "الرجاء اختيار حساب من القائمة أعلاه"
+  },
+
+  "sales": {
+    "module": "المبيعات",
+    "quotation": "عرض سعر",
+    "salesOrder": "أمر بيع",
+    "deliveryNote": "إذن تسليم",
+    "salesInvoice": "فاتورة مبيعات",
+    "salesReturn": "مرتجع مبيعات",
+    "customer": "العميل",
+    "customers": "العملاء",
+    "priceList": "قائمة الأسعار",
+    "discount": "الخصم",
+    "tax": "الضريبة",
+    "vat": "ضريبة القيمة المضافة"
+  },
+
+  "purchases": {
+    "module": "المشتريات",
+    "purchaseRequest": "طلب شراء",
+    "purchaseOrder": "أمر شراء",
+    "purchaseReceipt": "إذن استلام",
+    "purchaseInvoice": "فاتورة مشتريات",
+    "purchaseReturn": "مرتجع مشتريات",
+    "supplier": "المورد",
+    "suppliers": "الموردين"
+  },
+
+  "inventory": {
+    "module": "المخزون",
+    "items": "الأصناف",
+    "item": "صنف",
+    "warehouse": "المستودع",
+    "warehouses": "المستودعات",
+    "stockEntry": "حركة مخزنية",
+    "stockTransfer": "تحويل مخزني",
+    "stockAdjustment": "تسوية مخزنية",
+    "stockReconciliation": "جرد المخزون",
+    "reorderLevel": "حد إعادة الطلب",
+    "minimumStock": "الحد الأدنى للمخزون",
+    "maximumStock": "الحد الأقصى للمخزون",
+    "currentStock": "المخزون الحالي",
+    "availableStock": "المخزون المتاح",
+    "reservedStock": "المخزون المحجوز"
+  },
+
+  "crm": {
+    "module": "إدارة علاقات العملاء",
+    "leads": "العملاء المحتملين",
+    "opportunities": "الفرص",
+    "contacts": "جهات الاتصال",
+    "activities": "الأنشطة",
+    "campaigns": "الحملات",
+    "pipeline": "مسار المبيعات"
+  },
+
+  "hr": {
+    "module": "الموارد البشرية",
+    "employees": "الموظفين",
+    "employee": "موظف",
+    "departments": "الأقسام",
+    "designations": "المسميات الوظيفية",
+    "attendance": "الحضور",
+    "leave": "الإجازات",
+    "payroll": "الرواتب",
+    "recruitment": "التوظيف",
+    "training": "التدريب",
+    "performance": "الأداء"
+  },
+
+  "pos": {
+    "module": "نقاط البيع",
+    "newSale": "بيع جديد",
+    "cashier": "أمين الصندوق",
+    "register": "الصندوق",
+    "shift": "الوردية",
+    "openShift": "فتح وردية",
+    "closeShift": "إغلاق وردية",
+    "cart": "السلة",
+    "checkout": "الدفع",
+    "payment": "الدفع",
+    "receipt": "الإيصال"
+  },
+
+  "exchange": {
+    "module": "الصرافة",
+    "buyRate": "سعر الشراء",
+    "sellRate": "سعر البيع",
+    "exchangeRate": "سعر الصرف",
+    "currencyExchange": "صرف العملات",
+    "fundTransfer": "تحويل الأموال"
+  },
+
+  "realEstate": {
+    "module": "العقارات",
+    "properties": "العقارات",
+    "units": "الوحدات",
+    "contracts": "العقود",
+    "tenants": "المستأجرين",
+    "rent": "الإيجار",
+    "maintenance": "الصيانة"
+  },
+
+  "manufacturing": {
+    "module": "التصنيع",
+    "bom": "قائمة المواد",
+    "workOrder": "أمر تشغيل",
+    "productionPlan": "خطة الإنتاج",
+    "qualityInspection": "فحص الجودة",
+    "workstation": "محطة العمل"
+  },
+
+  "ecommerce": {
+    "module": "التجارة الإلكترونية",
+    "store": "المتجر",
+    "products": "المنتجات",
+    "categories": "الفئات",
+    "orders": "الطلبات",
+    "shipping": "الشحن",
+    "promotions": "العروض"
+  },
+
+  "validation": {
+    "required": "هذا الحقل مطلوب",
+    "email": "يرجى إدخال بريد إلكتروني صحيح",
+    "minLength": "يجب أن يكون على الأقل {min} أحرف",
+    "maxLength": "يجب ألا يتجاوز {max} أحرف",
+    "min": "يجب أن يكون على الأقل {min}",
+    "max": "يجب ألا يتجاوز {max}",
+    "positive": "يجب أن يكون رقم موجب",
+    "integer": "يجب أن يكون رقم صحيح",
+    "numeric": "يجب أن يكون رقم",
+    "url": "يرجى إدخال رابط صحيح",
+    "phone": "يرجى إدخال رقم هاتف صحيح",
+    "match": "القيم غير متطابقة",
+    "unique": "هذه القيمة موجودة مسبقاً",
+    "date": "يرجى إدخال تاريخ صحيح"
+  },
+
+  "messages": {
+    "saveSuccess": "تم الحفظ بنجاح",
+    "saveError": "فشل الحفظ",
+    "deleteSuccess": "تم الحذف بنجاح",
+    "deleteError": "فشل الحذف",
+    "updateSuccess": "تم التحديث بنجاح",
+    "updateError": "فشل التحديث",
+    "confirmDelete": "هل أنت متأكد أنك تريد الحذف؟",
+    "confirmCancel": "هل أنت متأكد أنك تريد الإلغاء؟",
+    "unsavedChanges": "تغييرات غير محفوظة",
+    "unsavedChangesDesc": "لديك تغييرات غير محفوظة. هل أنت متأكد من إغلاق هذا النموذج؟ سيتم فقدان جميع البيانات.",
+    "discardAndClose": "تجاهل وإغلاق",
+    "noResults": "لا توجد نتائج",
+    "loadingError": "فشل تحميل البيانات",
+    "networkError": "خطأ في الاتصال بالشبكة",
+    "sessionExpired": "انتهت الجلسة",
+    "accessDenied": "الوصول مرفوض",
+    "notFound": "الصفحة غير موجودة",
+    "pageUnderDevelopment": "هذه الصفحة قيد التطوير"
+  },
+
+  "table": {
+    "showing": "عرض",
+    "of": "من",
+    "entries": "سجل",
+    "page": "صفحة",
+    "rowsPerPage": "صفوف لكل صفحة",
+    "noData": "لا توجد بيانات للعرض",
+    "loading": "جاري تحميل البيانات...",
+    "selectRow": "تحديد الصف",
+    "selectAll": "تحديد الكل",
+    "sortAsc": "ترتيب تصاعدي",
+    "sortDesc": "ترتيب تنازلي",
+    "filter": "تصفية",
+    "clearFilters": "مسح التصفية",
+    "export": "تصدير",
+    "print": "طباعة"
+  },
+
+  "languages": {
+    "en": "الإنجليزية",
+    "ar": "العربية",
+    "ru": "الروسية",
+    "uk": "الأوكرانية",
+    "ro": "الرومانية",
+    "pl": "البولندية",
+    "tr": "التركية",
+    "de": "الألمانية",
+    "it": "الإيطالية"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "شركة الفجر للتجارة",
+      "customer2": "مؤسسة النور",
+      "customer3": "شركة الأمل",
+      "customer4": "مصنع السلام"
+    }
+  },
+
+  "componentLab": {
+    "title": "مختبر المكونات",
+    "description": "اختبار ومعاينة جميع البوب أبات والمكونات",
+    "info": {
+      "title": "حول مختبر المكونات",
+      "description": "يسمح هذا المختبر باختبار ومعاينة جميع البوب أبات والحوارات والمكونات المتاحة. اضغط 'فتح' على أي مكون لرؤيته في العمل."
+    },
+    "table": {
+      "id": "معرف المكون",
+      "name": "اسم المكون",
+      "description": "الوصف",
+      "type": "النوع",
+      "status": "الحالة",
+      "path": "مسار الملف",
+      "pathLabel": "المسار",
+      "actions": "الإجراءات",
+      "noPopups": "لا توجد بوب أبات مسجلة بعد"
+    },
+    "status": {
+      "ready": "جاهز",
+      "wip": "قيد العمل",
+      "planned": "مخطط له"
+    },
+    "actions": {
+      "open": "فتح"
+    },
+    "preview": {
+      "title": "معاينة المكون",
+      "description": "معاينة للمكون",
+      "exampleContent": "هذا مثال على محتوى UnifiedSheet. يمكنك إضافة أي محتوى هنا داخل children.",
+      "exampleContentModal": "هذا مثال على محتوى UnifiedModal. يمكنك إضافة أي محتوى هنا داخل children."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "الشريط الموحد",
+        "description": "لوحة جانبية للعروض التفصيلية"
+      },
+      "unifiedModal": {
+        "name": "النافذة الموحدة",
+        "description": "حوار مركزي للنماذج والتأكيدات"
+      },
+      "generalLedgerSheet": {
+        "name": "شيت دفتر الأستاذ العام",
+        "description": "تقرير شامل لجميع حركات الحسابات"
+      },
+      "fundTransferDialog": {
+        "name": "حوار تحويل الأموال",
+        "description": "تحويل الأموال بين الحسابات والبنوك"
+      },
+      "currencyExchangeDialog": {
+        "name": "حوار تصريف العملات",
+        "description": "تصريف العملات داخل صندوق"
+      },
+      "transactionDetailsSheet": {
+        "name": "شيت تفاصيل الحركة",
+        "description": "عرض وتعديل تفاصيل الحركة"
+      },
+      "quickReceiptDialog": {
+        "name": "حوار المقبوضات السريع",
+        "description": "حوار إدخال سريع للمقبوضات"
+      },
+      "quickPaymentDialog": {
+        "name": "حوار المدفوعات السريع",
+        "description": "حوار إدخال سريع للمدفوعات"
+      },
+      "accountDetailsSheet": {
+        "name": "شيت تفاصيل الحساب (قديم)",
+        "description": "تفاصيل شاملة للحساب مع دفتر الأستاذ والحركات (الإصدار القديم مع بيانات تجريبية)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "شيت تفاصيل الحساب V2",
+        "description": "الإصدار النظيف من تفاصيل الحساب - متصل بالبيانات الحقيقية فقط، بدون بيانات تجريبية"
+      },
+      "addFundDialog": {
+        "name": "حوار إضافة صندوق",
+        "description": "حوار لإضافة صندوق أو حساب بنكي جديد"
+      },
+      "addCostCenterDialog": {
+        "name": "حوار إضافة مركز تكلفة",
+        "description": "حوار لإضافة مركز تكلفة جديد"
+      },
+      "fundTransactionSheet": {
+        "name": "شيت معاملات الصندوق",
+        "description": "عرض وإدارة معاملات الصندوق"
+      },
+      "newJournalEntrySheet": {
+        "name": "شيت قيد محاسبي جديد",
+        "description": "شيت متعدد التبويبات للقيود اليومية والمقبوضات والمدفوعات ويومية الصندوق والتحويلات والصرافة"
+      },
+      "journalEntryDetailSheet": {
+        "name": "شيت تفاصيل قيد يومية",
+        "description": "عرض تفصيلي لقيد محاسبي مع جميع البنود والمعلومات المحاسبية"
+      },
+      "invoiceDetailSheet": {
+        "name": "شيت تفاصيل الفاتورة",
+        "description": "عرض تفصيلي للفاتورة مع البنود والمجاميع ومعلومات الدفع"
+      },
+      "paymentDetailSheet": {
+        "name": "شيت تفاصيل السند",
+        "description": "عرض تفصيلي لسند قبض أو صرف مع القيود المحاسبية"
+      },
+      "nexaTable": {
+        "name": "جدول نيكسا",
+        "description": "مكون جدول موحد مع الفرز والفلترة والتحديد والأرقام التسلسلية"
+      },
+      "ledgerTable": {
+        "name": "جدول دفتر الأستاذ المحسّن",
+        "description": "نسخة محسّنة من NexaTable مع فلاتر متقدمة، بطاقات إحصائية، أزرار سريعة للتواريخ، وتلوين تلقائي للأرقام المالية"
+      },
+      "createTenantDialog": {
+        "name": "حوار إنشاء مشترك",
+        "description": "حوار متعدد التبويبات لإنشاء مشترك جديد مع معلومات الشركة والمالك والاشتراك"
+      },
+      "agentDetailsSheet": {
+        "name": "شيت تفاصيل الوكيل",
+        "description": "عرض تفصيلي للوكيل مع معلومات الاتصال والرصيد والعمولات وWhite Label"
+      },
+      "universalDetailSheet": {
+        "name": "الشيت الموحد (Universal)",
+        "description": "نظام شيت موحد يعمل بالإعدادات - يدعم المشتركين والوكلاء والفواتير مع شيتات متداخلة"
+      }
+    },
+    "actions": {
+      "open": "فتح",
+      "openInPlace": "فتح في مكانه"
+    }
+  },
+
+  "qrCode": {
+    "title": "رمز QR",
+    "generate": "توليد QR",
+    "scan": "مسح QR",
+    "scanWithMobile": "امسح بتطبيق الموبايل",
+    "download": "تحميل QR",
+    "print": "طباعة QR",
+    "share": "مشاركة",
+    "copy": "نسخ الرابط",
+    "copied": "تم نسخ الرابط",
+    "docTypes": {
+      "invoice": "فاتورة",
+      "payment": "سند صرف",
+      "receipt": "سند قبض",
+      "journalEntry": "قيد يومية",
+      "account": "حساب",
+      "customer": "عميل",
+      "supplier": "مورد",
+      "order": "طلب",
+      "tenant": "مشترك",
+      "fund": "صندوق"
+    }
+  },
+
+  "statusManager": {
+    "title": "إدارة الحالات",
+    "description": "تحكم في حالات المستندات وصلاحيات الوصول",
+    "newStatus": "حالة جديدة",
+    "editStatus": "تعديل الحالة",
+    "deleteStatus": "حذف الحالة",
+    "statusGroups": "مجموعات الحالات",
+    "selectStatus": "اختر الحالة",
+    "noStatuses": "لا توجد حالات",
+    "cannotDeleteSystem": "لا يمكن حذف حالة النظام",
+    "statusUpdated": "تم تحديث الحالة",
+    "statusCreated": "تم إنشاء الحالة",
+    "statusDeleted": "تم حذف الحالة",
+    "changeTo": "تغيير إلى",
+    "addComment": "أضف تعليق (اختياري)...",
+    "deleteConfirm": "هل أنت متأكد من حذف هذه الحالة؟",
+    "fields": {
+      "nameAr": "الاسم (عربي)",
+      "nameEn": "الاسم (إنجليزي)",
+      "code": "الكود",
+      "group": "المجموعة",
+      "color": "اللون",
+      "timeNorm": "وقت معياري (ساعات)",
+      "isInitial": "حالة ابتدائية",
+      "isFinal": "حالة نهائية",
+      "canView": "من يرى",
+      "canSet": "من يغير"
+    },
+    "groups": {
+      "new": "جديد",
+      "inProgress": "قيد العمل",
+      "pending": "مؤجل",
+      "completed": "مكتمل",
+      "cancelled": "ملغي",
+      "closedSuccess": "مغلق بنجاح",
+      "closedFail": "مغلق بدون نجاح"
+    },
+    "badges": {
+      "system": "نظام",
+      "required": "إلزامي"
+    }
+  },
+
+  "printSystem": {
+    "title": "طباعة المستندات",
+    "print": "طباعة",
+    "printAll": "طباعة الكل",
+    "preview": "معاينة",
+    "exportPdf": "تصدير PDF",
+    "printing": "جاري الطباعة...",
+    "exporting": "جاري التصدير...",
+    "selectTemplate": "اختر القالب",
+    "printOptions": "خيارات الطباعة",
+    "printSettings": "إعدادات الطباعة",
+    "advancedOptions": "خيارات متقدمة...",
+    "relatedDocuments": "المستندات المرتبطة",
+    "options": {
+      "includeQR": "تضمين QR Code",
+      "includeHeader": "تضمين الترويسة",
+      "includeFooter": "تضمين التذييل",
+      "includeStamp": "تضمين الختم",
+      "includeSignature": "تضمين التوقيع"
+    },
+    "categories": {
+      "contract": "العقود",
+      "invoice": "الفواتير",
+      "receipt": "السندات",
+      "report": "التقارير",
+      "other": "أخرى"
+    },
+    "templates": {
+      "salesInvoice": "فاتورة مبيعات",
+      "salesInvoiceNoVat": "فاتورة مبيعات (بدون ضريبة)",
+      "creditNote": "إشعار دائن",
+      "receiptVoucher": "سند قبض",
+      "paymentVoucher": "سند صرف",
+      "salesContract": "عقد بيع",
+      "rentalContract": "عقد إيجار",
+      "accountStatement": "كشف حساب"
+    }
+  },
+
+  "formEditor": {
+    "title": "محرر النماذج",
+    "description": "قم بتخصيص الحقول وترتيبها حسب احتياجاتك",
+    "saveChanges": "حفظ التغييرات",
+    "changesSaved": "تم حفظ التغييرات بنجاح",
+    "addHeader": "إضافة عنوان",
+    "addField": "إضافة حقل",
+    "editHeader": "تعديل العنوان",
+    "editField": "تعديل الحقل",
+    "deleteConfirm": "هل أنت متأكد من الحذف؟",
+    "noFields": "لا توجد حقول",
+    "showOnCard": "عرض على البطاقة",
+    "showOnOrderCard": "عرض على بطاقة الطلب",
+    "formType": "النوع",
+    "default": "افتراضي",
+    "compact": "مختصر",
+    "fields": {
+      "labelAr": "التسمية (عربي)",
+      "labelEn": "التسمية (إنجليزي)",
+      "key": "المفتاح",
+      "type": "النوع",
+      "width": "العرض",
+      "required": "إلزامي",
+      "visible": "مرئي"
+    },
+    "fieldTypes": {
+      "text": "نص",
+      "number": "رقم",
+      "currency": "مبلغ",
+      "date": "تاريخ",
+      "datetime": "تاريخ ووقت",
+      "email": "بريد إلكتروني",
+      "phone": "هاتف",
+      "address": "عنوان",
+      "select": "قائمة منسدلة",
+      "multiselect": "اختيار متعدد",
+      "checkbox": "اختيار",
+      "image": "صورة",
+      "file": "ملف",
+      "reference": "مرجع"
+    },
+    "widths": {
+      "full": "كامل",
+      "half": "نصف",
+      "third": "ثلث"
+    },
+    "badges": {
+      "system": "نظام",
+      "required": "إلزامي"
+    },
+    "fieldCategories": {
+      "system": "حقول النظام",
+      "user": "حقول المستخدم",
+      "new": "حقول جديدة"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "وضع الواجهة",
+    "lite": "لايت",
+    "professional": "احترافي",
+    "liteDescription": "واجهة مبسطة للاستخدام اليومي",
+    "professionalDescription": "جميع الميزات والأدوات المتقدمة",
+    "switch": "تبديل الوضع"
+  },
+
+  "saas": {
+    "title": "إدارة SaaS",
+    "dashboard": "لوحة التحكم",
+    "subscribers": "المشتركين",
+    "packages": "الباقات",
+    "agents": "الوكلاء",
+    "whiteLabel": "White Label",
+    "payments": "المدفوعات",
+    "modules": "الوحدات",
+    "support": "الدعم الفني",
+    "notifications": "الإشعارات",
+    "coupons": "الكوبونات",
+    "referrals": "الإحالات",
+    "webhooks": "Webhooks",
+    "analytics": "التحليلات",
+    "reports": "التقارير",
+    "marketing": "التسويق",
+    "settings": "الإعدادات",
+    "comingSoon": "قريباً - قيد التطوير",
+    "createNew": "إنشاء جديد",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "view": "عرض",
+    "activate": "تفعيل",
+    "suspend": "تعليق",
+    "approve": "موافقة",
+    "reject": "رفض",
+    "status": {
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "pending": "في الانتظار",
+      "suspended": "موقوف",
+      "expired": "منتهي",
+      "cancelled": "ملغي"
+    },
+    "agents": {
+      "title": "إدارة الوكلاء",
+      "description": "إدارة الوكلاء والمسوقين والعمولات",
+      "create": "تسجيل وكيل جديد",
+      "approve": "الموافقة على وكيل",
+      "suspend": "تعليق وكيل",
+      "activate": "تفعيل وكيل",
+      "commissions": "العمولات",
+      "withdrawals": "طلبات السحب",
+      "targets": "الأهداف",
+      "dashboard": "لوحة تحكم الوكيل",
+      "whiteLabel": "White Label",
+      "tier": "المستوى",
+      "balance": "الرصيد",
+      "pendingBalance": "رصيد معلق",
+      "totalEarned": "إجمالي المكتسب",
+      "totalWithdrawn": "إجمالي المسحوب",
+      "totalTenants": "إجمالي العملاء",
+      "activeTenants": "العملاء النشطين",
+      "totalAgents": "إجمالي الوكلاء",
+      "activeAgents": "الوكلاء النشطين",
+      "totalCommissions": "إجمالي العمولات",
+      "contactInfo": "معلومات الاتصال",
+      "tiers": {
+        "bronze": "برونزي",
+        "silver": "فضي",
+        "gold": "ذهبي",
+        "platinum": "بلاتيني",
+        "diamond": "ماسي"
+      },
+      "error": {
+        "loadFailed": "فشل تحميل الوكلاء"
+      }
+    },
+    "tenants": {
+      "title": "إدارة المشتركين",
+      "description": "إدارة المشتركين والاشتراكات",
+      "create": "إنشاء مشترك جديد",
+      "createDescription": "إنشاء مشترك جديد في النظام",
+      "edit": "تعديل مشترك",
+      "suspend": "تعليق مشترك",
+      "activate": "تفعيل مشترك",
+      "details": "تفاصيل المشترك",
+      "subscription": "الاشتراك",
+      "usage": "الاستخدام",
+      "billing": "الفواتير",
+      "total": "إجمالي المشتركين",
+      "agentInfo": "مرتبط بوكيل",
+      "referral": "الإحالة",
+      "referralCode": "كود الإحالة",
+      "referralSource": "مصدر الإحالة",
+      "ownerName": "اسم المالك",
+      "plan": "الباقة",
+      "tabs": {
+        "company": "الشركة",
+        "owner": "المالك",
+        "subscription": "الاشتراك"
+      },
+      "placeholders": {
+        "companyName": "اسم الشركة",
+        "ownerName": "اسم المالك",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "فشل تحميل المشتركين",
+        "noPermission": "لا توجد صلاحية للوصول",
+        "createFailed": "فشل إنشاء المشترك"
+      }
+    },
+    "plans": {
+      "starter": "Starter",
+      "professional": "Professional",
+      "enterprise": "Enterprise"
+    },
+    "whiteLabel": {
+      "title": "نظام White Label",
+      "registerPayment": "تسجيل دفعة White Label",
+      "activate": "تفعيل White Label",
+      "addDomain": "إضافة دومين",
+      "verifyDomain": "التحقق من الدومين",
+      "configureBranding": "تكوين العلامة التجارية",
+      "paymentAmount": "مبلغ الدفعة",
+      "paymentMethod": "طريقة الدفع",
+      "periodMonths": "عدد الأشهر",
+      "domain": "الدومين",
+      "domainType": "نوع الدومين",
+      "brandName": "اسم العلامة التجارية",
+      "logo": "الشعار",
+      "primaryColor": "اللون الأساسي",
+      "contactEmail": "بريد الاتصال",
+      "status": {
+        "inactive": "غير مفعل",
+        "pending": "في انتظار الدفع",
+        "active": "نشط",
+        "suspended": "موقوف",
+        "expired": "منتهي"
+      }
+    }
+  },
+
+  "subscription": {
+    "status": {
+      "active": "نشط",
+      "trial": "تجريبي",
+      "expired": "منتهي",
+      "locked": "مقفل",
+      "grace_period": "فترة سماح",
+      "cancelled": "ملغي"
+    },
+    "alerts": {
+      "lockedMessage": "تم قفل حسابك بسبب عدم الدفع. يرجى تجديد اشتراكك.",
+      "expiredMessage": "انتهى اشتراكك. يرجى التجديد للاستمرار.",
+      "gracePeriodMessage": "اشتراكك في فترة السماح. يتبقى {{days}} أيام للتجديد.",
+      "criticalWarning": "ينتهي اشتراكك خلال {{days}} أيام!",
+      "warningMessage": "ينتهي اشتراكك خلال {{days}} يوم. يرجى التجديد قريباً.",
+      "infoMessage": "يتبقى {{days}} يوم على انتهاء اشتراكك."
+    },
+    "dialogs": {
+      "lockedTitle": "الحساب مقفل",
+      "lockedDescription": "تم قفل حسابك لعدم الدفع. يرجى الذهاب لصفحة الفوترة لتجديد اشتراكك.",
+      "gracePeriodTitle": "فترة السماح",
+      "gracePeriodDescription": "اشتراكك في فترة السماح. يتبقى {{days}} أيام قبل قفل الحساب.",
+      "expiredTitle": "انتهى الاشتراك",
+      "expiredDescription": "انتهت صلاحية اشتراكك. يرجى التجديد للاستمرار في استخدام النظام.",
+      "criticalTitle": "اشتراكك على وشك الانتهاء",
+      "criticalDescription": "ينتهي اشتراكك خلال {{days}} أيام فقط. جدّد الآن لتجنب انقطاع الخدمة.",
+      "warningTitle": "تذكير بالتجديد",
+      "warningDescription": "ينتهي اشتراكك خلال {{days}} يوم. يرجى التجديد لضمان استمرار الخدمة.",
+      "remindLater": "ذكّرني لاحقاً"
+    },
+    "billing": {
+      "title": "الفوترة والاشتراك",
+      "description": "إدارة اشتراكك وطرق الدفع والفواتير",
+      "currentSubscription": "الاشتراك الحالي",
+      "subscriptionDetails": "تفاصيل اشتراكك وحالته",
+      "currentPlan": "الباقة الحالية",
+      "planName": "اسم الباقة",
+      "noPlan": "لا توجد باقة",
+      "periodEnd": "تاريخ الانتهاء",
+      "daysRemaining": "الأيام المتبقية",
+      "gracePeriod": "فترة السماح",
+      "renewNow": "تجديد الآن",
+      "payNow": "ادفع الآن",
+      "upgradePlan": "ترقية الباقة",
+      "goToBilling": "الذهاب للفوترة",
+      "accountInfo": "معلومات الحساب",
+      "accountName": "اسم الحساب",
+      "billingEmail": "بريد الفوترة"
+    },
+    "tabs": {
+      "overview": "نظرة عامة",
+      "plans": "الباقات",
+      "invoices": "الفواتير",
+      "companies": "الشركات"
+    },
+    "storage": {
+      "title": "التخزين",
+      "used": "المستخدم",
+      "remaining": "المتبقي",
+      "files": "الملفات"
+    },
+    "plans": {
+      "current": "الباقة الحالية",
+      "currentPlan": "الباقة الحالية",
+      "selectPlan": "اختيار الباقة",
+      "free": "مجاني",
+      "users": "مستخدم",
+      "companies": "شركة",
+      "storage": "تخزين"
+    },
+    "invoices": {
+      "title": "سجل الفواتير",
+      "number": "رقم الفاتورة",
+      "date": "التاريخ",
+      "amount": "المبلغ",
+      "status": "الحالة",
+      "paid": "مدفوعة",
+      "pending": "معلقة",
+      "overdue": "متأخرة",
+      "noInvoices": "لا توجد فواتير"
+    },
+    "companies": {
+      "title": "الشركات",
+      "description": "الشركات المرتبطة بحسابك",
+      "main": "الرئيسية",
+      "noCompanies": "لا توجد شركات"
+    },
+    "locked": {
+      "title": "الحساب مقفل",
+      "description": "تم قفل حسابك بسبب عدم تجديد الاشتراك.",
+      "account": "الحساب",
+      "status": "الحالة",
+      "gracePeriodInfo": "حسابك في فترة السماح. يتبقى {{days}} أيام قبل القفل الكامل.",
+      "paymentInfo": "يرجى تجديد اشتراكك للوصول لبياناتك مجدداً.",
+      "contactSupport": "تواصل مع الدعم",
+      "needHelp": "تحتاج مساعدة؟"
+    }
+  },
+
+  "documents": {
+    "storage": "التخزين",
+    "upload": "رفع مستند",
+    "uploadFirst": "ارفع أول مستند",
+    "uploadTitle": "رفع مستند جديد",
+    "uploadDescription": "اختر ملفاً للرفع (الحد الأقصى 25 ميجابايت)",
+    "uploading": "جاري الرفع",
+    "uploadSuccess": "تم رفع المستند بنجاح",
+    "deleteSuccess": "تم حذف المستند بنجاح",
+    "deleteTitle": "حذف المستند",
+    "deleteConfirm": "هل أنت متأكد من حذف هذا المستند؟ لا يمكن التراجع عن هذه العملية.",
+    "noDocuments": "لا توجد مستندات مرفقة",
+    "category": "التصنيف",
+    "description": "الوصف",
+    "descriptionPlaceholder": "أدخل وصفاً للمستند (اختياري)",
+    "storageWarning": "المساحة المتبقية قليلة",
+    "storageCritical": "المساحة على وشك الامتلاء!",
+    "categories": {
+      "contract": "عقد",
+      "invoice_copy": "نسخة فاتورة",
+      "receipt": "إيصال",
+      "id_document": "وثيقة هوية",
+      "certificate": "شهادة",
+      "report": "تقرير",
+      "other": "أخرى"
+    },
+    "errors": {
+      "fileTooLarge": "حجم الملف كبير جداً (الحد الأقصى 25 ميجابايت)",
+      "missingInfo": "معلومات ناقصة",
+      "uploadFailed": "فشل رفع الملف",
+      "downloadFailed": "فشل تحميل الملف",
+      "viewFailed": "فشل عرض الملف",
+      "deleteFailed": "فشل حذف الملف",
+      "quota.maxFilesReached": "وصلت للحد الأقصى من الملفات",
+      "quota.storageLimitReached": "وصلت للحد الأقصى من التخزين",
+      "quota.fileTooLarge": "حجم الملف أكبر من المسموح"
+    }
+  },
+
+  "import": {
+    "title": "استيراد البيانات",
+    "step": "الخطوة",
+    "of": "من",
+    
+    "selectEntityType": "اختر نوع البيانات",
+    "selectEntityTypeDescription": "اختر نوع البيانات التي تريد استيرادها",
+    "fields": "حقل",
+    "noEntityTypes": "لا توجد أنواع بيانات متاحة للاستيراد",
+    
+    "downloadTemplate": "تحميل القالب",
+    "downloadTemplateDescription": "قم بتحميل القالب وملئه بالبيانات ثم رفعه",
+    "templateArabic": "قالب عربي",
+    "templateEnglish": "قالب إنجليزي",
+    
+    "dropFileHere": "اسحب الملف هنا",
+    "orClickToSelect": "أو انقر لاختيار ملف",
+    "supportedFormats": "الصيغ المدعومة",
+    "maxSize": "الحجم الأقصى",
+    "parsing": "جاري قراءة الملف...",
+    "requiredFields": "الحقول المطلوبة",
+    
+    "invalidFileType": "نوع الملف غير مدعوم",
+    "fileTooLarge": "حجم الملف أكبر من المسموح",
+    
+    "totalRows": "إجمالي الصفوف",
+    "columns": "الأعمدة",
+    "mapped": "مطابق",
+    "notMapped": "غير مطابق",
+    "missingRequiredFields": "حقول مطلوبة غير مطابقة",
+    
+    "fileColumn": "عمود الملف",
+    "systemField": "حقل النظام",
+    "status": "الحالة",
+    "selectField": "اختر الحقل",
+    "ignore": "تجاهل",
+    "sample": "مثال",
+    
+    "validating": "جاري التحقق...",
+    "validateData": "التحقق من البيانات",
+    
+    "validRows": "صفوف صحيحة",
+    "invalidRows": "صفوف خاطئة",
+    "willImport": "سيتم استيرادها",
+    "errorSummary": "ملخص الأخطاء",
+    
+    "importOptions": "خيارات الاستيراد",
+    "skipInvalidRows": "تخطي الصفوف الخاطئة",
+    "skipInvalidRowsDescription": "استيراد الصفوف الصحيحة فقط وتخطي الخاطئة",
+    "updateExisting": "تحديث الموجود",
+    "updateExistingDescription": "تحديث السجلات الموجودة إذا تطابق الكود",
+    "useAIAnalysis": "استخدام تحليل AI",
+    "useAIAnalysisDescription": "تحليل ذكي للكشف عن التكرارات والأخطاء",
+    
+    "all": "الكل",
+    "valid": "صحيح",
+    "invalid": "خاطئ",
+    "data": "البيانات",
+    "errors": "الأخطاء",
+    "moreErrors": "أخطاء إضافية",
+    "page": "صفحة",
+    
+    "continueToAI": "متابعة لتحليل AI",
+    "continueToPreview": "متابعة للمعاينة",
+    
+    "aiAnalysisComingSoon": "تحليل AI سيكون متاحاً قريباً",
+    "aiAnalysisDescription": "تحليل ذكي للكشف عن التكرارات والأخطاء الإملائية والقيم الشاذة",
+    "startAIAnalysis": "بدء تحليل AI",
+    "reanalyze": "إعادة التحليل",
+    "analyzingData": "جاري تحليل البيانات...",
+    "pleaseWait": "يرجى الانتظار",
+    "aiAnalysisError": "فشل في تحليل البيانات",
+    "rowsWithSuggestions": "صفوف لها اقتراحات",
+    "corrections": "تصحيحات",
+    "potentialDuplicates": "تكرارات محتملة",
+    "warnings": "تنبيهات",
+    "duplicates": "تكرارات",
+    "suggestedCorrections": "التصحيحات المقترحة",
+    "similar": "تشابه",
+    "noIssuesFound": "لم يتم العثور على مشاكل",
+    "analysisComplete": "اكتمل التحليل",
+    "skipAIAnalysis": "تخطي تحليل AI",
+    "applyAndContinue": "تطبيق والمتابعة",
+    "row": "صف",
+    
+    "readyToImport": "جاهز للاستيراد",
+    "reviewAndConfirm": "راجع البيانات وأكد الاستيراد",
+    "recordsToImport": "سجل سيتم استيراده",
+    "entityType": "نوع البيانات",
+    "updateEnabled": "التحديث مفعل",
+    "dataPreview": "معاينة البيانات",
+    "showing": "عرض",
+    "importSettings": "إعدادات الاستيراد",
+    "aiAnalysis": "تحليل AI",
+    "importing": "جاري الاستيراد...",
+    "startImport": "بدء الاستيراد",
+    "records": "سجل",
+    
+    "importingData": "جاري استيراد البيانات",
+    
+    "successTitle": "تم الاستيراد بنجاح!",
+    "successDescription": "تم استيراد جميع البيانات بنجاح",
+    "partialSuccessTitle": "تم الاستيراد جزئياً",
+    "partialSuccessDescription": "تم استيراد بعض البيانات مع وجود أخطاء",
+    "failedTitle": "فشل الاستيراد",
+    "failedDescription": "فشل في استيراد البيانات",
+    
+    "imported": "تم استيراده",
+    "skipped": "تم تخطيه",
+    "failed": "فشل",
+    "successRate": "نسبة النجاح",
+    
+    "importDetails": "تفاصيل الاستيراد",
+    "fileName": "اسم الملف",
+    "startTime": "وقت البدء",
+    "endTime": "وقت الانتهاء",
+    
+    "errorReport": "تقرير الأخطاء",
+    "downloadErrorReport": "تحميل تقرير بالصفوف التي فشل استيرادها",
+    "download": "تحميل",
+    
+    "newImport": "استيراد جديد",
+    "done": "تم"
+  },
+
+  "activityLog": {
+    "title": "سجل الأحداث",
+    "description": "تتبع جميع الأنشطة والتغييرات في النظام",
+    "export": "تصدير",
+    "totalEvents": "إجمالي الأحداث",
+    "today": "أحداث اليوم",
+    "warnings": "تحذيرات",
+    "errors": "أخطاء",
+    "noLogs": "لا توجد سجلات",
+    "noLogsDescription": "لا توجد أحداث تطابق معايير البحث",
+    "searchPlaceholder": "بحث في السجل...",
+    "clearFilters": "مسح الفلاتر",
+    "allActions": "كل الإجراءات",
+    "allTypes": "كل الأنواع",
+    "allLevels": "كل المستويات",
+    "fromDate": "من تاريخ",
+    "toDate": "إلى تاريخ",
+    "dateTime": "التاريخ والوقت",
+    "action": "الإجراء",
+    "entityType": "نوع البيانات",
+    "description": "الوصف",
+    "severity": "الخطورة",
+    "details": "تفاصيل",
+    "eventDetails": "تفاصيل الحدث",
+    "entityInfo": "معلومات البيانات",
+    "changes": "التغييرات",
+    "noChanges": "لا توجد تغييرات مسجلة",
+    "metadata": "بيانات إضافية",
+    "userInfo": "معلومات المستخدم",
+    "userId": "معرّف المستخدم",
+    "showing": "عرض",
+    "of": "من",
+    "entries": "سجل",
+    "page": "صفحة",
+    
+    "actions": {
+      "create": "إنشاء",
+      "update": "تعديل",
+      "delete": "حذف",
+      "login": "تسجيل دخول",
+      "logout": "تسجيل خروج",
+      "import": "استيراد",
+      "export": "تصدير",
+      "status_change": "تغيير حالة",
+      "permission_change": "تغيير صلاحيات",
+      "view": "عرض"
+    },
+    
+    "entities": {
+      "customers": "العملاء",
+      "suppliers": "الموردين",
+      "products": "المنتجات",
+      "chart_of_accounts": "دليل الحسابات",
+      "journal_entries": "القيود المحاسبية",
+      "sales_invoices": "فواتير المبيعات",
+      "purchase_invoices": "فواتير المشتريات",
+      "payments": "المدفوعات",
+      "receipts": "المقبوضات",
+      "companies": "الشركات",
+      "user_profiles": "المستخدمين",
+      "documents": "المستندات",
+      "inventory_movements": "حركات المخزون",
+      "tenants": "المشتركين",
+      "agents": "الوكلاء",
+      "subscriptions": "الاشتراكات"
+    },
+    
+    "severities": {
+      "info": "معلومات",
+      "warning": "تحذير",
+      "error": "خطأ",
+      "critical": "حرج"
+    }
+  }
+}

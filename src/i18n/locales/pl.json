@@ -1,0 +1,1247 @@
+{
+  "app": {
+    "name": "System Planowania Zasobów Przedsiębiorstwa",
+    "shortName": "System ERP",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Jakość, której możesz zaufać",
+      "fullName": "TexaCore - System Planowania Zasobów Przedsiębiorstwa"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Panel",
+    "accounting": "Księgowość",
+    "sales": "Sprzedaż",
+    "purchases": "Zakupy",
+    "inventory": "Magazyn",
+    "crm": "CRM",
+    "hr": "Kadry",
+    "pos": "Kasa",
+    "exchange": "Wymiana Walut",
+    "realEstate": "Nieruchomości",
+    "manufacturing": "Produkcja",
+    "ecommerce": "E-commerce",
+    "saasControl": "Zarządzanie SaaS",
+    "aiAnalytics": "Analityka AI",
+    "systemConfig": "Konfiguracja Systemu",
+    "componentLab": "Laboratorium Komponentów",
+    "settings": "Ustawienia"
+  },
+
+  "common": {
+    "save": "Zapisz",
+    "cancel": "Anuluj",
+    "delete": "Usuń",
+    "edit": "Edytuj",
+    "add": "Dodaj",
+    "create": "Utwórz",
+    "update": "Aktualizuj",
+    "search": "Szukaj",
+    "filter": "Filtruj",
+    "export": "Eksportuj",
+    "import": "Importuj",
+    "print": "Drukuj",
+    "refresh": "Odśwież",
+    "close": "Zamknij",
+    "confirm": "Potwierdź",
+    "back": "Wstecz",
+    "next": "Dalej",
+    "previous": "Poprzedni",
+    "submit": "Wyślij",
+    "reset": "Resetuj",
+    "clear": "Wyczyść",
+    "select": "Wybierz",
+    "selectAll": "Zaznacz Wszystko",
+    "deselectAll": "Odznacz Wszystko",
+    "yes": "Tak",
+    "no": "Nie",
+    "ok": "OK",
+    "loading": "Ładowanie...",
+    "noData": "Brak danych",
+    "error": "Wystąpił błąd",
+    "success": "Operacja zakończona sukcesem",
+    "warning": "Ostrzeżenie",
+    "info": "Informacja",
+    "required": "Wymagane",
+    "optional": "Opcjonalne",
+    "total": "Suma",
+    "subtotal": "Suma częściowa",
+    "balance": "Saldo",
+    "amount": "Kwota",
+    "quantity": "Ilość",
+    "price": "Cena",
+    "date": "Data",
+    "time": "Czas",
+    "status": "Status",
+    "type": "Typ",
+    "name": "Nazwa",
+    "description": "Opis",
+    "notes": "Notatki",
+    "reference": "Referencja",
+    "code": "Kod",
+    "number": "Numer",
+    "actions": "Akcje",
+    "details": "Szczegóły",
+    "history": "Historia",
+    "active": "Aktywny",
+    "inactive": "Nieaktywny",
+    "enabled": "Włączony",
+    "disabled": "Wyłączony",
+    "all": "Wszystko",
+    "none": "Brak",
+    "other": "Inne",
+    "default": "Domyślny",
+    "custom": "Niestandardowy",
+    "country": "Kraj",
+    "phone": "Telefon",
+    "email": "Email",
+    "language": "Język",
+    "timezone": "Strefa czasowa",
+    "city": "Miasto",
+    "countries": {
+      "saudiArabia": "Arabia Saudyjska",
+      "uae": "ZEA",
+      "kuwait": "Kuwejt"
+    },
+    "languages": {
+      "arabic": "Arabski",
+      "english": "Angielski"
+    },
+    "timezones": {
+      "riyadh": "Rijad (GMT+3)",
+      "dubai": "Dubaj (GMT+4)"
+    }
+  },
+
+  "auth": {
+    "login": "Zaloguj",
+    "logout": "Wyloguj",
+    "register": "Rejestracja",
+    "forgotPassword": "Zapomniałeś hasła?",
+    "resetPassword": "Zresetuj Hasło",
+    "changePassword": "Zmień Hasło",
+    "email": "Email",
+    "password": "Hasło",
+    "confirmPassword": "Potwierdź Hasło",
+    "rememberMe": "Zapamiętaj mnie",
+    "welcome": "Witaj",
+    "profile": "Profil",
+    "account": "Konto",
+    "userInitial": "A",
+    "systemAdmin": "Administrator Systemu"
+  },
+
+  "header": {
+    "search": "Szukaj...",
+    "notifications": "Powiadomienia",
+    "quickAdd": "Szybkie Dodawanie",
+    "language": "Język",
+    "theme": "Motyw",
+    "darkMode": "Tryb Ciemny",
+    "lightMode": "Tryb Jasny"
+  },
+
+  "sidebar": {
+    "needHelp": "Potrzebujesz pomocy?",
+    "contactSupport": "Skontaktuj się z pomocą",
+    "collapse": "Zwiń",
+    "expand": "Rozwiń"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "Nowa Faktura Sprzedaży",
+    "newPurchaseInvoice": "Nowa Faktura Zakupu",
+    "receiptVoucher": "Pokwitowanie Wpłaty",
+    "paymentVoucher": "Pokwitowanie Wypłaty",
+    "newProduct": "Nowy Produkt",
+    "newCustomer": "Nowy Klient",
+    "newSupplier": "Nowy Dostawca",
+    "journalEntry": "Zapis w Dzienniku"
+  },
+
+  "filters": {
+    "selectBranch": "Wybierz Oddział",
+    "allBranches": "Wszystkie Oddziały",
+    "selectCurrency": "Wybierz Walutę",
+    "selectPeriod": "Wybierz Okres",
+    "today": "Dzisiaj",
+    "yesterday": "Wczoraj",
+    "thisWeek": "Ten Tydzień",
+    "lastWeek": "Poprzedni Tydzień",
+    "thisMonth": "Ten Miesiąc",
+    "lastMonth": "Poprzedni Miesiąc",
+    "thisYear": "Ten Rok",
+    "lastYear": "Poprzedni Rok",
+    "customRange": "Własny Zakres",
+    "from": "Od",
+    "to": "Do"
+  },
+
+  "tabs": {
+    "overview": "Przegląd",
+    "ledger": "Księga",
+    "invoices": "Faktury",
+    "payments": "Płatności",
+    "reservations": "Rezerwacje",
+    "aiAnalysis": "Analiza AI",
+    "events": "Wydarzenia",
+    "details": "Szczegóły",
+    "history": "Historia",
+    "settings": "Ustawienia",
+    "reports": "Raporty"
+  },
+
+  "status": {
+    "draft": "Szkic",
+    "pending": "Oczekujący",
+    "inProgress": "W Trakcie",
+    "confirmed": "Potwierdzony",
+    "completed": "Zakończony",
+    "partial": "Częściowy",
+    "paid": "Zapłacony",
+    "unpaid": "Niezapłacony",
+    "overdue": "Przeterminowany",
+    "cancelled": "Anulowany",
+    "rejected": "Odrzucony",
+    "approved": "Zatwierdzony",
+    "submitted": "Wysłany",
+    "closed": "Zamknięty",
+    "open": "Otwarty",
+    "warning": "Ostrzeżenie"
+  },
+
+  "stats": {
+    "totalSales": "Całkowita Sprzedaż",
+    "totalRevenue": "Całkowity Przychód",
+    "totalExpenses": "Całkowite Wydatki",
+    "netProfit": "Zysk Netto",
+    "grossProfit": "Zysk Brutto",
+    "totalOrders": "Wszystkie Zamówienia",
+    "pendingOrders": "Oczekujące Zamówienia",
+    "completedOrders": "Zrealizowane Zamówienia",
+    "totalCustomers": "Wszyscy Klienci",
+    "activeCustomers": "Aktywni Klienci",
+    "newCustomers": "Nowi Klienci",
+    "totalSuppliers": "Wszyscy Dostawcy",
+    "totalProducts": "Wszystkie Produkty",
+    "lowStock": "Niski Stan",
+    "outOfStock": "Brak w Magazynie"
+  },
+
+  "currencies": {
+    "SAR": "Rial Saudyjski",
+    "USD": "Dolar Amerykański",
+    "EUR": "Euro",
+    "GBP": "Funt Brytyjski",
+    "AED": "Dirham ZEA",
+    "KWD": "Dinar Kuwejcki",
+    "QAR": "Rial Katarski",
+    "BHD": "Dinar Bahrajński",
+    "OMR": "Rial Omański",
+    "EGP": "Funt Egipski",
+    "JOD": "Dinar Jordański",
+    "TRY": "Lira Turecka",
+    "RUB": "Rubel Rosyjski",
+    "UAH": "Hrywna Ukraińska",
+    "PLN": "Złoty Polski",
+    "RON": "Lej Rumuński"
+  },
+
+  "branches": {
+    "main": "Oddział Główny",
+    "all": "Wszystkie Oddziały"
+  },
+
+  "dashboard": {
+    "title": "Panel",
+    "subtitle": "Kompleksowy widok wszystkich modułów systemu",
+    "welcomeMessage": "Witaj w Systemie Planowania Zasobów Przedsiębiorstwa",
+    "recentOrders": "Ostatnie Zamówienia",
+    "recentInvoices": "Ostatnie Faktury",
+    "recentPayments": "Ostatnie Płatności",
+    "quickStats": "Szybkie Statystyki",
+    "viewAll": "Zobacz Wszystko",
+    "chartsPlaceholder": "Wykresy zostaną dodane tutaj"
+  },
+
+  "accounting": {
+    "module": "Księgowość",
+    "chartOfAccounts": "Plan Kont",
+    "journalEntries": "Zapisy w Dzienniku",
+    "generalLedger": "Księga Główna",
+    "trialBalance": "Bilans Próbny",
+    "incomeStatement": "Rachunek Zysków i Strat",
+    "balanceSheet": "Bilans",
+    "cashFlow": "Przepływy Pieniężne",
+    "costCenters": "Centra Kosztów",
+    "budgets": "Budżety",
+    "fiscalYear": "Rok Obrotowy",
+    "closingEntries": "Zapisy Zamykające",
+    "addAccount": "Dodaj konto",
+    "addNewRow": "Dodaj nowy wiersz",
+    "addRow": "Dodaj wiersz",
+    "balanceEntry": "Zbilansuj zapis",
+    "duplicateRow": "Duplikuj wiersz",
+    "copyAccountDown": "Kopiuj konto do następnego wiersza",
+    "save": "Zapisz",
+    "account": {
+      "name": "Nazwa Konta",
+      "code": "Kod Konta",
+      "type": "Typ Konta",
+      "parent": "Konto Nadrzędne",
+      "balance": "Saldo",
+      "currency": "Waluta",
+      "select": "Wybierz konto...",
+      "notFound": "Nie znaleziono konta",
+      "treeSelector": "Plan kont",
+      "treeSelectorDescription": "Wybierz konta z drzewa - Kliknij dwukrotnie, aby dodać",
+      "closeTree": "Zamknij drzewo",
+      "selectedCount": "zaznaczonych",
+      "doubleClickToAdd": "Kliknij dwukrotnie, aby dodać konto",
+      "onlyAccounts": "Tylko konta (nie grupy)"
+    },
+    "entry": {
+      "number": "Numer Zapisu",
+      "date": "Data Zapisu",
+      "reference": "Referencja",
+      "description": "Opis",
+      "debit": "Debet",
+      "credit": "Kredyt",
+      "total": "Suma"
+    },
+    "receipt": {
+      "title": "Pokwitowanie Wpłaty",
+      "number": "Numer Pokwitowania",
+      "date": "Data Pokwitowania",
+      "customer": "Klient",
+      "amount": "Kwota",
+      "paymentMethod": "Metoda Płatności",
+      "fund": "Fundusz",
+      "notes": "Notatki",
+      "customerInfo": "Informacje o Kliencie"
+    },
+    "payment": {
+      "title": "Pokwitowanie Wypłaty",
+      "number": "Numer Pokwitowania",
+      "date": "Data Pokwitowania",
+      "supplier": "Dostawca",
+      "amount": "Kwota",
+      "paymentMethod": "Metoda Płatności",
+      "fund": "Fundusz",
+      "notes": "Notatki"
+    },
+    "labels": {
+      "debitTotal": "Suma Debet",
+      "creditTotal": "Suma Kredyt",
+      "balance": "Saldo",
+      "difference": "Różnica",
+      "marked": "Oznaczony"
+    },
+    "currentBalance": "Saldo Bieżące",
+    "openingBalance": "Saldo Początkowe",
+    "closingBalance": "Saldo Końcowe",
+    "periodMovement": "Ruch w Okresie",
+    "entryTabs": {
+      "journal": {
+        "title": "Zapis w Dzienniku",
+        "description": "Utwórz nowy zapis księgowy"
+      },
+      "receipt": {
+        "title": "Pokwitowanie",
+        "description": "Zarejestruj otrzymane płatności"
+      },
+      "payment": {
+        "title": "Płatność",
+        "description": "Zarejestruj wychodzące płatności"
+      },
+      "cash": {
+        "title": "Dziennik Kasowy",
+        "description": "Ruchy funduszu gotówkowego"
+      },
+      "transfer": {
+        "title": "Transfer",
+        "description": "Transfer między funduszami"
+      },
+      "exchange": {
+        "title": "Wymiana",
+        "description": "Wymiana walut"
+      }
+    },
+    "partiesStats": {
+      "totalCustomers": "Łączna liczba klientów",
+      "totalReceivables": "Łączne należności",
+      "totalSuppliers": "Łączna liczba dostawców",
+      "totalPayables": "Łączne zobowiązania"
+    },
+    "partiesDescription": "Zarządzaj klientami, dostawcami, należnościami i zobowiązaniami",
+    "customers": "Klienci",
+    "suppliers": "Dostawcy",
+    "settingsSections": {
+      "company": "Ustawienia firmy",
+      "companyDesc": "Podstawowe informacje o firmie",
+      "fiscalYear": "Rok obrotowy",
+      "fiscalYearDesc": "Określ okres roku obrotowego",
+      "tax": "Ustawienia podatkowe",
+      "taxDesc": "Skonfiguruj VAT i inne podatki",
+      "workflow": "Przepływ pracy",
+      "workflowDesc": "Ustawienia zatwierdzania i automatycznego księgowania"
+    },
+    "settingsFields": {
+      "companyName": "Nazwa firmy",
+      "baseCurrency": "Waluta bazowa",
+      "fiscalYearStart": "Początek roku obrotowego",
+      "fiscalYearEnd": "Koniec roku obrotowego",
+      "enableTax": "Włącz podatek",
+      "enableTaxDesc": "Włącz obliczanie VAT",
+      "vatRate": "Stawka VAT",
+      "autoPostEntries": "Automatyczne księgowanie",
+      "autoPostEntriesDesc": "Księguj wpisy bezpośrednio bez weryfikacji",
+      "requireApproval": "Wymagane zatwierdzenie",
+      "requireApprovalDesc": "Wymagaj zatwierdzenia kierownika przed księgowaniem"
+    },
+    "settingsInfo": {
+      "title": "Ważna informacja",
+      "desc1": "Zmiana waluty bazowej może wpłynąć na raporty finansowe.",
+      "desc2": "Upewnij się, że sprawdziłeś ustawienia przed zapisaniem."
+    },
+    "settingsDescription": "Dostosuj ustawienia księgowości, roku obrotowego i podatków",
+    "reportsDescription": "Przeglądaj raporty finansowe i księgowe",
+    "fundsDescription": "Zarządzaj gotówką i kontami bankowymi",
+    "selectAccountPrompt": "Proszę wybrać konto z powyższej listy"
+  },
+
+  "sales": {
+    "module": "Sprzedaż",
+    "quotation": "Oferta",
+    "salesOrder": "Zamówienie Sprzedaży",
+    "deliveryNote": "Dowód Dostawy",
+    "salesInvoice": "Faktura Sprzedaży",
+    "salesReturn": "Zwrot Sprzedaży",
+    "customer": "Klient",
+    "customers": "Klienci",
+    "priceList": "Cennik",
+    "discount": "Rabat",
+    "tax": "Podatek",
+    "vat": "VAT"
+  },
+
+  "purchases": {
+    "module": "Zakupy",
+    "purchaseRequest": "Zapotrzebowanie",
+    "purchaseOrder": "Zamówienie Zakupu",
+    "purchaseReceipt": "Przyjęcie Towaru",
+    "purchaseInvoice": "Faktura Zakupu",
+    "purchaseReturn": "Zwrot do Dostawcy",
+    "supplier": "Dostawca",
+    "suppliers": "Dostawcy"
+  },
+
+  "inventory": {
+    "module": "Magazyn",
+    "items": "Pozycje",
+    "item": "Pozycja",
+    "warehouse": "Magazyn",
+    "warehouses": "Magazyny",
+    "stockEntry": "Ruch Magazynowy",
+    "stockTransfer": "Przesunięcie",
+    "stockAdjustment": "Korekta",
+    "stockReconciliation": "Inwentaryzacja",
+    "reorderLevel": "Poziom Ponownego Zamówienia",
+    "minimumStock": "Minimalny Stan",
+    "maximumStock": "Maksymalny Stan",
+    "currentStock": "Bieżący Stan",
+    "availableStock": "Dostępny Stan",
+    "reservedStock": "Zarezerwowany Stan"
+  },
+
+  "crm": {
+    "module": "Zarządzanie Relacjami z Klientami",
+    "leads": "Leady",
+    "opportunities": "Szanse",
+    "contacts": "Kontakty",
+    "activities": "Aktywności",
+    "campaigns": "Kampanie",
+    "pipeline": "Lejek Sprzedaży"
+  },
+
+  "hr": {
+    "module": "Zarządzanie Kadrami",
+    "employees": "Pracownicy",
+    "employee": "Pracownik",
+    "departments": "Działy",
+    "designations": "Stanowiska",
+    "attendance": "Obecność",
+    "leave": "Urlopy",
+    "payroll": "Płace",
+    "recruitment": "Rekrutacja",
+    "training": "Szkolenia",
+    "performance": "Wydajność"
+  },
+
+  "pos": {
+    "module": "Kasa",
+    "newSale": "Nowa Sprzedaż",
+    "cashier": "Kasjer",
+    "register": "Kasa",
+    "shift": "Zmiana",
+    "openShift": "Otwórz Zmianę",
+    "closeShift": "Zamknij Zmianę",
+    "cart": "Koszyk",
+    "checkout": "Realizacja",
+    "payment": "Płatność",
+    "receipt": "Paragon"
+  },
+
+  "exchange": {
+    "module": "Wymiana Walut",
+    "buyRate": "Kurs Kupna",
+    "sellRate": "Kurs Sprzedaży",
+    "exchangeRate": "Kurs Wymiany",
+    "currencyExchange": "Wymiana Walut",
+    "fundTransfer": "Transfer Środków"
+  },
+
+  "realEstate": {
+    "module": "Nieruchomości",
+    "properties": "Nieruchomości",
+    "units": "Jednostki",
+    "contracts": "Umowy",
+    "tenants": "Najemcy",
+    "rent": "Wynajem",
+    "maintenance": "Konserwacja"
+  },
+
+  "manufacturing": {
+    "module": "Produkcja",
+    "bom": "Lista Materiałowa",
+    "workOrder": "Zlecenie Produkcyjne",
+    "productionPlan": "Plan Produkcji",
+    "qualityInspection": "Kontrola Jakości",
+    "workstation": "Stanowisko Pracy"
+  },
+
+  "ecommerce": {
+    "module": "E-commerce",
+    "store": "Sklep",
+    "products": "Produkty",
+    "categories": "Kategorie",
+    "orders": "Zamówienia",
+    "shipping": "Wysyłka",
+    "promotions": "Promocje"
+  },
+
+  "validation": {
+    "required": "To pole jest wymagane",
+    "email": "Wprowadź poprawny email",
+    "minLength": "Minimum {min} znaków",
+    "maxLength": "Maksimum {max} znaków",
+    "min": "Minimum {min}",
+    "max": "Maksimum {max}",
+    "positive": "Musi być liczbą dodatnią",
+    "integer": "Musi być liczbą całkowitą",
+    "numeric": "Musi być liczbą",
+    "url": "Wprowadź poprawny URL",
+    "phone": "Wprowadź poprawny numer telefonu",
+    "match": "Wartości nie pasują",
+    "unique": "Ta wartość już istnieje",
+    "date": "Wprowadź poprawną datę"
+  },
+
+  "messages": {
+    "saveSuccess": "Zapisano pomyślnie",
+    "saveError": "Błąd zapisu",
+    "deleteSuccess": "Usunięto pomyślnie",
+    "deleteError": "Błąd usuwania",
+    "updateSuccess": "Zaktualizowano pomyślnie",
+    "updateError": "Błąd aktualizacji",
+    "confirmDelete": "Czy na pewno chcesz usunąć?",
+    "confirmCancel": "Czy na pewno chcesz anulować?",
+    "unsavedChanges": "Masz niezapisane zmiany",
+    "noResults": "Nie znaleziono wyników",
+    "loadingError": "Błąd ładowania danych",
+    "networkError": "Błąd połączenia sieciowego",
+    "sessionExpired": "Sesja wygasła",
+    "accessDenied": "Dostęp zabroniony",
+    "notFound": "Nie znaleziono strony",
+    "pageUnderDevelopment": "Ta strona jest w trakcie rozwoju"
+  },
+
+  "table": {
+    "showing": "Wyświetlanie",
+    "of": "z",
+    "entries": "wpisów",
+    "page": "Strona",
+    "rowsPerPage": "Wierszy na stronę",
+    "noData": "Brak danych do wyświetlenia",
+    "loading": "Ładowanie danych...",
+    "selectRow": "Wybierz wiersz",
+    "selectAll": "Zaznacz wszystko",
+    "sortAsc": "Sortuj rosnąco",
+    "sortDesc": "Sortuj malejąco",
+    "filter": "Filtruj",
+    "clearFilters": "Wyczyść filtry",
+    "export": "Eksportuj",
+    "print": "Drukuj"
+  },
+
+  "languages": {
+    "en": "Angielski",
+    "ar": "Arabski",
+    "ru": "Rosyjski",
+    "uk": "Ukraiński",
+    "ro": "Rumuński",
+    "pl": "Polski",
+    "tr": "Turecki",
+    "de": "Niemiecki",
+    "it": "Włoski"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Firma Handlowa Al-Fajr",
+      "customer2": "Fundacja Al-Noor",
+      "customer3": "Firma Al-Amal",
+      "customer4": "Fabryka Al-Salam"
+    }
+  },
+
+  "componentLab": {
+    "title": "Laboratorium Komponentów",
+    "description": "Testowanie i podgląd wszystkich popup-ów i komponentów",
+    "info": {
+      "title": "O Laboratorium Komponentów",
+      "description": "To laboratorium pozwala testować i podglądać wszystkie dostępne popup-y, dialogi i komponenty. Kliknij 'Otwórz' na dowolnym komponencie, aby zobaczyć go w działaniu."
+    },
+    "table": {
+      "id": "ID Komponentu",
+      "name": "Nazwa Komponentu",
+      "description": "Opis",
+      "type": "Typ",
+      "status": "Status",
+      "path": "Ścieżka Pliku",
+      "pathLabel": "Ścieżka",
+      "actions": "Akcje",
+      "noPopups": "Brak zarejestrowanych popup-ów"
+    },
+    "status": {
+      "ready": "Gotowy",
+      "wip": "W trakcie",
+      "planned": "Zaplanowany"
+    },
+    "actions": {
+      "open": "Otwórz"
+    },
+    "preview": {
+      "title": "Podgląd Komponentu",
+      "description": "Podgląd dla komponentu",
+      "exampleContent": "To jest przykład zawartości UnifiedSheet. Możesz dodać dowolną zawartość tutaj wewnątrz children.",
+      "exampleContentModal": "To jest przykład zawartości UnifiedModal. Możesz dodać dowolną zawartość tutaj wewnątrz children."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Ujednolicony Arkusz",
+        "description": "Panel boczny do szczegółowych widoków"
+      },
+      "unifiedModal": {
+        "name": "Ujednolicone Okno Modalne",
+        "description": "Centralne okno dialogowe dla formularzy i potwierdzeń"
+      },
+      "generalLedgerSheet": {
+        "name": "Arkusz Księgi Głównej",
+        "description": "Kompleksowy raport wszystkich ruchów kont"
+      },
+      "fundTransferDialog": {
+        "name": "Dialog Transferu Środków",
+        "description": "Transfer środków między kontami i bankami"
+      },
+      "currencyExchangeDialog": {
+        "name": "Dialog Wymiany Walut",
+        "description": "Wymiana walut w ramach funduszu"
+      },
+      "transactionDetailsSheet": {
+        "name": "Arkusz Szczegółów Transakcji",
+        "description": "Wyświetlanie i edycja szczegółów transakcji"
+      },
+      "quickReceiptDialog": {
+        "name": "Dialog Szybkiego Dowodu",
+        "description": "Dialog szybkiego wprowadzania dla dowodów"
+      },
+      "quickPaymentDialog": {
+        "name": "Dialog Szybkiej Płatności",
+        "description": "Dialog szybkiego wprowadzania dla płatności"
+      },
+      "accountDetailsSheet": {
+        "name": "Arkusz Szczegółów Konta (Stary)",
+        "description": "Kompleksowe szczegóły konta z księgą i transakcjami (Stara wersja z danymi testowymi)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Arkusz Szczegółów Konta V2",
+        "description": "Czysta wersja szczegółów konta - połączona tylko z rzeczywistymi danymi, bez danych testowych"
+      },
+      "addFundDialog": {
+        "name": "Dialog Dodawania Funduszu",
+        "description": "Dialog dodawania nowego funduszu lub konta bankowego"
+      },
+      "addCostCenterDialog": {
+        "name": "Dialog Dodawania Centrum Kosztów",
+        "description": "Dialog dodawania nowego centrum kosztów"
+      },
+      "fundTransactionSheet": {
+        "name": "Arkusz Transakcji Funduszu",
+        "description": "Wyświetlanie i zarządzanie transakcjami funduszu"
+      },
+      "newJournalEntrySheet": {
+        "name": "Arkusz Nowego Zapisu Księgowego",
+        "description": "Wielozakładkowy arkusz dla zapisów księgowych, pokwitowań, płatności, dziennika kasowego, przelewów i wymiany walut"
+      },
+      "createTenantDialog": {
+        "name": "Dialog Tworzenia Najemcy",
+        "description": "Wielozakładkowy dialog do tworzenia nowego najemcy z informacjami o firmie, właścicielu i subskrypcji"
+      },
+      "agentDetailsSheet": {
+        "name": "Arkusz Szczegółów Agenta",
+        "description": "Szczegółowy widok agenta z danymi kontaktowymi, saldem, prowizjami i statusem White Label"
+      }
+    },
+    "actions": {
+      "open": "Otwórz",
+      "openInPlace": "Otwórz w miejscu"
+    }
+  },
+
+  "saas": {
+    "title": "Zarządzanie SaaS",
+    "dashboard": "Panel",
+    "subscribers": "Subskrybenci",
+    "packages": "Pakiety",
+    "agents": "Agenci",
+    "whiteLabel": "White Label",
+    "payments": "Płatności",
+    "modules": "Moduły",
+    "support": "Wsparcie",
+    "notifications": "Powiadomienia",
+    "coupons": "Kupony",
+    "referrals": "Program Poleceń",
+    "webhooks": "Webhooks",
+    "analytics": "Analityka",
+    "reports": "Raporty",
+    "marketing": "Marketing",
+    "settings": "Ustawienia",
+    "comingSoon": "Wkrótce - W przygotowaniu",
+    "createNew": "Utwórz nowy",
+    "edit": "Edytuj",
+    "delete": "Usuń",
+    "view": "Podgląd",
+    "activate": "Aktywuj",
+    "suspend": "Zawieś",
+    "approve": "Zatwierdź",
+    "reject": "Odrzuć",
+    "status": {
+      "active": "Aktywny",
+      "inactive": "Nieaktywny",
+      "pending": "Oczekujący",
+      "suspended": "Zawieszony",
+      "expired": "Wygasły",
+      "cancelled": "Anulowany"
+    },
+    "agents": {
+      "title": "Zarządzanie Agentami",
+      "description": "Zarządzaj agentami, resellerami i prowizjami",
+      "create": "Zarejestruj Nowego Agenta",
+      "approve": "Zatwierdź Agenta",
+      "suspend": "Zawieś Agenta",
+      "activate": "Aktywuj Agenta",
+      "commissions": "Prowizje",
+      "withdrawals": "Wypłaty",
+      "targets": "Cele",
+      "dashboard": "Panel Agenta",
+      "whiteLabel": "White Label",
+      "tier": "Poziom",
+      "balance": "Saldo",
+      "pendingBalance": "Saldo Oczekujące",
+      "totalEarned": "Łącznie Zarobione",
+      "totalWithdrawn": "Łącznie Wypłacone",
+      "totalTenants": "Łącznie Klientów",
+      "activeTenants": "Aktywni Klienci",
+      "totalAgents": "Łącznie Agentów",
+      "activeAgents": "Aktywni Agenci",
+      "totalCommissions": "Łącznie Prowizji",
+      "contactInfo": "Dane Kontaktowe",
+      "tiers": {
+        "bronze": "Brąz",
+        "silver": "Srebro",
+        "gold": "Złoto",
+        "platinum": "Platyna",
+        "diamond": "Diament"
+      },
+      "error": {
+        "loadFailed": "Nie udało się załadować agentów"
+      }
+    },
+    "tenants": {
+      "title": "Zarządzanie Subskrybentami",
+      "description": "Zarządzaj subskrybentami i subskrypcjami",
+      "create": "Utwórz Nowego Subskrybenta",
+      "createDescription": "Utwórz nowego subskrybenta w systemie",
+      "edit": "Edytuj Subskrybenta",
+      "suspend": "Zawieś Subskrybenta",
+      "activate": "Aktywuj Subskrybenta",
+      "details": "Szczegóły Subskrybenta",
+      "subscription": "Subskrypcja",
+      "usage": "Użycie",
+      "billing": "Rozliczenia",
+      "total": "Łącznie Subskrybentów",
+      "agentInfo": "Powiązany z Agentem",
+      "referral": "Polecenie",
+      "referralCode": "Kod Polecenia",
+      "referralSource": "Źródło Polecenia",
+      "ownerName": "Imię Właściciela",
+      "plan": "Plan",
+      "tabs": {
+        "company": "Firma",
+        "owner": "Właściciel",
+        "subscription": "Subskrypcja"
+      },
+      "placeholders": {
+        "companyName": "Nazwa Firmy",
+        "ownerName": "Imię Właściciela",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Nie udało się załadować subskrybentów",
+        "noPermission": "Brak uprawnień dostępu",
+        "createFailed": "Nie udało się utworzyć subskrybenta"
+      }
+    },
+    "plans": {
+      "starter": "Startowy",
+      "professional": "Profesjonalny",
+      "enterprise": "Korporacyjny"
+    },
+    "whiteLabel": {
+      "title": "System White Label",
+      "registerPayment": "Zarejestruj Płatność White Label",
+      "activate": "Aktywuj White Label",
+      "addDomain": "Dodaj Domenę",
+      "verifyDomain": "Zweryfikuj Domenę",
+      "configureBranding": "Konfiguruj Branding",
+      "paymentAmount": "Kwota Płatności",
+      "paymentMethod": "Metoda Płatności",
+      "periodMonths": "Okres (Miesiące)",
+      "domain": "Domena",
+      "domainType": "Typ Domeny",
+      "brandName": "Nazwa Marki",
+      "logo": "Logo",
+      "primaryColor": "Kolor Główny",
+      "contactEmail": "Email Kontaktowy",
+      "status": {
+        "inactive": "Nieaktywny",
+        "pending": "Oczekuje na Płatność",
+        "active": "Aktywny",
+        "suspended": "Zawieszony",
+        "expired": "Wygasły"
+      },
+      "commission": "Prowizja %"
+    }
+  },
+
+  "qrCode": {
+    "title": "Kod QR",
+    "generate": "Generuj QR",
+    "scan": "Skanuj QR",
+    "scanWithMobile": "Skanuj aplikacją mobilną",
+    "download": "Pobierz QR",
+    "print": "Drukuj QR",
+    "share": "Udostępnij",
+    "copy": "Kopiuj link",
+    "copied": "Link skopiowany",
+    "docTypes": {
+      "invoice": "Faktura",
+      "payment": "Płatność",
+      "receipt": "Paragon",
+      "journalEntry": "Zapis księgowy",
+      "account": "Konto",
+      "customer": "Klient",
+      "supplier": "Dostawca",
+      "order": "Zamówienie",
+      "tenant": "Subskrybent",
+      "fund": "Kasa"
+    }
+  },
+
+  "statusManager": {
+    "title": "Zarządzanie statusami",
+    "description": "Zarządzaj statusami dokumentów i uprawnieniami dostępu",
+    "newStatus": "Nowy status",
+    "editStatus": "Edytuj status",
+    "deleteStatus": "Usuń status",
+    "statusGroups": "Grupy statusów",
+    "selectStatus": "Wybierz status",
+    "noStatuses": "Nie znaleziono statusów",
+    "cannotDeleteSystem": "Nie można usunąć statusu systemowego",
+    "statusUpdated": "Status zaktualizowany",
+    "statusCreated": "Status utworzony",
+    "statusDeleted": "Status usunięty",
+    "changeTo": "Zmień na",
+    "addComment": "Dodaj komentarz (opcjonalnie)...",
+    "deleteConfirm": "Czy na pewno chcesz usunąć ten status?",
+    "fields": {
+      "nameAr": "Nazwa (Arabski)",
+      "nameEn": "Nazwa (Angielski)",
+      "code": "Kod",
+      "group": "Grupa",
+      "color": "Kolor",
+      "timeNorm": "Norma czasowa (godziny)",
+      "isInitial": "Status początkowy",
+      "isFinal": "Status końcowy",
+      "canView": "Może wyświetlać",
+      "canSet": "Może ustawiać"
+    },
+    "groups": {
+      "new": "Nowy",
+      "inProgress": "W trakcie",
+      "pending": "Oczekujący",
+      "completed": "Zakończony",
+      "cancelled": "Anulowany",
+      "closedSuccess": "Zamknięty pomyślnie",
+      "closedFail": "Zamknięty niepomyślnie"
+    },
+    "badges": {
+      "system": "Systemowy",
+      "required": "Wymagany"
+    }
+  },
+
+  "printSystem": {
+    "title": "Drukuj dokumenty",
+    "print": "Drukuj",
+    "printAll": "Drukuj wszystko",
+    "preview": "Podgląd",
+    "exportPdf": "Eksportuj PDF",
+    "printing": "Drukowanie...",
+    "exporting": "Eksportowanie...",
+    "selectTemplate": "Wybierz szablon",
+    "printOptions": "Opcje drukowania",
+    "printSettings": "Ustawienia drukowania",
+    "advancedOptions": "Opcje zaawansowane...",
+    "relatedDocuments": "Powiązane dokumenty",
+    "options": {
+      "includeQR": "Dołącz kod QR",
+      "includeHeader": "Dołącz nagłówek",
+      "includeFooter": "Dołącz stopkę",
+      "includeStamp": "Dołącz pieczęć",
+      "includeSignature": "Dołącz podpis"
+    },
+    "categories": {
+      "contract": "Umowy",
+      "invoice": "Faktury",
+      "receipt": "Paragony",
+      "report": "Raporty",
+      "other": "Inne"
+    },
+    "templates": {
+      "salesInvoice": "Faktura sprzedaży",
+      "salesInvoiceNoVat": "Faktura sprzedaży (bez VAT)",
+      "creditNote": "Nota kredytowa",
+      "receiptVoucher": "Dowód wpłaty",
+      "paymentVoucher": "Dowód wypłaty",
+      "salesContract": "Umowa sprzedaży",
+      "rentalContract": "Umowa najmu",
+      "accountStatement": "Wyciąg z konta"
+    }
+  },
+
+  "formEditor": {
+    "title": "Edytor formularzy",
+    "description": "Dostosuj pola i ich kolejność do swoich potrzeb",
+    "saveChanges": "Zapisz zmiany",
+    "changesSaved": "Zmiany zapisane pomyślnie",
+    "addHeader": "Dodaj nagłówek",
+    "addField": "Dodaj pole",
+    "editHeader": "Edytuj nagłówek",
+    "editField": "Edytuj pole",
+    "deleteConfirm": "Czy na pewno chcesz usunąć?",
+    "noFields": "Brak pól",
+    "showOnCard": "Pokaż na karcie",
+    "showOnOrderCard": "Pokaż na karcie zamówienia",
+    "formType": "Typ",
+    "default": "Domyślny",
+    "compact": "Kompaktowy",
+    "fields": {
+      "labelAr": "Etykieta (Arabski)",
+      "labelEn": "Etykieta (Angielski)",
+      "key": "Klucz",
+      "type": "Typ",
+      "width": "Szerokość",
+      "required": "Wymagane",
+      "visible": "Widoczne"
+    },
+    "fieldTypes": {
+      "text": "Tekst",
+      "number": "Liczba",
+      "currency": "Waluta",
+      "date": "Data",
+      "datetime": "Data i czas",
+      "email": "Email",
+      "phone": "Telefon",
+      "address": "Adres",
+      "select": "Lista rozwijana",
+      "multiselect": "Wielokrotny wybór",
+      "checkbox": "Pole wyboru",
+      "image": "Obraz",
+      "file": "Plik",
+      "reference": "Referencja"
+    },
+    "widths": {
+      "full": "Pełna",
+      "half": "Połowa",
+      "third": "Trzecia"
+    },
+    "badges": {
+      "system": "Systemowe",
+      "required": "Wymagane"
+    },
+    "fieldCategories": {
+      "system": "Pola systemowe",
+      "user": "Pola użytkownika",
+      "new": "Nowe pola"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Tryb interfejsu",
+    "lite": "Lite",
+    "professional": "Profesjonalny",
+    "liteDescription": "Uproszczony interfejs do codziennego użytku",
+    "professionalDescription": "Wszystkie funkcje i zaawansowane narzędzia",
+    "switch": "Zmień tryb"
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Aktywna",
+      "trial": "Próbna",
+      "expired": "Wygasła",
+      "locked": "Zablokowana",
+      "grace_period": "Okres karencji",
+      "cancelled": "Anulowana"
+    },
+    "alerts": {
+      "lockedMessage": "Twoje konto zostało zablokowane z powodu braku płatności. Odnów subskrypcję.",
+      "expiredMessage": "Twoja subskrypcja wygasła. Odnów, aby kontynuować.",
+      "gracePeriodMessage": "Twoja subskrypcja jest w okresie karencji. {{days}} dni na odnowienie.",
+      "criticalWarning": "Twoja subskrypcja wygasa za {{days}} dni!",
+      "warningMessage": "Twoja subskrypcja wygasa za {{days}} dni. Odnów wkrótce.",
+      "infoMessage": "{{days}} dni pozostało w subskrypcji."
+    },
+    "dialogs": {
+      "lockedTitle": "Konto zablokowane",
+      "lockedDescription": "Twoje konto jest zablokowane z powodu braku płatności. Przejdź do rozliczeń.",
+      "gracePeriodTitle": "Okres karencji",
+      "gracePeriodDescription": "Twoja subskrypcja jest w okresie karencji. {{days}} dni do zablokowania.",
+      "expiredTitle": "Subskrypcja wygasła",
+      "expiredDescription": "Twoja subskrypcja wygasła. Odnów, aby korzystać z systemu.",
+      "criticalTitle": "Subskrypcja wkrótce wygaśnie",
+      "criticalDescription": "Twoja subskrypcja wygasa za {{days}} dni. Odnów teraz.",
+      "warningTitle": "Przypomnienie o odnowieniu",
+      "warningDescription": "Twoja subskrypcja wygasa za {{days}} dni. Odnów.",
+      "remindLater": "Przypomnij później"
+    },
+    "billing": {
+      "title": "Rozliczenia i subskrypcja",
+      "description": "Zarządzaj subskrypcją, metodami płatności i fakturami",
+      "currentSubscription": "Obecna subskrypcja",
+      "subscriptionDetails": "Szczegóły i status subskrypcji",
+      "currentPlan": "Obecny plan",
+      "planName": "Nazwa planu",
+      "noPlan": "Brak planu",
+      "periodEnd": "Koniec okresu",
+      "daysRemaining": "Pozostało dni",
+      "gracePeriod": "Okres karencji",
+      "renewNow": "Odnów teraz",
+      "payNow": "Zapłać teraz",
+      "upgradePlan": "Ulepsz plan",
+      "goToBilling": "Przejdź do rozliczeń",
+      "accountInfo": "Informacje o koncie",
+      "accountName": "Nazwa konta",
+      "billingEmail": "Email rozliczeniowy"
+    },
+    "tabs": {
+      "overview": "Przegląd",
+      "plans": "Plany",
+      "invoices": "Faktury",
+      "companies": "Firmy"
+    },
+    "storage": {
+      "title": "Magazyn",
+      "used": "Użyte",
+      "remaining": "Pozostało",
+      "files": "Pliki"
+    },
+    "plans": {
+      "current": "Obecny plan",
+      "currentPlan": "Obecny plan",
+      "selectPlan": "Wybierz plan",
+      "free": "Bezpłatny",
+      "users": "użytkowników",
+      "companies": "firm",
+      "storage": "magazyn"
+    },
+    "invoices": {
+      "title": "Historia faktur",
+      "number": "Numer faktury",
+      "date": "Data",
+      "amount": "Kwota",
+      "status": "Status",
+      "paid": "Opłacona",
+      "pending": "Oczekująca",
+      "overdue": "Zaległa",
+      "noInvoices": "Brak faktur"
+    },
+    "companies": {
+      "title": "Firmy",
+      "description": "Firmy powiązane z kontem",
+      "main": "Główna",
+      "noCompanies": "Brak firm"
+    },
+    "locked": {
+      "title": "Konto zablokowane",
+      "description": "Twoje konto zostało zablokowane z powodu wygaśnięcia subskrypcji.",
+      "account": "Konto",
+      "status": "Status",
+      "gracePeriodInfo": "Twoje konto jest w okresie karencji. {{days}} dni do pełnego zablokowania.",
+      "paymentInfo": "Odnów subskrypcję, aby uzyskać dostęp do danych.",
+      "contactSupport": "Skontaktuj się z pomocą",
+      "needHelp": "Potrzebujesz pomocy?"
+    }
+  },
+
+  "documents": {
+    "storage": "Magazyn",
+    "upload": "Prześlij dokument",
+    "uploadFirst": "Prześlij swój pierwszy dokument",
+    "uploadTitle": "Prześlij nowy dokument",
+    "uploadDescription": "Wybierz plik do przesłania (maks. 25 MB)",
+    "uploading": "Przesyłanie",
+    "uploadSuccess": "Dokument przesłany pomyślnie",
+    "deleteSuccess": "Dokument usunięty pomyślnie",
+    "deleteTitle": "Usuń dokument",
+    "deleteConfirm": "Czy na pewno chcesz usunąć ten dokument? Tej akcji nie można cofnąć.",
+    "noDocuments": "Brak załączonych dokumentów",
+    "category": "Kategoria",
+    "description": "Opis",
+    "descriptionPlaceholder": "Wprowadź opis dokumentu (opcjonalnie)",
+    "storageWarning": "Miejsce w magazynie się kończy",
+    "storageCritical": "Magazyn prawie pełny!",
+    "categories": {
+      "contract": "Umowa",
+      "invoice_copy": "Kopia faktury",
+      "receipt": "Paragon",
+      "id_document": "Dokument tożsamości",
+      "certificate": "Certyfikat",
+      "report": "Raport",
+      "other": "Inne"
+    },
+    "errors": {
+      "fileTooLarge": "Plik za duży (maks. 25 MB)",
+      "missingInfo": "Brakujące informacje",
+      "uploadFailed": "Przesyłanie nie powiodło się",
+      "downloadFailed": "Pobieranie nie powiodło się",
+      "viewFailed": "Wyświetlanie nie powiodło się",
+      "deleteFailed": "Usuwanie nie powiodło się",
+      "quota.maxFilesReached": "Osiągnięto maksymalną liczbę plików",
+      "quota.storageLimitReached": "Osiągnięto limit magazynu",
+      "quota.fileTooLarge": "Rozmiar pliku przekracza dozwolony limit"
+    }
+  },
+
+  "import": {
+    "title": "Import danych",
+    "step": "Krok",
+    "of": "z",
+    "selectEntityType": "Wybierz typ danych",
+    "selectEntityTypeDescription": "Wybierz typ danych do importu",
+    "fields": "pól",
+    "noEntityTypes": "Brak dostępnych typów danych do importu",
+    "downloadTemplate": "Pobierz szablon",
+    "downloadTemplateDescription": "Pobierz szablon, wypełnij i prześlij",
+    "templateArabic": "Szablon arabski",
+    "templateEnglish": "Szablon angielski",
+    "dropFileHere": "Upuść plik tutaj",
+    "orClickToSelect": "lub kliknij, aby wybrać",
+    "supportedFormats": "Obsługiwane formaty",
+    "maxSize": "Maks. rozmiar",
+    "parsing": "Odczytywanie pliku...",
+    "requiredFields": "Wymagane pola",
+    "invalidFileType": "Typ pliku nieobsługiwany",
+    "fileTooLarge": "Rozmiar pliku przekracza limit",
+    "totalRows": "Razem wierszy",
+    "columns": "Kolumn",
+    "mapped": "Zmapowane",
+    "notMapped": "Niezmapowane",
+    "missingRequiredFields": "Wymagane pola niezmapowane",
+    "fileColumn": "Kolumna pliku",
+    "systemField": "Pole systemowe",
+    "status": "Status",
+    "selectField": "Wybierz pole",
+    "ignore": "Ignoruj",
+    "sample": "Przykład",
+    "validating": "Walidacja...",
+    "validateData": "Waliduj dane",
+    "validRows": "Poprawnych wierszy",
+    "invalidRows": "Błędnych wierszy",
+    "willImport": "Do importu",
+    "errorSummary": "Podsumowanie błędów",
+    "importOptions": "Opcje importu",
+    "skipInvalidRows": "Pomiń błędne wiersze",
+    "skipInvalidRowsDescription": "Importuj tylko poprawne wiersze",
+    "updateExisting": "Aktualizuj istniejące",
+    "updateExistingDescription": "Aktualizuj rekordy przy zgodności kodu",
+    "useAIAnalysis": "Użyj analizy AI",
+    "useAIAnalysisDescription": "Inteligentna analiza wykrywania duplikatów i błędów",
+    "all": "Wszystkie",
+    "valid": "Poprawne",
+    "invalid": "Błędne",
+    "data": "Dane",
+    "errors": "Błędy",
+    "moreErrors": "więcej błędów",
+    "page": "Strona",
+    "continueToAI": "Do analizy AI",
+    "continueToPreview": "Do podglądu",
+    "aiAnalysisComingSoon": "Analiza AI wkrótce dostępna",
+    "readyToImport": "Gotowe do importu",
+    "reviewAndConfirm": "Sprawdź dane i potwierdź import",
+    "recordsToImport": "rekordów do importu",
+    "entityType": "Typ danych",
+    "updateEnabled": "Aktualizacja włączona",
+    "dataPreview": "Podgląd danych",
+    "showing": "Wyświetlono",
+    "importSettings": "Ustawienia importu",
+    "aiAnalysis": "Analiza AI",
+    "importing": "Importowanie...",
+    "startImport": "Rozpocznij import",
+    "records": "rekordów",
+    "importingData": "Importowanie danych",
+    "successTitle": "Import zakończony!",
+    "successDescription": "Wszystkie dane zaimportowano pomyślnie",
+    "partialSuccessTitle": "Częściowy import",
+    "partialSuccessDescription": "Część danych zaimportowano z błędami",
+    "failedTitle": "Import nieudany",
+    "failedDescription": "Nie udało się zaimportować danych",
+    "imported": "Zaimportowano",
+    "skipped": "Pominięto",
+    "failed": "Nieudane",
+    "successRate": "Wskaźnik sukcesu",
+    "importDetails": "Szczegóły importu",
+    "fileName": "Nazwa pliku",
+    "startTime": "Czas rozpoczęcia",
+    "endTime": "Czas zakończenia",
+    "errorReport": "Raport błędów",
+    "downloadErrorReport": "Pobierz raport nieudanych wierszy",
+    "download": "Pobierz",
+    "newImport": "Nowy import",
+    "done": "Gotowe"
+  }
+}

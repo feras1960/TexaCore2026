@@ -1,0 +1,1247 @@
+{
+  "app": {
+    "name": "Sistem de Planificare a Resurselor Întreprinderii",
+    "shortName": "Sistem ERP",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Calitate în care poți avea încredere",
+      "fullName": "TexaCore - Sistem de Planificare a Resurselor Întreprinderii"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Panou de Control",
+    "accounting": "Contabilitate",
+    "sales": "Vânzări",
+    "purchases": "Achiziții",
+    "inventory": "Stoc",
+    "crm": "CRM",
+    "hr": "Resurse Umane",
+    "pos": "Punct de Vânzare",
+    "exchange": "Schimb Valutar",
+    "realEstate": "Imobiliare",
+    "manufacturing": "Producție",
+    "ecommerce": "Comerț Electronic",
+    "saasControl": "Control SaaS",
+    "aiAnalytics": "Analiză AI",
+    "systemConfig": "Configurare Sistem",
+    "componentLab": "Laborator Componente",
+    "settings": "Setări"
+  },
+
+  "common": {
+    "save": "Salvează",
+    "cancel": "Anulează",
+    "delete": "Șterge",
+    "edit": "Editează",
+    "add": "Adaugă",
+    "create": "Creează",
+    "update": "Actualizează",
+    "search": "Caută",
+    "filter": "Filtrează",
+    "export": "Exportă",
+    "import": "Importă",
+    "print": "Tipărește",
+    "refresh": "Reîmprospătează",
+    "close": "Închide",
+    "confirm": "Confirmă",
+    "back": "Înapoi",
+    "next": "Următorul",
+    "previous": "Anterior",
+    "submit": "Trimite",
+    "reset": "Resetează",
+    "clear": "Șterge",
+    "select": "Selectează",
+    "selectAll": "Selectează Tot",
+    "deselectAll": "Deselectează Tot",
+    "yes": "Da",
+    "no": "Nu",
+    "ok": "OK",
+    "loading": "Se încarcă...",
+    "noData": "Nu există date",
+    "error": "A apărut o eroare",
+    "success": "Operațiune reușită",
+    "warning": "Avertisment",
+    "info": "Informație",
+    "required": "Obligatoriu",
+    "optional": "Opțional",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "balance": "Sold",
+    "amount": "Sumă",
+    "quantity": "Cantitate",
+    "price": "Preț",
+    "date": "Dată",
+    "time": "Oră",
+    "status": "Stare",
+    "type": "Tip",
+    "name": "Nume",
+    "description": "Descriere",
+    "notes": "Note",
+    "reference": "Referință",
+    "code": "Cod",
+    "number": "Număr",
+    "actions": "Acțiuni",
+    "details": "Detalii",
+    "history": "Istoric",
+    "active": "Activ",
+    "inactive": "Inactiv",
+    "enabled": "Activat",
+    "disabled": "Dezactivat",
+    "all": "Toate",
+    "none": "Niciunul",
+    "other": "Altele",
+    "default": "Implicit",
+    "custom": "Personalizat",
+    "country": "Țară",
+    "phone": "Telefon",
+    "email": "Email",
+    "language": "Limbă",
+    "timezone": "Fus orar",
+    "city": "Oraș",
+    "countries": {
+      "saudiArabia": "Arabia Saudită",
+      "uae": "EAU",
+      "kuwait": "Kuweit"
+    },
+    "languages": {
+      "arabic": "Arabă",
+      "english": "Engleză"
+    },
+    "timezones": {
+      "riyadh": "Riad (GMT+3)",
+      "dubai": "Dubai (GMT+4)"
+    }
+  },
+
+  "auth": {
+    "login": "Autentificare",
+    "logout": "Deconectare",
+    "register": "Înregistrare",
+    "forgotPassword": "Ai uitat parola?",
+    "resetPassword": "Resetează Parola",
+    "changePassword": "Schimbă Parola",
+    "email": "Email",
+    "password": "Parolă",
+    "confirmPassword": "Confirmă Parola",
+    "rememberMe": "Ține-mă minte",
+    "welcome": "Bine ai venit",
+    "profile": "Profil",
+    "account": "Cont",
+    "userInitial": "A",
+    "systemAdmin": "Administrator de Sistem"
+  },
+
+  "header": {
+    "search": "Caută...",
+    "notifications": "Notificări",
+    "quickAdd": "Adăugare Rapidă",
+    "language": "Limbă",
+    "theme": "Temă",
+    "darkMode": "Mod Întunecat",
+    "lightMode": "Mod Luminos"
+  },
+
+  "sidebar": {
+    "needHelp": "Ai nevoie de ajutor?",
+    "contactSupport": "Contactează Suportul",
+    "collapse": "Restrânge",
+    "expand": "Extinde"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "Factură Nouă de Vânzare",
+    "newPurchaseInvoice": "Factură Nouă de Achiziție",
+    "receiptVoucher": "Bon de Încasare",
+    "paymentVoucher": "Bon de Plată",
+    "newProduct": "Produs Nou",
+    "newCustomer": "Client Nou",
+    "newSupplier": "Furnizor Nou",
+    "journalEntry": "Înregistrare în Jurnal"
+  },
+
+  "filters": {
+    "selectBranch": "Selectează Filiala",
+    "allBranches": "Toate Filialele",
+    "selectCurrency": "Selectează Moneda",
+    "selectPeriod": "Selectează Perioada",
+    "today": "Astăzi",
+    "yesterday": "Ieri",
+    "thisWeek": "Săptămâna Aceasta",
+    "lastWeek": "Săptămâna Trecută",
+    "thisMonth": "Luna Aceasta",
+    "lastMonth": "Luna Trecută",
+    "thisYear": "Anul Acesta",
+    "lastYear": "Anul Trecut",
+    "customRange": "Interval Personalizat",
+    "from": "De la",
+    "to": "Până la"
+  },
+
+  "tabs": {
+    "overview": "Prezentare Generală",
+    "ledger": "Registru",
+    "invoices": "Facturi",
+    "payments": "Plăți",
+    "reservations": "Rezervări",
+    "aiAnalysis": "Analiză AI",
+    "events": "Evenimente",
+    "details": "Detalii",
+    "history": "Istoric",
+    "settings": "Setări",
+    "reports": "Rapoarte"
+  },
+
+  "status": {
+    "draft": "Ciornă",
+    "pending": "În Așteptare",
+    "inProgress": "În Desfășurare",
+    "confirmed": "Confirmat",
+    "completed": "Finalizat",
+    "partial": "Parțial",
+    "paid": "Plătit",
+    "unpaid": "Neplătit",
+    "overdue": "Întârziat",
+    "cancelled": "Anulat",
+    "rejected": "Respins",
+    "approved": "Aprobat",
+    "submitted": "Trimis",
+    "closed": "Închis",
+    "open": "Deschis",
+    "warning": "Avertisment"
+  },
+
+  "stats": {
+    "totalSales": "Vânzări Totale",
+    "totalRevenue": "Venituri Totale",
+    "totalExpenses": "Cheltuieli Totale",
+    "netProfit": "Profit Net",
+    "grossProfit": "Profit Brut",
+    "totalOrders": "Comenzi Totale",
+    "pendingOrders": "Comenzi în Așteptare",
+    "completedOrders": "Comenzi Finalizate",
+    "totalCustomers": "Clienți Totali",
+    "activeCustomers": "Clienți Activi",
+    "newCustomers": "Clienți Noi",
+    "totalSuppliers": "Furnizori Totali",
+    "totalProducts": "Produse Totale",
+    "lowStock": "Stoc Redus",
+    "outOfStock": "Stoc Epuizat"
+  },
+
+  "currencies": {
+    "SAR": "Rial Saudit",
+    "USD": "Dolar American",
+    "EUR": "Euro",
+    "GBP": "Liră Sterlină",
+    "AED": "Dirham Emiratez",
+    "KWD": "Dinar Kuweitian",
+    "QAR": "Rial Qatarian",
+    "BHD": "Dinar Bahrainian",
+    "OMR": "Rial Omanian",
+    "EGP": "Liră Egipteană",
+    "JOD": "Dinar Iordanian",
+    "TRY": "Liră Turcească",
+    "RUB": "Rublă Rusească",
+    "UAH": "Grivnă Ucraineană",
+    "PLN": "Zlot Polonez",
+    "RON": "Leu Românesc"
+  },
+
+  "branches": {
+    "main": "Filiala Principală",
+    "all": "Toate Filialele"
+  },
+
+  "dashboard": {
+    "title": "Panou de Control",
+    "subtitle": "Vedere completă a tuturor modulelor sistemului",
+    "welcomeMessage": "Bine ai venit în Sistemul de Planificare a Resurselor Întreprinderii",
+    "recentOrders": "Comenzi Recente",
+    "recentInvoices": "Facturi Recente",
+    "recentPayments": "Plăți Recente",
+    "quickStats": "Statistici Rapide",
+    "viewAll": "Vezi Tot",
+    "chartsPlaceholder": "Graficele vor fi adăugate aici"
+  },
+
+  "accounting": {
+    "module": "Contabilitate",
+    "chartOfAccounts": "Plan de Conturi",
+    "journalEntries": "Înregistrări în Jurnal",
+    "generalLedger": "Registru General",
+    "trialBalance": "Balanță de Verificare",
+    "incomeStatement": "Cont de Profit și Pierdere",
+    "balanceSheet": "Bilanț",
+    "cashFlow": "Flux de Numerar",
+    "costCenters": "Centre de Cost",
+    "budgets": "Bugete",
+    "fiscalYear": "An Fiscal",
+    "closingEntries": "Înregistrări de Închidere",
+    "addAccount": "Adaugă cont",
+    "addNewRow": "Adaugă rând nou",
+    "addRow": "Adaugă rând",
+    "balanceEntry": "Echilibrează înregistrarea",
+    "duplicateRow": "Duplică rând",
+    "copyAccountDown": "Copiază contul în rândul următor",
+    "save": "Salvează",
+    "account": {
+      "name": "Nume Cont",
+      "code": "Cod Cont",
+      "type": "Tip Cont",
+      "parent": "Cont Părinte",
+      "balance": "Sold",
+      "currency": "Monedă",
+      "select": "Selectează cont...",
+      "notFound": "Cont negăsit",
+      "treeSelector": "Planul de conturi",
+      "treeSelectorDescription": "Selectează conturi din arbore - Dublu click pentru a adăuga",
+      "closeTree": "Închide arborele",
+      "selectedCount": "selectate",
+      "doubleClickToAdd": "Dublu click pentru a adăuga contul",
+      "onlyAccounts": "Doar conturi (nu grupuri)"
+    },
+    "entry": {
+      "number": "Număr Înregistrare",
+      "date": "Data Înregistrării",
+      "reference": "Referință",
+      "description": "Descriere",
+      "debit": "Debit",
+      "credit": "Credit",
+      "total": "Total"
+    },
+    "receipt": {
+      "title": "Bon de Încasare",
+      "number": "Număr Bon",
+      "date": "Data Bonului",
+      "customer": "Client",
+      "amount": "Sumă",
+      "paymentMethod": "Metodă de Plată",
+      "fund": "Fond",
+      "notes": "Note",
+      "customerInfo": "Informații Client"
+    },
+    "payment": {
+      "title": "Bon de Plată",
+      "number": "Număr Bon",
+      "date": "Data Bonului",
+      "supplier": "Furnizor",
+      "amount": "Sumă",
+      "paymentMethod": "Metodă de Plată",
+      "fund": "Fond",
+      "notes": "Note"
+    },
+    "labels": {
+      "debitTotal": "Total Debit",
+      "creditTotal": "Total Credit",
+      "balance": "Sold",
+      "difference": "Diferență",
+      "marked": "Marcat"
+    },
+    "currentBalance": "Sold Curent",
+    "openingBalance": "Sold Inițial",
+    "closingBalance": "Sold Final",
+    "periodMovement": "Mișcare pe Perioadă",
+    "entryTabs": {
+      "journal": {
+        "title": "Înregistrare în Jurnal",
+        "description": "Înregistrează o nouă înregistrare contabilă"
+      },
+      "receipt": {
+        "title": "Chitanță",
+        "description": "Înregistrează plăți primite"
+      },
+      "payment": {
+        "title": "Plată",
+        "description": "Înregistrează plăți efectuate"
+      },
+      "cash": {
+        "title": "Jurnal de Numerar",
+        "description": "Mișcări ale fondului de numerar"
+      },
+      "transfer": {
+        "title": "Transfer",
+        "description": "Transfer între fonduri"
+      },
+      "exchange": {
+        "title": "Schimb",
+        "description": "Schimb valutar"
+      }
+    },
+    "partiesStats": {
+      "totalCustomers": "Total Clienți",
+      "totalReceivables": "Total Creanțe",
+      "totalSuppliers": "Total Furnizori",
+      "totalPayables": "Total Datorii"
+    },
+    "partiesDescription": "Gestionați clienții, furnizorii, creanțele și datoriile",
+    "customers": "Clienți",
+    "suppliers": "Furnizori",
+    "settingsSections": {
+      "company": "Setări Companie",
+      "companyDesc": "Informații de bază despre companie",
+      "fiscalYear": "An Fiscal",
+      "fiscalYearDesc": "Definiți perioada anului fiscal",
+      "tax": "Setări Taxe",
+      "taxDesc": "Configurați TVA și alte taxe",
+      "workflow": "Flux de Lucru",
+      "workflowDesc": "Setări de aprobare și înregistrare automată"
+    },
+    "settingsFields": {
+      "companyName": "Numele Companiei",
+      "baseCurrency": "Moneda de Bază",
+      "fiscalYearStart": "Început An Fiscal",
+      "fiscalYearEnd": "Sfârșit An Fiscal",
+      "enableTax": "Activare Taxă",
+      "enableTaxDesc": "Activați calculul TVA",
+      "vatRate": "Rata TVA",
+      "autoPostEntries": "Înregistrare Automată",
+      "autoPostEntriesDesc": "Înregistrați intrările direct fără verificare",
+      "requireApproval": "Aprobare Necesară",
+      "requireApprovalDesc": "Solicitați aprobarea managerului înainte de înregistrare"
+    },
+    "settingsInfo": {
+      "title": "Informații Importante",
+      "desc1": "Schimbarea monedei de bază poate afecta rapoartele financiare.",
+      "desc2": "Asigurați-vă că ați verificat setările înainte de salvare."
+    },
+    "settingsDescription": "Personalizați setările de contabilitate, an fiscal și taxe",
+    "reportsDescription": "Vizualizați rapoartele financiare și contabile",
+    "fundsDescription": "Gestionați numerarul și conturile bancare",
+    "selectAccountPrompt": "Vă rugăm să selectați un cont din lista de mai sus"
+  },
+
+  "sales": {
+    "module": "Vânzări",
+    "quotation": "Ofertă",
+    "salesOrder": "Comandă de Vânzare",
+    "deliveryNote": "Aviz de Livrare",
+    "salesInvoice": "Factură de Vânzare",
+    "salesReturn": "Retur Vânzare",
+    "customer": "Client",
+    "customers": "Clienți",
+    "priceList": "Listă de Prețuri",
+    "discount": "Reducere",
+    "tax": "Taxă",
+    "vat": "TVA"
+  },
+
+  "purchases": {
+    "module": "Achiziții",
+    "purchaseRequest": "Cerere de Achiziție",
+    "purchaseOrder": "Comandă de Achiziție",
+    "purchaseReceipt": "Recepție Achiziție",
+    "purchaseInvoice": "Factură de Achiziție",
+    "purchaseReturn": "Retur Achiziție",
+    "supplier": "Furnizor",
+    "suppliers": "Furnizori"
+  },
+
+  "inventory": {
+    "module": "Stoc",
+    "items": "Articole",
+    "item": "Articol",
+    "warehouse": "Depozit",
+    "warehouses": "Depozite",
+    "stockEntry": "Mișcare de Stoc",
+    "stockTransfer": "Transfer de Stoc",
+    "stockAdjustment": "Ajustare de Stoc",
+    "stockReconciliation": "Inventariere",
+    "reorderLevel": "Nivel de Recomandă",
+    "minimumStock": "Stoc Minim",
+    "maximumStock": "Stoc Maxim",
+    "currentStock": "Stoc Curent",
+    "availableStock": "Stoc Disponibil",
+    "reservedStock": "Stoc Rezervat"
+  },
+
+  "crm": {
+    "module": "Managementul Relațiilor cu Clienții",
+    "leads": "Prospecți",
+    "opportunities": "Oportunități",
+    "contacts": "Contacte",
+    "activities": "Activități",
+    "campaigns": "Campanii",
+    "pipeline": "Pâlnie de Vânzări"
+  },
+
+  "hr": {
+    "module": "Resurse Umane",
+    "employees": "Angajați",
+    "employee": "Angajat",
+    "departments": "Departamente",
+    "designations": "Funcții",
+    "attendance": "Prezență",
+    "leave": "Concediu",
+    "payroll": "Salarizare",
+    "recruitment": "Recrutare",
+    "training": "Instruire",
+    "performance": "Performanță"
+  },
+
+  "pos": {
+    "module": "Punct de Vânzare",
+    "newSale": "Vânzare Nouă",
+    "cashier": "Casier",
+    "register": "Casă",
+    "shift": "Tură",
+    "openShift": "Deschide Tura",
+    "closeShift": "Închide Tura",
+    "cart": "Coș",
+    "checkout": "Finalizare",
+    "payment": "Plată",
+    "receipt": "Bon"
+  },
+
+  "exchange": {
+    "module": "Schimb Valutar",
+    "buyRate": "Curs de Cumpărare",
+    "sellRate": "Curs de Vânzare",
+    "exchangeRate": "Curs de Schimb",
+    "currencyExchange": "Schimb de Valută",
+    "fundTransfer": "Transfer de Fonduri"
+  },
+
+  "realEstate": {
+    "module": "Imobiliare",
+    "properties": "Proprietăți",
+    "units": "Unități",
+    "contracts": "Contracte",
+    "tenants": "Chiriași",
+    "rent": "Chirie",
+    "maintenance": "Întreținere"
+  },
+
+  "manufacturing": {
+    "module": "Producție",
+    "bom": "Lista de Materiale",
+    "workOrder": "Ordin de Lucru",
+    "productionPlan": "Plan de Producție",
+    "qualityInspection": "Inspecție de Calitate",
+    "workstation": "Stație de Lucru"
+  },
+
+  "ecommerce": {
+    "module": "Comerț Electronic",
+    "store": "Magazin",
+    "products": "Produse",
+    "categories": "Categorii",
+    "orders": "Comenzi",
+    "shipping": "Livrare",
+    "promotions": "Promoții"
+  },
+
+  "validation": {
+    "required": "Acest câmp este obligatoriu",
+    "email": "Introduceți un email valid",
+    "minLength": "Minim {min} caractere",
+    "maxLength": "Maxim {max} caractere",
+    "min": "Minim {min}",
+    "max": "Maxim {max}",
+    "positive": "Trebuie să fie un număr pozitiv",
+    "integer": "Trebuie să fie un număr întreg",
+    "numeric": "Trebuie să fie un număr",
+    "url": "Introduceți un URL valid",
+    "phone": "Introduceți un număr de telefon valid",
+    "match": "Valorile nu se potrivesc",
+    "unique": "Această valoare există deja",
+    "date": "Introduceți o dată validă"
+  },
+
+  "messages": {
+    "saveSuccess": "Salvat cu succes",
+    "saveError": "Eroare la salvare",
+    "deleteSuccess": "Șters cu succes",
+    "deleteError": "Eroare la ștergere",
+    "updateSuccess": "Actualizat cu succes",
+    "updateError": "Eroare la actualizare",
+    "confirmDelete": "Sigur doriți să ștergeți?",
+    "confirmCancel": "Sigur doriți să anulați?",
+    "unsavedChanges": "Aveți modificări nesalvate",
+    "noResults": "Nu s-au găsit rezultate",
+    "loadingError": "Eroare la încărcarea datelor",
+    "networkError": "Eroare de conexiune la rețea",
+    "sessionExpired": "Sesiunea a expirat",
+    "accessDenied": "Acces refuzat",
+    "notFound": "Pagina nu a fost găsită",
+    "pageUnderDevelopment": "Această pagină este în dezvoltare"
+  },
+
+  "table": {
+    "showing": "Afișare",
+    "of": "din",
+    "entries": "înregistrări",
+    "page": "Pagina",
+    "rowsPerPage": "Rânduri pe pagină",
+    "noData": "Nu există date de afișat",
+    "loading": "Se încarcă datele...",
+    "selectRow": "Selectează rândul",
+    "selectAll": "Selectează tot",
+    "sortAsc": "Sortare crescătoare",
+    "sortDesc": "Sortare descrescătoare",
+    "filter": "Filtrează",
+    "clearFilters": "Șterge filtrele",
+    "export": "Exportă",
+    "print": "Tipărește"
+  },
+
+  "languages": {
+    "en": "Engleză",
+    "ar": "Arabă",
+    "ru": "Rusă",
+    "uk": "Ucraineană",
+    "ro": "Română",
+    "pl": "Poloneză",
+    "tr": "Turcă",
+    "de": "Germană",
+    "it": "Italiană"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Compania Comercială Al-Fajr",
+      "customer2": "Fundația Al-Noor",
+      "customer3": "Compania Al-Amal",
+      "customer4": "Fabrica Al-Salam"
+    }
+  },
+
+  "componentLab": {
+    "title": "Laborator Componente",
+    "description": "Testarea și previzualizarea tuturor popup-urilor și componentelor",
+    "info": {
+      "title": "Despre Laboratorul de Componente",
+      "description": "Acest laborator permite testarea și previzualizarea tuturor popup-urilor, dialogurilor și componentelor disponibile. Faceți clic pe 'Deschide' pe orice componentă pentru a o vedea în acțiune."
+    },
+    "table": {
+      "id": "ID Componentă",
+      "name": "Numele Componentei",
+      "description": "Descriere",
+      "type": "Tip",
+      "status": "Status",
+      "path": "Calea Fișierului",
+      "pathLabel": "Cale",
+      "actions": "Acțiuni",
+      "noPopups": "Nu există popup-uri înregistrate încă"
+    },
+    "status": {
+      "ready": "Gata",
+      "wip": "În lucru",
+      "planned": "Planificat"
+    },
+    "actions": {
+      "open": "Deschide"
+    },
+    "preview": {
+      "title": "Previzualizare Componentă",
+      "description": "Previzualizare pentru componentă",
+      "exampleContent": "Acesta este un exemplu de conținut UnifiedSheet. Puteți adăuga orice conținut aici în interiorul children.",
+      "exampleContentModal": "Acesta este un exemplu de conținut UnifiedModal. Puteți adăuga orice conținut aici în interiorul children."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Foaie Unificată",
+        "description": "Panou lateral pentru vizualizări detaliate"
+      },
+      "unifiedModal": {
+        "name": "Modal Unificat",
+        "description": "Dialog central pentru formulare și confirmări"
+      },
+      "generalLedgerSheet": {
+        "name": "Foaie Registru General",
+        "description": "Raport cuprinzător al tuturor mișcărilor conturilor"
+      },
+      "fundTransferDialog": {
+        "name": "Dialog Transfer Fonduri",
+        "description": "Transfer fonduri între conturi și bănci"
+      },
+      "currencyExchangeDialog": {
+        "name": "Dialog Schimb Valutar",
+        "description": "Schimb valute în cadrul unui fond"
+      },
+      "transactionDetailsSheet": {
+        "name": "Foaie Detalii Tranzacție",
+        "description": "Vizualizare și editare detalii tranzacție"
+      },
+      "quickReceiptDialog": {
+        "name": "Dialog Chitanță Rapidă",
+        "description": "Dialog introducere rapidă pentru chitanțe"
+      },
+      "quickPaymentDialog": {
+        "name": "Dialog Plată Rapidă",
+        "description": "Dialog introducere rapidă pentru plăți"
+      },
+      "accountDetailsSheet": {
+        "name": "Foaie Detalii Cont (Vechi)",
+        "description": "Detalii complete cont cu registru și tranzacții (Versiune veche cu date de test)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Foaie Detalii Cont V2",
+        "description": "Versiune curată a detaliilor contului - conectată doar la date reale, fără date de test"
+      },
+      "addFundDialog": {
+        "name": "Dialog Adăugare Fond",
+        "description": "Dialog pentru adăugarea unui nou fond sau cont bancar"
+      },
+      "addCostCenterDialog": {
+        "name": "Dialog Adăugare Centru Cost",
+        "description": "Dialog pentru adăugarea unui nou centru de cost"
+      },
+      "fundTransactionSheet": {
+        "name": "Foaie Tranzacții Fond",
+        "description": "Vizualizare și gestionare tranzacții fond"
+      },
+      "newJournalEntrySheet": {
+        "name": "Foaie Înregistrare Jurnal Nouă",
+        "description": "Foaie cu taburi multiple pentru înregistrări jurnal, chitanțe, plăți, jurnal cash, transferuri și schimb valutar"
+      },
+      "createTenantDialog": {
+        "name": "Dialog Creare Chiriaș",
+        "description": "Dialog cu mai multe taburi pentru crearea unui nou chiriaș cu informații despre companie, proprietar și abonament"
+      },
+      "agentDetailsSheet": {
+        "name": "Foaie Detalii Agent",
+        "description": "Vizualizare detaliată a agentului cu informații de contact, sold, comisioane și status White Label"
+      }
+    },
+    "actions": {
+      "open": "Deschide",
+      "openInPlace": "Deschide pe loc"
+    }
+  },
+
+  "saas": {
+    "title": "Administrare SaaS",
+    "dashboard": "Panou de control",
+    "subscribers": "Abonați",
+    "packages": "Pachete",
+    "agents": "Agenți",
+    "whiteLabel": "White Label",
+    "payments": "Plăți",
+    "modules": "Module",
+    "support": "Suport",
+    "notifications": "Notificări",
+    "coupons": "Cupoane",
+    "referrals": "Recomandări",
+    "webhooks": "Webhooks",
+    "analytics": "Analitică",
+    "reports": "Rapoarte",
+    "marketing": "Marketing",
+    "settings": "Setări",
+    "comingSoon": "În curând - În dezvoltare",
+    "createNew": "Creează nou",
+    "edit": "Editează",
+    "delete": "Șterge",
+    "view": "Vizualizează",
+    "activate": "Activează",
+    "suspend": "Suspendă",
+    "approve": "Aprobă",
+    "reject": "Respinge",
+    "status": {
+      "active": "Activ",
+      "inactive": "Inactiv",
+      "pending": "În așteptare",
+      "suspended": "Suspendat",
+      "expired": "Expirat",
+      "cancelled": "Anulat"
+    },
+    "agents": {
+      "title": "Administrare Agenți",
+      "description": "Administrează agenții, revânzătorii și comisioanele",
+      "create": "Înregistrează Agent Nou",
+      "approve": "Aprobă Agent",
+      "suspend": "Suspendă Agent",
+      "activate": "Activează Agent",
+      "commissions": "Comisioane",
+      "withdrawals": "Retrageri",
+      "targets": "Obiective",
+      "dashboard": "Panou Agent",
+      "whiteLabel": "White Label",
+      "tier": "Nivel",
+      "balance": "Sold",
+      "pendingBalance": "Sold în așteptare",
+      "totalEarned": "Total câștigat",
+      "totalWithdrawn": "Total retras",
+      "totalTenants": "Total chiriași",
+      "activeTenants": "Chiriași activi",
+      "totalAgents": "Total agenți",
+      "activeAgents": "Agenți activi",
+      "totalCommissions": "Total comisioane",
+      "contactInfo": "Informații contact",
+      "tiers": {
+        "bronze": "Bronz",
+        "silver": "Argint",
+        "gold": "Aur",
+        "platinum": "Platină",
+        "diamond": "Diamant"
+      },
+      "error": {
+        "loadFailed": "Nu s-au putut încărca agenții"
+      }
+    },
+    "tenants": {
+      "title": "Administrare Abonați",
+      "description": "Administrează abonații și abonamentele",
+      "create": "Creează Abonat Nou",
+      "createDescription": "Creează un nou abonat în sistem",
+      "edit": "Editează Abonat",
+      "suspend": "Suspendă Abonat",
+      "activate": "Activează Abonat",
+      "details": "Detalii Abonat",
+      "subscription": "Abonament",
+      "usage": "Utilizare",
+      "billing": "Facturare",
+      "total": "Total Abonați",
+      "agentInfo": "Legat de Agent",
+      "referral": "Recomandare",
+      "referralCode": "Cod Recomandare",
+      "referralSource": "Sursă Recomandare",
+      "ownerName": "Nume Proprietar",
+      "plan": "Plan",
+      "tabs": {
+        "company": "Companie",
+        "owner": "Proprietar",
+        "subscription": "Abonament"
+      },
+      "placeholders": {
+        "companyName": "Numele Companiei",
+        "ownerName": "Nume Proprietar",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Nu s-au putut încărca abonații",
+        "noPermission": "Acces interzis",
+        "createFailed": "Nu s-a putut crea abonatul"
+      }
+    },
+    "plans": {
+      "starter": "Start",
+      "professional": "Profesional",
+      "enterprise": "Enterprise"
+    },
+    "whiteLabel": {
+      "title": "Sistem White Label",
+      "registerPayment": "Înregistrează Plată White Label",
+      "activate": "Activează White Label",
+      "addDomain": "Adaugă Domeniu",
+      "verifyDomain": "Verifică Domeniu",
+      "configureBranding": "Configurează Branding",
+      "paymentAmount": "Suma Plății",
+      "paymentMethod": "Metodă de Plată",
+      "periodMonths": "Perioadă (Luni)",
+      "domain": "Domeniu",
+      "domainType": "Tip Domeniu",
+      "brandName": "Nume Brand",
+      "logo": "Logo",
+      "primaryColor": "Culoare Principală",
+      "contactEmail": "Email Contact",
+      "status": {
+        "inactive": "Inactiv",
+        "pending": "În așteptarea plății",
+        "active": "Activ",
+        "suspended": "Suspendat",
+        "expired": "Expirat"
+      },
+      "commission": "Comision %"
+    }
+  },
+
+  "qrCode": {
+    "title": "Cod QR",
+    "generate": "Generează QR",
+    "scan": "Scanează QR",
+    "scanWithMobile": "Scanează cu aplicația mobilă",
+    "download": "Descarcă QR",
+    "print": "Tipărește QR",
+    "share": "Partajează",
+    "copy": "Copiază link",
+    "copied": "Link copiat",
+    "docTypes": {
+      "invoice": "Factură",
+      "payment": "Plată",
+      "receipt": "Chitanță",
+      "journalEntry": "Înregistrare contabilă",
+      "account": "Cont",
+      "customer": "Client",
+      "supplier": "Furnizor",
+      "order": "Comandă",
+      "tenant": "Abonat",
+      "fund": "Casă"
+    }
+  },
+
+  "statusManager": {
+    "title": "Gestionare statusuri",
+    "description": "Gestionați statusurile documentelor și permisiunile de acces",
+    "newStatus": "Status nou",
+    "editStatus": "Editare status",
+    "deleteStatus": "Ștergere status",
+    "statusGroups": "Grupuri de statusuri",
+    "selectStatus": "Selectați status",
+    "noStatuses": "Nu s-au găsit statusuri",
+    "cannotDeleteSystem": "Nu se poate șterge statusul de sistem",
+    "statusUpdated": "Status actualizat",
+    "statusCreated": "Status creat",
+    "statusDeleted": "Status șters",
+    "changeTo": "Schimbă în",
+    "addComment": "Adaugă comentariu (opțional)...",
+    "deleteConfirm": "Sigur doriți să ștergeți acest status?",
+    "fields": {
+      "nameAr": "Nume (Arabă)",
+      "nameEn": "Nume (Engleză)",
+      "code": "Cod",
+      "group": "Grup",
+      "color": "Culoare",
+      "timeNorm": "Normă de timp (ore)",
+      "isInitial": "Status inițial",
+      "isFinal": "Status final",
+      "canView": "Poate vizualiza",
+      "canSet": "Poate seta"
+    },
+    "groups": {
+      "new": "Nou",
+      "inProgress": "În progres",
+      "pending": "În așteptare",
+      "completed": "Finalizat",
+      "cancelled": "Anulat",
+      "closedSuccess": "Închis cu succes",
+      "closedFail": "Închis fără succes"
+    },
+    "badges": {
+      "system": "Sistem",
+      "required": "Obligatoriu"
+    }
+  },
+
+  "printSystem": {
+    "title": "Tipărire documente",
+    "print": "Tipărește",
+    "printAll": "Tipărește tot",
+    "preview": "Previzualizare",
+    "exportPdf": "Exportă PDF",
+    "printing": "Se tipărește...",
+    "exporting": "Se exportă...",
+    "selectTemplate": "Selectează șablon",
+    "printOptions": "Opțiuni de tipărire",
+    "printSettings": "Setări tipărire",
+    "advancedOptions": "Opțiuni avansate...",
+    "relatedDocuments": "Documente conexe",
+    "options": {
+      "includeQR": "Include cod QR",
+      "includeHeader": "Include antet",
+      "includeFooter": "Include subsol",
+      "includeStamp": "Include ștampilă",
+      "includeSignature": "Include semnătură"
+    },
+    "categories": {
+      "contract": "Contracte",
+      "invoice": "Facturi",
+      "receipt": "Chitanțe",
+      "report": "Rapoarte",
+      "other": "Altele"
+    },
+    "templates": {
+      "salesInvoice": "Factură de vânzare",
+      "salesInvoiceNoVat": "Factură de vânzare (fără TVA)",
+      "creditNote": "Notă de credit",
+      "receiptVoucher": "Chitanță de încasare",
+      "paymentVoucher": "Bon de plată",
+      "salesContract": "Contract de vânzare",
+      "rentalContract": "Contract de închiriere",
+      "accountStatement": "Extras de cont"
+    }
+  },
+
+  "formEditor": {
+    "title": "Editor formulare",
+    "description": "Personalizați câmpurile și ordinea lor după nevoile dvs.",
+    "saveChanges": "Salvează modificările",
+    "changesSaved": "Modificări salvate cu succes",
+    "addHeader": "Adaugă antet",
+    "addField": "Adaugă câmp",
+    "editHeader": "Editează antet",
+    "editField": "Editează câmp",
+    "deleteConfirm": "Sigur doriți să ștergeți?",
+    "noFields": "Fără câmpuri",
+    "showOnCard": "Afișează pe card",
+    "showOnOrderCard": "Afișează pe cardul comenzii",
+    "formType": "Tip",
+    "default": "Implicit",
+    "compact": "Compact",
+    "fields": {
+      "labelAr": "Etichetă (Arabă)",
+      "labelEn": "Etichetă (Engleză)",
+      "key": "Cheie",
+      "type": "Tip",
+      "width": "Lățime",
+      "required": "Obligatoriu",
+      "visible": "Vizibil"
+    },
+    "fieldTypes": {
+      "text": "Text",
+      "number": "Număr",
+      "currency": "Monedă",
+      "date": "Dată",
+      "datetime": "Dată și oră",
+      "email": "Email",
+      "phone": "Telefon",
+      "address": "Adresă",
+      "select": "Listă derulantă",
+      "multiselect": "Selecție multiplă",
+      "checkbox": "Casetă de bifare",
+      "image": "Imagine",
+      "file": "Fișier",
+      "reference": "Referință"
+    },
+    "widths": {
+      "full": "Complet",
+      "half": "Jumătate",
+      "third": "Treime"
+    },
+    "badges": {
+      "system": "Sistem",
+      "required": "Obligatoriu"
+    },
+    "fieldCategories": {
+      "system": "Câmpuri de sistem",
+      "user": "Câmpuri utilizator",
+      "new": "Câmpuri noi"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Mod interfață",
+    "lite": "Lite",
+    "professional": "Profesional",
+    "liteDescription": "Interfață simplificată pentru uz zilnic",
+    "professionalDescription": "Toate funcțiile și instrumentele avansate",
+    "switch": "Schimbă modul"
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Activ",
+      "trial": "Probă",
+      "expired": "Expirat",
+      "locked": "Blocat",
+      "grace_period": "Perioadă de grație",
+      "cancelled": "Anulat"
+    },
+    "alerts": {
+      "lockedMessage": "Contul dvs. a fost blocat din cauza neplății. Reînnoiți abonamentul.",
+      "expiredMessage": "Abonamentul dvs. a expirat. Reînnoiți pentru a continua.",
+      "gracePeriodMessage": "Abonamentul dvs. este în perioada de grație. {{days}} zile pentru reînnoire.",
+      "criticalWarning": "Abonamentul dvs. expiră în {{days}} zile!",
+      "warningMessage": "Abonamentul dvs. expiră în {{days}} zile. Reînnoiți curând.",
+      "infoMessage": "{{days}} zile rămase în abonament."
+    },
+    "dialogs": {
+      "lockedTitle": "Cont blocat",
+      "lockedDescription": "Contul dvs. este blocat din cauza neplății. Mergeți la facturare.",
+      "gracePeriodTitle": "Perioadă de grație",
+      "gracePeriodDescription": "Abonamentul dvs. este în perioada de grație. {{days}} zile până la blocare.",
+      "expiredTitle": "Abonament expirat",
+      "expiredDescription": "Abonamentul dvs. a expirat. Reînnoiți pentru a utiliza sistemul.",
+      "criticalTitle": "Abonament pe cale să expire",
+      "criticalDescription": "Abonamentul dvs. expiră în {{days}} zile. Reînnoiți acum.",
+      "warningTitle": "Memento de reînnoire",
+      "warningDescription": "Abonamentul dvs. expiră în {{days}} zile. Reînnoiți.",
+      "remindLater": "Amintește-mi mai târziu"
+    },
+    "billing": {
+      "title": "Facturare și abonament",
+      "description": "Gestionați abonamentul, metodele de plată și facturile",
+      "currentSubscription": "Abonament curent",
+      "subscriptionDetails": "Detalii și stare abonament",
+      "currentPlan": "Plan curent",
+      "planName": "Nume plan",
+      "noPlan": "Fără plan",
+      "periodEnd": "Sfârșitul perioadei",
+      "daysRemaining": "Zile rămase",
+      "gracePeriod": "Perioadă de grație",
+      "renewNow": "Reînnoiește acum",
+      "payNow": "Plătește acum",
+      "upgradePlan": "Upgrade plan",
+      "goToBilling": "Mergi la facturare",
+      "accountInfo": "Informații cont",
+      "accountName": "Nume cont",
+      "billingEmail": "Email facturare"
+    },
+    "tabs": {
+      "overview": "Prezentare generală",
+      "plans": "Planuri",
+      "invoices": "Facturi",
+      "companies": "Companii"
+    },
+    "storage": {
+      "title": "Stocare",
+      "used": "Utilizat",
+      "remaining": "Rămas",
+      "files": "Fișiere"
+    },
+    "plans": {
+      "current": "Plan curent",
+      "currentPlan": "Plan curent",
+      "selectPlan": "Selectează plan",
+      "free": "Gratuit",
+      "users": "utilizatori",
+      "companies": "companii",
+      "storage": "stocare"
+    },
+    "invoices": {
+      "title": "Istoric facturi",
+      "number": "Număr factură",
+      "date": "Data",
+      "amount": "Sumă",
+      "status": "Stare",
+      "paid": "Plătită",
+      "pending": "În așteptare",
+      "overdue": "Restantă",
+      "noInvoices": "Fără facturi"
+    },
+    "companies": {
+      "title": "Companii",
+      "description": "Companii conectate la contul dvs.",
+      "main": "Principală",
+      "noCompanies": "Fără companii"
+    },
+    "locked": {
+      "title": "Cont blocat",
+      "description": "Contul dvs. a fost blocat din cauza expirării abonamentului.",
+      "account": "Cont",
+      "status": "Stare",
+      "gracePeriodInfo": "Contul dvs. este în perioada de grație. {{days}} zile până la blocarea completă.",
+      "paymentInfo": "Reînnoiți abonamentul pentru a accesa datele.",
+      "contactSupport": "Contactați suportul",
+      "needHelp": "Aveți nevoie de ajutor?"
+    }
+  },
+
+  "documents": {
+    "storage": "Stocare",
+    "upload": "Încarcă document",
+    "uploadFirst": "Încărcați primul document",
+    "uploadTitle": "Încarcă document nou",
+    "uploadDescription": "Selectați un fișier de încărcat (max 25 MB)",
+    "uploading": "Se încarcă",
+    "uploadSuccess": "Document încărcat cu succes",
+    "deleteSuccess": "Document șters cu succes",
+    "deleteTitle": "Șterge document",
+    "deleteConfirm": "Sigur doriți să ștergeți acest document? Această acțiune nu poate fi anulată.",
+    "noDocuments": "Fără documente atașate",
+    "category": "Categorie",
+    "description": "Descriere",
+    "descriptionPlaceholder": "Introduceți o descriere pentru document (opțional)",
+    "storageWarning": "Spațiul de stocare se termină",
+    "storageCritical": "Stocare aproape plină!",
+    "categories": {
+      "contract": "Contract",
+      "invoice_copy": "Copie factură",
+      "receipt": "Chitanță",
+      "id_document": "Document de identitate",
+      "certificate": "Certificat",
+      "report": "Raport",
+      "other": "Altele"
+    },
+    "errors": {
+      "fileTooLarge": "Fișier prea mare (max 25 MB)",
+      "missingInfo": "Informații lipsă",
+      "uploadFailed": "Încărcare eșuată",
+      "downloadFailed": "Descărcare eșuată",
+      "viewFailed": "Vizualizare eșuată",
+      "deleteFailed": "Ștergere eșuată",
+      "quota.maxFilesReached": "Număr maxim de fișiere atins",
+      "quota.storageLimitReached": "Limită de stocare atinsă",
+      "quota.fileTooLarge": "Dimensiunea fișierului depășește limita"
+    }
+  },
+
+  "import": {
+    "title": "Import date",
+    "step": "Pas",
+    "of": "din",
+    "selectEntityType": "Selectați tipul de date",
+    "selectEntityTypeDescription": "Alegeți tipul de date de importat",
+    "fields": "câmpuri",
+    "noEntityTypes": "Nu există tipuri de date disponibile pentru import",
+    "downloadTemplate": "Descărcați șablonul",
+    "downloadTemplateDescription": "Descărcați șablonul, completați și încărcați",
+    "templateArabic": "Șablon arabic",
+    "templateEnglish": "Șablon englezesc",
+    "dropFileHere": "Trageți fișierul aici",
+    "orClickToSelect": "sau faceți clic pentru a selecta",
+    "supportedFormats": "Formate acceptate",
+    "maxSize": "Dimensiune max",
+    "parsing": "Se citește fișierul...",
+    "requiredFields": "Câmpuri obligatorii",
+    "invalidFileType": "Tip de fișier neacceptat",
+    "fileTooLarge": "Dimensiunea fișierului depășește limita",
+    "totalRows": "Total rânduri",
+    "columns": "Coloane",
+    "mapped": "Mapate",
+    "notMapped": "Nemapate",
+    "missingRequiredFields": "Câmpuri obligatorii nemapate",
+    "fileColumn": "Coloană fișier",
+    "systemField": "Câmp sistem",
+    "status": "Stare",
+    "selectField": "Selectați câmpul",
+    "ignore": "Ignoră",
+    "sample": "Exemplu",
+    "validating": "Se validează...",
+    "validateData": "Validare date",
+    "validRows": "Rânduri valide",
+    "invalidRows": "Rânduri invalide",
+    "willImport": "Se vor importa",
+    "errorSummary": "Rezumat erori",
+    "importOptions": "Opțiuni import",
+    "skipInvalidRows": "Omite rândurile invalide",
+    "skipInvalidRowsDescription": "Importă doar rândurile valide",
+    "updateExisting": "Actualizează existente",
+    "updateExistingDescription": "Actualizează înregistrările la potrivirea codului",
+    "useAIAnalysis": "Folosește analiza AI",
+    "useAIAnalysisDescription": "Analiză inteligentă pentru detectarea duplicatelor și erorilor",
+    "all": "Toate",
+    "valid": "Valide",
+    "invalid": "Invalide",
+    "data": "Date",
+    "errors": "Erori",
+    "moreErrors": "mai multe erori",
+    "page": "Pagină",
+    "continueToAI": "La analiza AI",
+    "continueToPreview": "La previzualizare",
+    "aiAnalysisComingSoon": "Analiza AI va fi disponibilă în curând",
+    "readyToImport": "Gata de import",
+    "reviewAndConfirm": "Verificați datele și confirmați importul",
+    "recordsToImport": "înregistrări de importat",
+    "entityType": "Tip de date",
+    "updateEnabled": "Actualizare activată",
+    "dataPreview": "Previzualizare date",
+    "showing": "Se afișează",
+    "importSettings": "Setări import",
+    "aiAnalysis": "Analiză AI",
+    "importing": "Se importă...",
+    "startImport": "Începe importul",
+    "records": "înregistrări",
+    "importingData": "Se importă datele",
+    "successTitle": "Import reușit!",
+    "successDescription": "Toate datele au fost importate cu succes",
+    "partialSuccessTitle": "Import parțial",
+    "partialSuccessDescription": "Unele date au fost importate cu erori",
+    "failedTitle": "Import eșuat",
+    "failedDescription": "Nu s-au putut importa datele",
+    "imported": "Importate",
+    "skipped": "Omise",
+    "failed": "Eșuate",
+    "successRate": "Rata de succes",
+    "importDetails": "Detalii import",
+    "fileName": "Nume fișier",
+    "startTime": "Ora de începere",
+    "endTime": "Ora de încheiere",
+    "errorReport": "Raport erori",
+    "downloadErrorReport": "Descărcați raportul rândurilor eșuate",
+    "download": "Descărcați",
+    "newImport": "Import nou",
+    "done": "Gata"
+  }
+}

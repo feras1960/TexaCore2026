@@ -1,0 +1,459 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- إنشاء شجرة محاسبية افتراضية قياسية - متعددة اللغات (9 لغات)
+-- Create Default Standard Chart of Accounts - Multi-language (9 languages)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Languages: Arabic, English, Russian, Ukrainian, Romanian, Polish, Turkish, German, Italian
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Function to create default chart of accounts for a company (9 languages)
+CREATE OR REPLACE FUNCTION public.create_default_chart_of_accounts(
+    p_company_id UUID
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_tenant_id UUID;
+    v_asset_type_id UUID;
+    v_current_asset_type_id UUID;
+    v_fixed_asset_type_id UUID;
+    v_liability_type_id UUID;
+    v_current_liability_type_id UUID;
+    v_long_term_liability_type_id UUID;
+    v_equity_type_id UUID;
+    v_revenue_type_id UUID;
+    v_expense_type_id UUID;
+    v_cogs_type_id UUID;
+    v_other_income_type_id UUID;
+    v_other_expense_type_id UUID;
+    
+    -- Parent account IDs
+    v_assets_id UUID;
+    v_current_assets_id UUID;
+    v_cash_id UUID;
+    v_banks_id UUID;
+    v_receivables_id UUID;
+    v_inventory_id UUID;
+    v_prepaid_id UUID;
+    v_fixed_assets_id UUID;
+    v_liabilities_id UUID;
+    v_current_liabilities_id UUID;
+    v_payables_id UUID;
+    v_taxes_payable_id UUID;
+    v_long_term_liabilities_id UUID;
+    v_equity_id UUID;
+    v_revenue_id UUID;
+    v_sales_id UUID;
+    v_other_income_id UUID;
+    v_expenses_id UUID;
+    v_cogs_id UUID;
+    v_payroll_expenses_id UUID;
+    v_operating_expenses_id UUID;
+    v_admin_expenses_id UUID;
+    v_marketing_expenses_id UUID;
+    v_financial_expenses_id UUID;
+    v_taxes_expense_id UUID;
+BEGIN
+    -- Get tenant_id from company
+    SELECT tenant_id INTO v_tenant_id FROM companies WHERE id = p_company_id;
+    
+    IF v_tenant_id IS NULL THEN
+        RAISE EXCEPTION 'Company not found or has no tenant_id';
+    END IF;
+    
+    -- Get account type IDs
+    SELECT id INTO v_asset_type_id FROM account_types WHERE code = 'ASSET';
+    SELECT id INTO v_current_asset_type_id FROM account_types WHERE code = 'CURRENT_ASSET';
+    SELECT id INTO v_fixed_asset_type_id FROM account_types WHERE code = 'FIXED_ASSET';
+    SELECT id INTO v_liability_type_id FROM account_types WHERE code = 'LIABILITY';
+    SELECT id INTO v_current_liability_type_id FROM account_types WHERE code = 'CURRENT_LIABILITY';
+    SELECT id INTO v_long_term_liability_type_id FROM account_types WHERE code = 'LONG_TERM_LIABILITY';
+    SELECT id INTO v_equity_type_id FROM account_types WHERE code = 'EQUITY';
+    SELECT id INTO v_revenue_type_id FROM account_types WHERE code = 'REVENUE';
+    SELECT id INTO v_expense_type_id FROM account_types WHERE code = 'EXPENSE';
+    SELECT id INTO v_cogs_type_id FROM account_types WHERE code = 'COGS';
+    SELECT id INTO v_other_income_type_id FROM account_types WHERE code = 'OTHER_INCOME';
+    SELECT id INTO v_other_expense_type_id FROM account_types WHERE code = 'OTHER_EXPENSE';
+    
+    -- ═══════════════════════════════════════════════════════════════
+    -- 1. ASSETS (الأصول) - Level 1
+    -- ═══════════════════════════════════════════════════════════════
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '1000', 
+        'الأصول', 'Assets', 'Активы', 'Активи', 'Active', 'Aktywa', 'Varlıklar', 'Vermögenswerte', 'Attività',
+        v_asset_type_id, NULL, true, false, 1, '1000', 'SAR', true)
+    RETURNING id INTO v_assets_id;
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 1.1 Current Assets (الأصول المتداولة)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '1100', 
+        'الأصول المتداولة', 'Current Assets', 'Оборотные активы', 'Оборотні активи', 'Active curente', 'Aktywa obrotowe', 'Dönen Varlıklar', 'Umlaufvermögen', 'Attività correnti',
+        v_current_asset_type_id, v_assets_id, true, false, 2, '1000.1100', 'SAR', true)
+    RETURNING id INTO v_current_assets_id;
+    
+    -- 1.1.1 Cash on Hand (الصناديق النقدية)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_cash_account)
+    VALUES (v_tenant_id, p_company_id, '1110', 
+        'الصناديق النقدية', 'Cash on Hand', 'Касса', 'Каса', 'Numerar în casă', 'Kasa', 'Kasa', 'Kasse', 'Cassa',
+        v_current_asset_type_id, v_current_assets_id, true, false, 3, '1000.1100.1110', 'SAR', true, true)
+    RETURNING id INTO v_cash_id;
+    
+    -- Cash accounts (detail)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_cash_account)
+    VALUES 
+        (v_tenant_id, p_company_id, '1111', 'الصندوق الرئيسي', 'Main Cash', 'Основная касса', 'Основна каса', 'Casa principală', 'Kasa główna', 'Ana Kasa', 'Hauptkasse', 'Cassa Principale', v_current_asset_type_id, v_cash_id, false, true, 4, '1000.1100.1110.1111', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '1112', 'صندوق المصروفات النثرية', 'Petty Cash', 'Касса мелких расходов', 'Каса дрібних витрат', 'Casa de cheltuieli mici', 'Kasa podręczna', 'Kırtasiye Kasası', 'Handkasse', 'Piccola Cassa', v_current_asset_type_id, v_cash_id, false, true, 4, '1000.1100.1110.1112', 'SAR', true, true);
+    
+    -- 1.1.2 Banks (البنوك)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_bank_account)
+    VALUES (v_tenant_id, p_company_id, '1120', 
+        'البنوك', 'Banks', 'Банки', 'Банки', 'Bănci', 'Banki', 'Bankalar', 'Banken', 'Banche',
+        v_current_asset_type_id, v_current_assets_id, true, false, 3, '1000.1100.1120', 'SAR', true, true)
+    RETURNING id INTO v_banks_id;
+    
+    -- Bank accounts (detail)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_bank_account)
+    VALUES 
+        (v_tenant_id, p_company_id, '1121', 'البنك الرئيسي - العملة المحلية', 'Main Bank - Local Currency', 'Основной банк - местная валюта', 'Основний банк - місцева валюта', 'Banca principală - monedă locală', 'Bank główny - waluta lokalna', 'Ana Banka - Yerel Para', 'Hauptbank - Landeswährung', 'Banca Principale - Valuta Locale', v_current_asset_type_id, v_banks_id, false, true, 4, '1000.1100.1120.1121', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '1122', 'البنك الرئيسي - العملات الأجنبية', 'Main Bank - Foreign Currency', 'Основной банк - иностранная валюта', 'Основний банк - іноземна валюта', 'Banca principală - valută străină', 'Bank główny - waluta obca', 'Ana Banka - Döviz', 'Hauptbank - Fremdwährung', 'Banca Principale - Valuta Estera', v_current_asset_type_id, v_banks_id, false, true, 4, '1000.1100.1120.1122', 'USD', true, true);
+    
+    -- 1.1.3 Accounts Receivable (العملاء - الذمم المدينة) - GROUP ONLY
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_receivable)
+    VALUES (v_tenant_id, p_company_id, '1130', 
+        'العملاء (الذمم المدينة)', 'Accounts Receivable', 'Дебиторская задолженность', 'Дебіторська заборгованість', 'Creanțe', 'Należności', 'Alacak Hesapları', 'Forderungen', 'Crediti',
+        v_current_asset_type_id, v_current_assets_id, true, false, 3, '1000.1100.1130', 'SAR', true, true)
+    RETURNING id INTO v_receivables_id;
+    
+    -- Sub-groups for receivables (empty - user adds customers)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_receivable)
+    VALUES 
+        (v_tenant_id, p_company_id, '1131', 'عملاء محليين', 'Local Customers', 'Местные клиенты', 'Місцеві клієнти', 'Clienți locali', 'Klienci lokalni', 'Yerel Müşteriler', 'Inlandskunden', 'Clienti Nazionali', v_current_asset_type_id, v_receivables_id, true, false, 4, '1000.1100.1130.1131', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '1132', 'عملاء خارجيين', 'Foreign Customers', 'Иностранные клиенты', 'Іноземні клієнти', 'Clienți străini', 'Klienci zagraniczni', 'Yabancı Müşteriler', 'Auslandskunden', 'Clienti Esteri', v_current_asset_type_id, v_receivables_id, true, false, 4, '1000.1100.1130.1132', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '1133', 'أوراق القبض', 'Notes Receivable', 'Векселя к получению', 'Векселі до отримання', 'Efecte de primit', 'Weksle do otrzymania', 'Alacak Senetleri', 'Wechselforderungen', 'Effetti Attivi', v_current_asset_type_id, v_receivables_id, false, true, 4, '1000.1100.1130.1133', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '1134', 'مدينون آخرون', 'Other Receivables', 'Прочие дебиторы', 'Інші дебітори', 'Alte creanțe', 'Inne należności', 'Diğer Alacaklar', 'Sonstige Forderungen', 'Altri Crediti', v_current_asset_type_id, v_receivables_id, false, true, 4, '1000.1100.1130.1134', 'SAR', true, true);
+    
+    -- 1.1.4 Inventory (المخزون)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '1140', 
+        'المخزون', 'Inventory', 'Запасы', 'Запаси', 'Stocuri', 'Zapasy', 'Stok', 'Vorräte', 'Magazzino',
+        v_current_asset_type_id, v_current_assets_id, true, false, 3, '1000.1100.1140', 'SAR', true)
+    RETURNING id INTO v_inventory_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '1141', 'بضاعة جاهزة', 'Finished Goods', 'Готовая продукция', 'Готова продукція', 'Produse finite', 'Wyroby gotowe', 'Mamul Mallar', 'Fertigerzeugnisse', 'Prodotti Finiti', v_current_asset_type_id, v_inventory_id, false, true, 4, '1000.1100.1140.1141', 'SAR', true),
+        (v_tenant_id, p_company_id, '1142', 'مواد خام', 'Raw Materials', 'Сырье', 'Сировина', 'Materii prime', 'Surowce', 'Hammaddeler', 'Rohstoffe', 'Materie Prime', v_current_asset_type_id, v_inventory_id, false, true, 4, '1000.1100.1140.1142', 'SAR', true),
+        (v_tenant_id, p_company_id, '1143', 'بضاعة في الطريق', 'Goods in Transit', 'Товары в пути', 'Товари в дорозі', 'Mărfuri în tranzit', 'Towary w drodze', 'Yoldaki Mallar', 'Waren unterwegs', 'Merci in Transito', v_current_asset_type_id, v_inventory_id, false, true, 4, '1000.1100.1140.1143', 'SAR', true);
+    
+    -- 1.1.5 Prepaid Expenses (مصاريف مدفوعة مقدماً)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '1150', 
+        'مصاريف مدفوعة مقدماً', 'Prepaid Expenses', 'Предоплаченные расходы', 'Передоплачені витрати', 'Cheltuieli în avans', 'Koszty opłacone z góry', 'Peşin Ödenmiş Giderler', 'Vorausbezahlte Aufwendungen', 'Risconti Attivi',
+        v_current_asset_type_id, v_current_assets_id, true, false, 3, '1000.1100.1150', 'SAR', true)
+    RETURNING id INTO v_prepaid_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '1151', 'إيجارات مدفوعة مقدماً', 'Prepaid Rent', 'Предоплаченная аренда', 'Передоплачена оренда', 'Chirie plătită în avans', 'Czynsz opłacony z góry', 'Peşin Ödenmiş Kira', 'Vorausbezahlte Miete', 'Affitti Anticipati', v_current_asset_type_id, v_prepaid_id, false, true, 4, '1000.1100.1150.1151', 'SAR', true),
+        (v_tenant_id, p_company_id, '1152', 'تأمين مدفوع مقدماً', 'Prepaid Insurance', 'Предоплаченное страхование', 'Передоплачене страхування', 'Asigurare plătită în avans', 'Ubezpieczenie opłacone z góry', 'Peşin Ödenmiş Sigorta', 'Vorausbezahlte Versicherung', 'Assicurazioni Anticipate', v_current_asset_type_id, v_prepaid_id, false, true, 4, '1000.1100.1150.1152', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 1.2 Fixed Assets (الأصول الثابتة)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '1200', 
+        'الأصول الثابتة', 'Fixed Assets', 'Основные средства', 'Основні засоби', 'Active fixe', 'Aktywa trwałe', 'Duran Varlıklar', 'Anlagevermögen', 'Immobilizzazioni',
+        v_fixed_asset_type_id, v_assets_id, true, false, 2, '1000.1200', 'SAR', true)
+    RETURNING id INTO v_fixed_assets_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '1210', 'الأراضي', 'Land', 'Земля', 'Земля', 'Terenuri', 'Grunty', 'Arazi', 'Grundstücke', 'Terreni', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1210', 'SAR', true),
+        (v_tenant_id, p_company_id, '1220', 'المباني', 'Buildings', 'Здания', 'Будівлі', 'Clădiri', 'Budynki', 'Binalar', 'Gebäude', 'Fabbricati', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1220', 'SAR', true),
+        (v_tenant_id, p_company_id, '1230', 'الآلات والمعدات', 'Machinery & Equipment', 'Машины и оборудование', 'Машини та обладнання', 'Utilaje și echipamente', 'Maszyny i urządzenia', 'Makine ve Ekipman', 'Maschinen und Anlagen', 'Macchinari e Attrezzature', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1230', 'SAR', true),
+        (v_tenant_id, p_company_id, '1240', 'الأثاث والتجهيزات', 'Furniture & Fixtures', 'Мебель и оборудование', 'Меблі та обладнання', 'Mobilier și dotări', 'Meble i wyposażenie', 'Mobilya ve Demirbaş', 'Möbel und Einrichtung', 'Mobili e Arredi', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1240', 'SAR', true),
+        (v_tenant_id, p_company_id, '1250', 'السيارات ووسائل النقل', 'Vehicles', 'Транспортные средства', 'Транспортні засоби', 'Vehicule', 'Pojazdy', 'Taşıtlar', 'Fahrzeuge', 'Automezzi', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1250', 'SAR', true),
+        (v_tenant_id, p_company_id, '1260', 'أجهزة الحاسب الآلي', 'Computer Equipment', 'Компьютерное оборудование', 'Комп''ютерне обладнання', 'Echipamente IT', 'Sprzęt komputerowy', 'Bilgisayar Ekipmanları', 'EDV-Anlagen', 'Attrezzature Informatiche', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1260', 'SAR', true),
+        (v_tenant_id, p_company_id, '1290', 'مجمع الإهلاك', 'Accumulated Depreciation', 'Накопленная амортизация', 'Накопичена амортизація', 'Amortizare cumulată', 'Umorzenie', 'Birikmiş Amortisman', 'Kumulierte Abschreibungen', 'Fondo Ammortamento', v_fixed_asset_type_id, v_fixed_assets_id, false, true, 3, '1000.1200.1290', 'SAR', true);
+    
+    -- ═══════════════════════════════════════════════════════════════
+    -- 2. LIABILITIES (الخصوم) - Level 1
+    -- ═══════════════════════════════════════════════════════════════
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '2000', 
+        'الخصوم', 'Liabilities', 'Обязательства', 'Зобов''язання', 'Datorii', 'Zobowiązania', 'Borçlar', 'Verbindlichkeiten', 'Passività',
+        v_liability_type_id, NULL, true, false, 1, '2000', 'SAR', true)
+    RETURNING id INTO v_liabilities_id;
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 2.1 Current Liabilities (الخصوم المتداولة)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '2100', 
+        'الخصوم المتداولة', 'Current Liabilities', 'Краткосрочные обязательства', 'Поточні зобов''язання', 'Datorii curente', 'Zobowiązania krótkoterminowe', 'Kısa Vadeli Borçlar', 'Kurzfristige Verbindlichkeiten', 'Passività Correnti',
+        v_current_liability_type_id, v_liabilities_id, true, false, 2, '2000.2100', 'SAR', true)
+    RETURNING id INTO v_current_liabilities_id;
+    
+    -- 2.1.1 Accounts Payable (الموردون - الذمم الدائنة) - GROUP ONLY
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_payable)
+    VALUES (v_tenant_id, p_company_id, '2110', 
+        'الموردون (الذمم الدائنة)', 'Accounts Payable', 'Кредиторская задолженность', 'Кредиторська заборгованість', 'Furnizori', 'Zobowiązania handlowe', 'Borç Hesapları', 'Verbindlichkeiten aus L.u.L.', 'Debiti verso Fornitori',
+        v_current_liability_type_id, v_current_liabilities_id, true, false, 3, '2000.2100.2110', 'SAR', true, true)
+    RETURNING id INTO v_payables_id;
+    
+    -- Sub-groups for payables (empty - user adds suppliers)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_payable)
+    VALUES 
+        (v_tenant_id, p_company_id, '2111', 'موردون محليين', 'Local Suppliers', 'Местные поставщики', 'Місцеві постачальники', 'Furnizori locali', 'Dostawcy lokalni', 'Yerel Tedarikçiler', 'Inlandslieferanten', 'Fornitori Nazionali', v_current_liability_type_id, v_payables_id, true, false, 4, '2000.2100.2110.2111', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '2112', 'موردون خارجيين', 'Foreign Suppliers', 'Иностранные поставщики', 'Іноземні постачальники', 'Furnizori străini', 'Dostawcy zagraniczni', 'Yabancı Tedarikçiler', 'Auslandslieferanten', 'Fornitori Esteri', v_current_liability_type_id, v_payables_id, true, false, 4, '2000.2100.2110.2112', 'SAR', true, true);
+    
+    -- Other current liabilities
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active, is_payable)
+    VALUES 
+        (v_tenant_id, p_company_id, '2120', 'أوراق الدفع', 'Notes Payable', 'Векселя к оплате', 'Векселі до сплати', 'Efecte de plătit', 'Weksle do zapłaty', 'Borç Senetleri', 'Wechselverbindlichkeiten', 'Effetti Passivi', v_current_liability_type_id, v_current_liabilities_id, false, true, 3, '2000.2100.2120', 'SAR', true, true),
+        (v_tenant_id, p_company_id, '2130', 'مستحقات الموظفين', 'Accrued Salaries', 'Задолженность по зарплате', 'Заборгованість по зарплаті', 'Salarii de plătit', 'Wynagrodzenia do wypłaty', 'Tahakkuk Eden Maaşlar', 'Lohnverbindlichkeiten', 'Debiti verso Dipendenti', v_current_liability_type_id, v_current_liabilities_id, false, true, 3, '2000.2100.2130', 'SAR', true, false);
+    
+    -- 2.1.2 Taxes Payable (الضرائب المستحقة)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '2140', 
+        'الضرائب المستحقة', 'Taxes Payable', 'Налоги к уплате', 'Податки до сплати', 'Taxe de plătit', 'Podatki do zapłaty', 'Ödenecek Vergiler', 'Steuerverbindlichkeiten', 'Debiti Tributari',
+        v_current_liability_type_id, v_current_liabilities_id, true, false, 3, '2000.2100.2140', 'SAR', true)
+    RETURNING id INTO v_taxes_payable_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '2141', 'ضريبة القيمة المضافة المستحقة', 'VAT Payable', 'НДС к уплате', 'ПДВ до сплати', 'TVA de plătit', 'VAT do zapłaty', 'Ödenecek KDV', 'Umsatzsteuerverbindlichkeiten', 'IVA a Debito', v_current_liability_type_id, v_taxes_payable_id, false, true, 4, '2000.2100.2140.2141', 'SAR', true),
+        (v_tenant_id, p_company_id, '2142', 'ضريبة الدخل المستحقة', 'Income Tax Payable', 'Налог на прибыль к уплате', 'Податок на прибуток до сплати', 'Impozit pe venit de plătit', 'Podatek dochodowy do zapłaty', 'Ödenecek Gelir Vergisi', 'Körperschaftsteuer', 'IRES a Debito', v_current_liability_type_id, v_taxes_payable_id, false, true, 4, '2000.2100.2140.2142', 'SAR', true),
+        (v_tenant_id, p_company_id, '2143', 'ضريبة الاستقطاع', 'Withholding Tax', 'Удерживаемый налог', 'Утриманий податок', 'Impozit reținut', 'Podatek u źródła', 'Stopaj Vergisi', 'Quellensteuer', 'Ritenute d''Acconto', v_current_liability_type_id, v_taxes_payable_id, false, true, 4, '2000.2100.2140.2143', 'SAR', true);
+    
+    -- Other current liabilities continued
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '2150', 'إيرادات مقدمة', 'Deferred Revenue', 'Доходы будущих периодов', 'Доходи майбутніх періодів', 'Venituri în avans', 'Przychody przyszłych okresów', 'Ertelenmiş Gelir', 'Erhaltene Anzahlungen', 'Risconti Passivi', v_current_liability_type_id, v_current_liabilities_id, false, true, 3, '2000.2100.2150', 'SAR', true),
+        (v_tenant_id, p_company_id, '2160', 'دائنون آخرون', 'Other Payables', 'Прочие кредиторы', 'Інші кредитори', 'Alți creditori', 'Inni wierzyciele', 'Diğer Borçlar', 'Sonstige Verbindlichkeiten', 'Altri Debiti', v_current_liability_type_id, v_current_liabilities_id, false, true, 3, '2000.2100.2160', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 2.2 Long-term Liabilities (الخصوم طويلة الأجل)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '2200', 
+        'الخصوم طويلة الأجل', 'Long-term Liabilities', 'Долгосрочные обязательства', 'Довгострокові зобов''язання', 'Datorii pe termen lung', 'Zobowiązania długoterminowe', 'Uzun Vadeli Borçlar', 'Langfristige Verbindlichkeiten', 'Passività a Lungo Termine',
+        v_long_term_liability_type_id, v_liabilities_id, true, false, 2, '2000.2200', 'SAR', true)
+    RETURNING id INTO v_long_term_liabilities_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '2210', 'قروض بنكية طويلة الأجل', 'Long-term Bank Loans', 'Долгосрочные банковские кредиты', 'Довгострокові банківські кредити', 'Credite bancare pe termen lung', 'Kredyty bankowe długoterminowe', 'Uzun Vadeli Banka Kredileri', 'Langfristige Bankdarlehen', 'Mutui Bancari a Lungo Termine', v_long_term_liability_type_id, v_long_term_liabilities_id, false, true, 3, '2000.2200.2210', 'SAR', true),
+        (v_tenant_id, p_company_id, '2220', 'مخصص نهاية الخدمة', 'End of Service Benefits', 'Выходное пособие', 'Вихідна допомога', 'Indemnizații de serviciu', 'Odprawy', 'Kıdem Tazminatı Karşılığı', 'Rückstellungen für Abfindungen', 'TFR', v_long_term_liability_type_id, v_long_term_liabilities_id, false, true, 3, '2000.2200.2220', 'SAR', true);
+    
+    -- ═══════════════════════════════════════════════════════════════
+    -- 3. EQUITY (حقوق الملكية) - Level 1
+    -- ═══════════════════════════════════════════════════════════════
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '3000', 
+        'حقوق الملكية', 'Equity', 'Собственный капитал', 'Власний капітал', 'Capitaluri proprii', 'Kapitał własny', 'Öz Sermaye', 'Eigenkapital', 'Patrimonio Netto',
+        v_equity_type_id, NULL, true, false, 1, '3000', 'SAR', true)
+    RETURNING id INTO v_equity_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '3100', 'رأس المال', 'Capital', 'Уставный капитал', 'Статутний капітал', 'Capital social', 'Kapitał zakładowy', 'Sermaye', 'Gezeichnetes Kapital', 'Capitale Sociale', v_equity_type_id, v_equity_id, false, true, 2, '3000.3100', 'SAR', true),
+        (v_tenant_id, p_company_id, '3200', 'الاحتياطي النظامي', 'Legal Reserve', 'Резервный капитал', 'Резервний капітал', 'Rezerve legale', 'Kapitał rezerwowy', 'Yasal Yedekler', 'Gesetzliche Rücklagen', 'Riserva Legale', v_equity_type_id, v_equity_id, false, true, 2, '3000.3200', 'SAR', true),
+        (v_tenant_id, p_company_id, '3300', 'الاحتياطي العام', 'General Reserve', 'Общий резерв', 'Загальний резерв', 'Rezerve generale', 'Kapitał zapasowy', 'Genel Yedekler', 'Andere Rücklagen', 'Riserva Straordinaria', v_equity_type_id, v_equity_id, false, true, 2, '3000.3300', 'SAR', true),
+        (v_tenant_id, p_company_id, '3400', 'الأرباح المحتجزة', 'Retained Earnings', 'Нераспределенная прибыль', 'Нерозподілений прибуток', 'Rezultat reportat', 'Zysk zatrzymany', 'Dağıtılmamış Karlar', 'Gewinnvortrag', 'Utili a Nuovo', v_equity_type_id, v_equity_id, false, true, 2, '3000.3400', 'SAR', true),
+        (v_tenant_id, p_company_id, '3500', 'أرباح / خسائر العام', 'Current Year Profit/Loss', 'Прибыль/убыток текущего года', 'Прибуток/збиток поточного року', 'Profit/Pierdere curentă', 'Wynik bieżącego roku', 'Cari Yıl Kar/Zarar', 'Jahresüberschuss/-fehlbetrag', 'Utile/Perdita d''Esercizio', v_equity_type_id, v_equity_id, false, true, 2, '3000.3500', 'SAR', true),
+        (v_tenant_id, p_company_id, '3600', 'جاري الشركاء', 'Partners Current Account', 'Текущий счет партнеров', 'Поточний рахунок партнерів', 'Cont curent asociați', 'Konto bieżące wspólników', 'Ortaklar Cari Hesabı', 'Verrechnungskonten Gesellschafter', 'Conto Corrente Soci', v_equity_type_id, v_equity_id, false, true, 2, '3000.3600', 'SAR', true);
+    
+    -- ═══════════════════════════════════════════════════════════════
+    -- 4. REVENUE (الإيرادات) - Level 1
+    -- ═══════════════════════════════════════════════════════════════
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '4000', 
+        'الإيرادات', 'Revenue', 'Доходы', 'Доходи', 'Venituri', 'Przychody', 'Gelirler', 'Erträge', 'Ricavi',
+        v_revenue_type_id, NULL, true, false, 1, '4000', 'SAR', true)
+    RETURNING id INTO v_revenue_id;
+    
+    -- 4.1 Sales Revenue (إيرادات المبيعات)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '4100', 
+        'إيرادات المبيعات', 'Sales Revenue', 'Выручка от продаж', 'Виручка від продажів', 'Venituri din vânzări', 'Przychody ze sprzedaży', 'Satış Gelirleri', 'Umsatzerlöse', 'Ricavi delle Vendite',
+        v_revenue_type_id, v_revenue_id, true, false, 2, '4000.4100', 'SAR', true)
+    RETURNING id INTO v_sales_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '4110', 'مبيعات بضاعة', 'Product Sales', 'Продажа товаров', 'Продаж товарів', 'Vânzări de produse', 'Sprzedaż produktów', 'Ürün Satışları', 'Warenverkäufe', 'Vendita Prodotti', v_revenue_type_id, v_sales_id, false, true, 3, '4000.4100.4110', 'SAR', true),
+        (v_tenant_id, p_company_id, '4120', 'إيرادات خدمات', 'Service Revenue', 'Выручка от услуг', 'Виручка від послуг', 'Venituri din servicii', 'Przychody z usług', 'Hizmet Gelirleri', 'Dienstleistungserlöse', 'Ricavi da Servizi', v_revenue_type_id, v_sales_id, false, true, 3, '4000.4100.4120', 'SAR', true),
+        (v_tenant_id, p_company_id, '4130', 'مردودات المبيعات', 'Sales Returns', 'Возвраты продаж', 'Повернення продажів', 'Retururi vânzări', 'Zwroty sprzedaży', 'Satış İadeleri', 'Retouren', 'Resi su Vendite', v_revenue_type_id, v_sales_id, false, true, 3, '4000.4100.4130', 'SAR', true),
+        (v_tenant_id, p_company_id, '4140', 'خصم مسموح به', 'Sales Discounts', 'Скидки с продаж', 'Знижки з продажів', 'Reduceri acordate', 'Rabaty udzielone', 'Satış İskontoları', 'Erlösschmälerungen', 'Sconti su Vendite', v_revenue_type_id, v_sales_id, false, true, 3, '4000.4100.4140', 'SAR', true);
+    
+    -- 4.2 Other Income (إيرادات أخرى)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '4200', 
+        'إيرادات أخرى', 'Other Income', 'Прочие доходы', 'Інші доходи', 'Alte venituri', 'Pozostałe przychody', 'Diğer Gelirler', 'Sonstige Erträge', 'Altri Ricavi',
+        v_other_income_type_id, v_revenue_id, true, false, 2, '4000.4200', 'SAR', true)
+    RETURNING id INTO v_other_income_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '4210', 'إيرادات فوائد', 'Interest Income', 'Процентные доходы', 'Процентні доходи', 'Venituri din dobânzi', 'Przychody odsetkowe', 'Faiz Gelirleri', 'Zinserträge', 'Interessi Attivi', v_other_income_type_id, v_other_income_id, false, true, 3, '4000.4200.4210', 'SAR', true),
+        (v_tenant_id, p_company_id, '4220', 'أرباح فروقات عملة', 'Foreign Exchange Gains', 'Курсовые разницы (доход)', 'Курсові різниці (дохід)', 'Câștiguri din diferențe de curs', 'Różnice kursowe dodatnie', 'Kur Farkı Kazançları', 'Kursgewinne', 'Utili su Cambi', v_other_income_type_id, v_other_income_id, false, true, 3, '4000.4200.4220', 'SAR', true),
+        (v_tenant_id, p_company_id, '4230', 'إيرادات متنوعة', 'Miscellaneous Income', 'Прочие доходы', 'Інші доходи', 'Venituri diverse', 'Pozostałe przychody', 'Çeşitli Gelirler', 'Sonstige Erlöse', 'Proventi Diversi', v_other_income_type_id, v_other_income_id, false, true, 3, '4000.4200.4230', 'SAR', true);
+    
+    -- ═══════════════════════════════════════════════════════════════
+    -- 5. EXPENSES (المصروفات) - Level 1 - EXPANDED
+    -- ═══════════════════════════════════════════════════════════════
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5000', 
+        'المصروفات', 'Expenses', 'Расходы', 'Витрати', 'Cheltuieli', 'Koszty', 'Giderler', 'Aufwendungen', 'Costi',
+        v_expense_type_id, NULL, true, false, 1, '5000', 'SAR', true)
+    RETURNING id INTO v_expenses_id;
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.1 Cost of Goods Sold (تكلفة البضاعة المباعة)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5100', 
+        'تكلفة البضاعة المباعة', 'Cost of Goods Sold', 'Себестоимость продаж', 'Собівартість продажів', 'Costul bunurilor vândute', 'Koszt sprzedanych towarów', 'Satılan Malın Maliyeti', 'Herstellungskosten', 'Costo del Venduto',
+        v_cogs_type_id, v_expenses_id, true, false, 2, '5000.5100', 'SAR', true)
+    RETURNING id INTO v_cogs_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5110', 'تكلفة المبيعات', 'Cost of Sales', 'Себестоимость', 'Собівартість', 'Costul vânzărilor', 'Koszt sprzedaży', 'Satış Maliyeti', 'Umsatzkosten', 'Costo delle Vendite', v_cogs_type_id, v_cogs_id, false, true, 3, '5000.5100.5110', 'SAR', true),
+        (v_tenant_id, p_company_id, '5120', 'مشتريات', 'Purchases', 'Закупки', 'Закупівлі', 'Achiziții', 'Zakupy', 'Satın Almalar', 'Wareneinkauf', 'Acquisti', v_cogs_type_id, v_cogs_id, false, true, 3, '5000.5100.5120', 'SAR', true),
+        (v_tenant_id, p_company_id, '5130', 'مردودات المشتريات', 'Purchase Returns', 'Возвраты закупок', 'Повернення закупівель', 'Retururi la achiziții', 'Zwroty zakupów', 'Satın Alma İadeleri', 'Warenrücksendungen', 'Resi su Acquisti', v_cogs_type_id, v_cogs_id, false, true, 3, '5000.5100.5130', 'SAR', true),
+        (v_tenant_id, p_company_id, '5140', 'خصم مكتسب', 'Purchase Discounts', 'Скидки на закупки', 'Знижки на закупівлі', 'Reduceri obținute', 'Rabaty otrzymane', 'Satın Alma İskontoları', 'Lieferantenskonti', 'Sconti su Acquisti', v_cogs_type_id, v_cogs_id, false, true, 3, '5000.5100.5140', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.2 Payroll Expenses (مصاريف الرواتب والأجور)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5200', 
+        'مصاريف الرواتب والأجور', 'Payroll Expenses', 'Расходы на оплату труда', 'Витрати на оплату праці', 'Cheltuieli cu salariile', 'Koszty wynagrodzeń', 'Bordro Giderleri', 'Personalaufwendungen', 'Costi del Personale',
+        v_expense_type_id, v_expenses_id, true, false, 2, '5000.5200', 'SAR', true)
+    RETURNING id INTO v_payroll_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5210', 'رواتب وأجور', 'Salaries & Wages', 'Заработная плата', 'Заробітна плата', 'Salarii', 'Wynagrodzenia', 'Maaş ve Ücretler', 'Löhne und Gehälter', 'Stipendi e Salari', v_expense_type_id, v_payroll_expenses_id, false, true, 3, '5000.5200.5210', 'SAR', true),
+        (v_tenant_id, p_company_id, '5220', 'بدلات الموظفين', 'Employee Allowances', 'Надбавки сотрудникам', 'Надбавки працівникам', 'Indemnizații angajați', 'Dodatki pracownicze', 'Çalışan Ödenekleri', 'Mitarbeiterzulagen', 'Indennità Dipendenti', v_expense_type_id, v_payroll_expenses_id, false, true, 3, '5000.5200.5220', 'SAR', true),
+        (v_tenant_id, p_company_id, '5230', 'تأمينات اجتماعية', 'Social Insurance', 'Социальное страхование', 'Соціальне страхування', 'Asigurări sociale', 'Ubezpieczenia społeczne', 'Sosyal Sigorta', 'Sozialversicherung', 'Contributi Previdenziali', v_expense_type_id, v_payroll_expenses_id, false, true, 3, '5000.5200.5230', 'SAR', true),
+        (v_tenant_id, p_company_id, '5240', 'مكافآت وحوافز', 'Bonuses & Incentives', 'Премии и поощрения', 'Премії та заохочення', 'Bonusuri și stimulente', 'Premie i bonusy', 'Prim ve Teşvikler', 'Prämien und Anreize', 'Premi e Incentivi', v_expense_type_id, v_payroll_expenses_id, false, true, 3, '5000.5200.5240', 'SAR', true),
+        (v_tenant_id, p_company_id, '5250', 'تكاليف التدريب', 'Training Costs', 'Расходы на обучение', 'Витрати на навчання', 'Costuri de instruire', 'Koszty szkoleń', 'Eğitim Maliyetleri', 'Schulungskosten', 'Costi di Formazione', v_expense_type_id, v_payroll_expenses_id, false, true, 3, '5000.5200.5250', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.3 Operating Expenses (مصاريف التشغيل)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5300', 
+        'مصاريف التشغيل', 'Operating Expenses', 'Операционные расходы', 'Операційні витрати', 'Cheltuieli operaționale', 'Koszty operacyjne', 'Faaliyet Giderleri', 'Betriebsaufwendungen', 'Costi Operativi',
+        v_expense_type_id, v_expenses_id, true, false, 2, '5000.5300', 'SAR', true)
+    RETURNING id INTO v_operating_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5310', 'إيجارات', 'Rent Expense', 'Аренда', 'Оренда', 'Chirii', 'Czynsz', 'Kira Gideri', 'Miete', 'Affitti Passivi', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5310', 'SAR', true),
+        (v_tenant_id, p_company_id, '5320', 'كهرباء', 'Electricity', 'Электричество', 'Електрика', 'Electricitate', 'Energia elektryczna', 'Elektrik', 'Strom', 'Energia Elettrica', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5320', 'SAR', true),
+        (v_tenant_id, p_company_id, '5330', 'مياه', 'Water', 'Вода', 'Вода', 'Apă', 'Woda', 'Su', 'Wasser', 'Acqua', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5330', 'SAR', true),
+        (v_tenant_id, p_company_id, '5340', 'اتصالات وإنترنت', 'Telecom & Internet', 'Связь и интернет', 'Зв''язок та інтернет', 'Telecomunicații', 'Telekomunikacja', 'İletişim ve İnternet', 'Telekommunikation', 'Telecomunicazioni', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5340', 'SAR', true),
+        (v_tenant_id, p_company_id, '5350', 'مصاريف صيانة', 'Maintenance Expense', 'Расходы на ремонт', 'Витрати на ремонт', 'Cheltuieli de întreținere', 'Koszty napraw', 'Bakım Giderleri', 'Instandhaltung', 'Spese di Manutenzione', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5350', 'SAR', true),
+        (v_tenant_id, p_company_id, '5360', 'مصاريف نقل وتوصيل', 'Shipping & Delivery', 'Доставка', 'Доставка', 'Transport și livrare', 'Transport i dostawa', 'Nakliye ve Teslimat', 'Versand und Lieferung', 'Spese di Spedizione', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5360', 'SAR', true),
+        (v_tenant_id, p_company_id, '5370', 'مصاريف وقود ومحروقات', 'Fuel Expense', 'Расходы на топливо', 'Витрати на паливо', 'Cheltuieli cu combustibilul', 'Koszty paliwa', 'Yakıt Giderleri', 'Kraftstoffkosten', 'Carburanti', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5370', 'SAR', true),
+        (v_tenant_id, p_company_id, '5380', 'مصاريف تشغيلية أخرى', 'Other Operating Expenses', 'Прочие операционные расходы', 'Інші операційні витрати', 'Alte cheltuieli operaționale', 'Inne koszty operacyjne', 'Diğer Faaliyet Giderleri', 'Sonstige Betriebskosten', 'Altri Costi Operativi', v_expense_type_id, v_operating_expenses_id, false, true, 3, '5000.5300.5380', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.4 Administrative Expenses (المصروفات الإدارية)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5400', 
+        'المصروفات الإدارية', 'Administrative Expenses', 'Административные расходы', 'Адміністративні витрати', 'Cheltuieli administrative', 'Koszty administracyjne', 'Yönetim Giderleri', 'Verwaltungskosten', 'Spese Amministrative',
+        v_expense_type_id, v_expenses_id, true, false, 2, '5000.5400', 'SAR', true)
+    RETURNING id INTO v_admin_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5410', 'مصاريف مكتبية ومستلزمات', 'Office Supplies', 'Канцтовары', 'Канцтовари', 'Rechizite birou', 'Materiały biurowe', 'Ofis Malzemeleri', 'Bürobedarf', 'Cancelleria', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5410', 'SAR', true),
+        (v_tenant_id, p_company_id, '5420', 'رسوم حكومية وتراخيص', 'Government Fees & Licenses', 'Госпошлины и лицензии', 'Держмито та ліцензії', 'Taxe și licențe', 'Opłaty i licencje', 'Devlet Harçları ve Lisanslar', 'Behördengebühren', 'Tasse e Licenze', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5420', 'SAR', true),
+        (v_tenant_id, p_company_id, '5430', 'مصاريف قانونية', 'Legal Fees', 'Юридические расходы', 'Юридичні витрати', 'Cheltuieli juridice', 'Koszty prawne', 'Hukuki Giderler', 'Rechtskosten', 'Spese Legali', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5430', 'SAR', true),
+        (v_tenant_id, p_company_id, '5440', 'مصاريف محاسبية ومراجعة', 'Accounting & Audit Fees', 'Бухгалтерские и аудиторские услуги', 'Бухгалтерські та аудиторські послуги', 'Servicii contabile și audit', 'Usługi księgowe i audyt', 'Muhasebe ve Denetim Giderleri', 'Buchhaltungs- und Prüfungskosten', 'Spese Contabili e Revisione', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5440', 'SAR', true),
+        (v_tenant_id, p_company_id, '5450', 'استهلاك أصول ثابتة', 'Depreciation Expense', 'Амортизация', 'Амортизація', 'Amortizare', 'Amortyzacja', 'Amortisman Gideri', 'Abschreibungen', 'Ammortamenti', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5450', 'SAR', true),
+        (v_tenant_id, p_company_id, '5460', 'تأمينات', 'Insurance Expense', 'Страхование', 'Страхування', 'Asigurări', 'Ubezpieczenia', 'Sigorta Giderleri', 'Versicherungen', 'Assicurazioni', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5460', 'SAR', true),
+        (v_tenant_id, p_company_id, '5470', 'مصاريف ضيافة', 'Hospitality Expense', 'Представительские расходы', 'Представницькі витрати', 'Cheltuieli de protocol', 'Koszty reprezentacyjne', 'Ağırlama Giderleri', 'Bewirtungskosten', 'Spese di Rappresentanza', v_expense_type_id, v_admin_expenses_id, false, true, 3, '5000.5400.5470', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.5 Marketing & Sales Expenses (مصاريف التسويق والمبيعات)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5500', 
+        'مصاريف التسويق والمبيعات', 'Marketing & Sales Expenses', 'Маркетинговые расходы', 'Маркетингові витрати', 'Cheltuieli de marketing', 'Koszty marketingu', 'Pazarlama ve Satış Giderleri', 'Marketing- und Vertriebskosten', 'Spese di Marketing e Vendita',
+        v_expense_type_id, v_expenses_id, true, false, 2, '5000.5500', 'SAR', true)
+    RETURNING id INTO v_marketing_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5510', 'مصاريف إعلان ودعاية', 'Advertising Expense', 'Реклама', 'Реклама', 'Publicitate', 'Reklama', 'Reklam Giderleri', 'Werbung', 'Pubblicità', v_expense_type_id, v_marketing_expenses_id, false, true, 3, '5000.5500.5510', 'SAR', true),
+        (v_tenant_id, p_company_id, '5520', 'عمولات مبيعات', 'Sales Commissions', 'Комиссионные с продаж', 'Комісійні з продажів', 'Comisioane vânzări', 'Prowizje od sprzedaży', 'Satış Komisyonları', 'Verkaufsprovisionen', 'Provvigioni', v_expense_type_id, v_marketing_expenses_id, false, true, 3, '5000.5500.5520', 'SAR', true),
+        (v_tenant_id, p_company_id, '5530', 'مصاريف معارض', 'Exhibition Expenses', 'Выставочные расходы', 'Виставкові витрати', 'Cheltuieli expoziții', 'Koszty wystaw', 'Fuar Giderleri', 'Messekosten', 'Spese Fiere', v_expense_type_id, v_marketing_expenses_id, false, true, 3, '5000.5500.5530', 'SAR', true),
+        (v_tenant_id, p_company_id, '5540', 'مصاريف تسويقية أخرى', 'Other Marketing Expenses', 'Прочие маркетинговые расходы', 'Інші маркетингові витрати', 'Alte cheltuieli de marketing', 'Inne koszty marketingu', 'Diğer Pazarlama Giderleri', 'Sonstige Marketingkosten', 'Altre Spese di Marketing', v_expense_type_id, v_marketing_expenses_id, false, true, 3, '5000.5500.5540', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.6 Financial Expenses (المصروفات المالية)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5600', 
+        'المصروفات المالية', 'Financial Expenses', 'Финансовые расходы', 'Фінансові витрати', 'Cheltuieli financiare', 'Koszty finansowe', 'Finansal Giderler', 'Finanzaufwendungen', 'Oneri Finanziari',
+        v_other_expense_type_id, v_expenses_id, true, false, 2, '5000.5600', 'SAR', true)
+    RETURNING id INTO v_financial_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5610', 'فوائد قروض', 'Interest Expense', 'Процентные расходы', 'Процентні витрати', 'Cheltuieli cu dobânzi', 'Odsetki', 'Faiz Giderleri', 'Zinsaufwendungen', 'Interessi Passivi', v_other_expense_type_id, v_financial_expenses_id, false, true, 3, '5000.5600.5610', 'SAR', true),
+        (v_tenant_id, p_company_id, '5620', 'عمولات بنكية', 'Bank Charges', 'Банковские комиссии', 'Банківські комісії', 'Comisioane bancare', 'Prowizje bankowe', 'Banka Masrafları', 'Bankgebühren', 'Spese Bancarie', v_other_expense_type_id, v_financial_expenses_id, false, true, 3, '5000.5600.5620', 'SAR', true),
+        (v_tenant_id, p_company_id, '5630', 'خسائر فروقات عملة', 'Foreign Exchange Losses', 'Курсовые убытки', 'Курсові збитки', 'Pierderi din diferențe de curs', 'Różnice kursowe ujemne', 'Kur Farkı Zararları', 'Kursverluste', 'Perdite su Cambi', v_other_expense_type_id, v_financial_expenses_id, false, true, 3, '5000.5600.5630', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.7 Taxes (الضرائب - مصروفات)
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5700', 
+        'الضرائب', 'Taxes', 'Налоги', 'Податки', 'Taxe', 'Podatki', 'Vergiler', 'Steuern', 'Imposte',
+        v_expense_type_id, v_expenses_id, true, false, 2, '5000.5700', 'SAR', true)
+    RETURNING id INTO v_taxes_expense_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5710', 'ضريبة الدخل', 'Income Tax Expense', 'Налог на прибыль', 'Податок на прибуток', 'Impozit pe venit', 'Podatek dochodowy', 'Gelir Vergisi Gideri', 'Körperschaftsteuer', 'IRES', v_expense_type_id, v_taxes_expense_id, false, true, 3, '5000.5700.5710', 'SAR', true),
+        (v_tenant_id, p_company_id, '5720', 'ضرائب أخرى', 'Other Taxes', 'Прочие налоги', 'Інші податки', 'Alte taxe', 'Inne podatki', 'Diğer Vergiler', 'Sonstige Steuern', 'Altre Imposte', v_expense_type_id, v_taxes_expense_id, false, true, 3, '5000.5700.5720', 'SAR', true);
+    
+    RAISE NOTICE 'Standard chart of accounts (9 languages) created successfully for company %', p_company_id;
+END;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════
+-- تشغيل الدالة لإنشاء الشجرة المحاسبية
+-- Run the function to create chart of accounts
+-- ═══════════════════════════════════════════════════════════════
+
+DO $$
+DECLARE
+    v_company_id UUID;
+BEGIN
+    -- Get the first company
+    SELECT id INTO v_company_id FROM companies LIMIT 1;
+    
+    IF v_company_id IS NOT NULL THEN
+        -- Check if chart of accounts already exists for this company
+        IF NOT EXISTS (SELECT 1 FROM chart_of_accounts WHERE company_id = v_company_id LIMIT 1) THEN
+            PERFORM create_default_chart_of_accounts(v_company_id);
+            RAISE NOTICE 'Standard chart of accounts (9 languages) created for company: %', v_company_id;
+        ELSE
+            RAISE NOTICE 'Chart of accounts already exists for company: %', v_company_id;
+        END IF;
+    ELSE
+        RAISE NOTICE 'No company found. Please create a company first.';
+    END IF;
+END $$;

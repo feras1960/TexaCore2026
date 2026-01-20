@@ -1,0 +1,1247 @@
+{
+  "app": {
+    "name": "Kurumsal Kaynak Planlama Sistemi",
+    "shortName": "ERP Sistemi",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Güvenebileceğiniz Kalite",
+      "fullName": "TexaCore - Kurumsal Kaynak Planlama Sistemi"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Kontrol Paneli",
+    "accounting": "Muhasebe",
+    "sales": "Satış",
+    "purchases": "Satın Alma",
+    "inventory": "Stok",
+    "crm": "CRM",
+    "hr": "İnsan Kaynakları",
+    "pos": "Satış Noktası",
+    "exchange": "Döviz",
+    "realEstate": "Gayrimenkul",
+    "manufacturing": "Üretim",
+    "ecommerce": "E-Ticaret",
+    "saasControl": "SaaS Yönetimi",
+    "aiAnalytics": "AI Analitik",
+    "systemConfig": "Sistem Yapılandırması",
+    "componentLab": "Bileşen Laboratuvarı",
+    "settings": "Ayarlar"
+  },
+
+  "common": {
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "add": "Ekle",
+    "create": "Oluştur",
+    "update": "Güncelle",
+    "search": "Ara",
+    "filter": "Filtrele",
+    "export": "Dışa Aktar",
+    "import": "İçe Aktar",
+    "print": "Yazdır",
+    "refresh": "Yenile",
+    "close": "Kapat",
+    "confirm": "Onayla",
+    "back": "Geri",
+    "next": "İleri",
+    "previous": "Önceki",
+    "submit": "Gönder",
+    "reset": "Sıfırla",
+    "clear": "Temizle",
+    "select": "Seç",
+    "selectAll": "Tümünü Seç",
+    "deselectAll": "Seçimi Kaldır",
+    "yes": "Evet",
+    "no": "Hayır",
+    "ok": "Tamam",
+    "loading": "Yükleniyor...",
+    "noData": "Veri yok",
+    "error": "Bir hata oluştu",
+    "success": "İşlem başarılı",
+    "warning": "Uyarı",
+    "info": "Bilgi",
+    "required": "Zorunlu",
+    "optional": "İsteğe Bağlı",
+    "total": "Toplam",
+    "subtotal": "Ara Toplam",
+    "balance": "Bakiye",
+    "amount": "Tutar",
+    "quantity": "Miktar",
+    "price": "Fiyat",
+    "date": "Tarih",
+    "time": "Saat",
+    "status": "Durum",
+    "type": "Tür",
+    "name": "Ad",
+    "description": "Açıklama",
+    "notes": "Notlar",
+    "reference": "Referans",
+    "code": "Kod",
+    "number": "Numara",
+    "actions": "İşlemler",
+    "details": "Detaylar",
+    "history": "Geçmiş",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "enabled": "Etkin",
+    "disabled": "Devre Dışı",
+    "all": "Tümü",
+    "none": "Hiçbiri",
+    "other": "Diğer",
+    "default": "Varsayılan",
+    "custom": "Özel",
+    "country": "Ülke",
+    "phone": "Telefon",
+    "email": "E-posta",
+    "language": "Dil",
+    "timezone": "Saat Dilimi",
+    "city": "Şehir",
+    "countries": {
+      "saudiArabia": "Suudi Arabistan",
+      "uae": "BAE",
+      "kuwait": "Kuveyt"
+    },
+    "languages": {
+      "arabic": "Arapça",
+      "english": "İngilizce"
+    },
+    "timezones": {
+      "riyadh": "Riyad (GMT+3)",
+      "dubai": "Dubai (GMT+4)"
+    }
+  },
+
+  "auth": {
+    "login": "Giriş",
+    "logout": "Çıkış",
+    "register": "Kayıt Ol",
+    "forgotPassword": "Şifreni mi unuttun?",
+    "resetPassword": "Şifre Sıfırla",
+    "changePassword": "Şifre Değiştir",
+    "email": "E-posta",
+    "password": "Şifre",
+    "confirmPassword": "Şifreyi Onayla",
+    "rememberMe": "Beni Hatırla",
+    "welcome": "Hoş Geldiniz",
+    "profile": "Profil",
+    "account": "Hesap",
+    "userInitial": "Y",
+    "systemAdmin": "Sistem Yöneticisi"
+  },
+
+  "header": {
+    "search": "Ara...",
+    "notifications": "Bildirimler",
+    "quickAdd": "Hızlı Ekle",
+    "language": "Dil",
+    "theme": "Tema",
+    "darkMode": "Karanlık Mod",
+    "lightMode": "Aydınlık Mod"
+  },
+
+  "sidebar": {
+    "needHelp": "Yardıma mı ihtiyacınız var?",
+    "contactSupport": "Destek ile İletişim",
+    "collapse": "Daralt",
+    "expand": "Genişlet"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "Yeni Satış Faturası",
+    "newPurchaseInvoice": "Yeni Alış Faturası",
+    "receiptVoucher": "Tahsilat Makbuzu",
+    "paymentVoucher": "Ödeme Makbuzu",
+    "newProduct": "Yeni Ürün",
+    "newCustomer": "Yeni Müşteri",
+    "newSupplier": "Yeni Tedarikçi",
+    "journalEntry": "Yevmiye Kaydı"
+  },
+
+  "filters": {
+    "selectBranch": "Şube Seç",
+    "allBranches": "Tüm Şubeler",
+    "selectCurrency": "Para Birimi Seç",
+    "selectPeriod": "Dönem Seç",
+    "today": "Bugün",
+    "yesterday": "Dün",
+    "thisWeek": "Bu Hafta",
+    "lastWeek": "Geçen Hafta",
+    "thisMonth": "Bu Ay",
+    "lastMonth": "Geçen Ay",
+    "thisYear": "Bu Yıl",
+    "lastYear": "Geçen Yıl",
+    "customRange": "Özel Aralık",
+    "from": "Başlangıç",
+    "to": "Bitiş"
+  },
+
+  "tabs": {
+    "overview": "Genel Bakış",
+    "ledger": "Defter",
+    "invoices": "Faturalar",
+    "payments": "Ödemeler",
+    "reservations": "Rezervasyonlar",
+    "aiAnalysis": "AI Analizi",
+    "events": "Etkinlikler",
+    "details": "Detaylar",
+    "history": "Geçmiş",
+    "settings": "Ayarlar",
+    "reports": "Raporlar"
+  },
+
+  "status": {
+    "draft": "Taslak",
+    "pending": "Beklemede",
+    "inProgress": "Devam Ediyor",
+    "confirmed": "Onaylandı",
+    "completed": "Tamamlandı",
+    "partial": "Kısmi",
+    "paid": "Ödendi",
+    "unpaid": "Ödenmedi",
+    "overdue": "Gecikmiş",
+    "cancelled": "İptal Edildi",
+    "rejected": "Reddedildi",
+    "approved": "Onaylandı",
+    "submitted": "Gönderildi",
+    "closed": "Kapalı",
+    "open": "Açık",
+    "warning": "Uyarı"
+  },
+
+  "stats": {
+    "totalSales": "Toplam Satış",
+    "totalRevenue": "Toplam Gelir",
+    "totalExpenses": "Toplam Gider",
+    "netProfit": "Net Kar",
+    "grossProfit": "Brüt Kar",
+    "totalOrders": "Toplam Sipariş",
+    "pendingOrders": "Bekleyen Siparişler",
+    "completedOrders": "Tamamlanan Siparişler",
+    "totalCustomers": "Toplam Müşteri",
+    "activeCustomers": "Aktif Müşteriler",
+    "newCustomers": "Yeni Müşteriler",
+    "totalSuppliers": "Toplam Tedarikçi",
+    "totalProducts": "Toplam Ürün",
+    "lowStock": "Düşük Stok",
+    "outOfStock": "Stok Yok"
+  },
+
+  "currencies": {
+    "SAR": "Suudi Riyali",
+    "USD": "Amerikan Doları",
+    "EUR": "Euro",
+    "GBP": "İngiliz Sterlini",
+    "AED": "BAE Dirhemi",
+    "KWD": "Kuveyt Dinarı",
+    "QAR": "Katar Riyali",
+    "BHD": "Bahreyn Dinarı",
+    "OMR": "Umman Riyali",
+    "EGP": "Mısır Lirası",
+    "JOD": "Ürdün Dinarı",
+    "TRY": "Türk Lirası",
+    "RUB": "Rus Rublesi",
+    "UAH": "Ukrayna Grivnası",
+    "PLN": "Polonya Zlotisi",
+    "RON": "Romanya Leyi"
+  },
+
+  "branches": {
+    "main": "Ana Şube",
+    "all": "Tüm Şubeler"
+  },
+
+  "dashboard": {
+    "title": "Kontrol Paneli",
+    "subtitle": "Tüm sistem modüllerinin kapsamlı görünümü",
+    "welcomeMessage": "Kurumsal Kaynak Planlama Sistemine Hoş Geldiniz",
+    "recentOrders": "Son Siparişler",
+    "recentInvoices": "Son Faturalar",
+    "recentPayments": "Son Ödemeler",
+    "quickStats": "Hızlı İstatistikler",
+    "viewAll": "Tümünü Gör",
+    "chartsPlaceholder": "Grafikler buraya eklenecek"
+  },
+
+  "accounting": {
+    "module": "Muhasebe",
+    "chartOfAccounts": "Hesap Planı",
+    "journalEntries": "Yevmiye Kayıtları",
+    "generalLedger": "Defteri Kebir",
+    "trialBalance": "Mizan",
+    "incomeStatement": "Gelir Tablosu",
+    "balanceSheet": "Bilanço",
+    "cashFlow": "Nakit Akışı",
+    "costCenters": "Maliyet Merkezleri",
+    "budgets": "Bütçeler",
+    "fiscalYear": "Mali Yıl",
+    "closingEntries": "Kapanış Kayıtları",
+    "addAccount": "Hesap ekle",
+    "addNewRow": "Yeni satır ekle",
+    "addRow": "Satır ekle",
+    "balanceEntry": "Kaydı dengele",
+    "duplicateRow": "Satırı kopyala",
+    "copyAccountDown": "Hesabı bir sonraki satıra kopyala",
+    "save": "Kaydet",
+    "account": {
+      "name": "Hesap Adı",
+      "code": "Hesap Kodu",
+      "type": "Hesap Türü",
+      "parent": "Üst Hesap",
+      "balance": "Bakiye",
+      "currency": "Para Birimi",
+      "select": "Hesap seç...",
+      "notFound": "Hesap bulunamadı",
+      "treeSelector": "Hesap planı",
+      "treeSelectorDescription": "Ağaçtan hesapları seç - Eklemek için çift tıklayın",
+      "closeTree": "Ağacı kapat",
+      "selectedCount": "seçildi",
+      "doubleClickToAdd": "Hesabı eklemek için çift tıklayın",
+      "onlyAccounts": "Sadece hesaplar (gruplar değil)"
+    },
+    "entry": {
+      "number": "Kayıt Numarası",
+      "date": "Kayıt Tarihi",
+      "reference": "Referans",
+      "description": "Açıklama",
+      "debit": "Borç",
+      "credit": "Alacak",
+      "total": "Toplam"
+    },
+    "receipt": {
+      "title": "Tahsilat Makbuzu",
+      "number": "Makbuz Numarası",
+      "date": "Makbuz Tarihi",
+      "customer": "Müşteri",
+      "amount": "Tutar",
+      "paymentMethod": "Ödeme Yöntemi",
+      "fund": "Fon",
+      "notes": "Notlar",
+      "customerInfo": "Müşteri Bilgileri"
+    },
+    "payment": {
+      "title": "Ödeme Makbuzu",
+      "number": "Makbuz Numarası",
+      "date": "Makbuz Tarihi",
+      "supplier": "Tedarikçi",
+      "amount": "Tutar",
+      "paymentMethod": "Ödeme Yöntemi",
+      "fund": "Fon",
+      "notes": "Notlar"
+    },
+    "labels": {
+      "debitTotal": "Toplam Borç",
+      "creditTotal": "Toplam Alacak",
+      "balance": "Bakiye",
+      "difference": "Fark",
+      "marked": "İşaretli"
+    },
+    "currentBalance": "Cari Bakiye",
+    "openingBalance": "Açılış Bakiyesi",
+    "closingBalance": "Kapanış Bakiyesi",
+    "periodMovement": "Dönem Hareketi",
+    "entryTabs": {
+      "journal": {
+        "title": "Yevmiye Kaydı",
+        "description": "Yeni bir muhasebe kaydı oluştur"
+      },
+      "receipt": {
+        "title": "Tahsilat Fişi",
+        "description": "Alınan ödemeleri kaydet"
+      },
+      "payment": {
+        "title": "Ödeme Fişi",
+        "description": "Yapılan ödemeleri kaydet"
+      },
+      "cash": {
+        "title": "Kasa Günlüğü",
+        "description": "Nakit fon hareketleri"
+      },
+      "transfer": {
+        "title": "Transfer",
+        "description": "Fonlar arası transfer"
+      },
+      "exchange": {
+        "title": "Döviz",
+        "description": "Döviz bozdurma"
+      }
+    },
+    "partiesStats": {
+      "totalCustomers": "Toplam Müşteri",
+      "totalReceivables": "Toplam Alacaklar",
+      "totalSuppliers": "Toplam Tedarikçi",
+      "totalPayables": "Toplam Borçlar"
+    },
+    "partiesDescription": "Müşterileri, tedarikçileri, alacakları ve borçları yönetin",
+    "customers": "Müşteriler",
+    "suppliers": "Tedarikçiler",
+    "settingsSections": {
+      "company": "Şirket Ayarları",
+      "companyDesc": "Temel şirket bilgileri",
+      "fiscalYear": "Mali Yıl",
+      "fiscalYearDesc": "Mali yıl dönemini tanımlayın",
+      "tax": "Vergi Ayarları",
+      "taxDesc": "KDV ve diğer vergileri yapılandırın",
+      "workflow": "İş Akışı",
+      "workflowDesc": "Onay ve otomatik kayıt ayarları"
+    },
+    "settingsFields": {
+      "companyName": "Şirket Adı",
+      "baseCurrency": "Temel Para Birimi",
+      "fiscalYearStart": "Mali Yıl Başlangıcı",
+      "fiscalYearEnd": "Mali Yıl Sonu",
+      "enableTax": "Vergiyi Etkinleştir",
+      "enableTaxDesc": "KDV hesaplamasını etkinleştir",
+      "vatRate": "KDV Oranı",
+      "autoPostEntries": "Otomatik Kayıt",
+      "autoPostEntriesDesc": "Kayıtları inceleme olmadan doğrudan kaydet",
+      "requireApproval": "Onay Gerekli",
+      "requireApprovalDesc": "Kayıt öncesi yönetici onayı iste"
+    },
+    "settingsInfo": {
+      "title": "Önemli Bilgi",
+      "desc1": "Temel para birimini değiştirmek mali raporları etkileyebilir.",
+      "desc2": "Kaydetmeden önce ayarları gözden geçirdiğinizden emin olun."
+    },
+    "settingsDescription": "Muhasebe, mali yıl ve vergi ayarlarını özelleştirin",
+    "reportsDescription": "Mali ve muhasebe raporlarını görüntüleyin",
+    "fundsDescription": "Nakit fonları ve banka hesaplarını yönetin",
+    "selectAccountPrompt": "Lütfen yukarıdaki listeden bir hesap seçin"
+  },
+
+  "sales": {
+    "module": "Satış",
+    "quotation": "Teklif",
+    "salesOrder": "Satış Siparişi",
+    "deliveryNote": "İrsaliye",
+    "salesInvoice": "Satış Faturası",
+    "salesReturn": "Satış İadesi",
+    "customer": "Müşteri",
+    "customers": "Müşteriler",
+    "priceList": "Fiyat Listesi",
+    "discount": "İndirim",
+    "tax": "Vergi",
+    "vat": "KDV"
+  },
+
+  "purchases": {
+    "module": "Satın Alma",
+    "purchaseRequest": "Satın Alma Talebi",
+    "purchaseOrder": "Satın Alma Siparişi",
+    "purchaseReceipt": "Mal Kabul",
+    "purchaseInvoice": "Alış Faturası",
+    "purchaseReturn": "Alış İadesi",
+    "supplier": "Tedarikçi",
+    "suppliers": "Tedarikçiler"
+  },
+
+  "inventory": {
+    "module": "Stok",
+    "items": "Kalemler",
+    "item": "Kalem",
+    "warehouse": "Depo",
+    "warehouses": "Depolar",
+    "stockEntry": "Stok Hareketi",
+    "stockTransfer": "Stok Transferi",
+    "stockAdjustment": "Stok Düzeltme",
+    "stockReconciliation": "Stok Sayımı",
+    "reorderLevel": "Yeniden Sipariş Seviyesi",
+    "minimumStock": "Minimum Stok",
+    "maximumStock": "Maksimum Stok",
+    "currentStock": "Mevcut Stok",
+    "availableStock": "Kullanılabilir Stok",
+    "reservedStock": "Rezerve Stok"
+  },
+
+  "crm": {
+    "module": "Müşteri İlişkileri Yönetimi",
+    "leads": "Potansiyel Müşteriler",
+    "opportunities": "Fırsatlar",
+    "contacts": "Kişiler",
+    "activities": "Aktiviteler",
+    "campaigns": "Kampanyalar",
+    "pipeline": "Satış Hunisi"
+  },
+
+  "hr": {
+    "module": "İnsan Kaynakları",
+    "employees": "Çalışanlar",
+    "employee": "Çalışan",
+    "departments": "Departmanlar",
+    "designations": "Unvanlar",
+    "attendance": "Devamsızlık",
+    "leave": "İzin",
+    "payroll": "Bordro",
+    "recruitment": "İşe Alım",
+    "training": "Eğitim",
+    "performance": "Performans"
+  },
+
+  "pos": {
+    "module": "Satış Noktası",
+    "newSale": "Yeni Satış",
+    "cashier": "Kasiyer",
+    "register": "Kasa",
+    "shift": "Vardiya",
+    "openShift": "Vardiya Aç",
+    "closeShift": "Vardiya Kapat",
+    "cart": "Sepet",
+    "checkout": "Ödeme",
+    "payment": "Ödeme",
+    "receipt": "Fiş"
+  },
+
+  "exchange": {
+    "module": "Döviz",
+    "buyRate": "Alış Kuru",
+    "sellRate": "Satış Kuru",
+    "exchangeRate": "Döviz Kuru",
+    "currencyExchange": "Döviz Değişimi",
+    "fundTransfer": "Para Transferi"
+  },
+
+  "realEstate": {
+    "module": "Gayrimenkul",
+    "properties": "Mülkler",
+    "units": "Birimler",
+    "contracts": "Sözleşmeler",
+    "tenants": "Kiracılar",
+    "rent": "Kira",
+    "maintenance": "Bakım"
+  },
+
+  "manufacturing": {
+    "module": "Üretim",
+    "bom": "Malzeme Listesi",
+    "workOrder": "İş Emri",
+    "productionPlan": "Üretim Planı",
+    "qualityInspection": "Kalite Kontrolü",
+    "workstation": "İş İstasyonu"
+  },
+
+  "ecommerce": {
+    "module": "E-Ticaret",
+    "store": "Mağaza",
+    "products": "Ürünler",
+    "categories": "Kategoriler",
+    "orders": "Siparişler",
+    "shipping": "Kargo",
+    "promotions": "Promosyonlar"
+  },
+
+  "validation": {
+    "required": "Bu alan zorunludur",
+    "email": "Geçerli bir e-posta girin",
+    "minLength": "En az {min} karakter",
+    "maxLength": "En fazla {max} karakter",
+    "min": "En az {min}",
+    "max": "En fazla {max}",
+    "positive": "Pozitif bir sayı olmalı",
+    "integer": "Tam sayı olmalı",
+    "numeric": "Sayı olmalı",
+    "url": "Geçerli bir URL girin",
+    "phone": "Geçerli bir telefon numarası girin",
+    "match": "Değerler eşleşmiyor",
+    "unique": "Bu değer zaten var",
+    "date": "Geçerli bir tarih girin"
+  },
+
+  "messages": {
+    "saveSuccess": "Başarıyla kaydedildi",
+    "saveError": "Kaydetme hatası",
+    "deleteSuccess": "Başarıyla silindi",
+    "deleteError": "Silme hatası",
+    "updateSuccess": "Başarıyla güncellendi",
+    "updateError": "Güncelleme hatası",
+    "confirmDelete": "Silmek istediğinizden emin misiniz?",
+    "confirmCancel": "İptal etmek istediğinizden emin misiniz?",
+    "unsavedChanges": "Kaydedilmemiş değişiklikleriniz var",
+    "noResults": "Sonuç bulunamadı",
+    "loadingError": "Veri yükleme hatası",
+    "networkError": "Ağ bağlantı hatası",
+    "sessionExpired": "Oturum süresi doldu",
+    "accessDenied": "Erişim reddedildi",
+    "notFound": "Sayfa bulunamadı",
+    "pageUnderDevelopment": "Bu sayfa geliştirme aşamasında"
+  },
+
+  "table": {
+    "showing": "Gösterilen",
+    "of": "/",
+    "entries": "kayıt",
+    "page": "Sayfa",
+    "rowsPerPage": "Sayfa başına satır",
+    "noData": "Görüntülenecek veri yok",
+    "loading": "Veriler yükleniyor...",
+    "selectRow": "Satır seç",
+    "selectAll": "Tümünü seç",
+    "sortAsc": "Artan sırala",
+    "sortDesc": "Azalan sırala",
+    "filter": "Filtrele",
+    "clearFilters": "Filtreleri temizle",
+    "export": "Dışa Aktar",
+    "print": "Yazdır"
+  },
+
+  "languages": {
+    "en": "İngilizce",
+    "ar": "Arapça",
+    "ru": "Rusça",
+    "uk": "Ukraynaca",
+    "ro": "Romence",
+    "pl": "Lehçe",
+    "tr": "Türkçe",
+    "de": "Almanca",
+    "it": "İtalyanca"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Al-Fajr Ticaret Şirketi",
+      "customer2": "Al-Noor Vakfı",
+      "customer3": "Al-Amal Şirketi",
+      "customer4": "Al-Salam Fabrikası"
+    }
+  },
+
+  "componentLab": {
+    "title": "Bileşen Laboratuvarı",
+    "description": "Tüm popup'ların ve bileşenlerin test edilmesi ve önizlenmesi",
+    "info": {
+      "title": "Bileşen Laboratuvarı Hakkında",
+      "description": "Bu laboratuvar, tüm mevcut popup'ları, diyalogları ve bileşenleri test etmenize ve önizlemenize olanak tanır. Herhangi bir bileşende 'Aç' seçeneğine tıklayarak onu çalışırken görebilirsiniz."
+    },
+    "table": {
+      "id": "Bileşen ID",
+      "name": "Bileşen Adı",
+      "description": "Açıklama",
+      "type": "Tip",
+      "status": "Durum",
+      "path": "Dosya Yolu",
+      "pathLabel": "Yol",
+      "actions": "İşlemler",
+      "noPopups": "Henüz popup kaydedilmemiş"
+    },
+    "status": {
+      "ready": "Hazır",
+      "wip": "Çalışıyor",
+      "planned": "Planlandı"
+    },
+    "actions": {
+      "open": "Aç"
+    },
+    "preview": {
+      "title": "Bileşen Önizleme",
+      "description": "Bileşen için önizleme",
+      "exampleContent": "Bu, UnifiedSheet içeriğinin bir örneğidir. Burada children içine herhangi bir içerik ekleyebilirsiniz.",
+      "exampleContentModal": "Bu, UnifiedModal içeriğinin bir örneğidir. Burada children içine herhangi bir içerik ekleyebilirsiniz."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Birleşik Sayfa",
+        "description": "Detaylı görünümler için yan panel"
+      },
+      "unifiedModal": {
+        "name": "Birleşik Modal",
+        "description": "Formlar ve onaylar için merkezi diyalog"
+      },
+      "generalLedgerSheet": {
+        "name": "Genel Defter Sayfası",
+        "description": "Tüm hesap hareketlerinin kapsamlı raporu"
+      },
+      "fundTransferDialog": {
+        "name": "Fon Transferi Diyaloğu",
+        "description": "Hesaplar ve bankalar arası fon transferi"
+      },
+      "currencyExchangeDialog": {
+        "name": "Döviz Değişim Diyaloğu",
+        "description": "Bir fon içinde döviz değişimi"
+      },
+      "transactionDetailsSheet": {
+        "name": "İşlem Detayları Sayfası",
+        "description": "İşlem detaylarını görüntüleme ve düzenleme"
+      },
+      "quickReceiptDialog": {
+        "name": "Hızlı Makbuz Diyaloğu",
+        "description": "Makbuzlar için hızlı giriş diyaloğu"
+      },
+      "quickPaymentDialog": {
+        "name": "Hızlı Ödeme Diyaloğu",
+        "description": "Ödemeler için hızlı giriş diyaloğu"
+      },
+      "accountDetailsSheet": {
+        "name": "Hesap Detayları Sayfası (Eski)",
+        "description": "Defter ve işlemlerle kapsamlı hesap detayları (Test verileriyle eski sürüm)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Hesap Detayları Sayfası V2",
+        "description": "Hesap detaylarının temiz versiyonu - sadece gerçek verilere bağlı, test verisi yok"
+      },
+      "addFundDialog": {
+        "name": "Fon Ekleme Diyaloğu",
+        "description": "Yeni fon veya banka hesabı ekleme diyaloğu"
+      },
+      "addCostCenterDialog": {
+        "name": "Maliyet Merkezi Ekleme Diyaloğu",
+        "description": "Yeni maliyet merkezi ekleme diyaloğu"
+      },
+      "fundTransactionSheet": {
+        "name": "Fon İşlemleri Sayfası",
+        "description": "Fon işlemlerini görüntüleme ve yönetme"
+      },
+      "newJournalEntrySheet": {
+        "name": "Yeni Yevmiye Girişi Sayfası",
+        "description": "Yevmiye kayıtları, makbuzlar, ödemeler, kasa defteri, transferler ve döviz bozdurma için çok sekmeli sayfa"
+      },
+      "createTenantDialog": {
+        "name": "Kiracı Oluşturma Diyaloğu",
+        "description": "Şirket, sahip ve abonelik bilgileriyle yeni kiracı oluşturmak için çok sekmeli diyalog"
+      },
+      "agentDetailsSheet": {
+        "name": "Acente Detayları Sayfası",
+        "description": "İletişim bilgileri, bakiye, komisyonlar ve White Label durumu ile acentenin detaylı görünümü"
+      }
+    },
+    "actions": {
+      "open": "Aç",
+      "openInPlace": "Yerinde Aç"
+    }
+  },
+
+  "saas": {
+    "title": "SaaS Yönetimi",
+    "dashboard": "Kontrol Paneli",
+    "subscribers": "Aboneler",
+    "packages": "Paketler",
+    "agents": "Acenteler",
+    "whiteLabel": "White Label",
+    "payments": "Ödemeler",
+    "modules": "Modüller",
+    "support": "Destek",
+    "notifications": "Bildirimler",
+    "coupons": "Kuponlar",
+    "referrals": "Referanslar",
+    "webhooks": "Webhooks",
+    "analytics": "Analitik",
+    "reports": "Raporlar",
+    "marketing": "Pazarlama",
+    "settings": "Ayarlar",
+    "comingSoon": "Yakında - Geliştirme Aşamasında",
+    "createNew": "Yeni Oluştur",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "view": "Görüntüle",
+    "activate": "Etkinleştir",
+    "suspend": "Askıya Al",
+    "approve": "Onayla",
+    "reject": "Reddet",
+    "status": {
+      "active": "Aktif",
+      "inactive": "Pasif",
+      "pending": "Beklemede",
+      "suspended": "Askıda",
+      "expired": "Süresi Dolmuş",
+      "cancelled": "İptal Edildi"
+    },
+    "agents": {
+      "title": "Acente Yönetimi",
+      "description": "Acenteleri, bayileri ve komisyonları yönetin",
+      "create": "Yeni Acente Kaydet",
+      "approve": "Acenteyi Onayla",
+      "suspend": "Acenteyi Askıya Al",
+      "activate": "Acenteyi Etkinleştir",
+      "commissions": "Komisyonlar",
+      "withdrawals": "Çekimler",
+      "targets": "Hedefler",
+      "dashboard": "Acente Paneli",
+      "whiteLabel": "White Label",
+      "tier": "Seviye",
+      "balance": "Bakiye",
+      "pendingBalance": "Bekleyen Bakiye",
+      "totalEarned": "Toplam Kazanç",
+      "totalWithdrawn": "Toplam Çekilmiş",
+      "totalTenants": "Toplam Kiracı",
+      "activeTenants": "Aktif Kiracılar",
+      "totalAgents": "Toplam Acente",
+      "activeAgents": "Aktif Acenteler",
+      "totalCommissions": "Toplam Komisyon",
+      "contactInfo": "İletişim Bilgileri",
+      "tiers": {
+        "bronze": "Bronz",
+        "silver": "Gümüş",
+        "gold": "Altın",
+        "platinum": "Platin",
+        "diamond": "Elmas"
+      },
+      "error": {
+        "loadFailed": "Acenteler yüklenemedi"
+      }
+    },
+    "tenants": {
+      "title": "Abone Yönetimi",
+      "description": "Aboneleri ve abonelikleri yönetin",
+      "create": "Yeni Abone Oluştur",
+      "createDescription": "Sistemde yeni bir abone oluşturun",
+      "edit": "Aboneyi Düzenle",
+      "suspend": "Aboneyi Askıya Al",
+      "activate": "Aboneyi Etkinleştir",
+      "details": "Abone Detayları",
+      "subscription": "Abonelik",
+      "usage": "Kullanım",
+      "billing": "Faturalama",
+      "total": "Toplam Abone",
+      "agentInfo": "Acenteye Bağlı",
+      "referral": "Referans",
+      "referralCode": "Referans Kodu",
+      "referralSource": "Referans Kaynağı",
+      "ownerName": "Sahip Adı",
+      "plan": "Plan",
+      "tabs": {
+        "company": "Şirket",
+        "owner": "Sahip",
+        "subscription": "Abonelik"
+      },
+      "placeholders": {
+        "companyName": "Şirket Adı",
+        "ownerName": "Sahip Adı",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Aboneler yüklenemedi",
+        "noPermission": "Erişim izni yok",
+        "createFailed": "Abone oluşturulamadı"
+      }
+    },
+    "plans": {
+      "starter": "Başlangıç",
+      "professional": "Profesyonel",
+      "enterprise": "Kurumsal"
+    },
+    "whiteLabel": {
+      "title": "White Label Sistemi",
+      "registerPayment": "White Label Ödemesi Kaydet",
+      "activate": "White Label'ı Etkinleştir",
+      "addDomain": "Domain Ekle",
+      "verifyDomain": "Domain Doğrula",
+      "configureBranding": "Markalaşmayı Yapılandır",
+      "paymentAmount": "Ödeme Tutarı",
+      "paymentMethod": "Ödeme Yöntemi",
+      "periodMonths": "Süre (Ay)",
+      "domain": "Domain",
+      "domainType": "Domain Türü",
+      "brandName": "Marka Adı",
+      "logo": "Logo",
+      "primaryColor": "Ana Renk",
+      "contactEmail": "İletişim E-postası",
+      "status": {
+        "inactive": "Pasif",
+        "pending": "Ödeme Bekleniyor",
+        "active": "Aktif",
+        "suspended": "Askıda",
+        "expired": "Süresi Dolmuş"
+      },
+      "commission": "Komisyon %"
+    }
+  },
+
+  "qrCode": {
+    "title": "QR Kodu",
+    "generate": "QR Oluştur",
+    "scan": "QR Tara",
+    "scanWithMobile": "Mobil uygulama ile tarayın",
+    "download": "QR İndir",
+    "print": "QR Yazdır",
+    "share": "Paylaş",
+    "copy": "Bağlantıyı Kopyala",
+    "copied": "Bağlantı kopyalandı",
+    "docTypes": {
+      "invoice": "Fatura",
+      "payment": "Ödeme",
+      "receipt": "Makbuz",
+      "journalEntry": "Yevmiye Kaydı",
+      "account": "Hesap",
+      "customer": "Müşteri",
+      "supplier": "Tedarikçi",
+      "order": "Sipariş",
+      "tenant": "Abone",
+      "fund": "Kasa"
+    }
+  },
+
+  "statusManager": {
+    "title": "Durum Yönetimi",
+    "description": "Belge durumlarını ve erişim izinlerini yönetin",
+    "newStatus": "Yeni Durum",
+    "editStatus": "Durum Düzenle",
+    "deleteStatus": "Durum Sil",
+    "statusGroups": "Durum Grupları",
+    "selectStatus": "Durum seçin",
+    "noStatuses": "Durum bulunamadı",
+    "cannotDeleteSystem": "Sistem durumu silinemez",
+    "statusUpdated": "Durum güncellendi",
+    "statusCreated": "Durum oluşturuldu",
+    "statusDeleted": "Durum silindi",
+    "changeTo": "Değiştir",
+    "addComment": "Yorum ekle (isteğe bağlı)...",
+    "deleteConfirm": "Bu durumu silmek istediğinizden emin misiniz?",
+    "fields": {
+      "nameAr": "Ad (Arapça)",
+      "nameEn": "Ad (İngilizce)",
+      "code": "Kod",
+      "group": "Grup",
+      "color": "Renk",
+      "timeNorm": "Zaman Normu (saat)",
+      "isInitial": "Başlangıç Durumu",
+      "isFinal": "Son Durum",
+      "canView": "Görüntüleyebilir",
+      "canSet": "Ayarlayabilir"
+    },
+    "groups": {
+      "new": "Yeni",
+      "inProgress": "Devam Ediyor",
+      "pending": "Beklemede",
+      "completed": "Tamamlandı",
+      "cancelled": "İptal Edildi",
+      "closedSuccess": "Başarıyla Kapatıldı",
+      "closedFail": "Başarısız Kapatıldı"
+    },
+    "badges": {
+      "system": "Sistem",
+      "required": "Zorunlu"
+    }
+  },
+
+  "printSystem": {
+    "title": "Belge Yazdır",
+    "print": "Yazdır",
+    "printAll": "Tümünü Yazdır",
+    "preview": "Önizleme",
+    "exportPdf": "PDF Dışa Aktar",
+    "printing": "Yazdırılıyor...",
+    "exporting": "Dışa aktarılıyor...",
+    "selectTemplate": "Şablon Seç",
+    "printOptions": "Yazdırma Seçenekleri",
+    "printSettings": "Yazdırma Ayarları",
+    "advancedOptions": "Gelişmiş seçenekler...",
+    "relatedDocuments": "İlgili Belgeler",
+    "options": {
+      "includeQR": "QR Kod Ekle",
+      "includeHeader": "Başlık Ekle",
+      "includeFooter": "Altbilgi Ekle",
+      "includeStamp": "Mühür Ekle",
+      "includeSignature": "İmza Ekle"
+    },
+    "categories": {
+      "contract": "Sözleşmeler",
+      "invoice": "Faturalar",
+      "receipt": "Makbuzlar",
+      "report": "Raporlar",
+      "other": "Diğer"
+    },
+    "templates": {
+      "salesInvoice": "Satış Faturası",
+      "salesInvoiceNoVat": "Satış Faturası (KDV'siz)",
+      "creditNote": "Kredi Notu",
+      "receiptVoucher": "Tahsilat Makbuzu",
+      "paymentVoucher": "Ödeme Makbuzu",
+      "salesContract": "Satış Sözleşmesi",
+      "rentalContract": "Kira Sözleşmesi",
+      "accountStatement": "Hesap Özeti"
+    }
+  },
+
+  "formEditor": {
+    "title": "Form Editörü",
+    "description": "Alanları ve sıralarını ihtiyaçlarınıza göre özelleştirin",
+    "saveChanges": "Değişiklikleri Kaydet",
+    "changesSaved": "Değişiklikler başarıyla kaydedildi",
+    "addHeader": "Başlık Ekle",
+    "addField": "Alan Ekle",
+    "editHeader": "Başlığı Düzenle",
+    "editField": "Alanı Düzenle",
+    "deleteConfirm": "Silmek istediğinizden emin misiniz?",
+    "noFields": "Alan yok",
+    "showOnCard": "Kartta göster",
+    "showOnOrderCard": "Sipariş kartında göster",
+    "formType": "Tür",
+    "default": "Varsayılan",
+    "compact": "Kompakt",
+    "fields": {
+      "labelAr": "Etiket (Arapça)",
+      "labelEn": "Etiket (İngilizce)",
+      "key": "Anahtar",
+      "type": "Tür",
+      "width": "Genişlik",
+      "required": "Zorunlu",
+      "visible": "Görünür"
+    },
+    "fieldTypes": {
+      "text": "Metin",
+      "number": "Sayı",
+      "currency": "Para Birimi",
+      "date": "Tarih",
+      "datetime": "Tarih ve Saat",
+      "email": "E-posta",
+      "phone": "Telefon",
+      "address": "Adres",
+      "select": "Açılır Liste",
+      "multiselect": "Çoklu Seçim",
+      "checkbox": "Onay Kutusu",
+      "image": "Resim",
+      "file": "Dosya",
+      "reference": "Referans"
+    },
+    "widths": {
+      "full": "Tam",
+      "half": "Yarım",
+      "third": "Üçte Bir"
+    },
+    "badges": {
+      "system": "Sistem",
+      "required": "Zorunlu"
+    },
+    "fieldCategories": {
+      "system": "Sistem Alanları",
+      "user": "Kullanıcı Alanları",
+      "new": "Yeni Alanlar"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Arayüz Modu",
+    "lite": "Lite",
+    "professional": "Profesyonel",
+    "liteDescription": "Günlük kullanım için basitleştirilmiş arayüz",
+    "professionalDescription": "Tüm özellikler ve gelişmiş araçlar",
+    "switch": "Mod Değiştir"
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Aktif",
+      "trial": "Deneme",
+      "expired": "Süresi Dolmuş",
+      "locked": "Kilitli",
+      "grace_period": "Ek Süre",
+      "cancelled": "İptal Edildi"
+    },
+    "alerts": {
+      "lockedMessage": "Hesabınız ödeme yapılmadığı için kilitlendi. Aboneliğinizi yenileyin.",
+      "expiredMessage": "Aboneliğinizin süresi doldu. Devam etmek için yenileyin.",
+      "gracePeriodMessage": "Aboneliğiniz ek süre içinde. Yenileme için {{days}} gün kaldı.",
+      "criticalWarning": "Aboneliğiniz {{days}} gün içinde sona eriyor!",
+      "warningMessage": "Aboneliğiniz {{days}} gün içinde sona eriyor. Yakında yenileyin.",
+      "infoMessage": "Aboneliğinizde {{days}} gün kaldı."
+    },
+    "dialogs": {
+      "lockedTitle": "Hesap Kilitli",
+      "lockedDescription": "Hesabınız ödeme yapılmadığı için kilitlendi. Faturalama bölümüne gidin.",
+      "gracePeriodTitle": "Ek Süre",
+      "gracePeriodDescription": "Aboneliğiniz ek süre içinde. Kilitlemeye {{days}} gün kaldı.",
+      "expiredTitle": "Abonelik Süresi Doldu",
+      "expiredDescription": "Aboneliğinizin süresi doldu. Sistemi kullanmak için yenileyin.",
+      "criticalTitle": "Abonelik Sona Eriyor",
+      "criticalDescription": "Aboneliğiniz sadece {{days}} gün içinde sona eriyor. Şimdi yenileyin.",
+      "warningTitle": "Yenileme Hatırlatması",
+      "warningDescription": "Aboneliğiniz {{days}} gün içinde sona eriyor. Lütfen yenileyin.",
+      "remindLater": "Sonra Hatırlat"
+    },
+    "billing": {
+      "title": "Faturalama ve Abonelik",
+      "description": "Aboneliğinizi, ödeme yöntemlerinizi ve faturalarınızı yönetin",
+      "currentSubscription": "Mevcut Abonelik",
+      "subscriptionDetails": "Abonelik detayları ve durumu",
+      "currentPlan": "Mevcut Plan",
+      "planName": "Plan Adı",
+      "noPlan": "Plan Yok",
+      "periodEnd": "Dönem Sonu",
+      "daysRemaining": "Kalan Gün",
+      "gracePeriod": "Ek Süre",
+      "renewNow": "Şimdi Yenile",
+      "payNow": "Şimdi Öde",
+      "upgradePlan": "Planı Yükselt",
+      "goToBilling": "Faturalama'ya Git",
+      "accountInfo": "Hesap Bilgileri",
+      "accountName": "Hesap Adı",
+      "billingEmail": "Fatura E-postası"
+    },
+    "tabs": {
+      "overview": "Genel Bakış",
+      "plans": "Planlar",
+      "invoices": "Faturalar",
+      "companies": "Şirketler"
+    },
+    "storage": {
+      "title": "Depolama",
+      "used": "Kullanılan",
+      "remaining": "Kalan",
+      "files": "Dosyalar"
+    },
+    "plans": {
+      "current": "Mevcut Plan",
+      "currentPlan": "Mevcut Plan",
+      "selectPlan": "Plan Seç",
+      "free": "Ücretsiz",
+      "users": "kullanıcı",
+      "companies": "şirket",
+      "storage": "depolama"
+    },
+    "invoices": {
+      "title": "Fatura Geçmişi",
+      "number": "Fatura Numarası",
+      "date": "Tarih",
+      "amount": "Tutar",
+      "status": "Durum",
+      "paid": "Ödendi",
+      "pending": "Beklemede",
+      "overdue": "Gecikmiş",
+      "noInvoices": "Fatura yok"
+    },
+    "companies": {
+      "title": "Şirketler",
+      "description": "Hesabınıza bağlı şirketler",
+      "main": "Ana",
+      "noCompanies": "Şirket yok"
+    },
+    "locked": {
+      "title": "Hesap Kilitli",
+      "description": "Hesabınız abonelik süresinin dolması nedeniyle kilitlendi.",
+      "account": "Hesap",
+      "status": "Durum",
+      "gracePeriodInfo": "Hesabınız ek süre içinde. Tam kilitlemeye {{days}} gün kaldı.",
+      "paymentInfo": "Verilerinize erişmek için aboneliğinizi yenileyin.",
+      "contactSupport": "Destek ile İletişime Geçin",
+      "needHelp": "Yardıma mı ihtiyacınız var?"
+    }
+  },
+
+  "documents": {
+    "storage": "Depolama",
+    "upload": "Belge Yükle",
+    "uploadFirst": "İlk belgenizi yükleyin",
+    "uploadTitle": "Yeni Belge Yükle",
+    "uploadDescription": "Yüklenecek bir dosya seçin (maks. 25 MB)",
+    "uploading": "Yükleniyor",
+    "uploadSuccess": "Belge başarıyla yüklendi",
+    "deleteSuccess": "Belge başarıyla silindi",
+    "deleteTitle": "Belgeyi Sil",
+    "deleteConfirm": "Bu belgeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+    "noDocuments": "Ekli belge yok",
+    "category": "Kategori",
+    "description": "Açıklama",
+    "descriptionPlaceholder": "Belge için bir açıklama girin (isteğe bağlı)",
+    "storageWarning": "Depolama alanı azalıyor",
+    "storageCritical": "Depolama neredeyse dolu!",
+    "categories": {
+      "contract": "Sözleşme",
+      "invoice_copy": "Fatura Kopyası",
+      "receipt": "Makbuz",
+      "id_document": "Kimlik Belgesi",
+      "certificate": "Sertifika",
+      "report": "Rapor",
+      "other": "Diğer"
+    },
+    "errors": {
+      "fileTooLarge": "Dosya çok büyük (maks. 25 MB)",
+      "missingInfo": "Eksik bilgi",
+      "uploadFailed": "Yükleme başarısız",
+      "downloadFailed": "İndirme başarısız",
+      "viewFailed": "Görüntüleme başarısız",
+      "deleteFailed": "Silme başarısız",
+      "quota.maxFilesReached": "Maksimum dosya sayısına ulaşıldı",
+      "quota.storageLimitReached": "Depolama sınırına ulaşıldı",
+      "quota.fileTooLarge": "Dosya boyutu izin verilen sınırı aşıyor"
+    }
+  },
+
+  "import": {
+    "title": "Veri İçe Aktarma",
+    "step": "Adım",
+    "of": "/",
+    "selectEntityType": "Veri Türünü Seçin",
+    "selectEntityTypeDescription": "İçe aktarmak istediğiniz veri türünü seçin",
+    "fields": "alan",
+    "noEntityTypes": "İçe aktarma için veri türü yok",
+    "downloadTemplate": "Şablonu İndir",
+    "downloadTemplateDescription": "Şablonu indirin, doldurun ve yükleyin",
+    "templateArabic": "Arapça Şablon",
+    "templateEnglish": "İngilizce Şablon",
+    "dropFileHere": "Dosyayı buraya bırakın",
+    "orClickToSelect": "veya seçmek için tıklayın",
+    "supportedFormats": "Desteklenen formatlar",
+    "maxSize": "Maks boyut",
+    "parsing": "Dosya okunuyor...",
+    "requiredFields": "Zorunlu Alanlar",
+    "invalidFileType": "Dosya türü desteklenmiyor",
+    "fileTooLarge": "Dosya boyutu sınırı aşıyor",
+    "totalRows": "Toplam Satır",
+    "columns": "Sütun",
+    "mapped": "Eşlendi",
+    "notMapped": "Eşlenmedi",
+    "missingRequiredFields": "Zorunlu alanlar eşlenmedi",
+    "fileColumn": "Dosya Sütunu",
+    "systemField": "Sistem Alanı",
+    "status": "Durum",
+    "selectField": "Alan Seçin",
+    "ignore": "Yoksay",
+    "sample": "Örnek",
+    "validating": "Doğrulanıyor...",
+    "validateData": "Verileri Doğrula",
+    "validRows": "Geçerli Satırlar",
+    "invalidRows": "Geçersiz Satırlar",
+    "willImport": "İçe Aktarılacak",
+    "errorSummary": "Hata Özeti",
+    "importOptions": "İçe Aktarma Seçenekleri",
+    "skipInvalidRows": "Geçersiz satırları atla",
+    "skipInvalidRowsDescription": "Yalnızca geçerli satırları içe aktar",
+    "updateExisting": "Mevcut olanı güncelle",
+    "updateExistingDescription": "Kod eşleşirse mevcut kayıtları güncelle",
+    "useAIAnalysis": "AI Analizi Kullan",
+    "useAIAnalysisDescription": "Yinelenen ve hataları tespit etmek için akıllı analiz",
+    "all": "Tümü",
+    "valid": "Geçerli",
+    "invalid": "Geçersiz",
+    "data": "Veri",
+    "errors": "Hatalar",
+    "moreErrors": "daha fazla hata",
+    "page": "Sayfa",
+    "continueToAI": "AI Analizine Git",
+    "continueToPreview": "Önizlemeye Git",
+    "aiAnalysisComingSoon": "AI analizi yakında kullanılabilir olacak",
+    "readyToImport": "İçe Aktarmaya Hazır",
+    "reviewAndConfirm": "Verileri inceleyin ve içe aktarmayı onaylayın",
+    "recordsToImport": "içe aktarılacak kayıt",
+    "entityType": "Veri Türü",
+    "updateEnabled": "Güncelleme etkin",
+    "dataPreview": "Veri Önizleme",
+    "showing": "Gösterilen",
+    "importSettings": "İçe Aktarma Ayarları",
+    "aiAnalysis": "AI Analizi",
+    "importing": "İçe aktarılıyor...",
+    "startImport": "İçe Aktarmayı Başlat",
+    "records": "kayıt",
+    "importingData": "Veriler içe aktarılıyor",
+    "successTitle": "İçe Aktarma Başarılı!",
+    "successDescription": "Tüm veriler başarıyla içe aktarıldı",
+    "partialSuccessTitle": "Kısmi İçe Aktarma",
+    "partialSuccessDescription": "Bazı veriler hatalarla içe aktarıldı",
+    "failedTitle": "İçe Aktarma Başarısız",
+    "failedDescription": "Veriler içe aktarılamadı",
+    "imported": "İçe Aktarıldı",
+    "skipped": "Atlandı",
+    "failed": "Başarısız",
+    "successRate": "Başarı Oranı",
+    "importDetails": "İçe Aktarma Detayları",
+    "fileName": "Dosya Adı",
+    "startTime": "Başlangıç Zamanı",
+    "endTime": "Bitiş Zamanı",
+    "errorReport": "Hata Raporu",
+    "downloadErrorReport": "Başarısız satırların raporunu indir",
+    "download": "İndir",
+    "newImport": "Yeni İçe Aktarma",
+    "done": "Tamam"
+  }
+}

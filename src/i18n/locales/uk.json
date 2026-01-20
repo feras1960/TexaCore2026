@@ -1,0 +1,1266 @@
+{
+  "app": {
+    "name": "Система планування ресурсів підприємства",
+    "shortName": "ERP Система",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Якість, якій можна довіряти",
+      "fullName": "TexaCore - Система планування ресурсів підприємства"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Панель керування",
+    "accounting": "Бухгалтерія",
+    "sales": "Продажі",
+    "purchases": "Закупівлі",
+    "inventory": "Склад",
+    "crm": "CRM",
+    "hr": "Кадри",
+    "pos": "Каса",
+    "exchange": "Обмін валют",
+    "realEstate": "Нерухомість",
+    "manufacturing": "Виробництво",
+    "ecommerce": "Електронна комерція",
+    "saasControl": "Управління SaaS",
+    "aiAnalytics": "AI Аналітика",
+    "systemConfig": "Налаштування системи",
+    "componentLab": "Лабораторія компонентів",
+    "settings": "Налаштування"
+  },
+
+  "common": {
+    "save": "Зберегти",
+    "cancel": "Скасувати",
+    "delete": "Видалити",
+    "edit": "Редагувати",
+    "add": "Додати",
+    "create": "Створити",
+    "update": "Оновити",
+    "search": "Пошук",
+    "filter": "Фільтр",
+    "export": "Експорт",
+    "import": "Імпорт",
+    "print": "Друк",
+    "refresh": "Оновити",
+    "close": "Закрити",
+    "confirm": "Підтвердити",
+    "back": "Назад",
+    "next": "Далі",
+    "previous": "Попередній",
+    "submit": "Надіслати",
+    "reset": "Скинути",
+    "clear": "Очистити",
+    "select": "Вибрати",
+    "selectAll": "Вибрати все",
+    "deselectAll": "Зняти виділення",
+    "yes": "Так",
+    "no": "Ні",
+    "ok": "OK",
+    "loading": "Завантаження...",
+    "noData": "Немає даних",
+    "error": "Сталася помилка",
+    "success": "Операція успішна",
+    "warning": "Попередження",
+    "info": "Інформація",
+    "required": "Обовʼязково",
+    "optional": "Необовʼязково",
+    "total": "Всього",
+    "subtotal": "Проміжний підсумок",
+    "balance": "Баланс",
+    "amount": "Сума",
+    "quantity": "Кількість",
+    "price": "Ціна",
+    "date": "Дата",
+    "time": "Час",
+    "status": "Статус",
+    "type": "Тип",
+    "name": "Назва",
+    "description": "Опис",
+    "notes": "Примітки",
+    "reference": "Посилання",
+    "code": "Код",
+    "number": "Номер",
+    "actions": "Дії",
+    "details": "Деталі",
+    "history": "Історія",
+    "active": "Активний",
+    "inactive": "Неактивний",
+    "enabled": "Увімкнено",
+    "disabled": "Вимкнено",
+    "all": "Все",
+    "none": "Немає",
+    "other": "Інше",
+    "default": "За замовчуванням",
+    "custom": "Користувацький",
+    "country": "Країна",
+    "phone": "Телефон",
+    "email": "Email",
+    "language": "Мова",
+    "timezone": "Часовий пояс",
+    "city": "Місто",
+    "countries": {
+      "saudiArabia": "Саудівська Аравія",
+      "uae": "ОАЕ",
+      "kuwait": "Кувейт"
+    },
+    "languages": {
+      "arabic": "Арабська",
+      "english": "Англійська"
+    },
+    "timezones": {
+      "riyadh": "Ер-Ріяд (GMT+3)",
+      "dubai": "Дубай (GMT+4)"
+    }
+  },
+
+  "auth": {
+    "login": "Вхід",
+    "logout": "Вихід",
+    "register": "Реєстрація",
+    "forgotPassword": "Забули пароль?",
+    "resetPassword": "Скинути пароль",
+    "changePassword": "Змінити пароль",
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Підтвердіть пароль",
+    "rememberMe": "Запамʼятати мене",
+    "welcome": "Ласкаво просимо",
+    "profile": "Профіль",
+    "account": "Акаунт",
+    "userInitial": "А",
+    "systemAdmin": "Адміністратор системи"
+  },
+
+  "header": {
+    "search": "Пошук...",
+    "notifications": "Сповіщення",
+    "quickAdd": "Швидке додавання",
+    "language": "Мова",
+    "theme": "Тема",
+    "darkMode": "Темний режим",
+    "lightMode": "Світлий режим"
+  },
+
+  "sidebar": {
+    "needHelp": "Потрібна допомога?",
+    "contactSupport": "Звʼязатися з підтримкою",
+    "collapse": "Згорнути",
+    "expand": "Розгорнути"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "Новий рахунок продажу",
+    "newPurchaseInvoice": "Новий рахунок закупівлі",
+    "receiptVoucher": "Прибутковий ордер",
+    "paymentVoucher": "Видатковий ордер",
+    "newProduct": "Новий товар",
+    "newCustomer": "Новий клієнт",
+    "newSupplier": "Новий постачальник",
+    "journalEntry": "Журнальний запис"
+  },
+
+  "filters": {
+    "selectBranch": "Виберіть філію",
+    "allBranches": "Всі філії",
+    "selectCurrency": "Виберіть валюту",
+    "selectPeriod": "Виберіть період",
+    "today": "Сьогодні",
+    "yesterday": "Вчора",
+    "thisWeek": "Цей тиждень",
+    "lastWeek": "Минулий тиждень",
+    "thisMonth": "Цей місяць",
+    "lastMonth": "Минулий місяць",
+    "thisYear": "Цей рік",
+    "lastYear": "Минулий рік",
+    "customRange": "Довільний період",
+    "from": "Від",
+    "to": "До"
+  },
+
+  "tabs": {
+    "overview": "Огляд",
+    "ledger": "Книга обліку",
+    "invoices": "Рахунки",
+    "payments": "Платежі",
+    "reservations": "Бронювання",
+    "aiAnalysis": "AI Аналіз",
+    "events": "Події",
+    "details": "Деталі",
+    "history": "Історія",
+    "settings": "Налаштування",
+    "reports": "Звіти"
+  },
+
+  "status": {
+    "draft": "Чернетка",
+    "pending": "В очікуванні",
+    "inProgress": "В процесі",
+    "confirmed": "Підтверджено",
+    "completed": "Завершено",
+    "partial": "Частково",
+    "paid": "Оплачено",
+    "unpaid": "Не оплачено",
+    "overdue": "Прострочено",
+    "cancelled": "Скасовано",
+    "rejected": "Відхилено",
+    "approved": "Схвалено",
+    "submitted": "Надіслано",
+    "closed": "Закрито",
+    "open": "Відкрито",
+    "warning": "Попередження"
+  },
+
+  "stats": {
+    "totalSales": "Загальні продажі",
+    "totalRevenue": "Загальний дохід",
+    "totalExpenses": "Загальні витрати",
+    "netProfit": "Чистий прибуток",
+    "grossProfit": "Валовий прибуток",
+    "totalOrders": "Всього замовлень",
+    "pendingOrders": "Очікуючі замовлення",
+    "completedOrders": "Виконані замовлення",
+    "totalCustomers": "Всього клієнтів",
+    "activeCustomers": "Активні клієнти",
+    "newCustomers": "Нові клієнти",
+    "totalSuppliers": "Всього постачальників",
+    "totalProducts": "Всього товарів",
+    "lowStock": "Низький запас",
+    "outOfStock": "Немає в наявності"
+  },
+
+  "currencies": {
+    "SAR": "Саудівський ріял",
+    "USD": "Долар США",
+    "EUR": "Євро",
+    "GBP": "Британський фунт",
+    "AED": "Дирхам ОАЕ",
+    "KWD": "Кувейтський динар",
+    "QAR": "Катарський ріял",
+    "BHD": "Бахрейнський динар",
+    "OMR": "Оманський ріал",
+    "EGP": "Єгипетський фунт",
+    "JOD": "Йорданський динар",
+    "TRY": "Турецька ліра",
+    "RUB": "Російський рубль",
+    "UAH": "Українська гривня",
+    "PLN": "Польський злотий",
+    "RON": "Румунський лей"
+  },
+
+  "branches": {
+    "main": "Головна філія",
+    "all": "Всі філії"
+  },
+
+  "dashboard": {
+    "title": "Панель керування",
+    "subtitle": "Комплексний огляд всіх модулів системи",
+    "welcomeMessage": "Ласкаво просимо до системи планування ресурсів підприємства",
+    "recentOrders": "Останні замовлення",
+    "recentInvoices": "Останні рахунки",
+    "recentPayments": "Останні платежі",
+    "quickStats": "Швидка статистика",
+    "viewAll": "Переглянути все",
+    "chartsPlaceholder": "Графіки будуть додані тут"
+  },
+
+  "accounting": {
+    "module": "Бухгалтерія",
+    "chartOfAccounts": "План рахунків",
+    "journalEntries": "Журнальні записи",
+    "generalLedger": "Головна книга",
+    "trialBalance": "Оборотна відомість",
+    "incomeStatement": "Звіт про прибутки та збитки",
+    "balanceSheet": "Баланс",
+    "cashFlow": "Рух грошових коштів",
+    "costCenters": "Центри витрат",
+    "budgets": "Бюджети",
+    "fiscalYear": "Фінансовий рік",
+    "closingEntries": "Закриваючі записи",
+    "addAccount": "Додати рахунок",
+    "addNewRow": "Додати новий рядок",
+    "addRow": "Додати рядок",
+    "balanceEntry": "Збалансувати запис",
+    "duplicateRow": "Дублювати рядок",
+    "copyAccountDown": "Копіювати рахунок у наступний рядок",
+    "save": "Зберегти",
+    "account": {
+      "name": "Назва рахунку",
+      "code": "Код рахунку",
+      "type": "Тип рахунку",
+      "parent": "Батьківський рахунок",
+      "balance": "Баланс",
+      "currency": "Валюта",
+      "select": "Виберіть рахунок...",
+      "notFound": "Рахунок не знайдено",
+      "treeSelector": "План рахунків",
+      "treeSelectorDescription": "Виберіть рахунки з дерева - Подвійний клік для додавання",
+      "closeTree": "Закрити дерево",
+      "selectedCount": "вибрано",
+      "doubleClickToAdd": "Подвійний клік для додавання рахунку",
+      "onlyAccounts": "Тільки рахунки (не групи)"
+    },
+    "entry": {
+      "number": "Номер запису",
+      "date": "Дата запису",
+      "reference": "Посилання",
+      "description": "Опис",
+      "debit": "Дебет",
+      "credit": "Кредит",
+      "total": "Всього"
+    },
+    "receipt": {
+      "title": "Прибутковий ордер",
+      "number": "Номер ордера",
+      "date": "Дата ордера",
+      "customer": "Клієнт",
+      "amount": "Сума",
+      "paymentMethod": "Спосіб оплати",
+      "fund": "Фонд",
+      "notes": "Примітки",
+      "customerInfo": "Інформація про клієнта"
+    },
+    "payment": {
+      "title": "Видатковий ордер",
+      "number": "Номер ордера",
+      "date": "Дата ордера",
+      "supplier": "Постачальник",
+      "amount": "Сума",
+      "paymentMethod": "Спосіб оплати",
+      "fund": "Фонд",
+      "notes": "Примітки"
+    },
+    "labels": {
+      "debitTotal": "Всього дебет",
+      "creditTotal": "Всього кредит",
+      "balance": "Баланс",
+      "difference": "Різниця",
+      "marked": "Позначено"
+    },
+    "currentBalance": "Поточний баланс",
+    "openingBalance": "Початковий баланс",
+    "closingBalance": "Кінцевий баланс",
+    "periodMovement": "Рух за період",
+    "entryTabs": {
+      "journal": {
+        "title": "Журнальний запис",
+        "description": "Записати новий бухгалтерський запис"
+      },
+      "receipt": {
+        "title": "Прибутковий ордер",
+        "description": "Записати отримані платежі"
+      },
+      "payment": {
+        "title": "Видатковий ордер",
+        "description": "Записати вихідні платежі"
+      },
+      "cash": {
+        "title": "Касовий журнал",
+        "description": "Рухи грошового фонду"
+      },
+      "transfer": {
+        "title": "Переказ",
+        "description": "Переказ між фондами"
+      },
+      "exchange": {
+        "title": "Обмін",
+        "description": "Обмін валют"
+      }
+    },
+    "partiesStats": {
+      "totalCustomers": "Всього клієнтів",
+      "totalReceivables": "Всього дебіторська заборгованість",
+      "totalSuppliers": "Всього постачальників",
+      "totalPayables": "Всього кредиторська заборгованість"
+    },
+    "partiesDescription": "Управління клієнтами, постачальниками, дебіторською та кредиторською заборгованістю",
+    "customers": "Клієнти",
+    "suppliers": "Постачальники",
+    "settingsSections": {
+      "company": "Налаштування компанії",
+      "companyDesc": "Основна інформація про компанію",
+      "fiscalYear": "Фінансовий рік",
+      "fiscalYearDesc": "Визначити період фінансового року",
+      "tax": "Податкові налаштування",
+      "taxDesc": "Налаштування ПДВ та інших податків",
+      "workflow": "Робочий процес",
+      "workflowDesc": "Налаштування затвердження та автоматичного проведення"
+    },
+    "settingsFields": {
+      "companyName": "Назва компанії",
+      "baseCurrency": "Основна валюта",
+      "fiscalYearStart": "Початок фінансового року",
+      "fiscalYearEnd": "Кінець фінансового року",
+      "enableTax": "Увімкнути податок",
+      "enableTaxDesc": "Увімкнути розрахунок ПДВ",
+      "vatRate": "Ставка ПДВ",
+      "autoPostEntries": "Автоматичне проведення",
+      "autoPostEntriesDesc": "Проводити записи відразу без перевірки",
+      "requireApproval": "Потрібне затвердження",
+      "requireApprovalDesc": "Запитувати затвердження менеджера перед проведенням"
+    },
+    "settingsInfo": {
+      "title": "Важлива інформація",
+      "desc1": "Зміна основної валюти може вплинути на фінансові звіти.",
+      "desc2": "Переконайтеся, що ви перевірили налаштування перед збереженням."
+    },
+    "settingsDescription": "Налаштування бухгалтерії, фінансового року та податків",
+    "reportsDescription": "Перегляд фінансових та бухгалтерських звітів",
+    "fundsDescription": "Управління грошовими коштами та банківськими рахунками",
+    "selectAccountPrompt": "Будь ласка, виберіть рахунок зі списку вище"
+  },
+
+  "sales": {
+    "module": "Продажі",
+    "quotation": "Комерційна пропозиція",
+    "salesOrder": "Замовлення на продаж",
+    "deliveryNote": "Накладна",
+    "salesInvoice": "Рахунок на продаж",
+    "salesReturn": "Повернення продажу",
+    "customer": "Клієнт",
+    "customers": "Клієнти",
+    "priceList": "Прайс-лист",
+    "discount": "Знижка",
+    "tax": "Податок",
+    "vat": "ПДВ"
+  },
+
+  "purchases": {
+    "module": "Закупівлі",
+    "purchaseRequest": "Заявка на закупівлю",
+    "purchaseOrder": "Замовлення на закупівлю",
+    "purchaseReceipt": "Прихід товару",
+    "purchaseInvoice": "Рахунок на закупівлю",
+    "purchaseReturn": "Повернення постачальнику",
+    "supplier": "Постачальник",
+    "suppliers": "Постачальники"
+  },
+
+  "inventory": {
+    "module": "Склад",
+    "items": "Товари",
+    "item": "Товар",
+    "warehouse": "Склад",
+    "warehouses": "Склади",
+    "stockEntry": "Складська операція",
+    "stockTransfer": "Переміщення",
+    "stockAdjustment": "Коригування",
+    "stockReconciliation": "Інвентаризація",
+    "reorderLevel": "Рівень дозамовлення",
+    "minimumStock": "Мінімальний запас",
+    "maximumStock": "Максимальний запас",
+    "currentStock": "Поточний запас",
+    "availableStock": "Доступний запас",
+    "reservedStock": "Зарезервований запас"
+  },
+
+  "crm": {
+    "module": "Управління взаємовідносинами з клієнтами",
+    "leads": "Ліди",
+    "opportunities": "Можливості",
+    "contacts": "Контакти",
+    "activities": "Активності",
+    "campaigns": "Кампанії",
+    "pipeline": "Воронка продажів"
+  },
+
+  "hr": {
+    "module": "Управління персоналом",
+    "employees": "Співробітники",
+    "employee": "Співробітник",
+    "departments": "Відділи",
+    "designations": "Посади",
+    "attendance": "Відвідуваність",
+    "leave": "Відпустка",
+    "payroll": "Розрахунок зарплати",
+    "recruitment": "Найм",
+    "training": "Навчання",
+    "performance": "Продуктивність"
+  },
+
+  "pos": {
+    "module": "Каса",
+    "newSale": "Новий продаж",
+    "cashier": "Касир",
+    "register": "Каса",
+    "shift": "Зміна",
+    "openShift": "Відкрити зміну",
+    "closeShift": "Закрити зміну",
+    "cart": "Кошик",
+    "checkout": "Оформлення",
+    "payment": "Оплата",
+    "receipt": "Чек"
+  },
+
+  "exchange": {
+    "module": "Обмін валют",
+    "buyRate": "Курс купівлі",
+    "sellRate": "Курс продажу",
+    "exchangeRate": "Обмінний курс",
+    "currencyExchange": "Обмін валюти",
+    "fundTransfer": "Переказ коштів"
+  },
+
+  "realEstate": {
+    "module": "Нерухомість",
+    "properties": "Обʼєкти",
+    "units": "Одиниці",
+    "contracts": "Договори",
+    "tenants": "Орендарі",
+    "rent": "Оренда",
+    "maintenance": "Обслуговування"
+  },
+
+  "manufacturing": {
+    "module": "Виробництво",
+    "bom": "Специфікація матеріалів",
+    "workOrder": "Робоче замовлення",
+    "productionPlan": "План виробництва",
+    "qualityInspection": "Контроль якості",
+    "workstation": "Робоча станція"
+  },
+
+  "ecommerce": {
+    "module": "Електронна комерція",
+    "store": "Магазин",
+    "products": "Товари",
+    "categories": "Категорії",
+    "orders": "Замовлення",
+    "shipping": "Доставка",
+    "promotions": "Акції"
+  },
+
+  "validation": {
+    "required": "Це поле обовʼязкове",
+    "email": "Будь ласка, введіть коректний email",
+    "minLength": "Мінімум {min} символів",
+    "maxLength": "Максимум {max} символів",
+    "min": "Мінімум {min}",
+    "max": "Максимум {max}",
+    "positive": "Повинно бути позитивним числом",
+    "integer": "Повинно бути цілим числом",
+    "numeric": "Повинно бути числом",
+    "url": "Будь ласка, введіть коректний URL",
+    "phone": "Будь ласка, введіть коректний номер телефону",
+    "match": "Значення не збігаються",
+    "unique": "Це значення вже існує",
+    "date": "Будь ласка, введіть коректну дату"
+  },
+
+  "messages": {
+    "saveSuccess": "Успішно збережено",
+    "saveError": "Помилка збереження",
+    "deleteSuccess": "Успішно видалено",
+    "deleteError": "Помилка видалення",
+    "updateSuccess": "Успішно оновлено",
+    "updateError": "Помилка оновлення",
+    "confirmDelete": "Ви впевнені, що хочете видалити?",
+    "confirmCancel": "Ви впевнені, що хочете скасувати?",
+    "unsavedChanges": "У вас є незбережені зміни",
+    "noResults": "Результати не знайдено",
+    "loadingError": "Помилка завантаження даних",
+    "networkError": "Помилка мережевого зʼєднання",
+    "sessionExpired": "Сесія закінчилася",
+    "accessDenied": "Доступ заборонено",
+    "notFound": "Сторінку не знайдено",
+    "pageUnderDevelopment": "Ця сторінка знаходиться в розробці"
+  },
+
+  "table": {
+    "showing": "Показано",
+    "of": "з",
+    "entries": "записів",
+    "page": "Сторінка",
+    "rowsPerPage": "Рядків на сторінці",
+    "noData": "Немає даних для відображення",
+    "loading": "Завантаження даних...",
+    "selectRow": "Вибрати рядок",
+    "selectAll": "Вибрати все",
+    "sortAsc": "Сортування за зростанням",
+    "sortDesc": "Сортування за спаданням",
+    "filter": "Фільтр",
+    "clearFilters": "Очистити фільтри",
+    "export": "Експорт",
+    "print": "Друк"
+  },
+
+  "languages": {
+    "en": "Англійська",
+    "ar": "Арабська",
+    "ru": "Російська",
+    "uk": "Українська",
+    "ro": "Румунська",
+    "pl": "Польська",
+    "tr": "Турецька",
+    "de": "Німецька",
+    "it": "Італійська"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Торгова компанія Аль-Фаджр",
+      "customer2": "Фонд Аль-Нур",
+      "customer3": "Компанія Аль-Амаль",
+      "customer4": "Завод Ас-Салям"
+    }
+  },
+
+  "componentLab": {
+    "title": "Лабораторія компонентів",
+    "description": "Тестування та попередній перегляд всіх спливаючих вікон і компонентів",
+    "info": {
+      "title": "Про лабораторію компонентів",
+      "description": "Ця лабораторія дозволяє тестувати та попередньо переглядати всі доступні спливаючі вікна, діалоги та компоненти. Натисніть 'Відкрити' на будь-якому компоненті, щоб побачити його в дії."
+    },
+    "table": {
+      "id": "ID компонента",
+      "name": "Назва компонента",
+      "description": "Опис",
+      "type": "Тип",
+      "status": "Статус",
+      "path": "Шлях до файлу",
+      "pathLabel": "Шлях",
+      "actions": "Дії",
+      "noPopups": "Спливаючі вікна ще не зареєстровані"
+    },
+    "status": {
+      "ready": "Готово",
+      "wip": "В роботі",
+      "planned": "Заплановано"
+    },
+    "actions": {
+      "open": "Відкрити"
+    },
+    "preview": {
+      "title": "Попередній перегляд компонента",
+      "description": "Попередній перегляд компонента",
+      "exampleContent": "Це приклад вмісту UnifiedSheet. Ви можете додати будь-який вміст тут всередині children.",
+      "exampleContentModal": "Це приклад вмісту UnifiedModal. Ви можете додати будь-який вміст тут всередині children."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Уніфікований лист",
+        "description": "Бічна панель для детальних представлень"
+      },
+      "unifiedModal": {
+        "name": "Уніфіковане модальне вікно",
+        "description": "Центральний діалог для форм та підтверджень"
+      },
+      "generalLedgerSheet": {
+        "name": "Лист головної книги",
+        "description": "Повний звіт про всі рухи рахунків"
+      },
+      "fundTransferDialog": {
+        "name": "Діалог переказу коштів",
+        "description": "Переказ коштів між рахунками та банками"
+      },
+      "currencyExchangeDialog": {
+        "name": "Діалог обміну валют",
+        "description": "Обмін валют у межах фонду"
+      },
+      "transactionDetailsSheet": {
+        "name": "Лист деталей транзакції",
+        "description": "Перегляд та редагування деталей транзакції"
+      },
+      "quickReceiptDialog": {
+        "name": "Діалог швидкої квитанції",
+        "description": "Діалог швидкого введення для квитанцій"
+      },
+      "quickPaymentDialog": {
+        "name": "Діалог швидкого платежу",
+        "description": "Діалог швидкого введення для платежів"
+      },
+      "accountDetailsSheet": {
+        "name": "Лист деталей рахунку (застарілий)",
+        "description": "Повні деталі рахунку з головною книгою та транзакціями (застаріла версія з тестовими даними)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Лист деталей рахунку V2",
+        "description": "Чиста версія деталей рахунку - підключена лише до реальних даних, без тестових даних"
+      },
+      "addFundDialog": {
+        "name": "Діалог додавання фонду",
+        "description": "Діалог для додавання нового фонду або банківського рахунку"
+      },
+      "addCostCenterDialog": {
+        "name": "Діалог додавання центру витрат",
+        "description": "Діалог для додавання нового центру витрат"
+      },
+      "fundTransactionSheet": {
+        "name": "Лист транзакцій фонду",
+        "description": "Перегляд та управління транзакціями фонду"
+      },
+      "newJournalEntrySheet": {
+        "name": "Лист нового журнального запису",
+        "description": "Багатотабовий лист для журнальних записів, квитанцій, платежів, касової книги, переказів та обміну валют"
+      },
+      "createTenantDialog": {
+        "name": "Діалог створення орендаря",
+        "description": "Багатовкладковий діалог для створення нового орендаря з інформацією про компанію, власника та підписку"
+      },
+      "agentDetailsSheet": {
+        "name": "Лист деталей агента",
+        "description": "Детальний перегляд агента з контактною інформацією, балансом, комісіями та статусом White Label"
+      }
+    },
+    "actions": {
+      "open": "Відкрити",
+      "openInPlace": "Відкрити на місці"
+    }
+  },
+
+  "saas": {
+    "title": "Управління SaaS",
+    "dashboard": "Панель керування",
+    "subscribers": "Підписники",
+    "packages": "Пакети",
+    "agents": "Агенти",
+    "whiteLabel": "White Label",
+    "payments": "Платежі",
+    "modules": "Модулі",
+    "support": "Підтримка",
+    "notifications": "Сповіщення",
+    "coupons": "Купони",
+    "referrals": "Реферальна програма",
+    "webhooks": "Webhooks",
+    "analytics": "Аналітика",
+    "reports": "Звіти",
+    "marketing": "Маркетинг",
+    "settings": "Налаштування",
+    "comingSoon": "Незабаром - В розробці",
+    "createNew": "Створити",
+    "edit": "Редагувати",
+    "delete": "Видалити",
+    "view": "Переглянути",
+    "activate": "Активувати",
+    "suspend": "Призупинити",
+    "approve": "Схвалити",
+    "reject": "Відхилити",
+    "status": {
+      "active": "Активний",
+      "inactive": "Неактивний",
+      "pending": "Очікування",
+      "suspended": "Призупинено",
+      "expired": "Закінчився",
+      "cancelled": "Скасовано"
+    },
+    "agents": {
+      "title": "Управління агентами",
+      "description": "Управління агентами, реселерами та комісіями",
+      "create": "Зареєструвати агента",
+      "approve": "Схвалити агента",
+      "suspend": "Призупинити агента",
+      "activate": "Активувати агента",
+      "commissions": "Комісії",
+      "withdrawals": "Виплати",
+      "targets": "Цілі",
+      "dashboard": "Панель агента",
+      "whiteLabel": "White Label",
+      "tier": "Рівень",
+      "balance": "Баланс",
+      "pendingBalance": "Очікуваний баланс",
+      "totalEarned": "Всього зароблено",
+      "totalWithdrawn": "Всього виведено",
+      "totalTenants": "Всього клієнтів",
+      "activeTenants": "Активних клієнтів",
+      "totalAgents": "Всього агентів",
+      "activeAgents": "Активних агентів",
+      "totalCommissions": "Всього комісій",
+      "contactInfo": "Контактна інформація",
+      "tiers": {
+        "bronze": "Бронза",
+        "silver": "Срібло",
+        "gold": "Золото",
+        "platinum": "Платина",
+        "diamond": "Діамант"
+      },
+      "error": {
+        "loadFailed": "Не вдалося завантажити агентів"
+      }
+    },
+    "tenants": {
+      "title": "Управління підписниками",
+      "description": "Управління підписниками та підписками",
+      "create": "Створити підписника",
+      "createDescription": "Створити нового підписника в системі",
+      "edit": "Редагувати підписника",
+      "suspend": "Призупинити підписника",
+      "activate": "Активувати підписника",
+      "details": "Деталі підписника",
+      "subscription": "Підписка",
+      "usage": "Використання",
+      "billing": "Рахунки",
+      "total": "Всього підписників",
+      "agentInfo": "Пов'язаний з агентом",
+      "referral": "Реферал",
+      "referralCode": "Реферальний код",
+      "referralSource": "Джерело рефералу",
+      "ownerName": "Ім'я власника",
+      "plan": "План",
+      "tabs": {
+        "company": "Компанія",
+        "owner": "Власник",
+        "subscription": "Підписка"
+      },
+      "placeholders": {
+        "companyName": "Назва компанії",
+        "ownerName": "Ім'я власника",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Не вдалося завантажити підписників",
+        "noPermission": "Немає доступу",
+        "createFailed": "Не вдалося створити підписника"
+      }
+    },
+    "plans": {
+      "starter": "Стартовий",
+      "professional": "Професійний",
+      "enterprise": "Корпоративний"
+    },
+    "whiteLabel": {
+      "title": "Система White Label",
+      "registerPayment": "Зареєструвати платіж White Label",
+      "activate": "Активувати White Label",
+      "addDomain": "Додати домен",
+      "verifyDomain": "Підтвердити домен",
+      "configureBranding": "Налаштувати брендинг",
+      "paymentAmount": "Сума платежу",
+      "paymentMethod": "Спосіб оплати",
+      "periodMonths": "Період (місяців)",
+      "domain": "Домен",
+      "domainType": "Тип домену",
+      "brandName": "Назва бренду",
+      "logo": "Логотип",
+      "primaryColor": "Основний колір",
+      "contactEmail": "Контактний email",
+      "status": {
+        "inactive": "Неактивний",
+        "pending": "Очікування оплати",
+        "active": "Активний",
+        "suspended": "Призупинено",
+        "expired": "Закінчився"
+      },
+      "commission": "Комісія %"
+    }
+  },
+
+  "qrCode": {
+    "title": "QR-код",
+    "generate": "Створити QR",
+    "scan": "Сканувати QR",
+    "scanWithMobile": "Скануйте мобільним додатком",
+    "download": "Завантажити QR",
+    "print": "Друкувати QR",
+    "share": "Поділитися",
+    "copy": "Копіювати посилання",
+    "copied": "Посилання скопійовано",
+    "docTypes": {
+      "invoice": "Рахунок",
+      "payment": "Платіж",
+      "receipt": "Квитанція",
+      "journalEntry": "Проводка",
+      "account": "Рахунок",
+      "customer": "Клієнт",
+      "supplier": "Постачальник",
+      "order": "Замовлення",
+      "tenant": "Абонент",
+      "fund": "Каса"
+    }
+  },
+
+  "statusManager": {
+    "title": "Управління статусами",
+    "description": "Керуйте статусами документів та правами доступу",
+    "newStatus": "Новий статус",
+    "editStatus": "Редагувати статус",
+    "deleteStatus": "Видалити статус",
+    "statusGroups": "Групи статусів",
+    "selectStatus": "Виберіть статус",
+    "noStatuses": "Статуси не знайдено",
+    "cannotDeleteSystem": "Неможливо видалити системний статус",
+    "statusUpdated": "Статус оновлено",
+    "statusCreated": "Статус створено",
+    "statusDeleted": "Статус видалено",
+    "changeTo": "Змінити на",
+    "addComment": "Додати коментар (необов'язково)...",
+    "deleteConfirm": "Ви впевнені, що хочете видалити цей статус?",
+    "fields": {
+      "nameAr": "Назва (Арабська)",
+      "nameEn": "Назва (Англійська)",
+      "code": "Код",
+      "group": "Група",
+      "color": "Колір",
+      "timeNorm": "Норма часу (години)",
+      "isInitial": "Початковий статус",
+      "isFinal": "Кінцевий статус",
+      "canView": "Може переглядати",
+      "canSet": "Може встановлювати"
+    },
+    "groups": {
+      "new": "Новий",
+      "inProgress": "В процесі",
+      "pending": "Очікування",
+      "completed": "Завершено",
+      "cancelled": "Скасовано",
+      "closedSuccess": "Закрито успішно",
+      "closedFail": "Закрито неуспішно"
+    },
+    "badges": {
+      "system": "Системний",
+      "required": "Обов'язковий"
+    }
+  },
+
+  "printSystem": {
+    "title": "Друк документів",
+    "print": "Друкувати",
+    "printAll": "Друкувати все",
+    "preview": "Попередній перегляд",
+    "exportPdf": "Експорт PDF",
+    "printing": "Друкування...",
+    "exporting": "Експортування...",
+    "selectTemplate": "Виберіть шаблон",
+    "printOptions": "Параметри друку",
+    "printSettings": "Налаштування друку",
+    "advancedOptions": "Додаткові параметри...",
+    "relatedDocuments": "Пов'язані документи",
+    "options": {
+      "includeQR": "Включити QR-код",
+      "includeHeader": "Включити заголовок",
+      "includeFooter": "Включити підвал",
+      "includeStamp": "Включити печатку",
+      "includeSignature": "Включити підпис"
+    },
+    "categories": {
+      "contract": "Договори",
+      "invoice": "Рахунки",
+      "receipt": "Квитанції",
+      "report": "Звіти",
+      "other": "Інше"
+    },
+    "templates": {
+      "salesInvoice": "Рахунок на продаж",
+      "salesInvoiceNoVat": "Рахунок на продаж (без ПДВ)",
+      "creditNote": "Кредитна нота",
+      "receiptVoucher": "Прибутковий ордер",
+      "paymentVoucher": "Видатковий ордер",
+      "salesContract": "Договір купівлі-продажу",
+      "rentalContract": "Договір оренди",
+      "accountStatement": "Виписка по рахунку"
+    }
+  },
+
+  "formEditor": {
+    "title": "Редактор форм",
+    "description": "Налаштуйте поля та їх порядок під ваші потреби",
+    "saveChanges": "Зберегти зміни",
+    "changesSaved": "Зміни успішно збережено",
+    "addHeader": "Додати заголовок",
+    "addField": "Додати поле",
+    "editHeader": "Редагувати заголовок",
+    "editField": "Редагувати поле",
+    "deleteConfirm": "Ви впевнені, що хочете видалити?",
+    "noFields": "Немає полів",
+    "showOnCard": "Показувати на картці",
+    "showOnOrderCard": "Показувати на картці замовлення",
+    "formType": "Тип",
+    "default": "За замовчуванням",
+    "compact": "Компактний",
+    "fields": {
+      "labelAr": "Мітка (Арабська)",
+      "labelEn": "Мітка (Англійська)",
+      "key": "Ключ",
+      "type": "Тип",
+      "width": "Ширина",
+      "required": "Обов'язкове",
+      "visible": "Видиме"
+    },
+    "fieldTypes": {
+      "text": "Текст",
+      "number": "Число",
+      "currency": "Валюта",
+      "date": "Дата",
+      "datetime": "Дата і час",
+      "email": "Email",
+      "phone": "Телефон",
+      "address": "Адреса",
+      "select": "Випадаючий список",
+      "multiselect": "Множинний вибір",
+      "checkbox": "Прапорець",
+      "image": "Зображення",
+      "file": "Файл",
+      "reference": "Посилання"
+    },
+    "widths": {
+      "full": "Повна",
+      "half": "Половина",
+      "third": "Третина"
+    },
+    "badges": {
+      "system": "Системне",
+      "required": "Обов'язкове"
+    },
+    "fieldCategories": {
+      "system": "Системні поля",
+      "user": "Користувацькі поля",
+      "new": "Нові поля"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Режим інтерфейсу",
+    "lite": "Lite",
+    "professional": "Професійний",
+    "liteDescription": "Спрощений інтерфейс для щоденного використання",
+    "professionalDescription": "Всі функції та розширені інструменти",
+    "switch": "Перемкнути режим"
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Активна",
+      "trial": "Пробна",
+      "expired": "Закінчилась",
+      "locked": "Заблокована",
+      "grace_period": "Пільговий період",
+      "cancelled": "Скасована"
+    },
+    "alerts": {
+      "lockedMessage": "Ваш акаунт заблоковано через несплату. Будь ласка, поновіть підписку.",
+      "expiredMessage": "Ваша підписка закінчилась. Будь ласка, поновіть для продовження.",
+      "gracePeriodMessage": "Ваша підписка в пільговому періоді. {{days}} днів для поновлення.",
+      "criticalWarning": "Ваша підписка закінчується через {{days}} днів!",
+      "warningMessage": "Ваша підписка закінчується через {{days}} днів. Будь ласка, поновіть скоро.",
+      "infoMessage": "Залишилось {{days}} днів підписки."
+    },
+    "dialogs": {
+      "lockedTitle": "Акаунт заблоковано",
+      "lockedDescription": "Ваш акаунт заблоковано через несплату. Перейдіть до розділу оплати.",
+      "gracePeriodTitle": "Пільговий період",
+      "gracePeriodDescription": "Ваша підписка в пільговому періоді. {{days}} днів до блокування.",
+      "expiredTitle": "Підписка закінчилась",
+      "expiredDescription": "Ваша підписка закінчилась. Поновіть для використання системи.",
+      "criticalTitle": "Підписка скоро закінчується",
+      "criticalDescription": "Ваша підписка закінчується через {{days}} днів. Поновіть зараз.",
+      "warningTitle": "Нагадування про поновлення",
+      "warningDescription": "Ваша підписка закінчується через {{days}} днів. Поновіть.",
+      "remindLater": "Нагадати пізніше"
+    },
+    "billing": {
+      "title": "Оплата та підписка",
+      "description": "Керування підпискою, методами оплати та рахунками",
+      "currentSubscription": "Поточна підписка",
+      "subscriptionDetails": "Деталі та статус підписки",
+      "currentPlan": "Поточний план",
+      "planName": "Назва плану",
+      "noPlan": "Немає плану",
+      "periodEnd": "Кінець періоду",
+      "daysRemaining": "Залишилось днів",
+      "gracePeriod": "Пільговий період",
+      "renewNow": "Поновити зараз",
+      "payNow": "Оплатити зараз",
+      "upgradePlan": "Покращити план",
+      "goToBilling": "Перейти до оплати",
+      "accountInfo": "Інформація про акаунт",
+      "accountName": "Назва акаунту",
+      "billingEmail": "Email для оплати"
+    },
+    "tabs": {
+      "overview": "Огляд",
+      "plans": "Плани",
+      "invoices": "Рахунки",
+      "companies": "Компанії"
+    },
+    "storage": {
+      "title": "Сховище",
+      "used": "Використано",
+      "remaining": "Залишилось",
+      "files": "Файли"
+    },
+    "plans": {
+      "current": "Поточний план",
+      "currentPlan": "Поточний план",
+      "selectPlan": "Вибрати план",
+      "free": "Безкоштовно",
+      "users": "користувачів",
+      "companies": "компаній",
+      "storage": "сховище"
+    },
+    "invoices": {
+      "title": "Історія рахунків",
+      "number": "Номер рахунку",
+      "date": "Дата",
+      "amount": "Сума",
+      "status": "Статус",
+      "paid": "Оплачений",
+      "pending": "Очікує",
+      "overdue": "Прострочений",
+      "noInvoices": "Немає рахунків"
+    },
+    "companies": {
+      "title": "Компанії",
+      "description": "Компанії, пов'язані з вашим акаунтом",
+      "main": "Основна",
+      "noCompanies": "Немає компаній"
+    },
+    "locked": {
+      "title": "Акаунт заблоковано",
+      "description": "Ваш акаунт заблоковано через закінчення підписки.",
+      "account": "Акаунт",
+      "status": "Статус",
+      "gracePeriodInfo": "Ваш акаунт в пільговому періоді. {{days}} днів до повного блокування.",
+      "paymentInfo": "Поновіть підписку для доступу до даних.",
+      "contactSupport": "Зв'язатися з підтримкою",
+      "needHelp": "Потрібна допомога?"
+    }
+  },
+
+  "documents": {
+    "storage": "Сховище",
+    "upload": "Завантажити документ",
+    "uploadFirst": "Завантажте перший документ",
+    "uploadTitle": "Завантажити новий документ",
+    "uploadDescription": "Виберіть файл для завантаження (макс. 25 МБ)",
+    "uploading": "Завантаження",
+    "uploadSuccess": "Документ успішно завантажено",
+    "deleteSuccess": "Документ успішно видалено",
+    "deleteTitle": "Видалити документ",
+    "deleteConfirm": "Ви впевнені, що хочете видалити цей документ? Цю дію не можна скасувати.",
+    "noDocuments": "Немає прикріплених документів",
+    "category": "Категорія",
+    "description": "Опис",
+    "descriptionPlaceholder": "Введіть опис документа (необов'язково)",
+    "storageWarning": "Місце в сховищі закінчується",
+    "storageCritical": "Сховище майже заповнене!",
+    "categories": {
+      "contract": "Договір",
+      "invoice_copy": "Копія рахунку",
+      "receipt": "Квитанція",
+      "id_document": "Документ посвідчення особи",
+      "certificate": "Сертифікат",
+      "report": "Звіт",
+      "other": "Інше"
+    },
+    "errors": {
+      "fileTooLarge": "Файл занадто великий (макс. 25 МБ)",
+      "missingInfo": "Відсутня інформація",
+      "uploadFailed": "Помилка завантаження",
+      "downloadFailed": "Помилка скачування",
+      "viewFailed": "Помилка перегляду",
+      "deleteFailed": "Помилка видалення",
+      "quota.maxFilesReached": "Досягнуто ліміту файлів",
+      "quota.storageLimitReached": "Досягнуто ліміту сховища",
+      "quota.fileTooLarge": "Розмір файлу перевищує дозволений ліміт"
+    }
+  },
+
+  "import": {
+    "title": "Імпорт даних",
+    "step": "Крок",
+    "of": "з",
+    
+    "selectEntityType": "Виберіть тип даних",
+    "selectEntityTypeDescription": "Виберіть тип даних для імпорту",
+    "fields": "полів",
+    "noEntityTypes": "Немає доступних типів даних для імпорту",
+    
+    "downloadTemplate": "Завантажити шаблон",
+    "downloadTemplateDescription": "Завантажте шаблон, заповніть даними та завантажте",
+    "templateArabic": "Арабський шаблон",
+    "templateEnglish": "Англійський шаблон",
+    
+    "dropFileHere": "Перетягніть файл сюди",
+    "orClickToSelect": "або натисніть для вибору",
+    "supportedFormats": "Підтримувані формати",
+    "maxSize": "Макс. розмір",
+    "parsing": "Читання файлу...",
+    "requiredFields": "Обов'язкові поля",
+    
+    "invalidFileType": "Тип файлу не підтримується",
+    "fileTooLarge": "Файл занадто великий",
+    
+    "totalRows": "Всього рядків",
+    "columns": "Колонок",
+    "mapped": "Зіставлено",
+    "notMapped": "Не зіставлено",
+    "missingRequiredFields": "Не зіставлені обов'язкові поля",
+    
+    "fileColumn": "Колонка файлу",
+    "systemField": "Поле системи",
+    "status": "Статус",
+    "selectField": "Виберіть поле",
+    "ignore": "Ігнорувати",
+    "sample": "Приклад",
+    
+    "validating": "Перевірка...",
+    "validateData": "Перевірити дані",
+    
+    "validRows": "Коректних рядків",
+    "invalidRows": "Некоректних рядків",
+    "willImport": "Буде імпортовано",
+    "errorSummary": "Зведення помилок",
+    
+    "importOptions": "Параметри імпорту",
+    "skipInvalidRows": "Пропускати некоректні рядки",
+    "skipInvalidRowsDescription": "Імпортувати лише коректні рядки",
+    "updateExisting": "Оновлювати існуючі",
+    "updateExistingDescription": "Оновлювати записи при збігу коду",
+    "useAIAnalysis": "Використовувати AI аналіз",
+    "useAIAnalysisDescription": "Інтелектуальний аналіз для пошуку дублікатів та помилок",
+    
+    "all": "Усі",
+    "valid": "Коректні",
+    "invalid": "Некоректні",
+    "data": "Дані",
+    "errors": "Помилки",
+    "moreErrors": "ще помилок",
+    "page": "Сторінка",
+    
+    "continueToAI": "До AI аналізу",
+    "continueToPreview": "До попереднього перегляду",
+    
+    "aiAnalysisComingSoon": "AI аналіз буде доступний найближчим часом",
+    
+    "readyToImport": "Готово до імпорту",
+    "reviewAndConfirm": "Перевірте дані та підтвердіть імпорт",
+    "recordsToImport": "записів для імпорту",
+    "entityType": "Тип даних",
+    "updateEnabled": "Оновлення включено",
+    "dataPreview": "Попередній перегляд даних",
+    "showing": "Показано",
+    "importSettings": "Налаштування імпорту",
+    "aiAnalysis": "AI аналіз",
+    "importing": "Імпорт...",
+    "startImport": "Почати імпорт",
+    "records": "записів",
+    
+    "importingData": "Імпорт даних",
+    
+    "successTitle": "Імпорт успішний!",
+    "successDescription": "Усі дані успішно імпортовано",
+    "partialSuccessTitle": "Частковий імпорт",
+    "partialSuccessDescription": "Частину даних імпортовано з помилками",
+    "failedTitle": "Імпорт не вдався",
+    "failedDescription": "Не вдалося імпортувати дані",
+    
+    "imported": "Імпортовано",
+    "skipped": "Пропущено",
+    "failed": "Помилка",
+    "successRate": "Успішність",
+    
+    "importDetails": "Деталі імпорту",
+    "fileName": "Ім'я файлу",
+    "startTime": "Час початку",
+    "endTime": "Час закінчення",
+    
+    "errorReport": "Звіт про помилки",
+    "downloadErrorReport": "Завантажити звіт про невдалі рядки",
+    "download": "Завантажити",
+    
+    "newImport": "Новий імпорт",
+    "done": "Готово"
+  }
+}

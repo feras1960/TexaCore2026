@@ -1,0 +1,1247 @@
+{
+  "app": {
+    "name": "Enterprise Resource Planning System",
+    "shortName": "ERP-System",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Qualität, der Sie vertrauen können",
+      "fullName": "TexaCore - Enterprise Resource Planning System"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Dashboard",
+    "accounting": "Buchhaltung",
+    "sales": "Vertrieb",
+    "purchases": "Einkauf",
+    "inventory": "Lager",
+    "crm": "CRM",
+    "hr": "Personal",
+    "pos": "Kasse",
+    "exchange": "Devisen",
+    "realEstate": "Immobilien",
+    "manufacturing": "Fertigung",
+    "ecommerce": "E-Commerce",
+    "saasControl": "SaaS-Verwaltung",
+    "aiAnalytics": "KI-Analytik",
+    "systemConfig": "Systemkonfiguration",
+    "componentLab": "Komponenten-Labor",
+    "settings": "Einstellungen"
+  },
+
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "create": "Erstellen",
+    "update": "Aktualisieren",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "export": "Exportieren",
+    "import": "Importieren",
+    "print": "Drucken",
+    "refresh": "Aktualisieren",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "back": "Zurück",
+    "next": "Weiter",
+    "previous": "Vorherige",
+    "submit": "Absenden",
+    "reset": "Zurücksetzen",
+    "clear": "Löschen",
+    "select": "Auswählen",
+    "selectAll": "Alle auswählen",
+    "deselectAll": "Auswahl aufheben",
+    "yes": "Ja",
+    "no": "Nein",
+    "ok": "OK",
+    "loading": "Wird geladen...",
+    "noData": "Keine Daten verfügbar",
+    "error": "Ein Fehler ist aufgetreten",
+    "success": "Vorgang erfolgreich",
+    "warning": "Warnung",
+    "info": "Information",
+    "required": "Erforderlich",
+    "optional": "Optional",
+    "total": "Gesamt",
+    "subtotal": "Zwischensumme",
+    "balance": "Saldo",
+    "amount": "Betrag",
+    "quantity": "Menge",
+    "price": "Preis",
+    "date": "Datum",
+    "time": "Zeit",
+    "status": "Status",
+    "type": "Typ",
+    "name": "Name",
+    "description": "Beschreibung",
+    "notes": "Notizen",
+    "reference": "Referenz",
+    "code": "Code",
+    "number": "Nummer",
+    "actions": "Aktionen",
+    "details": "Details",
+    "history": "Verlauf",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "all": "Alle",
+    "none": "Keine",
+    "other": "Andere",
+    "default": "Standard",
+    "custom": "Benutzerdefiniert",
+    "country": "Land",
+    "phone": "Telefon",
+    "email": "E-Mail",
+    "language": "Sprache",
+    "timezone": "Zeitzone",
+    "city": "Stadt",
+    "countries": {
+      "saudiArabia": "Saudi-Arabien",
+      "uae": "VAE",
+      "kuwait": "Kuwait"
+    },
+    "languages": {
+      "arabic": "Arabisch",
+      "english": "Englisch"
+    },
+    "timezones": {
+      "riyadh": "Riad (GMT+3)",
+      "dubai": "Dubai (GMT+4)"
+    }
+  },
+
+  "auth": {
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "register": "Registrieren",
+    "forgotPassword": "Passwort vergessen?",
+    "resetPassword": "Passwort zurücksetzen",
+    "changePassword": "Passwort ändern",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "rememberMe": "Angemeldet bleiben",
+    "welcome": "Willkommen",
+    "profile": "Profil",
+    "account": "Konto",
+    "userInitial": "A",
+    "systemAdmin": "Systemadministrator"
+  },
+
+  "header": {
+    "search": "Suchen...",
+    "notifications": "Benachrichtigungen",
+    "quickAdd": "Schnell hinzufügen",
+    "language": "Sprache",
+    "theme": "Design",
+    "darkMode": "Dunkler Modus",
+    "lightMode": "Heller Modus"
+  },
+
+  "sidebar": {
+    "needHelp": "Brauchen Sie Hilfe?",
+    "contactSupport": "Support kontaktieren",
+    "collapse": "Einklappen",
+    "expand": "Ausklappen"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "Neue Verkaufsrechnung",
+    "newPurchaseInvoice": "Neue Einkaufsrechnung",
+    "receiptVoucher": "Quittungsbeleg",
+    "paymentVoucher": "Zahlungsbeleg",
+    "newProduct": "Neues Produkt",
+    "newCustomer": "Neuer Kunde",
+    "newSupplier": "Neuer Lieferant",
+    "journalEntry": "Buchungssatz"
+  },
+
+  "filters": {
+    "selectBranch": "Filiale auswählen",
+    "allBranches": "Alle Filialen",
+    "selectCurrency": "Währung auswählen",
+    "selectPeriod": "Zeitraum auswählen",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "thisWeek": "Diese Woche",
+    "lastWeek": "Letzte Woche",
+    "thisMonth": "Dieser Monat",
+    "lastMonth": "Letzter Monat",
+    "thisYear": "Dieses Jahr",
+    "lastYear": "Letztes Jahr",
+    "customRange": "Benutzerdefiniert",
+    "from": "Von",
+    "to": "Bis"
+  },
+
+  "tabs": {
+    "overview": "Übersicht",
+    "ledger": "Hauptbuch",
+    "invoices": "Rechnungen",
+    "payments": "Zahlungen",
+    "reservations": "Reservierungen",
+    "aiAnalysis": "KI-Analyse",
+    "events": "Ereignisse",
+    "details": "Details",
+    "history": "Verlauf",
+    "settings": "Einstellungen",
+    "reports": "Berichte"
+  },
+
+  "status": {
+    "draft": "Entwurf",
+    "pending": "Ausstehend",
+    "inProgress": "In Bearbeitung",
+    "confirmed": "Bestätigt",
+    "completed": "Abgeschlossen",
+    "partial": "Teilweise",
+    "paid": "Bezahlt",
+    "unpaid": "Unbezahlt",
+    "overdue": "Überfällig",
+    "cancelled": "Storniert",
+    "rejected": "Abgelehnt",
+    "approved": "Genehmigt",
+    "submitted": "Eingereicht",
+    "closed": "Geschlossen",
+    "open": "Offen",
+    "warning": "Warnung"
+  },
+
+  "stats": {
+    "totalSales": "Gesamtumsatz",
+    "totalRevenue": "Gesamteinnahmen",
+    "totalExpenses": "Gesamtausgaben",
+    "netProfit": "Nettogewinn",
+    "grossProfit": "Bruttogewinn",
+    "totalOrders": "Gesamtbestellungen",
+    "pendingOrders": "Ausstehende Bestellungen",
+    "completedOrders": "Abgeschlossene Bestellungen",
+    "totalCustomers": "Gesamtkunden",
+    "activeCustomers": "Aktive Kunden",
+    "newCustomers": "Neue Kunden",
+    "totalSuppliers": "Gesamtlieferanten",
+    "totalProducts": "Gesamtprodukte",
+    "lowStock": "Niedriger Bestand",
+    "outOfStock": "Nicht vorrätig"
+  },
+
+  "currencies": {
+    "SAR": "Saudi-Rial",
+    "USD": "US-Dollar",
+    "EUR": "Euro",
+    "GBP": "Britisches Pfund",
+    "AED": "VAE-Dirham",
+    "KWD": "Kuwait-Dinar",
+    "QAR": "Katar-Rial",
+    "BHD": "Bahrain-Dinar",
+    "OMR": "Oman-Rial",
+    "EGP": "Ägyptisches Pfund",
+    "JOD": "Jordanischer Dinar",
+    "TRY": "Türkische Lira",
+    "RUB": "Russischer Rubel",
+    "UAH": "Ukrainische Hrywnja",
+    "PLN": "Polnischer Zloty",
+    "RON": "Rumänischer Leu"
+  },
+
+  "branches": {
+    "main": "Hauptfiliale",
+    "all": "Alle Filialen"
+  },
+
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Umfassende Übersicht aller Systemmodule",
+    "welcomeMessage": "Willkommen im Enterprise Resource Planning System",
+    "recentOrders": "Letzte Bestellungen",
+    "recentInvoices": "Letzte Rechnungen",
+    "recentPayments": "Letzte Zahlungen",
+    "quickStats": "Schnellstatistiken",
+    "viewAll": "Alle anzeigen",
+    "chartsPlaceholder": "Diagramme werden hier hinzugefügt"
+  },
+
+  "accounting": {
+    "module": "Buchhaltung",
+    "chartOfAccounts": "Kontenplan",
+    "journalEntries": "Buchungssätze",
+    "generalLedger": "Hauptbuch",
+    "trialBalance": "Rohbilanz",
+    "incomeStatement": "Gewinn- und Verlustrechnung",
+    "balanceSheet": "Bilanz",
+    "cashFlow": "Kapitalflussrechnung",
+    "costCenters": "Kostenstellen",
+    "budgets": "Budgets",
+    "fiscalYear": "Geschäftsjahr",
+    "closingEntries": "Abschlussbuchungen",
+    "addAccount": "Konto hinzufügen",
+    "addNewRow": "Neue Zeile hinzufügen",
+    "addRow": "Zeile hinzufügen",
+    "balanceEntry": "Buchung ausgleichen",
+    "duplicateRow": "Zeile duplizieren",
+    "copyAccountDown": "Konto in nächste Zeile kopieren",
+    "save": "Speichern",
+    "account": {
+      "name": "Kontoname",
+      "code": "Kontonummer",
+      "type": "Kontotyp",
+      "parent": "Übergeordnetes Konto",
+      "balance": "Saldo",
+      "currency": "Währung",
+      "select": "Konto auswählen...",
+      "notFound": "Kein Konto gefunden",
+      "treeSelector": "Kontenplan",
+      "treeSelectorDescription": "Konten aus dem Baum auswählen - Doppelklick zum Hinzufügen",
+      "closeTree": "Baum schließen",
+      "selectedCount": "ausgewählt",
+      "doubleClickToAdd": "Doppelklick zum Hinzufügen des Kontos",
+      "onlyAccounts": "Nur Konten (keine Gruppen)"
+    },
+    "entry": {
+      "number": "Buchungsnummer",
+      "date": "Buchungsdatum",
+      "reference": "Referenz",
+      "description": "Beschreibung",
+      "debit": "Soll",
+      "credit": "Haben",
+      "total": "Gesamt"
+    },
+    "receipt": {
+      "title": "Quittungsbeleg",
+      "number": "Belegnummer",
+      "date": "Belegdatum",
+      "customer": "Kunde",
+      "amount": "Betrag",
+      "paymentMethod": "Zahlungsmethode",
+      "fund": "Fonds",
+      "notes": "Notizen",
+      "customerInfo": "Kundeninformationen"
+    },
+    "payment": {
+      "title": "Zahlungsbeleg",
+      "number": "Belegnummer",
+      "date": "Belegdatum",
+      "supplier": "Lieferant",
+      "amount": "Betrag",
+      "paymentMethod": "Zahlungsmethode",
+      "fund": "Fonds",
+      "notes": "Notizen"
+    },
+    "labels": {
+      "debitTotal": "Soll gesamt",
+      "creditTotal": "Haben gesamt",
+      "balance": "Saldo",
+      "difference": "Differenz",
+      "marked": "Markiert"
+    },
+    "currentBalance": "Aktueller Saldo",
+    "openingBalance": "Anfangssaldo",
+    "closingBalance": "Endsaldo",
+    "periodMovement": "Periodenänderung",
+    "entryTabs": {
+      "journal": {
+        "title": "Buchungssatz",
+        "description": "Neuen Buchungssatz erfassen"
+      },
+      "receipt": {
+        "title": "Quittungsbeleg",
+        "description": "Empfangene Zahlungen erfassen"
+      },
+      "payment": {
+        "title": "Zahlungsbeleg",
+        "description": "Ausgehende Zahlungen erfassen"
+      },
+      "cash": {
+        "title": "Kassenbuch",
+        "description": "Bewegungen des Kassenfonds"
+      },
+      "transfer": {
+        "title": "Übertragung",
+        "description": "Übertragung zwischen Fonds"
+      },
+      "exchange": {
+        "title": "Wechselkurs",
+        "description": "Währungsumtausch"
+      }
+    },
+    "partiesStats": {
+      "totalCustomers": "Kunden gesamt",
+      "totalReceivables": "Forderungen gesamt",
+      "totalSuppliers": "Lieferanten gesamt",
+      "totalPayables": "Verbindlichkeiten gesamt"
+    },
+    "partiesDescription": "Kunden, Lieferanten, Forderungen und Verbindlichkeiten verwalten",
+    "customers": "Kunden",
+    "suppliers": "Lieferanten",
+    "settingsSections": {
+      "company": "Firmeneinstellungen",
+      "companyDesc": "Grundlegende Firmeninformationen",
+      "fiscalYear": "Geschäftsjahr",
+      "fiscalYearDesc": "Geschäftsjahreszeitraum definieren",
+      "tax": "Steuereinstellungen",
+      "taxDesc": "MwSt und andere Steuern konfigurieren",
+      "workflow": "Arbeitsablauf",
+      "workflowDesc": "Genehmigungs- und automatische Buchungseinstellungen"
+    },
+    "settingsFields": {
+      "companyName": "Firmenname",
+      "baseCurrency": "Basiswährung",
+      "fiscalYearStart": "Geschäftsjahresbeginn",
+      "fiscalYearEnd": "Geschäftsjahresende",
+      "enableTax": "Steuer aktivieren",
+      "enableTaxDesc": "MwSt-Berechnung aktivieren",
+      "vatRate": "MwSt-Satz",
+      "autoPostEntries": "Automatische Buchung",
+      "autoPostEntriesDesc": "Buchungen direkt ohne Überprüfung buchen",
+      "requireApproval": "Genehmigung erforderlich",
+      "requireApprovalDesc": "Genehmigung des Managers vor der Buchung anfordern"
+    },
+    "settingsInfo": {
+      "title": "Wichtige Informationen",
+      "desc1": "Das Ändern der Basiswährung kann sich auf Finanzberichte auswirken.",
+      "desc2": "Überprüfen Sie die Einstellungen vor dem Speichern."
+    },
+    "settingsDescription": "Buchhaltung, Geschäftsjahr und Steuereinstellungen anpassen",
+    "reportsDescription": "Finanz- und Buchhaltungsberichte anzeigen",
+    "fundsDescription": "Bargeld und Bankkonten verwalten",
+    "selectAccountPrompt": "Bitte wählen Sie ein Konto aus der Liste oben"
+  },
+
+  "sales": {
+    "module": "Vertrieb",
+    "quotation": "Angebot",
+    "salesOrder": "Verkaufsauftrag",
+    "deliveryNote": "Lieferschein",
+    "salesInvoice": "Verkaufsrechnung",
+    "salesReturn": "Retoure",
+    "customer": "Kunde",
+    "customers": "Kunden",
+    "priceList": "Preisliste",
+    "discount": "Rabatt",
+    "tax": "Steuer",
+    "vat": "MwSt"
+  },
+
+  "purchases": {
+    "module": "Einkauf",
+    "purchaseRequest": "Bestellanforderung",
+    "purchaseOrder": "Bestellung",
+    "purchaseReceipt": "Wareneingang",
+    "purchaseInvoice": "Einkaufsrechnung",
+    "purchaseReturn": "Lieferantenretoure",
+    "supplier": "Lieferant",
+    "suppliers": "Lieferanten"
+  },
+
+  "inventory": {
+    "module": "Lager",
+    "items": "Artikel",
+    "item": "Artikel",
+    "warehouse": "Lager",
+    "warehouses": "Lager",
+    "stockEntry": "Lagerbewegung",
+    "stockTransfer": "Lagerübertragung",
+    "stockAdjustment": "Bestandskorrektur",
+    "stockReconciliation": "Inventur",
+    "reorderLevel": "Nachbestellgrenze",
+    "minimumStock": "Mindestbestand",
+    "maximumStock": "Maximalbestand",
+    "currentStock": "Aktueller Bestand",
+    "availableStock": "Verfügbarer Bestand",
+    "reservedStock": "Reservierter Bestand"
+  },
+
+  "crm": {
+    "module": "Kundenbeziehungsmanagement",
+    "leads": "Leads",
+    "opportunities": "Chancen",
+    "contacts": "Kontakte",
+    "activities": "Aktivitäten",
+    "campaigns": "Kampagnen",
+    "pipeline": "Verkaufspipeline"
+  },
+
+  "hr": {
+    "module": "Personalwesen",
+    "employees": "Mitarbeiter",
+    "employee": "Mitarbeiter",
+    "departments": "Abteilungen",
+    "designations": "Positionen",
+    "attendance": "Anwesenheit",
+    "leave": "Urlaub",
+    "payroll": "Lohnabrechnung",
+    "recruitment": "Rekrutierung",
+    "training": "Schulung",
+    "performance": "Leistung"
+  },
+
+  "pos": {
+    "module": "Kasse",
+    "newSale": "Neuer Verkauf",
+    "cashier": "Kassierer",
+    "register": "Kasse",
+    "shift": "Schicht",
+    "openShift": "Schicht öffnen",
+    "closeShift": "Schicht schließen",
+    "cart": "Warenkorb",
+    "checkout": "Kasse",
+    "payment": "Zahlung",
+    "receipt": "Bon"
+  },
+
+  "exchange": {
+    "module": "Devisen",
+    "buyRate": "Ankaufskurs",
+    "sellRate": "Verkaufskurs",
+    "exchangeRate": "Wechselkurs",
+    "currencyExchange": "Währungsumtausch",
+    "fundTransfer": "Geldüberweisung"
+  },
+
+  "realEstate": {
+    "module": "Immobilien",
+    "properties": "Objekte",
+    "units": "Einheiten",
+    "contracts": "Verträge",
+    "tenants": "Mieter",
+    "rent": "Miete",
+    "maintenance": "Wartung"
+  },
+
+  "manufacturing": {
+    "module": "Fertigung",
+    "bom": "Stückliste",
+    "workOrder": "Fertigungsauftrag",
+    "productionPlan": "Produktionsplan",
+    "qualityInspection": "Qualitätsprüfung",
+    "workstation": "Arbeitsplatz"
+  },
+
+  "ecommerce": {
+    "module": "E-Commerce",
+    "store": "Shop",
+    "products": "Produkte",
+    "categories": "Kategorien",
+    "orders": "Bestellungen",
+    "shipping": "Versand",
+    "promotions": "Aktionen"
+  },
+
+  "validation": {
+    "required": "Dieses Feld ist erforderlich",
+    "email": "Bitte geben Sie eine gültige E-Mail ein",
+    "minLength": "Mindestens {min} Zeichen",
+    "maxLength": "Maximal {max} Zeichen",
+    "min": "Mindestens {min}",
+    "max": "Maximal {max}",
+    "positive": "Muss eine positive Zahl sein",
+    "integer": "Muss eine ganze Zahl sein",
+    "numeric": "Muss eine Zahl sein",
+    "url": "Bitte geben Sie eine gültige URL ein",
+    "phone": "Bitte geben Sie eine gültige Telefonnummer ein",
+    "match": "Werte stimmen nicht überein",
+    "unique": "Dieser Wert existiert bereits",
+    "date": "Bitte geben Sie ein gültiges Datum ein"
+  },
+
+  "messages": {
+    "saveSuccess": "Erfolgreich gespeichert",
+    "saveError": "Speichern fehlgeschlagen",
+    "deleteSuccess": "Erfolgreich gelöscht",
+    "deleteError": "Löschen fehlgeschlagen",
+    "updateSuccess": "Erfolgreich aktualisiert",
+    "updateError": "Aktualisierung fehlgeschlagen",
+    "confirmDelete": "Möchten Sie wirklich löschen?",
+    "confirmCancel": "Möchten Sie wirklich abbrechen?",
+    "unsavedChanges": "Sie haben ungespeicherte Änderungen",
+    "noResults": "Keine Ergebnisse gefunden",
+    "loadingError": "Fehler beim Laden der Daten",
+    "networkError": "Netzwerkverbindungsfehler",
+    "sessionExpired": "Sitzung abgelaufen",
+    "accessDenied": "Zugriff verweigert",
+    "notFound": "Seite nicht gefunden",
+    "pageUnderDevelopment": "Diese Seite befindet sich in Entwicklung"
+  },
+
+  "table": {
+    "showing": "Anzeige",
+    "of": "von",
+    "entries": "Einträgen",
+    "page": "Seite",
+    "rowsPerPage": "Zeilen pro Seite",
+    "noData": "Keine Daten zur Anzeige",
+    "loading": "Daten werden geladen...",
+    "selectRow": "Zeile auswählen",
+    "selectAll": "Alle auswählen",
+    "sortAsc": "Aufsteigend sortieren",
+    "sortDesc": "Absteigend sortieren",
+    "filter": "Filtern",
+    "clearFilters": "Filter löschen",
+    "export": "Exportieren",
+    "print": "Drucken"
+  },
+
+  "languages": {
+    "en": "Englisch",
+    "ar": "Arabisch",
+    "ru": "Russisch",
+    "uk": "Ukrainisch",
+    "ro": "Rumänisch",
+    "pl": "Polnisch",
+    "tr": "Türkisch",
+    "de": "Deutsch",
+    "it": "Italienisch"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Al-Fajr Handelsgesellschaft",
+      "customer2": "Al-Noor Stiftung",
+      "customer3": "Al-Amal Unternehmen",
+      "customer4": "Al-Salam Fabrik"
+    }
+  },
+
+  "componentLab": {
+    "title": "Komponenten-Labor",
+    "description": "Testen und Vorschau aller Popups und Komponenten",
+    "info": {
+      "title": "Über das Komponenten-Labor",
+      "description": "Dieses Labor ermöglicht es, alle verfügbaren Popups, Dialoge und Komponenten zu testen und in der Vorschau anzuzeigen. Klicken Sie auf 'Öffnen' bei einer beliebigen Komponente, um sie in Aktion zu sehen."
+    },
+    "table": {
+      "id": "Komponenten-ID",
+      "name": "Komponentenname",
+      "description": "Beschreibung",
+      "type": "Typ",
+      "status": "Status",
+      "path": "Dateipfad",
+      "pathLabel": "Pfad",
+      "actions": "Aktionen",
+      "noPopups": "Noch keine Popups registriert"
+    },
+    "status": {
+      "ready": "Bereit",
+      "wip": "In Arbeit",
+      "planned": "Geplant"
+    },
+    "actions": {
+      "open": "Öffnen"
+    },
+    "preview": {
+      "title": "Komponentenvorschau",
+      "description": "Vorschau für Komponente",
+      "exampleContent": "Dies ist ein Beispiel für UnifiedSheet-Inhalt. Sie können hier beliebigen Inhalt innerhalb von children hinzufügen.",
+      "exampleContentModal": "Dies ist ein Beispiel für UnifiedModal-Inhalt. Sie können hier beliebigen Inhalt innerhalb von children hinzufügen."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Einheitliches Blatt",
+        "description": "Seitenleiste für detaillierte Ansichten"
+      },
+      "unifiedModal": {
+        "name": "Einheitliches Modal",
+        "description": "Zentraler Dialog für Formulare und Bestätigungen"
+      },
+      "generalLedgerSheet": {
+        "name": "Hauptbuch-Blatt",
+        "description": "Umfassender Bericht aller Kontobewegungen"
+      },
+      "fundTransferDialog": {
+        "name": "Fondsübertragungs-Dialog",
+        "description": "Übertragung von Mitteln zwischen Konten und Banken"
+      },
+      "currencyExchangeDialog": {
+        "name": "Währungsumtausch-Dialog",
+        "description": "Währungsumtausch innerhalb eines Fonds"
+      },
+      "transactionDetailsSheet": {
+        "name": "Transaktionsdetails-Blatt",
+        "description": "Transaktionsdetails anzeigen und bearbeiten"
+      },
+      "quickReceiptDialog": {
+        "name": "Schneller Beleg-Dialog",
+        "description": "Schneller Eingabedialog für Belege"
+      },
+      "quickPaymentDialog": {
+        "name": "Schneller Zahlungs-Dialog",
+        "description": "Schneller Eingabedialog für Zahlungen"
+      },
+      "accountDetailsSheet": {
+        "name": "Kontodetails-Blatt (Veraltet)",
+        "description": "Umfassende Kontodetails mit Hauptbuch und Transaktionen (Veraltete Version mit Testdaten)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Kontodetails-Blatt V2",
+        "description": "Saubere Version der Kontodetails - nur mit echten Daten verbunden, keine Testdaten"
+      },
+      "addFundDialog": {
+        "name": "Fonds hinzufügen-Dialog",
+        "description": "Dialog zum Hinzufügen eines neuen Fonds oder Bankkontos"
+      },
+      "addCostCenterDialog": {
+        "name": "Kostenstelle hinzufügen-Dialog",
+        "description": "Dialog zum Hinzufügen einer neuen Kostenstelle"
+      },
+      "fundTransactionSheet": {
+        "name": "Fondstransaktions-Blatt",
+        "description": "Fondstransaktionen anzeigen und verwalten"
+      },
+      "newJournalEntrySheet": {
+        "name": "Blatt für neuen Journaleintrag",
+        "description": "Mehrseitiges Blatt für Journaleinträge, Quittungen, Zahlungen, Kassenbuch, Überweisungen und Währungswechsel"
+      },
+      "createTenantDialog": {
+        "name": "Mieter-Erstellungsdialog",
+        "description": "Mehrseitiger Dialog zur Erstellung eines neuen Mieters mit Firmen-, Eigentümer- und Abonnementinformationen"
+      },
+      "agentDetailsSheet": {
+        "name": "Agentendetails-Blatt",
+        "description": "Detaillierte Ansicht eines Agenten mit Kontaktinformationen, Saldo, Provisionen und White Label-Status"
+      }
+    },
+    "actions": {
+      "open": "Öffnen",
+      "openInPlace": "An Ort und Stelle öffnen"
+    }
+  },
+
+  "saas": {
+    "title": "SaaS-Verwaltung",
+    "dashboard": "Dashboard",
+    "subscribers": "Abonnenten",
+    "packages": "Pakete",
+    "agents": "Agenten",
+    "whiteLabel": "White Label",
+    "payments": "Zahlungen",
+    "modules": "Module",
+    "support": "Support",
+    "notifications": "Benachrichtigungen",
+    "coupons": "Gutscheine",
+    "referrals": "Empfehlungen",
+    "webhooks": "Webhooks",
+    "analytics": "Analytik",
+    "reports": "Berichte",
+    "marketing": "Marketing",
+    "settings": "Einstellungen",
+    "comingSoon": "Bald verfügbar - In Entwicklung",
+    "createNew": "Neu erstellen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "view": "Ansehen",
+    "activate": "Aktivieren",
+    "suspend": "Sperren",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "status": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "pending": "Ausstehend",
+      "suspended": "Gesperrt",
+      "expired": "Abgelaufen",
+      "cancelled": "Storniert"
+    },
+    "agents": {
+      "title": "Agentenverwaltung",
+      "description": "Agenten, Reseller und Provisionen verwalten",
+      "create": "Neuen Agenten registrieren",
+      "approve": "Agenten genehmigen",
+      "suspend": "Agenten sperren",
+      "activate": "Agenten aktivieren",
+      "commissions": "Provisionen",
+      "withdrawals": "Auszahlungen",
+      "targets": "Ziele",
+      "dashboard": "Agenten-Dashboard",
+      "whiteLabel": "White Label",
+      "tier": "Stufe",
+      "balance": "Saldo",
+      "pendingBalance": "Ausstehender Saldo",
+      "totalEarned": "Gesamteinnahmen",
+      "totalWithdrawn": "Gesamt ausgezahlt",
+      "totalTenants": "Gesamtmieter",
+      "activeTenants": "Aktive Mieter",
+      "totalAgents": "Gesamtagenten",
+      "activeAgents": "Aktive Agenten",
+      "totalCommissions": "Gesamtprovisionen",
+      "contactInfo": "Kontaktinformationen",
+      "tiers": {
+        "bronze": "Bronze",
+        "silver": "Silber",
+        "gold": "Gold",
+        "platinum": "Platin",
+        "diamond": "Diamant"
+      },
+      "error": {
+        "loadFailed": "Agenten konnten nicht geladen werden"
+      }
+    },
+    "tenants": {
+      "title": "Abonnentenverwaltung",
+      "description": "Abonnenten und Abonnements verwalten",
+      "create": "Neuen Abonnenten erstellen",
+      "createDescription": "Einen neuen Abonnenten im System erstellen",
+      "edit": "Abonnent bearbeiten",
+      "suspend": "Abonnent sperren",
+      "activate": "Abonnent aktivieren",
+      "details": "Abonnentendetails",
+      "subscription": "Abonnement",
+      "usage": "Nutzung",
+      "billing": "Abrechnung",
+      "total": "Gesamtabonnenten",
+      "agentInfo": "Mit Agent verknüpft",
+      "referral": "Empfehlung",
+      "referralCode": "Empfehlungscode",
+      "referralSource": "Empfehlungsquelle",
+      "ownerName": "Eigentümername",
+      "plan": "Plan",
+      "tabs": {
+        "company": "Unternehmen",
+        "owner": "Eigentümer",
+        "subscription": "Abonnement"
+      },
+      "placeholders": {
+        "companyName": "Firmenname",
+        "ownerName": "Eigentümername",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Abonnenten konnten nicht geladen werden",
+        "noPermission": "Keine Zugriffsberechtigung",
+        "createFailed": "Abonnent konnte nicht erstellt werden"
+      }
+    },
+    "plans": {
+      "starter": "Starter",
+      "professional": "Professional",
+      "enterprise": "Enterprise"
+    },
+    "whiteLabel": {
+      "title": "White Label System",
+      "registerPayment": "White Label-Zahlung registrieren",
+      "activate": "White Label aktivieren",
+      "addDomain": "Domain hinzufügen",
+      "verifyDomain": "Domain verifizieren",
+      "configureBranding": "Branding konfigurieren",
+      "paymentAmount": "Zahlungsbetrag",
+      "paymentMethod": "Zahlungsmethode",
+      "periodMonths": "Zeitraum (Monate)",
+      "domain": "Domain",
+      "domainType": "Domain-Typ",
+      "brandName": "Markenname",
+      "logo": "Logo",
+      "primaryColor": "Primärfarbe",
+      "contactEmail": "Kontakt-E-Mail",
+      "status": {
+        "inactive": "Inaktiv",
+        "pending": "Zahlung ausstehend",
+        "active": "Aktiv",
+        "suspended": "Gesperrt",
+        "expired": "Abgelaufen"
+      },
+      "commission": "Provision %"
+    }
+  },
+
+  "qrCode": {
+    "title": "QR-Code",
+    "generate": "QR generieren",
+    "scan": "QR scannen",
+    "scanWithMobile": "Mit Mobile-App scannen",
+    "download": "QR herunterladen",
+    "print": "QR drucken",
+    "share": "Teilen",
+    "copy": "Link kopieren",
+    "copied": "Link kopiert",
+    "docTypes": {
+      "invoice": "Rechnung",
+      "payment": "Zahlung",
+      "receipt": "Quittung",
+      "journalEntry": "Buchungssatz",
+      "account": "Konto",
+      "customer": "Kunde",
+      "supplier": "Lieferant",
+      "order": "Bestellung",
+      "tenant": "Abonnent",
+      "fund": "Kasse"
+    }
+  },
+
+  "statusManager": {
+    "title": "Statusverwaltung",
+    "description": "Verwalten Sie Dokumentstatus und Zugriffsberechtigungen",
+    "newStatus": "Neuer Status",
+    "editStatus": "Status bearbeiten",
+    "deleteStatus": "Status löschen",
+    "statusGroups": "Statusgruppen",
+    "selectStatus": "Status auswählen",
+    "noStatuses": "Keine Status gefunden",
+    "cannotDeleteSystem": "Systemstatus kann nicht gelöscht werden",
+    "statusUpdated": "Status aktualisiert",
+    "statusCreated": "Status erstellt",
+    "statusDeleted": "Status gelöscht",
+    "changeTo": "Ändern zu",
+    "addComment": "Kommentar hinzufügen (optional)...",
+    "deleteConfirm": "Sind Sie sicher, dass Sie diesen Status löschen möchten?",
+    "fields": {
+      "nameAr": "Name (Arabisch)",
+      "nameEn": "Name (Englisch)",
+      "code": "Code",
+      "group": "Gruppe",
+      "color": "Farbe",
+      "timeNorm": "Zeitnorm (Stunden)",
+      "isInitial": "Anfangsstatus",
+      "isFinal": "Endstatus",
+      "canView": "Kann anzeigen",
+      "canSet": "Kann setzen"
+    },
+    "groups": {
+      "new": "Neu",
+      "inProgress": "In Bearbeitung",
+      "pending": "Ausstehend",
+      "completed": "Abgeschlossen",
+      "cancelled": "Storniert",
+      "closedSuccess": "Erfolgreich geschlossen",
+      "closedFail": "Erfolglos geschlossen"
+    },
+    "badges": {
+      "system": "System",
+      "required": "Erforderlich"
+    }
+  },
+
+  "printSystem": {
+    "title": "Dokumente drucken",
+    "print": "Drucken",
+    "printAll": "Alle drucken",
+    "preview": "Vorschau",
+    "exportPdf": "PDF exportieren",
+    "printing": "Drucken...",
+    "exporting": "Exportieren...",
+    "selectTemplate": "Vorlage auswählen",
+    "printOptions": "Druckoptionen",
+    "printSettings": "Druckeinstellungen",
+    "advancedOptions": "Erweiterte Optionen...",
+    "relatedDocuments": "Verwandte Dokumente",
+    "options": {
+      "includeQR": "QR-Code einschließen",
+      "includeHeader": "Kopfzeile einschließen",
+      "includeFooter": "Fußzeile einschließen",
+      "includeStamp": "Stempel einschließen",
+      "includeSignature": "Unterschrift einschließen"
+    },
+    "categories": {
+      "contract": "Verträge",
+      "invoice": "Rechnungen",
+      "receipt": "Quittungen",
+      "report": "Berichte",
+      "other": "Sonstiges"
+    },
+    "templates": {
+      "salesInvoice": "Verkaufsrechnung",
+      "salesInvoiceNoVat": "Verkaufsrechnung (ohne MwSt)",
+      "creditNote": "Gutschrift",
+      "receiptVoucher": "Empfangsbeleg",
+      "paymentVoucher": "Zahlungsbeleg",
+      "salesContract": "Kaufvertrag",
+      "rentalContract": "Mietvertrag",
+      "accountStatement": "Kontoauszug"
+    }
+  },
+
+  "formEditor": {
+    "title": "Formular-Editor",
+    "description": "Passen Sie Felder und deren Reihenfolge an Ihre Bedürfnisse an",
+    "saveChanges": "Änderungen speichern",
+    "changesSaved": "Änderungen erfolgreich gespeichert",
+    "addHeader": "Überschrift hinzufügen",
+    "addField": "Feld hinzufügen",
+    "editHeader": "Überschrift bearbeiten",
+    "editField": "Feld bearbeiten",
+    "deleteConfirm": "Sind Sie sicher, dass Sie löschen möchten?",
+    "noFields": "Keine Felder",
+    "showOnCard": "Auf Karte anzeigen",
+    "showOnOrderCard": "Auf Bestellkarte anzeigen",
+    "formType": "Typ",
+    "default": "Standard",
+    "compact": "Kompakt",
+    "fields": {
+      "labelAr": "Label (Arabisch)",
+      "labelEn": "Label (Englisch)",
+      "key": "Schlüssel",
+      "type": "Typ",
+      "width": "Breite",
+      "required": "Erforderlich",
+      "visible": "Sichtbar"
+    },
+    "fieldTypes": {
+      "text": "Text",
+      "number": "Nummer",
+      "currency": "Währung",
+      "date": "Datum",
+      "datetime": "Datum & Zeit",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "address": "Adresse",
+      "select": "Dropdown",
+      "multiselect": "Mehrfachauswahl",
+      "checkbox": "Checkbox",
+      "image": "Bild",
+      "file": "Datei",
+      "reference": "Referenz"
+    },
+    "widths": {
+      "full": "Voll",
+      "half": "Halb",
+      "third": "Drittel"
+    },
+    "badges": {
+      "system": "System",
+      "required": "Erforderlich"
+    },
+    "fieldCategories": {
+      "system": "Systemfelder",
+      "user": "Benutzerfelder",
+      "new": "Neue Felder"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Oberflächenmodus",
+    "lite": "Lite",
+    "professional": "Professionell",
+    "liteDescription": "Vereinfachte Oberfläche für den täglichen Gebrauch",
+    "professionalDescription": "Alle Funktionen und erweiterte Werkzeuge",
+    "switch": "Modus wechseln"
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Aktiv",
+      "trial": "Testversion",
+      "expired": "Abgelaufen",
+      "locked": "Gesperrt",
+      "grace_period": "Kulanzzeit",
+      "cancelled": "Storniert"
+    },
+    "alerts": {
+      "lockedMessage": "Ihr Konto wurde wegen Nichtzahlung gesperrt. Bitte erneuern Sie Ihr Abonnement.",
+      "expiredMessage": "Ihr Abonnement ist abgelaufen. Bitte erneuern Sie, um fortzufahren.",
+      "gracePeriodMessage": "Ihr Abonnement befindet sich in der Kulanzzeit. Noch {{days}} Tage zur Erneuerung.",
+      "criticalWarning": "Ihr Abonnement läuft in {{days}} Tagen ab!",
+      "warningMessage": "Ihr Abonnement läuft in {{days}} Tagen ab. Bitte erneuern Sie bald.",
+      "infoMessage": "Noch {{days}} Tage für Ihr Abonnement."
+    },
+    "dialogs": {
+      "lockedTitle": "Konto gesperrt",
+      "lockedDescription": "Ihr Konto wurde wegen Nichtzahlung gesperrt. Bitte gehen Sie zur Abrechnung.",
+      "gracePeriodTitle": "Kulanzzeit",
+      "gracePeriodDescription": "Ihr Abonnement befindet sich in der Kulanzzeit. Noch {{days}} Tage bis zur Sperrung.",
+      "expiredTitle": "Abonnement abgelaufen",
+      "expiredDescription": "Ihr Abonnement ist abgelaufen. Bitte erneuern Sie, um das System weiter zu nutzen.",
+      "criticalTitle": "Abonnement läuft bald ab",
+      "criticalDescription": "Ihr Abonnement läuft in nur {{days}} Tagen ab. Jetzt erneuern.",
+      "warningTitle": "Erneuerungserinnerung",
+      "warningDescription": "Ihr Abonnement läuft in {{days}} Tagen ab. Bitte erneuern Sie.",
+      "remindLater": "Später erinnern"
+    },
+    "billing": {
+      "title": "Abrechnung & Abonnement",
+      "description": "Verwalten Sie Ihr Abonnement, Zahlungsmethoden und Rechnungen",
+      "currentSubscription": "Aktuelles Abonnement",
+      "subscriptionDetails": "Ihre Abonnementdetails und Status",
+      "currentPlan": "Aktueller Plan",
+      "planName": "Planname",
+      "noPlan": "Kein Plan",
+      "periodEnd": "Periodenende",
+      "daysRemaining": "Verbleibende Tage",
+      "gracePeriod": "Kulanzzeit",
+      "renewNow": "Jetzt erneuern",
+      "payNow": "Jetzt bezahlen",
+      "upgradePlan": "Plan upgraden",
+      "goToBilling": "Zur Abrechnung",
+      "accountInfo": "Kontoinformationen",
+      "accountName": "Kontoname",
+      "billingEmail": "Rechnungs-E-Mail"
+    },
+    "tabs": {
+      "overview": "Übersicht",
+      "plans": "Pläne",
+      "invoices": "Rechnungen",
+      "companies": "Unternehmen"
+    },
+    "storage": {
+      "title": "Speicher",
+      "used": "Verwendet",
+      "remaining": "Verbleibend",
+      "files": "Dateien"
+    },
+    "plans": {
+      "current": "Aktueller Plan",
+      "currentPlan": "Aktueller Plan",
+      "selectPlan": "Plan auswählen",
+      "free": "Kostenlos",
+      "users": "Benutzer",
+      "companies": "Unternehmen",
+      "storage": "Speicher"
+    },
+    "invoices": {
+      "title": "Rechnungsverlauf",
+      "number": "Rechnungsnummer",
+      "date": "Datum",
+      "amount": "Betrag",
+      "status": "Status",
+      "paid": "Bezahlt",
+      "pending": "Ausstehend",
+      "overdue": "Überfällig",
+      "noInvoices": "Keine Rechnungen"
+    },
+    "companies": {
+      "title": "Unternehmen",
+      "description": "Mit Ihrem Konto verknüpfte Unternehmen",
+      "main": "Haupt",
+      "noCompanies": "Keine Unternehmen"
+    },
+    "locked": {
+      "title": "Konto gesperrt",
+      "description": "Ihr Konto wurde wegen Ablauf des Abonnements gesperrt.",
+      "account": "Konto",
+      "status": "Status",
+      "gracePeriodInfo": "Ihr Konto befindet sich in der Kulanzzeit. Noch {{days}} Tage bis zur vollständigen Sperrung.",
+      "paymentInfo": "Bitte erneuern Sie Ihr Abonnement, um wieder auf Ihre Daten zugreifen zu können.",
+      "contactSupport": "Support kontaktieren",
+      "needHelp": "Brauchen Sie Hilfe?"
+    }
+  },
+
+  "documents": {
+    "storage": "Speicher",
+    "upload": "Dokument hochladen",
+    "uploadFirst": "Laden Sie Ihr erstes Dokument hoch",
+    "uploadTitle": "Neues Dokument hochladen",
+    "uploadDescription": "Wählen Sie eine Datei zum Hochladen (max. 25 MB)",
+    "uploading": "Wird hochgeladen",
+    "uploadSuccess": "Dokument erfolgreich hochgeladen",
+    "deleteSuccess": "Dokument erfolgreich gelöscht",
+    "deleteTitle": "Dokument löschen",
+    "deleteConfirm": "Sind Sie sicher, dass Sie dieses Dokument löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+    "noDocuments": "Keine Dokumente angehängt",
+    "category": "Kategorie",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Geben Sie eine Beschreibung für das Dokument ein (optional)",
+    "storageWarning": "Speicherplatz wird knapp",
+    "storageCritical": "Speicher fast voll!",
+    "categories": {
+      "contract": "Vertrag",
+      "invoice_copy": "Rechnungskopie",
+      "receipt": "Quittung",
+      "id_document": "Ausweisdokument",
+      "certificate": "Zertifikat",
+      "report": "Bericht",
+      "other": "Sonstige"
+    },
+    "errors": {
+      "fileTooLarge": "Datei ist zu groß (max. 25 MB)",
+      "missingInfo": "Fehlende Informationen",
+      "uploadFailed": "Hochladen fehlgeschlagen",
+      "downloadFailed": "Download fehlgeschlagen",
+      "viewFailed": "Anzeigen fehlgeschlagen",
+      "deleteFailed": "Löschen fehlgeschlagen",
+      "quota.maxFilesReached": "Maximale Dateianzahl erreicht",
+      "quota.storageLimitReached": "Speicherlimit erreicht",
+      "quota.fileTooLarge": "Dateigröße überschreitet das zulässige Limit"
+    }
+  },
+
+  "import": {
+    "title": "Datenimport",
+    "step": "Schritt",
+    "of": "von",
+    "selectEntityType": "Datentyp auswählen",
+    "selectEntityTypeDescription": "Wählen Sie den zu importierenden Datentyp",
+    "fields": "Feld(er)",
+    "noEntityTypes": "Keine Datentypen zum Import verfügbar",
+    "downloadTemplate": "Vorlage herunterladen",
+    "downloadTemplateDescription": "Laden Sie die Vorlage herunter, füllen Sie sie aus und laden Sie sie hoch",
+    "templateArabic": "Arabische Vorlage",
+    "templateEnglish": "Englische Vorlage",
+    "dropFileHere": "Datei hier ablegen",
+    "orClickToSelect": "oder klicken zum Auswählen",
+    "supportedFormats": "Unterstützte Formate",
+    "maxSize": "Max. Größe",
+    "parsing": "Datei wird gelesen...",
+    "requiredFields": "Pflichtfelder",
+    "invalidFileType": "Dateityp nicht unterstützt",
+    "fileTooLarge": "Dateigröße überschreitet Limit",
+    "totalRows": "Gesamtzeilen",
+    "columns": "Spalten",
+    "mapped": "Zugeordnet",
+    "notMapped": "Nicht zugeordnet",
+    "missingRequiredFields": "Pflichtfelder nicht zugeordnet",
+    "fileColumn": "Dateispalte",
+    "systemField": "Systemfeld",
+    "status": "Status",
+    "selectField": "Feld auswählen",
+    "ignore": "Ignorieren",
+    "sample": "Beispiel",
+    "validating": "Wird validiert...",
+    "validateData": "Daten validieren",
+    "validRows": "Gültige Zeilen",
+    "invalidRows": "Ungültige Zeilen",
+    "willImport": "Wird importiert",
+    "errorSummary": "Fehlerzusammenfassung",
+    "importOptions": "Importoptionen",
+    "skipInvalidRows": "Ungültige Zeilen überspringen",
+    "skipInvalidRowsDescription": "Nur gültige Zeilen importieren",
+    "updateExisting": "Vorhandene aktualisieren",
+    "updateExistingDescription": "Vorhandene Datensätze bei Codeübereinstimmung aktualisieren",
+    "useAIAnalysis": "KI-Analyse verwenden",
+    "useAIAnalysisDescription": "Intelligente Analyse zur Erkennung von Duplikaten und Fehlern",
+    "all": "Alle",
+    "valid": "Gültig",
+    "invalid": "Ungültig",
+    "data": "Daten",
+    "errors": "Fehler",
+    "moreErrors": "weitere Fehler",
+    "page": "Seite",
+    "continueToAI": "Zur KI-Analyse",
+    "continueToPreview": "Zur Vorschau",
+    "aiAnalysisComingSoon": "KI-Analyse wird bald verfügbar sein",
+    "readyToImport": "Bereit zum Import",
+    "reviewAndConfirm": "Daten überprüfen und Import bestätigen",
+    "recordsToImport": "zu importierende Datensätze",
+    "entityType": "Datentyp",
+    "updateEnabled": "Aktualisierung aktiviert",
+    "dataPreview": "Datenvorschau",
+    "showing": "Angezeigt",
+    "importSettings": "Importeinstellungen",
+    "aiAnalysis": "KI-Analyse",
+    "importing": "Wird importiert...",
+    "startImport": "Import starten",
+    "records": "Datensätze",
+    "importingData": "Daten werden importiert",
+    "successTitle": "Import erfolgreich!",
+    "successDescription": "Alle Daten wurden erfolgreich importiert",
+    "partialSuccessTitle": "Teilimport",
+    "partialSuccessDescription": "Einige Daten wurden mit Fehlern importiert",
+    "failedTitle": "Import fehlgeschlagen",
+    "failedDescription": "Daten konnten nicht importiert werden",
+    "imported": "Importiert",
+    "skipped": "Übersprungen",
+    "failed": "Fehlgeschlagen",
+    "successRate": "Erfolgsrate",
+    "importDetails": "Importdetails",
+    "fileName": "Dateiname",
+    "startTime": "Startzeit",
+    "endTime": "Endzeit",
+    "errorReport": "Fehlerbericht",
+    "downloadErrorReport": "Bericht über fehlgeschlagene Zeilen herunterladen",
+    "download": "Herunterladen",
+    "newImport": "Neuer Import",
+    "done": "Fertig"
+  }
+}

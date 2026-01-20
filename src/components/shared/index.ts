@@ -1,0 +1,29 @@
+// Shared Components - Single Entry Point
+// All shared components MUST be imported from here
+
+// Tables
+export { NexaTable } from './tables/NexaTable';
+export type { Column, NexaTableProps } from './tables/NexaTable';
+export { LedgerTable } from './tables/LedgerTable';
+export type { LedgerColumn, LedgerFilters, LedgerStats, LedgerTableProps, QuickFilter } from './tables/LedgerTable';
+
+// Popups
+export { UnifiedSheet, SectionCard, InfoRow, DEFAULT_MAIN_TABS } from './sheets/UnifiedSheet';
+export { UnifiedModal } from './modals/UnifiedModal';
+
+// Status
+export { StatusBadge, StatusBadgeWithArrow } from './status/StatusBadge';
+export { StatusSelector } from './status/StatusSelector';
+export { StatusManager } from './status/StatusManager';
+
+// Stats
+export { StatCard, StatsGrid } from './stats/StatCard';
+export type { StatType } from './stats/StatCard';
+
+// Tabs
+export { MainTabsBar } from './tabs/MainTabsBar';
+export { DynamicTabsBar, useDynamicTabs } from './tabs/DynamicTabs';
+
+// Actions
+export { ActionButtonsBar } from './actions/ActionButtonsBar';
+export { QuickActionsBar } from './actions/QuickActionsBar';

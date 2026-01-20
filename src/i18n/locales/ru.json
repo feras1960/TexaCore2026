@@ -1,0 +1,1296 @@
+{
+  "app": {
+    "name": "Система планирования ресурсов предприятия",
+    "shortName": "ERP Система",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Качество, которому можно доверять",
+      "fullName": "TexaCore - Система планирования ресурсов предприятия"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Панель управления",
+    "accounting": "Бухгалтерия",
+    "sales": "Продажи",
+    "purchases": "Закупки",
+    "inventory": "Склад",
+    "crm": "CRM",
+    "hr": "Кадры",
+    "pos": "Касса",
+    "exchange": "Обмен валют",
+    "realEstate": "Недвижимость",
+    "manufacturing": "Производство",
+    "ecommerce": "Электронная коммерция",
+    "saasControl": "Управление SaaS",
+    "aiAnalytics": "AI Аналитика",
+    "systemConfig": "Настройки системы",
+    "componentLab": "Лаборатория компонентов",
+    "settings": "Настройки"
+  },
+
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "add": "Добавить",
+    "create": "Создать",
+    "update": "Обновить",
+    "search": "Поиск",
+    "filter": "Фильтр",
+    "export": "Экспорт",
+    "import": "Импорт",
+    "print": "Печать",
+    "refresh": "Обновить",
+    "close": "Закрыть",
+    "confirm": "Подтвердить",
+    "back": "Назад",
+    "next": "Далее",
+    "previous": "Предыдущий",
+    "submit": "Отправить",
+    "reset": "Сбросить",
+    "clear": "Очистить",
+    "select": "Выбрать",
+    "selectAll": "Выбрать все",
+    "deselectAll": "Снять выделение",
+    "yes": "Да",
+    "no": "Нет",
+    "ok": "OK",
+    "loading": "Загрузка...",
+    "noData": "Нет данных",
+    "error": "Произошла ошибка",
+    "success": "Операция успешна",
+    "warning": "Предупреждение",
+    "info": "Информация",
+    "required": "Обязательно",
+    "optional": "Необязательно",
+    "total": "Итого",
+    "subtotal": "Промежуточный итог",
+    "balance": "Баланс",
+    "amount": "Сумма",
+    "quantity": "Количество",
+    "price": "Цена",
+    "date": "Дата",
+    "time": "Время",
+    "status": "Статус",
+    "type": "Тип",
+    "name": "Название",
+    "description": "Описание",
+    "notes": "Примечания",
+    "reference": "Ссылка",
+    "code": "Код",
+    "number": "Номер",
+    "actions": "Действия",
+    "details": "Детали",
+    "history": "История",
+    "active": "Активный",
+    "inactive": "Неактивный",
+    "enabled": "Включен",
+    "disabled": "Отключен",
+    "all": "Все",
+    "none": "Нет",
+    "other": "Другое",
+    "default": "По умолчанию",
+    "custom": "Пользовательский",
+    "country": "Страна",
+    "phone": "Телефон",
+    "email": "Email",
+    "language": "Язык",
+    "timezone": "Часовой пояс",
+    "city": "Город",
+    "countries": {
+      "saudiArabia": "Саудовская Аравия",
+      "uae": "ОАЭ",
+      "kuwait": "Кувейт"
+    },
+    "languages": {
+      "arabic": "Арабский",
+      "english": "Английский"
+    },
+    "timezones": {
+      "riyadh": "Эр-Рияд (GMT+3)",
+      "dubai": "Дубай (GMT+4)"
+    }
+  },
+
+  "auth": {
+    "login": "Вход",
+    "logout": "Выход",
+    "register": "Регистрация",
+    "forgotPassword": "Забыли пароль?",
+    "resetPassword": "Сбросить пароль",
+    "changePassword": "Изменить пароль",
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "rememberMe": "Запомнить меня",
+    "welcome": "Добро пожаловать",
+    "profile": "Профиль",
+    "account": "Аккаунт",
+    "userInitial": "А",
+    "systemAdmin": "Администратор системы"
+  },
+
+  "header": {
+    "search": "Поиск...",
+    "notifications": "Уведомления",
+    "quickAdd": "Быстрое добавление",
+    "language": "Язык",
+    "theme": "Тема",
+    "darkMode": "Темный режим",
+    "lightMode": "Светлый режим"
+  },
+
+  "sidebar": {
+    "needHelp": "Нужна помощь?",
+    "contactSupport": "Связаться с поддержкой",
+    "collapse": "Свернуть",
+    "expand": "Развернуть"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "Новый счет продажи",
+    "newPurchaseInvoice": "Новый счет покупки",
+    "receiptVoucher": "Приходный ордер",
+    "paymentVoucher": "Расходный ордер",
+    "newProduct": "Новый товар",
+    "newCustomer": "Новый клиент",
+    "newSupplier": "Новый поставщик",
+    "journalEntry": "Журнальная запись"
+  },
+
+  "filters": {
+    "selectBranch": "Выберите филиал",
+    "allBranches": "Все филиалы",
+    "selectCurrency": "Выберите валюту",
+    "selectPeriod": "Выберите период",
+    "today": "Сегодня",
+    "yesterday": "Вчера",
+    "thisWeek": "Эта неделя",
+    "lastWeek": "Прошлая неделя",
+    "thisMonth": "Этот месяц",
+    "lastMonth": "Прошлый месяц",
+    "thisYear": "Этот год",
+    "lastYear": "Прошлый год",
+    "customRange": "Произвольный период",
+    "from": "От",
+    "to": "До"
+  },
+
+  "tabs": {
+    "overview": "Обзор",
+    "ledger": "Книга учета",
+    "invoices": "Счета",
+    "payments": "Платежи",
+    "reservations": "Бронирования",
+    "aiAnalysis": "AI Анализ",
+    "events": "События",
+    "details": "Детали",
+    "history": "История",
+    "settings": "Настройки",
+    "reports": "Отчеты"
+  },
+
+  "status": {
+    "draft": "Черновик",
+    "pending": "В ожидании",
+    "inProgress": "В процессе",
+    "confirmed": "Подтверждено",
+    "completed": "Завершено",
+    "partial": "Частично",
+    "paid": "Оплачено",
+    "unpaid": "Не оплачено",
+    "overdue": "Просрочено",
+    "cancelled": "Отменено",
+    "rejected": "Отклонено",
+    "approved": "Одобрено",
+    "submitted": "Отправлено",
+    "closed": "Закрыто",
+    "open": "Открыто",
+    "warning": "Предупреждение"
+  },
+
+  "stats": {
+    "totalSales": "Общие продажи",
+    "totalRevenue": "Общий доход",
+    "totalExpenses": "Общие расходы",
+    "netProfit": "Чистая прибыль",
+    "grossProfit": "Валовая прибыль",
+    "totalOrders": "Всего заказов",
+    "pendingOrders": "Ожидающие заказы",
+    "completedOrders": "Выполненные заказы",
+    "totalCustomers": "Всего клиентов",
+    "activeCustomers": "Активные клиенты",
+    "newCustomers": "Новые клиенты",
+    "totalSuppliers": "Всего поставщиков",
+    "totalProducts": "Всего товаров",
+    "lowStock": "Низкий запас",
+    "outOfStock": "Нет в наличии"
+  },
+
+  "currencies": {
+    "SAR": "Саудовский риял",
+    "USD": "Доллар США",
+    "EUR": "Евро",
+    "GBP": "Британский фунт",
+    "AED": "Дирхам ОАЭ",
+    "KWD": "Кувейтский динар",
+    "QAR": "Катарский риял",
+    "BHD": "Бахрейнский динар",
+    "OMR": "Оманский риал",
+    "EGP": "Египетский фунт",
+    "JOD": "Иорданский динар",
+    "TRY": "Турецкая лира",
+    "RUB": "Российский рубль",
+    "UAH": "Украинская гривна",
+    "PLN": "Польский злотый",
+    "RON": "Румынский лей"
+  },
+
+  "branches": {
+    "main": "Главный филиал",
+    "all": "Все филиалы"
+  },
+
+  "dashboard": {
+    "title": "Панель управления",
+    "subtitle": "Комплексный обзор всех модулей системы",
+    "welcomeMessage": "Добро пожаловать в систему планирования ресурсов предприятия",
+    "recentOrders": "Последние заказы",
+    "recentInvoices": "Последние счета",
+    "recentPayments": "Последние платежи",
+    "quickStats": "Быстрая статистика",
+    "viewAll": "Посмотреть все",
+    "chartsPlaceholder": "Графики будут добавлены здесь"
+  },
+
+  "accounting": {
+    "module": "Бухгалтерия",
+    "chartOfAccounts": "План счетов",
+    "chartOfAccountsDescription": "Управление планом счетов с иерархической структурой",
+    "addAccount": "Добавить счет",
+    "editAccount": "Редактировать счет",
+    "totalAccounts": "Всего счетов",
+    "activeAccounts": "Активные счета",
+    "groupsCount": "Группы",
+    "totalBalance": "Общий баланс",
+    "isGroup": "Групповой счет",
+    "noParent": "Без родителя (Корневой счет)",
+    "accountCodeHint": "Код счета в формате ERPNext (например, 1000, 1100, 1110)",
+    "treeView": "Древовидный вид",
+    "tableView": "Табличный вид",
+    "expandAll": "Развернуть все",
+    "collapseAll": "Свернуть все",
+    "searchPlaceholder": "Поиск счетов...",
+    "editGroup": "Редактировать группу",
+    "addSubGroup": "Добавить подгруппу",
+    "addSubAccount": "Добавить подсчет",
+    "printReport": "Печать отчета",
+    "addGroup": "Добавить группу",
+    "noCompanySelected": "Компания не выбрана",
+    "createCompanyFirst": "Пожалуйста, запустите SQL скрипт в Supabase для создания тестовой компании.",
+    "runSQLScript": "Запустить SQL скрипт: supabase/create_test_company.sql",
+    "accountTypes": {
+      "asset": "Активы",
+      "liability": "Обязательства",
+      "equity": "Капитал",
+      "revenue": "Доходы",
+      "expense": "Расходы"
+    },
+    "journalEntries": "Журнальные записи",
+    "generalLedger": "Главная книга",
+    "trialBalance": "Оборотная ведомость",
+    "incomeStatement": "Отчет о прибылях и убытках",
+    "balanceSheet": "Баланс",
+    "cashFlow": "Движение денежных средств",
+    "costCenters": "Центры затрат",
+    "budgets": "Бюджеты",
+    "fiscalYear": "Финансовый год",
+    "closingEntries": "Закрывающие записи",
+    "addAccount": "Добавить счет",
+    "addNewRow": "Добавить новую строку",
+    "addRow": "Добавить строку",
+    "balanceEntry": "Сбалансировать запись",
+    "duplicateRow": "Дублировать строку",
+    "copyAccountDown": "Копировать счет в следующую строку",
+    "save": "Сохранить",
+    "account": {
+      "name": "Название счета",
+      "code": "Код счета",
+      "type": "Тип счета",
+      "parent": "Родительский счет",
+      "balance": "Баланс",
+      "currency": "Валюта",
+      "select": "Выберите счет...",
+      "notFound": "Счет не найден",
+      "treeSelector": "План счетов",
+      "treeSelectorDescription": "Выберите счета из дерева - Двойной клик для добавления",
+      "closeTree": "Закрыть дерево",
+      "selectedCount": "выбрано",
+      "doubleClickToAdd": "Двойной клик для добавления счета",
+      "onlyAccounts": "Только счета (не группы)"
+    },
+    "entry": {
+      "number": "Номер записи",
+      "date": "Дата записи",
+      "reference": "Ссылка",
+      "description": "Описание",
+      "debit": "Дебет",
+      "credit": "Кредит",
+      "total": "Итого"
+    },
+    "receipt": {
+      "title": "Приходный ордер",
+      "number": "Номер ордера",
+      "date": "Дата ордера",
+      "customer": "Клиент",
+      "amount": "Сумма",
+      "paymentMethod": "Способ оплаты",
+      "fund": "Фонд",
+      "notes": "Примечания",
+      "customerInfo": "Информация о клиенте"
+    },
+    "payment": {
+      "title": "Расходный ордер",
+      "number": "Номер ордера",
+      "date": "Дата ордера",
+      "supplier": "Поставщик",
+      "amount": "Сумма",
+      "paymentMethod": "Способ оплаты",
+      "fund": "Фонд",
+      "notes": "Примечания"
+    },
+    "labels": {
+      "debitTotal": "Итого дебет",
+      "creditTotal": "Итого кредит",
+      "balance": "Баланс",
+      "difference": "Разница",
+      "marked": "Отмечено"
+    },
+    "currentBalance": "Текущий баланс",
+    "openingBalance": "Начальный баланс",
+    "closingBalance": "Конечный баланс",
+    "periodMovement": "Движение за период",
+    "entryTabs": {
+      "journal": {
+        "title": "Журнальная запись",
+        "description": "Записать новую бухгалтерскую запись"
+      },
+      "receipt": {
+        "title": "Приходный ордер",
+        "description": "Записать полученные платежи"
+      },
+      "payment": {
+        "title": "Расходный ордер",
+        "description": "Записать исходящие платежи"
+      },
+      "cash": {
+        "title": "Кассовый журнал",
+        "description": "Движения денежных средств"
+      },
+      "transfer": {
+        "title": "Перевод",
+        "description": "Перевод между фондами"
+      },
+      "exchange": {
+        "title": "Обмен",
+        "description": "Обмен валют"
+      }
+    },
+    "partiesStats": {
+      "totalCustomers": "Всего клиентов",
+      "totalReceivables": "Всего дебиторская задолженность",
+      "totalSuppliers": "Всего поставщиков",
+      "totalPayables": "Всего кредиторская задолженность"
+    },
+    "partiesDescription": "Управление клиентами, поставщиками, дебиторской и кредиторской задолженностью",
+    "customers": "Клиенты",
+    "suppliers": "Поставщики",
+    "settingsSections": {
+      "company": "Настройки компании",
+      "companyDesc": "Основная информация о компании",
+      "fiscalYear": "Финансовый год",
+      "fiscalYearDesc": "Определить период финансового года",
+      "tax": "Настройки налогов",
+      "taxDesc": "Настройка НДС и других налогов",
+      "workflow": "Рабочий процесс",
+      "workflowDesc": "Настройки утверждения и автоматической проводки"
+    },
+    "settingsFields": {
+      "companyName": "Название компании",
+      "baseCurrency": "Основная валюта",
+      "fiscalYearStart": "Начало финансового года",
+      "fiscalYearEnd": "Конец финансового года",
+      "enableTax": "Включить налог",
+      "enableTaxDesc": "Включить расчет НДС",
+      "vatRate": "Ставка НДС",
+      "autoPostEntries": "Автоматическая проводка",
+      "autoPostEntriesDesc": "Проводить записи сразу без проверки",
+      "requireApproval": "Требуется утверждение",
+      "requireApprovalDesc": "Запрашивать утверждение менеджера перед проводкой"
+    },
+    "settingsInfo": {
+      "title": "Важная информация",
+      "desc1": "Изменение основной валюты может повлиять на финансовые отчеты.",
+      "desc2": "Убедитесь, что вы проверили настройки перед сохранением."
+    },
+    "settingsDescription": "Настройка бухгалтерии, финансового года и налогов",
+    "reportsDescription": "Просмотр финансовых и бухгалтерских отчетов",
+    "fundsDescription": "Управление денежными средствами и банковскими счетами",
+    "selectAccountPrompt": "Пожалуйста, выберите счет из списка выше"
+  },
+
+  "sales": {
+    "module": "Продажи",
+    "quotation": "Коммерческое предложение",
+    "salesOrder": "Заказ на продажу",
+    "deliveryNote": "Накладная",
+    "salesInvoice": "Счет на продажу",
+    "salesReturn": "Возврат продажи",
+    "customer": "Клиент",
+    "customers": "Клиенты",
+    "priceList": "Прайс-лист",
+    "discount": "Скидка",
+    "tax": "Налог",
+    "vat": "НДС"
+  },
+
+  "purchases": {
+    "module": "Закупки",
+    "purchaseRequest": "Заявка на закупку",
+    "purchaseOrder": "Заказ на закупку",
+    "purchaseReceipt": "Приход товара",
+    "purchaseInvoice": "Счет на закупку",
+    "purchaseReturn": "Возврат поставщику",
+    "supplier": "Поставщик",
+    "suppliers": "Поставщики"
+  },
+
+  "inventory": {
+    "module": "Склад",
+    "items": "Товары",
+    "item": "Товар",
+    "warehouse": "Склад",
+    "warehouses": "Склады",
+    "stockEntry": "Складская операция",
+    "stockTransfer": "Перемещение",
+    "stockAdjustment": "Корректировка",
+    "stockReconciliation": "Инвентаризация",
+    "reorderLevel": "Уровень дозаказа",
+    "minimumStock": "Минимальный запас",
+    "maximumStock": "Максимальный запас",
+    "currentStock": "Текущий запас",
+    "availableStock": "Доступный запас",
+    "reservedStock": "Зарезервированный запас"
+  },
+
+  "crm": {
+    "module": "Управление взаимоотношениями с клиентами",
+    "leads": "Лиды",
+    "opportunities": "Возможности",
+    "contacts": "Контакты",
+    "activities": "Активности",
+    "campaigns": "Кампании",
+    "pipeline": "Воронка продаж"
+  },
+
+  "hr": {
+    "module": "Управление персоналом",
+    "employees": "Сотрудники",
+    "employee": "Сотрудник",
+    "departments": "Отделы",
+    "designations": "Должности",
+    "attendance": "Посещаемость",
+    "leave": "Отпуск",
+    "payroll": "Расчет зарплаты",
+    "recruitment": "Найм",
+    "training": "Обучение",
+    "performance": "Производительность"
+  },
+
+  "pos": {
+    "module": "Касса",
+    "newSale": "Новая продажа",
+    "cashier": "Кассир",
+    "register": "Касса",
+    "shift": "Смена",
+    "openShift": "Открыть смену",
+    "closeShift": "Закрыть смену",
+    "cart": "Корзина",
+    "checkout": "Оформление",
+    "payment": "Оплата",
+    "receipt": "Чек"
+  },
+
+  "exchange": {
+    "module": "Обмен валют",
+    "buyRate": "Курс покупки",
+    "sellRate": "Курс продажи",
+    "exchangeRate": "Обменный курс",
+    "currencyExchange": "Обмен валюты",
+    "fundTransfer": "Перевод средств"
+  },
+
+  "realEstate": {
+    "module": "Недвижимость",
+    "properties": "Объекты",
+    "units": "Единицы",
+    "contracts": "Договоры",
+    "tenants": "Арендаторы",
+    "rent": "Аренда",
+    "maintenance": "Обслуживание"
+  },
+
+  "manufacturing": {
+    "module": "Производство",
+    "bom": "Спецификация материалов",
+    "workOrder": "Рабочий заказ",
+    "productionPlan": "План производства",
+    "qualityInspection": "Контроль качества",
+    "workstation": "Рабочая станция"
+  },
+
+  "ecommerce": {
+    "module": "Электронная коммерция",
+    "store": "Магазин",
+    "products": "Товары",
+    "categories": "Категории",
+    "orders": "Заказы",
+    "shipping": "Доставка",
+    "promotions": "Акции"
+  },
+
+  "validation": {
+    "required": "Это поле обязательно",
+    "email": "Пожалуйста, введите корректный email",
+    "minLength": "Минимум {min} символов",
+    "maxLength": "Максимум {max} символов",
+    "min": "Минимум {min}",
+    "max": "Максимум {max}",
+    "positive": "Должно быть положительным числом",
+    "integer": "Должно быть целым числом",
+    "numeric": "Должно быть числом",
+    "url": "Пожалуйста, введите корректный URL",
+    "phone": "Пожалуйста, введите корректный номер телефона",
+    "match": "Значения не совпадают",
+    "unique": "Это значение уже существует",
+    "date": "Пожалуйста, введите корректную дату"
+  },
+
+  "messages": {
+    "saveSuccess": "Успешно сохранено",
+    "saveError": "Ошибка сохранения",
+    "deleteSuccess": "Успешно удалено",
+    "deleteError": "Ошибка удаления",
+    "updateSuccess": "Успешно обновлено",
+    "updateError": "Ошибка обновления",
+    "confirmDelete": "Вы уверены, что хотите удалить?",
+    "confirmCancel": "Вы уверены, что хотите отменить?",
+    "unsavedChanges": "У вас есть несохраненные изменения",
+    "noResults": "Результаты не найдены",
+    "loadingError": "Ошибка загрузки данных",
+    "networkError": "Ошибка сетевого подключения",
+    "sessionExpired": "Сессия истекла",
+    "accessDenied": "Доступ запрещен",
+    "notFound": "Страница не найдена",
+    "pageUnderDevelopment": "Эта страница находится в разработке"
+  },
+
+  "table": {
+    "showing": "Показано",
+    "of": "из",
+    "entries": "записей",
+    "page": "Страница",
+    "rowsPerPage": "Строк на странице",
+    "noData": "Нет данных для отображения",
+    "loading": "Загрузка данных...",
+    "selectRow": "Выбрать строку",
+    "selectAll": "Выбрать все",
+    "sortAsc": "Сортировка по возрастанию",
+    "sortDesc": "Сортировка по убыванию",
+    "filter": "Фильтр",
+    "clearFilters": "Очистить фильтры",
+    "export": "Экспорт",
+    "print": "Печать"
+  },
+
+  "languages": {
+    "en": "Английский",
+    "ar": "Арабский",
+    "ru": "Русский",
+    "uk": "Украинский",
+    "ro": "Румынский",
+    "pl": "Польский",
+    "tr": "Турецкий",
+    "de": "Немецкий",
+    "it": "Итальянский"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Торговая компания Аль-Фаджр",
+      "customer2": "Фонд Аль-Нур",
+      "customer3": "Компания Аль-Амаль",
+      "customer4": "Завод Ас-Салям"
+    }
+  },
+
+  "componentLab": {
+    "title": "Лаборатория компонентов",
+    "description": "Тестирование и предварительный просмотр всех всплывающих окон и компонентов",
+    "info": {
+      "title": "О лаборатории компонентов",
+      "description": "Эта лаборатория позволяет тестировать и предварительно просматривать все доступные всплывающие окна, диалоги и компоненты. Нажмите 'Открыть' на любом компоненте, чтобы увидеть его в действии."
+    },
+    "table": {
+      "id": "ID компонента",
+      "name": "Имя компонента",
+      "description": "Описание",
+      "type": "Тип",
+      "status": "Статус",
+      "path": "Путь к файлу",
+      "pathLabel": "Путь",
+      "actions": "Действия",
+      "noPopups": "Всплывающие окна еще не зарегистрированы"
+    },
+    "status": {
+      "ready": "Готов",
+      "wip": "В работе",
+      "planned": "Запланировано"
+    },
+    "actions": {
+      "open": "Открыть"
+    },
+    "preview": {
+      "title": "Предварительный просмотр компонента",
+      "description": "Предварительный просмотр компонента",
+      "exampleContent": "Это пример содержимого UnifiedSheet. Вы можете добавить любое содержимое здесь внутри children.",
+      "exampleContentModal": "Это пример содержимого UnifiedModal. Вы можете добавить любое содержимое здесь внутри children."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Унифицированный лист",
+        "description": "Боковая панель для детальных представлений"
+      },
+      "unifiedModal": {
+        "name": "Унифицированное модальное окно",
+        "description": "Центральный диалог для форм и подтверждений"
+      },
+      "generalLedgerSheet": {
+        "name": "Лист главной книги",
+        "description": "Полный отчет обо всех движениях счетов"
+      },
+      "fundTransferDialog": {
+        "name": "Диалог перевода средств",
+        "description": "Перевод средств между счетами и банками"
+      },
+      "currencyExchangeDialog": {
+        "name": "Диалог обмена валют",
+        "description": "Обмен валют в рамках фонда"
+      },
+      "transactionDetailsSheet": {
+        "name": "Лист деталей транзакции",
+        "description": "Просмотр и редактирование деталей транзакции"
+      },
+      "quickReceiptDialog": {
+        "name": "Диалог быстрой квитанции",
+        "description": "Диалог быстрого ввода для квитанций"
+      },
+      "quickPaymentDialog": {
+        "name": "Диалог быстрого платежа",
+        "description": "Диалог быстрого ввода для платежей"
+      },
+      "accountDetailsSheet": {
+        "name": "Лист деталей счета (устаревший)",
+        "description": "Полные детали счета с главной книгой и транзакциями (устаревшая версия с тестовыми данными)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Лист деталей счета V2",
+        "description": "Чистая версия деталей счета - подключена только к реальным данным, без тестовых данных"
+      },
+      "addFundDialog": {
+        "name": "Диалог добавления фонда",
+        "description": "Диалог для добавления нового фонда или банковского счета"
+      },
+      "addCostCenterDialog": {
+        "name": "Диалог добавления центра затрат",
+        "description": "Диалог для добавления нового центра затрат"
+      },
+      "fundTransactionSheet": {
+        "name": "Лист транзакций фонда",
+        "description": "Просмотр и управление транзакциями фонда"
+      },
+      "newJournalEntrySheet": {
+        "name": "Лист нового журнального ввода",
+        "description": "Многозакладной лист для журнальных записей, квитанций, платежей, кассовой книги, переводов и обмена валют"
+      },
+      "createTenantDialog": {
+        "name": "Диалог создания арендатора",
+        "description": "Многовкладочный диалог для создания нового арендатора с информацией о компании, владельце и подписке"
+      },
+      "agentDetailsSheet": {
+        "name": "Лист деталей агента",
+        "description": "Детальный просмотр агента с контактной информацией, балансом, комиссиями и статусом White Label"
+      }
+    },
+    "actions": {
+      "open": "Открыть",
+      "openInPlace": "Открыть на месте"
+    }
+  },
+
+  "saas": {
+    "title": "Управление SaaS",
+    "dashboard": "Панель управления",
+    "subscribers": "Подписчики",
+    "packages": "Пакеты",
+    "agents": "Агенты",
+    "whiteLabel": "White Label",
+    "payments": "Платежи",
+    "modules": "Модули",
+    "support": "Поддержка",
+    "notifications": "Уведомления",
+    "coupons": "Купоны",
+    "referrals": "Реферальная программа",
+    "webhooks": "Webhooks",
+    "analytics": "Аналитика",
+    "reports": "Отчеты",
+    "marketing": "Маркетинг",
+    "settings": "Настройки",
+    "comingSoon": "Скоро - В разработке",
+    "createNew": "Создать",
+    "edit": "Редактировать",
+    "delete": "Удалить",
+    "view": "Просмотр",
+    "activate": "Активировать",
+    "suspend": "Приостановить",
+    "approve": "Одобрить",
+    "reject": "Отклонить",
+    "status": {
+      "active": "Активный",
+      "inactive": "Неактивный",
+      "pending": "Ожидание",
+      "suspended": "Приостановлен",
+      "expired": "Истек",
+      "cancelled": "Отменен"
+    },
+    "agents": {
+      "title": "Управление агентами",
+      "description": "Управление агентами, реселлерами и комиссиями",
+      "create": "Зарегистрировать агента",
+      "approve": "Одобрить агента",
+      "suspend": "Приостановить агента",
+      "activate": "Активировать агента",
+      "commissions": "Комиссии",
+      "withdrawals": "Выплаты",
+      "targets": "Цели",
+      "dashboard": "Панель агента",
+      "whiteLabel": "White Label",
+      "tier": "Уровень",
+      "balance": "Баланс",
+      "pendingBalance": "Ожидающий баланс",
+      "totalEarned": "Всего заработано",
+      "totalWithdrawn": "Всего выведено",
+      "totalTenants": "Всего клиентов",
+      "activeTenants": "Активных клиентов",
+      "totalAgents": "Всего агентов",
+      "activeAgents": "Активных агентов",
+      "totalCommissions": "Всего комиссий",
+      "contactInfo": "Контактная информация",
+      "tiers": {
+        "bronze": "Бронза",
+        "silver": "Серебро",
+        "gold": "Золото",
+        "platinum": "Платина",
+        "diamond": "Бриллиант"
+      },
+      "error": {
+        "loadFailed": "Не удалось загрузить агентов"
+      }
+    },
+    "tenants": {
+      "title": "Управление подписчиками",
+      "description": "Управление подписчиками и подписками",
+      "create": "Создать подписчика",
+      "createDescription": "Создать нового подписчика в системе",
+      "edit": "Редактировать подписчика",
+      "suspend": "Приостановить подписчика",
+      "activate": "Активировать подписчика",
+      "details": "Детали подписчика",
+      "subscription": "Подписка",
+      "usage": "Использование",
+      "billing": "Счета",
+      "total": "Всего подписчиков",
+      "agentInfo": "Связан с агентом",
+      "referral": "Реферал",
+      "referralCode": "Реферальный код",
+      "referralSource": "Источник реферала",
+      "ownerName": "Имя владельца",
+      "plan": "План",
+      "tabs": {
+        "company": "Компания",
+        "owner": "Владелец",
+        "subscription": "Подписка"
+      },
+      "placeholders": {
+        "companyName": "Название компании",
+        "ownerName": "Имя владельца",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Не удалось загрузить подписчиков",
+        "noPermission": "Нет доступа",
+        "createFailed": "Не удалось создать подписчика"
+      }
+    },
+    "plans": {
+      "starter": "Стартовый",
+      "professional": "Профессиональный",
+      "enterprise": "Корпоративный"
+    },
+    "whiteLabel": {
+      "title": "Система White Label",
+      "registerPayment": "Зарегистрировать платеж White Label",
+      "activate": "Активировать White Label",
+      "addDomain": "Добавить домен",
+      "verifyDomain": "Подтвердить домен",
+      "configureBranding": "Настроить брендинг",
+      "paymentAmount": "Сумма платежа",
+      "paymentMethod": "Способ оплаты",
+      "periodMonths": "Период (месяцев)",
+      "domain": "Домен",
+      "domainType": "Тип домена",
+      "brandName": "Название бренда",
+      "logo": "Логотип",
+      "primaryColor": "Основной цвет",
+      "contactEmail": "Контактный email",
+      "status": {
+        "inactive": "Неактивен",
+        "pending": "Ожидание оплаты",
+        "active": "Активен",
+        "suspended": "Приостановлен",
+        "expired": "Истек"
+      },
+      "commission": "Комиссия %"
+    }
+  },
+
+  "qrCode": {
+    "title": "QR-код",
+    "generate": "Создать QR",
+    "scan": "Сканировать QR",
+    "scanWithMobile": "Сканируйте мобильным приложением",
+    "download": "Скачать QR",
+    "print": "Печать QR",
+    "share": "Поделиться",
+    "copy": "Копировать ссылку",
+    "copied": "Ссылка скопирована",
+    "docTypes": {
+      "invoice": "Счет",
+      "payment": "Платеж",
+      "receipt": "Квитанция",
+      "journalEntry": "Проводка",
+      "account": "Счет",
+      "customer": "Клиент",
+      "supplier": "Поставщик",
+      "order": "Заказ",
+      "tenant": "Абонент",
+      "fund": "Касса"
+    }
+  },
+
+  "statusManager": {
+    "title": "Управление статусами",
+    "description": "Управление статусами документов и правами доступа",
+    "newStatus": "Новый статус",
+    "editStatus": "Редактировать статус",
+    "deleteStatus": "Удалить статус",
+    "statusGroups": "Группы статусов",
+    "selectStatus": "Выберите статус",
+    "noStatuses": "Статусы не найдены",
+    "cannotDeleteSystem": "Невозможно удалить системный статус",
+    "statusUpdated": "Статус обновлен",
+    "statusCreated": "Статус создан",
+    "statusDeleted": "Статус удален",
+    "changeTo": "Изменить на",
+    "addComment": "Добавить комментарий (необязательно)...",
+    "deleteConfirm": "Вы уверены, что хотите удалить этот статус?",
+    "fields": {
+      "nameAr": "Название (Арабский)",
+      "nameEn": "Название (Английский)",
+      "code": "Код",
+      "group": "Группа",
+      "color": "Цвет",
+      "timeNorm": "Норма времени (часы)",
+      "isInitial": "Начальный статус",
+      "isFinal": "Конечный статус",
+      "canView": "Может просматривать",
+      "canSet": "Может устанавливать"
+    },
+    "groups": {
+      "new": "Новый",
+      "inProgress": "В процессе",
+      "pending": "Ожидание",
+      "completed": "Завершено",
+      "cancelled": "Отменено",
+      "closedSuccess": "Закрыто успешно",
+      "closedFail": "Закрыто неуспешно"
+    },
+    "badges": {
+      "system": "Системный",
+      "required": "Обязательный"
+    }
+  },
+
+  "printSystem": {
+    "title": "Печать документов",
+    "print": "Печать",
+    "printAll": "Печатать все",
+    "preview": "Предпросмотр",
+    "exportPdf": "Экспорт PDF",
+    "printing": "Печать...",
+    "exporting": "Экспорт...",
+    "selectTemplate": "Выберите шаблон",
+    "printOptions": "Параметры печати",
+    "printSettings": "Настройки печати",
+    "advancedOptions": "Дополнительные параметры...",
+    "relatedDocuments": "Связанные документы",
+    "options": {
+      "includeQR": "Включить QR-код",
+      "includeHeader": "Включить заголовок",
+      "includeFooter": "Включить подвал",
+      "includeStamp": "Включить печать",
+      "includeSignature": "Включить подпись"
+    },
+    "categories": {
+      "contract": "Договоры",
+      "invoice": "Счета",
+      "receipt": "Квитанции",
+      "report": "Отчеты",
+      "other": "Другое"
+    },
+    "templates": {
+      "salesInvoice": "Счет на продажу",
+      "salesInvoiceNoVat": "Счет на продажу (без НДС)",
+      "creditNote": "Кредитная нота",
+      "receiptVoucher": "Приходный ордер",
+      "paymentVoucher": "Расходный ордер",
+      "salesContract": "Договор купли-продажи",
+      "rentalContract": "Договор аренды",
+      "accountStatement": "Выписка по счету"
+    }
+  },
+
+  "formEditor": {
+    "title": "Редактор форм",
+    "description": "Настройте поля и их порядок под ваши нужды",
+    "saveChanges": "Сохранить изменения",
+    "changesSaved": "Изменения успешно сохранены",
+    "addHeader": "Добавить заголовок",
+    "addField": "Добавить поле",
+    "editHeader": "Редактировать заголовок",
+    "editField": "Редактировать поле",
+    "deleteConfirm": "Вы уверены, что хотите удалить?",
+    "noFields": "Нет полей",
+    "showOnCard": "Показывать на карточке",
+    "showOnOrderCard": "Показывать на карточке заказа",
+    "formType": "Тип",
+    "default": "По умолчанию",
+    "compact": "Компактный",
+    "fields": {
+      "labelAr": "Метка (Арабский)",
+      "labelEn": "Метка (Английский)",
+      "key": "Ключ",
+      "type": "Тип",
+      "width": "Ширина",
+      "required": "Обязательный",
+      "visible": "Видимый"
+    },
+    "fieldTypes": {
+      "text": "Текст",
+      "number": "Число",
+      "currency": "Валюта",
+      "date": "Дата",
+      "datetime": "Дата и время",
+      "email": "Email",
+      "phone": "Телефон",
+      "address": "Адрес",
+      "select": "Выпадающий список",
+      "multiselect": "Множественный выбор",
+      "checkbox": "Флажок",
+      "image": "Изображение",
+      "file": "Файл",
+      "reference": "Ссылка"
+    },
+    "widths": {
+      "full": "Полная",
+      "half": "Половина",
+      "third": "Треть"
+    },
+    "badges": {
+      "system": "Системное",
+      "required": "Обязательное"
+    },
+    "fieldCategories": {
+      "system": "Системные поля",
+      "user": "Пользовательские поля",
+      "new": "Новые поля"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Режим интерфейса",
+    "lite": "Lite",
+    "professional": "Профессиональный",
+    "liteDescription": "Упрощенный интерфейс для повседневного использования",
+    "professionalDescription": "Все функции и продвинутые инструменты",
+    "switch": "Переключить режим"
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Активная",
+      "trial": "Пробная",
+      "expired": "Истекла",
+      "locked": "Заблокирована",
+      "grace_period": "Льготный период",
+      "cancelled": "Отменена"
+    },
+    "alerts": {
+      "lockedMessage": "Ваш аккаунт заблокирован из-за неоплаты. Пожалуйста, продлите подписку.",
+      "expiredMessage": "Ваша подписка истекла. Пожалуйста, продлите для продолжения.",
+      "gracePeriodMessage": "Ваша подписка в льготном периоде. {{days}} дней до продления.",
+      "criticalWarning": "Ваша подписка истекает через {{days}} дней!",
+      "warningMessage": "Ваша подписка истекает через {{days}} дней. Пожалуйста, продлите скоро.",
+      "infoMessage": "Осталось {{days}} дней подписки."
+    },
+    "dialogs": {
+      "lockedTitle": "Аккаунт заблокирован",
+      "lockedDescription": "Ваш аккаунт заблокирован из-за неоплаты. Пожалуйста, перейдите в раздел оплаты.",
+      "gracePeriodTitle": "Льготный период",
+      "gracePeriodDescription": "Ваша подписка в льготном периоде. {{days}} дней до блокировки.",
+      "expiredTitle": "Подписка истекла",
+      "expiredDescription": "Ваша подписка истекла. Пожалуйста, продлите для использования системы.",
+      "criticalTitle": "Подписка скоро истекает",
+      "criticalDescription": "Ваша подписка истекает через {{days}} дней. Продлите сейчас.",
+      "warningTitle": "Напоминание о продлении",
+      "warningDescription": "Ваша подписка истекает через {{days}} дней. Пожалуйста, продлите.",
+      "remindLater": "Напомнить позже"
+    },
+    "billing": {
+      "title": "Оплата и подписка",
+      "description": "Управление подпиской, способами оплаты и счетами",
+      "currentSubscription": "Текущая подписка",
+      "subscriptionDetails": "Детали вашей подписки и статус",
+      "currentPlan": "Текущий план",
+      "planName": "Название плана",
+      "noPlan": "Нет плана",
+      "periodEnd": "Конец периода",
+      "daysRemaining": "Осталось дней",
+      "gracePeriod": "Льготный период",
+      "renewNow": "Продлить сейчас",
+      "payNow": "Оплатить сейчас",
+      "upgradePlan": "Улучшить план",
+      "goToBilling": "Перейти к оплате",
+      "accountInfo": "Информация об аккаунте",
+      "accountName": "Название аккаунта",
+      "billingEmail": "Email для оплаты"
+    },
+    "tabs": {
+      "overview": "Обзор",
+      "plans": "Планы",
+      "invoices": "Счета",
+      "companies": "Компании"
+    },
+    "storage": {
+      "title": "Хранилище",
+      "used": "Использовано",
+      "remaining": "Осталось",
+      "files": "Файлы"
+    },
+    "plans": {
+      "current": "Текущий план",
+      "currentPlan": "Текущий план",
+      "selectPlan": "Выбрать план",
+      "free": "Бесплатно",
+      "users": "пользователей",
+      "companies": "компаний",
+      "storage": "хранилище"
+    },
+    "invoices": {
+      "title": "История счетов",
+      "number": "Номер счета",
+      "date": "Дата",
+      "amount": "Сумма",
+      "status": "Статус",
+      "paid": "Оплачен",
+      "pending": "Ожидает",
+      "overdue": "Просрочен",
+      "noInvoices": "Нет счетов"
+    },
+    "companies": {
+      "title": "Компании",
+      "description": "Компании, связанные с вашим аккаунтом",
+      "main": "Основная",
+      "noCompanies": "Нет компаний"
+    },
+    "locked": {
+      "title": "Аккаунт заблокирован",
+      "description": "Ваш аккаунт заблокирован из-за истечения подписки.",
+      "account": "Аккаунт",
+      "status": "Статус",
+      "gracePeriodInfo": "Ваш аккаунт в льготном периоде. {{days}} дней до полной блокировки.",
+      "paymentInfo": "Пожалуйста, продлите подписку для доступа к данным.",
+      "contactSupport": "Связаться с поддержкой",
+      "needHelp": "Нужна помощь?"
+    }
+  },
+
+  "documents": {
+    "storage": "Хранилище",
+    "upload": "Загрузить документ",
+    "uploadFirst": "Загрузите первый документ",
+    "uploadTitle": "Загрузить новый документ",
+    "uploadDescription": "Выберите файл для загрузки (макс. 25 МБ)",
+    "uploading": "Загрузка",
+    "uploadSuccess": "Документ успешно загружен",
+    "deleteSuccess": "Документ успешно удален",
+    "deleteTitle": "Удалить документ",
+    "deleteConfirm": "Вы уверены, что хотите удалить этот документ? Это действие нельзя отменить.",
+    "noDocuments": "Нет прикрепленных документов",
+    "category": "Категория",
+    "description": "Описание",
+    "descriptionPlaceholder": "Введите описание документа (необязательно)",
+    "storageWarning": "Место на хранилище заканчивается",
+    "storageCritical": "Хранилище почти заполнено!",
+    "categories": {
+      "contract": "Договор",
+      "invoice_copy": "Копия счета",
+      "receipt": "Квитанция",
+      "id_document": "Документ удостоверения личности",
+      "certificate": "Сертификат",
+      "report": "Отчет",
+      "other": "Другое"
+    },
+    "errors": {
+      "fileTooLarge": "Файл слишком большой (макс. 25 МБ)",
+      "missingInfo": "Отсутствует информация",
+      "uploadFailed": "Ошибка загрузки",
+      "downloadFailed": "Ошибка скачивания",
+      "viewFailed": "Ошибка просмотра",
+      "deleteFailed": "Ошибка удаления",
+      "quota.maxFilesReached": "Достигнут лимит файлов",
+      "quota.storageLimitReached": "Достигнут лимит хранилища",
+      "quota.fileTooLarge": "Размер файла превышает допустимый лимит"
+    }
+  },
+
+  "import": {
+    "title": "Импорт данных",
+    "step": "Шаг",
+    "of": "из",
+    
+    "selectEntityType": "Выберите тип данных",
+    "selectEntityTypeDescription": "Выберите тип данных для импорта",
+    "fields": "полей",
+    "noEntityTypes": "Нет доступных типов данных для импорта",
+    
+    "downloadTemplate": "Скачать шаблон",
+    "downloadTemplateDescription": "Скачайте шаблон, заполните данными и загрузите",
+    "templateArabic": "Арабский шаблон",
+    "templateEnglish": "Английский шаблон",
+    
+    "dropFileHere": "Перетащите файл сюда",
+    "orClickToSelect": "или нажмите для выбора",
+    "supportedFormats": "Поддерживаемые форматы",
+    "maxSize": "Макс. размер",
+    "parsing": "Чтение файла...",
+    "requiredFields": "Обязательные поля",
+    
+    "invalidFileType": "Тип файла не поддерживается",
+    "fileTooLarge": "Файл слишком большой",
+    
+    "totalRows": "Всего строк",
+    "columns": "Колонок",
+    "mapped": "Сопоставлено",
+    "notMapped": "Не сопоставлено",
+    "missingRequiredFields": "Не сопоставлены обязательные поля",
+    
+    "fileColumn": "Колонка файла",
+    "systemField": "Поле системы",
+    "status": "Статус",
+    "selectField": "Выберите поле",
+    "ignore": "Игнорировать",
+    "sample": "Пример",
+    
+    "validating": "Проверка...",
+    "validateData": "Проверить данные",
+    
+    "validRows": "Корректных строк",
+    "invalidRows": "Некорректных строк",
+    "willImport": "Будет импортировано",
+    "errorSummary": "Сводка ошибок",
+    
+    "importOptions": "Параметры импорта",
+    "skipInvalidRows": "Пропускать некорректные строки",
+    "skipInvalidRowsDescription": "Импортировать только корректные строки",
+    "updateExisting": "Обновлять существующие",
+    "updateExistingDescription": "Обновлять записи при совпадении кода",
+    "useAIAnalysis": "Использовать AI анализ",
+    "useAIAnalysisDescription": "Интеллектуальный анализ для поиска дубликатов и ошибок",
+    
+    "all": "Все",
+    "valid": "Корректные",
+    "invalid": "Некорректные",
+    "data": "Данные",
+    "errors": "Ошибки",
+    "moreErrors": "ещё ошибок",
+    "page": "Страница",
+    
+    "continueToAI": "К AI анализу",
+    "continueToPreview": "К предпросмотру",
+    
+    "aiAnalysisComingSoon": "AI анализ будет доступен в ближайшее время",
+    
+    "readyToImport": "Готово к импорту",
+    "reviewAndConfirm": "Проверьте данные и подтвердите импорт",
+    "recordsToImport": "записей для импорта",
+    "entityType": "Тип данных",
+    "updateEnabled": "Обновление включено",
+    "dataPreview": "Предпросмотр данных",
+    "showing": "Показано",
+    "importSettings": "Настройки импорта",
+    "aiAnalysis": "AI анализ",
+    "importing": "Импорт...",
+    "startImport": "Начать импорт",
+    "records": "записей",
+    
+    "importingData": "Импорт данных",
+    
+    "successTitle": "Импорт успешен!",
+    "successDescription": "Все данные успешно импортированы",
+    "partialSuccessTitle": "Частичный импорт",
+    "partialSuccessDescription": "Часть данных импортирована с ошибками",
+    "failedTitle": "Импорт не удался",
+    "failedDescription": "Не удалось импортировать данные",
+    
+    "imported": "Импортировано",
+    "skipped": "Пропущено",
+    "failed": "Ошибка",
+    "successRate": "Успешность",
+    
+    "importDetails": "Детали импорта",
+    "fileName": "Имя файла",
+    "startTime": "Время начала",
+    "endTime": "Время окончания",
+    
+    "errorReport": "Отчёт об ошибках",
+    "downloadErrorReport": "Скачать отчёт о неудачных строках",
+    "download": "Скачать",
+    
+    "newImport": "Новый импорт",
+    "done": "Готово"
+  }
+}

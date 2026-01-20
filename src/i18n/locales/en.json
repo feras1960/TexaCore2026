@@ -1,0 +1,1617 @@
+{
+  "app": {
+    "name": "Enterprise Resource Planning System",
+    "shortName": "ERP System",
+    "version": "1.0.0",
+    "brand": {
+      "name": "TexaCore",
+      "slogan": "Quality You Can Trust",
+      "fullName": "TexaCore - Enterprise Resource Planning System"
+    }
+  },
+
+  "navigation": {
+    "dashboard": "Dashboard",
+    "accounting": "Accounting",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "inventory": "Inventory",
+    "crm": "CRM",
+    "hr": "Human Resources",
+    "pos": "Point of Sale",
+    "exchange": "Exchange",
+    "realEstate": "Real Estate",
+    "manufacturing": "Manufacturing",
+    "ecommerce": "E-Commerce",
+    "saasControl": "SaaS Control",
+    "aiAnalytics": "AI Analytics",
+    "activityLog": "Activity Log",
+    "systemConfig": "System Config",
+    "componentLab": "Component Lab",
+    "settings": "Settings"
+  },
+
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "print": "Print",
+    "refresh": "Refresh",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "reset": "Reset",
+    "clear": "Clear",
+    "select": "Select",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "loading": "Loading...",
+    "noData": "No data available",
+    "error": "An error occurred",
+    "success": "Operation successful",
+    "warning": "Warning",
+    "info": "Info",
+    "required": "Required",
+    "optional": "Optional",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "balance": "Balance",
+    "amount": "Amount",
+    "quantity": "Quantity",
+    "price": "Price",
+    "date": "Date",
+    "time": "Time",
+    "status": "Status",
+    "type": "Type",
+    "name": "Name",
+    "description": "Description",
+    "notes": "Notes",
+    "reference": "Reference",
+    "code": "Code",
+    "number": "Number",
+    "actions": "Actions",
+    "details": "Details",
+    "history": "History",
+    "active": "Active",
+    "inactive": "Inactive",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "all": "All",
+    "none": "None",
+    "other": "Other",
+    "default": "Default",
+    "custom": "Custom",
+    "orders": "Orders",
+    "country": "Country",
+    "phone": "Phone",
+    "email": "Email",
+    "language": "Language",
+    "timezone": "Timezone",
+    "city": "City",
+    "countries": {
+      "saudiArabia": "Saudi Arabia",
+      "uae": "UAE",
+      "kuwait": "Kuwait"
+    },
+    "languages": {
+      "arabic": "Arabic",
+      "english": "English"
+    },
+    "timezones": {
+      "riyadh": "Riyadh (GMT+3)",
+      "dubai": "Dubai (GMT+4)"
+    },
+    "company": "Company",
+    "project": "Project",
+    "printedOn": "Printed On",
+    "googleSheets": "Google Sheets",
+    "noDataToExport": "No data to export",
+    "copyFailed": "Copy failed",
+    "voucherType": "Voucher Type",
+    "voucherNo": "Voucher No",
+    "financeBook": "Finance Book",
+    "allItems": "All",
+    "showCancelledEntries": "Show Cancelled"
+  },
+
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "register": "Register",
+    "forgotPassword": "Forgot Password?",
+    "resetPassword": "Reset Password",
+    "changePassword": "Change Password",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "rememberMe": "Remember Me",
+    "welcome": "Welcome",
+    "profile": "Profile",
+    "account": "Account",
+    "userInitial": "A",
+    "systemAdmin": "System Administrator",
+    "loginDescription": "Sign in to your account",
+    "registerDescription": "Create a new account and company",
+    "emailPlaceholder": "Enter your email",
+    "passwordPlaceholder": "Enter your password",
+    "fullName": "Full Name",
+    "fullNamePlaceholder": "Enter your full name",
+    "companyName": "Company Name",
+    "companyNamePlaceholder": "Enter your company name",
+    "confirmPasswordPlaceholder": "Confirm your password",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "fillAllFields": "Please fill all fields",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "registrationFailed": "Registration failed. Please try again.",
+    "profileCreationFailed": "Failed to create user profile",
+    "companyWillBeCreated": "A new company will be created automatically",
+    "creatingAccount": "Creating account...",
+    "checkEmail": "Please check your email to confirm your account"
+  },
+
+  "header": {
+    "search": "Search...",
+    "notifications": "Notifications",
+    "quickAdd": "Quick Add",
+    "language": "Language",
+    "theme": "Theme",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode"
+  },
+
+  "sidebar": {
+    "needHelp": "Need Help?",
+    "contactSupport": "Contact Support",
+    "collapse": "Collapse",
+    "expand": "Expand"
+  },
+
+  "quickActions": {
+    "newSalesInvoice": "New Sales Invoice",
+    "newPurchaseInvoice": "New Purchase Invoice",
+    "receiptVoucher": "Receipt Voucher",
+    "paymentVoucher": "Payment Voucher",
+    "newProduct": "New Product",
+    "newCustomer": "New Customer",
+    "newSupplier": "New Supplier",
+    "journalEntry": "Journal Entry"
+  },
+
+  "filters": {
+    "selectBranch": "Select Branch",
+    "allBranches": "All Branches",
+    "selectCurrency": "Select Currency",
+    "selectPeriod": "Select Period",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "thisWeek": "This Week",
+    "lastWeek": "Last Week",
+    "thisMonth": "This Month",
+    "lastMonth": "Last Month",
+    "thisYear": "This Year",
+    "lastYear": "Last Year",
+    "customRange": "Custom Range",
+    "from": "From",
+    "to": "To"
+  },
+
+  "tabs": {
+    "overview": "Overview",
+    "ledger": "Ledger",
+    "invoices": "Invoices",
+    "payments": "Payments",
+    "reservations": "Reservations",
+    "aiAnalysis": "AI Analysis",
+    "events": "Events",
+    "details": "Details",
+    "history": "History",
+    "settings": "Settings",
+    "reports": "Reports",
+    "notes": "Notes",
+    "documents": "Documents",
+    "activity": "Activity",
+    "writeNote": "Write a new note...",
+    "addNote": "Add Note",
+    "noNotes": "No notes yet",
+    "noDocuments": "No documents yet",
+    "noActivity": "No activity yet",
+    "uploadDocument": "Upload Document",
+    "allActivity": "All Activity",
+    "filterActivity": "Filter Activity",
+    "analyzing": "Analyzing...",
+    "aiSuggestions": "AI Suggestions",
+    "noReservations": "No reservations"
+  },
+
+  "status": {
+    "draft": "Draft",
+    "pending": "Pending",
+    "inProgress": "In Progress",
+    "confirmed": "Confirmed",
+    "completed": "Completed",
+    "partial": "Partial",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "overdue": "Overdue",
+    "cancelled": "Cancelled",
+    "rejected": "Rejected",
+    "approved": "Approved",
+    "submitted": "Submitted",
+    "closed": "Closed",
+    "open": "Open",
+    "warning": "Warning"
+  },
+
+  "stats": {
+    "totalSales": "Total Sales",
+    "totalRevenue": "Total Revenue",
+    "totalExpenses": "Total Expenses",
+    "netProfit": "Net Profit",
+    "grossProfit": "Gross Profit",
+    "totalOrders": "Total Orders",
+    "pendingOrders": "Pending Orders",
+    "completedOrders": "Completed Orders",
+    "totalCustomers": "Total Customers",
+    "activeCustomers": "Active Customers",
+    "newCustomers": "New Customers",
+    "totalSuppliers": "Total Suppliers",
+    "totalProducts": "Total Products",
+    "lowStock": "Low Stock",
+    "outOfStock": "Out of Stock"
+  },
+
+  "currencies": {
+    "SAR": "Saudi Riyal",
+    "USD": "US Dollar",
+    "EUR": "Euro",
+    "GBP": "British Pound",
+    "AED": "UAE Dirham",
+    "KWD": "Kuwaiti Dinar",
+    "QAR": "Qatari Riyal",
+    "BHD": "Bahraini Dinar",
+    "OMR": "Omani Rial",
+    "EGP": "Egyptian Pound",
+    "JOD": "Jordanian Dinar",
+    "TRY": "Turkish Lira",
+    "RUB": "Russian Ruble",
+    "UAH": "Ukrainian Hryvnia",
+    "PLN": "Polish Zloty",
+    "RON": "Romanian Leu"
+  },
+
+  "branches": {
+    "main": "Main Branch",
+    "all": "All Branches"
+  },
+
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Comprehensive view of all system modules",
+    "welcomeMessage": "Welcome to Enterprise Resource Planning System",
+    "recentOrders": "Recent Orders",
+    "recentInvoices": "Recent Invoices",
+    "recentPayments": "Recent Payments",
+    "quickStats": "Quick Stats",
+    "viewAll": "View All",
+    "chartsPlaceholder": "Charts will be added here"
+  },
+
+  "accounting": {
+    "module": "Accounting",
+    "dashboard": "Accounting Dashboard",
+    "chartOfAccounts": "Chart of Accounts",
+    "chartOfAccountsDescription": "Manage your chart of accounts with hierarchical structure",
+    "journalEntries": "Journal Entries",
+    "receipts": "Receipts",
+    "payments": "Payments",
+    "generalLedger": "General Ledger",
+    "funds": "Funds and Banks",
+    "parties": "Parties",
+    "settings": "Accounting Settings",
+    "reports": "Accounting Reports",
+    "trialBalance": "Trial Balance",
+    "incomeStatement": "Income Statement",
+    "balanceSheet": "Balance Sheet",
+    "cashFlow": "Cash Flow",
+    "costCenters": "Cost Centers",
+    "budgets": "Budgets",
+    "fiscalYear": "Fiscal Year",
+    "closingEntries": "Closing Entries",
+    "addAccount": "Add Account",
+    "addNewRow": "Add New Row",
+    "addRow": "Add row",
+    "balanceEntry": "Balance entry",
+    "duplicateRow": "Duplicate row",
+    "copyAccountDown": "Copy field from row above",
+    "save": "Save",
+    "editAccount": "Edit Account",
+    "totalAccounts": "Total Accounts",
+    "activeAccounts": "Active Accounts",
+    "groupsCount": "Groups",
+    "totalBalance": "Total Balance",
+    "isGroup": "Is Group Account",
+    "noParent": "No Parent (Root Account)",
+    "accountCodeHint": "Account code in ERPNext format (e.g., 1000, 1100, 1110)",
+    "treeView": "Tree View",
+    "tableView": "Table View",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "searchPlaceholder": "Search accounts...",
+    "editGroup": "Edit Group",
+    "addSubGroup": "Add Sub-group",
+    "addSubAccount": "Add Sub-account",
+    "printReport": "Print Report",
+    "addGroup": "Add Group",
+    "group": "Group",
+    "detail": "Detail",
+    "deleteAccount": "Delete Account",
+    "deleteAccountConfirm": "Are you sure you want to delete this account?",
+    "deleteAccountWarning": "This action cannot be undone. The account will be permanently deleted if it has no transactions or child accounts.",
+    "deleteAccountError": "Cannot delete account",
+    "deleteAccountHasTransactions": "Cannot delete account with transactions. Account has movements.",
+    "deleteAccountHasChildren": "Cannot delete account with child accounts. Please delete or move children first.",
+    "selectGroupToView": "Select a group from the tree to view its accounts",
+    "noCompanySelected": "No Company Selected",
+    "createCompanyFirst": "Please run the SQL script in Supabase to create a test company.",
+    "runSQLScript": "Run the SQL script: supabase/create_test_company.sql",
+    "accountTypes": {
+      "asset": "Asset",
+      "liability": "Liability",
+      "equity": "Equity",
+      "revenue": "Revenue",
+      "expense": "Expense"
+    },
+    "account": {
+      "name": "Account Name",
+      "nameEn": "Account Name (English)",
+      "code": "Account Code",
+      "type": "Account Type",
+      "parent": "Parent Account",
+      "balance": "Balance",
+      "currency": "Currency",
+      "select": "Select account...",
+      "notFound": "No account found",
+      "treeSelector": "Chart of Accounts",
+      "treeSelectorDescription": "Select accounts from tree - Double click to add account",
+      "closeTree": "Close Tree",
+      "selectedCount": "selected",
+      "doubleClickToAdd": "Double click to add account",
+      "onlyAccounts": "Accounts only (not groups)"
+    },
+    "entry": {
+      "number": "Entry Number",
+      "date": "Entry Date",
+      "reference": "Reference",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "total": "Total"
+    },
+    "receipt": {
+      "title": "Receipt Voucher",
+      "number": "Receipt Number",
+      "date": "Receipt Date",
+      "customer": "Customer",
+      "amount": "Amount",
+      "paymentMethod": "Payment Method",
+      "fund": "Fund",
+      "notes": "Notes",
+      "customerInfo": "Customer Information"
+    },
+    "payment": {
+      "title": "Payment Voucher",
+      "number": "Payment Number",
+      "date": "Payment Date",
+      "supplier": "Supplier",
+      "amount": "Amount",
+      "paymentMethod": "Payment Method",
+      "fund": "Fund",
+      "notes": "Notes"
+    },
+    "labels": {
+      "debitTotal": "Total Debit",
+      "creditTotal": "Total Credit",
+      "balance": "Balance",
+      "difference": "Difference",
+      "marked": "Marked"
+    },
+    "currentBalance": "Current Balance",
+    "openingBalance": "Opening Balance",
+    "closingBalance": "Closing Balance",
+    "periodMovement": "Period Movement",
+    "dashboard": {
+      "title": "Accounting Dashboard",
+      "customize": "Customize",
+      "customizeDialog": {
+        "title": "Customize Dashboard",
+        "description": "Choose which widgets to display on your dashboard. You can drag and drop widgets to reorder them.",
+        "reset": "Reset to Default",
+        "done": "Done"
+      },
+      "widgetTypes": {
+        "kpi": "KPI",
+        "chart": "Chart",
+        "list": "List",
+        "alert": "Alerts"
+      },
+      "widgetSizes": {
+        "small": "Small",
+        "medium": "Medium",
+        "large": "Large"
+      },
+      "widgets": {
+        "liquidity": "Liquidity Ratio",
+        "profitMargin": "Net Profit Margin",
+        "dso": "Days Sales Outstanding",
+        "dpo": "Days Payables Outstanding",
+        "cashFlowChart": "Monthly Cash Flow",
+        "expenseBreakdown": "Expense Breakdown",
+        "overdueAlerts": "Overdue Alerts",
+        "vatSummary": "VAT Summary",
+        "pendingItems": "Pending Items",
+        "revenueComparison": "Revenue Comparison"
+      },
+      "currentRatio": "Current Ratio",
+      "netMargin": "Net Margin",
+      "avgCollection": "Avg. Collection",
+      "avgPayment": "Avg. Payment",
+      "target": "Target",
+      "days": "days",
+      "healthy": "Healthy",
+      "onTarget": "On Target",
+      "vatSummary": "VAT Summary",
+      "collected": "Collected",
+      "paid": "Paid",
+      "net": "Net",
+      "due": "Due",
+      "overdueReceivables": "Overdue Receivables",
+      "pendingItems": "Pending Items",
+      "cashFlow": "Cash Flow",
+      "in": "In",
+      "out": "Out"
+    },
+    "receipts": "Receipts",
+    "payments": "Payments",
+    "cashJournal": "Cash Journal",
+    "transfer": "Transfer",
+    "exchange": "Exchange",
+    "journalEntry": "Journal Entry",
+    "recentTransactions": "Recent Transactions",
+    "accountsWatchlist": "Watchlist",
+    "addToWatchlist": "Add to Watchlist",
+    "entryTabs": {
+      "journal": {
+        "title": "Journal Entry",
+        "description": "Record a new accounting entry"
+      },
+      "receipt": {
+        "title": "Receipt Voucher",
+        "description": "Record received payments"
+      },
+      "payment": {
+        "title": "Payment Voucher",
+        "description": "Record outgoing payments"
+      },
+      "cash": {
+        "title": "Cash Journal",
+        "description": "Cash fund movements"
+      },
+      "transfer": {
+        "title": "Transfer",
+        "description": "Transfer between funds"
+      },
+      "exchange": {
+        "title": "Exchange",
+        "description": "Currency exchange"
+      }
+    },
+    "cashJournalPage": {
+      "addCashJournal": "Add Cash Journal",
+      "count": "Cash Journal Count",
+      "totalDebit": "Total Debit",
+      "totalCredit": "Total Credit",
+      "posted": "Posted",
+      "drafts": "Drafts",
+      "searchPlaceholder": "Search entries...",
+      "filter": "Filter",
+      "type": "Type",
+      "status": "Status",
+      "origin": "Origin",
+      "period": "Period",
+      "entryNumber": "Entry #",
+      "reference": "Reference",
+      "pickRange": "Pick range",
+      "debit": "Debit",
+      "credit": "Credit",
+      "ref": "Ref",
+      "noMatchingEntries": "No matching cash journal entries",
+      "clearFilters": "Clear filters",
+      "countLabel": "Count:",
+      "postedDraftPending": "{posted} posted • {draft} draft • {pending} pending",
+      "googleSheets": "Google Sheets",
+      "print": "Print"
+    },
+    "entryTypes": {
+      "all": "All",
+      "receipt": "Receipts",
+      "payment": "Payments",
+      "cash": "Cash Journal",
+      "sales": "Sales Entry",
+      "purchase": "Purchase Entry",
+      "expense": "Expense Entry",
+      "payroll": "Payroll Entry",
+      "adjustment": "Adjustment Entry",
+      "mixed": "Mixed Entry"
+    },
+    "statusTypes": {
+      "all": "All",
+      "posted": "Posted",
+      "draft": "Draft",
+      "pending": "Pending",
+      "cancelled": "Cancelled"
+    },
+    "originTypes": {
+      "all": "All",
+      "manual": "Manual",
+      "sales": "Sales",
+      "purchases": "Purchases",
+      "inventory": "Inventory",
+      "payroll": "Payroll",
+      "system": "System"
+    },
+    "datePresets": {
+      "all": "All Time",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This Week",
+      "lastWeek": "Last Week",
+      "thisMonth": "This Month",
+      "lastMonth": "Last Month",
+      "last7Days": "Last 7 Days",
+      "last30Days": "Last 30 Days",
+      "last90Days": "Last 90 Days",
+      "thisYear": "This Year",
+      "custom": "Custom Range"
+    },
+    "reconciliationColors": {
+      "none": "None",
+      "green": "Green",
+      "red": "Red",
+      "yellow": "Yellow",
+      "blue": "Blue",
+      "purple": "Purple",
+      "orange": "Orange",
+      "gray": "Gray",
+      "pink": "Pink",
+      "cyan": "Cyan"
+    },
+    "partiesStats": {
+      "totalCustomers": "Total Customers",
+      "totalReceivables": "Total Receivables",
+      "totalSuppliers": "Total Suppliers",
+      "totalPayables": "Total Payables"
+    },
+    "partiesDescription": "Manage customers, suppliers, receivables and payables",
+    "customers": "Customers",
+    "suppliers": "Suppliers",
+    "settingsSections": {
+      "company": "Company Settings",
+      "companyDesc": "Basic company information",
+      "fiscalYear": "Fiscal Year",
+      "fiscalYearDesc": "Define fiscal year period",
+      "tax": "Tax Settings",
+      "taxDesc": "Configure VAT and other taxes",
+      "workflow": "Workflow",
+      "workflowDesc": "Approval and auto-posting settings"
+    },
+    "settingsFields": {
+      "companyName": "Company Name",
+      "baseCurrency": "Base Currency",
+      "fiscalYearStart": "Fiscal Year Start",
+      "fiscalYearEnd": "Fiscal Year End",
+      "enableTax": "Enable Tax",
+      "enableTaxDesc": "Enable VAT calculation",
+      "vatRate": "VAT Rate",
+      "autoPostEntries": "Auto-post Entries",
+      "autoPostEntriesDesc": "Post journal entries directly without review",
+      "requireApproval": "Require Approval",
+      "requireApprovalDesc": "Request manager approval before posting"
+    },
+    "settingsInfo": {
+      "title": "Important Information",
+      "desc1": "Changing base currency may affect financial reports.",
+      "desc2": "Make sure to review settings before saving."
+    },
+    "settingsDescription": "Customize accounting, fiscal year and tax settings",
+    "reportsDescription": "View financial and accounting reports",
+    "fundsDescription": "Manage cash funds and bank accounts",
+    "selectAccountPrompt": "Please select an account from the list above"
+  },
+
+  "sales": {
+    "module": "Sales",
+    "quotation": "Quotation",
+    "salesOrder": "Sales Order",
+    "deliveryNote": "Delivery Note",
+    "salesInvoice": "Sales Invoice",
+    "salesReturn": "Sales Return",
+    "customer": "Customer",
+    "customers": "Customers",
+    "priceList": "Price List",
+    "discount": "Discount",
+    "tax": "Tax",
+    "vat": "VAT"
+  },
+
+  "purchases": {
+    "module": "Purchases",
+    "purchaseRequest": "Purchase Request",
+    "purchaseOrder": "Purchase Order",
+    "purchaseReceipt": "Purchase Receipt",
+    "purchaseInvoice": "Purchase Invoice",
+    "purchaseReturn": "Purchase Return",
+    "supplier": "Supplier",
+    "suppliers": "Suppliers"
+  },
+
+  "inventory": {
+    "module": "Inventory",
+    "items": "Items",
+    "item": "Item",
+    "warehouse": "Warehouse",
+    "warehouses": "Warehouses",
+    "stockEntry": "Stock Entry",
+    "stockTransfer": "Stock Transfer",
+    "stockAdjustment": "Stock Adjustment",
+    "stockReconciliation": "Stock Reconciliation",
+    "reorderLevel": "Reorder Level",
+    "minimumStock": "Minimum Stock",
+    "maximumStock": "Maximum Stock",
+    "currentStock": "Current Stock",
+    "availableStock": "Available Stock",
+    "reservedStock": "Reserved Stock"
+  },
+
+  "crm": {
+    "module": "Customer Relationship Management",
+    "leads": "Leads",
+    "opportunities": "Opportunities",
+    "contacts": "Contacts",
+    "activities": "Activities",
+    "campaigns": "Campaigns",
+    "pipeline": "Sales Pipeline"
+  },
+
+  "hr": {
+    "module": "Human Resources",
+    "employees": "Employees",
+    "employee": "Employee",
+    "departments": "Departments",
+    "designations": "Designations",
+    "attendance": "Attendance",
+    "leave": "Leave",
+    "payroll": "Payroll",
+    "recruitment": "Recruitment",
+    "training": "Training",
+    "performance": "Performance"
+  },
+
+  "pos": {
+    "module": "Point of Sale",
+    "newSale": "New Sale",
+    "cashier": "Cashier",
+    "register": "Register",
+    "shift": "Shift",
+    "openShift": "Open Shift",
+    "closeShift": "Close Shift",
+    "cart": "Cart",
+    "checkout": "Checkout",
+    "payment": "Payment",
+    "receipt": "Receipt"
+  },
+
+  "exchange": {
+    "module": "Exchange",
+    "buyRate": "Buy Rate",
+    "sellRate": "Sell Rate",
+    "exchangeRate": "Exchange Rate",
+    "currencyExchange": "Currency Exchange",
+    "fundTransfer": "Fund Transfer"
+  },
+
+  "realEstate": {
+    "module": "Real Estate",
+    "properties": "Properties",
+    "units": "Units",
+    "contracts": "Contracts",
+    "tenants": "Tenants",
+    "rent": "Rent",
+    "maintenance": "Maintenance"
+  },
+
+  "manufacturing": {
+    "module": "Manufacturing",
+    "bom": "Bill of Materials",
+    "workOrder": "Work Order",
+    "productionPlan": "Production Plan",
+    "qualityInspection": "Quality Inspection",
+    "workstation": "Workstation"
+  },
+
+  "ecommerce": {
+    "module": "E-Commerce",
+    "store": "Store",
+    "products": "Products",
+    "categories": "Categories",
+    "orders": "Orders",
+    "shipping": "Shipping",
+    "promotions": "Promotions"
+  },
+
+  "validation": {
+    "required": "This field is required",
+    "email": "Please enter a valid email",
+    "minLength": "Must be at least {min} characters",
+    "maxLength": "Must not exceed {max} characters",
+    "min": "Must be at least {min}",
+    "max": "Must not exceed {max}",
+    "positive": "Must be a positive number",
+    "integer": "Must be a whole number",
+    "numeric": "Must be a number",
+    "url": "Please enter a valid URL",
+    "phone": "Please enter a valid phone number",
+    "match": "Values do not match",
+    "unique": "This value already exists",
+    "date": "Please enter a valid date"
+  },
+
+  "messages": {
+    "saveSuccess": "Saved successfully",
+    "saveError": "Failed to save",
+    "deleteSuccess": "Deleted successfully",
+    "deleteError": "Failed to delete",
+    "updateSuccess": "Updated successfully",
+    "updateError": "Failed to update",
+    "confirmDelete": "Are you sure you want to delete?",
+    "confirmCancel": "Are you sure you want to cancel?",
+    "unsavedChanges": "Unsaved Changes",
+    "unsavedChangesDesc": "You have unsaved changes. Are you sure you want to close this form? All data will be lost.",
+    "discardAndClose": "Discard & Close",
+    "noResults": "No results found",
+    "loadingError": "Failed to load data",
+    "networkError": "Network connection error",
+    "sessionExpired": "Session expired",
+    "accessDenied": "Access denied",
+    "notFound": "Page not found",
+    "pageUnderDevelopment": "This page is under development"
+  },
+
+  "table": {
+    "showing": "Showing",
+    "of": "of",
+    "entries": "entries",
+    "page": "Page",
+    "rowsPerPage": "Rows per page",
+    "noData": "No data to display",
+    "loading": "Loading data...",
+    "selectRow": "Select row",
+    "selectAll": "Select all",
+    "sortAsc": "Sort ascending",
+    "sortDesc": "Sort descending",
+    "filter": "Filter",
+    "clearFilters": "Clear filters",
+    "export": "Export",
+    "print": "Print"
+  },
+
+  "languages": {
+    "en": "English",
+    "ar": "Arabic",
+    "ru": "Russian",
+    "uk": "Ukrainian",
+    "ro": "Romanian",
+    "pl": "Polish",
+    "tr": "Turkish",
+    "de": "German",
+    "it": "Italian"
+  },
+
+  "mockData": {
+    "customers": {
+      "customer1": "Al-Fajr Trading Company",
+      "customer2": "Al-Noor Foundation",
+      "customer3": "Al-Amal Company",
+      "customer4": "Al-Salam Factory"
+    }
+  },
+
+  "componentLab": {
+    "title": "Component Lab",
+    "description": "Test and preview all popups and components",
+    "info": {
+      "title": "About Component Lab",
+      "description": "This lab allows you to test and preview all available popups, dialogs, and components. Click 'Open' on any component to see it in action."
+    },
+    "table": {
+      "id": "Component ID",
+      "name": "Component Name",
+      "description": "Description",
+      "type": "Type",
+      "status": "Status",
+      "path": "File Path",
+      "pathLabel": "Path",
+      "actions": "Actions",
+      "noPopups": "No popups registered yet"
+    },
+    "status": {
+      "ready": "Ready",
+      "wip": "Work in Progress",
+      "planned": "Planned"
+    },
+    "actions": {
+      "open": "Open"
+    },
+    "preview": {
+      "title": "Component Preview",
+      "description": "Preview for component",
+      "exampleContent": "This is an example of UnifiedSheet content. You can add any content here inside children.",
+      "exampleContentModal": "This is an example of UnifiedModal content. You can add any content here inside children."
+    },
+    "popups": {
+      "unifiedSheet": {
+        "name": "Unified Sheet",
+        "description": "Side panel for detailed views"
+      },
+      "unifiedModal": {
+        "name": "Unified Modal",
+        "description": "Centered dialog for forms and confirmations"
+      },
+      "generalLedgerSheet": {
+        "name": "General Ledger Sheet",
+        "description": "Comprehensive report of all account movements"
+      },
+      "fundTransferDialog": {
+        "name": "Fund Transfer Dialog",
+        "description": "Transfer funds between accounts and banks"
+      },
+      "currencyExchangeDialog": {
+        "name": "Currency Exchange Dialog",
+        "description": "Exchange currencies within a fund"
+      },
+      "transactionDetailsSheet": {
+        "name": "Transaction Details Sheet",
+        "description": "View and edit transaction details"
+      },
+      "quickReceiptDialog": {
+        "name": "Quick Receipt Dialog",
+        "description": "Quick entry dialog for receipts"
+      },
+      "quickPaymentDialog": {
+        "name": "Quick Payment Dialog",
+        "description": "Quick entry dialog for payments"
+      },
+      "accountDetailsSheet": {
+        "name": "Account Details Sheet (Legacy)",
+        "description": "Comprehensive account details with ledger and transactions (Legacy version with mock data)"
+      },
+      "accountDetailsSheetV2": {
+        "name": "Account Details Sheet V2",
+        "description": "Clean version of account details - connected to real data only, no mock data"
+      },
+      "addFundDialog": {
+        "name": "Add Fund Dialog",
+        "description": "Dialog to add new fund or bank account"
+      },
+      "addCostCenterDialog": {
+        "name": "Add Cost Center Dialog",
+        "description": "Dialog to add new cost center"
+      },
+      "fundTransactionSheet": {
+        "name": "Fund Transaction Sheet",
+        "description": "View and manage fund transactions"
+      },
+      "newJournalEntrySheet": {
+        "name": "New Journal Entry Sheet",
+        "description": "Multi-tab sheet for journal entries, receipts, payments, cash journal, transfers, and currency exchange"
+      },
+      "journalEntryDetailSheet": {
+        "name": "Journal Entry Detail Sheet",
+        "description": "Detailed view of a journal entry with all lines and accounting information"
+      },
+      "invoiceDetailSheet": {
+        "name": "Invoice Detail Sheet",
+        "description": "Detailed view of an invoice with items, totals, and payment information"
+      },
+      "paymentDetailSheet": {
+        "name": "Payment Detail Sheet",
+        "description": "Detailed view of a payment or receipt voucher with accounting entries"
+      },
+      "nexaTable": {
+        "name": "Nexa Table",
+        "description": "Unified table component with sorting, filtering, selection, and serial numbers"
+      },
+      "ledgerTable": {
+        "name": "Enhanced Ledger Table",
+        "description": "Enhanced version of NexaTable with advanced filters, stat cards, quick date filters, and automatic financial number coloring"
+      },
+      "createTenantDialog": {
+        "name": "Create Tenant Dialog",
+        "description": "Multi-tab dialog to create a new tenant with company, owner, and subscription information"
+      },
+      "agentDetailsSheet": {
+        "name": "Agent Details Sheet",
+        "description": "Detailed view of an agent with contact info, balance, commissions, and White Label status"
+      },
+      "universalDetailSheet": {
+        "name": "Universal Detail Sheet",
+        "description": "Config-driven unified sheet system - supports Tenants, Agents, Invoices with nested sheets"
+      }
+    },
+    "actions": {
+      "open": "Open",
+      "openInPlace": "Open in Place"
+    }
+  },
+
+  "qrCode": {
+    "title": "QR Code",
+    "generate": "Generate QR",
+    "scan": "Scan QR",
+    "scanWithMobile": "Scan with mobile app",
+    "download": "Download QR",
+    "print": "Print QR",
+    "share": "Share",
+    "copy": "Copy Link",
+    "copied": "Link copied",
+    "docTypes": {
+      "invoice": "Invoice",
+      "payment": "Payment",
+      "receipt": "Receipt",
+      "journalEntry": "Journal Entry",
+      "account": "Account",
+      "customer": "Customer",
+      "supplier": "Supplier",
+      "order": "Order",
+      "tenant": "Tenant",
+      "fund": "Fund"
+    }
+  },
+
+  "statusManager": {
+    "title": "Status Management",
+    "description": "Manage document statuses and access permissions",
+    "newStatus": "New Status",
+    "editStatus": "Edit Status",
+    "deleteStatus": "Delete Status",
+    "statusGroups": "Status Groups",
+    "selectStatus": "Select status",
+    "noStatuses": "No statuses found",
+    "cannotDeleteSystem": "Cannot delete system status",
+    "statusUpdated": "Status updated",
+    "statusCreated": "Status created",
+    "statusDeleted": "Status deleted",
+    "changeTo": "Change to",
+    "addComment": "Add comment (optional)...",
+    "deleteConfirm": "Are you sure you want to delete this status?",
+    "fields": {
+      "nameAr": "Name (Arabic)",
+      "nameEn": "Name (English)",
+      "code": "Code",
+      "group": "Group",
+      "color": "Color",
+      "timeNorm": "Time Norm (hours)",
+      "isInitial": "Initial Status",
+      "isFinal": "Final Status",
+      "canView": "Can View",
+      "canSet": "Can Set"
+    },
+    "groups": {
+      "new": "New",
+      "inProgress": "In Progress",
+      "pending": "Pending",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "closedSuccess": "Closed Successfully",
+      "closedFail": "Closed Unsuccessfully"
+    },
+    "badges": {
+      "system": "System",
+      "required": "Required"
+    }
+  },
+
+  "printSystem": {
+    "title": "Print Documents",
+    "print": "Print",
+    "printAll": "Print All",
+    "preview": "Preview",
+    "exportPdf": "Export PDF",
+    "printing": "Printing...",
+    "exporting": "Exporting...",
+    "selectTemplate": "Select Template",
+    "printOptions": "Print Options",
+    "printSettings": "Print Settings",
+    "advancedOptions": "Advanced options...",
+    "relatedDocuments": "Related Documents",
+    "options": {
+      "includeQR": "Include QR Code",
+      "includeHeader": "Include Header",
+      "includeFooter": "Include Footer",
+      "includeStamp": "Include Stamp",
+      "includeSignature": "Include Signature"
+    },
+    "categories": {
+      "contract": "Contracts",
+      "invoice": "Invoices",
+      "receipt": "Vouchers",
+      "report": "Reports",
+      "other": "Other"
+    },
+    "templates": {
+      "salesInvoice": "Sales Invoice",
+      "salesInvoiceNoVat": "Sales Invoice (No VAT)",
+      "creditNote": "Credit Note",
+      "receiptVoucher": "Receipt Voucher",
+      "paymentVoucher": "Payment Voucher",
+      "salesContract": "Sales Contract",
+      "rentalContract": "Rental Contract",
+      "accountStatement": "Account Statement"
+    }
+  },
+
+  "formEditor": {
+    "title": "Form Editor",
+    "description": "Customize fields and their order to your needs",
+    "saveChanges": "Save Changes",
+    "changesSaved": "Changes saved successfully",
+    "addHeader": "Add Header",
+    "addField": "Add Field",
+    "editHeader": "Edit Header",
+    "editField": "Edit Field",
+    "deleteConfirm": "Are you sure you want to delete?",
+    "noFields": "No fields",
+    "showOnCard": "Show on card",
+    "showOnOrderCard": "Show on order card",
+    "formType": "Type",
+    "default": "Default",
+    "compact": "Compact",
+    "fields": {
+      "labelAr": "Label (Arabic)",
+      "labelEn": "Label (English)",
+      "key": "Key",
+      "type": "Type",
+      "width": "Width",
+      "required": "Required",
+      "visible": "Visible"
+    },
+    "fieldTypes": {
+      "text": "Text",
+      "number": "Number",
+      "currency": "Currency",
+      "date": "Date",
+      "datetime": "Date & Time",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "select": "Dropdown",
+      "multiselect": "Multi-select",
+      "checkbox": "Checkbox",
+      "image": "Image",
+      "file": "File",
+      "reference": "Reference"
+    },
+    "widths": {
+      "full": "Full",
+      "half": "Half",
+      "third": "Third"
+    },
+    "badges": {
+      "system": "System",
+      "required": "Required"
+    },
+    "fieldCategories": {
+      "system": "System Fields",
+      "user": "User Fields",
+      "new": "New Fields"
+    }
+  },
+
+  "interfaceMode": {
+    "title": "Interface Mode",
+    "lite": "Lite",
+    "professional": "Professional",
+    "liteDescription": "Simplified interface for daily use",
+    "professionalDescription": "All features and advanced tools",
+    "switch": "Switch Mode"
+  },
+
+  "saas": {
+    "title": "SaaS Management",
+    "dashboard": "Dashboard",
+    "subscribers": "Subscribers",
+    "packages": "Packages",
+    "agents": "Agents",
+    "whiteLabel": "White Label",
+    "payments": "Payments",
+    "modules": "Modules",
+    "support": "Support",
+    "notifications": "Notifications",
+    "coupons": "Coupons",
+    "referrals": "Referrals",
+    "webhooks": "Webhooks",
+    "analytics": "Analytics",
+    "reports": "Reports",
+    "marketing": "Marketing",
+    "settings": "Settings",
+    "comingSoon": "Coming Soon - Under Development",
+    "createNew": "Create New",
+    "edit": "Edit",
+    "delete": "Delete",
+    "view": "View",
+    "activate": "Activate",
+    "suspend": "Suspend",
+    "approve": "Approve",
+    "reject": "Reject",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending",
+      "suspended": "Suspended",
+      "expired": "Expired",
+      "cancelled": "Cancelled"
+    },
+    "agents": {
+      "title": "Agents Management",
+      "description": "Manage agents, resellers, and commissions",
+      "create": "Register New Agent",
+      "approve": "Approve Agent",
+      "suspend": "Suspend Agent",
+      "activate": "Activate Agent",
+      "commissions": "Commissions",
+      "withdrawals": "Withdrawals",
+      "targets": "Targets",
+      "dashboard": "Agent Dashboard",
+      "whiteLabel": "White Label",
+      "tier": "Tier",
+      "balance": "Balance",
+      "pendingBalance": "Pending Balance",
+      "totalEarned": "Total Earned",
+      "totalWithdrawn": "Total Withdrawn",
+      "totalTenants": "Total Tenants",
+      "activeTenants": "Active Tenants",
+      "totalAgents": "Total Agents",
+      "activeAgents": "Active Agents",
+      "totalCommissions": "Total Commissions",
+      "contactInfo": "Contact Information",
+      "tiers": {
+        "bronze": "Bronze",
+        "silver": "Silver",
+        "gold": "Gold",
+        "platinum": "Platinum",
+        "diamond": "Diamond"
+      },
+      "error": {
+        "loadFailed": "Failed to load agents"
+      }
+    },
+    "tenants": {
+      "title": "Subscribers Management",
+      "description": "Manage subscribers and subscriptions",
+      "create": "Create New Subscriber",
+      "createDescription": "Create a new subscriber in the system",
+      "edit": "Edit Subscriber",
+      "suspend": "Suspend Subscriber",
+      "activate": "Activate Subscriber",
+      "details": "Subscriber Details",
+      "subscription": "Subscription",
+      "usage": "Usage",
+      "billing": "Billing",
+      "total": "Total Subscribers",
+      "agentInfo": "Linked to Agent",
+      "referral": "Referral",
+      "referralCode": "Referral Code",
+      "referralSource": "Referral Source",
+      "ownerName": "Owner Name",
+      "plan": "Plan",
+      "tabs": {
+        "company": "Company",
+        "owner": "Owner",
+        "subscription": "Subscription"
+      },
+      "placeholders": {
+        "companyName": "Company Name",
+        "ownerName": "Owner Name",
+        "ownerEmail": "admin@company.com"
+      },
+      "error": {
+        "loadFailed": "Failed to load subscribers",
+        "noPermission": "No permission to access",
+        "createFailed": "Failed to create subscriber"
+      }
+    },
+    "plans": {
+      "starter": "Starter",
+      "professional": "Professional",
+      "enterprise": "Enterprise"
+    },
+    "whiteLabel": {
+      "title": "White Label System",
+      "registerPayment": "Register White Label Payment",
+      "activate": "Activate White Label",
+      "addDomain": "Add Domain",
+      "verifyDomain": "Verify Domain",
+      "configureBranding": "Configure Branding",
+      "paymentAmount": "Payment Amount",
+      "paymentMethod": "Payment Method",
+      "periodMonths": "Period (Months)",
+      "domain": "Domain",
+      "domainType": "Domain Type",
+      "brandName": "Brand Name",
+      "logo": "Logo",
+      "primaryColor": "Primary Color",
+      "contactEmail": "Contact Email",
+      "status": {
+        "inactive": "Inactive",
+        "pending": "Pending Payment",
+        "active": "Active",
+        "suspended": "Suspended",
+        "expired": "Expired"
+      },
+      "commission": "Commission %"
+    }
+  },
+
+  "subscription": {
+    "status": {
+      "active": "Active",
+      "trial": "Trial",
+      "expired": "Expired",
+      "locked": "Locked",
+      "grace_period": "Grace Period",
+      "cancelled": "Cancelled"
+    },
+    "alerts": {
+      "lockedMessage": "Your account has been locked due to non-payment. Please renew your subscription.",
+      "expiredMessage": "Your subscription has expired. Please renew to continue.",
+      "gracePeriodMessage": "Your subscription is in grace period. {{days}} days remaining to renew.",
+      "criticalWarning": "Your subscription expires in {{days}} days!",
+      "warningMessage": "Your subscription expires in {{days}} days. Please renew soon.",
+      "infoMessage": "{{days}} days remaining on your subscription."
+    },
+    "dialogs": {
+      "lockedTitle": "Account Locked",
+      "lockedDescription": "Your account has been locked due to non-payment. Please go to billing to renew your subscription.",
+      "gracePeriodTitle": "Grace Period",
+      "gracePeriodDescription": "Your subscription is in grace period. {{days}} days remaining before account lock.",
+      "expiredTitle": "Subscription Expired",
+      "expiredDescription": "Your subscription has expired. Please renew to continue using the system.",
+      "criticalTitle": "Subscription Expiring Soon",
+      "criticalDescription": "Your subscription expires in just {{days}} days. Renew now to avoid service interruption.",
+      "warningTitle": "Renewal Reminder",
+      "warningDescription": "Your subscription expires in {{days}} days. Please renew to ensure continued service.",
+      "remindLater": "Remind Me Later"
+    },
+    "billing": {
+      "title": "Billing & Subscription",
+      "description": "Manage your subscription, payment methods, and invoices",
+      "currentSubscription": "Current Subscription",
+      "subscriptionDetails": "Your subscription details and status",
+      "currentPlan": "Current Plan",
+      "planName": "Plan Name",
+      "noPlan": "No Plan",
+      "periodEnd": "Period End",
+      "daysRemaining": "Days Remaining",
+      "gracePeriod": "Grace Period",
+      "renewNow": "Renew Now",
+      "payNow": "Pay Now",
+      "upgradePlan": "Upgrade Plan",
+      "goToBilling": "Go to Billing",
+      "accountInfo": "Account Information",
+      "accountName": "Account Name",
+      "billingEmail": "Billing Email"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "plans": "Plans",
+      "invoices": "Invoices",
+      "companies": "Companies"
+    },
+    "storage": {
+      "title": "Storage",
+      "used": "Used",
+      "remaining": "Remaining",
+      "files": "Files"
+    },
+    "plans": {
+      "current": "Current Plan",
+      "currentPlan": "Current Plan",
+      "selectPlan": "Select Plan",
+      "free": "Free",
+      "users": "users",
+      "companies": "companies",
+      "storage": "storage"
+    },
+    "invoices": {
+      "title": "Invoice History",
+      "number": "Invoice Number",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "paid": "Paid",
+      "pending": "Pending",
+      "overdue": "Overdue",
+      "noInvoices": "No invoices"
+    },
+    "companies": {
+      "title": "Companies",
+      "description": "Companies linked to your account",
+      "main": "Main",
+      "noCompanies": "No companies"
+    },
+    "locked": {
+      "title": "Account Locked",
+      "description": "Your account has been locked due to subscription expiration.",
+      "account": "Account",
+      "status": "Status",
+      "gracePeriodInfo": "Your account is in grace period. {{days}} days remaining before full lock.",
+      "paymentInfo": "Please renew your subscription to access your data again.",
+      "contactSupport": "Contact Support",
+      "needHelp": "Need help?"
+    }
+  },
+
+  "documents": {
+    "storage": "Storage",
+    "upload": "Upload Document",
+    "uploadFirst": "Upload your first document",
+    "uploadTitle": "Upload New Document",
+    "uploadDescription": "Select a file to upload (max 25 MB)",
+    "uploading": "Uploading",
+    "uploadSuccess": "Document uploaded successfully",
+    "deleteSuccess": "Document deleted successfully",
+    "deleteTitle": "Delete Document",
+    "deleteConfirm": "Are you sure you want to delete this document? This action cannot be undone.",
+    "noDocuments": "No documents attached",
+    "category": "Category",
+    "description": "Description",
+    "descriptionPlaceholder": "Enter a description for the document (optional)",
+    "storageWarning": "Storage space is running low",
+    "storageCritical": "Storage is almost full!",
+    "categories": {
+      "contract": "Contract",
+      "invoice_copy": "Invoice Copy",
+      "receipt": "Receipt",
+      "id_document": "ID Document",
+      "certificate": "Certificate",
+      "report": "Report",
+      "other": "Other"
+    },
+    "errors": {
+      "fileTooLarge": "File is too large (max 25 MB)",
+      "missingInfo": "Missing information",
+      "uploadFailed": "Failed to upload file",
+      "downloadFailed": "Failed to download file",
+      "viewFailed": "Failed to view file",
+      "deleteFailed": "Failed to delete file",
+      "quota.maxFilesReached": "Maximum file count reached",
+      "quota.storageLimitReached": "Storage limit reached",
+      "quota.fileTooLarge": "File size exceeds allowed limit"
+    }
+  },
+
+  "import": {
+    "title": "Data Import",
+    "step": "Step",
+    "of": "of",
+    
+    "selectEntityType": "Select Data Type",
+    "selectEntityTypeDescription": "Choose the type of data you want to import",
+    "fields": "field",
+    "noEntityTypes": "No data types available for import",
+    
+    "downloadTemplate": "Download Template",
+    "downloadTemplateDescription": "Download the template, fill it with data, and upload it",
+    "templateArabic": "Arabic Template",
+    "templateEnglish": "English Template",
+    
+    "dropFileHere": "Drop file here",
+    "orClickToSelect": "or click to select a file",
+    "supportedFormats": "Supported formats",
+    "maxSize": "Max size",
+    "parsing": "Reading file...",
+    "requiredFields": "Required Fields",
+    
+    "invalidFileType": "File type not supported",
+    "fileTooLarge": "File size exceeds limit",
+    
+    "totalRows": "Total Rows",
+    "columns": "Columns",
+    "mapped": "Mapped",
+    "notMapped": "Not Mapped",
+    "missingRequiredFields": "Required fields not mapped",
+    
+    "fileColumn": "File Column",
+    "systemField": "System Field",
+    "status": "Status",
+    "selectField": "Select Field",
+    "ignore": "Ignore",
+    "sample": "Sample",
+    
+    "validating": "Validating...",
+    "validateData": "Validate Data",
+    
+    "validRows": "Valid Rows",
+    "invalidRows": "Invalid Rows",
+    "willImport": "Will be Imported",
+    "errorSummary": "Error Summary",
+    
+    "importOptions": "Import Options",
+    "skipInvalidRows": "Skip Invalid Rows",
+    "skipInvalidRowsDescription": "Import only valid rows and skip invalid ones",
+    "updateExisting": "Update Existing",
+    "updateExistingDescription": "Update existing records if code matches",
+    "useAIAnalysis": "Use AI Analysis",
+    "useAIAnalysisDescription": "Smart analysis to detect duplicates and errors",
+    
+    "all": "All",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "data": "Data",
+    "errors": "Errors",
+    "moreErrors": "more errors",
+    "page": "Page",
+    
+    "continueToAI": "Continue to AI Analysis",
+    "continueToPreview": "Continue to Preview",
+    
+    "aiAnalysisComingSoon": "AI Analysis will be available soon",
+    "aiAnalysisDescription": "Smart analysis to detect duplicates, spelling errors, and anomalies",
+    "startAIAnalysis": "Start AI Analysis",
+    "reanalyze": "Re-analyze",
+    "analyzingData": "Analyzing data...",
+    "pleaseWait": "Please wait",
+    "aiAnalysisError": "Failed to analyze data",
+    "rowsWithSuggestions": "Rows with suggestions",
+    "corrections": "Corrections",
+    "potentialDuplicates": "Potential Duplicates",
+    "warnings": "Warnings",
+    "duplicates": "Duplicates",
+    "suggestedCorrections": "Suggested Corrections",
+    "similar": "similar",
+    "noIssuesFound": "No issues found",
+    "analysisComplete": "Analysis Complete",
+    "skipAIAnalysis": "Skip AI Analysis",
+    "applyAndContinue": "Apply and Continue",
+    "row": "Row",
+    
+    "readyToImport": "Ready to Import",
+    "reviewAndConfirm": "Review the data and confirm import",
+    "recordsToImport": "records to import",
+    "entityType": "Data Type",
+    "updateEnabled": "Update enabled",
+    "dataPreview": "Data Preview",
+    "showing": "Showing",
+    "importSettings": "Import Settings",
+    "aiAnalysis": "AI Analysis",
+    "importing": "Importing...",
+    "startImport": "Start Import",
+    "records": "records",
+    
+    "importingData": "Importing data",
+    
+    "successTitle": "Import Successful!",
+    "successDescription": "All data has been imported successfully",
+    "partialSuccessTitle": "Partial Import",
+    "partialSuccessDescription": "Some data was imported with errors",
+    "failedTitle": "Import Failed",
+    "failedDescription": "Failed to import data",
+    
+    "imported": "Imported",
+    "skipped": "Skipped",
+    "failed": "Failed",
+    "successRate": "Success Rate",
+    
+    "importDetails": "Import Details",
+    "fileName": "File Name",
+    "startTime": "Start Time",
+    "endTime": "End Time",
+    
+    "errorReport": "Error Report",
+    "downloadErrorReport": "Download report of failed rows",
+    "download": "Download",
+    
+    "newImport": "New Import",
+    "done": "Done"
+  },
+
+  "activityLog": {
+    "title": "Activity Log",
+    "description": "Track all activities and changes in the system",
+    "export": "Export",
+    "totalEvents": "Total Events",
+    "today": "Today",
+    "warnings": "Warnings",
+    "errors": "Errors",
+    "noLogs": "No logs found",
+    "noLogsDescription": "No events match your search criteria",
+    "searchPlaceholder": "Search logs...",
+    "clearFilters": "Clear filters",
+    "allActions": "All Actions",
+    "allTypes": "All Types",
+    "allLevels": "All Levels",
+    "fromDate": "From date",
+    "toDate": "To date",
+    "dateTime": "Date & Time",
+    "action": "Action",
+    "entityType": "Entity Type",
+    "description": "Description",
+    "severity": "Severity",
+    "details": "Details",
+    "eventDetails": "Event Details",
+    "entityInfo": "Entity Information",
+    "changes": "Changes",
+    "noChanges": "No changes recorded",
+    "metadata": "Metadata",
+    "userInfo": "User Information",
+    "userId": "User ID",
+    "showing": "Showing",
+    "of": "of",
+    "entries": "entries",
+    "page": "Page",
+    
+    "actions": {
+      "create": "Create",
+      "update": "Update",
+      "delete": "Delete",
+      "login": "Login",
+      "logout": "Logout",
+      "import": "Import",
+      "export": "Export",
+      "status_change": "Status Change",
+      "permission_change": "Permission Change",
+      "view": "View"
+    },
+    
+    "entities": {
+      "customers": "Customers",
+      "suppliers": "Suppliers",
+      "products": "Products",
+      "chart_of_accounts": "Chart of Accounts",
+      "journal_entries": "Journal Entries",
+      "sales_invoices": "Sales Invoices",
+      "purchase_invoices": "Purchase Invoices",
+      "payments": "Payments",
+      "receipts": "Receipts",
+      "companies": "Companies",
+      "user_profiles": "Users",
+      "documents": "Documents",
+      "inventory_movements": "Inventory Movements",
+      "tenants": "Tenants",
+      "agents": "Agents",
+      "subscriptions": "Subscriptions"
+    },
+    
+    "severities": {
+      "info": "Info",
+      "warning": "Warning",
+      "error": "Error",
+      "critical": "Critical"
+    }
+  }
+}
