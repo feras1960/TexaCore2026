@@ -203,7 +203,7 @@ export default function WhiteLabel() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-            {t('saas.whiteLabel.title')}
+            {t('saas.whiteLabelDetails.title')}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
             {language === 'ar' 
@@ -469,7 +469,7 @@ export default function WhiteLabel() {
                 <p className="text-xs text-gray-400">{selectedAgent.agent_code}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">{t('common.status')}</p>
+                <p className="text-sm text-gray-500">{t('common.status._')}</p>
                 <div className="mt-1">{getStatusBadge(selectedAgent.status)}</div>
               </div>
             </div>

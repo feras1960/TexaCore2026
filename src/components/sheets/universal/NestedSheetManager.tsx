@@ -3,12 +3,13 @@
  * يعرض الشيتات المتداخلة بجانب الشيت الرئيسي
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
-  Sheet,
-  SheetContent,
-} from '@/components/ui/sheet';
+  MotionSheet,
+  MotionSheetContent,
+  SPRING_PRESETS,
+} from '@/components/ui/motion-sheet';
 import { UniversalDetailHeader } from './UniversalDetailHeader';
 import { UniversalDetailTabs } from './UniversalDetailTabs';
 import { UniversalDetailContent } from './UniversalDetailContent';
@@ -16,8 +17,6 @@ import { getSheetConfig } from '../configs';
 import {
   type NestedSheetState,
   type NestedSheetConfig,
-  type SheetConfig,
-  SHEET_SIZE_CLASSES,
 } from '../configs/sheet.types';
 
 interface NestedSheetProps {
@@ -72,9 +71,11 @@ function NestedSheet({
   const zIndex = 10000 + sheet.level * 10;
 
   return (
-    <Sheet open={true} onOpenChange={(open) => !open && handleClose()}>
-      <SheetContent
+    <MotionSheet open={true} onOpenChange={(open) => !open && handleClose()}>
+      <MotionSheetContent
+        isOpen={true}
         side={isRTL ? 'left' : 'right'}
+        springConfig={SPRING_PRESETS.snappy}
         className={cn(
           'p-0 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden',
           getWidth()
@@ -120,8 +121,8 @@ function NestedSheet({
             undefined
           }
         />
-      </SheetContent>
-    </Sheet>
+      </MotionSheetContent>
+    </MotionSheet>
   );
 }
 

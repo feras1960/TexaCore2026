@@ -6,7 +6,7 @@
  * Based on Reem Online's Form Editor
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,14 +14,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -61,13 +58,7 @@ import {
   CheckSquare,
   Image,
   FileText,
-  LayoutGrid,
-  Columns,
-  User,
-  Building,
-  Box,
-  Check,
-  X
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -188,7 +179,7 @@ export function FormEditor({
   onSave,
   className,
 }: FormEditorProps) {
-  const { language, direction } = useLanguage();
+  const { language } = useLanguage();
 
   // State
   const [activeDocType, setActiveDocType] = useState(docType);
@@ -238,9 +229,9 @@ export function FormEditor({
   const [editingField, setEditingField] = useState<FieldConfig | null>(null);
   const [editingFieldSectionId, setEditingFieldSectionId] = useState<string | null>(null);
 
-  // Field dropdown
-  const [fieldMenuOpen, setFieldMenuOpen] = useState(false);
-  const [fieldMenuAnchor, setFieldMenuAnchor] = useState<string | null>(null);
+  // Field dropdown (reserved for future use)
+  const [_fieldMenuOpen, _setFieldMenuOpen] = useState(false);
+  const [_fieldMenuAnchor, _setFieldMenuAnchor] = useState<string | null>(null);
 
   // Form data
   const [sectionForm, setSectionForm] = useState({
@@ -338,7 +329,7 @@ export function FormEditor({
   };
 
   // Add field
-  const handleAddField = (sectionId: string, fieldType?: 'system' | 'user' | 'new') => {
+  const handleAddField = (sectionId: string, _fieldType?: 'system' | 'user' | 'new') => {
     setEditingField(null);
     setEditingFieldSectionId(sectionId);
     setFieldForm({
@@ -422,8 +413,8 @@ export function FormEditor({
     }));
   };
 
-  // Toggle field required
-  const toggleFieldRequired = (sectionId: string, fieldId: string) => {
+  // Toggle field required (reserved for future use)
+  const _toggleFieldRequired = (sectionId: string, fieldId: string) => {
     setSections(sections.map(s => {
       if (s.id !== sectionId) return s;
       return {
@@ -434,6 +425,7 @@ export function FormEditor({
       };
     }));
   };
+  void _toggleFieldRequired;
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -507,7 +499,7 @@ export function FormEditor({
 
           {/* Sections */}
           <div className="space-y-4">
-            {sections.map((section, sectionIndex) => (
+            {sections.map((section, _sectionIndex) => (
               <Card key={section.id} className={cn(!section.visible && "opacity-50")}>
                 {/* Section Header */}
                 <Collapsible open={section.expanded} onOpenChange={() => toggleSectionExpanded(section.id)}>
@@ -571,7 +563,7 @@ export function FormEditor({
                     <CardContent className="pt-0">
                       {/* Fields */}
                       <div className="space-y-2 mb-4">
-                        {section.fields.map((field, fieldIndex) => {
+                        {section.fields.map((field, _fieldIndex) => {
                           const FieldIcon = FIELD_TYPE_ICONS[field.type] || Type;
                           
                           return (

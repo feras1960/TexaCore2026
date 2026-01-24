@@ -79,7 +79,7 @@ export function AgentDetailsSheet({ open, onOpenChange, agent }: AgentDetailsShe
           </div>
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-              {t('common.status')}
+              {t('common.status._')}
             </p>
             <div className="mt-1">{getStatusBadge(agent.status)}</div>
           </div>
@@ -180,7 +180,7 @@ export function AgentDetailsSheet({ open, onOpenChange, agent }: AgentDetailsShe
           <div className="border-t border-gray-200 dark:border-gray-800 pt-4">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Globe className="w-5 h-5 text-purple-500" />
-              {t('saas.whiteLabel.title')}
+              {t('saas.whiteLabelDetails.title')}
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -193,7 +193,7 @@ export function AgentDetailsSheet({ open, onOpenChange, agent }: AgentDetailsShe
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                  {t('saas.whiteLabel.commission')}
+                  {t('saas.whiteLabelDetails.commission')}
                 </p>
                 <p className="font-semibold text-purple-600 dark:text-purple-400">
                   {agent.white_label_commission_percent || 50}%

@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaTable, Column } from '@/components/shared/tables/NexaTable';
+import { NexaGrid, type NexaGridColumn } from '@/components/shared/tables/NexaGrid';
 import { LedgerTable, type LedgerColumn } from '@/components/shared/tables/LedgerTable';
 import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
 import { UnifiedModal } from '@/components/shared/modals/UnifiedModal';
@@ -654,10 +655,186 @@ const TABS_INFO: Record<DocType, { id: string; label: string; labelAr: string; i
   receipt: [],
 };
 
+// Document types for NexaGrid preview
+type GridDocType = 'general_ledger' | 'journal_entries' | 'sales_invoices' | 'purchase_invoices' | 'inventory_ledger' | 'customers_ledger' | 'suppliers_ledger' | 'products';
+
+const GRID_DOC_CONFIGS: Record<GridDocType, {
+  nameAr: string;
+  nameEn: string;
+  columns: any[];
+  data: any[];
+}> = {
+  general_ledger: {
+    nameAr: 'دفتر الأستاذ العام',
+    nameEn: 'General Ledger',
+    columns: [
+      { key: 'debit', title: 'accounting.debit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'credit', title: 'accounting.credit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'description', title: 'common.description', width: 250 },
+      { key: 'balance', title: 'common.balance', width: 130, type: 'currency' },
+      { key: 'date', title: 'common.date', width: 110 },
+      { key: 'reference', title: 'common.reference', width: 110, filterable: true },
+      { key: 'costCenter', title: 'accounting.costCenter', width: 130, filterable: true },
+      { key: 'currency', title: 'common.currency', width: 80, filterable: true },
+      { key: 'exchangeRate', title: 'accounting.exchangeRate', width: 100 },
+    ],
+    data: [
+      { id: '1', date: '2024-01-01', reference: 'JV-001', description: 'رصيد افتتاحي', debit: 50000, credit: 0, balance: 50000, costCenter: 'المركز الرئيسي', currency: 'SAR', exchangeRate: 1 },
+      { id: '2', date: '2024-01-15', reference: 'INV-001', description: 'مبيعات نقدية - شركة الأمل', debit: 15000, credit: 0, balance: 65000, costCenter: 'فرع جدة', currency: 'SAR', exchangeRate: 1 },
+      { id: '3', date: '2024-02-01', reference: 'PV-005', description: 'دفع راتب موظف', debit: 0, credit: 8000, balance: 57000, costCenter: 'المركز الرئيسي', currency: 'SAR', exchangeRate: 1 },
+      { id: '4', date: '2024-02-15', reference: 'INV-023', description: 'إيراد خدمات استشارية', debit: 25000, credit: 0, balance: 82000, costCenter: 'فرع الرياض', currency: 'SAR', exchangeRate: 1 },
+      { id: '5', date: '2024-03-01', reference: 'JV-012', description: 'تحويل للبنك', debit: 0, credit: 30000, balance: 52000, costCenter: 'المركز الرئيسي', currency: 'SAR', exchangeRate: 1 },
+    ],
+  },
+  journal_entries: {
+    nameAr: 'القيود المحاسبية',
+    nameEn: 'Journal Entries',
+    columns: [
+      { key: 'debit', title: 'accounting.debit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'credit', title: 'accounting.credit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'accountName', title: 'common.account', width: 200, filterable: true },
+      { key: 'description', title: 'common.description', width: 200 },
+      { key: 'date', title: 'common.date', width: 110 },
+      { key: 'entryNumber', title: 'accounting.entryNumber', width: 110, filterable: true },
+      { key: 'costCenter', title: 'accounting.costCenter', width: 130, filterable: true },
+    ],
+    data: [
+      { id: '1', date: '2024-01-15', entryNumber: 'JV-001', accountName: 'الصندوق', description: 'مبيعات نقدية', debit: 15000, credit: 0, costCenter: 'المركز الرئيسي' },
+      { id: '2', date: '2024-01-15', entryNumber: 'JV-001', accountName: 'إيرادات المبيعات', description: 'مبيعات نقدية', debit: 0, credit: 15000, costCenter: 'المركز الرئيسي' },
+      { id: '3', date: '2024-02-01', entryNumber: 'JV-002', accountName: 'الرواتب والأجور', description: 'راتب شهر يناير', debit: 8000, credit: 0, costCenter: 'الموارد البشرية' },
+      { id: '4', date: '2024-02-01', entryNumber: 'JV-002', accountName: 'البنك', description: 'راتب شهر يناير', debit: 0, credit: 8000, costCenter: 'الموارد البشرية' },
+    ],
+  },
+  sales_invoices: {
+    nameAr: 'فواتير المبيعات',
+    nameEn: 'Sales Invoices',
+    columns: [
+      { key: 'item', title: 'inventory.item', width: 200, filterable: true },
+      { key: 'quantity', title: 'common.quantity', width: 100, type: 'number', footer: 'sum' },
+      { key: 'price', title: 'common.price', width: 120, type: 'currency' },
+      { key: 'total', title: 'common.total', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'description', title: 'common.description', width: 200 },
+      { key: 'availableQty', title: 'inventory.availableQty', width: 100, type: 'number' },
+      { key: 'unit', title: 'inventory.unit', width: 80, filterable: true },
+      { key: 'discount', title: 'common.discount', width: 100, type: 'currency' },
+      { key: 'tax', title: 'common.tax', width: 100, type: 'currency' },
+    ],
+    data: [
+      { id: '1', item: 'قماش حرير صيني', quantity: 50, price: 85, total: 4250, description: 'لون أحمر', availableQty: 500, unit: 'متر', discount: 0, tax: 637.5 },
+      { id: '2', item: 'قماش قطن مصري', quantity: 100, price: 45, total: 4500, description: 'لون أبيض', availableQty: 1200, unit: 'متر', discount: 100, tax: 660 },
+      { id: '3', item: 'قماش صوف إيطالي', quantity: 20, price: 150, total: 3000, description: 'لون رمادي', availableQty: 80, unit: 'متر', discount: 0, tax: 450 },
+      { id: '4', item: 'قماش كتان فرنسي', quantity: 30, price: 95, total: 2850, description: 'لون بيج', availableQty: 250, unit: 'متر', discount: 50, tax: 420 },
+    ],
+  },
+  purchase_invoices: {
+    nameAr: 'فواتير المشتريات',
+    nameEn: 'Purchase Invoices',
+    columns: [
+      { key: 'item', title: 'inventory.item', width: 200, filterable: true },
+      { key: 'quantity', title: 'common.quantity', width: 100, type: 'number', footer: 'sum' },
+      { key: 'cost', title: 'common.cost', width: 120, type: 'currency' },
+      { key: 'total', title: 'common.total', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'supplier', title: 'common.supplier', width: 180, filterable: true },
+      { key: 'unit', title: 'inventory.unit', width: 80, filterable: true },
+      { key: 'warehouse', title: 'inventory.warehouse', width: 130, filterable: true },
+      { key: 'expiryDate', title: 'inventory.expiryDate', width: 110 },
+    ],
+    data: [
+      { id: '1', item: 'قماش حرير خام', quantity: 200, cost: 60, total: 12000, supplier: 'شركة النسيج الصينية', unit: 'متر', warehouse: 'المستودع الرئيسي', expiryDate: '-' },
+      { id: '2', item: 'قماش قطن خام', quantity: 500, cost: 30, total: 15000, supplier: 'مصنع القطن المصري', unit: 'متر', warehouse: 'المستودع الرئيسي', expiryDate: '-' },
+      { id: '3', item: 'خيوط حرير', quantity: 100, cost: 25, total: 2500, supplier: 'شركة الخيوط العالمية', unit: 'بكرة', warehouse: 'مستودع الخامات', expiryDate: '-' },
+    ],
+  },
+  inventory_ledger: {
+    nameAr: 'دفتر المواد (الجرد)',
+    nameEn: 'Inventory Ledger',
+    columns: [
+      { key: 'item', title: 'inventory.item', width: 200, filterable: true },
+      { key: 'quantityIn', title: 'inventory.quantityIn', width: 100, type: 'number', footer: 'sum' },
+      { key: 'quantityOut', title: 'inventory.quantityOut', width: 100, type: 'number', footer: 'sum' },
+      { key: 'balance', title: 'common.balance', width: 100, type: 'number' },
+      { key: 'date', title: 'common.date', width: 110 },
+      { key: 'reference', title: 'common.reference', width: 110, filterable: true },
+      { key: 'warehouse', title: 'inventory.warehouse', width: 130, filterable: true },
+      { key: 'unitCost', title: 'inventory.unitCost', width: 100, type: 'currency' },
+    ],
+    data: [
+      { id: '1', date: '2024-01-01', item: 'قماش حرير صيني', reference: 'OB-001', quantityIn: 500, quantityOut: 0, balance: 500, warehouse: 'المستودع الرئيسي', unitCost: 85 },
+      { id: '2', date: '2024-01-15', item: 'قماش حرير صيني', reference: 'INV-001', quantityIn: 0, quantityOut: 50, balance: 450, warehouse: 'المستودع الرئيسي', unitCost: 85 },
+      { id: '3', date: '2024-02-01', item: 'قماش حرير صيني', reference: 'PUR-005', quantityIn: 200, quantityOut: 0, balance: 650, warehouse: 'المستودع الرئيسي', unitCost: 82 },
+      { id: '4', date: '2024-02-15', item: 'قماش حرير صيني', reference: 'INV-023', quantityIn: 0, quantityOut: 100, balance: 550, warehouse: 'المستودع الرئيسي', unitCost: 85 },
+    ],
+  },
+  customers_ledger: {
+    nameAr: 'كشف حساب العملاء',
+    nameEn: 'Customers Ledger',
+    columns: [
+      { key: 'debit', title: 'accounting.debit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'credit', title: 'accounting.credit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'description', title: 'common.description', width: 250 },
+      { key: 'balance', title: 'common.balance', width: 130, type: 'currency' },
+      { key: 'date', title: 'common.date', width: 110 },
+      { key: 'reference', title: 'common.reference', width: 110 },
+      { key: 'dueDate', title: 'accounting.dueDate', width: 110 },
+    ],
+    data: [
+      { id: '1', date: '2024-01-01', reference: 'OB', description: 'رصيد افتتاحي', debit: 25000, credit: 0, balance: 25000, dueDate: '-' },
+      { id: '2', date: '2024-01-15', reference: 'INV-001', description: 'فاتورة مبيعات', debit: 15000, credit: 0, balance: 40000, dueDate: '2024-02-15' },
+      { id: '3', date: '2024-02-01', reference: 'RCT-001', description: 'سند قبض', debit: 0, credit: 20000, balance: 20000, dueDate: '-' },
+      { id: '4', date: '2024-02-15', reference: 'INV-023', description: 'فاتورة مبيعات', debit: 8500, credit: 0, balance: 28500, dueDate: '2024-03-15' },
+    ],
+  },
+  suppliers_ledger: {
+    nameAr: 'كشف حساب الموردين',
+    nameEn: 'Suppliers Ledger',
+    columns: [
+      { key: 'debit', title: 'accounting.debit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'credit', title: 'accounting.credit', width: 130, type: 'currency', footer: 'sum' },
+      { key: 'description', title: 'common.description', width: 250 },
+      { key: 'balance', title: 'common.balance', width: 130, type: 'currency' },
+      { key: 'date', title: 'common.date', width: 110 },
+      { key: 'reference', title: 'common.reference', width: 110 },
+      { key: 'dueDate', title: 'accounting.dueDate', width: 110 },
+    ],
+    data: [
+      { id: '1', date: '2024-01-01', reference: 'OB', description: 'رصيد افتتاحي', debit: 0, credit: 15000, balance: -15000, dueDate: '-' },
+      { id: '2', date: '2024-01-10', reference: 'PUR-001', description: 'فاتورة مشتريات - أقمشة', debit: 0, credit: 12000, balance: -27000, dueDate: '2024-02-10' },
+      { id: '3', date: '2024-02-05', reference: 'PAY-001', description: 'سند صرف', debit: 15000, credit: 0, balance: -12000, dueDate: '-' },
+      { id: '4', date: '2024-02-20', reference: 'PUR-015', description: 'فاتورة مشتريات - خيوط', debit: 0, credit: 5000, balance: -17000, dueDate: '2024-03-20' },
+    ],
+  },
+  products: {
+    nameAr: 'جدول المنتجات',
+    nameEn: 'Products Table',
+    columns: [
+      { key: 'debit', title: 'accounting.debit', width: 120, type: 'currency', footer: 'sum' },
+      { key: 'credit', title: 'accounting.credit', width: 120, type: 'currency', footer: 'sum' },
+      { key: 'name', title: 'common.name', width: 200 },
+      { key: 'category', title: 'common.category', width: 120, filterOptions: ['حرير', 'قطن', 'صوف', 'كتان', 'صناعي', 'طبيعي'] },
+      { key: 'quantity', title: 'common.quantity', width: 100, type: 'number', footer: 'sum' },
+      { key: 'price', title: 'common.price', width: 120, type: 'currency', footer: 'average' },
+      { key: 'code', title: 'common.code', width: 120 },
+    ],
+    data: [
+      { id: '1', code: 'PRD-001', name: 'قماش حرير صيني', category: 'حرير', quantity: 500, price: 85.00, debit: 4250, credit: 0 },
+      { id: '2', code: 'PRD-002', name: 'قماش قطن مصري', category: 'قطن', quantity: 1200, price: 45.00, debit: 0, credit: 5400 },
+      { id: '3', code: 'PRD-003', name: 'قماش صوف إيطالي', category: 'صوف', quantity: 80, price: 150.00, debit: 1200, credit: 0 },
+      { id: '4', code: 'PRD-004', name: 'قماش كتان فرنسي', category: 'كتان', quantity: 250, price: 95.00, debit: 2375, credit: 0 },
+      { id: '5', code: 'PRD-005', name: 'قماش بوليستر', category: 'صناعي', quantity: 2000, price: 25.00, debit: 0, credit: 5000 },
+      { id: '6', code: 'PRD-006', name: 'قماش شيفون', category: 'حرير', quantity: 150, price: 75.00, debit: 1125, credit: 0 },
+      { id: '7', code: 'PRD-007', name: 'قماش دنيم', category: 'قطن', quantity: 800, price: 55.00, debit: 4400, credit: 0 },
+      { id: '8', code: 'PRD-008', name: 'قماش ساتان', category: 'حرير', quantity: 120, price: 110.00, debit: 0, credit: 1320 },
+      { id: '9', code: 'PRD-009', name: 'قماش مخمل', category: 'صوف', quantity: 45, price: 180.00, debit: 810, credit: 0 },
+      { id: '10', code: 'PRD-010', name: 'قماش جوت', category: 'طبيعي', quantity: 600, price: 35.00, debit: 2100, credit: 0 },
+    ],
+  },
+};
+
 export default function ComponentLab() {
   const { t, direction } = useLanguage();
   const navigate = useNavigate();
   const [selectedPopup, setSelectedPopup] = useState<string | null>(null);
+  const [selectedGridDocType, setSelectedGridDocType] = useState<GridDocType>('general_ledger');
   
   // Sheet Groups Configuration
   type SheetGroup = 'saas' | 'accounting';
@@ -1003,6 +1180,14 @@ export default function ComponentLab() {
       status: 'ready',
       path: 'src/components/shared/tables/LedgerTable.tsx',
     },
+    {
+      id: 'nexa-grid',
+      nameKey: 'componentLab.popups.nexaGrid.name',
+      descriptionKey: 'componentLab.popups.nexaGrid.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/components/shared/tables/NexaGrid.tsx',
+    },
     // SaaS Components
     {
       id: 'create-tenant-dialog',
@@ -1022,7 +1207,7 @@ export default function ComponentLab() {
       path: 'src/features/saas/components/AgentDetailsSheet.tsx',
       route: '/saas/agents',
     },
-    // Universal Detail Sheet System
+    // Universal Detail Sheet System (Swiss Style)
     {
       id: 'universal-detail-sheet',
       nameKey: 'componentLab.popups.universalDetailSheet.name',
@@ -1054,7 +1239,9 @@ export default function ComponentLab() {
       sortable: true,
       filterable: true,
       render: (_value, row) => (
-        <span className="font-medium">{t(row.nameKey)}</span>
+        <span className="font-medium">
+          {t(row.nameKey)}
+        </span>
       ),
     },
     {
@@ -1717,6 +1904,112 @@ export default function ComponentLab() {
         </div>
       )}
 
+      {/* NexaGrid Preview - Canvas-based High Performance Grid */}
+      {selectedPopup === 'nexa-grid' && (
+        <div className="space-y-4">
+          {/* Document Type Selector */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                📋 {direction === 'rtl' ? 'اختر نوع المستند:' : 'Select Document Type:'}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(GRID_DOC_CONFIGS) as GridDocType[]).map((docType) => {
+                  const config = GRID_DOC_CONFIGS[docType];
+                  return (
+                    <button
+                      key={docType}
+                      onClick={() => setSelectedGridDocType(docType)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                        selectedGridDocType === docType
+                          ? 'bg-teal-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      )}
+                    >
+                      {direction === 'rtl' ? config.nameAr : config.nameEn}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              💡 {direction === 'rtl' 
+                ? 'اختر نوع المستند لمعاينة ترتيب الأعمدة المناسب. يمكنك أخذ سكرين شوت لحفظ الترتيب الافتراضي.' 
+                : 'Select a document type to preview the appropriate column order. You can take a screenshot to save the default order.'}
+            </p>
+          </div>
+
+          {/* NexaGrid Component */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <NexaGrid
+              key={selectedGridDocType} // Force re-render when doc type changes
+              data={GRID_DOC_CONFIGS[selectedGridDocType].data}
+              columns={GRID_DOC_CONFIGS[selectedGridDocType].columns}
+              title={direction === 'rtl' 
+                ? GRID_DOC_CONFIGS[selectedGridDocType].nameAr 
+                : GRID_DOC_CONFIGS[selectedGridDocType].nameEn}
+              enableSearch
+              enableExport
+              enablePrint
+              enableMarker
+              enableSmartFilters
+              enableColumnFilters
+              enableColumnVisibility
+              enableColumnReordering
+              enablePagination
+              pageSize={25}
+              height={500}
+              showStats
+              showAmountInWords
+              showDebitCreditHelp
+              onRowClick={(row, idx) => console.log('Row clicked:', row, idx)}
+              onMarkerChange={(rowId, color) => console.log('Marker:', rowId, color)}
+            />
+          </div>
+
+          {/* Feature List */}
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+            <h4 className="font-semibold text-emerald-900 dark:text-emerald-200 mb-2">
+              🚀 NexaGrid - AG Grid Professional Data Grid
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ul className="text-sm text-emerald-700 dark:text-emerald-300 space-y-1 list-disc list-inside">
+                <li>⚡ AG Grid - أقوى مكتبة جداول مثل Excel و Google Sheets</li>
+                <li>📊 يدعم ملايين الصفوف بأداء فائق</li>
+                <li>🖱️ تغيير حجم الأعمدة وسحبها بسلاسة</li>
+                <li>🔀 سحب وإفلات الأعمدة لإعادة الترتيب</li>
+                <li>🎨 ماركر الألوان (9 ألوان) - انقر لتعليم الصف</li>
+                <li>📈 بطاقات الإحصائيات</li>
+              </ul>
+              <ul className="text-sm text-emerald-700 dark:text-emerald-300 space-y-1 list-disc list-inside">
+                <li>📝 التفقيط - المبلغ بالكلمات العربية</li>
+                <li>❓ شرح المدين والدائن بالأيقونات</li>
+                <li>🔍 فلاتر ذكية لكل عمود (من بيانات الجدول)</li>
+                <li>👁️ إظهار/إخفاء الأعمدة</li>
+                <li>📤 تصدير Excel/CSV و Google Sheets</li>
+                <li>🖨️ طباعة احترافية مع الألوان والتنسيق</li>
+                <li>📱 دعم RTL كامل للغة العربية</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Instruction for saving default order */}
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">
+              📸 {direction === 'rtl' ? 'كيفية حفظ الترتيب الافتراضي' : 'How to Save Default Order'}
+            </h4>
+            <ol className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">
+              <li>{direction === 'rtl' ? 'اختر نوع المستند من القائمة أعلاه' : 'Select document type from the list above'}</li>
+              <li>{direction === 'rtl' ? 'رتب الأعمدة بالسحب والإفلات حسب رغبتك' : 'Arrange columns by drag and drop as you prefer'}</li>
+              <li>{direction === 'rtl' ? 'اضغط على الماركر واختر ألوان للصفوف المهمة' : 'Click on marker and choose colors for important rows'}</li>
+              <li>{direction === 'rtl' ? 'خذ سكرين شوت للترتيب النهائي' : 'Take a screenshot of the final arrangement'}</li>
+              <li>{direction === 'rtl' ? 'أرسل الصورة لتطبيق الترتيب في المكان المناسب' : 'Send the image to apply the order in the appropriate place'}</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
       {/* CreateTenantDialog Preview */}
       {selectedPopup === 'create-tenant-dialog' && (
         <CreateTenantDialog
@@ -2173,22 +2466,16 @@ export default function ComponentLab() {
             </Tabs>
           </div>
 
-          {/* The Universal Detail Sheet - Preview Mode (no overlay) */}
+          {/* The Universal Detail Sheet - Full Sheet (with animation) */}
           {getCurrentSheetData() && (
-            <div 
-              className={cn(
-                "fixed top-0 h-full shadow-2xl overflow-hidden border-s border-gray-200 dark:border-gray-700 z-[100] transition-all duration-300",
-                direction === 'rtl' ? 'left-0' : 'right-0',
-                controlPanelCollapsed ? "w-[75%] lg:w-[80%]" : "w-[55%] lg:w-[60%]"
-              )}
-            >
+            <>
               {/* Control Panel Toggle Button - At edge of sheet */}
               <Button
                 variant="default"
                 size="sm"
                 onClick={() => setControlPanelCollapsed(!controlPanelCollapsed)}
                 className={cn(
-                  "absolute top-4 z-[101] shadow-lg transition-all",
+                  "fixed top-4 z-[10001] shadow-lg transition-all",
                   direction === 'rtl' ? 'right-2' : 'left-2',
                   controlPanelCollapsed 
                     ? "bg-erp-teal hover:bg-erp-teal/90" 
@@ -2206,28 +2493,30 @@ export default function ComponentLab() {
                 )}
               </Button>
 
-              {/* Preview Sheet Content - No overlay */}
-              <UniversalDetailSheetPreview
+              <UniversalDetailSheet
+                isOpen={true}
+                onClose={() => setSelectedPopup(null)}
                 docType={universalSheetDocType}
                 data={getCurrentSheetData()}
+                styleVariant="swiss"
+                preventCloseOnOutsideClick={true}
                 onRefresh={() => {
                   if (useRealData) loadRealData();
                   console.log('Refresh clicked');
                 }}
                 onEdit={() => console.log('Edit clicked')}
-                onClose={() => setSelectedPopup(null)}
-                className="h-full"
               />
-            </div>
+            </>
           )}
 
           {/* No data message */}
           {!getCurrentSheetData() && (
             <div 
               className={cn(
-                "fixed top-0 h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-s border-gray-200 dark:border-gray-700 z-[100] transition-all duration-300",
+                "fixed inset-y-0 h-[100dvh] min-h-[100dvh] bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-s border-gray-200 dark:border-gray-700 z-[100] animate-in fade-in duration-300 ease-out",
                 direction === 'rtl' ? 'left-0' : 'right-0',
-                controlPanelCollapsed ? "w-[75%] lg:w-[80%]" : "w-[55%] lg:w-[60%]"
+                controlPanelCollapsed ? "w-[75%] lg:w-[80%]" : "w-[55%] lg:w-[60%]",
+                direction === 'rtl' ? "slide-in-from-left-8" : "slide-in-from-right-8"
               )}
             >
               <div className="bg-white dark:bg-gray-900 rounded-lg p-6 text-center max-w-sm shadow-lg">

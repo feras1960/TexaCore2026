@@ -108,8 +108,8 @@ export default function QuickPaymentDialog({
   const amount = parseFloat(formData.amount) || 0;
   const isOverBalance = selectedFund && amount > selectedFund.balance;
 
-  const handleSubmit = (asDraft: boolean = false) => {
-    console.log('Payment submitted:', { ...formData, date, asDraft });
+  const handleSubmit = (_asDraft: boolean = false) => {
+    // TODO: Implement actual payment submission
     onOpenChange(false);
   };
 

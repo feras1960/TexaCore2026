@@ -6,7 +6,7 @@
  * Similar to the one in Reem Online screenshots
  */
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,8 +29,7 @@ import { cn } from '@/lib/utils';
 import { StatusBadge } from './StatusBadge';
 import { 
   statusService, 
-  type CustomStatus, 
-  type StatusGroup,
+  type CustomStatus,
   STATUS_COLORS,
   type StatusColor
 } from '@/services/statusService';

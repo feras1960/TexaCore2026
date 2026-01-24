@@ -1,4 +1,4 @@
-import React from 'react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -82,31 +82,46 @@ export function StatCard({
   };
 
   return (
-    <div
+    <motion.div
       className={cn(
-        'rounded-xl border p-4 transition-all hover:shadow-md',
+        'rounded-xl border p-4 transition-colors hover:shadow-md',
         styles.bg,
         styles.border,
         className
       )}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.98 }}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
-          <p className={cn('text-2xl font-bold font-cairo', styles.text)}>
+          <motion.p 
+            className={cn('text-2xl font-bold font-cairo', styles.text)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
             {prefix}
             {displayValue}
             {suffix && <span className="text-sm font-normal ms-1">{suffix}</span>}
-          </p>
+          </motion.p>
           {renderChange()}
         </div>
         {Icon && (
-          <div className={cn('p-2 rounded-lg', styles.bg)}>
+          <motion.div 
+            className={cn('p-2 rounded-lg', styles.bg)}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
+          >
             <Icon className={cn('w-5 h-5', styles.text)} />
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

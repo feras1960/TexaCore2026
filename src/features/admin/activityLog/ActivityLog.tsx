@@ -61,7 +61,6 @@ export function ActivityLog() {
   // تصدير السجلات (سيتم تفعيله لاحقاً)
   const handleExport = () => {
     // TODO: Implement export functionality
-    console.log('Export logs:', logs);
   };
 
   // إحصائيات سريعة

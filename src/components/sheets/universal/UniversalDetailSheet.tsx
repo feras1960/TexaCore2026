@@ -3,17 +3,17 @@
  * يجمع كل المكونات ويدير الحالة والتبويبات
  */
 
-import React, { useState, useCallback, useEffect, createContext, useContext } from 'react';
+import { useState, useCallback, useEffect, createContext, useContext } from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
-  Sheet,
-  SheetContent,
-} from '@/components/ui/sheet';
+  MotionSheet,
+  MotionSheetContent,
+  SPRING_PRESETS,
+} from '@/components/ui/motion-sheet';
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -65,9 +65,14 @@ interface UniversalDetailSheetProps {
   onEdit?: () => void;
   onRefresh?: () => void;
   loading?: boolean;
+  styleVariant?: 'classic' | 'swiss';
+  disableAnimation?: boolean;
   
   // Nested sheet support
   enableNestedSheets?: boolean;
+  
+  // Prevent closing when clicking outside (useful for Component Lab)
+  preventCloseOnOutsideClick?: boolean;
 }
 
 export function UniversalDetailSheet({
@@ -79,11 +84,14 @@ export function UniversalDetailSheet({
   onEdit,
   onRefresh,
   loading = false,
+  styleVariant = 'classic',
+  disableAnimation = false,
   enableNestedSheets = true,
+  preventCloseOnOutsideClick = false,
 }: UniversalDetailSheetProps) {
   const { t, direction, language } = useLanguage();
   const isRTL = direction === 'rtl';
-  const isArabic = language === 'ar';
+  const isSwiss = styleVariant === 'swiss';
 
   // Get configuration
   const config = providedConfig || (docType ? getSheetConfig(docType) : null);
@@ -159,42 +167,83 @@ export function UniversalDetailSheet({
 
   return (
     <EditModeContext.Provider value={{ isEditing, hasUnsavedChanges, setIsEditing, setHasUnsavedChanges }}>
-      {/* Main Sheet */}
-      <Sheet open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
-        <SheetContent
+      {/* Main Sheet with Smooth Motion Animation */}
+      <MotionSheet 
+        open={isOpen} 
+        onOpenChange={(open) => !open && !preventCloseOnOutsideClick && handleCloseAttempt()}
+        modal={!preventCloseOnOutsideClick}
+      >
+        <MotionSheetContent
+          isOpen={isOpen}
           side={isRTL ? 'left' : 'right'}
+          preventCloseOnOutsideClick={preventCloseOnOutsideClick}
+          springConfig={isSwiss ? SPRING_PRESETS.swiss : SPRING_PRESETS.smooth}
           className={cn(
-            'p-0 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden rounded-s-2xl shadow-2xl',
+            isSwiss
+              ? 'p-0 bg-[#F7F7F7] dark:bg-[#111111] flex flex-col overflow-hidden border-l border-[#E5E5E5] dark:border-[#222222] rounded-none shadow-none h-[100dvh] min-h-[100dvh] max-h-[100dvh]'
+              : 'p-0 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden rounded-s-2xl shadow-2xl h-[100dvh] min-h-[100dvh] max-h-[100dvh]',
             SHEET_SIZE_CLASSES[sheetWidth],
             // Reduce width when nested sheets are open
             hasNestedSheets && '!w-[45%]'
           )}
         >
           {/* Header */}
-          <UniversalDetailHeader
-            config={config}
-            data={data}
-            language={language}
-            t={t}
-            direction={direction}
-            loading={loading}
-            onClose={handleCloseAttempt}
-            onEdit={onEdit}
-            onRefresh={onRefresh}
-          />
-
-          {/* Tabs - lighter teal gradient for consistency */}
-          <div className="bg-gradient-to-r from-teal-100/80 via-cyan-50 to-teal-100/80 dark:from-teal-900/40 dark:via-cyan-900/30 dark:to-teal-900/40 px-4 py-3 border-b border-teal-200/50 dark:border-teal-800/50 backdrop-blur-sm">
-            <UniversalDetailTabs
-              tabs={config.tabs}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
+          {isSwiss ? (
+            <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#111111]/95 backdrop-blur border-b border-[#E5E5E5] dark:border-[#222222]">
+              <UniversalDetailHeader
+                config={config}
+                data={data}
+                language={language}
+                t={t}
+                direction={direction}
+                loading={loading}
+                onClose={handleCloseAttempt}
+                onEdit={onEdit}
+                onRefresh={onRefresh}
+              />
+            </div>
+          ) : (
+            <UniversalDetailHeader
+              config={config}
               data={data}
               language={language}
               t={t}
-              variant="pills"
+              direction={direction}
+              loading={loading}
+              onClose={handleCloseAttempt}
+              onEdit={onEdit}
+              onRefresh={onRefresh}
             />
-          </div>
+          )}
+
+          {/* Tabs */}
+          {isSwiss ? (
+            <div className="sticky top-[64px] z-20 bg-white dark:bg-[#111111] px-6">
+              <UniversalDetailTabs
+                tabs={config.tabs}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                data={data}
+                language={language}
+                t={t}
+                variant="underline"
+                styleVariant="swiss"
+              />
+            </div>
+          ) : (
+            <div className="bg-gradient-to-r from-teal-100/80 via-cyan-50 to-teal-100/80 dark:from-teal-900/40 dark:via-cyan-900/30 dark:to-teal-900/40 px-4 py-3 border-b border-teal-200/50 dark:border-teal-800/50 backdrop-blur-sm">
+              <UniversalDetailTabs
+                tabs={config.tabs}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                data={data}
+                language={language}
+                t={t}
+                variant="pills"
+                styleVariant="classic"
+              />
+            </div>
+          )}
 
           {/* Content */}
           <UniversalDetailContent
@@ -208,38 +257,36 @@ export function UniversalDetailSheet({
             onRowClick={handleNestedOpen}
             onRefresh={onRefresh}
           />
-        </SheetContent>
-      </Sheet>
+        </MotionSheetContent>
+      </MotionSheet>
 
       {/* Close Confirmation Dialog */}
       <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
         <AlertDialogContent dir={direction} className="sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-right">
-              {isArabic ? '⚠️ تنبيه' : '⚠️ Warning'}
+              ⚠️ {t('dialogs.warning')}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-right">
-              {isArabic 
-                ? 'لديك تغييرات غير محفوظة. هل تريد الخروج بدون حفظ؟'
-                : 'You have unsaved changes. Do you want to exit without saving?'}
+              {t('dialogs.unsavedChanges')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className={cn(
             "gap-2 sm:gap-2",
-            isArabic && "flex-row-reverse"
+            isRTL && "flex-row-reverse"
           )}>
             <Button
               variant="outline"
               onClick={handleContinueEditing}
               className="flex-1"
             >
-              {isArabic ? 'متابعة العمل' : 'Continue Editing'}
+              {t('dialogs.continueEditing')}
             </Button>
             <AlertDialogAction
               onClick={handleForceClose}
               className="flex-1 bg-red-600 hover:bg-red-700"
             >
-              {isArabic ? 'خروج بدون حفظ' : 'Exit Without Saving'}
+              {t('dialogs.exitWithoutSaving')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -270,11 +317,13 @@ export function UniversalDetailSheetWithUnderlineTabs({
   onEdit,
   onRefresh,
   loading = false,
+  styleVariant = 'classic',
+  disableAnimation = false,
   enableNestedSheets = true,
 }: UniversalDetailSheetProps) {
   const { t, direction, language } = useLanguage();
   const isRTL = direction === 'rtl';
-  const isArabic = language === 'ar';
+  const isSwiss = styleVariant === 'swiss';
 
   const config = providedConfig || (docType ? getSheetConfig(docType) : null);
   const [activeTab, setActiveTab] = useState<string>('');
@@ -342,38 +391,74 @@ export function UniversalDetailSheetWithUnderlineTabs({
 
   return (
     <EditModeContext.Provider value={{ isEditing, hasUnsavedChanges, setIsEditing, setHasUnsavedChanges }}>
-      <Sheet open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
-        <SheetContent
+      <MotionSheet open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
+        <MotionSheetContent
+          isOpen={isOpen}
           side={isRTL ? 'left' : 'right'}
+          springConfig={isSwiss ? SPRING_PRESETS.swiss : SPRING_PRESETS.smooth}
           className={cn(
-            'p-0 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden rounded-s-2xl shadow-2xl',
+            isSwiss
+              ? 'p-0 bg-[#F7F7F7] dark:bg-[#111111] flex flex-col overflow-hidden border-l border-[#E5E5E5] dark:border-[#222222] rounded-none shadow-none h-[100dvh] min-h-[100dvh] max-h-[100dvh]'
+              : 'p-0 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden rounded-s-2xl shadow-2xl h-[100dvh] min-h-[100dvh] max-h-[100dvh]',
             SHEET_SIZE_CLASSES[sheetWidth],
             hasNestedSheets && '!w-[45%]'
           )}
         >
           {/* Header */}
-          <UniversalDetailHeader
-            config={config}
-            data={data}
-            language={language}
-            t={t}
-            direction={direction}
-            loading={loading}
-            onClose={handleCloseAttempt}
-            onEdit={onEdit}
-            onRefresh={onRefresh}
-          />
+          {isSwiss ? (
+            <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#111111]/95 backdrop-blur border-b border-[#E5E5E5] dark:border-[#222222]">
+              <UniversalDetailHeader
+                config={config}
+                data={data}
+                language={language}
+                t={t}
+                direction={direction}
+                loading={loading}
+                onClose={handleCloseAttempt}
+                onEdit={onEdit}
+                onRefresh={onRefresh}
+              />
+            </div>
+          ) : (
+            <UniversalDetailHeader
+              config={config}
+              data={data}
+              language={language}
+              t={t}
+              direction={direction}
+              loading={loading}
+              onClose={handleCloseAttempt}
+              onEdit={onEdit}
+              onRefresh={onRefresh}
+            />
+          )}
 
-          {/* Tabs - below header with underline variant */}
-          <UniversalDetailTabs
-            tabs={config.tabs}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            data={data}
-            language={language}
-            t={t}
-            variant="underline"
-          />
+          {/* Tabs */}
+          {isSwiss ? (
+            <div className="sticky top-[64px] z-20 bg-white dark:bg-[#111111] px-6">
+              <UniversalDetailTabs
+                tabs={config.tabs}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                data={data}
+                language={language}
+                t={t}
+                variant="underline"
+                styleVariant="swiss"
+              />
+            </div>
+          ) : (
+            <UniversalDetailTabs
+              tabs={config.tabs}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              data={data}
+              language={language}
+              t={t}
+              variant="underline"
+              styleVariant="classic"
+            />
+          )}
 
           {/* Content */}
           <UniversalDetailContent
@@ -387,38 +472,36 @@ export function UniversalDetailSheetWithUnderlineTabs({
             onRowClick={handleNestedOpen}
             onRefresh={onRefresh}
           />
-        </SheetContent>
-      </Sheet>
+        </MotionSheetContent>
+      </MotionSheet>
 
       {/* Close Confirmation Dialog */}
       <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
         <AlertDialogContent dir={direction} className="sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-right">
-              {isArabic ? '⚠️ تنبيه' : '⚠️ Warning'}
+              ⚠️ {t('dialogs.warning')}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-right">
-              {isArabic 
-                ? 'لديك تغييرات غير محفوظة. هل تريد الخروج بدون حفظ؟'
-                : 'You have unsaved changes. Do you want to exit without saving?'}
+              {t('dialogs.unsavedChanges')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className={cn(
             "gap-2 sm:gap-2",
-            isArabic && "flex-row-reverse"
+            isRTL && "flex-row-reverse"
           )}>
             <Button
               variant="outline"
               onClick={handleContinueEditing}
               className="flex-1"
             >
-              {isArabic ? 'متابعة العمل' : 'Continue Editing'}
+              {t('dialogs.continueEditing')}
             </Button>
             <AlertDialogAction
               onClick={handleForceClose}
               className="flex-1 bg-red-600 hover:bg-red-700"
             >
-              {isArabic ? 'خروج بدون حفظ' : 'Exit Without Saving'}
+              {t('dialogs.exitWithoutSaving')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -448,6 +531,7 @@ export function UniversalDetailSheetPreview({
   loading = false,
   onClose,
   className,
+  styleVariant = 'classic',
 }: {
   docType?: DocType;
   data: any;
@@ -457,8 +541,10 @@ export function UniversalDetailSheetPreview({
   loading?: boolean;
   onClose?: () => void;
   className?: string;
+  styleVariant?: 'classic' | 'swiss';
 }) {
   const { t, direction, language } = useLanguage();
+  const isSwiss = styleVariant === 'swiss';
 
   const config = providedConfig || (docType ? getSheetConfig(docType) : null);
   const [activeTab, setActiveTab] = useState<string>('');
@@ -473,34 +559,68 @@ export function UniversalDetailSheetPreview({
 
   return (
     <div className={cn(
-      'h-full bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden',
+      isSwiss
+        ? 'h-full bg-[#F7F7F7] dark:bg-[#111111] flex flex-col overflow-hidden'
+        : 'h-full bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden',
       className
     )}>
       {/* Header */}
-      <UniversalDetailHeader
-        config={config}
-        data={data}
-        language={language}
-        t={t}
-        direction={direction}
-        loading={loading}
-        onClose={onClose || (() => {})}
-        onEdit={onEdit}
-        onRefresh={onRefresh}
-      />
-
-      {/* Tabs - light gray background */}
-      <div className="bg-gray-100 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <UniversalDetailTabs
-          tabs={config.tabs}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+      {isSwiss ? (
+        <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#111111]/95 backdrop-blur border-b border-[#E5E5E5] dark:border-[#222222]">
+          <UniversalDetailHeader
+            config={config}
+            data={data}
+            language={language}
+            t={t}
+            direction={direction}
+            loading={loading}
+            onClose={onClose || (() => {})}
+            onEdit={onEdit}
+            onRefresh={onRefresh}
+          />
+        </div>
+      ) : (
+        <UniversalDetailHeader
+          config={config}
           data={data}
           language={language}
           t={t}
-          variant="pills"
+          direction={direction}
+          loading={loading}
+          onClose={onClose || (() => {})}
+          onEdit={onEdit}
+          onRefresh={onRefresh}
         />
-      </div>
+      )}
+
+      {/* Tabs */}
+      {isSwiss ? (
+        <div className="sticky top-[64px] z-20 bg-white dark:bg-[#111111] px-6">
+          <UniversalDetailTabs
+            tabs={config.tabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            data={data}
+            language={language}
+            t={t}
+            variant="underline"
+            styleVariant="swiss"
+          />
+        </div>
+      ) : (
+        <div className="bg-gray-100 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <UniversalDetailTabs
+            tabs={config.tabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            data={data}
+            language={language}
+            t={t}
+            variant="pills"
+            styleVariant="classic"
+          />
+        </div>
+      )}
 
       {/* Content */}
       <UniversalDetailContent

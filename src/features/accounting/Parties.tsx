@@ -89,13 +89,13 @@ export default function Parties() {
     },
     {
       key: 'balance',
-      title: 'accounting.balance',
+      title: 'common.balance',
       width: '150px',
       align: 'end',
       sortable: true,
       render: (value) => (
         <span className={`font-mono font-semibold ${value > 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {value.toLocaleString()} {t('common.currency.sar')}
+          {value.toLocaleString()} {t('currencies.SAR')}
         </span>
       ),
     },

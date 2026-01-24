@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { ChevronRight, ChevronDown, Folder, FileText, Plus, Trash2, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, FileText, Plus, Trash2, MoreHorizontal, BarChart3, DollarSign, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -28,7 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { Account } from '@/services/accountsService';
+import type { Account, SupportedLanguage } from '@/services/accountsService';
+import { getAccountName } from '@/services/accountsService';
 
 interface AccountTreeNode extends Account {
   children?: AccountTreeNode[];
@@ -60,6 +61,7 @@ function TreeNode({
   language,
   onDeleteClick,
   onAddChild,
+  getChildrenCount,
 }: {
   node: AccountTreeNode;
   level?: number;
@@ -71,17 +73,14 @@ function TreeNode({
   language: string;
   onDeleteClick?: (account: Account) => void;
   onAddChild?: (parent: Account) => void;
+  getChildrenCount?: (node: AccountTreeNode) => number;
 }) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedId === node.id;
 
-  const getAccountName = (account: Account): string => {
-    if (language === 'ar') {
-      return account.name;
-    }
-    return account.name_en || account.name;
-  };
+  // استخدام getAccountName من accountsService
+  const accountName = getAccountName(node, language as SupportedLanguage);
 
   return (
     <div className="select-none">
@@ -144,8 +143,19 @@ function TreeNode({
             'font-medium text-sm font-tajawal truncate transition-colors',
             isSelected ? 'text-erp-navy dark:text-white' : 'text-gray-700 dark:text-gray-300'
           )}>
-            {getAccountName(node)}
+            {accountName}
           </span>
+          {/* عرض عدد الحسابات الفرعية بجانب المجموعات */}
+          {node.is_group && getChildrenCount && getChildrenCount(node) > 0 && (
+            <span className={cn(
+              'text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0',
+              isSelected 
+                ? 'bg-erp-teal/20 text-erp-teal dark:bg-erp-teal/30 dark:text-erp-teal' 
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            )}>
+              {getChildrenCount(node)}
+            </span>
+          )}
         </div>
 
         {/* Actions */}
@@ -209,7 +219,7 @@ function TreeNode({
       {isExpanded && hasChildren && (
         <div className="border-l-2 border-gray-200 dark:border-gray-700 ml-5 animate-in slide-in-from-top-1 duration-200">
           {node.children!
-            .filter((child) => child.is_group) // Only show groups in the tree
+            // عرض جميع الحسابات (المجموعات والحسابات التفصيلية)
             .map((child) => (
               <TreeNode
                 key={child.id}
@@ -223,6 +233,7 @@ function TreeNode({
                 language={language}
                 onDeleteClick={onDeleteClick}
                 onAddChild={onAddChild}
+                getChildrenCount={getChildrenCount}
               />
             ))}
         </div>
@@ -241,7 +252,7 @@ export function AccountTreeView({
   collapseAll,
   onExpandStateChange,
   className,
-  height = '600px',
+  height,
 }: AccountTreeViewProps) {
   const { t, direction, language } = useLanguage();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -270,14 +281,12 @@ export function AccountTreeView({
   // Handle expand all / collapse all
   useEffect(() => {
     if (expandAll === true) {
-      // Collect all group account IDs
-      const allGroupIds = new Set<string>();
+      // Collect all account IDs (groups and detail accounts)
+      const allAccountIds = new Set<string>();
       accounts.forEach((account) => {
-        if (account.is_group) {
-          allGroupIds.add(account.id);
-        }
+        allAccountIds.add(account.id);
       });
-      setExpandedIds(allGroupIds);
+      setExpandedIds(allAccountIds);
       onExpandStateChange?.();
     } else if (collapseAll === true) {
       setExpandedIds(new Set());
@@ -316,7 +325,7 @@ export function AccountTreeView({
     // Sort by code (keep all children for table view)
     const sortByCode = (nodes: AccountTreeNode[]): AccountTreeNode[] => {
       return nodes
-        .sort((a, b) => a.code.localeCompare(b.code))
+        .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
         .map((node) => ({
           ...node,
           children: node.children ? sortByCode(node.children) : undefined,
@@ -327,21 +336,11 @@ export function AccountTreeView({
   }, [accounts]);
 
   /**
-   * Build tree structure for display - only groups in the tree view
+   * Build tree structure for display - عرض جميع الحسابات (المجموعات والحسابات التفصيلية)
    */
   const treeData = useMemo(() => {
-    // Filter to show only groups in tree view, but keep all children structure
-    const filterToGroups = (nodes: AccountTreeNode[]): AccountTreeNode[] => {
-      return nodes
-        .filter((node) => node.is_group) // Only groups in tree view
-        .map((node) => ({
-          ...node,
-          // Keep all children for table view, but filter children for tree display
-          children: node.children ? filterToGroups(node.children) : undefined,
-        }));
-    };
-
-    return filterToGroups(fullTreeData);
+    // عرض جميع الحسابات في الشجرة (ليس فقط المجموعات)
+    return fullTreeData;
   }, [fullTreeData]);
 
   /**
@@ -366,11 +365,15 @@ export function AccountTreeView({
    * Handle node select
    */
   const handleNodeSelect = (node: AccountTreeNode) => {
-    // Only select groups (not regular accounts)
+    // فقط تحديد المجموعات لعرض الحسابات في الجانب الأيمن
     if (node.is_group) {
       setSelectedId(node.id);
     }
-    onAccountClick?.(node);
+    // لا نستدعي onAccountClick هنا للمجموعات
+    // فقط للحسابات التفصيلية
+    if (!node.is_group) {
+      onAccountClick?.(node);
+    }
   };
 
   // Get selected group and its children - only groups can be selected
@@ -395,25 +398,53 @@ export function AccountTreeView({
 
   const rightPanelAccounts = selectedGroup?.children || [];
 
-  const getAccountName = (account: Account): string => {
-    if (language === 'ar') {
-      return account.name;
-    }
-    return account.name_en || account.name;
+  // Calculate stats for selected group
+  const groupStats = useMemo(() => {
+    if (!selectedGroup || !rightPanelAccounts.length) return null;
+    
+    const totalChildren = rightPanelAccounts.length;
+    const groupsCount = rightPanelAccounts.filter(a => a.is_group).length;
+    const accountsCount = rightPanelAccounts.filter(a => !a.is_group).length;
+    const totalBalance = rightPanelAccounts.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+    const activeCount = rightPanelAccounts.filter(a => a.is_active).length;
+    
+    return {
+      totalChildren,
+      groupsCount,
+      accountsCount,
+      totalBalance,
+      activeCount,
+    };
+  }, [selectedGroup, rightPanelAccounts]);
+
+  // دالة لحساب عدد الحسابات الفرعية لكل مجموعة
+  const getChildrenCount = (node: AccountTreeNode): number => {
+    if (!node.children) return 0;
+    return node.children.length;
   };
 
   return (
     <div
       className={cn(
-        'rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900',
+        'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex flex-col',
         className
       )}
-      style={{ height }}
+      style={height ? { height } : undefined}
     >
-      <ResizablePanelGroup direction="horizontal" className="h-full">
+      <ResizablePanelGroup
+        direction="horizontal"
+        className={cn('w-full', height ? 'flex-1 min-h-0 flex' : 'h-auto')}
+        style={height ? undefined : { height: 'auto' }}
+      >
         {/* Left Panel - Tree View (30%) - Groups */}
-        <ResizablePanel defaultSize={30} minSize={20} maxSize={40} className="border-e border-gray-100 dark:border-gray-800">
-          <div className="h-full overflow-auto p-4 bg-gray-50/30 dark:bg-gray-800/30" dir={direction}>
+        <ResizablePanel
+          defaultSize={30}
+          minSize={20}
+          maxSize={40}
+          className="border-e border-gray-100 dark:border-gray-800 flex flex-col"
+          style={height ? undefined : { height: 'auto' }}
+        >
+          <div className="p-4 bg-gray-50/30 dark:bg-gray-800/30" dir={direction}>
             <div className="space-y-1">
               {treeData.length === 0 ? (
                 <div className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
@@ -432,6 +463,7 @@ export function AccountTreeView({
                     language={language}
                     onDeleteClick={onDeleteClick}
                     onAddChild={onAddChild}
+                    getChildrenCount={getChildrenCount}
                   />
                 ))
               )}
@@ -442,17 +474,71 @@ export function AccountTreeView({
         <ResizableHandle className="bg-gray-200 dark:bg-gray-700" />
 
         {/* Right Panel - Table View (70%) - Accounts */}
-        <ResizablePanel defaultSize={70}>
-          <div className="h-full overflow-auto p-6 bg-white dark:bg-gray-900">
+        <ResizablePanel
+          defaultSize={70}
+          className="flex flex-col"
+          style={height ? undefined : { height: 'auto' }}
+        >
+          <div className="p-6 bg-white dark:bg-gray-900">
             {selectedGroup ? (
               <>
                 <div className="mb-6">
                   <h2 className="text-xl font-bold text-erp-navy dark:text-white font-cairo flex items-center gap-2">
                     <Folder className="w-6 h-6 text-erp-teal" />
-                    {getAccountName(selectedGroup)}
+                    {getAccountName(selectedGroup, language as SupportedLanguage)}
                   </h2>
                   <p className="text-gray-500 dark:text-gray-400 font-mono mt-1">{selectedGroup.code}</p>
                 </div>
+
+                {/* Group Stats - إحصائيات سريعة */}
+                {groupStats && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 mb-1">
+                        <BarChart3 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                          {t('accounting.totalAccounts')}
+                        </span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {groupStats.totalChildren}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Folder className="w-4 h-4 text-erp-teal" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                          {t('accounting.groupsCount')}
+                        </span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {groupStats.groupsCount}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                          {t('accounting.totalBalance')}
+                        </span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {groupStats.totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                          {t('accounting.activeAccounts')}
+                        </span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {groupStats.activeCount}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-md border border-gray-200 dark:border-gray-800 shadow-sm">
                   <Table>
@@ -481,11 +567,13 @@ export function AccountTreeView({
                                 ) : (
                                   <FileText className="w-4 h-4 text-gray-400" />
                                 )}
-                                {getAccountName(account)}
+                                {getAccountName(account, language as SupportedLanguage)}
                               </div>
                             </TableCell>
                             <TableCell className="text-gray-600 dark:text-gray-400">
-                              {t(`accounting.accountTypes.${account.account_type}`)}
+                              {account.account_type_code 
+                                ? t(`accounting.accountTypes.${account.account_type_code.toLowerCase()}`)
+                                : account.account_type || '-'}
                             </TableCell>
                             <TableCell className="font-mono text-gray-900 dark:text-gray-100 text-end">
                               {account.current_balance.toLocaleString('en-US', {

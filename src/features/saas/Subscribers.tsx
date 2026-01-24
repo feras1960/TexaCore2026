@@ -152,7 +152,7 @@ export default function Subscribers() {
     },
     {
       key: 'status',
-      title: t('common.status'),
+      title: t('common.status._'),
       width: '120px',
       sortable: true,
       filterable: true,
@@ -390,8 +390,7 @@ export default function Subscribers() {
         data={selectedTenant}
         onRefresh={loadTenants}
         onEdit={() => {
-          // Handle edit - can open edit dialog
-          console.log('Edit tenant:', selectedTenant?.id);
+          // TODO: Implement edit dialog
         }}
       />
 

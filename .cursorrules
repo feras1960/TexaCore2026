@@ -1,0 +1,304 @@
+# 📜 Texa Core - Technical Constitution
+# Next Revolution Company - Multi-tenant ERP System
+
+## ⚠️ MANDATORY: Read Rules Before Any Task
+
+> **قبل تنفيذ أي مهمة، يجب مراجعة ملفات القواعد في `docs/rules/`**
+> 
+> **If you find any conflict with these rules, STOP and ask first.**
+
+### Required Reading:
+1. `docs/rules/COMPONENTS_RULES.md` - قواعد المكونات المعتمدة
+2. `docs/rules/TRANSLATION_RULES.md` - قواعد الترجمة الصارمة
+3. `docs/rules/SHEETS_RULES.md` - قواعد الشيتات والحوارات
+4. `docs/rules/CODING_STANDARDS.md` - معايير كتابة الكود
+
+---
+
+## 🎯 Project Context
+
+أنت تعمل على نظام **Texa Core** - نظام Multi-tenant ERP ضخم يخدم:
+- 🧵 قطاع الأقمشة (Fabric)
+- 💱 الصرافة (Exchange)
+- 🏥 المشافي (Healthcare)
+
+### Tech Stack:
+- React 18 + TypeScript
+- Tailwind CSS + shadcn/ui
+- Framer Motion (animations)
+- Supabase (backend)
+- React Query (data management)
+- i18next (translations - 9 languages)
+
+---
+
+## 🚫 STRICT RULES - لا يمكن تجاوزها
+
+### Rule 1: NO Hardcoded Strings
+```typescript
+// ❌ FORBIDDEN - ممنوع منعاً باتاً
+<span>مرحباً</span>
+<span>Hello</span>
+{language === 'ar' ? 'حفظ' : 'Save'}
+
+// ✅ REQUIRED - إلزامي
+<span>{t('common.welcome')}</span>
+<span>{t('common.save')}</span>
+```
+
+### Rule 2: NO New UI Components
+```typescript
+// ❌ FORBIDDEN - لا تنشئ مكونات جديدة
+const MyCustomButton = () => { ... }
+const MyCustomTable = () => { ... }
+const MyCustomModal = () => { ... }
+
+// ✅ REQUIRED - استخدم المكونات المعتمدة
+import { Button } from '@/components/ui/button';
+import { NexaTable } from '@/components/shared/tables/NexaTable';
+import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+```
+
+### Rule 3: Translation Keys Must Exist in ALL 9 Languages
+```
+اللغات المدعومة:
+ar, en, de, tr, ru, uk, it, pl, ro
+
+عند إضافة مفتاح ترجمة جديد:
+1. أضفه في src/i18n/locales/ar.json (العربية)
+2. أضفه في src/i18n/locales/en.json (الإنجليزية)
+3. أضفه في جميع الملفات الـ 7 المتبقية
+4. شغّل: npm run sync:translations
+```
+
+### Rule 4: RTL Support Required
+```typescript
+// ❌ WRONG
+className="mr-4 ml-2 pl-4 pr-4 text-left"
+
+// ✅ CORRECT
+className="me-4 ms-2 ps-4 pe-4 text-start"
+```
+
+### Rule 5: Use Animation Library
+```typescript
+// ✅ REQUIRED - استورد من lib/animations.ts
+import { slideUp, hoverLift, buttonTap } from '@/lib/animations';
+
+<motion.div {...slideUp} {...hoverLift}>
+  <Button {...buttonTap}>{t('common.save')}</Button>
+</motion.div>
+```
+
+---
+
+## 🏗️ Approved Components
+
+### UI Components (shadcn)
+Path: `src/components/ui/`
+- Button, Input, Select, Dialog, Sheet
+- Card, Table, Tabs, Badge, Skeleton
+- Calendar, Checkbox, Switch, Progress
+
+### Shared Components
+Path: `src/components/shared/`
+- `NexaTable` - للجداول العادية
+- `NexaGrid` - للجداول الكبيرة (10,000+ صف)
+- `UnifiedSheet` - للنماذج والعروض البسيطة
+- `StatCard` - للإحصائيات
+- `StatusBadge` - لشارات الحالة
+
+### Universal Sheet System
+Path: `src/components/sheets/universal/`
+- `UniversalDetailSheet` - للتفاصيل المعقدة
+- Use configs from `src/components/sheets/configs/`
+
+---
+
+## 📝 Translation Key Structure
+
+Format: `section.feature.action`
+
+```typescript
+// Examples
+t('accounting.accounts.title')      // "الحسابات"
+t('accounting.accounts.add')        // "إضافة حساب"
+t('common.save')                    // "حفظ"
+t('common.cancel')                  // "إلغاء"
+t('messages.saved')                 // "تم الحفظ بنجاح"
+t('errors.required')                // "هذا الحقل مطلوب"
+t('table.noData')                   // "لا توجد بيانات"
+```
+
+---
+
+## 🎨 Design System
+
+### Colors (from design-system.ts)
+```typescript
+import { statusColors, gradients, cardStyles } from '@/lib/design-system';
+
+// Status colors
+<span className={statusColors.active}>نشط</span>
+
+// Gradients
+<div className={gradients.primary}>...</div>
+```
+
+### Icons (from icons.ts)
+```typescript
+import { moduleIcons, actionIcons, statusIcons } from '@/lib/icons';
+
+// Use consistent icon sizes
+className="h-4 w-4"  // small
+className="h-5 w-5"  // medium
+className="h-6 w-6"  // large
+```
+
+### Shadows
+```typescript
+// Use soft shadows
+className="shadow-soft-sm"  // small
+className="shadow-soft-md"  // medium
+className="shadow-soft-lg"  // large
+```
+
+### Glass Effect
+```typescript
+className="bg-white/70 backdrop-blur-xl border border-white/20"
+```
+
+---
+
+## 🔄 Before Any Task
+
+### Checklist:
+- [ ] Read relevant rules from `docs/rules/`
+- [ ] Check if approved component exists
+- [ ] Prepare translation keys for ALL 9 languages
+- [ ] Ensure RTL support
+- [ ] Plan animations with Framer Motion
+
+### If Creating New Feature:
+1. Check `docs/COMPLETE_REFERENCE_GUIDE.md`
+2. Use existing patterns from similar features
+3. Follow sheet/table conventions
+4. Add translations to ALL language files
+
+---
+
+## 🛠️ Available Scripts
+
+```bash
+# Development
+npm run dev              # Start dev server
+npm run build            # Build for production
+
+# Quality Checks
+npm run typecheck        # TypeScript check
+npm run lint             # ESLint check
+npm run lint:fix         # Fix ESLint issues
+
+# Translations
+npm run sync:translations    # Sync all language files
+npm run check:translations   # Check translation completeness
+
+# Full Validation
+npm run validate         # typecheck + lint + check translations
+```
+
+---
+
+## 📁 Project Structure
+
+```
+src/
+├── app/providers/       # Context providers
+├── components/
+│   ├── ui/              # shadcn (DON'T MODIFY)
+│   ├── ui-pro/          # Advanced animations
+│   ├── shared/          # Reusable components
+│   ├── sheets/          # Universal sheet system
+│   ├── common/          # ErrorBoundary, Logo
+│   └── layout/          # Header, Sidebar
+├── features/            # Feature modules
+│   ├── accounting/
+│   ├── saas/
+│   └── ...
+├── hooks/               # Custom hooks
+├── i18n/locales/        # 9 language files
+├── lib/                 # Utilities, design system
+├── services/            # API services
+└── types/               # TypeScript types
+
+docs/
+├── rules/               # MANDATORY rules
+├── COMPLETE_REFERENCE_GUIDE.md
+└── DEVELOPMENT_ROADMAP.md
+```
+
+---
+
+## 🚨 Error Prevention
+
+### Common Mistakes to Avoid:
+
+1. **Creating new Table component** → Use `NexaTable`
+2. **Creating new Modal/Sheet** → Use `UnifiedSheet` or `UniversalDetailSheet`
+3. **Writing Arabic/English text directly** → Use `t('key')`
+4. **Using `mr-4` instead of `me-4`** → RTL violation
+5. **Forgetting loading states** → Use `Skeleton` or `loading` prop
+6. **Using `alert()` or `confirm()`** → Use `toast` from sonner
+
+---
+
+## 💡 Quick Reference
+
+### Toast Notifications
+```typescript
+import { toast } from 'sonner';
+
+toast.success(t('messages.saved'));
+toast.error(t('errors.saveFailed'));
+toast.info(t('messages.processing'));
+```
+
+### Loading State
+```typescript
+// In tables
+<NexaTable loading={isLoading} ... />
+
+// In components
+{isLoading ? <Skeleton className="h-4 w-full" /> : content}
+```
+
+### Form Handling
+```typescript
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+```
+
+---
+
+## ⚡ Performance Rules
+
+1. Use `React.memo()` for pure components
+2. Use `useMemo()` for expensive calculations
+3. Use `useCallback()` for event handlers
+4. Use `NexaGrid` for large datasets (10,000+ rows)
+5. Lazy load pages and heavy components
+
+---
+
+## 📚 Documentation References
+
+- `docs/rules/COMPONENTS_RULES.md` - Full component guide
+- `docs/rules/TRANSLATION_RULES.md` - Translation guide
+- `docs/rules/SHEETS_RULES.md` - Sheets and dialogs
+- `docs/rules/CODING_STANDARDS.md` - Code standards
+- `docs/COMPLETE_REFERENCE_GUIDE.md` - System architecture
+- `docs/DEVELOPMENT_ROADMAP.md` - Development plan
+
+---
+
+**Remember: When in doubt, ASK FIRST. Don't guess or improvise.**

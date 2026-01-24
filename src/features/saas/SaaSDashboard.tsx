@@ -273,7 +273,7 @@ export default function SaaSDashboard() {
                     <TableHead className="text-xs">{t('common.code')}</TableHead>
                     <TableHead className="text-xs">{t('common.name')}</TableHead>
                     <TableHead className="text-xs">{language === 'ar' ? 'الباقة' : 'Plan'}</TableHead>
-                    <TableHead className="text-xs">{t('common.status')}</TableHead>
+                    <TableHead className="text-xs">{t('common.status._')}</TableHead>
                     <TableHead className="text-xs">{t('common.date')}</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>

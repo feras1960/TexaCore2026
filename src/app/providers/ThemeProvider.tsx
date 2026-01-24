@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useSyncExternalStore, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -16,58 +16,53 @@ interface ThemeProviderProps {
   storageKey?: string;
 }
 
+// Helper to get system theme preference
+function getSystemTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+// Subscribe to system theme changes
+function subscribeToSystemTheme(callback: () => void) {
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  mediaQuery.addEventListener('change', callback);
+  return () => mediaQuery.removeEventListener('change', callback);
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
   storageKey = 'erp-theme',
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
+  const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
     }
     return defaultTheme;
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  // Use useSyncExternalStore to track system theme changes properly
+  const systemTheme = useSyncExternalStore(
+    subscribeToSystemTheme,
+    getSystemTheme,
+    () => 'light' as const
+  );
 
+  // Compute resolved theme based on current theme setting
+  const resolvedTheme: 'light' | 'dark' = theme === 'system' ? systemTheme : theme;
+
+  // Wrap setTheme to also persist to localStorage
+  const setTheme = useCallback((newTheme: Theme) => {
+    setThemeState(newTheme);
+    localStorage.setItem(storageKey, newTheme);
+  }, [storageKey]);
+
+  // Apply theme class to document
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
-
-    let effectiveTheme: 'light' | 'dark';
-
-    if (theme === 'system') {
-      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light';
-    } else {
-      effectiveTheme = theme;
-    }
-
-    root.classList.add(effectiveTheme);
-    setResolvedTheme(effectiveTheme);
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, theme);
-  }, [theme, storageKey]);
-
-  // Listen for system theme changes
-  useEffect(() => {
-    if (theme !== 'system') return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      const root = window.document.documentElement;
-      root.classList.remove('light', 'dark');
-      const newTheme = mediaQuery.matches ? 'dark' : 'light';
-      root.classList.add(newTheme);
-      setResolvedTheme(newTheme);
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme]);
+    root.classList.add(resolvedTheme);
+  }, [resolvedTheme]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>

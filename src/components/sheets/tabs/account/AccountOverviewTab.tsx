@@ -3,7 +3,6 @@
  * تبويب نظرة عامة على الحساب
  */
 
-import React from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -14,8 +13,6 @@ import {
   Calendar,
   DollarSign,
   Info,
-  Building2,
-  Activity,
   FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

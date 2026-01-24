@@ -1,13 +1,14 @@
 /**
  * Accounting Module Main Page
  * Main page with tabs for all accounting features
- * Ordered according to old project structure
+ * With beautiful loading transitions
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import SectionLoader from '@/components/common/SectionLoader';
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -18,24 +19,29 @@ import {
   Settings, 
   FileText 
 } from 'lucide-react';
-import ChartOfAccounts from './ChartOfAccounts/ChartOfAccounts';
-import JournalEntries from './JournalEntries';
-import GeneralLedgerPage from './GeneralLedgerPage';
-import FundsManagement from './FundsManagement';
-import AccountingDashboard from './AccountingDashboard';
-import AccountingReports from './AccountingReports';
-import CostCenters from './CostCenters';
-import Parties from './Parties';
-import AccountingSettings from './AccountingSettings';
+
+// Lazy load components for better performance
+const ChartOfAccounts = lazy(() => import('./ChartOfAccounts/ChartOfAccounts'));
+const JournalEntries = lazy(() => import('./JournalEntries'));
+const GeneralLedgerPage = lazy(() => import('./GeneralLedgerPage'));
+const FundsManagement = lazy(() => import('./FundsManagement'));
+const AccountingDashboard = lazy(() => import('./AccountingDashboard'));
+const AccountingReports = lazy(() => import('./AccountingReports'));
+const Parties = lazy(() => import('./Parties'));
+const AccountingSettings = lazy(() => import('./AccountingSettings'));
+
+// Loading component for Suspense
+const TabContentLoader = () => (
+  <SectionLoader variant="dashboard" showTabs={false} />
+);
 
 export default function Accounting() {
-  const { t } = useLanguage();
+  const { t: _t } = useLanguage();
   const location = useLocation();
 
   // Determine active tab from route
   const getActiveTab = () => {
     const path = location.pathname;
-    // Check if we're in accounting module
     if (path.startsWith('/accounting')) {
       if (path.includes('/chart-of-accounts')) return 'chart-of-accounts';
       if (path.includes('/journal-entries')) return 'journal-entries';
@@ -44,10 +50,9 @@ export default function Accounting() {
       if (path.includes('/parties')) return 'parties';
       if (path.includes('/settings')) return 'settings';
       if (path.includes('/reports')) return 'reports';
-      // Default to dashboard if path is /accounting or /accounting/
       return 'dashboard';
     }
-    return 'dashboard'; // Default to dashboard
+    return 'dashboard';
   };
 
   const [activeTab, setActiveTab] = useState(getActiveTab());
@@ -61,7 +66,7 @@ export default function Accounting() {
   const tabs = [
     {
       id: 'dashboard',
-      labelKey: 'accounting.dashboard',
+      labelKey: 'accounting.dashboardLabel',
       icon: LayoutDashboard,
     },
     {
@@ -102,9 +107,9 @@ export default function Accounting() {
   ];
 
   const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    // For now, just update the tab state (routes will be added later)
-    // navigate(`/accounting/${tabId}`);
+    if (tabId !== activeTab) {
+      setActiveTab(tabId);
+    }
   };
 
   // Render content based on active tab
@@ -141,8 +146,10 @@ export default function Accounting() {
         variant="underline"
       />
 
-      {/* Content */}
-      {renderContent()}
+      {/* Content - بدون animations */}
+      <Suspense fallback={<TabContentLoader />}>
+        {renderContent()}
+      </Suspense>
     </div>
   );
 }

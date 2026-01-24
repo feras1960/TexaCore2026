@@ -30,7 +30,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table,
   TableBody,
@@ -63,12 +62,12 @@ import {
 
 // Document types configuration - using translation keys
 const DOC_TYPES = [
-  { code: 'invoice', key: 'accounting.invoices' },
+  { code: 'invoice', key: 'tabs.invoices' },
   { code: 'order', key: 'common.orders' },
   { code: 'payment', key: 'accounting.payments' },
-  { code: 'journal_entry', key: 'accounting.journalEntries.title' },
-  { code: 'customer', key: 'accounting.parties.customers' },
-  { code: 'supplier', key: 'accounting.parties.suppliers' },
+  { code: 'journal_entry', key: 'accounting.journalEntries' },
+  { code: 'customer', key: 'accounting.customers' },
+  { code: 'supplier', key: 'accounting.suppliers' },
 ];
 
 const COLORS: StatusColor[] = [
@@ -87,20 +86,21 @@ export function StatusManager({
   defaultDocType = 'invoice',
   className,
 }: StatusManagerProps) {
-  const { t, language, direction } = useLanguage();
+  const { t, language } = useLanguage();
   
   // State
   const [activeDocType, setActiveDocType] = useState(defaultDocType);
   const [groups, setGroups] = useState<StatusGroup[]>([]);
   const [statuses, setStatuses] = useState<CustomStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   // Dialog states
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  // Reserved for future use
+  void useState(false); // groupDialogOpen
   const [editingStatus, setEditingStatus] = useState<CustomStatus | null>(null);
-  const [editingGroup, setEditingGroup] = useState<StatusGroup | null>(null);
+  const [_editingGroup, _setEditingGroup] = useState<StatusGroup | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({

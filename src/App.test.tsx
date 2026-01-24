@@ -3,8 +3,7 @@
  * للتحقق من أن React يعمل
  */
 
-import React from 'react';
-
+/* eslint-disable i18next/no-literal-string -- Test component */
 export default function AppTest() {
   return (
     <div style={{ padding: '20px', backgroundColor: '#fff', minHeight: '100vh' }}>

@@ -3,7 +3,7 @@
  * يعرض رؤى وتحليلات ذكية للبيانات
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import { Progress } from '@/components/ui/progress';
 import {
   Brain,
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   CheckCircle2,
   Lightbulb,
@@ -30,7 +29,7 @@ interface AIAnalysisTabProps {
   onAction?: (actionId: string, data?: any) => void;
 }
 
-export function AIAnalysisTab({ data, language, onAction }: AIAnalysisTabProps) {
+export function AIAnalysisTab({ data, language, onAction: _onAction }: AIAnalysisTabProps) {
   const isRTL = language === 'ar';
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 

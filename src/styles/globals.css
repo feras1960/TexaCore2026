@@ -79,25 +79,41 @@
   }
 
   body {
-    @apply bg-erp-cream dark:bg-gray-950 text-erp-navy dark:text-gray-100 font-tajawal;
+    @apply bg-erp-cream dark:bg-gray-950 text-erp-navy dark:text-gray-100;
     font-size: 14px;
     line-height: 1.6;
     letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* استخدام Inter كافتراضي للغات الأوروبية، وTajawal للعربية */
+    font-family: 'Inter', 'Tajawal', system-ui, sans-serif;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-cairo font-bold;
+    @apply font-bold;
+    /* Cairo للعناوين العربية، Inter للأوروبية */
+    font-family: 'Inter', 'Cairo', system-ui, sans-serif;
   }
 
-  /* RTL Support */
+  /* RTL Support - Arabic */
   [dir="rtl"] {
     text-align: right;
+    font-family: 'Tajawal', 'Cairo', system-ui, sans-serif;
   }
 
+  [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
+    font-family: 'Cairo', 'Tajawal', system-ui, sans-serif;
+  }
+
+  /* LTR Support - European Languages */
   [dir="ltr"] {
     text-align: left;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  [dir="ltr"] h1, [dir="ltr"] h2, [dir="ltr"] h3, [dir="ltr"] h4, [dir="ltr"] h5, [dir="ltr"] h6 {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
   }
 
   /* Table styles */

@@ -9,7 +9,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Clock, CreditCard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn } from '@/lib/utils';
 import type { SubscriptionStatusInfo } from '@/services/subscriptionService';
 

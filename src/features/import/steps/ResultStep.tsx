@@ -45,7 +45,6 @@ export function ResultStep({
 
   const downloadErrorReport = () => {
     // TODO: Implement error report download
-    console.log('Download error report');
   };
 
   return (

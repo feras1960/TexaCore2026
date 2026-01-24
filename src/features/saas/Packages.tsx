@@ -251,7 +251,7 @@ export default function Packages() {
                 <TableHead className="text-start">{language === 'ar' ? 'السعر السنوي' : 'Yearly'}</TableHead>
                 <TableHead className="text-center">{language === 'ar' ? 'المستخدمين' : 'Users'}</TableHead>
                 <TableHead className="text-center">{language === 'ar' ? 'التخزين' : 'Storage'}</TableHead>
-                <TableHead className="text-center">{t('common.status')}</TableHead>
+                <TableHead className="text-center">{t('common.status._')}</TableHead>
                 <TableHead className="text-center">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -420,7 +420,7 @@ export default function Packages() {
                   <p className="font-semibold">{selectedPlan.trial_days} {language === 'ar' ? 'يوم' : 'days'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">{t('common.status')}</p>
+                  <p className="text-gray-500">{t('common.status._')}</p>
                   <Badge
                     variant="outline"
                     className={cn(

@@ -13,7 +13,6 @@ import {
   Edit2,
   MoreHorizontal,
   ChevronLeft,
-  Printer,
 } from 'lucide-react';
 import { QRCodeGenerator, type QRDocType } from '@/components/shared/qrcode';
 import { PrintDialog } from '@/components/shared/print';
@@ -84,6 +83,7 @@ export function UniversalDetailHeader({
   // Get balance if configured
   const balanceConfig = config.balance;
   const balanceValue = balanceConfig ? balanceConfig.value(data) : null;
+  const showBalance = Boolean(balanceConfig);
   
   // Filter visible actions
   const visibleActions = config.actions.filter(
@@ -99,23 +99,21 @@ export function UniversalDetailHeader({
 
   const renderActionButton = (action: SheetAction, inDropdown = false) => {
     const ActionIcon = action.icon;
-    const label = isArabic && action.labelAr ? action.labelAr : action.label;
+    // Always use translation - label should be a translation key like 'actions.edit'
+    const label = t(action.label);
     const isDisabled = action.disabled ? action.disabled(data) : false;
 
     // If action has confirm dialog
     if (action.confirm) {
-      const confirmTitle = isArabic && action.confirm.titleAr 
-        ? action.confirm.titleAr 
-        : action.confirm.title;
-      const confirmDesc = isArabic && action.confirm.descriptionAr 
-        ? action.confirm.descriptionAr 
-        : action.confirm.description;
-      const confirmLabel = isArabic && action.confirm.confirmLabelAr 
-        ? action.confirm.confirmLabelAr 
-        : (action.confirm.confirmLabel || t('common.confirm'));
-      const cancelLabel = isArabic && action.confirm.cancelLabelAr 
-        ? action.confirm.cancelLabelAr 
-        : (action.confirm.cancelLabel || t('common.cancel'));
+      // Use translation for all confirm dialog texts
+      const confirmTitle = t(action.confirm.title);
+      const confirmDesc = t(action.confirm.description);
+      const confirmLabel = action.confirm.confirmLabel 
+        ? t(action.confirm.confirmLabel) 
+        : t('common.confirm');
+      const cancelLabel = action.confirm.cancelLabel 
+        ? t(action.confirm.cancelLabel) 
+        : t('common.cancel');
 
       return (
         <AlertDialog key={action.id}>
@@ -197,8 +195,8 @@ export function UniversalDetailHeader({
   };
 
   return (
-    <div className="bg-gradient-to-br from-teal-600 via-teal-500 to-cyan-600 dark:from-teal-800 dark:via-teal-700 dark:to-cyan-800 p-4 text-white flex-shrink-0 shadow-lg">
-      <div className="flex items-start justify-between">
+    <div className="bg-gradient-to-br from-teal-600 via-teal-500 to-cyan-600 dark:from-teal-800 dark:via-teal-700 dark:to-cyan-800 p-4 text-white flex-shrink-0 shadow-lg min-h-[132px]">
+      <div className="flex items-start justify-between gap-4">
         {/* Left: Back button + Icon + Title */}
         <div className="flex items-center gap-3">
           {/* Back Button for nested sheets */}
@@ -228,7 +226,7 @@ export function UniversalDetailHeader({
               {badge && (
                 <Badge className={cn('text-xs', BADGE_VARIANT_CLASSES[badge.variant])}>
                   {badge.icon && <badge.icon className="w-3 h-3 me-1" />}
-                  {badge.label}
+                  {t(badge.label)}
                 </Badge>
               )}
             </div>
@@ -308,7 +306,7 @@ export function UniversalDetailHeader({
                   <MoreHorizontal className="w-5 h-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" dir={direction}>
+              <DropdownMenuContent align="end">
                 {overflowActions.map((action, index) => (
                   <React.Fragment key={action.id}>
                     {index > 0 && action.variant === 'destructive' && (
@@ -334,31 +332,30 @@ export function UniversalDetailHeader({
       </div>
 
       {/* Balance Display */}
-      {balanceConfig && balanceValue !== null && (
-        <div className="mt-4 p-3 rounded-lg bg-white/10 backdrop-blur-sm">
-          <div className="text-xs text-white/60 mb-1">
-            {isArabic && balanceConfig.labelAr 
-              ? balanceConfig.labelAr 
-              : (balanceConfig.label || t('accounting.currentBalance'))}
-          </div>
-          <div className={cn(
-            'text-2xl font-bold font-mono',
-            balanceConfig.showSign !== false && (
-              balanceValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
-            )
-          )}>
-            {balanceConfig.showSign !== false && balanceValue > 0 && '+'}
-            {typeof balanceValue === 'number' 
-              ? balanceValue.toLocaleString('en-US', { minimumFractionDigits: 2 })
-              : balanceValue}
-            {balanceConfig.currency && (
-              <span className="text-sm text-white/60 ms-1">
-                {balanceConfig.currency}
-              </span>
-            )}
-          </div>
+      <div className={cn(
+        "mt-3 p-3 rounded-lg bg-white/10 backdrop-blur-sm min-h-[56px]",
+        !showBalance && "opacity-0"
+      )}>
+        <div className="text-xs text-white/60 mb-1">
+          {balanceConfig?.label ? t(balanceConfig.label) : t('accounting.currentBalance')}
         </div>
-      )}
+        <div className={cn(
+          'text-2xl font-bold font-mono',
+          balanceConfig?.showSign !== false && (
+            (typeof balanceValue === 'number' && balanceValue >= 0) ? 'text-emerald-300' : 'text-rose-300'
+          )
+        )}>
+          {balanceConfig?.showSign !== false && typeof balanceValue === 'number' && balanceValue > 0 && '+'}
+          {typeof balanceValue === 'number' 
+            ? balanceValue.toLocaleString('en-US', { minimumFractionDigits: 2 })
+            : (balanceValue ?? '--')}
+          {balanceConfig?.currency && (
+            <span className="text-sm text-white/60 ms-1">
+              {balanceConfig.currency}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

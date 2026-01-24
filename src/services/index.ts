@@ -156,5 +156,75 @@ export {
   type ParsedFile
 } from './importService';
 
+// Translation Service - Multi-language support
+export {
+  translateToAllLanguages,
+  formatTranslationsForDB,
+  extractTranslationsFromDB,
+  hasAllTranslations,
+  getTranslatedName,
+  SUPPORTED_LANGUAGES,
+  LANGUAGE_NAMES,
+  type SupportedLanguage,
+  type Translations,
+  type DescriptionTranslations,
+  type TranslationResult,
+  type TranslationOptions
+} from './translationService';
+
+// Containers Service - Landed Cost & Shipments
+export {
+  default as containersService,
+  getContainers,
+  getContainerById,
+  createContainer,
+  updateContainer,
+  deleteContainer,
+  getContainerItems,
+  addContainerItem,
+  updateContainerItem,
+  deleteContainerItem,
+  getContainerExpenses,
+  addContainerExpense,
+  updateContainerExpense,
+  getContainerReservations,
+  createReservation,
+  getContainerQuotations,
+  createQuotation,
+  calculateLandedCost,
+  finalizeLandedCost,
+  getContainersStats,
+  searchContainers,
+  type Container,
+  type ContainerItem,
+  type ContainerExpense,
+  type ContainerReservation,
+  type ContainerQuotation,
+  type ContainerStatus,
+  type CostAllocationMethod,
+  type ExpenseStatus
+} from './containersService';
+
 // SaaS Management Services - Re-export from saas folder
 export * from './saas';
+
+// Modules Management
+export {
+  modulesService,
+  type TenantModule,
+  type SidebarStructure
+} from './modulesService';
+
+// Features Management
+export {
+  featuresService,
+  type ModuleFeature
+} from './featuresService';
+
+// Languages Management
+export {
+  languagesService,
+  type SystemLanguage,
+  type TenantLanguage,
+  type LanguageLimitInfo
+} from './languagesService';

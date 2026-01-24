@@ -3,7 +3,6 @@
  * يعرض الحجوزات المرتبطة بالعميل/المشترك/الحساب
  */
 
-import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,14 +10,12 @@ import {
   Calendar,
   Clock,
   MapPin,
-  User,
   CheckCircle2,
   XCircle,
   AlertCircle,
   Plus,
   Eye,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ReservationsTabProps {
   data: any;

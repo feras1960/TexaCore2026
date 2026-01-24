@@ -296,7 +296,7 @@ export default function ModuleManagement() {
                 <TableHead className="text-start">{language === 'ar' ? 'الباقات' : 'Packages'}</TableHead>
                 <TableHead className="text-start">{renderHeader(language === 'ar' ? 'الإصدار' : 'Version', 'version')}</TableHead>
                 <TableHead className="text-start">{renderHeader(language === 'ar' ? 'السعر' : 'Price', 'price')}</TableHead>
-                <TableHead className="text-start">{renderHeader(t('common.status'), 'status', ['Active', 'Inactive'])}</TableHead>
+                <TableHead className="text-start">{renderHeader(t('common.status._'), 'status', ['Active', 'Inactive'])}</TableHead>
                 <TableHead className="text-start w-[80px]">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -399,11 +399,11 @@ export default function ModuleManagement() {
       {/* Module Details Sheet */}
       {selectedModule && (
         <UnifiedSheet
-          open={isDetailsOpen}
-          onOpenChange={setIsDetailsOpen}
+          isOpen={isDetailsOpen}
+          onClose={() => setIsDetailsOpen(false)}
           title={language === 'ar' ? selectedModule.nameAr : selectedModule.name}
           subtitle={`v${selectedModule.version}`}
-          icon={<Package className="w-5 h-5" />}
+          icon={Package}
           size="lg"
         >
           <ModuleDetailsContent 

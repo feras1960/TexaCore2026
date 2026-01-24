@@ -48,8 +48,22 @@ import {
 import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
 import { cn } from '@/lib/utils';
 
+// Ticket interface
+interface SupportTicket {
+  id: string;
+  subject: string;
+  tenant_name: string;
+  tenant_code: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  category: string;
+  created_at: string;
+  updated_at: string;
+  messages_count: number;
+}
+
 // Mock data
-const mockTickets = [
+const mockTickets: SupportTicket[] = [
   {
     id: 'TKT-001',
     subject: 'مشكلة في تسجيل الدخول',
@@ -151,7 +165,7 @@ export default function Support() {
   const [notifications] = useState(mockNotifications);
   const [activeTab, setActiveTab] = useState('tickets');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTicket, setSelectedTicket] = useState<typeof mockTickets[0] | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
 
@@ -405,7 +419,7 @@ export default function Support() {
                     <TableHead>{language === 'ar' ? 'الموضوع' : 'Subject'}</TableHead>
                     <TableHead>{language === 'ar' ? 'المشترك' : 'Subscriber'}</TableHead>
                     <TableHead>{language === 'ar' ? 'الأولوية' : 'Priority'}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead>{t('common.status._')}</TableHead>
                     <TableHead>{language === 'ar' ? 'آخر تحديث' : 'Last Update'}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -571,7 +585,7 @@ export default function Support() {
                 <p className="text-xs text-gray-400">{selectedTicket.tenant_code}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">{t('common.status')}</p>
+                <p className="text-sm text-gray-500">{t('common.status._')}</p>
                 <div className="mt-1">{getStatusBadge(selectedTicket.status)}</div>
               </div>
               <div>

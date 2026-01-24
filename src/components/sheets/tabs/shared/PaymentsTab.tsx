@@ -3,10 +3,10 @@
  * يعرض قائمة المدفوعات والإيصالات
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { LedgerTable, type LedgerColumn, type LedgerStats } from '@/components/shared';
-import { Wallet, Receipt, DollarSign } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { type TabComponentProps, type DocType } from '../../configs/sheet.types';
 
 // Payment Entry Interface
@@ -23,8 +23,8 @@ interface PaymentEntry {
   docId?: string;
 }
 
-export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
-  const isArabic = language === 'ar';
+export function PaymentsTab({ data, docType: _docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+  const _isArabic = language === 'ar';
 
   // Get payments from data
   const payments: PaymentEntry[] = useMemo(() => {
@@ -77,14 +77,14 @@ export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh 
   const columns: LedgerColumn<PaymentEntry>[] = [
     {
       key: 'date',
-      title: isArabic ? 'التاريخ' : 'Date',
+      title: t('common.date'),
       width: '100px',
       type: 'date',
       sortable: true,
     },
     {
       key: 'reference',
-      title: isArabic ? 'المرجع' : 'Reference',
+      title: t('common.reference'),
       width: '120px',
       type: 'reference',
       clickable: true,
@@ -92,7 +92,7 @@ export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh 
     },
     {
       key: 'type',
-      title: isArabic ? 'النوع' : 'Type',
+      title: t('common.type'),
       width: '100px',
       render: (value) => (
         <span className={cn(
@@ -101,21 +101,18 @@ export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh 
             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
             : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
         )}>
-          {value === 'receipt' 
-            ? (isArabic ? 'قبض' : 'Receipt')
-            : (isArabic ? 'صرف' : 'Payment')
-          }
+          {value === 'receipt' ? t('common.receipt') : t('common.payment')}
         </span>
       ),
     },
     {
       key: 'description',
-      title: isArabic ? 'البيان' : 'Description',
+      title: t('common.description'),
       sortable: true,
     },
     {
       key: 'method',
-      title: isArabic ? 'الطريقة' : 'Method',
+      title: t('common.method'),
       width: '100px',
       render: (value) => (
         <span className="text-xs text-gray-500">{value || '-'}</span>
@@ -123,13 +120,13 @@ export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh 
     },
     {
       key: 'status',
-      title: isArabic ? 'الحالة' : 'Status',
+      title: t('common.status'),
       width: '100px',
       type: 'status',
     },
     {
       key: 'amount',
-      title: isArabic ? 'المبلغ' : 'Amount',
+      title: t('common.amount'),
       width: '130px',
       align: 'end',
       sortable: true,
@@ -148,21 +145,21 @@ export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh 
   // Stats configuration
   const stats: LedgerStats = {
     label1: { 
-      title: isArabic ? 'عدد العمليات' : 'Count', 
+      title: t('accounting.payments.count'),
       value: payments.length 
     },
     label2: { 
-      title: isArabic ? 'الصافي' : 'Net', 
+      title: t('accounting.payments.net'),
       value: netAmount, 
       color: netAmount >= 0 ? 'green' : 'red' 
     },
     label3: { 
-      title: isArabic ? 'إجمالي الصرف' : 'Total Payments', 
+      title: t('accounting.payments.totalPayments'),
       value: totals.totalPayments, 
       color: 'red' 
     },
     label4: { 
-      title: isArabic ? 'إجمالي القبض' : 'Total Receipts', 
+      title: t('accounting.payments.totalReceipts'),
       value: totals.totalReceipts, 
       color: 'green' 
     },
@@ -189,8 +186,8 @@ export function PaymentsTab({ data, docType, language, t, onRowClick, onRefresh 
       variant="payments"
       onRowClick={handleRowClick}
       onRefresh={onRefresh}
-      footerLabel={isArabic ? 'الإجمالي' : 'Total'}
-      emptyMessage={isArabic ? 'لا توجد مدفوعات' : 'No payments'}
+      footerLabel={t('common.total')}
+      emptyMessage={t('common.noData')}
       emptyIcon={<Wallet className="w-16 h-16 text-gray-300 dark:text-gray-600" />}
     />
   );

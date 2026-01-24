@@ -3,8 +3,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { 
   ChevronDown, 
-  ChevronUp, 
-  Filter, 
+  ChevronUp,
   X,
   Download,
   Printer
@@ -44,6 +43,8 @@ export interface NexaTableProps<T> {
   stickyFooter?: boolean;
   className?: string;
   emptyMessage?: string;
+  /** Show loading state */
+  loading?: boolean;
 }
 
 export function NexaTable<T extends Record<string, any>>({
@@ -57,12 +58,13 @@ export function NexaTable<T extends Record<string, any>>({
   editable = false,
   onSave,
   onCancel,
-  onDataChange,
+  onDataChange: _onDataChange,
   showRowNumbers = true,
   stickyHeader = true,
   stickyFooter = true,
   className,
   emptyMessage,
+  loading = false,
 }: NexaTableProps<T>) {
   const { t, direction } = useLanguage();
 
@@ -72,6 +74,9 @@ export function NexaTable<T extends Record<string, any>>({
   const [editData, setEditData] = useState<T[]>([]);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
+  // Mark as used to prevent warnings
+  void selectedCell;
+  void editingCell;
 
   // Sort data
   const sortedData = useMemo(() => {
@@ -222,29 +227,23 @@ export function NexaTable<T extends Record<string, any>>({
       )}
 
       {/* Table */}
-      <div className="overflow-auto">
-        <table className="w-full" dir={direction}>
-          {/* Header */}
+      <div className="overflow-auto w-full">
+        <table className="w-full min-w-full" dir={direction}>
+          {/* Header - Light elegant gradient */}
           <thead className={cn(stickyHeader && 'sticky top-0 z-20')}>
-            <tr className="bg-erp-navy dark:bg-slate-900">
+            <tr className="bg-gradient-to-r from-slate-100 via-gray-50 to-slate-100 dark:from-slate-800 dark:via-slate-850 dark:to-slate-800 border-b-2 border-erp-teal/30">
               {/* Checkbox/Row Number */}
               {(selectable || showRowNumbers) && (
-                <th className="w-12 px-3 py-3 text-center border-e border-white/10">
+                <th className="w-12 px-3 py-3.5 text-center border-e border-gray-200 dark:border-gray-700">
                   {selectable && !isEditMode ? (
                     <Checkbox
                       checked={selectedRows.length === displayData.length && displayData.length > 0}
                       onCheckedChange={handleSelectAll}
-                      className="border-white/30"
+                      className="border-gray-400"
                     />
                   ) : (
-                    <span className="text-xs text-white/70 font-medium">#</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">#</span>
                   )}
-                </th>
-              )}
-              {/* Serial Number Column (when selectable is enabled) */}
-              {selectable && showRowNumbers && (
-                <th className="w-12 px-3 py-3 text-center border-e border-white/10">
-                  <span className="text-xs text-white/70 font-medium">#</span>
                 </th>
               )}
               
@@ -253,8 +252,8 @@ export function NexaTable<T extends Record<string, any>>({
                 <th
                   key={String(column.key)}
                   className={cn(
-                    'px-4 py-3 text-xs font-semibold text-white/90 uppercase tracking-wider',
-                    colIndex < columns.length - 1 && 'border-e border-white/10',
+                    'px-4 py-3.5 text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider',
+                    colIndex < columns.length - 1 && 'border-e border-gray-200 dark:border-gray-700',
                     column.align === 'center' && 'text-center',
                     column.align === 'end' && 'text-end',
                   )}
@@ -265,13 +264,13 @@ export function NexaTable<T extends Record<string, any>>({
                     {column.sortable && (
                       <button
                         onClick={() => handleSort(String(column.key))}
-                        className="p-0.5 hover:bg-white/10 rounded"
+                        className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
                       >
                         {sortConfig?.key === column.key ? (
                           sortConfig.direction === 'asc' ? (
-                            <ChevronUp className="w-4 h-4" />
+                            <ChevronUp className="w-4 h-4 text-erp-teal" />
                           ) : (
-                            <ChevronDown className="w-4 h-4" />
+                            <ChevronDown className="w-4 h-4 text-erp-teal" />
                           )
                         ) : (
                           <ChevronDown className="w-4 h-4 opacity-30" />
@@ -284,7 +283,7 @@ export function NexaTable<T extends Record<string, any>>({
                           placeholder={t('table.filter')}
                           value={columnFilters[String(column.key)] || ''}
                           onChange={(e) => handleFilter(String(column.key), e.target.value)}
-                          className="h-6 w-24 text-xs bg-white/10 border-white/20 text-white placeholder:text-white/40"
+                          className="h-6 w-24 text-xs bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 placeholder:text-gray-400"
                         />
                       </div>
                     )}
@@ -296,7 +295,29 @@ export function NexaTable<T extends Record<string, any>>({
 
           {/* Body */}
           <tbody>
-            {displayData.length === 0 ? (
+            {loading ? (
+              // Loading skeleton rows
+              Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} className="animate-pulse border-b border-slate-200 dark:border-slate-700">
+                  {(selectable || showRowNumbers) && (
+                    <td className="w-12 px-3 py-3 border-e border-slate-200 dark:border-slate-700">
+                      <div className="h-4 w-4 mx-auto bg-gray-200 dark:bg-gray-700 rounded" />
+                    </td>
+                  )}
+                  {columns.map((col, colIdx) => (
+                    <td 
+                      key={colIdx} 
+                      className={cn(
+                        'px-4 py-3',
+                        colIdx < columns.length - 1 && 'border-e border-slate-200 dark:border-slate-700'
+                      )}
+                    >
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : displayData.length === 0 ? (
               <tr>
                 <td 
                   colSpan={columns.length + (selectable || showRowNumbers ? 1 : 0) + (selectable && showRowNumbers ? 1 : 0)}
@@ -331,12 +352,6 @@ export function NexaTable<T extends Record<string, any>>({
                       )}
                     </td>
                   )}
-                  {/* Serial Number Column (when selectable is enabled) */}
-                  {selectable && showRowNumbers && (
-                    <td className="w-12 px-3 py-3 text-center border-e border-slate-200 dark:border-slate-700">
-                      <span className="text-xs text-gray-400 font-mono">{rowIndex + 1}</span>
-                    </td>
-                  )}
 
                   {/* Data Cells */}
                   {columns.map((column, colIndex) => {
@@ -364,15 +379,12 @@ export function NexaTable<T extends Record<string, any>>({
             )}
           </tbody>
 
-          {/* Footer */}
+          {/* Footer - Light elegant gradient */}
             {hasFooter && (
             <tfoot className={cn(stickyFooter && 'sticky bottom-0 z-20')}>
-              <tr className="bg-erp-navy dark:bg-slate-900">
+              <tr className="bg-gradient-to-r from-slate-100 via-gray-50 to-slate-100 dark:from-slate-800 dark:via-slate-850 dark:to-slate-800 border-t-2 border-erp-teal/30">
                 {(selectable || showRowNumbers) && (
-                  <td className="px-3 py-3 border-e border-white/10" />
-                )}
-                {selectable && showRowNumbers && (
-                  <td className="px-3 py-3 border-e border-white/10" />
+                  <td className="px-3 py-3.5 border-e border-gray-200 dark:border-gray-700" />
                 )}
                 {columns.map((column, colIndex) => {
                   const footerValue = calculateFooter(column);
@@ -380,17 +392,17 @@ export function NexaTable<T extends Record<string, any>>({
                     <td
                       key={String(column.key)}
                       className={cn(
-                        'px-4 py-3 text-sm font-semibold text-white',
-                        colIndex < columns.length - 1 && 'border-e border-white/10',
+                        'px-4 py-3.5 text-sm font-bold text-gray-700 dark:text-gray-200',
+                        colIndex < columns.length - 1 && 'border-e border-gray-200 dark:border-gray-700',
                         column.align === 'center' && 'text-center',
                         column.align === 'end' && 'text-end',
                       )}
                     >
                       {footerValue !== null && (
                         <span className={cn(
-                          column.key === 'debit' && 'text-emerald-400',
-                          column.key === 'credit' && 'text-rose-400',
-                          column.key === 'balance' && 'text-blue-400',
+                          column.key === 'debit' && 'text-emerald-600 dark:text-emerald-400',
+                          column.key === 'credit' && 'text-rose-600 dark:text-rose-400',
+                          column.key === 'balance' && 'text-blue-600 dark:text-blue-400',
                         )}>
                           {typeof footerValue === 'number' 
                             ? footerValue.toLocaleString('en-US')

@@ -5,7 +5,7 @@
 
 // Dialogs & Sheets
 export { default as CreateTenantDialog } from './CreateTenantDialog';
-export { default as AgentDetailsSheet } from './AgentDetailsSheet';
+export { AgentDetailsSheet } from './AgentDetailsSheet';
 
 // Management Components
 export { default as ModuleManagement } from './ModuleManagement';

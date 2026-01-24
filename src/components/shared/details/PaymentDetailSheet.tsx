@@ -1,4 +1,3 @@
-import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -160,7 +159,7 @@ const getStatusConfig = (status: string) => {
   }
 };
 
-const getPaymentTypeConfig = (type: string, paymentType: string) => {
+const getPaymentTypeConfig = (_type: string, paymentType: string) => {
   if (paymentType === 'receive') {
     return { 
       labelAr: 'سند قبض', 

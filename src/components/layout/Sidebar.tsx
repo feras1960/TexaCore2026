@@ -1,8 +1,10 @@
-import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useModules } from '@/hooks/useModules';
 import Logo from '@/components/common/Logo';
 import { 
   LayoutDashboard, 
@@ -21,7 +23,9 @@ import {
   Building2,
   Globe,
   Beaker,
-  History
+  History,
+  Lock,
+  TrendingUp
 } from 'lucide-react';
 import {
   Tooltip,
@@ -34,37 +38,94 @@ interface SidebarProps {
   className?: string;
 }
 
+// خريطة الأيقونات لكل موديول
+const moduleIcons: Record<string, any> = {
+  dashboard: LayoutDashboard,
+  accounting: Calculator,
+  inventory: Package,
+  sales: ShoppingCart,
+  purchases: ShoppingBag,
+  crm: Users,
+  real_estate: Building2,
+  pos: ScanBarcode,
+  exchange: ArrowRightLeft,
+  manufacturing: Factory,
+  hr: UserCog,
+  ecommerce: Globe,
+  saas: Crown,
+  ai_analytics: Brain,
+  activity_log: History,
+  system_config: Settings,
+  component_lab: Beaker,
+};
+
+// خريطة المسارات لكل موديول
+const modulePaths: Record<string, string> = {
+  dashboard: '/',
+  accounting: '/accounting',
+  inventory: '/inventory',
+  sales: '/sales',
+  purchases: '/purchases',
+  crm: '/crm',
+  real_estate: '/real-estate',
+  pos: '/pos',
+  exchange: '/exchange',
+  manufacturing: '/manufacturing',
+  hr: '/hr',
+  ecommerce: '/ecommerce',
+  saas: '/saas',
+  ai_analytics: '/ai-analytics',
+  activity_log: '/activity-log',
+  system_config: '/system-config',
+  component_lab: '/component-lab',
+};
+
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
-  const { t, direction } = useLanguage();
+  const { t, direction, language } = useLanguage();
+  const { modules, loading, error } = useModules();
 
-  const modules = [
-    { nameKey: 'navigation.dashboard', path: '/', icon: LayoutDashboard },
-    { nameKey: 'navigation.accounting', path: '/accounting', icon: Calculator },
-    { nameKey: 'navigation.inventory', path: '/inventory', icon: Package },
-    { nameKey: 'navigation.sales', path: '/sales', icon: ShoppingCart },
-    { nameKey: 'navigation.purchases', path: '/purchases', icon: ShoppingBag },
-    { nameKey: 'navigation.crm', path: '/crm', icon: Users },
-    { nameKey: 'navigation.realEstate', path: '/real-estate', icon: Building2 },
-    { nameKey: 'navigation.pos', path: '/pos', icon: ScanBarcode },
-    { nameKey: 'navigation.exchange', path: '/exchange', icon: ArrowRightLeft },
-    { nameKey: 'navigation.manufacturing', path: '/manufacturing', icon: Factory },
-    { nameKey: 'navigation.hr', path: '/hr', icon: UserCog },
-    { nameKey: 'navigation.ecommerce', path: '/ecommerce', icon: Globe },
-    { nameKey: 'navigation.saasControl', path: '/saas', icon: Crown },
-    { nameKey: 'navigation.aiAnalytics', path: '/ai-analytics', icon: Brain },
-    { nameKey: 'navigation.activityLog', path: '/activity-log', icon: History },
-    { nameKey: 'navigation.systemConfig', path: '/system-config', icon: Settings },
-    { nameKey: 'navigation.componentLab', path: '/component-lab', icon: Beaker },
-  ];
+  // التعامل مع حالة التحميل
+  if (loading) {
+    return (
+      <TooltipProvider delayDuration={100}>
+        <motion.aside 
+          className={cn(
+            "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full overflow-y-auto py-6 px-3 lg:px-4 hidden md:flex flex-col", 
+            direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
+            className
+          )}
+        >
+          <div className="mb-6 flex justify-center px-2">
+            <Logo size="lg" showText={true} />
+          </div>
+          <div className="space-y-2 animate-pulse">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+            ))}
+          </div>
+        </motion.aside>
+      </TooltipProvider>
+    );
+  }
+
+  // التعامل مع الخطأ - عرض قائمة افتراضية
+  if (error) {
+    console.error('Error loading modules:', error);
+  }
 
   return (
     <TooltipProvider delayDuration={100}>
-      <aside className={cn(
-        "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full overflow-y-auto py-6 px-3 lg:px-4 hidden md:flex flex-col", 
-        direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
-        className
-      )}>
+      <motion.aside 
+        className={cn(
+          "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full overflow-y-auto py-6 px-3 lg:px-4 hidden md:flex flex-col", 
+          direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
+          className
+        )}
+        initial={{ opacity: 0, x: direction === 'rtl' ? 20 : -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3 }}
+      >
         {/* Logo */}
         <div className="mb-6 flex justify-center px-2">
           <Logo size="lg" showText={true} />
@@ -73,17 +134,61 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Navigation */}
         <nav className="space-y-1.5 flex-1">
           {modules.map((module) => {
-            const isActive = module.path === '/' 
+            const path = modulePaths[module.module_code] || `/${module.module_code}`;
+            const isActive = path === '/' 
               ? location.pathname === '/' 
-              : location.pathname.startsWith(module.path);
+              : location.pathname.startsWith(path);
             
-            const moduleName = t(module.nameKey);
+            const Icon = moduleIcons[module.module_code] || Package;
             
+            // اسم الموديول حسب اللغة
+            const moduleName = language === 'ar' ? module.name_ar : module.name_en;
+            
+            // إذا كان الموديول غير مفعل، عرض زر Upgrade
+            if (!module.is_enabled) {
+              return (
+                <Tooltip key={module.module_code}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-tajawal font-medium text-sm cursor-not-allowed opacity-50 relative group",
+                        "text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800/50"
+                      )}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0 text-gray-300 dark:text-gray-700" />
+                      <span className="hidden lg:block truncate">{moduleName}</span>
+                      <Lock className="w-3.5 h-3.5 ms-auto flex-shrink-0 text-gray-300 dark:text-gray-700" />
+                      
+                      {/* Upgrade Badge */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-erp-teal/5 to-blue-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side={direction === 'rtl' ? 'left' : 'right'}>
+                    <div className="text-center max-w-xs">
+                      <p className="font-semibold mb-1">{moduleName}</p>
+                      <p className="text-xs text-gray-400 mb-2">
+                        {module.requires_upgrade 
+                          ? t('sidebar.upgradeRequired') 
+                          : t('sidebar.moduleDisabled')}
+                      </p>
+                      {module.requires_upgrade && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <TrendingUp className="w-3 h-3" />
+                          {t('sidebar.upgrade')}
+                        </Badge>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+            
+            // الموديول مفعل - عرض عادي
             return (
-              <Tooltip key={module.path}>
+              <Tooltip key={module.module_code}>
                 <TooltipTrigger asChild>
                   <Link
-                    to={module.path}
+                    to={path}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-tajawal font-medium text-sm group",
                       isActive 
@@ -91,7 +196,7 @@ export function Sidebar({ className }: SidebarProps) {
                         : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-erp-navy dark:hover:text-white"
                     )}
                   >
-                    <module.icon className={cn(
+                    <Icon className={cn(
                       "w-5 h-5 flex-shrink-0 transition-colors", 
                       isActive ? "text-erp-teal" : "text-gray-400 dark:text-gray-500 group-hover:text-erp-teal"
                     )} />
@@ -121,7 +226,7 @@ export function Sidebar({ className }: SidebarProps) {
             </Button>
           </div>
         </div>
-      </aside>
+      </motion.aside>
     </TooltipProvider>
   );
 }

@@ -3,11 +3,8 @@
  * يعرض معلومات أساسية عن المستند
  */
 
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Mail,
@@ -19,10 +16,7 @@ import {
   Globe,
   CreditCard,
   Activity,
-  ArrowUpRight,
-  ArrowDownRight,
   Info,
-  DollarSign,
 } from 'lucide-react';
 import { 
   type TabComponentProps,
@@ -44,6 +38,11 @@ const FIELD_ICONS: Record<string, any> = {
   activity: Activity,
 };
 
+const resolveLabel = (label: string, _labelAr: string | undefined, t: (key: string) => string, _isArabic: boolean) => {
+  // Always use translation system - label should be a translation key
+  return t(label);
+};
+
 // Info Row Component
 interface InfoRowProps {
   field: InfoField;
@@ -61,7 +60,7 @@ function InfoRow({ field, data, language, t, onLinkClick }: InfoRowProps) {
   if (field.hidden && field.hidden(data)) return null;
   if (value === null || value === undefined) return null;
 
-  const label = isArabic && field.labelAr ? field.labelAr : field.label;
+  const label = resolveLabel(field.label, field.labelAr, t, isArabic);
   const Icon = field.icon || FIELD_ICONS[field.type] || Info;
 
   // Format value based on type
@@ -199,7 +198,7 @@ export function OverviewTab({ data, docType, language, t, onRowClick }: TabCompo
       <div className="p-4 space-y-4">
         {/* Basic Info Card */}
         <SectionCard 
-          title={isArabic ? 'المعلومات الأساسية' : 'Basic Information'} 
+          title={t('sheets.basicInformation')}
           icon={Info}
         >
           <div className="space-y-1">
@@ -219,7 +218,7 @@ export function OverviewTab({ data, docType, language, t, onRowClick }: TabCompo
         {/* Additional Info Card */}
         {additionalFields.length > 0 && (
           <SectionCard 
-            title={isArabic ? 'معلومات إضافية' : 'Additional Information'} 
+            title={t('sheets.additionalInformation')}
             icon={Activity}
           >
             <div className="space-y-1">
@@ -251,7 +250,7 @@ export function OverviewTab({ data, docType, language, t, onRowClick }: TabCompo
                 >
                   <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                     {StatIcon && <StatIcon className="w-4 h-4" />}
-                    <span>{isArabic && stat.labelAr ? stat.labelAr : stat.label}</span>
+                    <span>{resolveLabel(stat.label, stat.labelAr, t, isArabic)}</span>
                   </div>
                   <div className={cn(
                     'text-xl font-bold font-mono',

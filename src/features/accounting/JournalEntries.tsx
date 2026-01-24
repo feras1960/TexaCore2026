@@ -520,7 +520,7 @@ export default function JournalEntries() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-10" dir={direction}>
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">{t('journalEntries')}</h1>
+        <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">{t('accounting.journalEntries')}</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('receipt'); setIsNewEntryOpen(true); }}>
             <ArrowDownRight className="w-3.5 h-3.5 text-green-600" />
@@ -528,7 +528,7 @@ export default function JournalEntries() {
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('payment'); setIsNewEntryOpen(true); }}>
             <ArrowUpRight className="w-3.5 h-3.5 text-orange-600" />
-            {t('accounting.payments')}
+            {t('accounting.paymentsLabel')}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('cash'); setIsNewEntryOpen(true); }}>
             <Wallet className="w-3.5 h-3.5 text-purple-600" />

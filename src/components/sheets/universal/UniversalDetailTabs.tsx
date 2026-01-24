@@ -3,7 +3,6 @@
  * يعرض التبويبات مع دعم الأيقونات والشارات
  */
 
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { type SheetTab } from '../configs/sheet.types';
@@ -17,6 +16,7 @@ interface UniversalDetailTabsProps {
   t: (key: string) => string;
   className?: string;
   variant?: 'default' | 'pills' | 'underline';
+  styleVariant?: 'classic' | 'swiss';
 }
 
 export function UniversalDetailTabs({
@@ -28,8 +28,10 @@ export function UniversalDetailTabs({
   t,
   className,
   variant = 'default',
+  styleVariant = 'classic',
 }: UniversalDetailTabsProps) {
-  const isArabic = language === 'ar';
+  const _isArabic = language === 'ar';
+  const isSwiss = styleVariant === 'swiss';
 
   // Filter visible tabs
   const visibleTabs = tabs.filter(tab => !tab.hidden || !tab.hidden(data));
@@ -37,10 +39,8 @@ export function UniversalDetailTabs({
   if (visibleTabs.length === 0) return null;
 
   const getTabLabel = (tab: SheetTab) => {
-    if (isArabic && tab.labelAr) return tab.labelAr;
-    // Try to use translation if label looks like a key
-    if (tab.label.includes('.')) return t(tab.label);
-    return tab.label;
+    // Always use translation system - label should be a translation key like 'tabs.overview'
+    return t(tab.label);
   };
 
   const getTabBadge = (tab: SheetTab) => {
@@ -51,45 +51,63 @@ export function UniversalDetailTabs({
   };
 
   const getTabStyles = (isActive: boolean, isDisabled: boolean) => {
-    const base = 'flex items-center gap-1.5 font-medium transition-all whitespace-nowrap';
+    const base = isSwiss
+      ? 'inline-flex items-center gap-1.5 font-medium transition-colors whitespace-nowrap min-h-[36px]'
+      : 'flex items-center gap-1.5 font-medium transition-all whitespace-nowrap';
     
     switch (variant) {
       case 'pills':
         return cn(
           base,
-          'px-3 py-1.5 rounded-lg text-xs font-semibold',
+          isSwiss ? 'px-3 py-1.5 rounded-md text-xs' : 'px-3 py-1.5 rounded-lg text-xs font-semibold',
           isActive
-            ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-md dark:from-teal-600 dark:to-cyan-700'
-            : 'text-gray-600 hover:text-gray-900 hover:bg-white dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700',
+            ? (isSwiss
+              ? 'bg-[#111111] text-white dark:bg-white dark:text-[#111111]'
+              : 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-md dark:from-teal-600 dark:to-cyan-700')
+            : (isSwiss
+              ? 'text-gray-600 hover:text-[#111111] hover:bg-[#F2F2F2] dark:text-gray-400 dark:hover:text-white dark:hover:bg-[#1A1A1A]'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-white dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700'),
           isDisabled && 'opacity-50 cursor-not-allowed'
         );
       
       case 'underline':
         return cn(
           base,
-          'px-4 py-3 text-sm border-b-2',
+          isSwiss ? 'px-3 py-2 text-sm border-b-2' : 'px-4 py-3 text-sm border-b-2',
           isActive
-            ? 'border-erp-teal text-erp-teal dark:border-erp-teal dark:text-erp-teal'
-            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
+            ? (isSwiss
+              ? 'border-[#111111] text-[#111111] dark:border-white dark:text-white'
+              : 'border-erp-teal text-erp-teal dark:border-erp-teal dark:text-erp-teal')
+            : (isSwiss
+              ? 'border-transparent text-gray-500 hover:text-[#111111] dark:text-gray-400 dark:hover:text-white'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'),
           isDisabled && 'opacity-50 cursor-not-allowed'
         );
       
       default:
         return cn(
           base,
-          'px-3 py-1.5 rounded-lg text-xs',
+          isSwiss ? 'px-3 py-1.5 rounded-md text-xs' : 'px-3 py-1.5 rounded-lg text-xs',
           isActive
-            ? 'bg-white text-erp-navy shadow-sm dark:bg-gray-700 dark:text-white'
-            : 'text-white/70 hover:text-white hover:bg-white/10',
+            ? (isSwiss
+              ? 'bg-white text-[#111111] shadow-sm dark:bg-[#1A1A1A] dark:text-white'
+              : 'bg-white text-erp-navy shadow-sm dark:bg-gray-700 dark:text-white')
+            : (isSwiss
+              ? 'text-gray-500 hover:text-[#111111] hover:bg-[#F2F2F2] dark:text-gray-400 dark:hover:text-white dark:hover:bg-[#1A1A1A]'
+              : 'text-white/70 hover:text-white hover:bg-white/10'),
           isDisabled && 'opacity-50 cursor-not-allowed'
         );
     }
   };
 
   const containerStyles = cn(
-    'flex gap-1 overflow-x-auto scrollbar-hide',
+    isSwiss
+      ? 'flex gap-1 overflow-x-auto scrollbar-hide min-h-[44px]'
+      : 'flex gap-1 overflow-x-auto scrollbar-hide',
     variant === 'underline' 
-      ? 'bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4'
+      ? (isSwiss
+        ? 'bg-transparent border-b border-[#E5E5E5] dark:border-[#222222] px-4'
+        : 'bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4')
       : 'mt-4 pb-1',
     className
   );
@@ -117,8 +135,12 @@ export function UniversalDetailTabs({
                 className={cn(
                   'text-[10px] px-1.5 py-0 h-4 min-w-4 flex items-center justify-center',
                   isActive 
-                    ? 'bg-erp-teal/20 text-erp-teal' 
-                    : 'bg-white/20 text-white/80'
+                    ? (isSwiss
+                      ? 'bg-[#111111] text-white dark:bg-white dark:text-[#111111]'
+                      : 'bg-erp-teal/20 text-erp-teal')
+                    : (isSwiss
+                      ? 'bg-[#F2F2F2] text-[#6B7280] dark:bg-[#1A1A1A] dark:text-[#9CA3AF]'
+                      : 'bg-white/20 text-white/80')
                 )}
               >
                 {badgeValue}

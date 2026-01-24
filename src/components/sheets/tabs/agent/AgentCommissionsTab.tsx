@@ -3,10 +3,10 @@
  * يعرض قائمة العمولات المستحقة والمدفوعة
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { LedgerTable, type LedgerColumn, type LedgerStats } from '@/components/shared';
-import { DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { DollarSign } from 'lucide-react';
 import { type TabComponentProps, type DocType } from '../../configs/sheet.types';
 
 // Commission Entry Interface
@@ -25,7 +25,7 @@ interface CommissionEntry {
   docId?: string;
 }
 
-export function AgentCommissionsTab({ data, docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function AgentCommissionsTab({ data, docType: _docType, language, t: _t, onRowClick, onRefresh }: TabComponentProps) {
   const isArabic = language === 'ar';
 
   // Get commissions from data

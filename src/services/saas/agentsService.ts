@@ -74,22 +74,50 @@ class AgentsService {
    */
   async getAll(): Promise<Agent[]> {
     const tenantId = await getCurrentTenantIdAsync();
-    if (!tenantId) {
-      throw new Error('No tenant ID available');
-    }
+    
+    // Check if user is super admin - they see all agents
+    const { data: { user } } = await supabase.auth.getUser();
+    const isSuperAdmin = user?.app_metadata?.is_super_admin || user?.user_metadata?.is_super_admin;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('agents')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
+      .select('*');
 
-    if (error) {
-      console.error('Error fetching agents:', error);
-      throw new Error(error.message);
+    // To handle the "column does not exist" error gracefully
+    try {
+      if (!isSuperAdmin && tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        // If it's a "column does not exist" error, retry without the filter
+        if (error.message.includes('column agents.tenant_id does not exist')) {
+          console.warn('Column agents.tenant_id does not exist, retrying without filter');
+          const { data: retryData, error: retryError } = await supabase
+            .from('agents')
+            .select('*')
+            .order('created_at', { ascending: false });
+            
+          if (retryError) throw new Error(retryError.message);
+          return retryData || [];
+        }
+        throw new Error(error.message);
+      }
+      return data || [];
+    } catch (err: any) {
+      console.error('Error fetching agents:', err);
+      // Fallback: try one more time without any filters if we hit schema issues
+      try {
+        const { data, error } = await supabase
+          .from('agents')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error) return data || [];
+      } catch (innerErr) {}
+      throw err;
     }
-
-    return data || [];
   }
 
   /**

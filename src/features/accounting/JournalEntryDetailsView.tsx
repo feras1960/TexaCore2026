@@ -461,9 +461,6 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
 
   const handleAccountFullView = () => {
     // TODO: Open AccountDetailsSheet instead
-    if (selectedAccount) {
-      console.log('Open account details:', selectedAccount);
-    }
   };
 
   const handleProductClick = (productCode: string, productName: string) => {
@@ -483,7 +480,6 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
   const handleReferenceClick = (reference: string) => {
     if (!reference || reference === '-') return;
     // TODO: Open document details view
-    console.log('Open document details:', reference);
   };
 
   const closeNestedView = () => {

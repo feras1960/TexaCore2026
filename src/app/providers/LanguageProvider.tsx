@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
+import LanguageDetector from 'i18next-browser-languagedetector';
 import { 
   SupportedLanguage, 
   DEFAULT_LANGUAGE, 
@@ -20,6 +21,44 @@ interface LanguageContextType {
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+// Supported language codes for validation
+const SUPPORTED_CODES = SUPPORTED_LANGUAGES.map(l => l.code);
+
+/**
+ * Detect browser language using i18next-browser-languagedetector
+ * Checks: navigator, localStorage, querystring, htmlTag, path, subdomain
+ */
+function detectBrowserLanguage(): SupportedLanguage {
+  const detector = new LanguageDetector();
+  detector.init({
+    order: ['localStorage', 'navigator', 'htmlTag'],
+    lookupLocalStorage: 'erp-language',
+    caches: ['localStorage'],
+  });
+  
+  // Get detected languages (returns array of language codes)
+  const detected = detector.detect();
+  const languages = Array.isArray(detected) ? detected : [detected];
+  
+  // Find first supported language
+  for (const lang of languages) {
+    if (!lang) continue;
+    
+    // Check exact match (e.g., 'ar', 'en')
+    if (SUPPORTED_CODES.includes(lang as SupportedLanguage)) {
+      return lang as SupportedLanguage;
+    }
+    
+    // Check language without region (e.g., 'en-US' -> 'en', 'ar-SA' -> 'ar')
+    const baseLang = lang.split('-')[0].toLowerCase();
+    if (SUPPORTED_CODES.includes(baseLang as SupportedLanguage)) {
+      return baseLang as SupportedLanguage;
+    }
+  }
+  
+  return DEFAULT_LANGUAGE;
+}
 
 // Get nested value from object by dot notation key
 function getNestedValue(obj: Record<string, unknown>, key: string): string | undefined {
@@ -52,13 +91,17 @@ interface LanguageProviderProps {
 }
 
 export function LanguageProvider({ children, defaultLanguage }: LanguageProviderProps) {
-  // Initialize from localStorage or default
+  // Initialize from localStorage, browser detection, or default
   const [language, setLanguageState] = useState<SupportedLanguage>(() => {
     if (typeof window !== 'undefined') {
+      // First check localStorage
       const stored = localStorage.getItem('erp-language') as SupportedLanguage;
-      if (stored && SUPPORTED_LANGUAGES.some(l => l.code === stored)) {
+      if (stored && SUPPORTED_CODES.includes(stored)) {
         return stored;
       }
+      
+      // Then detect from browser
+      return detectBrowserLanguage();
     }
     return defaultLanguage || DEFAULT_LANGUAGE;
   });

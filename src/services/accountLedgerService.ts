@@ -370,8 +370,6 @@ export const accountLedgerService = {
 
     if (error) {
       // If error is because no cash_account link, try contra_account approach
-      console.log('Trying alternative query for payments...');
-      
       let altQuery = supabase
         .from('cash_transactions')
         .select('*')

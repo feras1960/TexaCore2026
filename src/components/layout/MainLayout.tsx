@@ -1,5 +1,5 @@
-import React from 'react';
 import { Outlet } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { QuickAddButton } from './QuickAddButton';
@@ -19,11 +19,21 @@ export default function MainLayout() {
         <Header />
         
         {/* Main Content */}
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
-          <div className="max-w-[1400px] mx-auto animate-fade-in">
+        <motion.main 
+          className="flex-1 p-4 lg:p-6 overflow-y-auto"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <motion.div 
+            className="max-w-[1400px] mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+          >
             <Outlet />
-          </div>
-        </main>
+          </motion.div>
+        </motion.main>
       </div>
 
       {/* Floating Quick Add Button */}

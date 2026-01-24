@@ -1,4 +1,3 @@
-import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +17,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableFooter,
 } from '@/components/ui/table';
 import {
   X,
@@ -39,7 +37,6 @@ import {
   MapPin,
   Package,
   CreditCard,
-  Truck,
   DollarSign,
   Trash2,
 } from 'lucide-react';

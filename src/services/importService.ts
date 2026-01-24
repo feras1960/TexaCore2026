@@ -86,6 +86,7 @@ export interface ImportJob {
   import_options: ImportOptions;
   error_message?: string;
   created_at: string;
+  started_at?: string;
   completed_at?: string;
 }
 

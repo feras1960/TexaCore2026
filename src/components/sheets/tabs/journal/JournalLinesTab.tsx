@@ -3,7 +3,6 @@
  * تبويب بنود القيد المحاسبي
  */
 
-import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -24,7 +23,7 @@ interface JournalLinesTabProps {
   onRowClick?: (row: any) => void;
 }
 
-export function JournalLinesTab({ data, language, onAction, onRowClick }: JournalLinesTabProps) {
+export function JournalLinesTab({ data, language, onAction: _onAction, onRowClick }: JournalLinesTabProps) {
   const isRTL = language === 'ar';
   const lines = data.lines || [];
   

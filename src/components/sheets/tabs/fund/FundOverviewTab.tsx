@@ -3,7 +3,6 @@
  * تبويب نظرة عامة على الصندوق
  */
 
-import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -16,7 +15,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Clock,
-  Calendar,
   Hash,
   CreditCard,
   Coins,
@@ -38,7 +36,7 @@ const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: s
   AED: { symbol: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } }
 };
 
-export function FundOverviewTab({ data, language, onAction }: FundOverviewTabProps) {
+export function FundOverviewTab({ data, language, onAction: _onAction }: FundOverviewTabProps) {
   const isRTL = language === 'ar';
   
   // Get balances (support both formats)
@@ -52,7 +50,7 @@ export function FundOverviewTab({ data, language, onAction }: FundOverviewTabPro
     }
   ];
   
-  const mainBalance = balances[0];
+  const _mainBalance = balances[0];
   const totalBalance = balances.reduce((sum: number, b: any) => sum + (b.balance || 0), 0);
   const totalDeposits = balances.reduce((sum: number, b: any) => sum + (b.totalDeposits || 0), 0);
   const totalWithdrawals = balances.reduce((sum: number, b: any) => sum + (b.totalWithdrawals || 0), 0);

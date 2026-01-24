@@ -3,7 +3,6 @@
  * مكون تبديل وضع الواجهة
  */
 
-import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useInterfaceMode, type InterfaceMode } from '@/app/providers/InterfaceModeProvider';
 import { Button } from '@/components/ui/button';
@@ -16,9 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { 
   Layers, 
   Sparkles, 
@@ -39,7 +36,7 @@ export function InterfaceModeToggle({
   showLabel = true,
   className,
 }: InterfaceModeToggleProps) {
-  const { t, language, direction } = useLanguage();
+  const { t, direction } = useLanguage();
   const { mode, setMode, toggleMode, isProfessional } = useInterfaceMode();
 
   // Switch variant

@@ -3,7 +3,7 @@
  * يعرض قائمة طلبات السحب والتحويلات
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +20,7 @@ import {
   Building,
   Calendar,
 } from 'lucide-react';
-import { type TabComponentProps, type DocType } from '../../configs/sheet.types';
+import { type TabComponentProps } from '../../configs/sheet.types';
 
 // Withdrawal Interface
 interface Withdrawal {
@@ -153,7 +153,7 @@ function WithdrawalCard({
   );
 }
 
-export function AgentWithdrawalsTab({ data, docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function AgentWithdrawalsTab({ data, docType: _docType, language, t: _t, onRowClick, onRefresh: _onRefresh }: TabComponentProps) {
   const isArabic = language === 'ar';
 
   // Get withdrawals from data

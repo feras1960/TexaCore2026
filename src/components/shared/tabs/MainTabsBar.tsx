@@ -1,4 +1,3 @@
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { LucideIcon } from 'lucide-react';
@@ -26,7 +25,7 @@ export function MainTabsBar({
   className,
   variant = 'underline',
 }: MainTabsBarProps) {
-  const { t, direction } = useLanguage();
+  const { t } = useLanguage();
 
   const variantStyles = {
     default: {

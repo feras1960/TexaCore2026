@@ -8,7 +8,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -105,7 +104,7 @@ export function DocumentsTab({
   entityId,
   tenantId,
   onAction, 
-  onRowClick 
+  onRowClick: _onRowClick 
 }: DocumentsTabProps) {
   const { t } = useLanguage();
   const { user } = useAuth();

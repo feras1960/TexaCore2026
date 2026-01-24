@@ -196,9 +196,6 @@ export default function AccountDetailsSheet({
   };
   const { t, direction, language } = useLanguage();
 
-  // Debug log
-  console.log('AccountDetailsSheet render:', { account, isOpen });
-
   // Main Tab State
   const [mainTab, setMainTab] = useState<MainTabType>('overview');
   
@@ -1621,7 +1618,7 @@ function PaymentsTab({
           </div>
           <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg text-center">
             <p className="text-[10px] text-gray-500">{language === 'ar' ? 'إجمالي المدفوعات' : 'Total Payments'}</p>
-            <p className="text-sm font-bold font-mono text-red-600">{totalPayments.toLocaleString()}</p>
+            <p className="text-sm font-bold font-mono text-red-600">{totalPaymentsCalc.toLocaleString()}</p>
           </div>
           <div className={cn("p-2 rounded-lg text-center", netBalance >= 0 ? "bg-erp-navy/10" : "bg-orange-50")}>
             <p className="text-[10px] text-gray-500">{language === 'ar' ? 'الصافي' : 'Net Balance'}</p>
@@ -3096,6 +3093,25 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
     
     // Notes
     notes: account?.notes || '',
+    
+    // Contact Info
+    contactPerson: (account as any)?.contact_person || '',
+    phone: (account as any)?.phone || '',
+    mobile: (account as any)?.mobile || '',
+    email: (account as any)?.email || '',
+    website: (account as any)?.website || '',
+    
+    // Address
+    address: (account as any)?.address || '',
+    city: (account as any)?.city || '',
+    country: (account as any)?.country || '',
+    postalCode: (account as any)?.postal_code || '',
+    
+    // Financial Info
+    creditLimit: (account as any)?.credit_limit || 0,
+    paymentTerms: (account as any)?.payment_terms || '',
+    taxNumber: (account as any)?.tax_number || '',
+    commercialRegister: (account as any)?.commercial_register || '',
   });
 
   const handleSave = async () => {

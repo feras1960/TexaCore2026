@@ -26,7 +26,6 @@ export default function AccountingSettings() {
 
   const handleSave = () => {
     // TODO: Save to Supabase
-    console.log('Saving settings:', settings);
   };
 
   return (

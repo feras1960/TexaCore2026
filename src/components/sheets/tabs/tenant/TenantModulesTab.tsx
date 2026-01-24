@@ -3,7 +3,7 @@
  * يعرض قائمة الوحدات والميزات المتاحة
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -16,8 +16,6 @@ import {
   FileText,
   BarChart3,
   Settings,
-  Lock,
-  Unlock,
   Crown,
   Plus,
   Check,
@@ -104,11 +102,13 @@ const DEFAULT_MODULES: Module[] = [
 function ModuleCard({ 
   module, 
   language, 
+  t,
   onToggle,
   canToggle = true,
 }: { 
   module: Module; 
   language: string;
+  t: (key: string) => string;
   onToggle?: (id: string, enabled: boolean) => void;
   canToggle?: boolean;
 }) {
@@ -143,7 +143,7 @@ function ModuleCard({
               {module.isPremium && (
                 <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
                   <Crown className="w-3 h-3 me-1" />
-                  Premium
+                  {t('common.premium')}
                 </Badge>
               )}
             </div>
@@ -167,8 +167,8 @@ function ModuleCard({
               : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
           )}>
             {module.enabled 
-              ? (isArabic ? 'مفعل' : 'Enabled')
-              : (isArabic ? 'غير مفعل' : 'Disabled')
+              ? t('status.enabled')
+              : t('status.disabled')
             }
           </Badge>
         )}
@@ -198,7 +198,7 @@ function ModuleCard({
             ))}
             {module.features.length > 4 && (
               <span className="text-xs text-gray-400">
-                +{module.features.length - 4} more
+                +{module.features.length - 4} {t('common.more')}
               </span>
             )}
           </div>
@@ -208,9 +208,7 @@ function ModuleCard({
   );
 }
 
-export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabComponentProps) {
-  const isArabic = language === 'ar';
-
+export function TenantModulesTab({ data, docType: _docType, language, t, onRefresh: _onRefresh }: TabComponentProps) {
   // Get modules from data or use defaults
   const modules: Module[] = useMemo(() => {
     if (data.modules && Array.isArray(data.modules)) {
@@ -233,9 +231,8 @@ export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabC
   const premiumCount = modules.filter(m => m.isPremium && m.enabled).length;
 
   // Handle module toggle
-  const handleToggle = (id: string, enabled: boolean) => {
-    console.log('Toggle module:', id, enabled);
-    // This would typically call an API to update the module status
+  const handleToggle = (_id: string, _enabled: boolean) => {
+    // TODO: Implement API call to update module status
   };
 
   return (
@@ -246,12 +243,12 @@ export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabC
           <div className="flex items-center gap-2">
             <Boxes className="w-5 h-5 text-erp-teal" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {isArabic ? 'الوحدات والميزات' : 'Modules & Features'}
+              {t('modules.modulesAndFeatures')}
             </h3>
           </div>
           <Button variant="outline" size="sm">
             <Plus className="w-4 h-4 me-1" />
-            {isArabic ? 'إضافة وحدة' : 'Add Module'}
+            {t('actions.addModule')}
           </Button>
         </div>
 
@@ -259,7 +256,7 @@ export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabC
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
             <div className="text-xs text-blue-600 dark:text-blue-400">
-              {isArabic ? 'إجمالي الوحدات' : 'Total Modules'}
+              {t('modules.totalModules')}
             </div>
             <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
               {modules.length}
@@ -267,7 +264,7 @@ export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabC
           </div>
           <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
             <div className="text-xs text-green-600 dark:text-green-400">
-              {isArabic ? 'مفعلة' : 'Enabled'}
+              {t('status.enabled')}
             </div>
             <div className="text-xl font-bold text-green-700 dark:text-green-300">
               {enabledCount}
@@ -275,7 +272,7 @@ export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabC
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
             <div className="text-xs text-amber-600 dark:text-amber-400">
-              {isArabic ? 'بريميوم' : 'Premium'}
+              {t('common.premium')}
             </div>
             <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
               {premiumCount}
@@ -290,6 +287,7 @@ export function TenantModulesTab({ data, docType, language, t, onRefresh }: TabC
               key={module.id}
               module={module}
               language={language}
+              t={t}
               onToggle={handleToggle}
               canToggle={false} // Set to true to allow toggling
             />

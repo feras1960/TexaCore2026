@@ -358,7 +358,7 @@ export default function Payments() {
                     <TableHead>{language === 'ar' ? 'المشترك' : 'Subscriber'}</TableHead>
                     <TableHead>{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
                     <TableHead>{language === 'ar' ? 'طريقة الدفع' : 'Method'}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead>{t('common.status._')}</TableHead>
                     <TableHead>{language === 'ar' ? 'تاريخ الدفع' : 'Date'}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -443,7 +443,7 @@ export default function Payments() {
                     <TableHead>{language === 'ar' ? 'المشترك' : 'Subscriber'}</TableHead>
                     <TableHead>{language === 'ar' ? 'الباقة' : 'Plan'}</TableHead>
                     <TableHead>{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead>{t('common.status._')}</TableHead>
                     <TableHead>{language === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date'}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
@@ -547,7 +547,7 @@ export default function Payments() {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">{t('common.status')}</p>
+                <p className="text-sm text-gray-500">{t('common.status._')}</p>
                 <div className="mt-1">{getPaymentStatusBadge(selectedPayment.status)}</div>
               </div>
             </div>
@@ -602,7 +602,7 @@ export default function Payments() {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">{t('common.status')}</p>
+                <p className="text-sm text-gray-500">{t('common.status._')}</p>
                 <div className="mt-1">{getInvoiceStatusBadge(selectedInvoice.status)}</div>
               </div>
             </div>

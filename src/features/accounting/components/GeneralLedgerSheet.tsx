@@ -180,7 +180,7 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
                   {t('accounting.generalLedger')}
                 </SheetTitle>
                 <SheetDescription className="font-tajawal text-xs">
-                  {t('accounting.generalLedger')} - {t('accounting.dashboard.title')}
+                  {t('accounting.generalLedger')} - {t('accounting.dashboardLabel')}
                 </SheetDescription>
               </div>
             </div>

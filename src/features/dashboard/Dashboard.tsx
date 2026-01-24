@@ -15,17 +15,42 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { cn, formatCurrency, formatNumber } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 export default function Dashboard() {
-  const { t, direction } = useLanguage();
+  const { t, direction, language } = useLanguage();
+  const { user, isSuperAdmin } = useAuth();
   
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState('SAR');
   const [selectedBranch, setSelectedBranch] = useState('all');
+  const [isPromoting, setIsPromoting] = useState(false);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
+  };
+
+  const handlePromoteToSuperAdmin = async () => {
+    if (!user) return;
+    setIsPromoting(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { is_super_admin: true }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(language === 'ar' ? 'تمت ترقيتك لمدير عام بنجاح! يرجى تحديث الصفحة.' : 'Successfully promoted to Super Admin! Please refresh the page.');
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (err: any) {
+      console.error('Promotion error:', err);
+      toast.error(err.message || 'Failed to promote to Super Admin');
+    } finally {
+      setIsPromoting(false);
+    }
   };
 
   // Mock Data - using translation keys for labels
@@ -82,6 +107,24 @@ export default function Dashboard() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Dev Tool: Promote to Super Admin (Only show if not already Super Admin) */}
+          {!isSuperAdmin && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handlePromoteToSuperAdmin}
+              disabled={isPromoting}
+              className="bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800"
+            >
+              {isPromoting ? (
+                <RefreshCw className="w-4 h-4 me-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 me-2" />
+              )}
+              {language === 'ar' ? 'تفعيل كمدير عام' : 'Activate as Super Admin'}
+            </Button>
+          )}
+
           {/* Currency Filter */}
           <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
             <SelectTrigger className="w-full lg:w-[160px] bg-white dark:bg-gray-800 h-10 text-sm border-gray-200 dark:border-gray-700">

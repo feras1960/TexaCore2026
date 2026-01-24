@@ -28,15 +28,17 @@ import { ActivityTab } from '../tabs/shared/ActivityTab';
 const getStatusInfo = (status: string) => {
   switch (status) {
     case 'posted':
-      return { label: 'مرحّل', labelEn: 'Posted', variant: 'success' as const };
+      return { label: 'status.posted', variant: 'success' as const };
     case 'cancelled':
-      return { label: 'ملغي', labelEn: 'Cancelled', variant: 'destructive' as const };
+      return { label: 'status.cancelled', variant: 'destructive' as const };
     default:
-      return { label: 'مسودة', labelEn: 'Draft', variant: 'warning' as const };
+      return { label: 'status.draft', variant: 'warning' as const };
   }
 };
 
-const getVoucherTypeColor = (type: string) => {
+// Voucher type colors - reserved for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _getVoucherTypeColor = (_type: string): string => {
   const colors: Record<string, string> = {
     journal: 'bg-gradient-to-br from-blue-600 to-blue-800',
     payment: 'bg-gradient-to-br from-orange-600 to-orange-800',
@@ -48,7 +50,7 @@ const getVoucherTypeColor = (type: string) => {
     expense: 'bg-gradient-to-br from-red-600 to-red-800',
     payroll: 'bg-gradient-to-br from-indigo-600 to-indigo-800',
   };
-  return colors[type] || colors.journal;
+  return colors[_type] || colors.journal;
 };
 
 export const journalEntryConfig: SheetConfig = {
@@ -61,15 +63,15 @@ export const journalEntryConfig: SheetConfig = {
     return date;
   },
   icon: FileText,
-  iconBg: (data) => getVoucherTypeColor(data.voucherType || data.entry_type || 'journal'),
+  iconBg: 'blue',
   
   // Status Badge
-  badge: (data) => {
+  badge: (data: any) => {
     const info = getStatusInfo(data.status);
     return {
       label: info.label,
-      variant: info.variant,
-    };
+      variant: info.variant === 'destructive' ? 'error' : info.variant,
+    } as { label: string; variant: 'default' | 'success' | 'outline' | 'error' | 'info' | 'warning' };
   },
   
   // Balance Display - Total Amount
@@ -78,8 +80,7 @@ export const journalEntryConfig: SheetConfig = {
       const totalDebit = data.totalDebit || data.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || 0;
       return totalDebit;
     },
-    label: 'Total',
-    labelAr: 'الإجمالي',
+    label: 'common.total',
     currency: 'SAR',
     showSign: false,
   },
@@ -88,32 +89,28 @@ export const journalEntryConfig: SheetConfig = {
   stats: [
     {
       key: 'total_debit',
-      label: 'Total Debit',
-      labelAr: 'إجمالي المدين',
+      label: 'fields.totalDebit',
       icon: CheckCircle2,
       value: (data) => data.totalDebit || data.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || 0,
       color: 'green',
     },
     {
       key: 'total_credit',
-      label: 'Total Credit',
-      labelAr: 'إجمالي الدائن',
+      label: 'fields.totalCredit',
       icon: XCircle,
       value: (data) => data.totalCredit || data.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || 0,
       color: 'red',
     },
     {
       key: 'lines_count',
-      label: 'Lines',
-      labelAr: 'عدد البنود',
+      label: 'accounting.lines',
       icon: FileText,
       value: (data) => data.lines?.length || 0,
       color: 'blue',
     },
     {
       key: 'status',
-      label: 'Status',
-      labelAr: 'الحالة',
+      label: 'common.status',
       icon: Clock,
       value: (data) => {
         const info = getStatusInfo(data.status);
@@ -127,58 +124,49 @@ export const journalEntryConfig: SheetConfig = {
   infoFields: [
     {
       key: 'voucherNo',
-      label: 'Voucher Number',
-      labelAr: 'رقم السند',
+      label: 'fields.voucherNumber',
       type: 'text',
       icon: FileText,
     },
     {
       key: 'voucherType',
-      label: 'Entry Type',
-      labelAr: 'نوع القيد',
+      label: 'fields.entryType',
       type: 'text',
     },
     {
       key: 'date',
-      label: 'Date',
-      labelAr: 'التاريخ',
+      label: 'fields.date',
       type: 'date',
       icon: Calendar,
     },
     {
       key: 'reference',
-      label: 'Reference',
-      labelAr: 'المرجع',
+      label: 'fields.reference',
       type: 'text',
     },
     {
       key: 'costCenter',
-      label: 'Cost Center',
-      labelAr: 'مركز التكلفة',
+      label: 'fields.costCenter',
       type: 'text',
     },
     {
       key: 'project',
-      label: 'Project',
-      labelAr: 'المشروع',
+      label: 'fields.project',
       type: 'text',
     },
     {
       key: 'createdBy',
-      label: 'Created By',
-      labelAr: 'أنشأ بواسطة',
+      label: 'fields.createdBy',
       type: 'text',
     },
     {
       key: 'createdAt',
-      label: 'Created At',
-      labelAr: 'تاريخ الإنشاء',
+      label: 'fields.createdAt',
       type: 'date',
     },
     {
       key: 'description',
-      label: 'Description',
-      labelAr: 'الوصف',
+      label: 'fields.description',
       type: 'text',
       colSpan: 2,
     },
@@ -188,23 +176,20 @@ export const journalEntryConfig: SheetConfig = {
   tabs: [
     {
       id: 'overview',
-      label: 'Overview',
-      labelAr: 'نظرة عامة',
+      label: 'tabs.overview',
       icon: Eye,
       component: JournalOverviewTab,
     },
     {
       id: 'lines',
-      label: 'Entry Lines',
-      labelAr: 'بنود القيد',
+      label: 'tabs.entryLines',
       icon: FileText,
-      component: JournalLinesTab,
+      component: JournalLinesTab as any,
       badge: (data) => data.lines?.length || null,
     },
     {
       id: 'activity',
-      label: 'Activity',
-      labelAr: 'النشاط',
+      label: 'tabs.activity',
       icon: Activity,
       component: ActivityTab,
     },
@@ -215,80 +200,66 @@ export const journalEntryConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
       show: (data) => data.status === 'draft',
     },
     {
       id: 'post',
-      label: 'Post Entry',
-      labelAr: 'ترحيل القيد',
+      label: 'actions.post',
       icon: CheckCircle2,
       variant: 'default',
       show: (data) => data.status === 'draft',
     },
     {
       id: 'reverse',
-      label: 'Reverse Entry',
-      labelAr: 'عكس القيد',
+      label: 'actions.reverse',
       icon: RotateCcw,
       variant: 'outline',
       show: (data) => data.status === 'posted',
     },
     {
       id: 'duplicate',
-      label: 'Duplicate',
-      labelAr: 'نسخ',
+      label: 'actions.duplicate',
       icon: Copy,
       variant: 'outline',
     },
     {
       id: 'print',
-      label: 'Print',
-      labelAr: 'طباعة',
+      label: 'actions.print',
       icon: Printer,
       variant: 'outline',
       onClick: () => window.print(),
     },
     {
       id: 'export',
-      label: 'Export',
-      labelAr: 'تصدير',
+      label: 'actions.export',
       icon: Download,
       variant: 'outline',
     },
     {
       id: 'cancel',
-      label: 'Cancel Entry',
-      labelAr: 'إلغاء القيد',
+      label: 'actions.cancelEntry',
       icon: XCircle,
       variant: 'destructive',
       show: (data) => data.status !== 'cancelled',
       confirm: {
-        title: 'Cancel Entry',
-        titleAr: 'إلغاء القيد',
-        description: 'Are you sure you want to cancel this journal entry? This action cannot be undone.',
-        descriptionAr: 'هل أنت متأكد من إلغاء هذا القيد؟ لا يمكن التراجع عن هذا الإجراء.',
-        confirmLabel: 'Cancel Entry',
-        confirmLabelAr: 'إلغاء القيد',
+        title: 'dialogs.cancelEntry',
+        description: 'dialogs.cancelEntryWarning',
+        confirmLabel: 'actions.cancelEntry',
       },
     },
     {
       id: 'delete',
-      label: 'Delete',
-      labelAr: 'حذف',
+      label: 'actions.delete',
       icon: Trash2,
       variant: 'destructive',
       show: (data) => data.status === 'draft',
       confirm: {
-        title: 'Delete Entry',
-        titleAr: 'حذف القيد',
-        description: 'Are you sure you want to delete this journal entry? This action cannot be undone.',
-        descriptionAr: 'هل أنت متأكد من حذف هذا القيد؟ لا يمكن التراجع عن هذا الإجراء.',
-        confirmLabel: 'Delete',
-        confirmLabelAr: 'حذف',
+        title: 'dialogs.deleteEntry',
+        description: 'dialogs.deleteEntryWarning',
+        confirmLabel: 'actions.delete',
       },
     },
   ],
@@ -297,23 +268,21 @@ export const journalEntryConfig: SheetConfig = {
   quickActions: [
     {
       id: 'print',
-      label: 'Print',
-      labelAr: 'طباعة',
+      label: 'actions.print',
       icon: Printer,
       variant: 'ghost',
       onClick: () => window.print(),
     },
     {
       id: 'duplicate',
-      label: 'Duplicate',
-      labelAr: 'نسخ',
+      label: 'actions.duplicate',
       icon: Copy,
       variant: 'ghost',
     },
   ],
   
   // Sheet Settings
-  width: 'xl',
+  width: 'lg',
   
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {

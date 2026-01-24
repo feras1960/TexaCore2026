@@ -92,8 +92,8 @@ export default function QuickReceiptDialog({
 
   const selectedFund = funds.find(f => f.id.toString() === formData.fundId);
 
-  const handleSubmit = (asDraft: boolean = false) => {
-    console.log('Receipt submitted:', { ...formData, date, asDraft });
+  const handleSubmit = (_asDraft: boolean = false) => {
+    // TODO: Implement actual receipt submission
     onOpenChange(false);
   };
 

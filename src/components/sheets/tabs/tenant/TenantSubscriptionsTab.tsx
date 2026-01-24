@@ -3,7 +3,7 @@
  * يعرض قائمة الاشتراكات والباقات
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,7 @@ import {
   AlertTriangle,
   Plus,
 } from 'lucide-react';
-import { type TabComponentProps, type DocType } from '../../configs/sheet.types';
+import { type TabComponentProps } from '../../configs/sheet.types';
 
 // Subscription Interface
 interface Subscription {
@@ -162,7 +162,7 @@ function SubscriptionCard({
   );
 }
 
-export function TenantSubscriptionsTab({ data, docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function TenantSubscriptionsTab({ data, docType: _docType, language, t: _t, onRowClick, onRefresh: _onRefresh }: TabComponentProps) {
   const isArabic = language === 'ar';
 
   // Get subscriptions from data

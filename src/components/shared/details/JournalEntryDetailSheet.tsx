@@ -1,4 +1,3 @@
-import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,13 +25,11 @@ import {
   Edit2,
   FileText,
   Calendar,
-  User,
   Building2,
   Hash,
   CheckCircle2,
   Clock,
   XCircle,
-  DollarSign,
   Target,
   Trash2,
 } from 'lucide-react';

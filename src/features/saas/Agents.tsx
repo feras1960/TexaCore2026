@@ -144,7 +144,7 @@ export default function Agents() {
     },
     {
       key: 'status',
-      title: t('common.status'),
+      title: t('common.status._'),
       width: '120px',
       sortable: true,
       filterable: true,
@@ -183,7 +183,7 @@ export default function Agents() {
     },
     {
       key: 'has_white_label',
-      title: t('saas.whiteLabel.title'),
+      title: t('saas.whiteLabelDetails.title'),
       width: '120px',
       align: 'center',
       render: (value, row) => {
@@ -191,7 +191,7 @@ export default function Agents() {
         return (
           <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
             <Globe className="w-3 h-3 mr-1" />
-            {t('saas.whiteLabel.title')}
+            {t('saas.whiteLabelDetails.title')}
           </Badge>
         );
       },
@@ -389,8 +389,7 @@ export default function Agents() {
         data={selectedAgent}
         onRefresh={loadAgents}
         onEdit={() => {
-          // Handle edit - can open edit dialog
-          console.log('Edit agent:', selectedAgent?.id);
+          // TODO: Implement edit dialog
         }}
       />
     </div>

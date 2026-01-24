@@ -131,7 +131,7 @@ export default function CurrencyExchangeContent({
   };
 
   const handleSubmit = () => {
-    console.log('Exchange submitted:', { ...formData, date, effectiveRate, resultAmount });
+    // TODO: Implement actual currency exchange
     onSave?.();
   };
 

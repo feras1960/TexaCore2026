@@ -6,6 +6,13 @@
 import { supabase, getCurrentTenantIdAsync, getCurrentCompanyId, isSuperAdmin } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
+// Helper to check if error is AbortError (should be ignored)
+const isAbortError = (error: any): boolean => {
+  return error?.name === 'AbortError' || 
+         error?.message?.includes('abort') ||
+         error?.message?.includes('signal');
+};
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -30,27 +37,41 @@ export async function signInWithMetadata(
     });
 
     if (authError || !authData.user) {
+      // Don't log AbortError
+      if (!isAbortError(authError)) {
+        console.error('Sign in error:', authError);
+      }
       return { user: null, error: authError || new Error('Authentication failed') };
     }
 
     // 2. Get user profile from database to get tenant_id and company_id
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('tenant_id, company_id')
-      .eq('id', authData.user.id)
-      .single();
-
-    if (profileError) {
-      console.error('Error fetching user profile:', profileError);
-      // Continue even if profile fetch fails - user might not have profile yet
+    let profile = null;
+    try {
+      const { data, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('tenant_id, company_id')
+        .eq('id', authData.user.id)
+        .single();
+      
+      profile = data;
+      
+      if (profileError && !isAbortError(profileError)) {
+        console.warn('Could not fetch user profile:', profileError.message);
+      }
+    } catch (profileErr) {
+      // Silently ignore profile fetch errors
     }
 
-    // 3. Check if user is super admin
-    const { data: superAdminCheck } = await supabase.rpc('is_super_admin', {
-      p_user_id: authData.user.id,
-    });
-
-    const isSuper = superAdminCheck === true;
+    // 3. Check if user is super admin (ignore errors)
+    let isSuper = false;
+    try {
+      const { data: superAdminCheck } = await supabase.rpc('is_super_admin', {
+        p_user_id: authData.user.id,
+      });
+      isSuper = superAdminCheck === true;
+    } catch {
+      // Ignore super admin check errors
+    }
 
     // 4. Update user metadata with tenant_id, company_id, and is_super_admin
     const metadataUpdates: Record<string, any> = {
@@ -67,13 +88,12 @@ export async function signInWithMetadata(
       currentMetadata.is_super_admin !== metadataUpdates.is_super_admin;
 
     if (needsUpdate) {
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: metadataUpdates,
-      });
-
-      if (updateError) {
-        console.error('Error updating user metadata:', updateError);
-        // Continue anyway - metadata update is not critical for login
+      try {
+        await supabase.auth.updateUser({
+          data: metadataUpdates,
+        });
+      } catch {
+        // Ignore metadata update errors - not critical
       }
     }
 
@@ -92,7 +112,10 @@ export async function signInWithMetadata(
 
     return { user: authUser, error: null };
   } catch (error: any) {
-    console.error('Sign in error:', error);
+    // Don't log AbortError
+    if (!isAbortError(error)) {
+      console.error('Sign in error:', error);
+    }
     return { user: null, error: error instanceof Error ? error : new Error('Unknown error') };
   }
 }
@@ -126,6 +149,10 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) {
+      // Don't log AbortError
+      if (error && !isAbortError(error)) {
+        console.warn('Get current user error:', error.message);
+      }
       return null;
     }
 
@@ -145,8 +172,11 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
       is_super_admin: isSuper,
       user_metadata: user.user_metadata || {},
     };
-  } catch (error) {
-    console.error('Get current user error:', error);
+  } catch (error: any) {
+    // Don't log AbortError
+    if (!isAbortError(error)) {
+      console.warn('Get current user error:', error?.message || error);
+    }
     return null;
   }
 }

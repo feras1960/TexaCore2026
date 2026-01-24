@@ -151,16 +151,19 @@ export function AddAccountSheet({
    * If parentAccount exists, generate code based on parent's code
    * Otherwise, use account type prefix
    */
-  const getNextAccountCode = (accountTypeId?: string): string => {
+  const getNextAccountCode = (accountTypeId?: string, overrideParent?: Account): string => {
     if (editingAccount) return editingAccount.code || editingAccount.account_code || '';
 
+    // Use overrideParent if provided, otherwise use parentAccount from props
+    const effectiveParent = overrideParent || parentAccount;
+
     // If parent account exists, generate code based on parent
-    if (parentAccount && parentAccount.code) {
-      const parentCode = parentAccount.code;
+    if (effectiveParent && effectiveParent.code) {
+      const parentCode = effectiveParent.code;
       
       // Get all children of the parent account
       const parentChildren = allAccounts.filter(
-        (a) => a.parent_id === parentAccount.id
+        (a) => a.parent_id === effectiveParent.id
       );
 
       if (parentChildren.length === 0) {
@@ -389,9 +392,31 @@ export function AddAccountSheet({
           <Label htmlFor="parent_id">{t('accounting.account.parent')}</Label>
           <Select
             value={formData.parent_id || '__none__'}
-            onValueChange={(value) =>
-              setFormData((prev) => ({ ...prev, parent_id: value === '__none__' ? undefined : value }))
-            }
+            onValueChange={(value) => {
+              const newParentId = value === '__none__' ? undefined : value;
+              const newParent = newParentId 
+                ? allAccounts.find(a => a.id === newParentId)
+                : null;
+              
+              setFormData((prev) => {
+                const updated = {
+                  ...prev,
+                  parent_id: newParentId,
+                  level: newParent ? newParent.level + 1 : 1,
+                };
+                
+                // تحديث رقم الحساب تلقائياً عند تغيير المجموعة
+                if (!editingAccount && formData.account_type_id) {
+                  const nextCode = getNextAccountCode(
+                    formData.account_type_id,
+                    newParent || undefined
+                  );
+                  updated.code = nextCode;
+                }
+                
+                return updated;
+              });
+            }}
           >
             <SelectTrigger id="parent_id" className="w-full">
               <SelectValue placeholder={t('accounting.noParent')} />

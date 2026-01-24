@@ -3,7 +3,6 @@
  * تبويب عمليات الصندوق
  */
 
-import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -65,7 +64,7 @@ const getTransactionTypeConfig = (type: string, isRTL: boolean) => {
   return configs[type] || configs.receipt;
 };
 
-export function FundTransactionsTab({ data, language, onAction, onRowClick }: FundTransactionsTabProps) {
+export function FundTransactionsTab({ data, language, onAction: _onAction, onRowClick }: FundTransactionsTabProps) {
   const isRTL = language === 'ar';
   
   // Get transactions from data

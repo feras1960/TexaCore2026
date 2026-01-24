@@ -5,7 +5,6 @@
 
 import {
   Wallet,
-  Landmark,
   Edit,
   Trash2,
   Printer,
@@ -18,7 +17,6 @@ import {
   Eye,
   FileText,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Hash,
 } from 'lucide-react';
@@ -38,7 +36,8 @@ export const fundConfig: SheetConfig = {
     if (data.type === 'bank' && data.accountNumber) {
       return data.accountNumber;
     }
-    return data.type === 'cash' ? 'صندوق نقدي' : 'حساب بنكي';
+    // These will be translated in the component
+    return data.type === 'cash' ? 'funds.cashBox' : 'funds.bankAccount';
   },
   icon: Wallet,
   iconBg: 'bg-gradient-to-br from-emerald-600 to-teal-700',
@@ -47,7 +46,7 @@ export const fundConfig: SheetConfig = {
   badge: (data) => {
     const isCash = data.type === 'cash';
     return {
-      label: isCash ? 'صندوق' : 'بنك',
+      label: isCash ? 'funds.cash' : 'funds.bank',
       variant: isCash ? 'success' : 'default',
     };
   },
@@ -60,8 +59,7 @@ export const fundConfig: SheetConfig = {
       }
       return data.balance || data.current_balance || 0;
     },
-    label: 'Balance',
-    labelAr: 'الرصيد',
+    label: 'common.balance',
     currency: 'SAR',
     showSign: true,
   },
@@ -70,8 +68,7 @@ export const fundConfig: SheetConfig = {
   stats: [
     {
       key: 'balance',
-      label: 'Current Balance',
-      labelAr: 'الرصيد الحالي',
+      label: 'funds.currentBalance',
       icon: DollarSign,
       value: (data) => {
         if (data.balances && data.balances.length > 0) {
@@ -83,8 +80,7 @@ export const fundConfig: SheetConfig = {
     },
     {
       key: 'total_deposits',
-      label: 'Total Deposits',
-      labelAr: 'إجمالي الإيداعات',
+      label: 'funds.totalDeposits',
       icon: ArrowDownRight,
       value: (data) => {
         if (data.balances && data.balances.length > 0) {
@@ -96,8 +92,7 @@ export const fundConfig: SheetConfig = {
     },
     {
       key: 'total_withdrawals',
-      label: 'Total Withdrawals',
-      labelAr: 'إجمالي السحوبات',
+      label: 'funds.totalWithdrawals',
       icon: ArrowUpRight,
       value: (data) => {
         if (data.balances && data.balances.length > 0) {
@@ -109,8 +104,7 @@ export const fundConfig: SheetConfig = {
     },
     {
       key: 'today_change',
-      label: "Today's Change",
-      labelAr: 'حركة اليوم',
+      label: 'funds.todayChange',
       icon: TrendingUp,
       value: (data) => {
         if (data.balances && data.balances.length > 0) {
@@ -126,41 +120,35 @@ export const fundConfig: SheetConfig = {
   infoFields: [
     {
       key: 'name',
-      label: 'Fund Name',
-      labelAr: 'اسم الصندوق',
+      label: 'funds.fundName',
       type: 'text',
       icon: Wallet,
     },
     {
       key: 'type',
-      label: 'Type',
-      labelAr: 'النوع',
+      label: 'common.type',
       type: 'text',
     },
     {
       key: 'accountNumber',
-      label: 'Account Number',
-      labelAr: 'رقم الحساب',
+      label: 'funds.accountNumber',
       type: 'text',
       icon: Hash,
     },
     {
       key: 'defaultCurrency',
-      label: 'Default Currency',
-      labelAr: 'العملة الأساسية',
+      label: 'funds.defaultCurrency',
       type: 'text',
       icon: DollarSign,
     },
     {
       key: 'transactionCount',
-      label: 'Transactions',
-      labelAr: 'عدد العمليات',
+      label: 'common.transactions',
       type: 'number',
     },
     {
       key: 'lastActivity',
-      label: 'Last Activity',
-      labelAr: 'آخر نشاط',
+      label: 'common.lastActivity',
       type: 'text',
     },
   ],
@@ -169,23 +157,20 @@ export const fundConfig: SheetConfig = {
   tabs: [
     {
       id: 'overview',
-      label: 'Overview',
-      labelAr: 'نظرة عامة',
+      label: 'tabs.overview',
       icon: Eye,
       component: FundOverviewTab,
     },
     {
       id: 'transactions',
-      label: 'Transactions',
-      labelAr: 'العمليات',
+      label: 'tabs.transactions',
       icon: FileText,
-      component: FundTransactionsTab,
+      component: FundTransactionsTab as any,
       badge: (data) => data.transactionCount || data.transaction_count || null,
     },
     {
       id: 'activity',
-      label: 'Activity',
-      labelAr: 'النشاط',
+      label: 'tabs.activity',
       icon: Activity,
       component: ActivityTab,
     },
@@ -196,69 +181,58 @@ export const fundConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
     },
     {
       id: 'receipt',
-      label: 'Receipt',
-      labelAr: 'مقبوضات',
+      label: 'actions.receipt',
       icon: ArrowDownRight,
       variant: 'default',
     },
     {
       id: 'payment',
-      label: 'Payment',
-      labelAr: 'مدفوعات',
+      label: 'actions.payment',
       icon: ArrowUpRight,
       variant: 'outline',
     },
     {
       id: 'transfer',
-      label: 'Transfer',
-      labelAr: 'تحويل',
+      label: 'actions.transfer',
       icon: ArrowRightLeft,
       variant: 'outline',
     },
     {
       id: 'exchange',
-      label: 'Exchange',
-      labelAr: 'تصريف عملات',
+      label: 'actions.exchange',
       icon: RefreshCw,
       variant: 'outline',
       show: (data) => data.balances && data.balances.length > 1,
     },
     {
       id: 'print',
-      label: 'Print Statement',
-      labelAr: 'طباعة كشف',
+      label: 'actions.printStatement',
       icon: Printer,
       variant: 'outline',
       onClick: () => window.print(),
     },
     {
       id: 'export',
-      label: 'Export',
-      labelAr: 'تصدير',
+      label: 'actions.export',
       icon: Download,
       variant: 'outline',
     },
     {
       id: 'delete',
-      label: 'Delete',
-      labelAr: 'حذف',
+      label: 'actions.delete',
       icon: Trash2,
       variant: 'destructive',
       show: (data) => !data.has_transactions && data.balance === 0,
       confirm: {
-        title: 'Delete Fund',
-        titleAr: 'حذف الصندوق',
-        description: 'Are you sure you want to delete this fund? This action cannot be undone.',
-        descriptionAr: 'هل أنت متأكد من حذف هذا الصندوق؟ لا يمكن التراجع عن هذا الإجراء.',
-        confirmLabel: 'Delete',
-        confirmLabelAr: 'حذف',
+        title: 'dialogs.deleteFund',
+        description: 'dialogs.deleteFundWarning',
+        confirmLabel: 'actions.delete',
       },
     },
   ],
@@ -267,22 +241,20 @@ export const fundConfig: SheetConfig = {
   quickActions: [
     {
       id: 'receipt',
-      label: 'Receipt',
-      labelAr: 'مقبوضات',
+      label: 'actions.receipt',
       icon: ArrowDownRight,
       variant: 'ghost',
     },
     {
       id: 'payment',
-      label: 'Payment',
-      labelAr: 'مدفوعات',
+      label: 'actions.payment',
       icon: ArrowUpRight,
       variant: 'ghost',
     },
   ],
   
   // Sheet Settings
-  width: 'xl',
+  width: 'lg',
   
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {

@@ -43,15 +43,15 @@ export const tenantConfig: SheetConfig = {
   
   // Status Badge
   badge: (data) => {
-    const statusMap: Record<string, { label: string; labelAr: string; variant: 'success' | 'warning' | 'error' | 'default' }> = {
-      active: { label: 'Active', labelAr: 'نشط', variant: 'success' },
-      inactive: { label: 'Inactive', labelAr: 'غير نشط', variant: 'default' },
-      suspended: { label: 'Suspended', labelAr: 'موقوف', variant: 'error' },
-      expired: { label: 'Expired', labelAr: 'منتهي', variant: 'warning' },
+    const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' }> = {
+      active: { label: 'status.active', variant: 'success' },
+      inactive: { label: 'status.inactive', variant: 'default' },
+      suspended: { label: 'status.suspended', variant: 'error' },
+      expired: { label: 'status.expired', variant: 'warning' },
     };
     const status = statusMap[data.status] || statusMap.inactive;
     return {
-      label: status.labelAr, // Will be handled by language context
+      label: status.label,
       variant: status.variant,
     };
   },
@@ -60,24 +60,21 @@ export const tenantConfig: SheetConfig = {
   stats: [
     {
       key: 'users_count',
-      label: 'Users',
-      labelAr: 'المستخدمين',
+      label: 'stats.users',
       icon: Users,
       value: (data) => data.users_count || 0,
       color: 'blue',
     },
     {
       key: 'modules_count',
-      label: 'Modules',
-      labelAr: 'الوحدات',
+      label: 'stats.modules',
       icon: Boxes,
       value: (data) => data.enabled_modules?.length || 0,
       color: 'purple',
     },
     {
       key: 'monthly_revenue',
-      label: 'Monthly Revenue',
-      labelAr: 'الإيراد الشهري',
+      label: 'stats.monthlyRevenue',
       icon: DollarSign,
       value: (data) => data.monthly_revenue || data.subscription_amount || 0,
       color: 'green',
@@ -85,8 +82,7 @@ export const tenantConfig: SheetConfig = {
     },
     {
       key: 'days_remaining',
-      label: 'Days Remaining',
-      labelAr: 'الأيام المتبقية',
+      label: 'stats.daysRemaining',
       icon: Calendar,
       value: (data) => {
         if (!data.subscription_end) return '-';
@@ -101,33 +97,32 @@ export const tenantConfig: SheetConfig = {
   
   // Info Fields
   infoFields: [
-    { key: 'code', label: 'Code', labelAr: 'الكود', type: 'text' },
-    { key: 'email', label: 'Email', labelAr: 'البريد الإلكتروني', type: 'email', icon: Mail },
-    { key: 'phone', label: 'Phone', labelAr: 'الهاتف', type: 'phone', icon: Phone },
-    { key: 'country', label: 'Country', labelAr: 'الدولة', type: 'text', icon: Globe },
-    { key: 'default_language', label: 'Language', labelAr: 'اللغة', type: 'badge' },
-    { key: 'plan_name', label: 'Plan', labelAr: 'الباقة', type: 'badge', icon: Package },
-    { key: 'created_at', label: 'Created', labelAr: 'تاريخ الإنشاء', type: 'date', icon: Calendar },
+    { key: 'code', label: 'fields.code', type: 'text' },
+    { key: 'email', label: 'fields.email', type: 'email', icon: Mail },
+    { key: 'phone', label: 'fields.phone', type: 'phone', icon: Phone },
+    { key: 'country', label: 'fields.country', type: 'text', icon: Globe },
+    { key: 'default_language', label: 'fields.language', type: 'badge' },
+    { key: 'plan_name', label: 'fields.plan', type: 'badge', icon: Package },
+    { key: 'created_at', label: 'fields.created', type: 'date', icon: Calendar },
     { 
       key: 'agent_name', 
-      label: 'Agent', 
-      labelAr: 'الوكيل', 
+      label: 'fields.agent', 
       type: 'link',
-      link: (value, data) => data.agent_id ? { docType: 'agent' as DocType, id: data.agent_id } : null,
+      link: (_value, data) => data.agent_id ? { docType: 'agent' as DocType, id: data.agent_id } : null,
     },
-    { key: 'referral_code', label: 'Referral Code', labelAr: 'كود الإحالة', type: 'text' },
-    { key: 'referral_source', label: 'Referral Source', labelAr: 'مصدر الإحالة', type: 'text' },
+    { key: 'referral_code', label: 'fields.referralCode', type: 'text' },
+    { key: 'referral_source', label: 'fields.referralSource', type: 'text' },
   ],
   
   // Tabs
   tabs: [
-    { id: 'overview', label: 'Overview', labelAr: 'نظرة عامة', icon: Eye, component: OverviewTab },
-    { id: 'subscriptions', label: 'Subscriptions', labelAr: 'الاشتراكات', icon: Package, component: TenantSubscriptionsTab },
-    { id: 'usage', label: 'Usage', labelAr: 'الاستخدام', icon: Activity, component: TenantUsageTab },
-    { id: 'modules', label: 'Modules', labelAr: 'الوحدات', icon: Boxes, component: TenantModulesTab },
-    { id: 'payments', label: 'Payments', labelAr: 'المدفوعات', icon: DollarSign, component: PaymentsTab },
-    { id: 'ledger', label: 'Ledger', labelAr: 'كشف الحساب', icon: Book, component: LedgerTab },
-    { id: 'activity', label: 'Activity', labelAr: 'النشاط', icon: Activity, component: ActivityTab },
+    { id: 'overview', label: 'tabs.overview', icon: Eye, component: OverviewTab },
+    { id: 'subscriptions', label: 'tabs.subscriptions', icon: Package, component: TenantSubscriptionsTab },
+    { id: 'usage', label: 'tabs.usage', icon: Activity, component: TenantUsageTab },
+    { id: 'modules', label: 'tabs.modules', icon: Boxes, component: TenantModulesTab },
+    { id: 'payments', label: 'tabs.payments', icon: DollarSign, component: PaymentsTab },
+    { id: 'ledger', label: 'tabs.ledger', icon: Book, component: LedgerTab },
+    { id: 'activity', label: 'tabs.activity', icon: Activity, component: ActivityTab },
   ],
   defaultTab: 'overview',
   
@@ -135,51 +130,42 @@ export const tenantConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: (data) => console.log('Edit tenant:', data.id),
+      onClick: () => {},
     },
     {
       id: 'suspend',
-      label: 'Suspend',
-      labelAr: 'تعليق',
+      label: 'actions.suspend',
       icon: PauseCircle,
       variant: 'destructive',
       show: (data) => data.status === 'active',
       confirm: {
-        title: 'Confirm Suspend',
-        titleAr: 'تأكيد التعليق',
-        description: 'Are you sure you want to suspend this tenant? They will lose access to the system.',
-        descriptionAr: 'هل أنت متأكد من تعليق هذا المشترك؟ سيفقد الوصول إلى النظام.',
+        title: 'dialogs.confirmSuspend',
+        description: 'dialogs.suspendTenantWarning',
       },
-      onClick: (data) => console.log('Suspend tenant:', data.id),
+      onClick: () => {},
     },
     {
       id: 'activate',
-      label: 'Activate',
-      labelAr: 'تفعيل',
+      label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
       show: (data) => data.status === 'suspended' || data.status === 'inactive',
-      onClick: (data) => console.log('Activate tenant:', data.id),
+      onClick: () => {},
     },
     {
       id: 'delete',
-      label: 'Delete',
-      labelAr: 'حذف',
+      label: 'actions.delete',
       icon: Trash2,
       variant: 'destructive',
       confirm: {
-        title: 'Confirm Delete',
-        titleAr: 'تأكيد الحذف',
-        description: 'Are you sure you want to delete this tenant? This action cannot be undone.',
-        descriptionAr: 'هل أنت متأكد من حذف هذا المشترك؟ لا يمكن التراجع عن هذا الإجراء.',
-        confirmLabel: 'Delete',
-        confirmLabelAr: 'حذف',
+        title: 'dialogs.confirmDelete',
+        description: 'dialogs.deleteTenantWarning',
+        confirmLabel: 'actions.delete',
       },
-      onClick: (data) => console.log('Delete tenant:', data.id),
+      onClick: () => {},
     },
   ],
   

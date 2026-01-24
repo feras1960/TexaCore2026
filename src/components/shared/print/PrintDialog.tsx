@@ -6,7 +6,7 @@
  * Based on Reem Online's print functionality
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import {
@@ -114,11 +114,11 @@ const DEFAULT_TEMPLATES: PrintTemplate[] = [
 export function PrintDialog({
   docType,
   docId,
-  docNumber,
+  docNumber: _docNumber,
   templates = DEFAULT_TEMPLATES,
   relatedDocuments = [],
   onPrint,
-  onPreview,
+  onPreview: _onPreview,
   onExportPDF,
   className,
 }: PrintDialogProps) {
@@ -161,10 +161,12 @@ export function PrintDialog({
     }
   };
 
-  const handleOpenDialog = (template: PrintTemplate) => {
+  // Reserved for future dialog mode
+  const _handleOpenDialog = (template: PrintTemplate) => {
     setSelectedTemplate(template);
     setDialogOpen(true);
   };
+  void _handleOpenDialog;
 
   const handlePrintSelected = () => {
     if (!selectedTemplate) return;

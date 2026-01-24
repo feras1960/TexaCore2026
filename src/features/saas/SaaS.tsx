@@ -7,6 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard,
   Users,
@@ -23,7 +25,8 @@ import {
   Gift,
   Share2,
   Webhook,
-  TrendingUp
+  TrendingUp,
+  Crown
 } from 'lucide-react';
 
 // Import components
@@ -39,9 +42,10 @@ import Reports from './Reports';
 import SaaSSettings from './Settings';
 
 export default function SaaS() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isSuperAdmin, loading: authLoading } = useAuth();
 
   // Determine active tab from route
   const getActiveTab = () => {
@@ -164,6 +168,41 @@ export default function SaaS() {
         return <SaaSDashboard />;
     }
   };
+
+  // Show loading state
+  if (authLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-erp-teal"></div>
+        <p className="mt-4 text-gray-500 font-tajawal">{t('common.loading')}</p>
+      </div>
+    );
+  }
+
+  // Check Super Admin permission
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+          <Crown className="w-12 h-12 text-red-600 dark:text-red-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo mb-2">
+          {t('saas.tenants.error.noPermission')}
+        </h2>
+        <p className="text-gray-500 dark:text-gray-400 font-tajawal max-w-md text-center">
+          {language === 'ar' 
+            ? 'عذراً، لا تمتلك صلاحيات المدير العام للوصول إلى إدارة النظام. يرجى التواصل مع الإدارة.' 
+            : 'Sorry, you do not have Super Admin permissions to access the SaaS management section. Please contact administration.'}
+        </p>
+        <Button 
+          className="mt-6 bg-erp-navy hover:bg-erp-navy/90"
+          onClick={() => navigate('/')}
+        >
+          {language === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

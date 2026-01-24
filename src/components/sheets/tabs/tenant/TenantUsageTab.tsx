@@ -3,7 +3,7 @@
  * يعرض إحصائيات الاستخدام والحصص
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
@@ -34,7 +34,7 @@ interface UsageMetric {
 }
 
 // Usage Card Component
-function UsageCard({ metric, language }: { metric: UsageMetric; language: string }) {
+function UsageCard({ metric, language, t }: { metric: UsageMetric; language: string; t: (key: string) => string }) {
   const isArabic = language === 'ar';
   const Icon = metric.icon;
   const percentage = metric.limit > 0 ? (metric.used / metric.limit) * 100 : 0;
@@ -69,7 +69,7 @@ function UsageCard({ metric, language }: { metric: UsageMetric; language: string
             )} />
           </div>
           <span className="font-medium text-gray-900 dark:text-white">
-            {isArabic ? metric.labelAr : metric.label}
+            {t(metric.label)}
           </span>
         </div>
         {(isWarning || isCritical) && (
@@ -81,8 +81,8 @@ function UsageCard({ metric, language }: { metric: UsageMetric; language: string
           )}>
             <AlertTriangle className="w-3 h-3 me-1" />
             {isCritical 
-              ? (isArabic ? 'حرج' : 'Critical')
-              : (isArabic ? 'تحذير' : 'Warning')
+              ? t('status.critical')
+              : t('status.warning')
             }
           </Badge>
         )}
@@ -117,7 +117,7 @@ function UsageCard({ metric, language }: { metric: UsageMetric; language: string
   );
 }
 
-export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabComponentProps) {
+export function TenantUsageTab({ data, docType: _docType, language, t, onRefresh: _onRefresh }: TabComponentProps) {
   const isArabic = language === 'ar';
 
   // Get usage metrics from data
@@ -127,7 +127,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
       return [
         {
           id: 'users',
-          label: 'Users',
+          label: 'usage.users',
           labelAr: 'المستخدمين',
           icon: Users,
           used: data.usage.users_count || 0,
@@ -138,7 +138,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
         },
         {
           id: 'storage',
-          label: 'Storage',
+          label: 'usage.storage',
           labelAr: 'التخزين',
           icon: HardDrive,
           used: data.usage.storage_used || 0,
@@ -149,7 +149,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
         },
         {
           id: 'documents',
-          label: 'Documents',
+          label: 'usage.documents',
           labelAr: 'المستندات',
           icon: FileText,
           used: data.usage.documents_count || 0,
@@ -160,7 +160,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
         },
         {
           id: 'api_calls',
-          label: 'API Calls',
+          label: 'usage.apiCalls',
           labelAr: 'طلبات API',
           icon: Zap,
           used: data.usage.api_calls || 0,
@@ -176,7 +176,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
     return [
       {
         id: 'users',
-        label: 'Users',
+        label: 'usage.users',
         labelAr: 'المستخدمين',
         icon: Users,
         used: data.users_count || 0,
@@ -187,7 +187,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
       },
       {
         id: 'storage',
-        label: 'Storage',
+        label: 'usage.storage',
         labelAr: 'التخزين',
         icon: HardDrive,
         used: data.storage_used_gb || 0,
@@ -198,7 +198,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
       },
       {
         id: 'documents',
-        label: 'Documents',
+        label: 'usage.documents',
         labelAr: 'المستندات',
         icon: FileText,
         used: data.documents_count || 0,
@@ -209,7 +209,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
       },
       {
         id: 'api_calls',
-        label: 'API Calls',
+        label: 'usage.apiCalls',
         labelAr: 'طلبات API',
         icon: Zap,
         used: data.api_calls_this_month || 0,
@@ -235,14 +235,14 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
         <div className="flex items-center gap-2">
           <Activity className="w-5 h-5 text-erp-teal" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {isArabic ? 'الاستخدام والحصص' : 'Usage & Quotas'}
+            {t('usage.usageAndQuotas')}
           </h3>
         </div>
 
         {/* Usage Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {metrics.map((metric) => (
-            <UsageCard key={metric.id} metric={metric} language={language} />
+            <UsageCard key={metric.id} metric={metric} language={language} t={t} />
           ))}
         </div>
 
@@ -250,13 +250,13 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-erp-teal" />
-            {isArabic ? 'ملخص النشاط' : 'Activity Summary'}
+            {t('usage.activitySummary')}
           </h4>
           
           <div className="grid grid-cols-3 gap-4">
             <div>
               <div className="text-xs text-gray-500">
-                {isArabic ? 'آخر نشاط' : 'Last Active'}
+                {t('usage.lastActive')}
               </div>
               <div className="font-medium text-gray-900 dark:text-white text-sm">
                 {new Date(activityStats.lastActive).toLocaleDateString(
@@ -266,7 +266,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
             </div>
             <div>
               <div className="text-xs text-gray-500">
-                {isArabic ? 'عمليات الدخول' : 'Login Count'}
+                {t('usage.loginCount')}
               </div>
               <div className="font-medium font-mono text-gray-900 dark:text-white text-sm">
                 {activityStats.loginCount}
@@ -274,7 +274,7 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
             </div>
             <div>
               <div className="text-xs text-gray-500">
-                {isArabic ? 'إجراءات اليوم' : 'Actions Today'}
+                {t('usage.actionsToday')}
               </div>
               <div className="font-medium font-mono text-gray-900 dark:text-white text-sm">
                 {activityStats.actionsToday}
@@ -287,24 +287,24 @@ export function TenantUsageTab({ data, docType, language, t, onRefresh }: TabCom
         <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
           <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
             <Database className="w-4 h-4 text-erp-teal" />
-            {isArabic ? 'إحصائيات قاعدة البيانات' : 'Database Stats'}
+            {t('usage.databaseStats')}
           </h4>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <div className="text-xs text-gray-500">{isArabic ? 'الجداول' : 'Tables'}</div>
+              <div className="text-xs text-gray-500">{t('usage.tables')}</div>
               <div className="font-mono font-medium">{data.db_tables_count || 45}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">{isArabic ? 'السجلات' : 'Records'}</div>
+              <div className="text-xs text-gray-500">{t('usage.records')}</div>
               <div className="font-mono font-medium">{(data.db_records_count || 12500).toLocaleString()}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">{isArabic ? 'الحجم' : 'Size'}</div>
+              <div className="text-xs text-gray-500">{t('usage.size')}</div>
               <div className="font-mono font-medium">{data.db_size_mb || 256} MB</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">{isArabic ? 'النسخ الاحتياطية' : 'Backups'}</div>
+              <div className="text-xs text-gray-500">{t('usage.backups')}</div>
               <div className="font-mono font-medium">{data.backups_count || 7}</div>
             </div>
           </div>

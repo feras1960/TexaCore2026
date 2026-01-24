@@ -29,6 +29,50 @@ interface UseLanguageShortcutsOptions {
   enabled?: boolean;
 }
 
+export type ModifierKey = 'ctrl' | 'alt' | 'shift' | 'meta';
+
+export const isMacOS = () => {
+  if (typeof navigator === 'undefined') return false;
+  const platform = navigator.platform || navigator.userAgent || '';
+  return /Mac|iPhone|iPad|iPod/i.test(platform);
+};
+
+export const getModifierKeyLabel = (modifier: ModifierKey) => {
+  const mac = isMacOS();
+  switch (modifier) {
+    case 'ctrl':
+      return mac ? 'Cmd' : 'Ctrl';
+    case 'alt':
+      return mac ? 'Option' : 'Alt';
+    case 'shift':
+      return 'Shift';
+    case 'meta':
+      return mac ? 'Cmd' : 'Meta';
+    default:
+      return modifier;
+  }
+};
+
+export const formatShortcut = (shortcut: string) => {
+  return shortcut
+    .split('+')
+    .map((part) => {
+      const normalized = part.trim().toLowerCase();
+      if (normalized === 'ctrl' || normalized === 'control') return getModifierKeyLabel('ctrl');
+      if (normalized === 'alt' || normalized === 'option') return getModifierKeyLabel('alt');
+      if (normalized === 'shift') return getModifierKeyLabel('shift');
+      if (normalized === 'cmd' || normalized === 'command' || normalized === 'meta') {
+        return getModifierKeyLabel('meta');
+      }
+      return part.trim();
+    })
+    .join('+');
+};
+
+export const formatShortcutRange = (modifier: ModifierKey, range: string) => {
+  return `${getModifierKeyLabel(modifier)}+${range}`;
+};
+
 export function useLanguageShortcuts(options: UseLanguageShortcutsOptions = {}) {
   const { 
     menuTriggerId = 'language-menu-trigger',
@@ -79,6 +123,7 @@ export function useLanguageShortcuts(options: UseLanguageShortcutsOptions = {}) 
     shortcuts: SUPPORTED_LANGUAGES.map(lang => ({
       code: lang.code,
       shortcut: lang.shortcut,
+      displayShortcut: formatShortcut(lang.shortcut),
       name: lang.nativeName,
       flag: lang.flag,
     })),

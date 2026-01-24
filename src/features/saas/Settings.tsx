@@ -335,7 +335,7 @@ export default function SaaSSettings() {
                     <TableHead>{language === 'ar' ? 'الاسم' : 'Name'}</TableHead>
                     <TableHead>URL</TableHead>
                     <TableHead>{language === 'ar' ? 'الأحداث' : 'Events'}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead>{t('common.status._')}</TableHead>
                     <TableHead>{language === 'ar' ? 'آخر تشغيل' : 'Last Triggered'}</TableHead>
                     <TableHead className="w-[80px]">{t('common.actions')}</TableHead>
                   </TableRow>

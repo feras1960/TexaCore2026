@@ -26,17 +26,15 @@ import {
   XCircle,
   Copy,
   Eye,
-  Book,
   Activity,
   TrendingUp,
   BarChart3,
   Settings,
   Sparkles,
   Clock,
-  Percent,
   Globe,
 } from 'lucide-react';
-import { type SheetConfig, type DocType } from './sheet.types';
+import { type SheetConfig } from './sheet.types';
 
 // Import tab components
 import { OverviewTab } from '../tabs/shared/OverviewTab';
@@ -62,14 +60,14 @@ export const planConfig: SheetConfig = {
   badge: (data) => {
     if (data.is_popular) {
       return {
-        label: 'الأكثر طلباً',
+        label: 'plans.mostPopular',
         variant: 'info',
         icon: Sparkles,
       };
     }
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' }> = {
-      true: { label: 'نشط', variant: 'success' },
-      false: { label: 'غير نشط', variant: 'default' },
+      true: { label: 'common.active', variant: 'success' },
+      false: { label: 'common.inactive', variant: 'default' },
     };
     const status = statusMap[String(data.is_active)] || statusMap['false'];
     return {
@@ -82,8 +80,7 @@ export const planConfig: SheetConfig = {
   stats: [
     {
       key: 'price_monthly',
-      label: 'Monthly Price',
-      labelAr: 'السعر الشهري',
+      label: 'plans.monthlyPrice',
       icon: DollarSign,
       value: (data) => data.price_monthly || 0,
       color: 'green',
@@ -91,16 +88,14 @@ export const planConfig: SheetConfig = {
     },
     {
       key: 'subscribers_count',
-      label: 'Subscribers',
-      labelAr: 'المشتركين',
+      label: 'plans.subscribers',
       icon: Users,
       value: (data) => data.subscribers_count || data.subscribers?.length || 0,
       color: 'blue',
     },
     {
       key: 'monthly_revenue',
-      label: 'Monthly Revenue',
-      labelAr: 'الإيراد الشهري',
+      label: 'plans.monthlyRevenue',
       icon: TrendingUp,
       value: (data) => data.monthly_revenue || (data.price_monthly * (data.subscribers_count || 0)),
       color: 'purple',
@@ -108,8 +103,7 @@ export const planConfig: SheetConfig = {
     },
     {
       key: 'modules_count',
-      label: 'Modules',
-      labelAr: 'الوحدات',
+      label: 'common.modules',
       icon: Boxes,
       value: (data) => data.modules?.length || 0,
       color: 'gray',
@@ -121,14 +115,12 @@ export const planConfig: SheetConfig = {
     // معلومات الباقة
     { 
       key: 'code', 
-      label: 'Plan Code', 
-      labelAr: 'كود الباقة', 
+      label: 'plans.planCode', 
       type: 'text' 
     },
     { 
       key: 'description', 
-      label: 'Description', 
-      labelAr: 'الوصف', 
+      label: 'common.description', 
       type: 'text',
       format: (value, data) => data.description_ar || value || '-',
     },
@@ -136,24 +128,21 @@ export const planConfig: SheetConfig = {
     // التسعير
     { 
       key: 'price_monthly', 
-      label: 'Monthly Price', 
-      labelAr: 'السعر الشهري', 
+      label: 'plans.monthlyPrice', 
       type: 'currency',
       icon: DollarSign,
       currency: 'SAR',
     },
     { 
       key: 'price_yearly', 
-      label: 'Yearly Price', 
-      labelAr: 'السعر السنوي', 
+      label: 'plans.yearlyPrice', 
       type: 'currency',
       icon: DollarSign,
       currency: 'SAR',
     },
     { 
       key: 'currency', 
-      label: 'Currency', 
-      labelAr: 'العملة', 
+      label: 'common.currency', 
       type: 'badge',
       icon: Globe,
     },
@@ -161,22 +150,19 @@ export const planConfig: SheetConfig = {
     // الحدود
     { 
       key: 'max_users', 
-      label: 'Max Users', 
-      labelAr: 'الحد الأقصى للمستخدمين', 
+      label: 'plans.maxUsers', 
       type: 'number',
       icon: Users,
     },
     { 
       key: 'max_companies', 
-      label: 'Max Companies', 
-      labelAr: 'الحد الأقصى للشركات', 
+      label: 'plans.maxCompanies', 
       type: 'number',
       icon: Building2,
     },
     { 
       key: 'max_storage_gb', 
-      label: 'Max Storage', 
-      labelAr: 'الحد الأقصى للتخزين', 
+      label: 'plans.maxStorage', 
       type: 'text',
       icon: HardDrive,
       format: (value) => `${value || 0} GB`,
@@ -185,46 +171,40 @@ export const planConfig: SheetConfig = {
     // معلومات إضافية
     { 
       key: 'trial_days', 
-      label: 'Trial Days', 
-      labelAr: 'أيام التجربة', 
+      label: 'plans.trialDays', 
       type: 'number',
       icon: Clock,
     },
     { 
       key: 'is_active', 
-      label: 'Status', 
-      labelAr: 'الحالة', 
+      label: 'common.status', 
       type: 'badge',
       badge: (value) => ({
-        label: value ? 'نشط' : 'غير نشط',
+        label: value ? 'common.active' : 'common.inactive',
         variant: value ? 'success' : 'default',
       }),
     },
     { 
       key: 'is_popular', 
-      label: 'Popular', 
-      labelAr: 'مميز', 
+      label: 'plans.popular', 
       type: 'badge',
       icon: Star,
-      badge: (value) => value ? { label: 'الأكثر طلباً', variant: 'info' } : null,
+      badge: (value) => value ? { label: 'plans.mostPopular', variant: 'info' } : null,
     },
     { 
       key: 'sort_order', 
-      label: 'Sort Order', 
-      labelAr: 'ترتيب العرض', 
+      label: 'plans.sortOrder', 
       type: 'number' 
     },
     { 
       key: 'created_at', 
-      label: 'Created', 
-      labelAr: 'تاريخ الإنشاء', 
+      label: 'common.created', 
       type: 'date', 
       icon: Calendar 
     },
     { 
       key: 'updated_at', 
-      label: 'Updated', 
-      labelAr: 'آخر تحديث', 
+      label: 'common.updated', 
       type: 'date' 
     },
   ],
@@ -233,53 +213,46 @@ export const planConfig: SheetConfig = {
   tabs: [
     { 
       id: 'overview', 
-      label: 'Overview', 
-      labelAr: 'نظرة عامة', 
+      label: 'tabs.overview', 
       icon: Eye, 
       component: OverviewTab,
     },
     { 
       id: 'modules', 
-      label: 'Modules', 
-      labelAr: 'الوحدات', 
+      label: 'tabs.modules', 
       icon: Boxes, 
       component: OverviewTab, // سيتم استبداله بـ PlanModulesTab
       badge: (data) => data.modules?.length || 0,
     },
     { 
       id: 'limits', 
-      label: 'Limits & Features', 
-      labelAr: 'الحدود والميزات', 
+      label: 'tabs.limitsFeatures', 
       icon: Settings, 
       component: OverviewTab, // سيتم استبداله بـ PlanLimitsTab
       badge: (data) => data.features?.length || 0,
     },
     { 
       id: 'subscribers', 
-      label: 'Subscribers', 
-      labelAr: 'المشتركين', 
+      label: 'tabs.subscribers', 
       icon: Users, 
       component: OverviewTab, // سيتم استبداله بـ PlanSubscribersTab
       badge: (data) => data.subscribers_count || data.subscribers?.length || 0,
     },
     { 
       id: 'payments', 
-      label: 'Payments', 
-      labelAr: 'المدفوعات', 
+      label: 'tabs.payments', 
       icon: DollarSign, 
       component: PaymentsTab,
     },
     { 
       id: 'analytics', 
-      label: 'Analytics', 
-      labelAr: 'التحليلات', 
+      label: 'tabs.analytics', 
       icon: BarChart3, 
       component: OverviewTab, // سيتم استبداله بـ PlanAnalyticsTab
     },
     { 
       id: 'activity', 
-      label: 'Activity', 
-      labelAr: 'السجل', 
+      label: 'tabs.activity', 
       icon: Activity, 
       component: ActivityTab,
     },
@@ -290,61 +263,53 @@ export const planConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: (data) => console.log('Edit plan:', data.id),
+      onClick: () => {},
     },
     {
       id: 'duplicate',
-      label: 'Duplicate',
-      labelAr: 'نسخ',
+      label: 'actions.duplicate',
       icon: Copy,
       variant: 'outline',
-      onClick: (data) => console.log('Duplicate plan:', data.id),
+      onClick: () => {},
     },
     {
       id: 'set_popular',
-      label: 'Set as Popular',
-      labelAr: 'تعيين كمميز',
+      label: 'actions.setAsPopular',
       icon: Star,
       variant: 'outline',
       show: (data) => !data.is_popular,
-      onClick: (data) => console.log('Set popular:', data.id),
+      onClick: () => {},
     },
     {
       id: 'remove_popular',
-      label: 'Remove Popular',
-      labelAr: 'إزالة التميز',
+      label: 'actions.removePopular',
       icon: Star,
       variant: 'ghost',
       show: (data) => data.is_popular,
-      onClick: (data) => console.log('Remove popular:', data.id),
+      onClick: () => {},
     },
     {
       id: 'deactivate',
-      label: 'Deactivate',
-      labelAr: 'تعطيل',
+      label: 'actions.deactivate',
       icon: XCircle,
       variant: 'destructive',
       show: (data) => data.is_active,
       confirm: {
-        title: 'Confirm Deactivation',
-        titleAr: 'تأكيد التعطيل',
-        description: 'Are you sure you want to deactivate this plan? Existing subscribers will not be affected.',
-        descriptionAr: 'هل أنت متأكد من تعطيل هذه الباقة؟ المشتركون الحاليون لن يتأثروا.',
+        title: 'dialogs.confirmDeactivation',
+        description: 'dialogs.deactivatePlanWarning',
       },
-      onClick: (data) => console.log('Deactivate plan:', data.id),
+      onClick: () => {},
     },
     {
       id: 'activate',
-      label: 'Activate',
-      labelAr: 'تفعيل',
+      label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
       show: (data) => !data.is_active,
-      onClick: (data) => console.log('Activate plan:', data.id),
+      onClick: () => {},
     },
   ],
   

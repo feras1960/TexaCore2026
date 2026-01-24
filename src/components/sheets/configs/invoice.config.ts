@@ -15,7 +15,6 @@ import {
   Edit,
   Trash2,
   Eye,
-  Book,
   Activity,
   CheckCircle,
   Clock,
@@ -42,13 +41,13 @@ export const invoiceConfig: SheetConfig = {
   // Status Badge
   badge: (data) => {
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' | 'info' }> = {
-      paid: { label: 'مدفوعة', variant: 'success' },
-      partial: { label: 'مدفوعة جزئياً', variant: 'info' },
-      unpaid: { label: 'غير مدفوعة', variant: 'error' },
-      overdue: { label: 'متأخرة', variant: 'error' },
-      draft: { label: 'مسودة', variant: 'warning' },
-      submitted: { label: 'مقدمة', variant: 'info' },
-      cancelled: { label: 'ملغاة', variant: 'default' },
+      paid: { label: 'status.paid', variant: 'success' },
+      partial: { label: 'status.partial', variant: 'info' },
+      unpaid: { label: 'status.unpaid', variant: 'error' },
+      overdue: { label: 'status.overdue', variant: 'error' },
+      draft: { label: 'status.draft', variant: 'warning' },
+      submitted: { label: 'status.submitted', variant: 'info' },
+      cancelled: { label: 'status.cancelled', variant: 'default' },
     };
     const status = statusMap[data.status] || statusMap.draft;
     return {
@@ -61,10 +60,9 @@ export const invoiceConfig: SheetConfig = {
   
   // Balance Display
   balance: {
-    value: (data) => data.balance || (data.grand_total || data.grandTotal || 0) - (data.paid_amount || data.paidAmount || 0),
-    label: 'Balance Due',
-    labelAr: 'المبلغ المتبقي',
-    currency: data => data.currency || 'SAR',
+    value: (data: any) => data.balance || (data.grand_total || data.grandTotal || 0) - (data.paid_amount || data.paidAmount || 0),
+    label: 'fields.balanceDue',
+    currency: 'SAR',
     showSign: false,
   },
   
@@ -72,8 +70,7 @@ export const invoiceConfig: SheetConfig = {
   stats: [
     {
       key: 'grand_total',
-      label: 'Total',
-      labelAr: 'الإجمالي',
+      label: 'stats.total',
       icon: DollarSign,
       value: (data) => data.grand_total || data.grandTotal || 0,
       color: 'blue',
@@ -81,8 +78,7 @@ export const invoiceConfig: SheetConfig = {
     },
     {
       key: 'paid_amount',
-      label: 'Paid',
-      labelAr: 'المدفوع',
+      label: 'stats.paid',
       icon: CheckCircle,
       value: (data) => data.paid_amount || data.paidAmount || 0,
       color: 'green',
@@ -90,8 +86,7 @@ export const invoiceConfig: SheetConfig = {
     },
     {
       key: 'balance',
-      label: 'Balance',
-      labelAr: 'المتبقي',
+      label: 'stats.balance',
       icon: AlertTriangle,
       value: (data) => (data.grand_total || data.grandTotal || 0) - (data.paid_amount || data.paidAmount || 0),
       color: 'red',
@@ -99,8 +94,7 @@ export const invoiceConfig: SheetConfig = {
     },
     {
       key: 'items_count',
-      label: 'Items',
-      labelAr: 'البنود',
+      label: 'stats.items',
       icon: FileText,
       value: (data) => data.items?.length || 0,
       color: 'gray',
@@ -109,52 +103,49 @@ export const invoiceConfig: SheetConfig = {
   
   // Info Fields
   infoFields: [
-    { key: 'invoice_no', label: 'Invoice No', labelAr: 'رقم الفاتورة', type: 'text' },
+    { key: 'invoice_no', label: 'fields.invoiceNo', type: 'text' },
     { 
       key: 'invoice_type', 
-      label: 'Type', 
-      labelAr: 'النوع', 
+      label: 'fields.type', 
       type: 'badge',
       badge: (value) => {
         const types: Record<string, { label: string; variant: 'success' | 'info' | 'warning' | 'default' }> = {
-          sales: { label: 'مبيعات', variant: 'success' },
-          purchase: { label: 'مشتريات', variant: 'info' },
-          credit_note: { label: 'إشعار دائن', variant: 'warning' },
-          debit_note: { label: 'إشعار مدين', variant: 'default' },
+          sales: { label: 'invoiceTypes.sales', variant: 'success' },
+          purchase: { label: 'invoiceTypes.purchase', variant: 'info' },
+          credit_note: { label: 'invoiceTypes.creditNote', variant: 'warning' },
+          debit_note: { label: 'invoiceTypes.debitNote', variant: 'default' },
         };
         return types[value] || { label: value, variant: 'default' };
       },
     },
-    { key: 'date', label: 'Date', labelAr: 'التاريخ', type: 'date', icon: Calendar },
-    { key: 'due_date', label: 'Due Date', labelAr: 'تاريخ الاستحقاق', type: 'date', icon: Clock },
+    { key: 'date', label: 'fields.date', type: 'date', icon: Calendar },
+    { key: 'due_date', label: 'fields.dueDate', type: 'date', icon: Clock },
     { 
       key: 'party_name', 
-      label: 'Customer', 
-      labelAr: 'العميل', 
+      label: 'fields.customer', 
       type: 'link',
       icon: Building2,
-      link: (value, data) => data.party_id ? { docType: (data.party_type === 'supplier' ? 'supplier' : 'customer') as DocType, id: data.party_id } : null,
+      link: (_value: any, data: any) => data.party_id ? { docType: (data.party_type === 'supplier' ? 'supplier' : 'customer') as DocType, id: data.party_id } : null,
     },
-    { key: 'party_phone', label: 'Phone', labelAr: 'الهاتف', type: 'phone' },
-    { key: 'party_email', label: 'Email', labelAr: 'البريد', type: 'email' },
-    { key: 'payment_method', label: 'Payment Method', labelAr: 'طريقة الدفع', type: 'text', icon: CreditCard },
-    { key: 'sales_person', label: 'Sales Person', labelAr: 'المسؤول', type: 'text', icon: User },
-    { key: 'currency', label: 'Currency', labelAr: 'العملة', type: 'text' },
-    { key: 'created_at', label: 'Created', labelAr: 'تاريخ الإنشاء', type: 'date' },
+    { key: 'party_phone', label: 'fields.phone', type: 'phone' },
+    { key: 'party_email', label: 'fields.email', type: 'email' },
+    { key: 'payment_method', label: 'fields.paymentMethod', type: 'text', icon: CreditCard },
+    { key: 'sales_person', label: 'fields.salesPerson', type: 'text', icon: User },
+    { key: 'currency', label: 'common.currency', type: 'text' },
+    { key: 'created_at', label: 'fields.created', type: 'date' },
   ],
   
   // Tabs
   tabs: [
-    { id: 'overview', label: 'Overview', labelAr: 'نظرة عامة', icon: Eye, component: OverviewTab },
+    { id: 'overview', label: 'tabs.overview', icon: Eye, component: OverviewTab },
     { 
       id: 'payments', 
-      label: 'Payments', 
-      labelAr: 'المدفوعات', 
+      label: 'tabs.payments', 
       icon: CreditCard, 
       component: PaymentsTab,
       badge: (data) => data.payments?.length || 0,
     },
-    { id: 'activity', label: 'Activity', labelAr: 'النشاط', icon: Activity, component: ActivityTab },
+    { id: 'activity', label: 'tabs.activity', icon: Activity, component: ActivityTab },
   ],
   defaultTab: 'overview',
   
@@ -162,19 +153,17 @@ export const invoiceConfig: SheetConfig = {
   quickActions: [
     {
       id: 'print',
-      label: 'Print',
-      labelAr: 'طباعة',
+      label: 'actions.print',
       icon: Printer,
       variant: 'ghost',
-      onClick: (data) => window.print(),
+      onClick: (_data: any) => window.print(),
     },
     {
       id: 'download',
-      label: 'Download',
-      labelAr: 'تحميل',
+      label: 'actions.download',
       icon: Download,
       variant: 'ghost',
-      onClick: (data) => console.log('Download invoice:', data.id),
+      onClick: () => {},
     },
   ],
   
@@ -182,51 +171,43 @@ export const invoiceConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
       show: (data) => data.status === 'draft',
-      onClick: (data) => console.log('Edit invoice:', data.id),
+      onClick: () => {},
     },
     {
       id: 'submit',
-      label: 'Submit',
-      labelAr: 'تقديم',
+      label: 'actions.submit',
       icon: CheckCircle,
       variant: 'success',
       show: (data) => data.status === 'draft',
-      onClick: (data) => console.log('Submit invoice:', data.id),
+      onClick: () => {},
     },
     {
       id: 'cancel',
-      label: 'Cancel',
-      labelAr: 'إلغاء',
+      label: 'actions.cancel',
       icon: XCircle,
       variant: 'destructive',
       show: (data) => data.status !== 'cancelled' && data.status !== 'paid',
       confirm: {
-        title: 'Confirm Cancel',
-        titleAr: 'تأكيد الإلغاء',
-        description: 'Are you sure you want to cancel this invoice?',
-        descriptionAr: 'هل أنت متأكد من إلغاء هذه الفاتورة؟',
+        title: 'dialogs.confirmCancel',
+        description: 'dialogs.cancelInvoiceWarning',
       },
-      onClick: (data) => console.log('Cancel invoice:', data.id),
+      onClick: () => {},
     },
     {
       id: 'delete',
-      label: 'Delete',
-      labelAr: 'حذف',
+      label: 'actions.delete',
       icon: Trash2,
       variant: 'destructive',
       show: (data) => data.status === 'draft' || data.status === 'cancelled',
       confirm: {
-        title: 'Confirm Delete',
-        titleAr: 'تأكيد الحذف',
-        description: 'Are you sure you want to delete this invoice? This action cannot be undone.',
-        descriptionAr: 'هل أنت متأكد من حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.',
+        title: 'dialogs.confirmDelete',
+        description: 'dialogs.deleteInvoiceWarning',
       },
-      onClick: (data) => console.log('Delete invoice:', data.id),
+      onClick: () => {},
     },
   ],
   

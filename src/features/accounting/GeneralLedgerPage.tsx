@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { formatShortcut } from '@/hooks/useLanguageShortcuts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -760,9 +761,10 @@ export default function GeneralLedgerPage() {
       await navigator.clipboard.writeText(csvData);
       
       // Show instructions
+      const pasteShortcut = formatShortcut('Ctrl+V');
       const message = language === 'ar' 
-        ? 'تم نسخ البيانات بنجاح!\n\n1. سيتم فتح جداول غوغل في نافذة جديدة\n2. اضغط Ctrl+V (أو Cmd+V في ماك) للصق البيانات\n3. اختر "تقسيم النص إلى أعمدة" إذا ظهرت الخيار'
-        : 'Data copied successfully!\n\n1. Google Sheets will open in a new window\n2. Press Ctrl+V (or Cmd+V on Mac) to paste data\n3. Choose "Split text to columns" if prompted';
+        ? `تم نسخ البيانات بنجاح!\n\n1. سيتم فتح جداول غوغل في نافذة جديدة\n2. اضغط ${pasteShortcut} للصق البيانات\n3. اختر "تقسيم النص إلى أعمدة" إذا ظهرت الخيار`
+        : `Data copied successfully!\n\n1. Google Sheets will open in a new window\n2. Press ${pasteShortcut} to paste data\n3. Choose "Split text to columns" if prompted`;
       
       alert(message);
       
@@ -779,9 +781,10 @@ export default function GeneralLedgerPage() {
       
       try {
         document.execCommand('copy');
+        const pasteShortcut = formatShortcut('Ctrl+V');
         const message = language === 'ar' 
-          ? 'تم نسخ البيانات! الصق (Ctrl+V) في جداول غوغل'
-          : 'Data copied! Paste (Ctrl+V) in Google Sheets';
+          ? `تم نسخ البيانات! الصق (${pasteShortcut}) في جداول غوغل`
+          : `Data copied! Paste (${pasteShortcut}) in Google Sheets`;
         alert(message);
         window.open('https://docs.google.com/spreadsheets/create', '_blank');
       } catch (copyErr) {
@@ -1578,15 +1581,13 @@ export default function GeneralLedgerPage() {
         onOpenChange={setJournalDetailOpen}
         entry={selectedJournalEntry}
         onEdit={() => {
-          console.log('Edit journal entry:', selectedJournalEntry?.voucherNo);
           // TODO: Implement edit functionality
         }}
         onDelete={() => {
-          console.log('Delete journal entry:', selectedJournalEntry?.voucherNo);
           // TODO: Implement delete functionality
           setJournalDetailOpen(false);
         }}
-        onPrint={() => console.log('Print journal entry')}
+        onPrint={() => window.print()}
         onAccountClick={(code, name) => {
           setJournalDetailOpen(false);
           openAccountDrillDown(code, name);
@@ -1601,15 +1602,13 @@ export default function GeneralLedgerPage() {
         onOpenChange={setInvoiceDetailOpen}
         invoice={selectedInvoice}
         onEdit={() => {
-          console.log('Edit invoice:', selectedInvoice?.invoiceNo);
           // TODO: Implement edit functionality
         }}
         onDelete={() => {
-          console.log('Delete invoice:', selectedInvoice?.invoiceNo);
           // TODO: Implement delete functionality
           setInvoiceDetailOpen(false);
         }}
-        onPrint={() => console.log('Print invoice')}
+        onPrint={() => window.print()}
         onAccountClick={(code, name) => {
           setInvoiceDetailOpen(false);
           openAccountDrillDown(code, name);
@@ -1624,15 +1623,13 @@ export default function GeneralLedgerPage() {
         onOpenChange={setPaymentDetailOpen}
         payment={selectedPayment}
         onEdit={() => {
-          console.log('Edit payment:', selectedPayment?.voucherNo);
           // TODO: Implement edit functionality
         }}
         onDelete={() => {
-          console.log('Delete payment:', selectedPayment?.voucherNo);
           // TODO: Implement delete functionality
           setPaymentDetailOpen(false);
         }}
-        onPrint={() => console.log('Print payment')}
+        onPrint={() => window.print()}
         onAccountClick={(code, name) => {
           setPaymentDetailOpen(false);
           openAccountDrillDown(code, name);

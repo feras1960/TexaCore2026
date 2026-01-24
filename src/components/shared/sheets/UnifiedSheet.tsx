@@ -3,8 +3,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { 
   Sheet, 
-  SheetContent, 
-  SheetHeader,
+  SheetContent,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -23,7 +23,7 @@ import {
   Mail,
   Phone,
 } from 'lucide-react';
-import { type TabComponentProps, type DocType } from '../../configs/sheet.types';
+import { type TabComponentProps } from '../../configs/sheet.types';
 
 // Tenant Interface
 interface Tenant {
@@ -130,7 +130,7 @@ function TenantCard({
   );
 }
 
-export function AgentTenantsTab({ data, docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function AgentTenantsTab({ data, docType: _docType, language, t: _t, onRowClick, onRefresh: _onRefresh }: TabComponentProps) {
   const isArabic = language === 'ar';
   const [searchQuery, setSearchQuery] = React.useState('');
 

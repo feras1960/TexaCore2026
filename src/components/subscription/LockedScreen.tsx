@@ -11,7 +11,7 @@ import { Lock, CreditCard, Phone, Mail, Building2, Calendar, HelpCircle } from '
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn } from '@/lib/utils';
 import type { SubscriptionStatusInfo } from '@/services/subscriptionService';
 

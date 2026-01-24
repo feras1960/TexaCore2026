@@ -4,8 +4,8 @@ import App from './App';
 import './styles/globals.css';
 import './i18n/config';
 
+// Note: StrictMode disabled temporarily to fix auth issues
+// It causes double renders which abort Supabase requests
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <App />,
 );

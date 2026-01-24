@@ -128,7 +128,7 @@ export default function CurrencyExchangeDialog({
   };
 
   const handleSubmit = () => {
-    console.log('Exchange submitted:', { ...formData, date, effectiveRate, resultAmount });
+    // TODO: Implement actual currency exchange
     onOpenChange(false);
   };
 

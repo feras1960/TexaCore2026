@@ -400,7 +400,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <BarChart3 className="w-4 h-4 text-gray-500" />
-              <span>{language === 'ar' ? 'عدد العمليات' : 'Transactions'}</span>
+              <span>{t('accounting.transactions')}</span>
             </div>
             <div className="text-xl font-bold font-mono text-gray-700 dark:text-gray-300">
               {stats.transactionCount}
@@ -410,7 +410,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <Calendar className="w-4 h-4 text-gray-500" />
-              <span>{language === 'ar' ? 'آخر نشاط' : 'Last Activity'}</span>
+              <span>{t('accounting.lastActivity')}</span>
             </div>
             <div className="text-lg font-bold font-mono text-gray-700 dark:text-gray-300">
               {stats.lastActivityDate || '-'}
@@ -426,12 +426,12 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
               {language === 'ar' ? 'استخدام الائتمان' : 'Credit Usage'}
             </h3>
             <span className="text-sm text-gray-500">
-              {language === 'ar' ? 'الحد الائتماني' : 'Credit Limit'}: {creditLimit.toLocaleString()} {t('currencies.SAR')}
+              {t('accounting.creditLimit')}: {creditLimit.toLocaleString()} {t('currencies.SAR')}
             </span>
           </div>
           <Progress value={creditUsagePercent} className="h-3" />
           <div className="flex justify-between mt-2 text-xs text-gray-500">
-            <span>{language === 'ar' ? 'مستخدم' : 'Used'}: {creditUsagePercent.toFixed(0)}%</span>
+            <span>{t('common.used')}: {creditUsagePercent.toFixed(0)}%</span>
             <span>{language === 'ar' ? 'متاح' : 'Available'}: {(100 - creditUsagePercent).toFixed(0)}%</span>
           </div>
         </div>
@@ -442,7 +442,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
               <Info className="w-4 h-4 text-erp-teal" />
-              {language === 'ar' ? 'معلومات الحساب' : 'Account Info'}
+              {t('accounting.accountInfo')}
             </h3>
             <div className="space-y-3">
               <div className="flex justify-between">
@@ -460,7 +460,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
               <div className="flex justify-between">
                 <span className="text-sm text-gray-500">{language === 'ar' ? 'المجموعة' : 'Group'}</span>
                 <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {account.parent?.name || (language === 'ar' ? 'أصول' : 'Assets')}
+                  {account.parent?.name || t('accounting.assets')}
                 </span>
               </div>
             </div>
@@ -470,27 +470,27 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-erp-teal" />
-              {language === 'ar' ? 'ملخص مالي' : 'Financial Summary'}
+              {t('accounting.financialSummary')}
             </h3>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">{language === 'ar' ? 'إجمالي المشتريات' : 'Total Purchases'}</span>
+                <span className="text-sm text-gray-500">{t('accounting.totalPurchases')}</span>
                 <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
                   {(125000).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">{language === 'ar' ? 'عدد الطلبات' : 'Orders Count'}</span>
+                <span className="text-sm text-gray-500">{t('accounting.ordersCount')}</span>
                 <span className="text-sm font-medium text-gray-900 dark:text-white">15</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">{language === 'ar' ? 'متوسط شهري' : 'Monthly Average'}</span>
+                <span className="text-sm text-gray-500">{t('accounting.monthlyAverage')}</span>
                 <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
                   {stats.monthlyAverage.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">{language === 'ar' ? 'شروط الدفع' : 'Payment Terms'}</span>
+                <span className="text-sm text-gray-500">{t('accounting.paymentTerms')}</span>
                 <span className="text-sm font-medium text-gray-900 dark:text-white">
                   {language === 'ar' ? 'يوم 30' : '30 days'}
                 </span>
@@ -504,10 +504,10 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Activity className="w-4 h-4 text-erp-teal" />
-              {language === 'ar' ? 'آخر الحركات' : 'Recent Activity'}
+              {t('accounting.recentActivity')}
             </h3>
             <Button variant="ghost" size="sm" className="text-xs text-erp-teal">
-              {language === 'ar' ? 'عرض الكل' : 'View All'}
+              {t('common.viewAll')}
             </Button>
           </div>
           {activitiesLoading ? (
@@ -629,10 +629,10 @@ function LedgerTab({ account, language, t, entries, loading, error, totalDebit, 
   ];
 
   const stats: LedgerStats = {
-    label1: { title: language === 'ar' ? 'إجمالي المدين' : 'Total Debit', value: totalDebit, color: 'blue' },
-    label2: { title: language === 'ar' ? 'إجمالي الدائن' : 'Total Credit', value: totalCredit, color: 'red' },
-    label3: { title: language === 'ar' ? 'الرصيد' : 'Balance', value: currentBalance, color: currentBalance >= 0 ? 'green' : 'red' },
-    label4: { title: language === 'ar' ? 'المعلق' : 'Pending', value: 0, color: 'gray' },
+    label1: { title: t('accounting.labels.debitTotal'), value: totalDebit, color: 'blue' },
+    label2: { title: t('accounting.labels.creditTotal'), value: totalCredit, color: 'red' },
+    label3: { title: t('common.balance'), value: currentBalance, color: currentBalance >= 0 ? 'green' : 'red' },
+    label4: { title: t('common.pending'), value: 0, color: 'gray' },
   };
 
   if (error) {
@@ -665,7 +665,7 @@ function LedgerTab({ account, language, t, entries, loading, error, totalDebit, 
       variant="ledger"
       onRefresh={onRefresh}
       onPrint={() => window.print()}
-      onExport={(format) => console.log('Export:', format)}
+      onExport={() => { /* TODO: Implement export */ }}
       footerLabel={language === 'ar' ? 'الإجمالي' : 'Total'}
       emptyMessage={t('common.noData')}
     />
@@ -689,14 +689,14 @@ function InvoicesTab({ language, t, invoices, stats: invoiceStats, loading, onRe
   }));
 
   const columns: LedgerColumn<any>[] = [
-    { key: 'dueDate', title: language === 'ar' ? 'الاستحقاق' : 'Due Date', width: '100px', type: 'date', sortable: true },
-    { key: 'invoiceNo', title: language === 'ar' ? 'رقم الفاتورة' : 'Invoice #', width: '120px', type: 'reference', clickable: true },
+    { key: 'dueDate', title: t('accounting.dueDate'), width: '100px', type: 'date', sortable: true },
+    { key: 'invoiceNo', title: t('accounting.invoiceNumber'), width: '120px', type: 'reference', clickable: true },
     { key: 'status', title: 'common.status', width: '100px', type: 'status' },
     { key: 'date', title: 'common.date', width: '100px', type: 'date' },
-    { key: 'customerName', title: language === 'ar' ? 'العميل' : 'Customer' },
+    { key: 'customerName', title: t('common.customer') },
     { 
       key: 'paidAmount', 
-      title: language === 'ar' ? 'المدفوع' : 'Paid', 
+      title: t('common.paid'), 
       width: '120px', 
       align: 'end', 
       render: (value) => (
@@ -720,10 +720,10 @@ function InvoicesTab({ language, t, invoices, stats: invoiceStats, loading, onRe
   ];
 
   const stats: LedgerStats = {
-    label1: { title: language === 'ar' ? 'عدد الفواتير' : 'Invoice Count', value: invoiceStats?.totalCount || 0 },
-    label2: { title: language === 'ar' ? 'المتبقي' : 'Remaining', value: invoiceStats?.remainingAmount || 0, color: 'red' },
+    label1: { title: t('accounting.invoiceCount'), value: invoiceStats?.totalCount || 0 },
+    label2: { title: t('common.remaining'), value: invoiceStats?.remainingAmount || 0, color: 'red' },
     label3: { title: language === 'ar' ? 'المحصل' : 'Collected', value: invoiceStats?.paidAmount || 0, color: 'green' },
-    label4: { title: language === 'ar' ? 'إجمالي الفواتير' : 'Total Invoices', value: invoiceStats?.totalAmount || 0, color: 'blue' },
+    label4: { title: t('accounting.totalInvoices'), value: invoiceStats?.totalAmount || 0, color: 'blue' },
   };
 
   return (
@@ -793,7 +793,7 @@ function PaymentsTab({ language, t, payments, loading, totalReceipts, totalPayme
     },
     {
       key: 'paymentMethod',
-      title: language === 'ar' ? 'الطريقة' : 'Method',
+      title: t('common.method'),
       width: '100px',
       render: (value) => (
         <span className="text-xs text-gray-500">{value || '-'}</span>
@@ -803,10 +803,10 @@ function PaymentsTab({ language, t, payments, loading, totalReceipts, totalPayme
 
   const netAmount = totalReceipts - totalPayments;
   const stats: LedgerStats = {
-    label1: { title: language === 'ar' ? 'عدد العمليات' : 'Count', value: payments?.length || 0 },
-    label2: { title: language === 'ar' ? 'الصافي' : 'Net', value: netAmount, color: netAmount >= 0 ? 'green' : 'red' },
-    label3: { title: language === 'ar' ? 'إجمالي المدفوعات' : 'Total Payments', value: totalPayments, color: 'red' },
-    label4: { title: language === 'ar' ? 'إجمالي الإيصالات' : 'Total Receipts', value: totalReceipts, color: 'green' },
+    label1: { title: t('common.count'), value: payments?.length || 0 },
+    label2: { title: t('common.net'), value: netAmount, color: netAmount >= 0 ? 'green' : 'red' },
+    label3: { title: t('accounting.totalPayments'), value: totalPayments, color: 'red' },
+    label4: { title: t('accounting.totalReceipts'), value: totalReceipts, color: 'green' },
   };
 
   return (
@@ -847,13 +847,13 @@ function ReservationsTab({ language, t, reservations, stats: reservationStats, l
 
   const columns: LedgerColumn<any>[] = [
     { key: 'expiryDate', title: language === 'ar' ? 'الانتهاء' : 'Expiry', width: '100px', type: 'date', sortable: true },
-    { key: 'reservationNo', title: language === 'ar' ? 'رقم الحجز' : 'Reservation #', width: '130px', type: 'reference', clickable: true },
+    { key: 'reservationNo', title: t('reservations.number'), width: '130px', type: 'reference', clickable: true },
     { key: 'status', title: 'common.status', width: '100px', type: 'status' },
     { key: 'date', title: 'common.date', width: '100px', type: 'date' },
-    { key: 'customerName', title: language === 'ar' ? 'العميل' : 'Customer' },
+    { key: 'customerName', title: t('common.customer') },
     { 
       key: 'depositPaid', 
-      title: language === 'ar' ? 'العربون' : 'Deposit', 
+      title: t('common.deposit'), 
       width: '120px', 
       align: 'end', 
       render: (value) => (
@@ -864,7 +864,7 @@ function ReservationsTab({ language, t, reservations, stats: reservationStats, l
     },
     { 
       key: 'value', 
-      title: language === 'ar' ? 'القيمة' : 'Value', 
+      title: t('common.value'), 
       width: '120px', 
       align: 'end', 
       render: (value) => (
@@ -877,9 +877,9 @@ function ReservationsTab({ language, t, reservations, stats: reservationStats, l
   ];
 
   const stats: LedgerStats = {
-    label1: { title: language === 'ar' ? 'ملغي' : 'Cancelled', value: reservationStats?.cancelledCount || 0, color: 'red' },
-    label2: { title: language === 'ar' ? 'معلق' : 'Pending', value: reservationStats?.pendingCount || 0 },
-    label3: { title: language === 'ar' ? 'نشط' : 'Active', value: reservationStats?.activeCount || 0, color: 'green' },
+    label1: { title: t('common.cancelled'), value: reservationStats?.cancelledCount || 0, color: 'red' },
+    label2: { title: t('common.pending'), value: reservationStats?.pendingCount || 0 },
+    label3: { title: t('common.active'), value: reservationStats?.activeCount || 0, color: 'green' },
     label4: { title: language === 'ar' ? 'إجمالي القيمة' : 'Total Value', value: reservationStats?.totalValue || 0, color: 'blue' },
   };
 
@@ -896,9 +896,7 @@ function ReservationsTab({ language, t, reservations, stats: reservationStats, l
       showFooterTotals
       variant="reservations"
       onRefresh={onRefresh}
-      emptyMessage={language === 'ar' 
-        ? 'لا توجد حجوزات مرتبطة بهذا الحساب'
-        : 'No reservations linked to this account'}
+      emptyMessage={t('reservations.noReservationsLinked')}
       emptyIcon={<CalendarCheck className="w-16 h-16 text-gray-300 dark:text-gray-600" />}
     />
   );
@@ -921,16 +919,16 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">
-                {language === 'ar' ? 'تحليل الذكاء الاصطناعي' : 'AI Analysis'}
+                {t('ai.analysis')}
               </h3>
               <p className="text-xs text-gray-500">
-                {language === 'ar' ? 'رؤى ذكية حول حسابك' : 'Smart insights about your account'}
+                {t('ai.smartInsights')}
               </p>
             </div>
           </div>
           <Button variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 me-2" />
-            {language === 'ar' ? 'تحديث' : 'Refresh'}
+            {t('common.refresh')}
           </Button>
         </div>
 
@@ -944,7 +942,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white">
-                  {language === 'ar' ? 'نمط الإنفاق' : 'Spending Pattern'}
+                  {t('ai.spendingPattern')}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {language === 'ar' 
@@ -963,7 +961,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900 dark:text-white">
-                  {language === 'ar' ? 'توقع الرصيد' : 'Balance Forecast'}
+                  {t('ai.balanceForecast')}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {language === 'ar' 
@@ -999,7 +997,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <TrendingUp className="w-4 h-4" />
-              <span>{language === 'ar' ? 'معدل النمو' : 'Growth Rate'}</span>
+              <span>{t('ai.growthRate')}</span>
             </div>
             <div className={cn(
               'text-2xl font-bold font-mono',
@@ -1012,7 +1010,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <BarChart3 className="w-4 h-4" />
-              <span>{language === 'ar' ? 'متوسط المعاملات' : 'Avg Transaction'}</span>
+              <span>{t('accounting.avgTransaction')}</span>
             </div>
             <div className="text-2xl font-bold font-mono text-gray-700 dark:text-gray-300">
               {avgTransaction.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -1060,12 +1058,12 @@ function EventsTab({ language, t, activities, loading }: any) {
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-erp-teal" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {language === 'ar' ? 'سجل الأحداث' : 'Event Log'}
+              {t('common.eventLog')}
             </h3>
           </div>
           <Button variant="outline" size="sm">
             <Download className="w-4 h-4 me-2" />
-            {language === 'ar' ? 'تصدير' : 'Export'}
+            {t('common.export')}
           </Button>
         </div>
 
@@ -1108,9 +1106,7 @@ function EventsTab({ language, t, activities, loading }: any) {
           </div>
         ) : (
           <EmptyState 
-            message={language === 'ar' 
-              ? 'لا توجد أحداث حديثة'
-              : 'No recent events'} 
+            message={t('common.noRecentEvents')} 
           />
         )}
       </div>

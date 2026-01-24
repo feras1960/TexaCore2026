@@ -22,7 +22,7 @@ import {
   TrendingUp,
   Crown,
 } from 'lucide-react';
-import { type SheetConfig, type DocType } from './sheet.types';
+import { type SheetConfig } from './sheet.types';
 
 // Import tab components
 import { OverviewTab } from '../tabs/shared/OverviewTab';
@@ -44,10 +44,10 @@ export const agentConfig: SheetConfig = {
   // Status Badge
   badge: (data) => {
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' | 'info' }> = {
-      active: { label: 'نشط', variant: 'success' },
-      pending: { label: 'معلق', variant: 'warning' },
-      suspended: { label: 'موقوف', variant: 'error' },
-      terminated: { label: 'منتهي', variant: 'default' },
+      active: { label: 'status.active', variant: 'success' },
+      pending: { label: 'status.pending', variant: 'warning' },
+      suspended: { label: 'status.suspended', variant: 'error' },
+      terminated: { label: 'status.terminated', variant: 'default' },
     };
     const status = statusMap[data.status] || statusMap.pending;
     return {
@@ -59,8 +59,7 @@ export const agentConfig: SheetConfig = {
   // Balance Display
   balance: {
     value: (data) => data.current_balance || 0,
-    label: 'Current Balance',
-    labelAr: 'الرصيد الحالي',
+    label: 'fields.currentBalance',
     currency: 'SAR',
     showSign: true,
   },
@@ -69,16 +68,14 @@ export const agentConfig: SheetConfig = {
   stats: [
     {
       key: 'tenants_count',
-      label: 'Tenants',
-      labelAr: 'المشتركين',
+      label: 'stats.tenants',
       icon: Users,
       value: (data) => data.tenants_count || data.tenants?.length || 0,
       color: 'blue',
     },
     {
       key: 'commission_rate',
-      label: 'Commission Rate',
-      labelAr: 'نسبة العمولة',
+      label: 'stats.commissionRate',
       icon: TrendingUp,
       value: (data) => data.commission_percent || 0,
       color: 'purple',
@@ -86,8 +83,7 @@ export const agentConfig: SheetConfig = {
     },
     {
       key: 'total_earned',
-      label: 'Total Earned',
-      labelAr: 'إجمالي الأرباح',
+      label: 'stats.totalEarned',
       icon: DollarSign,
       value: (data) => data.total_earned || 0,
       color: 'green',
@@ -95,8 +91,7 @@ export const agentConfig: SheetConfig = {
     },
     {
       key: 'pending_balance',
-      label: 'Pending',
-      labelAr: 'قيد الانتظار',
+      label: 'status.pending',
       icon: Wallet,
       value: (data) => data.pending_balance || 0,
       color: 'yellow',
@@ -106,13 +101,12 @@ export const agentConfig: SheetConfig = {
   
   // Info Fields
   infoFields: [
-    { key: 'code', label: 'Agent Code', labelAr: 'كود الوكيل', type: 'text' },
-    { key: 'email', label: 'Email', labelAr: 'البريد الإلكتروني', type: 'email', icon: Mail },
-    { key: 'phone', label: 'Phone', labelAr: 'الهاتف', type: 'phone', icon: Phone },
+    { key: 'code', label: 'fields.agentCode', type: 'text' },
+    { key: 'email', label: 'fields.email', type: 'email', icon: Mail },
+    { key: 'phone', label: 'fields.phone', type: 'phone', icon: Phone },
     { 
       key: 'tier', 
-      label: 'Tier', 
-      labelAr: 'المستوى', 
+      label: 'fields.tier', 
       type: 'badge',
       icon: Crown,
       badge: (value) => {
@@ -129,49 +123,45 @@ export const agentConfig: SheetConfig = {
         };
       },
     },
-    { key: 'commission_percent', label: 'Commission %', labelAr: 'نسبة العمولة', type: 'percentage' },
-    { key: 'currency', label: 'Currency', labelAr: 'العملة', type: 'text' },
-    { key: 'created_at', label: 'Joined', labelAr: 'تاريخ الانضمام', type: 'date', icon: Calendar },
+    { key: 'commission_percent', label: 'fields.commissionPercent', type: 'percentage' },
+    { key: 'currency', label: 'common.currency', type: 'text' },
+    { key: 'created_at', label: 'fields.joined', type: 'date', icon: Calendar },
     { 
       key: 'has_white_label', 
-      label: 'White Label', 
-      labelAr: 'العلامة البيضاء', 
+      label: 'fields.whiteLabel', 
       type: 'badge',
       icon: Globe,
-      badge: (value) => value ? { label: 'Enabled', variant: 'success' } : null,
+      badge: (value) => value ? { label: 'status.enabled', variant: 'success' } : null,
     },
-    { key: 'white_label_commission_percent', label: 'WL Commission', labelAr: 'عمولة العلامة البيضاء', type: 'percentage', hidden: (data) => !data.has_white_label },
+    { key: 'white_label_commission_percent', label: 'fields.wlCommission', type: 'percentage', hidden: (data) => !data.has_white_label },
   ],
   
   // Tabs
   tabs: [
-    { id: 'overview', label: 'Overview', labelAr: 'نظرة عامة', icon: Eye, component: OverviewTab },
+    { id: 'overview', label: 'tabs.overview', icon: Eye, component: OverviewTab },
     { 
       id: 'tenants', 
-      label: 'Tenants', 
-      labelAr: 'المشتركين', 
+      label: 'tabs.tenants', 
       icon: Users, 
       component: AgentTenantsTab,
       badge: (data) => data.tenants_count || data.tenants?.length || 0,
     },
     { 
       id: 'commissions', 
-      label: 'Commissions', 
-      labelAr: 'العمولات', 
+      label: 'tabs.commissions', 
       icon: DollarSign, 
       component: AgentCommissionsTab,
       badge: (data) => data.commissions?.length || 0,
     },
     { 
       id: 'withdrawals', 
-      label: 'Withdrawals', 
-      labelAr: 'السحوبات', 
+      label: 'tabs.withdrawals', 
       icon: Wallet, 
       component: AgentWithdrawalsTab,
       badge: (data) => data.withdrawals?.filter((w: any) => w.status === 'pending').length || 0,
     },
-    { id: 'ledger', label: 'Ledger', labelAr: 'كشف الحساب', icon: Book, component: LedgerTab },
-    { id: 'activity', label: 'Activity', labelAr: 'النشاط', icon: Activity, component: ActivityTab },
+    { id: 'ledger', label: 'tabs.ledger', icon: Book, component: LedgerTab },
+    { id: 'activity', label: 'tabs.activity', icon: Activity, component: ActivityTab },
   ],
   defaultTab: 'overview',
   
@@ -179,44 +169,38 @@ export const agentConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: (data) => console.log('Edit agent:', data.id),
+      onClick: () => {},
     },
     {
       id: 'approve',
-      label: 'Approve',
-      labelAr: 'اعتماد',
+      label: 'actions.approve',
       icon: Shield,
       variant: 'success',
       show: (data) => data.status === 'pending',
-      onClick: (data) => console.log('Approve agent:', data.id),
+      onClick: () => {},
     },
     {
       id: 'suspend',
-      label: 'Suspend',
-      labelAr: 'تعليق',
+      label: 'actions.suspend',
       icon: PauseCircle,
       variant: 'destructive',
       show: (data) => data.status === 'active',
       confirm: {
-        title: 'Confirm Suspend',
-        titleAr: 'تأكيد التعليق',
-        description: 'Are you sure you want to suspend this agent?',
-        descriptionAr: 'هل أنت متأكد من تعليق هذا الوكيل؟',
+        title: 'dialogs.confirmSuspend',
+        description: 'dialogs.suspendAgentWarning',
       },
-      onClick: (data) => console.log('Suspend agent:', data.id),
+      onClick: () => {},
     },
     {
       id: 'activate',
-      label: 'Activate',
-      labelAr: 'تفعيل',
+      label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
       show: (data) => data.status === 'suspended',
-      onClick: (data) => console.log('Activate agent:', data.id),
+      onClick: () => {},
     },
   ],
   

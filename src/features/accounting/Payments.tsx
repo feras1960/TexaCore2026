@@ -547,7 +547,7 @@ export default function Payments() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-10" dir={direction}>
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">{t('accounting.payments')}</h1>
+        <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">{t('accounting.paymentsLabel')}</h1>
         <div className="flex items-center gap-2">
           <Button size="sm" className="bg-erp-teal hover:bg-erp-teal/90 text-white gap-1.5" onClick={() => { setDefaultTab('payment'); setIsNewEntryOpen(true); }}>
             <Plus className="w-3.5 h-3.5" />

@@ -47,7 +47,7 @@ export default function QuickActionsBar({ className = '' }: QuickActionsBarProps
           onClick={() => handleOpenEntry('payment')}
         >
           <ArrowUpRight className="w-3 h-3 text-orange-600" />
-          {t('payments') || 'مدفوعات'}
+          {t('accounting.paymentsLabel')}
         </Button>
         <Button 
           variant="outline" 

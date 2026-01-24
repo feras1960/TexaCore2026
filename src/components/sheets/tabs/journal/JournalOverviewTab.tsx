@@ -3,7 +3,6 @@
  * تبويب نظرة عامة على القيد المحاسبي
  */
 
-import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -68,7 +67,7 @@ const getVoucherTypeLabel = (type: string, lang: string) => {
   return labels[type]?.[lang as 'ar' | 'en'] || type;
 };
 
-export function JournalOverviewTab({ data, language, onAction }: JournalOverviewTabProps) {
+export function JournalOverviewTab({ data, language, onAction: _onAction }: JournalOverviewTabProps) {
   const isRTL = language === 'ar';
   
   // Calculate totals

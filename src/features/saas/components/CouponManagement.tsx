@@ -164,9 +164,21 @@ export default function CouponManagement() {
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    code: string;
+    type: 'percentage' | 'fixed' | 'trial_extension';
+    value: number;
+    description: string;
+    descriptionEn: string;
+    usageLimit: string;
+    validFrom: string;
+    validTo: string;
+    minPurchase: number;
+    applicablePlans: string[];
+    isActive: boolean;
+  }>({
     code: '',
-    type: 'percentage' as const,
+    type: 'percentage',
     value: 0,
     description: '',
     descriptionEn: '',
@@ -537,7 +549,7 @@ export default function CouponManagement() {
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder={t('common.status')} />
+                <SelectValue placeholder={t('common.status._')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{language === 'ar' ? 'كل الحالات' : 'All Status'}</SelectItem>
@@ -563,7 +575,7 @@ export default function CouponManagement() {
                 <TableHead>{language === 'ar' ? 'القيمة' : 'Value'}</TableHead>
                 <TableHead>{language === 'ar' ? 'الاستخدام' : 'Usage'}</TableHead>
                 <TableHead>{language === 'ar' ? 'الصلاحية' : 'Validity'}</TableHead>
-                <TableHead>{t('common.status')}</TableHead>
+                <TableHead>{t('common.status._')}</TableHead>
                 <TableHead className="w-[100px]">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>

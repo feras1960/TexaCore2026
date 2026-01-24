@@ -9,6 +9,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client with proper auth configuration
+// Removed custom fetch timeout as it was causing AbortError issues
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,

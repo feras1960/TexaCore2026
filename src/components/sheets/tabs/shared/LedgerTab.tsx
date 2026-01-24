@@ -3,7 +3,7 @@
  * يستخدم LedgerTable الموجود لعرض الحركات المالية
  */
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { LedgerTable, type LedgerColumn, type LedgerStats } from '@/components/shared';
 import { type TabComponentProps, type DocType } from '../../configs/sheet.types';
 
@@ -22,9 +22,9 @@ interface LedgerEntry {
   docId?: string;
 }
 
-export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function LedgerTab({ data, docType: _docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
   const isArabic = language === 'ar';
-  const [loading, setLoading] = useState(false);
+  const [loading, _setLoading] = useState(false);
 
   // Get ledger entries from data
   const entries: LedgerEntry[] = useMemo(() => {
@@ -71,7 +71,7 @@ export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }:
   const columns: LedgerColumn<LedgerEntry>[] = [
     {
       key: 'debit',
-      title: isArabic ? 'مدين' : 'Debit',
+      title: 'ledger.debit',
       width: '120px',
       align: 'end',
       type: 'currency',
@@ -86,7 +86,7 @@ export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }:
     },
     {
       key: 'credit',
-      title: isArabic ? 'دائن' : 'Credit',
+      title: 'ledger.credit',
       width: '120px',
       align: 'end',
       type: 'currency',
@@ -101,27 +101,27 @@ export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }:
     },
     {
       key: 'description',
-      title: isArabic ? 'البيان' : 'Description',
+      title: 'common.description',
       sortable: true,
       filterable: true,
     },
     {
       key: 'date',
-      title: isArabic ? 'التاريخ' : 'Date',
+      title: 'common.date',
       width: '110px',
       type: 'date',
       sortable: true,
     },
     {
       key: 'status',
-      title: isArabic ? 'الحالة' : 'Status',
+      title: 'common.status',
       width: '100px',
       type: 'status',
       sortable: true,
     },
     {
       key: 'reference',
-      title: isArabic ? 'المرجع' : 'Reference',
+      title: 'common.reference',
       width: '120px',
       type: 'reference',
       clickable: true,
@@ -129,7 +129,7 @@ export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }:
     },
     {
       key: 'balance',
-      title: isArabic ? 'الرصيد' : 'Balance',
+      title: 'common.balance',
       width: '120px',
       align: 'end',
       render: (value) => (
@@ -143,22 +143,22 @@ export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }:
   // Stats configuration
   const stats: LedgerStats = {
     label1: { 
-      title: isArabic ? 'إجمالي المدين' : 'Total Debit', 
+      title: t('ledger.totalDebit'), 
       value: totals.totalDebit, 
       color: 'blue' 
     },
     label2: { 
-      title: isArabic ? 'إجمالي الدائن' : 'Total Credit', 
+      title: t('ledger.totalCredit'), 
       value: totals.totalCredit, 
       color: 'red' 
     },
     label3: { 
-      title: isArabic ? 'الرصيد' : 'Balance', 
+      title: t('common.balance'), 
       value: currentBalance, 
       color: currentBalance >= 0 ? 'green' : 'red' 
     },
     label4: { 
-      title: isArabic ? 'عدد الحركات' : 'Transactions', 
+      title: t('common.transactions'), 
       value: entries.length, 
       color: 'gray' 
     },
@@ -195,7 +195,7 @@ export function LedgerTab({ data, docType, language, t, onRowClick, onRefresh }:
       onReferenceClick={handleReferenceClick}
       onRefresh={onRefresh}
       onPrint={() => window.print()}
-      onExport={(format) => console.log('Export:', format)}
+      onExport={() => { /* TODO: Implement export */ }}
       footerLabel={isArabic ? 'الإجمالي' : 'Total'}
       emptyMessage={isArabic ? 'لا توجد حركات' : 'No transactions'}
     />

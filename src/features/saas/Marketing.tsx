@@ -200,7 +200,7 @@ export default function Marketing() {
                     <TableHead>{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</TableHead>
                     <TableHead>{language === 'ar' ? 'المُحالون' : 'Referred'}</TableHead>
                     <TableHead>{language === 'ar' ? 'الأرباح' : 'Earnings'}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead>{t('common.status._')}</TableHead>
                     <TableHead>{language === 'ar' ? 'تاريخ الانضمام' : 'Join Date'}</TableHead>
                     <TableHead className="w-[80px]">{t('common.actions')}</TableHead>
                   </TableRow>

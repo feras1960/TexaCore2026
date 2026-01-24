@@ -89,9 +89,8 @@ export function AddCostCenterDialog({ open, onOpenChange, initialData }: AddCost
     }
   }, [initialData, form, open]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-    // Here you would typically call an API to save the data
+  function onSubmit(_values: z.infer<typeof formSchema>) {
+    // TODO: Implement actual cost center save
     onOpenChange(false);
     form.reset();
   }

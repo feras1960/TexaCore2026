@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { subscriptionService, type BillingInfo, type SubscriptionPlan } from '@/services/subscriptionService';

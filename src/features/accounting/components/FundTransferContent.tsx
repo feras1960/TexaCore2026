@@ -60,7 +60,7 @@ export default function FundTransferContent({
   const isSameFund = formData.fromFundId && formData.fromFundId === formData.toFundId;
 
   const handleSubmit = () => {
-    console.log('Transfer submitted:', { ...formData, date });
+    // TODO: Implement actual fund transfer
     onSave?.();
   };
 

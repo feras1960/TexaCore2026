@@ -7,10 +7,8 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Activity,
-  FileText,
   Receipt,
   Wallet,
   DollarSign,
@@ -22,7 +20,6 @@ import {
   CheckCircle,
   Clock,
   Download,
-  Loader2,
 } from 'lucide-react';
 import { type TabComponentProps } from '../../configs/sheet.types';
 
@@ -57,10 +54,11 @@ interface ActivityItem {
 interface ActivityItemProps {
   activity: ActivityItem;
   language: string;
+  t: (key: string) => string;
   isLast: boolean;
 }
 
-function ActivityItemRow({ activity, language, isLast }: ActivityItemProps) {
+function ActivityItemRow({ activity, language, t: _t, isLast }: ActivityItemProps) {
   const isArabic = language === 'ar';
   const typeConfig = ACTIVITY_TYPES[activity.type] || ACTIVITY_TYPES.default;
   const Icon = typeConfig.icon;
@@ -144,20 +142,19 @@ function ActivityItemRow({ activity, language, isLast }: ActivityItemProps) {
 }
 
 // Empty State
-function EmptyState({ language }: { language: string }) {
-  const isArabic = language === 'ar';
+function EmptyState({ language: _language, t }: { language: string; t: (key: string) => string }) {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center">
       <Activity className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
       <p className="text-gray-500 dark:text-gray-400">
-        {isArabic ? 'لا توجد أنشطة حديثة' : 'No recent activity'}
+        {t('activity.noRecentActivity')}
       </p>
     </div>
   );
 }
 
-export function ActivityTab({ data, docType, language, t, onRefresh }: TabComponentProps) {
-  const isArabic = language === 'ar';
+export function ActivityTab({ data, docType: _docType, language, t, onRefresh }: TabComponentProps) {
+  const _isArabic = language === 'ar';
 
   // Get activities from data - adapt based on data structure
   const activities: ActivityItem[] = React.useMemo(() => {
@@ -180,19 +177,19 @@ export function ActivityTab({ data, docType, language, t, onRefresh }: TabCompon
       {
         id: '1',
         type: 'created',
-        title: isArabic ? 'تم الإنشاء' : 'Record Created',
+        title: t('activity.recordCreated'),
         date: data.created_at || new Date().toISOString(),
-        user: data.created_by || 'System',
+        user: data.created_by || t('common.system'),
       },
       ...(data.updated_at && data.updated_at !== data.created_at ? [{
         id: '2',
         type: 'updated',
-        title: isArabic ? 'تم التحديث' : 'Record Updated',
+        title: t('activity.recordUpdated'),
         date: data.updated_at,
-        user: data.updated_by || 'System',
+        user: data.updated_by || t('common.system'),
       }] : []),
     ];
-  }, [data, isArabic]);
+  }, [data, t]);
 
   return (
     <ScrollArea className="h-full">
@@ -202,26 +199,26 @@ export function ActivityTab({ data, docType, language, t, onRefresh }: TabCompon
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-erp-teal" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {isArabic ? 'سجل النشاط' : 'Activity Log'}
+              {t('activity.activityLog')}
             </h3>
           </div>
           <div className="flex items-center gap-2">
             {onRefresh && (
               <Button variant="ghost" size="sm" onClick={onRefresh}>
                 <Clock className="w-4 h-4 me-1" />
-                {isArabic ? 'تحديث' : 'Refresh'}
+                {t('actions.refresh')}
               </Button>
             )}
             <Button variant="outline" size="sm">
               <Download className="w-4 h-4 me-1" />
-              {isArabic ? 'تصدير' : 'Export'}
+              {t('actions.export')}
             </Button>
           </div>
         </div>
 
         {/* Activities List */}
         {activities.length === 0 ? (
-          <EmptyState language={language} />
+          <EmptyState language={language} t={t} />
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             {activities.map((activity, index) => (
@@ -229,6 +226,7 @@ export function ActivityTab({ data, docType, language, t, onRefresh }: TabCompon
                 key={activity.id}
                 activity={activity}
                 language={language}
+                t={t}
                 isLast={index === activities.length - 1}
               />
             ))}

@@ -141,9 +141,8 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
             importRows={state.importRows}
             entityDefinition={state.entityDefinition}
             onContinue={nextStep}
-            onApplySuggestions={(rowNumbers) => {
-              // Apply AI suggestions to selected rows
-              console.log('Applying suggestions to rows:', rowNumbers);
+            onApplySuggestions={(_rowNumbers) => {
+              // TODO: Implement AI suggestions application
             }}
             isLoading={state.isLoading}
           />

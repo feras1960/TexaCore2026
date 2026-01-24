@@ -173,7 +173,7 @@ export default function ModuleDetailsContent({ module: initialModule, onSave }: 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{t('common.status')}</Label>
+                    <Label>{t('common.status._')}</Label>
                     <Select value={formData.status} onValueChange={(v) => handleChange('status', v)}>
                       <SelectTrigger>
                         <SelectValue />

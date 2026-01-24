@@ -3,7 +3,7 @@
  * Main page for Chart of Accounts with tree view
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,11 +19,20 @@ import {
   Printer,
   FolderPlus,
   FolderTree,
-  Upload
+  Upload,
+  LayoutList,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Download,
+  Filter,
+  X,
+  Globe
 } from 'lucide-react';
 import { AddAccountSheet } from './AddAccountSheet';
+import { AccountTreeView } from './AccountTreeView';
 import { UniversalDetailSheet } from '@/components/sheets';
 import { ImportWizard } from '@/features/import';
+import { ChartTemplateSelector } from '@/components/accounting/ChartTemplateSelector';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCompany } from '@/hooks/useCompany';
 import { StatCard } from '@/components/shared/stats/StatCard';
@@ -31,13 +40,17 @@ import { NexaTable, type Column, UnifiedModal, StatusBadge } from '@/components/
 import { cn } from '@/lib/utils';
 import type { Account, CreateAccountInput, SupportedLanguage } from '@/services/accountsService';
 import { getAccountName } from '@/services/accountsService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 interface AccountTreeNode extends Account {
   children?: AccountTreeNode[];
 }
 
+type ViewMode = 'tree' | 'table';
+
 export function ChartOfAccounts() {
-  const { t, language } = useLanguage();
+  const { t, language, direction } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [selectedParent, setSelectedParent] = useState<Account | null>(null);
@@ -45,9 +58,17 @@ export function ChartOfAccounts() {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [selectedAccountForDetails, setSelectedAccountForDetails] = useState<Account | null>(null);
   const [isAccountDetailsOpen, setIsAccountDetailsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('tree');
+  const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined);
+  const [collapseAll, setCollapseAll] = useState<boolean | undefined>(undefined);
+  const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('');
+  const userSelectedCurrencyRef = useRef(false);
 
   // Get company from hook (fetches first company automatically)
-  const { company, companyId, loading: companyLoading } = useCompany(true);
+  const { company, companyId, loading: companyLoading, refetch: refetchCompany } = useCompany(true);
   
   const { accounts, loading, error, refetch, createAccount, updateAccount, deleteAccount } = useAccounts({
     companyId: companyId || undefined,
@@ -60,6 +81,9 @@ export function ChartOfAccounts() {
   
   // Import wizard state
   const [showImportWizard, setShowImportWizard] = useState(false);
+  
+  // Chart template selector state
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   const handleAddClick = () => {
     setSelectedParent(null);
@@ -69,9 +93,12 @@ export function ChartOfAccounts() {
   };
 
   const handleAccountClick = (account: Account) => {
-    // Open AccountDetailsSheet when clicking on an account
-    setSelectedAccountForDetails(account);
-    setIsAccountDetailsOpen(true);
+    // فقط فتح popup للحسابات التفصيلية (ليس المجموعات)
+    if (!account.is_group) {
+      setSelectedAccountForDetails(account);
+      setIsAccountDetailsOpen(true);
+    }
+    // المجموعات ستُعرض في الجانب الأيمن تلقائياً عبر AccountTreeView
   };
 
   const handleAddChild = (parent: Account) => {
@@ -136,24 +163,124 @@ export function ChartOfAccounts() {
   const totalBalance = accounts.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
   const groupsCount = accounts.filter((a) => a.is_group).length;
 
-  // Filter accounts based on search query (searches in all language fields)
+  // Export to CSV
+  const generateCSV = () => {
+    const headers = [
+      language === 'ar' ? 'الكود' : 'Code',
+      language === 'ar' ? 'الاسم' : 'Name',
+      language === 'ar' ? 'النوع' : 'Type',
+      language === 'ar' ? 'المجموعة' : 'Group',
+      language === 'ar' ? 'الحالة' : 'Status',
+      language === 'ar' ? 'الرصيد' : 'Balance',
+      language === 'ar' ? 'العملة' : 'Currency',
+    ];
+    
+    const rows = filteredAccounts.map(account => [
+      account.code || '',
+      getAccountName(account, language as SupportedLanguage),
+      account.account_type_code ? t(`accounting.accountTypes.${account.account_type_code.toLowerCase()}`) : '',
+      account.is_group ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'),
+      account.is_active ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive'),
+      (account.current_balance ?? 0).toString(),
+      account.currency_code || 'SAR',
+    ]);
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  };
+
+  // Filter accounts based on search query and filters
   const filteredAccounts = useMemo(() => {
-    if (!searchQuery) return accounts;
-    const query = searchQuery.toLowerCase();
-    return accounts.filter(
-      (account) =>
-        (account.code && account.code.toLowerCase().includes(query)) ||
-        (account.name_ar && account.name_ar.toLowerCase().includes(query)) ||
-        (account.name_en && account.name_en.toLowerCase().includes(query)) ||
-        (account.name_ru && account.name_ru.toLowerCase().includes(query)) ||
-        (account.name_uk && account.name_uk.toLowerCase().includes(query)) ||
-        (account.name_ro && account.name_ro.toLowerCase().includes(query)) ||
-        (account.name_pl && account.name_pl.toLowerCase().includes(query)) ||
-        (account.name_tr && account.name_tr.toLowerCase().includes(query)) ||
-        (account.name_de && account.name_de.toLowerCase().includes(query)) ||
-        (account.name_it && account.name_it.toLowerCase().includes(query))
-    );
-  }, [accounts, searchQuery]);
+    let filtered = accounts;
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (account) =>
+          (account.code && account.code.toLowerCase().includes(query)) ||
+          (account.name_ar && account.name_ar.toLowerCase().includes(query)) ||
+          (account.name_en && account.name_en.toLowerCase().includes(query)) ||
+          (account.name_ru && account.name_ru.toLowerCase().includes(query)) ||
+          (account.name_uk && account.name_uk.toLowerCase().includes(query)) ||
+          (account.name_ro && account.name_ro.toLowerCase().includes(query)) ||
+          (account.name_pl && account.name_pl.toLowerCase().includes(query)) ||
+          (account.name_tr && account.name_tr.toLowerCase().includes(query)) ||
+          (account.name_de && account.name_de.toLowerCase().includes(query)) ||
+          (account.name_it && account.name_it.toLowerCase().includes(query)) ||
+          (account.account_type_code && account.account_type_code.toLowerCase().includes(query))
+      );
+    }
+
+    // Account type filter
+    if (accountTypeFilter !== 'all') {
+      filtered = filtered.filter(
+        (account) => account.account_type_code?.toLowerCase() === accountTypeFilter.toLowerCase()
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(
+        (account) => statusFilter === 'active' ? account.is_active : !account.is_active
+      );
+    }
+
+    // Currency filter
+    if (selectedCurrency && selectedCurrency !== 'all') {
+      filtered = filtered.filter((account) => {
+        const accountCurrency = account.currency_code || account.currency || company?.default_currency || '';
+        return accountCurrency === selectedCurrency;
+      });
+    }
+
+    return filtered;
+  }, [accounts, searchQuery, accountTypeFilter, statusFilter, selectedCurrency, company?.default_currency]);
+
+  const currencyOptions = useMemo(() => {
+    const currencies = new Set<string>();
+    accounts.forEach((account) => {
+      const currency = account.currency_code || account.currency;
+      if (currency) {
+        currencies.add(currency);
+      }
+    });
+    if (company?.default_currency) {
+      currencies.add(company.default_currency);
+    }
+    return Array.from(currencies).sort();
+  }, [accounts, company?.default_currency]);
+
+  const getCurrencyLabel = useCallback((code: string) => {
+    const normalized = code.toUpperCase();
+    const translated = t(`currencies.${normalized}`);
+    return translated && translated !== `currencies.${normalized}`
+      ? `${normalized} - ${translated}`
+      : normalized;
+  }, [t]);
+
+  const handleCurrencyChange = useCallback((value: string) => {
+    userSelectedCurrencyRef.current = true;
+    setSelectedCurrency(value);
+  }, []);
+
+  useEffect(() => {
+    if (company?.default_currency && !userSelectedCurrencyRef.current) {
+      setSelectedCurrency(company.default_currency);
+    }
+  }, [company?.default_currency]);
+
+  useEffect(() => {
+    if (company?.default_currency || userSelectedCurrencyRef.current || selectedCurrency) return;
+    const stored = localStorage.getItem('coa.selectedCurrency');
+    if (stored) {
+      setSelectedCurrency(stored);
+    }
+  }, [company?.default_currency, selectedCurrency]);
+
+  useEffect(() => {
+    if (!selectedCurrency) return;
+    localStorage.setItem('coa.selectedCurrency', selectedCurrency);
+  }, [selectedCurrency]);
 
   // Build tree structure from flat accounts list
   const buildTree = useCallback((accs: Account[]): AccountTreeNode[] => {
@@ -184,7 +311,7 @@ export function ChartOfAccounts() {
     // Sort by code
     const sortByCode = (nodes: AccountTreeNode[]): AccountTreeNode[] => {
       return nodes
-        .sort((a, b) => a.code.localeCompare(b.code))
+        .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
         .map((node) => ({
           ...node,
           children: node.children ? sortByCode(node.children) : undefined,
@@ -264,6 +391,9 @@ export function ChartOfAccounts() {
       align: 'end',
       render: (_value, row) => {
         const balance = row.current_balance ?? 0;
+        const currencyCode = selectedCurrency && selectedCurrency !== 'all'
+          ? selectedCurrency
+          : (row.currency_code || row.currency || company?.default_currency || '');
         return (
           <span
             className={cn(
@@ -272,13 +402,18 @@ export function ChartOfAccounts() {
             )}
           >
             {balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currencyCode && (
+              <span className="text-xs ms-1 text-gray-500 dark:text-gray-400">
+                {currencyCode}
+              </span>
+            )}
           </span>
         );
       },
     },
     {
       key: 'is_active',
-      title: 'common.status',
+      title: 'common.status._',
       align: 'start',
       render: (_value, row) => (
         <StatusBadge status={row.is_active ? 'confirmed' : 'cancelled'} showIcon={false} size="sm" />
@@ -435,28 +570,300 @@ export function ChartOfAccounts() {
         />
       </div>
 
-      {/* Search */}
-      <div className="flex items-center justify-end gap-4 flex-wrap">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-          <Input
-            placeholder={t('common.search')}
-            className="ps-9 bg-gray-50 dark:bg-gray-800 border-none text-gray-900 dark:text-gray-100"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      {/* Search, Filters, and View Controls - في صف واحد */}
+      <div className="space-y-3">
+        <div className={cn(
+          "flex items-center gap-3 flex-wrap",
+          direction === 'rtl' ? 'flex-row-reverse' : ''
+        )}>
+          {/* Search - على اليسار في RTL */}
+          <div className="relative flex-1 min-w-[200px] sm:w-64">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <Input
+              placeholder={t('accounting.searchPlaceholder') || t('common.search')}
+              className="ps-9 bg-gray-50 dark:bg-gray-800 border-none text-gray-900 dark:text-gray-100"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Currency Selector */}
+          <div className="min-w-[160px] sm:w-52">
+            <Select value={selectedCurrency || 'all'} onValueChange={handleCurrencyChange}>
+              <SelectTrigger className="h-9 bg-gray-50 dark:bg-gray-800 border-none">
+                <Globe className="w-4 h-4 me-2 text-gray-400 dark:text-gray-500" />
+                <SelectValue placeholder={t('common.currency')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('common.all')}</SelectItem>
+                {currencyOptions.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {getCurrencyLabel(code)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filter Toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="h-9"
+          >
+            <Filter className="w-4 h-4 me-2" />
+            {t('common.filter')}
+            {(accountTypeFilter !== 'all' || statusFilter !== 'all' || (selectedCurrency && selectedCurrency !== 'all')) && (
+              <span className="ms-2 px-1.5 py-0.5 bg-erp-teal text-white text-xs rounded-full">
+                {(accountTypeFilter !== 'all' ? 1 : 0) +
+                  (statusFilter !== 'all' ? 1 : 0) +
+                  (selectedCurrency && selectedCurrency !== 'all' ? 1 : 0)}
+              </span>
+            )}
+          </Button>
+
+          {/* Export Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const csvContent = generateCSV();
+              const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = `chart_of_accounts_${new Date().toISOString().split('T')[0]}.csv`;
+              link.click();
+            }}
+            className="h-9"
+          >
+            <Download className="w-4 h-4 me-2" />
+            {t('common.export')}
+          </Button>
+
+          {/* View Controls - في أقصى اليمين */}
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <Button
+                variant={viewMode === 'tree' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('tree')}
+                className={cn(
+                  'h-8 px-3',
+                  viewMode === 'tree' 
+                    ? 'bg-erp-navy text-white dark:bg-erp-navy dark:text-white' 
+                    : 'text-gray-600 dark:text-gray-400'
+                )}
+              >
+                <FolderTree className="w-4 h-4 me-2" />
+                {t('accounting.treeView')}
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('table')}
+                className={cn(
+                  'h-8 px-3',
+                  viewMode === 'table' 
+                    ? 'bg-erp-navy text-white dark:bg-erp-navy dark:text-white' 
+                    : 'text-gray-600 dark:text-gray-400'
+                )}
+              >
+                <LayoutList className="w-4 h-4 me-2" />
+                {t('accounting.tableView')}
+              </Button>
+            </div>
+
+            {/* Expand/Collapse All (only in tree view) */}
+            {viewMode === 'tree' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCollapseAll(undefined);
+                    setExpandAll(true);
+                    setTimeout(() => setExpandAll(undefined), 100);
+                  }}
+                  className="h-8"
+                >
+                  <ChevronsDownUp className="w-4 h-4 me-2" />
+                  {t('accounting.expandAll')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setExpandAll(undefined);
+                    setCollapseAll(true);
+                    setTimeout(() => setCollapseAll(undefined), 100);
+                  }}
+                  className="h-8"
+                >
+                  <ChevronsUpDown className="w-4 h-4 me-2" />
+                  {t('accounting.collapseAll')}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {t('common.filter')}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAccountTypeFilter('all');
+                  setStatusFilter('all');
+                  userSelectedCurrencyRef.current = true;
+                  setSelectedCurrency('all');
+                }}
+                className="h-7 text-xs"
+              >
+                <X className="w-3 h-3 me-1" />
+                {t('common.clear')}
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Account Type Filter */}
+              <div className="space-y-2">
+                <Label className="text-xs text-gray-600 dark:text-gray-400">
+                  {t('accounting.account.type')}
+                </Label>
+                <Select value={accountTypeFilter} onValueChange={setAccountTypeFilter}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('common.all')}</SelectItem>
+                    <SelectItem value="asset">{t('accounting.accountTypes.asset')}</SelectItem>
+                    <SelectItem value="current_asset">{t('accounting.accountTypes.current_asset')}</SelectItem>
+                    <SelectItem value="fixed_asset">{t('accounting.accountTypes.fixed_asset')}</SelectItem>
+                    <SelectItem value="liability">{t('accounting.accountTypes.liability')}</SelectItem>
+                    <SelectItem value="current_liability">{t('accounting.accountTypes.current_liability')}</SelectItem>
+                    <SelectItem value="long_term_liability">{t('accounting.accountTypes.long_term_liability')}</SelectItem>
+                    <SelectItem value="equity">{t('accounting.accountTypes.equity')}</SelectItem>
+                    <SelectItem value="revenue">{t('accounting.accountTypes.revenue')}</SelectItem>
+                    <SelectItem value="expense">{t('accounting.accountTypes.expense')}</SelectItem>
+                    <SelectItem value="cogs">{t('accounting.accountTypes.cogs')}</SelectItem>
+                    <SelectItem value="other_income">{t('accounting.accountTypes.other_income')}</SelectItem>
+                    <SelectItem value="other_expense">{t('accounting.accountTypes.other_expense')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="space-y-2">
+                <Label className="text-xs text-gray-600 dark:text-gray-400">
+                  {t('common.status._')}
+                </Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t('common.all')}</SelectItem>
+                    <SelectItem value="active">{t('common.status.active')}</SelectItem>
+                    <SelectItem value="inactive">{t('common.status.inactive')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Table View */}
-      <NexaTable
-        data={tableAccounts}
-        columns={tableColumns}
-        onRowClick={(row) => handleAccountClick(row)}
-        showRowNumbers
-        rowKey="id"
-        emptyMessage={t('table.noData')}
-      />
+      {/* Tree View or Table View */}
+      {!loading && accounts.length === 0 ? (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-8 text-center">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <FolderTree className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                {t('accounting.noAccountsTitle')}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                {t('accounting.noAccountsDescription')}
+              </p>
+            </div>
+            {company?.chart_type ? (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 text-start">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-2">
+                  <strong>{t('accounting.chartTypeApplied')}:</strong> {company.chart_type}
+                </p>
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  {t('accounting.chartTypeButNoAccounts')}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-start">
+                <p className="text-sm text-amber-800 dark:text-amber-200 mb-2 font-medium">
+                  {t('accounting.noChartTemplateApplied')}
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                  {t('accounting.applyTemplateInstructions')}
+                </p>
+                <div className="text-xs text-amber-600 dark:text-amber-400 font-mono bg-amber-100 dark:bg-amber-900/30 p-2 rounded">
+                  {t('accounting.sqlTemplateExample')}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2 justify-center pt-2 flex-wrap">
+              <Button variant="outline" onClick={refetch}>
+                <RefreshCw className="w-4 h-4 me-2" />
+                {t('common.refresh')}
+              </Button>
+              {companyId && (
+                <Button variant="default" onClick={() => setShowTemplateSelector(true)}>
+                  <FolderTree className="w-4 h-4 me-2" />
+                  {t('accounting.templates.selectAndApply')}
+                </Button>
+              )}
+              <Button variant="teal" onClick={handleAddClick}>
+                <Plus className="w-4 h-4 me-2" />
+                {t('accounting.addFirstAccount')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : loading ? (
+        <div className="text-center py-12">
+          <p className="text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+        </div>
+      ) : viewMode === 'tree' ? (
+        <AccountTreeView
+          accounts={filteredAccounts}
+          onAccountClick={handleAccountClick}
+          onDeleteClick={handleDeleteClick}
+          onAddChild={handleAddChild}
+          expandAll={expandAll}
+          collapseAll={collapseAll}
+          onExpandStateChange={() => {
+            setExpandAll(undefined);
+            setCollapseAll(undefined);
+          }}
+        />
+      ) : (
+        <NexaTable
+          data={tableAccounts}
+          columns={tableColumns}
+          onRowClick={(row) => handleAccountClick(row)}
+          showRowNumbers
+          rowKey="id"
+          emptyMessage={t('table.noData')}
+        />
+      )}
 
       {/* Add/Edit Sheet */}
       {companyId && (
@@ -532,6 +939,55 @@ export function ChartOfAccounts() {
           onComplete={() => {
             setShowImportWizard(false);
             refetch();
+          }}
+        />
+      )}
+
+      {/* Chart Template Selector */}
+      {companyId && (
+        <ChartTemplateSelector
+          isOpen={showTemplateSelector}
+          onClose={() => setShowTemplateSelector(false)}
+          companyId={companyId}
+          onApplied={async () => {
+            // Refresh company data first to get updated chart_type
+            try {
+              await refetchCompany();
+            } catch (error) {
+              console.error('Error refreshing company:', error);
+            }
+            
+            // Wait a bit for database to finish creating accounts
+            // Then retry fetching accounts multiple times
+            let retries = 0;
+            const maxRetries = 6;
+            const retryDelay = 2000; // 2 seconds between retries
+            
+            const tryFetchAccounts = async () => {
+              try {
+                await refetch();
+                
+                // Check if we got accounts by checking the accounts array
+                // We'll check this in the next render cycle
+                retries++;
+                
+                if (retries < maxRetries) {
+                  setTimeout(tryFetchAccounts, retryDelay);
+                } else {
+                  // After max retries, show a message
+                  console.warn('Accounts may still be loading. Please refresh manually if needed.');
+                }
+              } catch (error) {
+                console.error('Error fetching accounts after template application:', error);
+                retries++;
+                if (retries < maxRetries) {
+                  setTimeout(tryFetchAccounts, retryDelay);
+                }
+              }
+            };
+            
+            // Start fetching after initial delay (give DB time to create accounts)
+            setTimeout(tryFetchAccounts, 3000);
           }}
         />
       )}

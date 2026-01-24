@@ -27,8 +27,7 @@ import {
   Copy, 
   Check,
   Share2,
-  Smartphone,
-  ExternalLink
+  Smartphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -144,9 +143,9 @@ export function QRCodeGenerator({
   showActions = true,
   variant = 'default',
   className,
-  onScan,
+  onScan: _onScan,
 }: QRCodeGeneratorProps) {
-  const { t, direction, language } = useLanguage();
+  const { t } = useLanguage();
   const qrRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = React.useState(false);
 

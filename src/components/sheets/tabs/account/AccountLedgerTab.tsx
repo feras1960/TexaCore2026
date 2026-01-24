@@ -3,7 +3,7 @@
  * تبويب كشف الحساب
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LedgerTable, type LedgerColumn, type LedgerStats } from '@/components/shared/tables/LedgerTable';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw, FileText } from 'lucide-react';
@@ -26,7 +26,7 @@ interface LedgerEntry {
 
 export function AccountLedgerTab({ data, language, t, onRowClick, onRefresh }: TabComponentProps) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, _setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
 
   // Get entries from data or fetch them
@@ -194,7 +194,7 @@ export function AccountLedgerTab({ data, language, t, onRowClick, onRefresh }: T
       onRefresh={handleRefresh}
       onRowClick={handleRowClick}
       onPrint={() => window.print()}
-      onExport={(format) => console.log('Export:', format)}
+      onExport={() => { /* TODO: Implement export */ }}
       footerLabel={language === 'ar' ? 'الإجمالي' : 'Total'}
       emptyMessage={language === 'ar' ? 'لا توجد حركات' : 'No entries'}
       emptyIcon={<FileText className="w-16 h-16 text-gray-300 dark:text-gray-600" />}

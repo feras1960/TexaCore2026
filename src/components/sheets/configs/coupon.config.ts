@@ -29,11 +29,9 @@ import {
   Tag,
   Target,
   TrendingUp,
-  AlertTriangle,
-  Infinity,
   Hash,
 } from 'lucide-react';
-import { type SheetConfig, type DocType } from './sheet.types';
+import { type SheetConfig } from './sheet.types';
 
 // Import tab components
 import { OverviewTab } from '../tabs/shared/OverviewTab';
@@ -52,18 +50,18 @@ export const couponConfig: SheetConfig = {
   badge: (data) => {
     // تحقق من انتهاء الصلاحية
     if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      return { label: 'منتهي الصلاحية', variant: 'error' };
+      return { label: 'status.expired', variant: 'error' };
     }
     // تحقق من استنفاد الاستخدامات
     if (data.max_uses && data.uses_count >= data.max_uses) {
-      return { label: 'مستنفد', variant: 'warning' };
+      return { label: 'status.exhausted', variant: 'warning' };
     }
     
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' }> = {
-      active: { label: 'نشط', variant: 'success' },
-      inactive: { label: 'غير نشط', variant: 'default' },
-      expired: { label: 'منتهي', variant: 'error' },
-      exhausted: { label: 'مستنفد', variant: 'warning' },
+      active: { label: 'status.active', variant: 'success' },
+      inactive: { label: 'status.inactive', variant: 'default' },
+      expired: { label: 'status.expired', variant: 'error' },
+      exhausted: { label: 'status.exhausted', variant: 'warning' },
     };
     const status = statusMap[data.status] || statusMap['inactive'];
     return {
@@ -76,8 +74,7 @@ export const couponConfig: SheetConfig = {
   stats: [
     {
       key: 'discount_value',
-      label: 'Discount',
-      labelAr: 'قيمة الخصم',
+      label: 'stats.discountValue',
       icon: Percent,
       value: (data) => data.discount_type === 'percentage' 
         ? `${data.discount_value}%` 
@@ -89,24 +86,21 @@ export const couponConfig: SheetConfig = {
     },
     {
       key: 'uses_count',
-      label: 'Uses',
-      labelAr: 'الاستخدامات',
+      label: 'stats.uses',
       icon: Users,
       value: (data) => data.uses_count || 0,
       color: 'blue',
     },
     {
       key: 'remaining_uses',
-      label: 'Remaining',
-      labelAr: 'المتبقي',
+      label: 'stats.remaining',
       icon: Target,
       value: (data) => data.max_uses ? (data.max_uses - (data.uses_count || 0)) : '∞',
       color: 'purple',
     },
     {
       key: 'total_savings',
-      label: 'Total Savings',
-      labelAr: 'إجمالي التوفير',
+      label: 'stats.totalSavings',
       icon: TrendingUp,
       value: (data) => data.total_discount_given || 0,
       color: 'gray',
@@ -119,22 +113,19 @@ export const couponConfig: SheetConfig = {
     // معلومات الكوبون
     { 
       key: 'code', 
-      label: 'Coupon Code', 
-      labelAr: 'كود الكوبون', 
+      label: 'fields.couponCode', 
       type: 'text',
       icon: Hash,
     },
     { 
       key: 'name', 
-      label: 'Name', 
-      labelAr: 'الاسم', 
+      label: 'fields.name', 
       type: 'text',
       format: (value, data) => data.name_ar || value || '-',
     },
     { 
       key: 'description', 
-      label: 'Description', 
-      labelAr: 'الوصف', 
+      label: 'fields.description', 
       type: 'text',
       format: (value, data) => data.description_ar || value || '-',
     },
@@ -142,19 +133,17 @@ export const couponConfig: SheetConfig = {
     // نوع وقيمة الخصم
     { 
       key: 'discount_type', 
-      label: 'Discount Type', 
-      labelAr: 'نوع الخصم', 
+      label: 'fields.discountType', 
       type: 'badge',
       icon: Tag,
       badge: (value) => ({
-        label: value === 'percentage' ? 'نسبة مئوية' : 'مبلغ ثابت',
+        label: value === 'percentage' ? 'discountTypes.percentage' : 'discountTypes.fixed',
         variant: value === 'percentage' ? 'info' : 'default',
       }),
     },
     { 
       key: 'discount_value', 
-      label: 'Discount Value', 
-      labelAr: 'قيمة الخصم', 
+      label: 'fields.discountValue', 
       type: 'text',
       icon: Percent,
       format: (value, data) => data.discount_type === 'percentage' 
@@ -163,16 +152,14 @@ export const couponConfig: SheetConfig = {
     },
     { 
       key: 'max_discount', 
-      label: 'Max Discount', 
-      labelAr: 'الحد الأقصى للخصم', 
+      label: 'fields.maxDiscount', 
       type: 'currency',
       icon: DollarSign,
       hidden: (data) => !data.max_discount || data.discount_type !== 'percentage',
     },
     { 
       key: 'min_purchase', 
-      label: 'Min Purchase', 
-      labelAr: 'الحد الأدنى للشراء', 
+      label: 'fields.minPurchase', 
       type: 'currency',
       icon: DollarSign,
       hidden: (data) => !data.min_purchase,
@@ -181,23 +168,20 @@ export const couponConfig: SheetConfig = {
     // حدود الاستخدام
     { 
       key: 'max_uses', 
-      label: 'Max Uses', 
-      labelAr: 'الحد الأقصى للاستخدام', 
+      label: 'fields.maxUses', 
       type: 'text',
       icon: Target,
-      format: (value) => value || '∞ (غير محدود)',
+      format: (value) => value || '∞',
     },
     { 
       key: 'max_uses_per_user', 
-      label: 'Max Uses Per User', 
-      labelAr: 'الاستخدام لكل مستخدم', 
+      label: 'fields.maxUsesPerUser', 
       type: 'number',
       format: (value) => value || '1',
     },
     { 
       key: 'uses_count', 
-      label: 'Total Uses', 
-      labelAr: 'إجمالي الاستخدامات', 
+      label: 'fields.totalUses', 
       type: 'number',
       icon: Users,
     },
@@ -205,15 +189,13 @@ export const couponConfig: SheetConfig = {
     // الفترة
     { 
       key: 'starts_at', 
-      label: 'Start Date', 
-      labelAr: 'تاريخ البداية', 
+      label: 'fields.startDate', 
       type: 'date',
       icon: Calendar,
     },
     { 
       key: 'expires_at', 
-      label: 'Expiry Date', 
-      labelAr: 'تاريخ الانتهاء', 
+      label: 'fields.expiryDate', 
       type: 'date',
       icon: Clock,
     },
@@ -221,35 +203,31 @@ export const couponConfig: SheetConfig = {
     // القيود
     { 
       key: 'applicable_plans', 
-      label: 'Applicable Plans', 
-      labelAr: 'الباقات المطبقة', 
+      label: 'fields.applicablePlans', 
       type: 'text',
       icon: Package,
       format: (value) => {
-        if (!value || value.length === 0) return 'جميع الباقات';
+        if (!value || value.length === 0) return '-';
         if (Array.isArray(value)) return value.join(', ');
         return value;
       },
     },
     { 
       key: 'first_subscription_only', 
-      label: 'First Subscription Only', 
-      labelAr: 'للاشتراك الأول فقط', 
+      label: 'fields.firstSubscriptionOnly', 
       type: 'badge',
-      badge: (value) => value ? { label: 'نعم', variant: 'warning' } : null,
+      badge: (value) => value ? { label: 'common.yes', variant: 'warning' } : null,
     },
     
     // معلومات إضافية
     { 
       key: 'created_by', 
-      label: 'Created By', 
-      labelAr: 'أنشأ بواسطة', 
+      label: 'fields.createdBy', 
       type: 'text' 
     },
     { 
       key: 'created_at', 
-      label: 'Created', 
-      labelAr: 'تاريخ الإنشاء', 
+      label: 'fields.created', 
       type: 'date', 
       icon: Calendar 
     },
@@ -259,37 +237,32 @@ export const couponConfig: SheetConfig = {
   tabs: [
     { 
       id: 'overview', 
-      label: 'Overview', 
-      labelAr: 'نظرة عامة', 
+      label: 'tabs.overview', 
       icon: Eye, 
       component: OverviewTab,
     },
     { 
       id: 'usage', 
-      label: 'Usage History', 
-      labelAr: 'سجل الاستخدام', 
+      label: 'tabs.usageHistory', 
       icon: Users, 
       component: OverviewTab, // سيتم استبداله بـ CouponUsageTab
       badge: (data) => data.uses_count || 0,
     },
     { 
       id: 'restrictions', 
-      label: 'Restrictions', 
-      labelAr: 'القيود', 
+      label: 'tabs.restrictions', 
       icon: Shield, 
       component: OverviewTab, // سيتم استبداله
     },
     { 
       id: 'statistics', 
-      label: 'Statistics', 
-      labelAr: 'الإحصائيات', 
+      label: 'tabs.statistics', 
       icon: BarChart3, 
       component: OverviewTab, // سيتم استبداله
     },
     { 
       id: 'activity', 
-      label: 'Activity', 
-      labelAr: 'السجل', 
+      label: 'tabs.activity', 
       icon: Activity, 
       component: ActivityTab,
     },
@@ -300,43 +273,37 @@ export const couponConfig: SheetConfig = {
   actions: [
     {
       id: 'edit',
-      label: 'Edit',
-      labelAr: 'تعديل',
+      label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: (data) => console.log('Edit coupon:', data.id),
+      onClick: () => {},
     },
     {
       id: 'duplicate',
-      label: 'Duplicate',
-      labelAr: 'نسخ',
+      label: 'actions.duplicate',
       icon: Copy,
       variant: 'outline',
-      onClick: (data) => console.log('Duplicate coupon:', data.id),
+      onClick: () => {},
     },
     {
       id: 'deactivate',
-      label: 'Deactivate',
-      labelAr: 'تعطيل',
+      label: 'actions.deactivate',
       icon: XCircle,
       variant: 'destructive',
       show: (data) => data.status === 'active',
       confirm: {
-        title: 'Confirm Deactivation',
-        titleAr: 'تأكيد التعطيل',
-        description: 'Are you sure you want to deactivate this coupon? It will no longer be usable.',
-        descriptionAr: 'هل أنت متأكد من تعطيل هذا الكوبون؟ لن يكون قابلاً للاستخدام.',
+        title: 'dialogs.confirmDeactivation',
+        description: 'dialogs.deactivateCouponWarning',
       },
-      onClick: (data) => console.log('Deactivate coupon:', data.id),
+      onClick: () => {},
     },
     {
       id: 'activate',
-      label: 'Activate',
-      labelAr: 'تفعيل',
+      label: 'actions.activate',
       icon: CheckCircle,
       variant: 'success',
       show: (data) => data.status !== 'active' && data.status !== 'expired',
-      onClick: (data) => console.log('Activate coupon:', data.id),
+      onClick: () => {},
     },
   ],
   

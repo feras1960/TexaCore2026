@@ -1,4 +1,4 @@
-import React from 'react';
+import { motion } from 'framer-motion';
 import { Bell, Search, Moon, Sun, Globe, Keyboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useTheme } from '@/app/providers/ThemeProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { useLanguageShortcuts } from '@/hooks/useLanguageShortcuts';
+import { formatShortcut, formatShortcutRange, useLanguageShortcuts } from '@/hooks/useLanguageShortcuts';
 import { cn } from '@/lib/utils';
 import { SupportedLanguage, getLanguageConfig } from '@/i18n/config';
 
@@ -44,9 +44,14 @@ export function Header() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className={cn(
-        "h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 lg:px-6 flex items-center justify-between gap-4",
-      )}>
+      <motion.header 
+        className={cn(
+          "h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 lg:px-6 flex items-center justify-between gap-4",
+        )}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
         {/* Search */}
         <div className="flex-1 max-w-md">
           <div className="relative">
@@ -89,7 +94,9 @@ export function Header() {
               <TooltipContent side="bottom">
                 <div className="flex items-center gap-2">
                   <span>{t('header.language')}</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-gray-100 dark:bg-gray-700 rounded">Alt+L</kbd>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-gray-100 dark:bg-gray-700 rounded">
+                    {formatShortcut('Alt+L')}
+                  </kbd>
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -98,7 +105,7 @@ export function Header() {
                 <span>{t('header.language')}</span>
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Keyboard className="h-3 w-3" />
-                  Alt+1-9
+                  {formatShortcutRange('alt', '1-9')}
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -120,7 +127,7 @@ export function Header() {
                       {lang.shortCode}
                     </span>
                     <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-gray-100 dark:bg-gray-700 rounded">
-                      Alt+{index + 1}
+                      {formatShortcut(`Alt+${index + 1}`)}
                     </kbd>
                   </div>
                 </DropdownMenuItem>
@@ -199,7 +206,7 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </header>
+      </motion.header>
     </TooltipProvider>
   );
 }

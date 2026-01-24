@@ -5,7 +5,7 @@
  * Manages the interface mode switching between Lite and Professional views
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 // Interface modes
 export type InterfaceMode = 'lite' | 'professional';

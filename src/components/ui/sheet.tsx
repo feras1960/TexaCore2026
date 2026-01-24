@@ -1,11 +1,22 @@
 import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Sheet = SheetPrimitive.Root
+// Custom Sheet component with modal prop support
+interface SheetProps extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root> {
+  /** When false, disables focus trap and allows interaction with elements outside */
+  modal?: boolean
+}
+
+const Sheet = React.forwardRef<
+  React.ElementRef<typeof SheetPrimitive.Root>,
+  SheetProps
+>(({ modal = true, ...props }, _ref) => (
+  <SheetPrimitive.Root modal={modal} {...props} />
+))
+Sheet.displayName = "Sheet"
 
 const SheetTrigger = SheetPrimitive.Trigger
 
@@ -49,17 +60,37 @@ const sheetVariants = cva(
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  disableAnimation?: boolean
+  overlayClassName?: string
+  /** Prevent closing when clicking outside (useful for Component Lab) */
+  preventCloseOnOutsideClick?: boolean
+}
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, ...props }, ref) => (
+>(({ side = "right", className, children, disableAnimation, overlayClassName, preventCloseOnOutsideClick, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    {/* Hide overlay completely when preventCloseOnOutsideClick is true */}
+    {!preventCloseOnOutsideClick && (
+      <SheetOverlay
+        className={cn(
+          disableAnimation && "transition-none data-[state=open]:animate-none data-[state=closed]:animate-none",
+          overlayClassName
+        )}
+      />
+    )}
     <SheetPrimitive.Content
       ref={ref}
-      className={cn(sheetVariants({ side }), className)}
+      onInteractOutside={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
+      onPointerDownOutside={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
+      onEscapeKeyDown={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
+      className={cn(
+        sheetVariants({ side }),
+        disableAnimation && "transition-none data-[state=open]:animate-none data-[state=closed]:animate-none",
+        className
+      )}
       {...props}
     >
       {children}

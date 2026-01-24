@@ -9,7 +9,8 @@ CREATE OR REPLACE FUNCTION public.update_user_profile_on_registration(
     p_email VARCHAR(255),
     p_full_name VARCHAR(255),
     p_role VARCHAR(50),
-    p_company_id UUID
+    p_company_id UUID,
+    p_tenant_id UUID DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -24,14 +25,16 @@ BEGIN
         email,
         full_name,
         role,
-        company_id
+        company_id,
+        tenant_id
     )
     VALUES (
         p_user_id,
         p_email,
         p_full_name,
         p_role,
-        p_company_id
+        p_company_id,
+        p_tenant_id
     )
     ON CONFLICT (id) 
     DO UPDATE SET
@@ -39,6 +42,7 @@ BEGIN
         full_name = EXCLUDED.full_name,
         role = EXCLUDED.role,
         company_id = EXCLUDED.company_id,
+        tenant_id = COALESCE(EXCLUDED.tenant_id, user_profiles.tenant_id),
         updated_at = NOW();
     
     -- إرجاع النتيجة
@@ -50,6 +54,7 @@ BEGIN
             full_name,
             role,
             company_id,
+            tenant_id,
             created_at,
             updated_at
         FROM public.user_profiles

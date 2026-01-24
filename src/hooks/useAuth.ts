@@ -11,6 +11,37 @@ interface AuthState {
   error: string | null;
 }
 
+// Helper function to check if error is a timeout/abort/connection error
+const isConnectionError = (error: any): boolean => {
+  const errorMessage = error?.message?.toLowerCase() || error?.name?.toLowerCase() || '';
+  return (
+    error?.name === 'AbortError' ||
+    errorMessage.includes('abort') ||
+    errorMessage.includes('timeout') ||
+    errorMessage.includes('connection') ||
+    errorMessage.includes('network') ||
+    errorMessage.includes('failed to fetch') ||
+    errorMessage.includes('fetch failed')
+  );
+};
+
+// Helper to check if error should be shown to user
+const shouldShowErrorToUser = (errorMsg: string | null | undefined): string | null => {
+  if (!errorMsg) return null;
+  const msg = errorMsg.toLowerCase();
+  // Ignore these errors - they are normal or not helpful to show
+  if (
+    msg.includes('auth session missing') ||
+    msg.includes('session missing') ||
+    msg.includes('abort') ||
+    msg.includes('timeout') ||
+    msg.includes('signal')
+  ) {
+    return null;
+  }
+  return errorMsg;
+};
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -22,84 +53,105 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    const abortController = new AbortController();
 
     // Get initial session - use both getSession and getUser for reliability
     const initializeAuth = async () => {
+      // Skip if component unmounted
+      if (!mounted || abortController.signal.aborted) return;
+      
       try {
         // First, try to get session from storage
         const { session: storedSession, error: sessionError } = await getSession();
         
-        // Only log session errors if there's actually a session issue (not just missing session)
-        if (sessionError && sessionError.message !== 'Auth session missing!') {
+        // Skip if unmounted during async operation
+        if (!mounted || abortController.signal.aborted) return;
+        
+        // Only log session errors if there's actually a session issue (not just missing session or connection error)
+        if (sessionError && !isConnectionError(sessionError) && sessionError.message !== 'Auth session missing!') {
           console.error('Session error:', sessionError);
         }
 
         // Also verify the user is still valid
         const { user: currentUser, error: userError } = await getCurrentUser();
         
-        // Only log user errors if user is expected but missing (not just no user logged in)
-        if (userError && storedSession && userError.message !== 'Auth session missing!') {
+        // Skip if unmounted during async operation
+        if (!mounted || abortController.signal.aborted) return;
+        
+        // Only log user errors if user is expected but missing (not just no user logged in or connection error)
+        if (userError && !isConnectionError(userError) && storedSession && userError.message !== 'Auth session missing!') {
           console.error('User verification error:', userError);
         }
 
         // If we have a session but no user (or vice versa), try to refresh
-        if (storedSession && !currentUser) {
+        if (storedSession && !currentUser && mounted && !abortController.signal.aborted) {
           // Try to refresh the session
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession(storedSession);
-          if (!refreshError && refreshData.session && mounted) {
-            setState({
-              session: refreshData.session,
-              user: refreshData.session.user,
-              authUser: null, // Will be populated later
-              loading: false,
-              error: null,
-            });
-            return;
+          try {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession(storedSession);
+            if (!refreshError && refreshData.session && mounted && !abortController.signal.aborted) {
+              setState({
+                session: refreshData.session,
+                user: refreshData.session.user,
+                authUser: null, // Will be populated later
+                loading: false,
+                error: null,
+              });
+              return;
+            }
+          } catch {
+            // Ignore refresh errors - just continue
           }
         }
 
+        // Skip if unmounted during async operation
+        if (!mounted || abortController.signal.aborted) return;
+
         // Get extended user with metadata
-        const authUser = currentUser || storedSession?.user 
-          ? await getCurrentUserWithMetadata()
-          : null;
-
-        // Set state based on what we have
-        // Don't set error if it's just "Auth session missing" (normal before login)
-        const shouldShowError = (errorMsg: string | null | undefined) => {
-          if (!errorMsg) return null;
-          // Ignore "Auth session missing" errors - these are normal before login
-          if (errorMsg.includes('Auth session missing') || errorMsg.includes('session missing')) {
-            return null;
+        let authUser = null;
+        if (currentUser || storedSession?.user) {
+          try {
+            authUser = await getCurrentUserWithMetadata();
+          } catch (metadataErr) {
+            // Ignore metadata fetch errors silently
           }
-          return errorMsg;
-        };
+        }
 
-        if (mounted) {
+        if (mounted && !abortController.signal.aborted) {
           setState({
             session: storedSession || null,
             user: currentUser || storedSession?.user || null,
             authUser: authUser,
             loading: false,
-            error: shouldShowError(sessionError?.message) || shouldShowError(userError?.message) || null,
+            // Don't show connection/timeout errors during initial load - user can still try to login
+            error: shouldShowErrorToUser(sessionError?.message) || shouldShowErrorToUser(userError?.message) || null,
           });
         }
       } catch (err: any) {
-        // Only log errors that are not "Auth session missing"
+        // Silently ignore AbortError and connection errors
+        if (isConnectionError(err)) {
+          if (mounted && !abortController.signal.aborted) {
+            setState(prev => ({
+              ...prev,
+              loading: false,
+              error: null,
+            }));
+          }
+          return;
+        }
+        
+        // Log errors except "Auth session missing"
         const errorMessage = err?.message || '';
-        if (!errorMessage.includes('Auth session missing') && !errorMessage.includes('session missing')) {
+        if (!errorMessage.includes('Auth session missing')) {
           console.error('Auth initialization error:', err);
         }
         
-        if (mounted) {
-          // Don't set error if it's just "Auth session missing"
-          const shouldSetError = errorMessage && 
-            !errorMessage.includes('Auth session missing') && 
-            !errorMessage.includes('session missing');
+        if (mounted && !abortController.signal.aborted) {
+          const displayError = shouldShowErrorToUser(err?.message);
             
           setState(prev => ({
             ...prev,
             loading: false,
-            error: shouldSetError ? (err?.message || 'Failed to initialize authentication') : null,
+            error: displayError,
           }));
         }
       }
@@ -109,15 +161,17 @@ export function useAuth() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Only log if there's actually a user (not just INITIAL_SESSION with no user)
-        if (session?.user) {
-          console.log('Auth state change:', event, session.user.email);
-        }
-        
-        if (mounted) {
-          // Get extended user with metadata
-          const authUser = session?.user ? await getCurrentUserWithMetadata() : null;
+      (event, session) => {
+        if (mounted && !abortController.signal.aborted) {
+          // Create simple authUser from session data (no extra API calls)
+          const authUser: AuthUser | null = session?.user ? {
+            id: session.user.id,
+            email: session.user.email || '',
+            tenant_id: session.user.user_metadata?.tenant_id || null,
+            company_id: session.user.user_metadata?.company_id || null,
+            is_super_admin: session.user.user_metadata?.is_super_admin || false,
+            user_metadata: session.user.user_metadata || {},
+          } : null;
           
           setState(prev => ({
             ...prev,
@@ -133,6 +187,7 @@ export function useAuth() {
 
     return () => {
       mounted = false;
+      abortController.abort();
       subscription.unsubscribe();
     };
   }, []);
@@ -140,49 +195,62 @@ export function useAuth() {
   const login = async (email: string, password: string) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      // Clear any existing session first
-      await supabase.auth.signOut();
+      // Direct sign in without clearing session first (to avoid AbortError)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      // Use new signInWithMetadata to get tenant_id and company_id
-      const { user: authUser, error } = await signInWithMetadata(email, password);
-      
-      if (error || !authUser) {
-        const errorMessage = error?.message || 'فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.';
+      if (authError || !authData.user) {
+        // Provide user-friendly error messages
+        let errorMessage = 'فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.';
+        if (isConnectionError(authError)) {
+          errorMessage = 'فشل الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
+        } else if (authError?.message) {
+          if (authError.message.includes('Invalid login credentials')) {
+            errorMessage = 'بيانات الدخول غير صحيحة. تحقق من البريد الإلكتروني وكلمة المرور.';
+          } else if (authError.message.includes('Email not confirmed')) {
+            errorMessage = 'لم يتم تأكيد البريد الإلكتروني. تحقق من بريدك الوارد.';
+          } else {
+            errorMessage = authError.message;
+          }
+        }
         setState(prev => ({ ...prev, error: errorMessage, loading: false }));
         return { error: errorMessage };
       }
       
-      // Wait a bit for session to be fully established
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Login succeeded - create minimal authUser from auth data
+      const authUser: AuthUser = {
+        id: authData.user.id,
+        email: authData.user.email || '',
+        tenant_id: authData.user.user_metadata?.tenant_id || null,
+        company_id: authData.user.user_metadata?.company_id || null,
+        is_super_admin: authData.user.user_metadata?.is_super_admin || false,
+        user_metadata: authData.user.user_metadata || {},
+      };
       
-      // Get session and user after successful login to update state immediately
-      const [sessionResult, userResult] = await Promise.all([
-        getSession(),
-        getCurrentUser(),
-      ]);
-      
-      const newSession = sessionResult.session;
-      const currentUser = userResult.user;
-      
-      if (sessionResult.error && userResult.error) {
-        const errorMessage = sessionResult.error.message || 'فشل الحصول على الجلسة.';
-        setState(prev => ({ ...prev, error: errorMessage, loading: false }));
-        return { error: errorMessage };
-      }
-      
-      // Update state with both session, user, and authUser
+      // Update state immediately with auth data - don't wait for profile
       setState({
-        session: newSession,
-        user: currentUser || newSession?.user || null,
+        session: authData.session,
+        user: authData.user,
         authUser: authUser,
         loading: false,
         error: null,
       });
       
-      return { data: { user: currentUser, authUser } };
+      return { data: { user: authData.user, authUser, success: true } };
     } catch (err: any) {
-      console.error('Login error:', err);
-      const errorMessage = err?.message || 'حدث خطأ غير متوقع أثناء تسجيل الدخول.';
+      // Don't log AbortError
+      if (!isConnectionError(err)) {
+        console.error('Login error:', err);
+      }
+      // Provide user-friendly error message
+      let errorMessage = 'حدث خطأ غير متوقع أثناء تسجيل الدخول.';
+      if (isConnectionError(err)) {
+        errorMessage = 'فشل الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
       setState(prev => ({ ...prev, error: errorMessage, loading: false }));
       return { error: errorMessage };
     }
@@ -190,12 +258,51 @@ export function useAuth() {
 
   const register = async (email: string, password: string) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
-    const { data, error } = await signUp(email, password);
-    if (error) {
-      setState(prev => ({ ...prev, error: error.message, loading: false }));
-      return { error };
+    
+    try {
+      const { data, error } = await signUp(email, password);
+      
+      if (error) {
+        // Provide user-friendly error messages in Arabic
+        let errorMessage = 'فشل التسجيل. حاول مرة أخرى.';
+        const errorMsg = error.message?.toLowerCase() || '';
+        
+        if (errorMsg.includes('user already registered') || errorMsg.includes('already exists') || errorMsg.includes('already been registered')) {
+          errorMessage = 'هذا البريد الإلكتروني مسجل مسبقاً. جرّب تسجيل الدخول أو استخدم بريد آخر.';
+        } else if (errorMsg.includes('invalid email') || errorMsg.includes('email') && errorMsg.includes('invalid')) {
+          errorMessage = 'صيغة البريد الإلكتروني غير صحيحة.';
+        } else if (errorMsg.includes('password') && (errorMsg.includes('weak') || errorMsg.includes('short') || errorMsg.includes('characters'))) {
+          errorMessage = 'كلمة المرور ضعيفة. يجب أن تكون 8 أحرف على الأقل.';
+        } else if (errorMsg.includes('rate limit') || errorMsg.includes('too many')) {
+          errorMessage = 'طلبات كثيرة جداً. انتظر قليلاً ثم حاول مجدداً.';
+        } else if (errorMsg.includes('signup') && errorMsg.includes('disabled')) {
+          errorMessage = 'التسجيل معطل حالياً. تواصل مع الدعم الفني.';
+        } else if (errorMsg.includes('network') || errorMsg.includes('connection') || errorMsg.includes('fetch')) {
+          errorMessage = 'فشل الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        console.error('Registration error:', error);
+        setState(prev => ({ ...prev, error: errorMessage, loading: false }));
+        return { error: { ...error, message: errorMessage } };
+      }
+      
+      // Check if email confirmation is required
+      if (data?.user && !data.session) {
+        // User created but needs email confirmation
+        setState(prev => ({ ...prev, loading: false, error: null }));
+        return { data, needsEmailConfirmation: true };
+      }
+      
+      setState(prev => ({ ...prev, loading: false, error: null }));
+      return { data };
+    } catch (err: any) {
+      const errorMessage = 'حدث خطأ غير متوقع أثناء التسجيل.';
+      console.error('Registration exception:', err);
+      setState(prev => ({ ...prev, error: errorMessage, loading: false }));
+      return { error: { message: errorMessage } };
     }
-    return { data };
   };
 
   const logout = async () => {

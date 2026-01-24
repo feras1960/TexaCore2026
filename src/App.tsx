@@ -2,10 +2,13 @@ import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProviders } from '@/app/providers';
 import MainLayout from '@/components/layout/MainLayout';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import PageLoader, { BrandedLoader } from '@/components/common/PageLoader';
+
+// Import AuthGuard directly (not lazy) for better auth flow
+import { AuthGuard } from '@/components/auth/AuthGuard';
 
 // Lazy load pages for better performance
 const Dashboard = React.lazy(() => import('@/features/dashboard/Dashboard'));
@@ -15,10 +18,11 @@ const ActivityLog = React.lazy(() => import('@/features/admin/activityLog/Activi
 const ComponentLab = React.lazy(() => import('@/features/componentLab/ComponentLab'));
 const Login = React.lazy(() => import('@/features/auth/Login'));
 const Register = React.lazy(() => import('@/features/auth/Register'));
-const AuthGuard = React.lazy(() => import('@/components/auth/AuthGuard').then(module => ({ default: module.AuthGuard })));
+const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
 
 // Public Route Guard (redirects to home if already authenticated)
-function PublicRouteGuard({ children }: { children: React.ReactNode }) {
+// Reserved for future use when public routes are needed
+const _PublicRouteGuard = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
@@ -30,7 +34,8 @@ function PublicRouteGuard({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
-}
+};
+void _PublicRouteGuard;
 
 // Placeholder pages for modules - uses translation keys
 const PlaceholderPage = ({ titleKey }: { titleKey: string }) => {
@@ -49,24 +54,15 @@ const PlaceholderPage = ({ titleKey }: { titleKey: string }) => {
   );
 };
 
-// Page loader
-function PageLoader() {
-  return (
-    <div className="flex flex-col gap-4 p-6 w-full h-full">
-      <Skeleton className="h-8 w-64" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Skeleton className="h-32" />
-        <Skeleton className="h-32" />
-        <Skeleton className="h-32" />
-      </div>
-      <Skeleton className="h-64" />
-    </div>
-  );
-}
+// Route-level loader using the branded loader
+const RouteLoader = () => <PageLoader variant="default" />;
+
+// Auth page loader (branded)
+const AuthLoader = () => <BrandedLoader fullScreen />;
 
 function AppRoutes() {
   return (
-    <Suspense fallback={<PageLoader />}>
+    <Suspense fallback={<RouteLoader />}>
       <Routes>
         {/* Auth Routes (Public) */}
         <Route path="/login" element={<Login />} />
@@ -92,6 +88,7 @@ function AppRoutes() {
           <Route path="/system-config/*" element={<PlaceholderPage titleKey="navigation.systemConfig" />} />
           <Route path="/activity-log" element={<ActivityLog />} />
           <Route path="/component-lab" element={<ComponentLab />} />
+          <Route path="/design-system" element={<DesignSystemDemo />} />
           </Route>
         </Route>
 

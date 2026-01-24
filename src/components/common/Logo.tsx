@@ -1,4 +1,5 @@
-import React from 'react';
+import { useId } from 'react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 
@@ -18,6 +19,8 @@ export default function Logo({
   animated = true
 }: LogoProps) {
   const { t } = useLanguage();
+  // Use React's useId for stable, unique IDs across renders
+  const uniqueId = useId();
   
   const sizes = {
     sm: { iconSize: 36, textSize: 'text-base', subTextSize: 'text-[9px]' },
@@ -28,15 +31,21 @@ export default function Logo({
 
   const { iconSize, textSize, subTextSize } = sizes[size];
   
-  // Unique gradient IDs to avoid conflicts
-  const hexGradientId = `hexGradient-${variant}-${size}-${Math.random().toString(36).substr(2, 9)}`;
-  const threadGradientId = `threadGradient-${variant}-${size}-${Math.random().toString(36).substr(2, 9)}`;
+  // Unique gradient IDs to avoid conflicts - using stable useId
+  const hexGradientId = `hexGradient-${variant}-${size}-${uniqueId}`;
+  const threadGradientId = `threadGradient-${variant}-${size}-${uniqueId}`;
 
   // Get slogan from translations
   const slogan = t('app.brand.slogan');
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <motion.div 
+      className={cn("flex items-center gap-3", className)}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      whileHover={{ scale: 1.02 }}
+    >
       {/* Logo Icon - TexaCore Hexagon Design */}
       <div className="relative group">
         <svg 
@@ -147,6 +156,7 @@ export default function Logo({
       {showText && (
         <div className="flex flex-col">
           <div className="flex items-baseline" dir="ltr">
+            {/* eslint-disable-next-line i18next/no-literal-string -- Brand name */}
             <span 
               className={cn(
                 textSize,
@@ -161,6 +171,7 @@ export default function Logo({
             >
               Texa
             </span>
+            {/* eslint-disable-next-line i18next/no-literal-string -- Brand name */}
             <span 
               className={cn(
                 textSize,
@@ -187,7 +198,7 @@ export default function Logo({
           </span>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -203,8 +214,9 @@ export const LogoIcon: React.FC<{
   className = '',
   animated = true,
 }) => {
-  const hexGradientId = `hexGradient-icon-${variant}-${Math.random().toString(36).substr(2, 9)}`;
-  const threadGradientId = `threadGradient-icon-${variant}-${Math.random().toString(36).substr(2, 9)}`;
+  const uniqueId = useId();
+  const hexGradientId = `hexGradient-icon-${variant}-${uniqueId}`;
+  const threadGradientId = `threadGradient-icon-${variant}-${uniqueId}`;
 
   return (
     <div className={cn("relative group", className)}>

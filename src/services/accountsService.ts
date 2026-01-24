@@ -52,6 +52,7 @@ export interface Account {
   name?: string;
   currency_code?: string;
   account_type?: string;
+  account_type_code?: string; // Code from account_types table (e.g., 'ASSET', 'LIABILITY')
   account_category?: string;
 }
 
@@ -128,6 +129,7 @@ const mapAccount = (record: any): Account => ({
   name: record.name_ar, // Default to Arabic for backward compatibility
   currency_code: record.currency,
   account_type: record.account_type_id, // For legacy compatibility
+  account_type_code: record.account_type_code, // Code from account_types (e.g., 'ASSET', 'LIABILITY')
   account_category: record.description || '',
 });
 
@@ -138,10 +140,17 @@ export const accountsService = {
   async getAll(companyId: string): Promise<Account[]> {
     const tenantId = await getCurrentTenantIdAsync();
     
-    // Build query - filter by company_id, optionally by tenant_id if available
+    // Build query with join to account_types to get code
     let query = supabase
       .from('chart_of_accounts')
-      .select('*')
+      .select(`
+        *,
+        account_types:account_types!account_type_id (
+          code,
+          name_ar,
+          name_en
+        )
+      `)
       .eq('company_id', companyId)
       .eq('is_active', true);
     
@@ -157,7 +166,17 @@ export const accountsService = {
       throw error;
     }
 
-    return (data || []).map(mapAccount);
+    return (data || []).map((record: any) => {
+      // Handle both array and object formats from Supabase join
+      const accountType = Array.isArray(record.account_types) 
+        ? record.account_types[0] 
+        : record.account_types;
+      
+      return mapAccount({
+        ...record,
+        account_type_code: accountType?.code,
+      });
+    });
   },
 
   /**

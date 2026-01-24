@@ -50,6 +50,7 @@ import { AccountTreeSidePanel } from './AccountTreeSidePanel';
 import { currencies, costCenters } from '../data/accountingData';
 import { supabase } from '@/lib/supabase';
 import type { Account } from '@/services/accountsService';
+import { getModifierKeyLabel } from '@/hooks/useLanguageShortcuts';
 
 interface JournalEntryRow {
   id: number;
@@ -72,6 +73,7 @@ interface JournalEntryFormProps {
 
 export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCancel, onVoucherNoChange }: JournalEntryFormProps) {
   const { t, language, direction } = useLanguage();
+  const modifierKey = getModifierKeyLabel('ctrl');
   const { companyId } = useCompany();
   const { accounts, loading: accountsLoading } = useAccounts({ companyId: companyId || undefined, autoFetch: !!companyId });
   const [date, setDate] = useState<Date>(new Date());
@@ -637,7 +639,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                       )}
                     >
                       <CalendarIcon className={cn("h-4 w-4 text-gray-400", direction === 'rtl' ? 'ml-2' : 'mr-2')} />
-                      {date ? format(date, "dd/MM/yyyy") : <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>}
+                      {date ? format(date, "dd/MM/yyyy") : <span>{t('placeholders.pickDate')}</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align={direction === 'rtl' ? 'end' : 'start'}>
@@ -659,7 +661,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                 <Input 
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
-                  placeholder={language === 'ar' ? 'JE-001' : 'JE-001'}
+                  placeholder="JE-001"
                   className="h-9 text-sm rounded-lg border-gray-200 dark:border-gray-700"
                 />
               </div>
@@ -686,7 +688,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                   <FileText className="w-4 h-4 text-erp-navy dark:text-white" />
                 </div>
                 <h3 className="font-bold text-erp-navy dark:text-white text-sm">
-                  {language === 'ar' ? 'بنود القيد' : 'Entry Lines'}
+                  {t('accounting.entryLines')}
                 </h3>
               </div>
               <div className={cn("flex items-center gap-2 text-xs text-gray-500", direction === 'rtl' && "flex-row-reverse")}>
@@ -694,18 +696,18 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="cursor-help underline decoration-dotted">
-                      {language === 'ar' ? 'اختصارات' : 'Shortcuts'}
+                      {t('shortcuts.title')}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs">
                     <div className="space-y-1 text-xs">
                       <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">F2</kbd> / <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">=</kbd> {language === 'ar' ? 'موازنة القيد' : 'Balance entry'}</div>
                       <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">F2</kbd> / <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">=</kbd> {t('accounting.balanceEntry')}</div>
-                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">Enter</kbd> {t('accounting.addRow')}</div>
-                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">D</kbd> {t('accounting.duplicateRow')}</div>
-                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">↓</kbd> {t('accounting.copyAccountDown')}</div>
-                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">Ctrl</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">S</kbd> {t('accounting.save')}</div>
-                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">=</kbd> {language === 'ar' ? 'نسخ من أعلى' : 'Copy from above'}</div>
+                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">{modifierKey}</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">Enter</kbd> {t('accounting.addRow')}</div>
+                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">{modifierKey}</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">D</kbd> {t('accounting.duplicateRow')}</div>
+                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">{modifierKey}</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">↓</kbd> {t('accounting.copyAccountDown')}</div>
+                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">{modifierKey}</kbd>+<kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">S</kbd> {t('accounting.save')}</div>
+                      <div><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px]">=</kbd> {t('shortcuts.copyFromAbove')}</div>
                     </div>
                   </TooltipContent>
                 </Tooltip>
@@ -718,25 +720,25 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                   <TableRow className="h-8">
                     <TableHead className="w-[40px] text-center text-xs font-bold border border-gray-300 p-1 px-2 text-erp-navy">#</TableHead>
                     <TableHead className="w-[120px] text-center text-xs font-bold border border-gray-300 p-1 px-2 text-erp-navy">
-                      {language === 'ar' ? 'مدين' : 'Debit'}
+                      {t('accounting.debit')}
                     </TableHead>
                     <TableHead className="w-[120px] text-center text-xs font-bold border border-gray-300 p-1 px-2 text-erp-navy">
                       {language === 'ar' ? 'دائن' : 'Credit'}
                     </TableHead>
                     <TableHead className="w-[180px] border border-gray-300 p-1 px-2 text-xs font-bold text-erp-navy">
-                      {language === 'ar' ? 'الحساب' : 'Account'}
+                      {t('fields.account')}
                     </TableHead>
                     <TableHead className="border border-gray-300 p-1 px-2 text-xs font-bold text-erp-navy">
-                      {language === 'ar' ? 'البيان' : 'Description'}
+                      {t('common.description')}
                     </TableHead>
                     <TableHead className="w-[70px] border border-gray-300 p-1 px-2 text-xs font-bold text-erp-navy">
                       {language === 'ar' ? 'العملة' : 'Curr'}
                     </TableHead>
                     <TableHead className="w-[90px] border border-gray-300 p-1 px-2 text-xs font-bold text-erp-navy">
-                      {language === 'ar' ? 'سعر الصرف' : 'Ex. Rate'}
+                      {t('accounting.exchangeRate')}
                     </TableHead>
                     <TableHead className="w-[100px] border border-gray-300 p-1 px-2 text-xs font-bold text-erp-navy">
-                      {language === 'ar' ? 'م.التكلفة' : 'Cost Center'}
+                      {t('accounting.costCenter')}
                     </TableHead>
                     <TableHead className="w-[50px] border border-gray-300 p-1 px-2"></TableHead>
                   </TableRow>
@@ -915,7 +917,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent side="left">
-                            <p>{language === 'ar' ? 'حذف السطر' : 'Delete row'}</p>
+                            <p>{t('actions.deleteRow')}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TableCell>
@@ -926,7 +928,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                 <tfoot className="bg-gray-100 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
                   <TableRow className="h-9 border-t-2 border-erp-navy">
                     <TableCell className="border border-gray-300 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                      {language === 'ar' ? 'المجموع' : 'TOTALS'}
+                      {t('common.totals')}
                     </TableCell>
                     <TableCell className="border border-gray-300 p-1 px-2 text-xs font-bold font-mono text-center bg-red-50 text-red-700" dir="ltr">
                       {totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -939,7 +941,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                         <span className="text-gray-500">{language === 'ar' ? 'عدد السطور' : 'Lines'}: <span className="font-mono font-bold text-gray-700">{rows.filter(r => r.accountId).length}</span></span>
                         <div className="w-px h-4 bg-gray-300"></div>
                         <span className="text-gray-500">
-                          {language === 'ar' ? 'الفرق' : 'Diff'}: 
+                          {t('accounting.labels.difference')}: 
                           <span className={cn(
                             "font-mono font-bold ml-1",
                             Math.abs(difference) < 0.01 ? "text-emerald-600" : "text-amber-600"
@@ -969,7 +971,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
                  onClick={addRow}
                >
                 <Plus className={cn("w-4 h-4", direction === 'rtl' ? 'ml-2' : 'mr-2')} />
-                {t('accounting.addNewRow') || (language === 'ar' ? 'إضافة سطر جديد' : 'Add New Row')}
+                {t('accounting.addNewRow')}
               </Button>
             </div>
           </Card>
@@ -980,10 +982,10 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
           <div className={cn("flex gap-3 w-full items-center", direction === 'rtl' ? 'flex-row-reverse' : '')}>
             {/* Keyboard Shortcut Hint */}
             <div className={cn("hidden sm:flex items-center gap-1.5 text-xs text-gray-400", direction === 'rtl' ? 'mr-auto' : 'mr-auto')}>
-              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">Ctrl</kbd>
+              <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">{modifierKey}</kbd>
               <span>+</span>
               <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">Enter</kbd>
-              <span className={direction === 'rtl' ? 'mr-1' : 'ml-1'}>{language === 'ar' ? 'للحفظ' : 'to save'}</span>
+              <span className={direction === 'rtl' ? 'mr-1' : 'ml-1'}>{t('actions.toSave')}</span>
             </div>
             
             <Button 
@@ -1004,7 +1006,7 @@ export default function JournalEntryForm({ isActive, onDirtyChange, onSave, onCa
               disabled={Math.abs(difference) > 0.01}
             >
               <Save className={cn("w-4 h-4", direction === 'rtl' ? 'ml-2' : 'mr-2')} />
-              {language === 'ar' ? 'حفظ القيد' : 'Save Entry'}
+              {t('actions.saveEntry')}
             </Button>
           </div>
         </div>

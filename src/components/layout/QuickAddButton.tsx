@@ -1,5 +1,5 @@
-import React from 'react';
 import { Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,15 +15,25 @@ export function QuickAddButton() {
   const { t, direction } = useLanguage();
 
   return (
-    <div className={`fixed bottom-8 z-50 ${direction === 'rtl' ? 'left-8' : 'right-8'}`}>
+    <motion.div 
+      className={`fixed bottom-8 z-50 ${direction === 'rtl' ? 'left-8' : 'right-8'}`}
+      initial={{ opacity: 0, scale: 0, y: 50 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.5, type: 'spring', stiffness: 200 }}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            size="icon" 
-            className="h-14 w-14 rounded-full bg-erp-teal hover:bg-teal-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+          <motion.div
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
           >
-            <Plus className="h-7 w-7" />
-          </Button>
+            <Button 
+              size="icon" 
+              className="h-14 w-14 rounded-full bg-erp-teal hover:bg-teal-600 text-white shadow-lg hover:shadow-xl transition-colors duration-300"
+            >
+              <Plus className="h-7 w-7" />
+            </Button>
+          </motion.div>
         </DropdownMenuTrigger>
         <DropdownMenuContent 
           align={direction === 'rtl' ? 'end' : 'start'} 
@@ -45,6 +55,6 @@ export function QuickAddButton() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </motion.div>
   );
 }

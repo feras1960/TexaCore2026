@@ -3,13 +3,11 @@
  * تعرض محتوى التبويب المحدد مع دعم الإحصائيات
  */
 
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import {
   type SheetConfig,
-  type SheetTab,
   type DocType,
   type StatCardConfig,
   type NestedSheetConfig,
@@ -27,6 +25,11 @@ interface UniversalDetailContentProps {
   onRefresh?: () => void;
 }
 
+const resolveLabel = (label: string, _labelAr: string | undefined, t: (key: string) => string, _isArabic: boolean) => {
+  // Always use translation system - label should be a translation key
+  return t(label);
+};
+
 // Stats Card Component
 function StatsCard({ stat, data, language, t }: {
   stat: StatCardConfig;
@@ -37,7 +40,7 @@ function StatsCard({ stat, data, language, t }: {
   const isArabic = language === 'ar';
   const Icon = stat.icon;
   const value = stat.value(data);
-  const label = isArabic && stat.labelAr ? stat.labelAr : stat.label;
+  const label = resolveLabel(stat.label, stat.labelAr, t, isArabic);
   const formattedValue = stat.format ? stat.format(value, data) : value;
 
   const colorClasses: Record<string, string> = {
@@ -121,7 +124,7 @@ export function UniversalDetailContent({
   activeTab,
   language,
   t,
-  direction,
+  direction: _direction,
   loading = false,
   onRowClick,
   onRefresh,
