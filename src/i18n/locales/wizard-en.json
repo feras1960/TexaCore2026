@@ -1,0 +1,86 @@
+{
+  "wizard": {
+    "step": "Step",
+    "selectBusinessType": "Please select a business type",
+    "companyNameRequired": "Company name is required",
+    "registrationFailed": "Registration failed",
+    "completing": "Completing...",
+    "complete": "Complete",
+    "success": "Registration completed successfully!",
+    "successFabric": "Two companies created successfully - production and testing!",
+    "fabricNote": "📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "summary": "Summary",
+    "businessType": "Business Type",
+    "companyName": "Company Name",
+    "companyNamePlaceholder": "United Trading Company",
+    "address": "Address",
+    "addressPlaceholder": "Street, Building, District",
+    "city": "City",
+    "cityPlaceholder": "Riyadh",
+    "country": "Country",
+    "countryPlaceholder": "SA",
+    "phone": "Phone",
+    "website": "Website",
+    "currency": "Currency",
+    "fiscalYearStart": "Fiscal Year Start",
+    
+    "step1": {
+      "title": "Choose Your Business Type",
+      "description": "Select the business activity that fits your company"
+    },
+    
+    "step2": {
+      "title": "Company Information",
+      "description": "Enter your company's basic details"
+    },
+    
+    "step3": {
+      "title": "Financial Settings",
+      "description": "Set your currency and fiscal year start"
+    },
+    
+    "businessTypes": {
+      "general": {
+        "name": "General",
+        "description": "General and diverse business"
+      },
+      "fabric": {
+        "name": "Fabric",
+        "description": "Fabric and textile trading"
+      },
+      "exchange": {
+        "name": "Exchange",
+        "description": "Money transfer and exchange"
+      },
+      "healthcare": {
+        "name": "Healthcare",
+        "description": "Medical and healthcare services"
+      },
+      "ecommerce": {
+        "name": "E-commerce",
+        "description": "Online retail store"
+      }
+    }
+  },
+  
+  "settings": {
+    "companySwitcher": {
+      "title": "Company Switcher",
+      "description": "Switch the currently active company",
+      "currentCompany": "Current Company",
+      "availableCompanies": "Available Companies",
+      "current": "Current",
+      "switch": "Switch",
+      "loadError": "Failed to load companies",
+      "switchError": "Failed to switch company",
+      "switchSuccess": "Company switched successfully",
+      "singleCompany": "You have only one company",
+      "fabricInfo": "💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "types": {
+        "production": "Production",
+        "testing": "Testing"
+      }
+    }
+  }
+}

@@ -15,6 +15,9 @@ build
 .env.development.local
 .env.test.local
 .env.production.local
+.env.mcp
+.env.mcp.*
+!.env.mcp.template
 
 # IDE
 .idea

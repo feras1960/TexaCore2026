@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "Planınızı Seçin",
+    "step4Description": "Ücretsiz deneme ile başlayın ve size uygun planı seçin",
+    "monthly": "Aylık",
+    "yearly": "Yıllık",
+    "month": "ay",
+    "year": "yıl",
+    "save": "Tasarruf",
+    "discount50": "%50 Lansman İndirimi",
+    "freeMonths": "2 ay ücretsiz",
+    "mostPopular": "En Popüler",
+    "selectPlan": "Lütfen bir plan seçin",
+    "planNote": "Planınızı istediğiniz zaman kontrol panelinden değiştirebilir veya yükseltebilirsiniz",
+    
+    "plans": {
+      "starter": {
+        "name": "Başlangıç Planı",
+        "description": "Küçük işletmeler ve girişimler için mükemmel",
+        "feature1": "1 şirket",
+        "feature2": "5 kullanıcı",
+        "feature3": "50 şube",
+        "feature4": "10 GB depolama",
+        "feature5": "14 günlük deneme"
+      },
+      "professional": {
+        "name": "Profesyonel Plan",
+        "description": "Büyüyen ve orta ölçekli işletmeler için",
+        "feature1": "3 şirket",
+        "feature2": "20 kullanıcı",
+        "feature3": "200 şube",
+        "feature4": "100 GB depolama",
+        "feature5": "30 günlük deneme",
+        "feature6": "Öncelikli destek"
+      },
+      "enterprise": {
+        "name": "Kurumsal Plan",
+        "description": "Büyük kuruluşlar ve çok şubeli şirketler için",
+        "feature1": "Sınırsız",
+        "feature2": "500 GB depolama",
+        "feature3": "30 günlük deneme",
+        "feature4": "White Label",
+        "feature5": "API Erişimi",
+        "feature6": "Özel destek"
+      }
+    }
+  }
+}

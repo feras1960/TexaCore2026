@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { LucideIcon, Loader2 } from 'lucide-react';
+import { useModules } from '@/hooks/useModules';
 
 export interface ActionButton {
   id: string;
@@ -13,6 +14,9 @@ export interface ActionButton {
   disabled?: boolean;
   loading?: boolean;
   hidden?: boolean;
+  // ✅ صلاحيات جديدة
+  requiredPermission?: 'create' | 'edit' | 'delete' | 'export' | 'import' | 'approve' | 'manage_settings';
+  requiredModule?: string;
 }
 
 interface ActionButtonsBarProps {
@@ -20,6 +24,8 @@ interface ActionButtonsBarProps {
   className?: string;
   align?: 'start' | 'center' | 'end' | 'between';
   size?: 'sm' | 'default' | 'lg';
+  // ✅ إضافة moduleCode لفحص الصلاحيات
+  moduleCode?: string;
 }
 
 export function ActionButtonsBar({
@@ -27,8 +33,10 @@ export function ActionButtonsBar({
   className,
   align = 'end',
   size = 'default',
+  moduleCode,
 }: ActionButtonsBarProps) {
   const { t } = useLanguage();
+  const { hasModule, hasPermission } = useModules();
 
   const alignClasses = {
     start: 'justify-start',
@@ -37,7 +45,23 @@ export function ActionButtonsBar({
     between: 'justify-between',
   };
 
-  const visibleActions = actions.filter(a => !a.hidden);
+  // ✅ فلترة الأزرار حسب الصلاحيات
+  const visibleActions = actions.filter(action => {
+    // إخفاء الأزرار المخفية يدوياً
+    if (action.hidden) return false;
+
+    // التحقق من الموديول المطلوب
+    if (action.requiredModule && !hasModule(action.requiredModule)) {
+      return false;
+    }
+
+    // التحقق من الصلاحية المطلوبة
+    if (action.requiredPermission && moduleCode) {
+      return hasPermission(moduleCode, action.requiredPermission);
+    }
+
+    return true;
+  });
 
   if (visibleActions.length === 0) return null;
 

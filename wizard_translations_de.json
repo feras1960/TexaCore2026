@@ -1,0 +1,92 @@
+{
+  "wizard": {
+    "step": "Schritt",
+    "of": "von",
+    "title": "Konto-Einrichtung",
+    "description": "Vervollständigen Sie Ihre Firmeninformationen, um das System zu nutzen",
+    "step1Title": "Geschäftstyp & Firmenname",
+    "step1Description": "Wählen Sie Ihren Geschäftstyp und geben Sie Ihren Firmennamen ein",
+    "step2Title": "Firmeninformationen",
+    "step2Description": "Geben Sie die grundlegenden Details Ihrer Firma ein",
+    "step3Title": "Finanzeinstellungen",
+    "step3Description": "Währungen und Geschäftsjahresbeginn festlegen",
+    "selectBusinessType": "Bitte wählen Sie einen Geschäftstyp",
+    "selectBusinessTypeAndName": "Bitte wählen Sie Geschäftstyp und geben Sie Firmennamen ein",
+    "companyNameRequired": "Firmenname ist erforderlich",
+    "countryRequired": "Bitte wählen Sie ein Land",
+    "cityRequired": "Bitte geben Sie eine Stadt ein",
+    "countryAndCityRequired": "Bitte wählen Sie Land und Stadt",
+    "companyName": "Firmenname",
+    "companyNamePlaceholder": "Beispiel: Fortschrittliches Technologieunternehmen",
+    "companyNameHint": "Bitte geben Sie Ihren Firmennamen ein, um fortzufahren",
+    "companyNameFromRegistration": "Firmenname aus der Registrierung (Sie können ihn bearbeiten)",
+    "businessTypeHint": "Wählen Sie den Geschäftstyp, der zu Ihrer Firma passt",
+    "country": "Land",
+    "selectCountry": "Land wählen",
+    "city": "Stadt",
+    "cityPlaceholder": "Beispiel: Berlin",
+    "address": "Adresse",
+    "addressPlaceholder": "Beispiel: Unter den Linden 1",
+    "website": "Webseite",
+    "websitePlaceholder": "https://beispiel.de",
+    "phone": "Telefon",
+    "phonePlaceholder": "+49 XXX XXXXXXX",
+    "email": "E-Mail",
+    "emailPlaceholder": "info@beispiel.de",
+    "localCurrency": "Lokale Währung",
+    "mainCurrency": "Hauptwährung",
+    "selectCurrency": "Währung wählen",
+    "selectMainCurrency": "Hauptwährung wählen",
+    "localCurrencyNote": "In Ihrem Land verwendete Währung (kann später geändert werden)",
+    "mainCurrencyNote": "Hauptwährung für Berichte und Analysen (Sie können zusätzliche Währungen in den Einstellungen hinzufügen)",
+    "fiscalYearStart": "Beginn des Geschäftsjahres",
+    "summary": "Zusammenfassung",
+    "businessType": "Geschäftstyp",
+    "next": "Weiter",
+    "back": "Zurück",
+    "complete": "Registrierung abschließen",
+    "submitting": "Wird abgeschlossen...",
+    "success": "Registrierung erfolgreich abgeschlossen! Weiterleitung...",
+    "successFabric": "Zwei Unternehmen erfolgreich erstellt! Weiterleitung...",
+    "registrationFailed": "Registrierung fehlgeschlagen. Bitte versuchen Sie es erneut",
+    "fabricNote": "📌 Zwei Unternehmen werden für Sie erstellt: Production für echte Arbeit und Testing für Experimente",
+    "fabricSummary": "Zwei Unternehmen werden erstellt: Production (für echte Arbeit) und Testing (für Experimente)",
+    "fabricCurrencyNote": "💰 Production-Unternehmen in ausgewählter lokaler Währung, Testing-Unternehmen in USD",
+    "months": {
+      "january": "Januar",
+      "february": "Februar",
+      "march": "März",
+      "april": "April",
+      "may": "Mai",
+      "june": "Juni",
+      "july": "Juli",
+      "august": "August",
+      "september": "September",
+      "october": "Oktober",
+      "november": "November",
+      "december": "Dezember"
+    },
+    "businessTypes": {
+      "general": {
+        "name": "Allgemein",
+        "description": "Allgemeines und vielfältiges Geschäft"
+      },
+      "fabric": {
+        "name": "Textilien",
+        "description": "Stoff- und Textilhandel"
+      },
+      "exchange": {
+        "name": "Wechselstube",
+        "description": "Geldtransfer und Wechsel"
+      },
+      "healthcare": {
+        "name": "Gesundheitswesen",
+        "description": "Medizinische und Gesundheitsdienstleistungen"
+      },
+      "ecommerce": {
+        "name": "E-Commerce",
+        "description": "Online-Einzelhandelsgeschäft"
+      }
+    }
+  }
+}

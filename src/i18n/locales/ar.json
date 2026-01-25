@@ -2031,6 +2031,23 @@
     "reject": "رفض",
     "reports": "التقارير",
     "settings": "الإعدادات",
+    "companySwitcher": {
+      "title": "التنقل بين الشركات",
+      "description": "تبديل الشركة النشطة حالياً",
+      "currentCompany": "الشركة الحالية",
+      "availableCompanies": "الشركات المتاحة",
+      "current": "الحالية",
+      "switch": "التبديل",
+      "loadError": "فشل تحميل الشركات",
+      "switchError": "فشل تبديل الشركة",
+      "switchSuccess": "تم تبديل الشركة بنجاح",
+      "singleCompany": "لديك شركة واحدة فقط",
+      "fabricInfo": "💡 شركات الأقمشة لديها بيئتين: حقيقية للعمل الفعلي، وتجريبية للاختبارات",
+      "types": {
+        "production": "حقيقية",
+        "testing": "تجريبية"
+      }
+    },
     "status": {
       "active": "نشط",
       "cancelled": "ملغي",
@@ -2545,5 +2562,131 @@
     "invalidInput": "إدخال غير صحيح",
     "negative": "سالب!",
     "required": "مطلوب"
+  },
+  "wizard": {
+    "step": "الخطوة",
+    "of": "من",
+    "title": "إعداد الحساب",
+    "description": "أكمل معلومات شركتك لبدء استخدام النظام",
+    "step1Title": "نوع العمل واسم الشركة",
+    "step1Description": "اختر نوع عملك وأدخل اسم شركتك",
+    "step2Title": "معلومات الشركة",
+    "step2Description": "أدخل التفاصيل الأساسية للشركة",
+    "step3Title": "الإعدادات المالية",
+    "step3Description": "حدد العملات وبداية السنة المالية",
+    "selectBusinessType": "يرجى اختيار نوع العمل",
+    "selectBusinessTypeAndName": "الرجاء اختيار نوع العمل وإدخال اسم الشركة",
+    "companyNameRequired": "اسم الشركة مطلوب",
+    "countryRequired": "الرجاء اختيار الدولة",
+    "cityRequired": "الرجاء إدخال المدينة",
+    "countryAndCityRequired": "الرجاء اختيار الدولة والمدينة",
+    "companyName": "اسم الشركة",
+    "companyNamePlaceholder": "مثال: شركة التقنية المتقدمة",
+    "companyNameHint": "الرجاء إدخال اسم شركتك للمتابعة",
+    "companyNameFromRegistration": "تم جلب اسم الشركة من بيانات التسجيل (يمكنك تعديله)",
+    "businessTypeHint": "اختر نوع العمل الذي يناسب نشاط شركتك",
+    "country": "الدولة",
+    "selectCountry": "اختر الدولة",
+    "city": "المدينة",
+    "cityPlaceholder": "مثال: الرياض",
+    "address": "العنوان",
+    "addressPlaceholder": "مثال: شارع الملك فهد، حي العليا",
+    "website": "الموقع الإلكتروني",
+    "websitePlaceholder": "https://example.com",
+    "phone": "الهاتف",
+    "phonePlaceholder": "+966 XX XXX XXXX",
+    "email": "البريد الإلكتروني",
+    "emailPlaceholder": "info@example.com",
+    "localCurrency": "العملة المحلية",
+    "mainCurrency": "العملة الرئيسية",
+    "selectCurrency": "اختر العملة",
+    "selectMainCurrency": "اختر العملة الرئيسية",
+    "localCurrencyNote": "العملة المستخدمة في بلدك (يمكن تغييرها لاحقاً)",
+    "mainCurrencyNote": "العملة الأساسية للتقارير والتحليلات (يمكنك إضافة عملات إضافية من الإعدادات)",
+    "fiscalYearStart": "بداية السنة المالية",
+    "summary": "ملخص",
+    "businessType": "نوع العمل",
+    "next": "التالي",
+    "back": "السابق",
+    "complete": "إكمال التسجيل",
+    "submitting": "جارٍ الإكمال...",
+    "success": "تم التسجيل بنجاح! جارٍ التوجيه...",
+    "successFabric": "تم إنشاء شركتين بنجاح! جارٍ التوجيه...",
+    "registrationFailed": "فشل التسجيل. يرجى المحاولة مرة أخرى",
+    "userNotFound": "لم يتم العثور على المستخدم. يرجى تسجيل الدخول مرة أخرى",
+    "fillAllFields": "الرجاء ملء جميع الحقول المطلوبة",
+    "fabricNote": "📌 سيتم إنشاء شركتين لك: حقيقية للعمل الفعلي، وتجريبية للاختبارات والتجارب",
+    "fabricSummary": "سيتم إنشاء شركتين: حقيقية (للعمل الفعلي) وتجريبية (للاختبارات)",
+    "fabricCurrencyNote": "💰 الشركة الحقيقية بالعملة المحلية المختارة، والتجريبية بالدولار USD",
+    "months": {
+      "january": "يناير",
+      "february": "فبراير",
+      "march": "مارس",
+      "april": "أبريل",
+      "may": "مايو",
+      "june": "يونيو",
+      "july": "يوليو",
+      "august": "أغسطس",
+      "september": "سبتمبر",
+      "october": "أكتوبر",
+      "november": "نوفمبر",
+      "december": "ديسمبر"
+    },
+    "registrationFailed": "فشل التسجيل",
+    "completing": "جاري الإكمال...",
+    "complete": "إكمال",
+    "success": "تم إكمال التسجيل بنجاح!",
+    "successFabric": "تم إنشاء شركتين بنجاح - حقيقية وتجريبية!",
+    "fabricNote": "📌 سيتم إنشاء شركتين لك: حقيقية للعمل الفعلي، وتجريبية للاختبارات والتجارب",
+    "fabricSummary": "سيتم إنشاء شركتين: حقيقية (للعمل الفعلي) وتجريبية (للاختبارات)",
+    "fabricCurrencyNote": "💰 الشركة الحقيقية بالعملة المختارة، والتجريبية بالدولار USD",
+    "summary": "ملخص",
+    "businessType": "نوع العمل",
+    "companyName": "اسم الشركة",
+    "companyNamePlaceholder": "شركة التجارة المتحدة",
+    "address": "العنوان",
+    "addressPlaceholder": "الشارع، المبنى، الحي",
+    "city": "المدينة",
+    "cityPlaceholder": "الرياض",
+    "country": "الدولة",
+    "countryPlaceholder": "SA",
+    "phone": "الهاتف",
+    "website": "الموقع الإلكتروني",
+    "currency": "العملة",
+    "fiscalYearStart": "بداية السنة المالية",
+    "step1": {
+      "title": "اختر نوع عملك",
+      "description": "اختر نوع النشاط التجاري الذي يناسب شركتك"
+    },
+    "step2": {
+      "title": "معلومات الشركة",
+      "description": "أدخل التفاصيل الأساسية لشركتك"
+    },
+    "step3": {
+      "title": "الإعدادات المالية",
+      "description": "حدد العملة وبداية السنة المالية"
+    },
+    "businessTypes": {
+      "general": {
+        "name": "عام",
+        "description": "أعمال عامة ومتنوعة"
+      },
+      "fabric": {
+        "name": "أقمشة",
+        "description": "تجارة الأقمشة والمنسوجات"
+      },
+      "exchange": {
+        "name": "صرافة",
+        "description": "تحويلات مالية وصرافة"
+      },
+      "healthcare": {
+        "name": "صحة",
+        "description": "خدمات طبية وصحية"
+      },
+      "ecommerce": {
+        "name": "تجارة إلكترونية",
+        "description": "متجر إلكتروني أونلاين"
+      }
+    }
   }
 }

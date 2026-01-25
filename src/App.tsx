@@ -18,6 +18,7 @@ const ActivityLog = React.lazy(() => import('@/features/admin/activityLog/Activi
 const ComponentLab = React.lazy(() => import('@/features/componentLab/ComponentLab'));
 const Login = React.lazy(() => import('@/features/auth/Login'));
 const Register = React.lazy(() => import('@/features/auth/Register'));
+const RegistrationWizard = React.lazy(() => import('@/features/auth/RegistrationWizard'));
 const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
 
 // Public Route Guard (redirects to home if already authenticated)
@@ -70,6 +71,8 @@ function AppRoutes() {
 
         {/* Protected Routes */}
         <Route element={<AuthGuard />}>
+          {/* Registration Wizard - After signup */}
+          <Route path="/registration-wizard" element={<RegistrationWizard />} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<Dashboard />} />
           <Route path="/accounting/*" element={<Accounting />} />

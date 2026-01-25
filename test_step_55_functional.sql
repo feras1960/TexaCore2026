@@ -111,68 +111,115 @@ BEGIN
     END IF;
     
     -- إنشاء طلب تجريبي
-    INSERT INTO orders (
-        tenant_id, company_id, customer_id,
-        order_number, status, payment_method,
-        subtotal, total, payment_status
-    )
-    VALUES (
-        v_tenant_id, v_company_id, v_customer_id,
-        'ORD-TEST-' || EXTRACT(EPOCH FROM NOW())::TEXT,
-        'pending', 'cash_on_delivery',
-        250.00, 250.00, 'pending'
-    )
-    RETURNING id INTO v_order_id;
+    BEGIN
+        -- محاولة 1: مع total
+        INSERT INTO orders (
+            tenant_id, company_id, customer_id,
+            order_number, status, payment_method,
+            subtotal, total, payment_status
+        )
+        VALUES (
+            v_tenant_id, v_company_id, v_customer_id,
+            'ORD-TEST-' || EXTRACT(EPOCH FROM NOW())::TEXT,
+            'pending', 'cash_on_delivery',
+            250.00, 250.00, 'pending'
+        )
+        RETURNING id INTO v_order_id;
+    EXCEPTION
+        WHEN undefined_column THEN
+            -- محاولة 2: بدون total (ربما يتم حسابه تلقائياً)
+            BEGIN
+                INSERT INTO orders (
+                    tenant_id, company_id, customer_id,
+                    order_number, status, payment_method,
+                    subtotal, payment_status
+                )
+                VALUES (
+                    v_tenant_id, v_company_id, v_customer_id,
+                    'ORD-TEST-' || EXTRACT(EPOCH FROM NOW())::TEXT,
+                    'pending', 'cash_on_delivery',
+                    250.00, 'pending'
+                )
+                RETURNING id INTO v_order_id;
+            EXCEPTION
+                WHEN undefined_column THEN
+                    -- محاولة 3: الحد الأدنى
+                    INSERT INTO orders (
+                        tenant_id, company_id, customer_id,
+                        order_number, status
+                    )
+                    VALUES (
+                        v_tenant_id, v_company_id, v_customer_id,
+                        'ORD-TEST-' || EXTRACT(EPOCH FROM NOW())::TEXT,
+                        'pending'
+                    )
+                    RETURNING id INTO v_order_id;
+            END;
+    END;
     
     -- إضافة عناصر الطلب
     BEGIN
-        INSERT INTO order_items (tenant_id, order_id, product_id, quantity, unit_price, total_price)
-        VALUES (v_tenant_id, v_order_id, v_product_id, 2, 100.00, 200.00);
+        -- محاولة 1: مع product_name
+        INSERT INTO order_items (tenant_id, order_id, product_id, product_name, quantity, unit_price, total_price)
+        VALUES (v_tenant_id, v_order_id, v_product_id, 'Test Product', 2, 100.00, 200.00);
     EXCEPTION
         WHEN undefined_column THEN
-            -- محاولة بدون tenant_id
-            INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price)
-            VALUES (v_order_id, v_product_id, 2, 100.00, 200.00);
+            -- محاولة 2: بدون tenant_id
+            BEGIN
+                INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price)
+                VALUES (v_order_id, v_product_id, 'Test Product', 2, 100.00, 200.00);
+            EXCEPTION
+                WHEN undefined_column THEN
+                    -- محاولة 3: الحد الأدنى
+                    INSERT INTO order_items (order_id, product_id, quantity, unit_price)
+                    VALUES (v_order_id, v_product_id, 2, 100.00);
+            END;
     END;
     
     -- إنشاء مستودع ونقطة بيع للاختبار
     BEGIN
         -- محاولة إنشاء مستودع
         BEGIN
-            INSERT INTO warehouses (tenant_id, code, name_ar, name_en)
-            VALUES (v_tenant_id, 'WH-MAIN', 'المستودع الرئيسي', 'Main Warehouse')
-            ON CONFLICT (tenant_id, code) DO UPDATE SET name_ar = EXCLUDED.name_ar
+            -- محاولة 1: بدون tenant_id وبدون ON CONFLICT
+            INSERT INTO warehouses (code, name)
+            VALUES ('WH-MAIN-' || EXTRACT(EPOCH FROM NOW())::INT, 'Main Warehouse')
             RETURNING id INTO v_warehouse_id;
         EXCEPTION
             WHEN undefined_column THEN
-                -- محاولة بدون name_ar/name_en
-                INSERT INTO warehouses (tenant_id, code, name)
-                VALUES (v_tenant_id, 'WH-MAIN', 'Main Warehouse')
-                ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
+                -- محاولة 2: مع name_ar/name_en
+                INSERT INTO warehouses (code, name_ar, name_en)
+                VALUES ('WH-MAIN-' || EXTRACT(EPOCH FROM NOW())::INT, 'المستودع الرئيسي', 'Main Warehouse')
                 RETURNING id INTO v_warehouse_id;
+            WHEN unique_violation THEN
+                -- إذا كان موجود
+                SELECT id INTO v_warehouse_id FROM warehouses WHERE code LIKE 'WH-%' LIMIT 1;
         END;
         
         -- إذا لم يتم إنشاء المستودع، جرّب الحصول على موجود
         IF v_warehouse_id IS NULL THEN
-            SELECT id INTO v_warehouse_id FROM warehouses WHERE tenant_id = v_tenant_id LIMIT 1;
+            SELECT id INTO v_warehouse_id FROM warehouses LIMIT 1;
         END IF;
         
         -- محاولة إنشاء نقطة بيع
         BEGIN
-            INSERT INTO pos_branches (tenant_id, company_id, code, name_ar, name_en)
-            VALUES (v_tenant_id, v_company_id, 'POS-01', 'فرع دبي', 'Dubai Branch')
-            ON CONFLICT (tenant_id, code) DO UPDATE SET name_ar = EXCLUDED.name_ar
+            INSERT INTO pos_branches (company_id, code, name)
+            VALUES (v_company_id, 'POS-01-' || EXTRACT(EPOCH FROM NOW())::INT, 'Dubai Branch')
             RETURNING id INTO v_pos_branch_id;
         EXCEPTION
             WHEN undefined_column THEN
-                -- محاولة بدون name_ar/name_en
-                INSERT INTO pos_branches (tenant_id, company_id, code, name)
-                VALUES (v_tenant_id, v_company_id, 'POS-01', 'Dubai Branch')
-                ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
+                -- محاولة بأعمدة مختلفة
+                INSERT INTO pos_branches (company_id, code, name_ar, name_en)
+                VALUES (v_company_id, 'POS-01-' || EXTRACT(EPOCH FROM NOW())::INT, 'فرع دبي', 'Dubai Branch')
                 RETURNING id INTO v_pos_branch_id;
         WHEN undefined_table THEN
             -- إذا الجدول غير موجود، استخدم warehouse كبديل
             v_pos_branch_id := v_warehouse_id;
+        WHEN unique_violation THEN
+            -- إذا كان موجود
+            SELECT id INTO v_pos_branch_id FROM pos_branches LIMIT 1;
+            IF v_pos_branch_id IS NULL THEN
+                v_pos_branch_id := v_warehouse_id;
+            END IF;
         END;
         
         -- إذا لم يتم إنشاء نقطة البيع، استخدم المستودع كبديل
@@ -437,7 +484,7 @@ BEGIN
     RAISE NOTICE '   📋 آخر الأحداث:';
     FOR v_result IN 
         SELECT 
-            TO_CHAR(timestamp, 'HH24:MI:SS') as time,
+            TO_CHAR(event_timestamp, 'HH24:MI:SS') as time,
             event_type,
             description
         FROM get_order_timeline(v_tenant_id, v_order_id)

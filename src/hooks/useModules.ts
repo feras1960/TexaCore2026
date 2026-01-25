@@ -1,6 +1,7 @@
 /**
  * useModules Hook
- * للتعامل مع الموديولات المتاحة للتينانت
+ * للتعامل مع الموديولات المتاحة للمستخدم مع الصلاحيات
+ * ✅ Updated to use get_user_allowed_modules
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,14 +9,14 @@ import { modulesService, type TenantModule, type SidebarStructure } from '@/serv
 import { useAuth } from './useAuth';
 
 export function useModules() {
-  const { tenantId } = useAuth();
+  const { user, tenantId } = useAuth();
   const [modules, setModules] = useState<TenantModule[]>([]);
   const [sidebar, setSidebar] = useState<SidebarStructure | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadModules = useCallback(async () => {
-    if (!tenantId) {
+    if (!user?.id) {
       setLoading(false);
       return;
     }
@@ -25,8 +26,8 @@ export function useModules() {
 
     try {
       const [modulesData, sidebarData] = await Promise.all([
-        modulesService.getAvailableModules(tenantId),
-        modulesService.getSidebarStructure(tenantId)
+        modulesService.getAvailableModules(user.id),
+        modulesService.getSidebarStructure(user.id)
       ]);
 
       setModules(modulesData);
@@ -37,7 +38,7 @@ export function useModules() {
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [user?.id]);
 
   useEffect(() => {
     loadModules();
@@ -79,6 +80,39 @@ export function useModules() {
     return modules.filter(m => m.is_enabled);
   }, [modules]);
 
+  /**
+   * التحقق من صلاحية معينة على موديول
+   */
+  const hasPermission = useCallback((
+    moduleCode: string,
+    permission: 'view' | 'create' | 'edit' | 'delete' | 'export' | 'import' | 'approve' | 'manage_settings'
+  ): boolean => {
+    const module = modules.find(m => m.module_code === moduleCode);
+    if (!module || !module.is_enabled) return false;
+
+    const permissionKey = `can_${permission}` as keyof TenantModule;
+    return module[permissionKey] === true;
+  }, [modules]);
+
+  /**
+   * الحصول على كل صلاحيات موديول معين
+   */
+  const getModulePermissions = useCallback((moduleCode: string): Record<string, boolean> => {
+    const module = modules.find(m => m.module_code === moduleCode);
+    if (!module) return {};
+
+    return {
+      can_view: module.can_view || false,
+      can_create: module.can_create || false,
+      can_edit: module.can_edit || false,
+      can_delete: module.can_delete || false,
+      can_export: module.can_export || false,
+      can_import: module.can_import || false,
+      can_approve: module.can_approve || false,
+      can_manage_settings: module.can_manage_settings || false
+    };
+  }, [modules]);
+
   return {
     modules,
     sidebar,
@@ -89,6 +123,8 @@ export function useModules() {
     getModule,
     getLockedModules,
     getEnabledModules,
+    hasPermission,
+    getModulePermissions,
     refresh: loadModules
   };
 }

@@ -2031,6 +2031,23 @@
     "reject": "Reject",
     "reports": "Reports",
     "settings": "Settings",
+    "companySwitcher": {
+      "title": "Company Switcher",
+      "description": "Switch the currently active company",
+      "currentCompany": "Current Company",
+      "availableCompanies": "Available Companies",
+      "current": "Current",
+      "switch": "Switch",
+      "loadError": "Failed to load companies",
+      "switchError": "Failed to switch company",
+      "switchSuccess": "Company switched successfully",
+      "singleCompany": "You have only one company",
+      "fabricInfo": "💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "types": {
+        "production": "Production",
+        "testing": "Testing"
+      }
+    },
     "status": {
       "active": "Active",
       "cancelled": "Cancelled",
@@ -2545,5 +2562,108 @@
     "invalidInput": "Invalid input",
     "negative": "Negative!",
     "required": "Required"
+  },
+  "wizard": {
+    "step": "Step",
+    "of": "of",
+    "title": "Account Setup",
+    "description": "Complete your company information to start using the system",
+    "step1Title": "Business Type & Company Name",
+    "step1Description": "Choose your business type and enter your company name",
+    "step2Title": "Company Information",
+    "step2Description": "Enter your company's basic details",
+    "step3Title": "Financial Settings",
+    "step3Description": "Set currencies and fiscal year start",
+    "selectBusinessType": "Please select a business type",
+    "selectBusinessTypeAndName": "Please select business type and enter company name",
+    "companyNameRequired": "Company name is required",
+    "countryRequired": "Please select a country",
+    "cityRequired": "Please enter a city",
+    "countryAndCityRequired": "Please select country and city",
+    "companyName": "Company Name",
+    "companyNamePlaceholder": "Example: Advanced Technology Company",
+    "companyNameHint": "Please enter your company name to continue",
+    "companyNameFromRegistration": "Company name from registration (you can edit it)",
+    "businessTypeHint": "Choose the business type that fits your company",
+    "country": "Country",
+    "selectCountry": "Select Country",
+    "city": "City",
+    "cityPlaceholder": "Example: Riyadh",
+    "address": "Address",
+    "addressPlaceholder": "Example: King Fahd Street, Al Olaya",
+    "website": "Website",
+    "websitePlaceholder": "https://example.com",
+    "phone": "Phone",
+    "phonePlaceholder": "+966 XX XXX XXXX",
+    "email": "Email",
+    "emailPlaceholder": "info@example.com",
+    "localCurrency": "Local Currency",
+    "mainCurrency": "Main Currency",
+    "selectCurrency": "Select Currency",
+    "selectMainCurrency": "Select Main Currency",
+    "localCurrencyNote": "Currency used in your country (can be changed later)",
+    "mainCurrencyNote": "Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "fiscalYearStart": "Fiscal Year Start",
+    "summary": "Summary",
+    "businessType": "Business Type",
+    "next": "Next",
+    "back": "Back",
+    "complete": "Complete Registration",
+    "submitting": "Completing...",
+    "success": "Registration completed successfully! Redirecting...",
+    "successFabric": "Two companies created successfully! Redirecting...",
+    "registrationFailed": "Registration failed. Please try again",
+    "userNotFound": "User not found. Please login again",
+    "fabricNote": "📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fabricCurrencyNote": "💰 Production company in selected local currency, Testing company in USD",
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
+    },
+    "step1": {
+      "title": "Choose Your Business Type",
+      "description": "Select the business activity that fits your company"
+    },
+    "step2": {
+      "title": "Company Information",
+      "description": "Enter your company's basic details"
+    },
+    "step3": {
+      "title": "Financial Settings",
+      "description": "Set your currency and fiscal year start"
+    },
+    "businessTypes": {
+      "general": {
+        "name": "General",
+        "description": "General and diverse business"
+      },
+      "fabric": {
+        "name": "Fabric",
+        "description": "Fabric and textile trading"
+      },
+      "exchange": {
+        "name": "Exchange",
+        "description": "Money transfer and exchange"
+      },
+      "healthcare": {
+        "name": "Healthcare",
+        "description": "Medical and healthcare services"
+      },
+      "ecommerce": {
+        "name": "E-commerce",
+        "description": "Online retail store"
+      }
+    }
   }
 }

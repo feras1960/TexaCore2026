@@ -52,7 +52,8 @@ import {
   Lock,
   Users,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRightLeft
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -63,6 +64,7 @@ import {
 
 // Import Module Management
 import ModuleManagement from './components/ModuleManagement';
+import { CompanySwitcher } from '@/components/settings/CompanySwitcher';
 
 // Mock webhooks data
 const mockWebhooks = [
@@ -130,6 +132,10 @@ export default function SaaSSettings() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={direction}>
         <TabsList className="w-full justify-start bg-white dark:bg-gray-800 p-1 border border-gray-200 dark:border-gray-700 rounded-lg mb-6 overflow-x-auto">
+          <TabsTrigger value="company" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white">
+            <ArrowRightLeft className="w-4 h-4" />
+            {language === 'ar' ? 'الشركات' : 'Companies'}
+          </TabsTrigger>
           <TabsTrigger value="modules" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white">
             <Package className="w-4 h-4" />
             {language === 'ar' ? 'الوحدات' : 'Modules'}
@@ -151,6 +157,11 @@ export default function SaaSSettings() {
             {language === 'ar' ? 'الأمان' : 'Security'}
           </TabsTrigger>
         </TabsList>
+
+        {/* Company Switcher Tab */}
+        <TabsContent value="company">
+          <CompanySwitcher />
+        </TabsContent>
 
         {/* Modules Tab */}
         <TabsContent value="modules">

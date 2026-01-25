@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "Scegli il tuo piano",
+    "step4Description": "Inizia con una prova gratuita e scegli il piano più adatto",
+    "monthly": "Mensile",
+    "yearly": "Annuale",
+    "month": "mese",
+    "year": "anno",
+    "save": "Risparmia",
+    "discount50": "Sconto lancio 50%",
+    "freeMonths": "2 mesi gratuiti",
+    "mostPopular": "Più popolare",
+    "selectPlan": "Si prega di selezionare un piano",
+    "planNote": "Puoi cambiare o aggiornare il tuo piano in qualsiasi momento dal dashboard",
+    
+    "plans": {
+      "starter": {
+        "name": "Piano Starter",
+        "description": "Perfetto per piccole imprese e startup",
+        "feature1": "1 azienda",
+        "feature2": "5 utenti",
+        "feature3": "50 filiali",
+        "feature4": "10 GB di storage",
+        "feature5": "14 giorni di prova"
+      },
+      "professional": {
+        "name": "Piano Professional",
+        "description": "Per aziende in crescita e di medie dimensioni",
+        "feature1": "3 aziende",
+        "feature2": "20 utenti",
+        "feature3": "200 filiali",
+        "feature4": "100 GB di storage",
+        "feature5": "30 giorni di prova",
+        "feature6": "Supporto prioritario"
+      },
+      "enterprise": {
+        "name": "Piano Enterprise",
+        "description": "Per grandi aziende e società multi-filiale",
+        "feature1": "Illimitato",
+        "feature2": "500 GB di storage",
+        "feature3": "30 giorni di prova",
+        "feature4": "White Label",
+        "feature5": "Accesso API",
+        "feature6": "Supporto dedicato"
+      }
+    }
+  }
+}

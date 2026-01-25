@@ -16,6 +16,15 @@ export interface TenantModule {
   is_core: boolean;
   requires_upgrade: boolean;
   upgrade_plan: string | null;
+  // User permissions (from get_user_allowed_modules)
+  can_view?: boolean;
+  can_create?: boolean;
+  can_edit?: boolean;
+  can_delete?: boolean;
+  can_export?: boolean;
+  can_import?: boolean;
+  can_approve?: boolean;
+  can_manage_settings?: boolean;
 }
 
 export interface SidebarStructure {
@@ -36,16 +45,17 @@ export interface SidebarStructure {
 
 export const modulesService = {
   /**
-   * الحصول على الموديولات المتاحة للتينانت الحالي
+   * الحصول على الموديولات المتاحة للمستخدم الحالي مع الصلاحيات
+   * استخدام get_user_allowed_modules بدلاً من get_tenant_available_modules
    */
-  async getAvailableModules(tenantId?: string): Promise<TenantModule[]> {
+  async getAvailableModules(userId: string): Promise<TenantModule[]> {
     const { data, error } = await supabase
-      .rpc('get_tenant_available_modules', {
-        p_tenant_id: tenantId || null
+      .rpc('get_user_allowed_modules', {
+        p_user_id: userId
       });
 
     if (error) {
-      console.error('Error fetching modules:', error);
+      console.error('Error fetching user modules:', error);
       throw error;
     }
 
@@ -53,29 +63,108 @@ export const modulesService = {
   },
 
   /**
-   * الحصول على بنية القائمة الجانبية
+   * (Deprecated) الحصول على موديولات التينانت - استخدم getAvailableModules بدلاً منها
    */
-  async getSidebarStructure(tenantId?: string): Promise<SidebarStructure> {
+  async getTenantModules(tenantId?: string): Promise<TenantModule[]> {
     const { data, error } = await supabase
-      .rpc('get_tenant_sidebar_structure', {
+      .rpc('get_tenant_available_modules', {
         p_tenant_id: tenantId || null
       });
 
     if (error) {
-      console.error('Error fetching sidebar structure:', error);
+      console.error('Error fetching tenant modules:', error);
       throw error;
     }
 
-    return data as SidebarStructure;
+    return data || [];
   },
 
   /**
-   * التحقق من توفر موديول معين
+   * الحصول على بنية القائمة الجانبية للمستخدم
    */
-  async checkModuleAccess(moduleCode: string, tenantId?: string): Promise<boolean> {
-    const modules = await this.getAvailableModules(tenantId);
+  async getSidebarStructure(userId: string): Promise<SidebarStructure> {
+    // نستخدم get_user_allowed_modules ونبني الـ sidebar منها
+    const modules = await this.getAvailableModules(userId);
+    
+    // تجميع الموديولات حسب الفئة
+    const categories: Record<string, any[]> = {};
+    
+    modules.forEach(module => {
+      if (!categories[module.category]) {
+        categories[module.category] = [];
+      }
+      
+      categories[module.category].push({
+        code: module.module_code,
+        name_ar: module.module_name_ar,
+        name_en: module.module_name_en,
+        icon: module.icon,
+        path: `/${module.module_code}`,
+        is_enabled: module.is_enabled,
+        is_core: module.is_core,
+        badge: module.requires_upgrade ? 'locked' : null
+      });
+    });
+    
+    // تحويل إلى مصفوفة مرتبة
+    const structure: SidebarStructure = {
+      categories: Object.entries(categories).map(([category, mods]) => ({
+        category,
+        modules: mods
+      }))
+    };
+    
+    return structure;
+  },
+
+  /**
+   * التحقق من توفر موديول معين للمستخدم
+   */
+  async checkModuleAccess(moduleCode: string, userId: string): Promise<boolean> {
+    const modules = await this.getAvailableModules(userId);
     const module = modules.find(m => m.module_code === moduleCode);
     return module?.is_enabled || false;
+  },
+
+  /**
+   * التحقق من صلاحية معينة على موديول
+   */
+  async checkModulePermission(
+    userId: string,
+    moduleCode: string,
+    permission: 'view' | 'create' | 'edit' | 'delete' | 'export' | 'import' | 'approve' | 'manage_settings'
+  ): Promise<boolean> {
+    const { data, error } = await supabase
+      .rpc('check_user_module_permission', {
+        p_user_id: userId,
+        p_module_code: moduleCode,
+        p_permission_type: permission
+      });
+
+    if (error) {
+      console.error('Error checking module permission:', error);
+      return false;
+    }
+
+    return data || false;
+  },
+
+  /**
+   * الحصول على كل صلاحيات المستخدم على موديول معين
+   */
+  async getModulePermissions(userId: string, moduleCode: string): Promise<Record<string, boolean>> {
+    const { data, error } = await supabase
+      .rpc('get_user_module_permissions', {
+        p_user_id: userId,
+        p_module_code: moduleCode
+      });
+
+    if (error) {
+      console.error('Error fetching module permissions:', error);
+      return {};
+    }
+
+    return data || {};
   },
 
   /**

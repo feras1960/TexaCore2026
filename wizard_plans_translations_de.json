@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "Wählen Sie Ihren Plan",
+    "step4Description": "Beginnen Sie mit einer kostenlosen Testversion und wählen Sie den passenden Plan",
+    "monthly": "Monatlich",
+    "yearly": "Jährlich",
+    "month": "Monat",
+    "year": "Jahr",
+    "save": "Sparen",
+    "discount50": "50% Einführungsrabatt",
+    "freeMonths": "2 Monate gratis",
+    "mostPopular": "Am beliebtesten",
+    "selectPlan": "Bitte wählen Sie einen Plan",
+    "planNote": "Sie können Ihren Plan jederzeit über das Dashboard ändern oder upgraden",
+    
+    "plans": {
+      "starter": {
+        "name": "Starter Plan",
+        "description": "Perfekt für kleine Unternehmen und Startups",
+        "feature1": "1 Unternehmen",
+        "feature2": "5 Benutzer",
+        "feature3": "50 Filialen",
+        "feature4": "10 GB Speicher",
+        "feature5": "14 Tage Testversion"
+      },
+      "professional": {
+        "name": "Professional Plan",
+        "description": "Für wachsende und mittelgroße Unternehmen",
+        "feature1": "3 Unternehmen",
+        "feature2": "20 Benutzer",
+        "feature3": "200 Filialen",
+        "feature4": "100 GB Speicher",
+        "feature5": "30 Tage Testversion",
+        "feature6": "Priority Support"
+      },
+      "enterprise": {
+        "name": "Enterprise Plan",
+        "description": "Für große Unternehmen und Multi-Filial-Firmen",
+        "feature1": "Unbegrenzt",
+        "feature2": "500 GB Speicher",
+        "feature3": "30 Tage Testversion",
+        "feature4": "White Label",
+        "feature5": "API-Zugriff",
+        "feature6": "Dedizierter Support"
+      }
+    }
+  }
+}

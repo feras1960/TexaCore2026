@@ -1,0 +1,86 @@
+{
+  "wizard": {
+    "step": "الخطوة",
+    "selectBusinessType": "يرجى اختيار نوع العمل",
+    "companyNameRequired": "اسم الشركة مطلوب",
+    "registrationFailed": "فشل التسجيل",
+    "completing": "جاري الإكمال...",
+    "complete": "إكمال",
+    "success": "تم إكمال التسجيل بنجاح!",
+    "successFabric": "تم إنشاء شركتين بنجاح - حقيقية وتجريبية!",
+    "fabricNote": "📌 سيتم إنشاء شركتين لك: حقيقية للعمل الفعلي، وتجريبية للاختبارات والتجارب",
+    "fabricSummary": "سيتم إنشاء شركتين: حقيقية (للعمل الفعلي) وتجريبية (للاختبارات)",
+    "summary": "ملخص",
+    "businessType": "نوع العمل",
+    "companyName": "اسم الشركة",
+    "companyNamePlaceholder": "شركة التجارة المتحدة",
+    "address": "العنوان",
+    "addressPlaceholder": "الشارع، المبنى، الحي",
+    "city": "المدينة",
+    "cityPlaceholder": "الرياض",
+    "country": "الدولة",
+    "countryPlaceholder": "SA",
+    "phone": "الهاتف",
+    "website": "الموقع الإلكتروني",
+    "currency": "العملة",
+    "fiscalYearStart": "بداية السنة المالية",
+    
+    "step1": {
+      "title": "اختر نوع عملك",
+      "description": "اختر نوع النشاط التجاري الذي يناسب شركتك"
+    },
+    
+    "step2": {
+      "title": "معلومات الشركة",
+      "description": "أدخل التفاصيل الأساسية لشركتك"
+    },
+    
+    "step3": {
+      "title": "الإعدادات المالية",
+      "description": "حدد العملة وبداية السنة المالية"
+    },
+    
+    "businessTypes": {
+      "general": {
+        "name": "عام",
+        "description": "أعمال عامة ومتنوعة"
+      },
+      "fabric": {
+        "name": "أقمشة",
+        "description": "تجارة الأقمشة والمنسوجات"
+      },
+      "exchange": {
+        "name": "صرافة",
+        "description": "تحويلات مالية وصرافة"
+      },
+      "healthcare": {
+        "name": "صحة",
+        "description": "خدمات طبية وصحية"
+      },
+      "ecommerce": {
+        "name": "تجارة إلكترونية",
+        "description": "متجر إلكتروني أونلاين"
+      }
+    }
+  },
+  
+  "settings": {
+    "companySwitcher": {
+      "title": "التنقل بين الشركات",
+      "description": "تبديل الشركة النشطة حالياً",
+      "currentCompany": "الشركة الحالية",
+      "availableCompanies": "الشركات المتاحة",
+      "current": "الحالية",
+      "switch": "التبديل",
+      "loadError": "فشل تحميل الشركات",
+      "switchError": "فشل تبديل الشركة",
+      "switchSuccess": "تم تبديل الشركة بنجاح",
+      "singleCompany": "لديك شركة واحدة فقط",
+      "fabricInfo": "💡 شركات الأقمشة لديها بيئتين: حقيقية للعمل الفعلي، وتجريبية للاختبارات",
+      "types": {
+        "production": "حقيقية",
+        "testing": "تجريبية"
+      }
+    }
+  }
+}

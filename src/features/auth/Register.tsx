@@ -248,98 +248,20 @@ export default function Register() {
         return;
       }
 
-      let userId: string;
+      // ✅ Success! Auth user created
+      // Now redirect to wizard to complete registration with business type selection
+      console.log('✅ Auth successful, redirecting to wizard');
       
-      if (authData?.user) {
-        userId = authData.user.id;
-      } else {
-        // Wait a moment for the session to be established
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          // Try one more time
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const { data: { session: session2 } } = await supabase.auth.getSession();
-          if (!session2?.user) {
-            setFormError(language === 'ar' 
-              ? 'تم إنشاء الحساب. تحقق من بريدك الإلكتروني للتأكيد أو جرّب تسجيل الدخول.'
-              : 'Account created. Check your email for confirmation or try logging in.');
-            setIsCreating(false);
-            return;
-          }
-          userId = session2.user.id;
-        } else {
-          userId = session.user.id;
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // استخدام نظام التسجيل الصحيح: register_new_subscriber
-      // كل مشترك يحصل على tenant خاص به
-      // ═══════════════════════════════════════════════════════════════
+      // تمرير بيانات التسجيل للـ Wizard
+      const registrationData = {
+        fullName: formData.fullName,
+        companyName: formData.companyName,
+        email: formData.email,
+        phone: formData.phone
+      };
+      localStorage.setItem('registration_data', JSON.stringify(registrationData));
       
-      const { data: registrationResult, error: registrationError } = await supabase.rpc(
-        'register_new_subscriber',
-        {
-          p_user_id: userId,
-          p_user_email: formData.email,
-          p_user_name: formData.fullName,
-          p_company_name: formData.companyName,
-          p_phone: formData.phone || null
-        }
-      );
-
-      if (registrationError) {
-        console.error('Registration RPC error:', registrationError);
-        
-        const errorMsg = registrationError.message || '';
-        
-        // Check if function doesn't exist
-        if (registrationError.code === 'PGRST202' || errorMsg.includes('function') || errorMsg.includes('does not exist')) {
-          setFormError(language === 'ar' 
-            ? 'خطأ: يرجى تشغيل ملف STEP_28_complete_registration_system.sql في Supabase أولاً' 
-            : 'Error: Please run STEP_28_complete_registration_system.sql in Supabase first');
-          setIsCreating(false);
-          return;
-        }
-        
-        // Check for no available tenants
-        if (errorMsg.includes('لا يوجد Tenants متاحة') || errorMsg.includes('no available tenant')) {
-          setFormError(language === 'ar' 
-            ? 'عذراً، لا يوجد مساحات متاحة حالياً. يرجى المحاولة لاحقاً أو التواصل مع الدعم.' 
-            : 'Sorry, no available slots at the moment. Please try again later or contact support.');
-          setIsCreating(false);
-          return;
-        }
-        
-        // Other errors
-        setFormError(language === 'ar' 
-          ? `فشل التسجيل: ${errorMsg}` 
-          : `Registration failed: ${errorMsg}`);
-        setIsCreating(false);
-        return;
-      }
-      
-      // Check RPC result
-      if (registrationResult && !registrationResult.success) {
-        const errorDetail = registrationResult.error || 'Unknown error';
-        
-        if (errorDetail.includes('Tenant') || errorDetail.includes('tenant')) {
-          setFormError(language === 'ar' 
-            ? 'عذراً، لا يوجد مساحات متاحة حالياً. يرجى المحاولة لاحقاً.' 
-            : 'Sorry, no available slots at the moment. Please try again later.');
-        } else {
-          setFormError(language === 'ar' 
-            ? `فشل التسجيل: ${errorDetail}` 
-            : `Registration failed: ${errorDetail}`);
-        }
-        setIsCreating(false);
-        return;
-      }
-
-      // ✅ Success! Navigate to dashboard
-      console.log('✅ Registration successful:', registrationResult);
-      navigate('/');
+      navigate('/registration-wizard');
     } catch (err: any) {
       setFormError(err.message || t('auth.registrationFailed'));
       setIsCreating(false);
