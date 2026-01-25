@@ -84,17 +84,30 @@ BEGIN
     SELECT id INTO v_product_id FROM products LIMIT 1;
     IF v_product_id IS NULL THEN
         BEGIN
-            -- محاولة إنشاء منتج بسيط
-            INSERT INTO products (tenant_id, sku, name_en, default_price)
-            VALUES (v_tenant_id, 'TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product', 100.00)
+            -- محاولة إنشاء منتج بسيط (بدون tenant_id)
+            INSERT INTO products (sku, name_en, default_price)
+            VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product', 100.00)
             RETURNING id INTO v_product_id;
         EXCEPTION
             WHEN undefined_column THEN
                 -- محاولة بأعمدة مختلفة
-                INSERT INTO products (tenant_id, sku, name, price)
-                VALUES (v_tenant_id, 'TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product', 100.00)
-                RETURNING id INTO v_product_id;
+                BEGIN
+                    INSERT INTO products (sku, name, price)
+                    VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product', 100.00)
+                    RETURNING id INTO v_product_id;
+                EXCEPTION
+                    WHEN undefined_column THEN
+                        -- محاولة أخيرة: أقل الأعمدة
+                        INSERT INTO products (sku)
+                        VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT)
+                        RETURNING id INTO v_product_id;
+                END;
         END;
+    END IF;
+    
+    -- إذا فشل الإنشاء، حاول الحصول على أي منتج موجود
+    IF v_product_id IS NULL THEN
+        SELECT id INTO v_product_id FROM products LIMIT 1;
     END IF;
     
     -- إنشاء طلب تجريبي
@@ -112,8 +125,15 @@ BEGIN
     RETURNING id INTO v_order_id;
     
     -- إضافة عناصر الطلب
-    INSERT INTO order_items (tenant_id, order_id, product_id, quantity, unit_price, total_price)
-    VALUES (v_tenant_id, v_order_id, v_product_id, 2, 100.00, 200.00);
+    BEGIN
+        INSERT INTO order_items (tenant_id, order_id, product_id, quantity, unit_price, total_price)
+        VALUES (v_tenant_id, v_order_id, v_product_id, 2, 100.00, 200.00);
+    EXCEPTION
+        WHEN undefined_column THEN
+            -- محاولة بدون tenant_id
+            INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price)
+            VALUES (v_order_id, v_product_id, 2, 100.00, 200.00);
+    END;
     
     -- إنشاء مستودع ونقطة بيع للاختبار
     BEGIN
