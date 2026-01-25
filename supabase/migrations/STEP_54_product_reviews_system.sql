@@ -177,10 +177,10 @@ CREATE OR REPLACE FUNCTION add_product_review(
     p_company_id UUID,
     p_product_id UUID,
     p_customer_id UUID,
-    p_order_id UUID DEFAULT NULL,
     p_rating INT,
     p_title VARCHAR,
     p_review_text TEXT,
+    p_order_id UUID DEFAULT NULL,
     p_images JSONB DEFAULT '[]'::jsonb
 )
 RETURNS JSONB
@@ -477,11 +477,11 @@ COMMENT ON FUNCTION update_product_review_stats IS 'تحديث إحصائيات 
 CREATE OR REPLACE FUNCTION get_product_reviews(
     p_tenant_id UUID,
     p_product_id UUID,
+    p_limit INT DEFAULT 10,
+    p_offset INT DEFAULT 0,
     p_rating_filter INT DEFAULT NULL,
     p_verified_only BOOLEAN DEFAULT false,
-    p_sort_by VARCHAR DEFAULT 'recent', -- recent, helpful, rating_high, rating_low
-    p_limit INT DEFAULT 10,
-    p_offset INT DEFAULT 0
+    p_sort_by VARCHAR DEFAULT 'recent' -- recent, helpful, rating_high, rating_low
 )
 RETURNS TABLE (
     review_id UUID,
