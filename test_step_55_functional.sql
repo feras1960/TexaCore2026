@@ -84,9 +84,9 @@ BEGIN
     SELECT id INTO v_product_id FROM products LIMIT 1;
     IF v_product_id IS NULL THEN
         BEGIN
-            -- محاولة إنشاء منتج بسيط (بدون tenant_id)
-            INSERT INTO products (sku, name_en, default_price)
-            VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product', 100.00)
+            -- محاولة إنشاء منتج بسيط (مع name و name_en)
+            INSERT INTO products (sku, name, name_en, default_price)
+            VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product', 'Test Product', 100.00)
             RETURNING id INTO v_product_id;
         EXCEPTION
             WHEN undefined_column THEN
@@ -98,8 +98,8 @@ BEGIN
                 EXCEPTION
                     WHEN undefined_column THEN
                         -- محاولة أخيرة: أقل الأعمدة
-                        INSERT INTO products (sku)
-                        VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT)
+                        INSERT INTO products (sku, name)
+                        VALUES ('TEST-PROD-' || EXTRACT(EPOCH FROM NOW())::TEXT, 'Test Product')
                         RETURNING id INTO v_product_id;
                 END;
         END;
