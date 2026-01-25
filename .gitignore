@@ -55,3 +55,9 @@ Thumbs.db
 
 # Cursor
 .cursor
+
+# Database backups and environment files
+backups/
+.env.local
+.env
+.pgpass
