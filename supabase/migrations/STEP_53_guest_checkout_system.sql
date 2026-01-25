@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS guest_checkouts (
     
     -- التواريخ
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
     
     UNIQUE(tenant_id, session_id, email)
