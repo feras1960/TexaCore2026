@@ -58,21 +58,21 @@ BEGIN
     -- إنشاء عميل تجريبي (محاولة بأعمدة مختلفة)
     BEGIN
         -- محاولة 1: مع full_name
-        INSERT INTO customers (tenant_id, company_id, code, full_name, email, phone)
-        VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'أحمد محمد', 'ahmed@test.com', '+380501234567')
+        INSERT INTO customers (tenant_id, company_id, code, name_ar, full_name, email, phone)
+        VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'أحمد محمد', 'أحمد محمد', 'ahmed@test.com', '+380501234567')
         RETURNING id INTO v_customer_id;
     EXCEPTION
         WHEN undefined_column THEN
-            -- محاولة 2: مع name
+            -- محاولة 2: مع name و name_ar
             BEGIN
-                INSERT INTO customers (tenant_id, company_id, code, name, email, phone)
-                VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'أحمد محمد', 'ahmed@test.com', '+380501234567')
+                INSERT INTO customers (tenant_id, company_id, code, name_ar, name, email, phone)
+                VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'أحمد محمد', 'أحمد محمد', 'ahmed@test.com', '+380501234567')
                 RETURNING id INTO v_customer_id;
             EXCEPTION
                 WHEN undefined_column THEN
-                    -- محاولة 3: الحد الأدنى مع code
-                    INSERT INTO customers (tenant_id, company_id, code, email)
-                    VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'ahmed_test_' || EXTRACT(EPOCH FROM NOW())::TEXT || '@test.com')
+                    -- محاولة 3: الحد الأدنى مع code و name_ar
+                    INSERT INTO customers (tenant_id, company_id, code, name_ar, email)
+                    VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'عميل تجريبي', 'ahmed_test_' || EXTRACT(EPOCH FROM NOW())::TEXT || '@test.com')
                     RETURNING id INTO v_customer_id;
             END;
         WHEN unique_violation THEN
