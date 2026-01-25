@@ -58,23 +58,26 @@ BEGIN
     -- إنشاء عميل تجريبي (محاولة بأعمدة مختلفة)
     BEGIN
         -- محاولة 1: مع full_name
-        INSERT INTO customers (tenant_id, company_id, full_name, email, phone)
-        VALUES (v_tenant_id, v_company_id, 'أحمد محمد', 'ahmed@test.com', '+380501234567')
+        INSERT INTO customers (tenant_id, company_id, code, full_name, email, phone)
+        VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'أحمد محمد', 'ahmed@test.com', '+380501234567')
         RETURNING id INTO v_customer_id;
     EXCEPTION
         WHEN undefined_column THEN
             -- محاولة 2: مع name
             BEGIN
-                INSERT INTO customers (tenant_id, company_id, name, email, phone)
-                VALUES (v_tenant_id, v_company_id, 'أحمد محمد', 'ahmed@test.com', '+380501234567')
+                INSERT INTO customers (tenant_id, company_id, code, name, email, phone)
+                VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'أحمد محمد', 'ahmed@test.com', '+380501234567')
                 RETURNING id INTO v_customer_id;
             EXCEPTION
                 WHEN undefined_column THEN
-                    -- محاولة 3: الحد الأدنى
-                    INSERT INTO customers (tenant_id, company_id, email)
-                    VALUES (v_tenant_id, v_company_id, 'ahmed_test_' || EXTRACT(EPOCH FROM NOW())::TEXT || '@test.com')
+                    -- محاولة 3: الحد الأدنى مع code
+                    INSERT INTO customers (tenant_id, company_id, code, email)
+                    VALUES (v_tenant_id, v_company_id, 'CUST-TEST-' || EXTRACT(EPOCH FROM NOW())::INT, 'ahmed_test_' || EXTRACT(EPOCH FROM NOW())::TEXT || '@test.com')
                     RETURNING id INTO v_customer_id;
             END;
+        WHEN unique_violation THEN
+            -- إذا كان موجود، احصل عليه
+            SELECT id INTO v_customer_id FROM customers WHERE email LIKE 'ahmed%@test.com' LIMIT 1;
     END;
     
     -- الحصول على منتج أو إنشاء واحد
