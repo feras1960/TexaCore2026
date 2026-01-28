@@ -1,8 +1,5 @@
 // UI Pro Components - مكونات واجهة المستخدم الاحترافية
 // Animated components with Framer Motion
 
-export { AnimatedCard } from './AnimatedCard';
-export { GlassCard } from './GlassCard';
-export { AnimatedButton } from './AnimatedButton';
-export { AnimatedList, AnimatedListItem } from './AnimatedList';
-export { StatsCard } from './StatsCard';
+// All components moved to deprecated/ - only used in DesignSystemDemo
+// Export empty for now to avoid breaking imports

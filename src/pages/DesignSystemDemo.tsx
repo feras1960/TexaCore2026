@@ -49,15 +49,12 @@ import {
   Layers,
 } from '@/lib/icons';
 
-// UI Pro Components
-import { 
-  AnimatedCard, 
-  GlassCard, 
-  AnimatedButton,
-  AnimatedList,
-  AnimatedListItem,
-  StatsCard,
-} from '@/components/ui-pro';
+// UI Pro Components - moved to deprecated/, import directly
+import { AnimatedCard } from '@/components/deprecated/AnimatedCard';
+import { GlassCard } from '@/components/deprecated/GlassCard';
+import { AnimatedButton } from '@/components/deprecated/AnimatedButton';
+import { AnimatedList, AnimatedListItem } from '@/components/deprecated/AnimatedList';
+import { StatsCard } from '@/components/deprecated/StatsCard';
 
 // Hooks
 import { useLanguage } from '@/hooks';
