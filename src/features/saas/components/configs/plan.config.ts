@@ -127,17 +127,8 @@ export const getPlanConfig = (
     ],
     defaultTab: 'overview',
 
-    // Actions
+    // Actions (removed 'edit' action - now handled by Edit Mode in header)
     actions: [
-      {
-        id: 'edit',
-        label: t('common.edit'),
-        icon: Edit,
-        variant: 'default',
-        onClick: async (data, context) => {
-          context?.handlers?.onEdit?.(data);
-        },
-      },
       {
         id: 'duplicate',
         label: t('common.duplicate'),

@@ -1,5 +1,6 @@
 /**
  * Plan Subscribers Tab - المشتركين في الباقة
+ * ✨ مع جدول احترافي للمشتركين
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,12 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   Users, Search, Loader2, Calendar, 
-  CheckCircle2, XCircle, AlertCircle 
+  CheckCircle2, XCircle, AlertCircle,
+  Mail, Building2, ExternalLink
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 export const PlanSubscribersTab: React.FC<TabComponentProps> = ({ 
   data, 
@@ -35,6 +38,8 @@ export const PlanSubscribersTab: React.FC<TabComponentProps> = ({
     try {
       setLoading(true);
       
+      console.log('🔍 Loading subscribers for plan:', data.id);
+      
       const { data: subs, error } = await supabase
         .from('subscriptions')
         .select(`
@@ -43,6 +48,7 @@ export const PlanSubscribersTab: React.FC<TabComponentProps> = ({
             id,
             name,
             email,
+            phone,
             is_active
           )
         `)
@@ -51,9 +57,10 @@ export const PlanSubscribersTab: React.FC<TabComponentProps> = ({
 
       if (error) throw error;
 
+      console.log('✅ Subscribers loaded:', subs?.length || 0);
       setSubscribers(subs || []);
     } catch (error: any) {
-      console.error('Error loading subscribers:', error);
+      console.error('❌ Error loading subscribers:', error);
       toast.error(t('errors.loadFailed'));
     } finally {
       setLoading(false);
@@ -132,53 +139,90 @@ export const PlanSubscribersTab: React.FC<TabComponentProps> = ({
         />
       </div>
 
-      {/* List */}
+      {/* Table */}
       {filteredSubscribers.length === 0 ? (
         <Card className="p-8">
           <div className="text-center text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="text-sm">
-              {searchTerm ? t('common.noResults') : t('saas.plan.noSubscribers')}
+              {searchTerm ? t('common.noResults') : language === 'ar' ? 'لا يوجد مشتركين في هذه الباقة' : 'No subscribers for this plan'}
             </p>
           </div>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {filteredSubscribers.map((sub) => (
-            <Card key={sub.id} className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="font-medium text-sm mb-1">
-                    {sub.tenants?.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {sub.tenants?.email}
-                  </div>
-                </div>
-                {getStatusBadge(sub.status)}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <div className="text-muted-foreground mb-0.5">
-                    {t('saas.subscription.startDate')}
-                  </div>
-                  <div className="font-medium">
-                    {format(new Date(sub.start_date), 'PP', { locale })}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground mb-0.5">
-                    {t('saas.subscription.endDate')}
-                  </div>
-                  <div className="font-medium">
-                    {format(new Date(sub.end_date), 'PP', { locale })}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  )}>
+                    {language === 'ar' ? 'اسم المشترك' : 'Subscriber Name'}
+                  </th>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  )}>
+                    {language === 'ar' ? 'تاريخ البدء' : 'Start Date'}
+                  </th>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  )}>
+                    {language === 'ar' ? 'تاريخ الانتهاء' : 'End Date'}
+                  </th>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold text-center"
+                  )}>
+                    {language === 'ar' ? 'الحالة' : 'Status'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredSubscribers.map((sub, index) => (
+                  <tr 
+                    key={sub.id}
+                    className="hover:bg-muted/30 transition-colors"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
+                          <Building2 className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm">
+                            {sub.tenants?.name || '-'}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {sub.tenants?.email || '-'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        {sub.start_date ? format(new Date(sub.start_date), 'PP', { locale }) : '-'}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        {sub.end_date ? format(new Date(sub.end_date), 'PP', { locale }) : '-'}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {getStatusBadge(sub.status)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );

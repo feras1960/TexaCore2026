@@ -61,10 +61,16 @@ export const PlanModulesTab: React.FC<TabComponentProps> = ({
 
       if (modulesError) throw modulesError;
 
+      console.log('🟢 Modules Loaded:', {
+        planModules: planModules?.length || 0,
+        allModules: allModules?.length || 0,
+        planId: data.id,
+      });
+
       setModules(planModules || []);
       setAvailableModules(allModules || []);
     } catch (error: any) {
-      console.error('Error loading modules:', error);
+      console.error('❌ Error loading modules:', error);
       toast.error(t('errors.loadFailed'));
     } finally {
       setLoading(false);

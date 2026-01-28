@@ -1,5 +1,6 @@
 /**
  * Plan Ledger Tab - كشف حساب الباقة
+ * ✨ جدول الفواتير والمقبوضات
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,12 +9,14 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   FileText, Loader2, DollarSign, 
-  TrendingUp, TrendingDown 
+  TrendingUp, TrendingDown, CreditCard,
+  Building2, Receipt, CheckCircle2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 export const PlanLedgerTab: React.FC<TabComponentProps> = ({ 
   data, 
@@ -37,6 +40,8 @@ export const PlanLedgerTab: React.FC<TabComponentProps> = ({
     try {
       setLoading(true);
       
+      console.log('🔍 Loading payments for plan:', data.id);
+      
       const { data: pmts, error } = await supabase
         .from('saas_payments')
         .select(`
@@ -44,7 +49,8 @@ export const PlanLedgerTab: React.FC<TabComponentProps> = ({
           subscriptions:subscription_id (
             id,
             tenants:tenant_id (
-              name
+              name,
+              email
             )
           )
         `)
@@ -53,6 +59,7 @@ export const PlanLedgerTab: React.FC<TabComponentProps> = ({
 
       if (error) throw error;
 
+      console.log('✅ Payments loaded:', pmts?.length || 0);
       setPayments(pmts || []);
 
       // Calculate stats
@@ -64,7 +71,7 @@ export const PlanLedgerTab: React.FC<TabComponentProps> = ({
         avgPayment: count > 0 ? total / count : 0,
       });
     } catch (error: any) {
-      console.error('Error loading payments:', error);
+      console.error('❌ Error loading payments:', error);
       toast.error(t('errors.loadFailed'));
     } finally {
       setLoading(false);
@@ -126,48 +133,112 @@ export const PlanLedgerTab: React.FC<TabComponentProps> = ({
         </Card>
       </div>
 
-      {/* Payments List */}
+      {/* Payments Table */}
       {payments.length === 0 ? (
         <Card className="p-8">
           <div className="text-center text-muted-foreground">
-            <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">{t('saas.payment.noPayments')}</p>
+            <Receipt className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p className="text-sm font-medium mb-1">
+              {language === 'ar' ? 'لا توجد مدفوعات' : 'No Payments'}
+            </p>
+            <p className="text-xs">
+              {language === 'ar' ? 'لم يتم تسجيل أي مدفوعات لهذه الباقة بعد' : 'No payments recorded for this plan yet'}
+            </p>
           </div>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {payments.map((payment) => (
-            <Card key={payment.id} className="p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="font-medium text-sm">
-                    {payment.subscriptions?.tenants?.name || t('common.unknown')}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(new Date(payment.payment_date), 'PPp', { locale })}
-                  </div>
-                </div>
-                <Badge 
-                  variant="outline"
-                  className="bg-green-50 text-green-700 border-green-200"
-                >
-                  {Number(payment.amount).toFixed(2)} {payment.currency}
-                </Badge>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <FileText className="h-3 w-3" />
-                <span>{payment.payment_method}</span>
-                {payment.transaction_id && (
-                  <>
-                    <span>•</span>
-                    <span className="font-mono">{payment.transaction_id}</span>
-                  </>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  )}>
+                    {language === 'ar' ? 'المشترك' : 'Subscriber'}
+                  </th>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  )}>
+                    {language === 'ar' ? 'التاريخ' : 'Date'}
+                  </th>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  )}>
+                    {language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}
+                  </th>
+                  <th className={cn(
+                    "py-3 px-4 text-sm font-semibold",
+                    language === 'ar' ? 'text-left' : 'text-right'
+                  )}>
+                    {language === 'ar' ? 'المبلغ' : 'Amount'}
+                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-center">
+                    {language === 'ar' ? 'الحالة' : 'Status'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {payments.map((payment) => (
+                  <tr 
+                    key={payment.id}
+                    className="hover:bg-muted/30 transition-colors"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
+                          <Building2 className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm">
+                            {payment.subscriptions?.tenants?.name || '-'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {payment.subscriptions?.tenants?.email || ''}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      {payment.payment_date ? format(new Date(payment.payment_date), 'PP', { locale }) : '-'}
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="capitalize">{payment.payment_method || '-'}</span>
+                      </div>
+                      {payment.transaction_id && (
+                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                          {payment.transaction_id}
+                        </div>
+                      )}
+                    </td>
+                    <td className={cn(
+                      "py-3 px-4",
+                      language === 'ar' ? 'text-left' : 'text-right'
+                    )}>
+                      <div className="font-bold text-green-600">
+                        {Number(payment.amount).toLocaleString()} {payment.currency}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <Badge 
+                        variant="outline"
+                        className="bg-green-50 text-green-700 border-green-200"
+                      >
+                        <CheckCircle2 className="h-3 w-3 me-1" />
+                        {language === 'ar' ? 'مدفوع' : 'Paid'}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );

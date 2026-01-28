@@ -94,6 +94,7 @@ export const BaseDetailSheet: React.FC<BaseDetailSheetProps> = ({
     if (!isOpen) {
       editHook.cancelEdit();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Resolve title and subtitle
