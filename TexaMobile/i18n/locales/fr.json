@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Bienvenue",
+    "hello": "Bonjour",
+    "logout": "Déconnexion",
+    "loading": "Chargement",
+    "refresh": "Actualiser",
+    "error": "Erreur",
+    "success": "Succès",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "sort": "Trier",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "submit": "Soumettre",
+    "confirm": "Confirmer"
+  },
+  
+  "auth": {
+    "login": "Connexion",
+    "email": "Email",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "rememberMe": "Se souvenir de moi",
+    "biometricLogin": "Connexion biométrique",
+    "loginError": "Erreur de connexion",
+    "invalidCredentials": "Email ou mot de passe invalide",
+    "emailRequired": "Email requis",
+    "passwordRequired": "Mot de passe requis",
+    "loginSuccess": "Connexion réussie"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Tableau de Bord Admin",
+      "welcome": "Bienvenue",
+      "systemStats": "Statistiques Système",
+      "recentActivities": "Activités Récentes",
+      "quickActions": "Actions Rapides",
+      "totalUsers": "Utilisateurs",
+      "activeCompanies": "Entreprises",
+      "totalRevenue": "Revenus",
+      "growthRate": "Taux de Croissance",
+      "addUser": "Ajouter Utilisateur",
+      "settings": "Paramètres",
+      "reports": "Rapports"
+    },
+    
+    "cashier": {
+      "title": "Tableau de Bord Caissier",
+      "quickSummary": "Résumé Rapide",
+      "todayTransactions": "Transactions d'Aujourd'hui",
+      "balance": "Solde",
+      "deposit": "Dépôt",
+      "withdraw": "Retrait",
+      "transfer": "Virement",
+      "transactions": "Transactions"
+    },
+    
+    "driver": {
+      "title": "Tableau de Bord Chauffeur",
+      "todayStats": "Statistiques d'Aujourd'hui",
+      "deliveries": "Livraisons",
+      "completed": "Terminées",
+      "pending": "En Attente",
+      "distance": "Distance",
+      "deliveryRequests": "Demandes de Livraison"
+    },
+    
+    "warehouse": {
+      "title": "Tableau de Bord Entrepôt",
+      "inventory": "Inventaire",
+      "lowStock": "Stock Faible",
+      "movements": "Mouvements"
+    }
+  },
+  
+  "roles": {
+    "admin": "Administrateur Système",
+    "full_admin": "Administrateur Complet",
+    "cashier": "Caissier",
+    "driver": "Chauffeur",
+    "warehouse_keeper": "Gestionnaire d'Entrepôt",
+    "warehouse_manager": "Responsable d'Entrepôt",
+    "accountant": "Comptable",
+    "sales_rep": "Représentant Commercial",
+    "purchasing_manager": "Responsable des Achats"
+  },
+  
+  "errors": {
+    "networkError": "Erreur Réseau",
+    "serverError": "Erreur Serveur",
+    "notFound": "Non Trouvé",
+    "unauthorized": "Non Autorisé",
+    "forbidden": "Interdit",
+    "invalidInput": "Entrée Invalide",
+    "tryAgain": "Réessayer"
+  },
+  
+  "messages": {
+    "dataLoaded": "Données Chargées",
+    "dataSaved": "Données Enregistrées",
+    "dataDeleted": "Données Supprimées",
+    "operationSuccess": "Opération Réussie",
+    "operationFailed": "Opération Échouée"
+  },
+  
+  "date": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "tomorrow": "Demain",
+    "thisWeek": "Cette Semaine",
+    "thisMonth": "Ce Mois",
+    "thisYear": "Cette Année"
+  },
+  
+  "notifications": {
+    "title": "Notifications",
+    "newCount": "{{count}} nouvelle notification",
+    "newCount_plural": "{{count}} nouvelles notifications",
+    "markAllRead": "Tout marquer comme lu",
+    "noNotifications": "Aucune notification",
+    "noNotificationsSubtitle": "Les nouvelles notifications apparaîtront ici",
+    "types": {
+      "success": "Enregistré avec Succès",
+      "newUser": "Nouvel Utilisateur",
+      "warning": "Avertissement",
+      "report": "Nouveau Rapport",
+      "transaction": "Nouvelle Transaction"
+    },
+    "messages": {
+      "accountSaved": "Les modifications de votre compte ont été enregistrées avec succès",
+      "userAdded": "Un nouvel utilisateur a été ajouté au système",
+      "lowStock": "Stock faible pour certains produits",
+      "reportReady": "Le rapport mensuel des ventes est prêt pour examen",
+      "transactionComplete": "Transaction financière effectuée avec succès"
+    },
+    "time": {
+      "now": "Maintenant",
+      "minutesAgo": "il y a {{count}} minute",
+      "minutesAgo_plural": "il y a {{count}} minutes",
+      "hoursAgo": "il y a {{count}} heure",
+      "hoursAgo_plural": "il y a {{count}} heures",
+      "yesterday": "Hier",
+      "daysAgo": "il y a {{count}} jour",
+      "daysAgo_plural": "il y a {{count}} jours"
+    }
+  },
+  
+  "settings": {
+    "title": "Paramètres",
+    "sections": {
+      "account": "Compte",
+      "preferences": "Préférences",
+      "app": "Application"
+    },
+    "account": {
+      "profile": "Profil",
+      "profileSubtitle": "Voir et mettre à jour vos informations",
+      "changePassword": "Changer le Mot de Passe",
+      "changePasswordSubtitle": "Mettre à jour votre mot de passe"
+    },
+    "preferences": {
+      "notifications": "Notifications",
+      "notificationsSubtitle": "Activer les notifications push",
+      "biometric": "Biométrie",
+      "biometricSubtitle": "Connexion par biométrie",
+      "darkMode": "Mode Sombre",
+      "darkModeSubtitle": "Activer le thème sombre"
+    },
+    "app": {
+      "language": "Langue",
+      "languageValue": "Français",
+      "help": "Aide et Support",
+      "helpSubtitle": "FAQ et support",
+      "about": "À Propos",
+      "aboutSubtitle": "Version {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Déconnexion"
+  },
+  
+  "profile": {
+    "title": "Profil",
+    "info": {
+      "name": "Nom Complet",
+      "email": "Email",
+      "role": "Rôle",
+      "memberSince": "Membre Depuis",
+      "lastLogin": "Dernière Connexion",
+      "phone": "Numéro de Téléphone",
+      "language": "Langue",
+      "company": "Entreprise"
+    },
+    "actions": {
+      "updateInfo": "Mettre à Jour",
+      "security": "Paramètres de Sécurité"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Actions Rapides",
+    "subtitle": "Raccourcis rapides pour les opérations courantes",
+    "actions": {
+      "addUser": "Ajouter Utilisateur",
+      "newDeposit": "Nouveau Dépôt",
+      "newWithdrawal": "Nouveau Retrait",
+      "startRoute": "Démarrer Itinéraire",
+      "completeDelivery": "Terminer Livraison",
+      "scanProduct": "Scanner Produit",
+      "checkInventory": "Vérifier Inventaire"
+    }
+  },
+  
+  "languages": {
+    "ar": "Arabe",
+    "en": "Anglais",
+    "de": "Allemand",
+    "tr": "Turc",
+    "ru": "Russe",
+    "uk": "Ukrainien",
+    "it": "Italien",
+    "pl": "Polonais",
+    "ro": "Roumain",
+    "fr": "Français"
+  }
+}

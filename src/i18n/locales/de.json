@@ -77,6 +77,7 @@
     "accountsWatchlist": "[DE] Watchlist",
     "activeAccounts": "[DE] activeAccounts",
     "addAccount": "Konto hinzufügen",
+    "addFirstAccount": "Erstes Konto hinzufügen",
     "addGroup": "[DE] addGroup",
     "addNewRow": "Neue Zeile hinzufügen",
     "addRow": "Zeile hinzufügen",
@@ -84,6 +85,7 @@
     "addSubGroup": "[DE] Add Sub-group",
     "addToWatchlist": "[DE] Add to Watchlist",
     "amountInWords": "Betrag in Worten",
+    "applyTemplateInstructions": "Um eine Kontenplanvorlage anzuwenden, führen Sie einen der folgenden Befehle im Supabase SQL Editor aus:",
     "assets": "Vermögenswerte",
     "avgTransaction": "Durchschnittliche Transaktion",
     "balanceAfter": "[DE] balanceAfter",
@@ -122,38 +124,8 @@
     },
     "chartOfAccounts": "Kontenplan",
     "chartOfAccountsDescription": "[DE] chartOfAccountsDescription",
-    "noAccountsTitle": "Noch keine Konten",
-    "noAccountsDescription": "Keine Konten im Kontenplan gefunden. Sie können ein neues Konto hinzufügen oder eine Vorlage anwenden.",
     "chartTypeApplied": "Angewendeter Kontenplantyp",
     "chartTypeButNoAccounts": "Kontenplantyp wurde angewendet, aber es gibt keine Konten. Möglicherweise müssen Sie die Vorlage erneut anwenden.",
-    "noChartTemplateApplied": "Keine Kontenplanvorlage angewendet",
-    "applyTemplateInstructions": "Um eine Kontenplanvorlage anzuwenden, führen Sie einen der folgenden Befehle im Supabase SQL Editor aus:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "Erstes Konto hinzufügen",
-    "templates": {
-      "selectTemplate": "Kontenplanvorlage auswählen",
-      "selectDescription": "Wählen Sie eine fertige Vorlage aus, die auf Ihr Unternehmen angewendet werden soll. Alle Konten werden automatisch erstellt.",
-      "selectAndApply": "Vorlage auswählen & anwenden",
-      "apply": "Anwenden",
-      "appliedSuccess": "Vorlage {name} erfolgreich angewendet",
-      "applyError": "Vorlage konnte nicht angewendet werden",
-      "loadError": "Vorlagen konnten nicht geladen werden",
-      "noTemplates": "Keine Vorlagen verfügbar",
-      "noCompany": "Bitte wählen Sie zuerst ein Unternehmen aus",
-      "setupTemplates": "Vorlagen einrichten",
-      "setupSuccess": "Vorlagen erfolgreich eingerichtet",
-      "setupError": "Vorlagen konnten nicht eingerichtet werden",
-      "withDemoData": "Mit Demo-Daten",
-      "types": {
-        "simple": "Standard",
-        "extended": "Erweitert",
-        "fabric_extended": "Erweitert für Stoffe"
-      },
-      "applyingMessage": "Vorlage wird angewendet... Dies kann einen Moment dauern",
-      "refreshingAccounts": "Konten werden aktualisiert...",
-      "existingChartError": "Unternehmen hat bereits einen Kontenplan. Verwenden Sie stattdessen die Upgrade-Funktion.",
-      "templateNotFound": "Vorlage nicht gefunden. Stellen Sie sicher, dass Vorlagen für den Mandanten eingerichtet sind."
-    },
     "closingBalance": "Endsaldo",
     "closingEntries": "Abschlussbuchungen",
     "collapseAll": "Alles Zusammenklappen",
@@ -392,6 +364,9 @@
     "lines": "[DE] lines",
     "module": "Buchhaltung",
     "monthlyAverage": "[DE] monthlyAverage",
+    "noAccountsDescription": "Keine Konten im Kontenplan gefunden. Sie können ein neues Konto hinzufügen oder eine Vorlage anwenden.",
+    "noAccountsTitle": "Noch keine Konten",
+    "noChartTemplateApplied": "Keine Kontenplanvorlage angewendet",
     "noCompanySelected": "[DE] noCompanySelected",
     "noCustomers": "[DE] noCustomers",
     "noParent": "[DE] noParent",
@@ -501,6 +476,7 @@
       "workflow": "Arbeitsablauf",
       "workflowDesc": "Genehmigungs- und automatische Buchungseinstellungen"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Cashflow",
       "netProfit": "Nettogewinn",
@@ -522,6 +498,30 @@
     "summary": "Zusammenfassung",
     "suppliers": "Lieferanten",
     "tableView": "Tabellenansicht",
+    "templates": {
+      "appliedSuccess": "Vorlage {name} erfolgreich angewendet",
+      "apply": "Anwenden",
+      "applyError": "Vorlage konnte nicht angewendet werden",
+      "applyingMessage": "Vorlage wird angewendet... Dies kann einen Moment dauern",
+      "existingChartError": "Unternehmen hat bereits einen Kontenplan. Verwenden Sie stattdessen die Upgrade-Funktion.",
+      "loadError": "Vorlagen konnten nicht geladen werden",
+      "noCompany": "Bitte wählen Sie zuerst ein Unternehmen aus",
+      "noTemplates": "Keine Vorlagen verfügbar",
+      "refreshingAccounts": "Konten werden aktualisiert...",
+      "selectAndApply": "Vorlage auswählen & anwenden",
+      "selectDescription": "Wählen Sie eine fertige Vorlage aus, die auf Ihr Unternehmen angewendet werden soll. Alle Konten werden automatisch erstellt.",
+      "selectTemplate": "Kontenplanvorlage auswählen",
+      "setupError": "Vorlagen konnten nicht eingerichtet werden",
+      "setupSuccess": "Vorlagen erfolgreich eingerichtet",
+      "setupTemplates": "Vorlagen einrichten",
+      "templateNotFound": "Vorlage nicht gefunden. Stellen Sie sicher, dass Vorlagen für den Mandanten eingerichtet sind.",
+      "types": {
+        "extended": "Erweitert",
+        "fabric_extended": "Erweitert für Stoffe",
+        "simple": "Standard"
+      },
+      "withDemoData": "Mit Demo-Daten"
+    },
     "totalAccounts": "[DE] totalAccounts",
     "totalBalance": "[DE] totalBalance",
     "totalInvoices": "Gesamtrechnungen",
@@ -828,10 +828,10 @@
     "active": "Aktiv",
     "add": "Hinzufügen",
     "all": "Alle",
-    "applying": "Wird angewendet...",
     "allItems": "[DE] All",
     "amount": "Betrag",
     "and": "und",
+    "applying": "Wird angewendet...",
     "back": "Zurück",
     "balance": "Saldo",
     "cancel": "Abbrechen",
@@ -930,6 +930,7 @@
     "receipt": "Beleg",
     "reference": "Referenz",
     "refresh": "Aktualisieren",
+    "refunded": "[DE] Refunded",
     "remaining": "[DE] remaining",
     "required": "Erforderlich",
     "reset": "Zurücksetzen",
@@ -937,6 +938,7 @@
     "search": "Suchen",
     "select": "Auswählen",
     "selectAll": "Alle auswählen",
+    "sent": "[DE] Sent",
     "showCancelledEntries": "[DE] showCancelledEntries",
     "status": {
       "_": "Status",
@@ -976,6 +978,7 @@
     },
     "to": "Bis",
     "total": "Gesamt",
+    "totalAmount": "[DE] Total Amount",
     "totals": "SUMMEN",
     "transactions": "[DE] Transactions",
     "type": "Typ",
@@ -1083,6 +1086,14 @@
       "quickReceiptDialog": {
         "description": "Schneller Eingabedialog für Belege",
         "name": "Schneller Beleg-Dialog"
+      },
+      "registerPage": {
+        "description": "[DE] Basic registration page for new users with multilingual support and RTL",
+        "name": "[DE] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[DE] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[DE] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "Transaktionsdetails anzeigen und bearbeiten",
@@ -2009,19 +2020,73 @@
   "saas": {
     "activate": "Aktivieren",
     "agents": "Agenten",
+    "agentsGrid": {
+      "balance": "[DE] Current Balance",
+      "code": "[DE] Agent Code",
+      "commission": "[DE] Commission %",
+      "earned": "[DE] Total Earned",
+      "name": "[DE] Agent Name",
+      "pending": "[DE] Pending Balance",
+      "tenants": "[DE] Tenants Count",
+      "tier": "[DE] Tier",
+      "title": "[DE] Agents Management",
+      "type": "[DE] Agent Type",
+      "withdrawn": "[DE] Total Withdrawn"
+    },
     "analytics": "Analytik",
     "approve": "Genehmigen",
     "comingSoon": "Bald verfügbar - In Entwicklung",
+    "companySwitcher": {
+      "availableCompanies": "[DE] Available Companies",
+      "current": "[DE] Current",
+      "currentCompany": "[DE] Current Company",
+      "description": "[DE] Switch the currently active company",
+      "fabricInfo": "[DE] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[DE] Failed to load companies",
+      "singleCompany": "[DE] You have only one company",
+      "switch": "[DE] Switch",
+      "switchError": "[DE] Failed to switch company",
+      "switchSuccess": "[DE] Company switched successfully",
+      "title": "[DE] Company Switcher",
+      "types": {
+        "production": "[DE] Production",
+        "testing": "[DE] Testing"
+      }
+    },
     "coupons": "Gutscheine",
     "createNew": "Neu erstellen",
     "dashboard": "Dashboard",
     "delete": "Löschen",
     "edit": "Bearbeiten",
+    "invoicesGrid": {
+      "amount": "[DE] Amount",
+      "dueDate": "[DE] Due Date",
+      "issueDate": "[DE] Issue Date",
+      "number": "[DE] Invoice Number",
+      "paidDate": "[DE] Paid Date",
+      "period": "[DE] Billing Period",
+      "plan": "[DE] Subscription Plan",
+      "tax": "[DE] Tax Amount",
+      "tenant": "[DE] Tenant",
+      "title": "[DE] Invoices Management",
+      "total": "[DE] Total Amount"
+    },
     "marketing": "Marketing",
     "modules": "Module",
     "notifications": "Benachrichtigungen",
     "packages": "Pakete",
     "payments": "Zahlungen",
+    "paymentsGrid": {
+      "agent": "[DE] Agent",
+      "commission": "[DE] Commission Amount",
+      "date": "[DE] Payment Date",
+      "dueDate": "[DE] Due Date",
+      "invoiceNumber": "[DE] Invoice Number",
+      "method": "[DE] Payment Method",
+      "reference": "[DE] Reference",
+      "tenant": "[DE] Tenant",
+      "title": "[DE] Payments Management"
+    },
     "plans": {
       "enterprise": "Enterprise",
       "professional": "Professional",
@@ -2044,18 +2109,23 @@
     "suspend": "Sperren",
     "tenants": {
       "activate": "Abonnent aktivieren",
+      "agent": "[DE] Agent",
       "agentInfo": "Mit Agent verknüpft",
       "billing": "Abrechnung",
+      "code": "[DE] Tenant Code",
       "create": "Neuen Abonnenten erstellen",
       "createDescription": "Einen neuen Abonnenten im System erstellen",
       "description": "Abonnenten und Abonnements verwalten",
       "details": "Abonnentendetails",
+      "documents": "[DE] Documents",
       "edit": "Abonnent bearbeiten",
       "error": {
         "createFailed": "Abonnent konnte nicht erstellt werden",
         "loadFailed": "Abonnenten konnten nicht geladen werden",
         "noPermission": "Keine Zugriffsberechtigung"
       },
+      "language": "[DE] Default Language",
+      "name": "[DE] Tenant Name",
       "ownerName": "Eigentümername",
       "placeholders": {
         "companyName": "Firmenname",
@@ -2066,6 +2136,7 @@
       "referral": "Empfehlung",
       "referralCode": "Empfehlungscode",
       "referralSource": "Empfehlungsquelle",
+      "storage": "[DE] Storage Used",
       "subscription": "Abonnement",
       "suspend": "Abonnent sperren",
       "tabs": {
@@ -2075,11 +2146,71 @@
       },
       "title": "Abonnentenverwaltung",
       "total": "Gesamtabonnenten",
-      "usage": "Nutzung"
+      "usage": "Nutzung",
+      "users": "[DE] Users Count"
     },
     "title": "SaaS-Verwaltung",
     "view": "Ansehen",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Planname",
+      "price": "Preis",
+      "billingCycle": "Abrechnungszyklus",
+      "monthly": "Monatlich",
+      "yearly": "Jährlich",
+      "maxUsers": "Max. Benutzer",
+      "product": "Produkt",
+      "status": "Status",
+      "popular": "Beliebt",
+      "basicInfo": "Grundinformationen",
+      "modules": "Module",
+      "limitsAndFeatures": "Limits & Funktionen",
+      "subscribers": "Abonnenten",
+      "ledger": "Hauptbuch",
+      "assignedModules": "Zugewiesene Module",
+      "noModules": "Keine Module zugewiesen",
+      "availableModules": "Verfügbare Module",
+      "limits": "Limits",
+      "storageLimit": "Speicherlimit",
+      "maxDocuments": "Max. Dokumente",
+      "maxImages": "Max. Bilder",
+      "features": "Funktionen",
+      "feature": {
+        "multiCurrency": "Mehrwährungsunterstützung",
+        "advancedReports": "Erweiterte Berichte",
+        "apiAccess": "API-Zugriff",
+        "customBranding": "Benutzerdefiniertes Branding",
+        "prioritySupport": "Priority Support"
+      },
+      "noSubscribers": "Keine Abonnenten für diesen Plan",
+      "setPopular": "Als beliebt markieren",
+      "removePopular": "Beliebten Status entfernen",
+      "deactivateConfirm": "Deaktivierung bestätigen",
+      "deactivateDescription": "Möchten Sie diesen Plan wirklich deaktivieren? Neue Abonnenten können ihn nicht mehr abonnieren.",
+      "archiveConfirm": "Archivierung bestätigen",
+      "archiveDescription": "Möchten Sie diesen Plan wirklich archivieren? Er wird deaktiviert und aus Listen ausgeblendet."
+    },
+    "subscription": {
+      "startDate": "Startdatum",
+      "endDate": "Enddatum",
+      "expired": "Abgelaufen",
+      "suspended": "Suspendiert",
+      "cancelled": "Storniert"
+    },
+    "payment": {
+      "totalRevenue": "Gesamtumsatz",
+      "totalPayments": "Gesamtzahlungen",
+      "avgPayment": "Durchschnittliche Zahlung",
+      "noPayments": "Keine Zahlungen"
+    },
+    "activity": {
+      "planCreated": "Plan erstellt",
+      "planUpdated": "Plan aktualisiert",
+      "planActivated": "Plan aktiviert",
+      "planDeactivated": "Plan deaktiviert",
+      "planArchived": "Plan archiviert",
+      "planSetPopular": "Plan als beliebt markiert"
+    },
     "whiteLabel": "Weißes Etikett",
     "whiteLabelDetails": {
       "activate": "White Label aktivieren",
@@ -2146,7 +2277,10 @@
     "collapse": "Einklappen",
     "contactSupport": "Support kontaktieren",
     "expand": "Ausklappen",
-    "needHelp": "Brauchen Sie Hilfe?"
+    "moduleDisabled": "[DE] Module Disabled",
+    "needHelp": "Brauchen Sie Hilfe?",
+    "upgrade": "[DE] Upgrade",
+    "upgradeRequired": "[DE] Upgrade Required"
   },
   "sku": "[DE] sku",
   "stats": {
@@ -2542,5 +2676,108 @@
     "invalidInput": "Ungültige Eingabe",
     "negative": "Negativ!",
     "required": "Erforderlich"
+  },
+  "wizard": {
+    "address": "[DE] Address",
+    "addressPlaceholder": "[DE] Example: King Fahd Street, Al Olaya",
+    "back": "[DE] Back",
+    "businessType": "[DE] Business Type",
+    "businessTypeHint": "[DE] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[DE] Online retail store",
+        "name": "[DE] E-commerce"
+      },
+      "exchange": {
+        "description": "[DE] Money transfer and exchange",
+        "name": "[DE] Exchange"
+      },
+      "fabric": {
+        "description": "[DE] Fabric and textile trading",
+        "name": "[DE] Fabric"
+      },
+      "general": {
+        "description": "[DE] General and diverse business",
+        "name": "[DE] General"
+      },
+      "healthcare": {
+        "description": "[DE] Medical and healthcare services",
+        "name": "[DE] Healthcare"
+      }
+    },
+    "city": "[DE] City",
+    "cityPlaceholder": "[DE] Example: Riyadh",
+    "cityRequired": "[DE] Please enter a city",
+    "companyName": "[DE] Company Name",
+    "companyNameFromRegistration": "[DE] Company name from registration (you can edit it)",
+    "companyNameHint": "[DE] Please enter your company name to continue",
+    "companyNamePlaceholder": "[DE] Example: Advanced Technology Company",
+    "companyNameRequired": "[DE] Company name is required",
+    "complete": "[DE] Complete Registration",
+    "country": "[DE] Country",
+    "countryAndCityRequired": "[DE] Please select country and city",
+    "countryRequired": "[DE] Please select a country",
+    "description": "[DE] Complete your company information to start using the system",
+    "email": "[DE] Email",
+    "emailPlaceholder": "[DE] info@example.com",
+    "fabricCurrencyNote": "[DE] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[DE] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[DE] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[DE] Fiscal Year Start",
+    "localCurrency": "[DE] Local Currency",
+    "localCurrencyNote": "[DE] Currency used in your country (can be changed later)",
+    "mainCurrency": "[DE] Main Currency",
+    "mainCurrencyNote": "[DE] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[DE] April",
+      "august": "[DE] August",
+      "december": "[DE] December",
+      "february": "[DE] February",
+      "january": "[DE] January",
+      "july": "[DE] July",
+      "june": "[DE] June",
+      "march": "[DE] March",
+      "may": "[DE] May",
+      "november": "[DE] November",
+      "october": "[DE] October",
+      "september": "[DE] September"
+    },
+    "next": "[DE] Next",
+    "of": "[DE] of",
+    "phone": "[DE] Phone",
+    "phonePlaceholder": "[DE] +966 XX XXX XXXX",
+    "registrationFailed": "[DE] Registration failed. Please try again",
+    "selectBusinessType": "[DE] Please select a business type",
+    "selectBusinessTypeAndName": "[DE] Please select business type and enter company name",
+    "selectCountry": "[DE] Select Country",
+    "selectCurrency": "[DE] Select Currency",
+    "selectMainCurrency": "[DE] Select Main Currency",
+    "step": "[DE] Step",
+    "step1": {
+      "description": "[DE] Select the business activity that fits your company",
+      "title": "[DE] Choose Your Business Type"
+    },
+    "step1Description": "[DE] Choose your business type and enter your company name",
+    "step1Title": "[DE] Business Type & Company Name",
+    "step2": {
+      "description": "[DE] Enter your company's basic details",
+      "title": "[DE] Company Information"
+    },
+    "step2Description": "[DE] Enter your company's basic details",
+    "step2Title": "[DE] Company Information",
+    "step3": {
+      "description": "[DE] Set your currency and fiscal year start",
+      "title": "[DE] Financial Settings"
+    },
+    "step3Description": "[DE] Set currencies and fiscal year start",
+    "step3Title": "[DE] Financial Settings",
+    "submitting": "[DE] Completing...",
+    "success": "[DE] Registration completed successfully! Redirecting...",
+    "successFabric": "[DE] Two companies created successfully! Redirecting...",
+    "summary": "[DE] Summary",
+    "title": "[DE] Account Setup",
+    "userNotFound": "[DE] User not found. Please login again",
+    "website": "[DE] Website",
+    "websitePlaceholder": "[DE] https://example.com"
   }
 }

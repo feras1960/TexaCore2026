@@ -77,6 +77,7 @@
     "accountsWatchlist": "[PL] Watchlist",
     "activeAccounts": "[PL] activeAccounts",
     "addAccount": "Dodaj konto",
+    "addFirstAccount": "Dodaj Pierwsze Konto",
     "addGroup": "[PL] addGroup",
     "addNewRow": "Dodaj nowy wiersz",
     "addRow": "Dodaj wiersz",
@@ -84,6 +85,7 @@
     "addSubGroup": "[PL] Add Sub-group",
     "addToWatchlist": "[PL] Add to Watchlist",
     "amountInWords": "Kwota słownie",
+    "applyTemplateInstructions": "Aby zastosować szablon planu kont, uruchom jedno z następujących poleceń w Supabase SQL Editor:",
     "assets": "[PL] assets",
     "avgTransaction": "[PL] avgTransaction",
     "balanceAfter": "[PL] balanceAfter",
@@ -122,38 +124,8 @@
     },
     "chartOfAccounts": "Plan Kont",
     "chartOfAccountsDescription": "[PL] chartOfAccountsDescription",
-    "noAccountsTitle": "Brak Kont",
-    "noAccountsDescription": "Nie znaleziono kont w planie kont. Możesz dodać nowe konto lub zastosować gotowy szablon.",
     "chartTypeApplied": "Zastosowany Typ Planu",
     "chartTypeButNoAccounts": "Typ planu został zastosowany, ale nie ma kont. Może być konieczne ponowne zastosowanie szablonu.",
-    "noChartTemplateApplied": "Nie Zastosowano Szablonu Planu",
-    "applyTemplateInstructions": "Aby zastosować szablon planu kont, uruchom jedno z następujących poleceń w Supabase SQL Editor:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "Dodaj Pierwsze Konto",
-    "templates": {
-      "selectTemplate": "Wybierz Szablon Planu Kont",
-      "selectDescription": "Wybierz gotowy szablon do zastosowania w Twojej firmie. Wszystkie konta zostaną utworzone automatycznie.",
-      "selectAndApply": "Wybierz i Zastosuj Szablon",
-      "apply": "Zastosuj",
-      "appliedSuccess": "Szablon {name} został pomyślnie zastosowany",
-      "applyError": "Nie udało się zastosować szablonu",
-      "loadError": "Nie udało się załadować szablonów",
-      "noTemplates": "Brak dostępnych szablonów",
-      "noCompany": "Najpierw wybierz firmę",
-      "setupTemplates": "Skonfiguruj Szablony",
-      "setupSuccess": "Szablony zostały pomyślnie skonfigurowane",
-      "setupError": "Nie udało się skonfigurować szablonów",
-      "withDemoData": "Z Danymi Demo",
-      "types": {
-        "simple": "Standardowy",
-        "extended": "Rozszerzony",
-        "fabric_extended": "Rozszerzony dla Tkanin"
-      },
-      "applyingMessage": "Stosowanie szablonu... To może chwilę potrwać",
-      "refreshingAccounts": "Odświeżanie kont...",
-      "existingChartError": "Firma ma już plan kont. Zamiast tego użyj funkcji aktualizacji.",
-      "templateNotFound": "Nie znaleziono szablonu. Upewnij się, że szablony są skonfigurowane dla najemcy."
-    },
     "closingBalance": "Saldo Końcowe",
     "closingEntries": "Zapisy Zamykające",
     "collapseAll": "Zwiń Wszystko",
@@ -392,6 +364,9 @@
     "lines": "[PL] lines",
     "module": "Księgowość",
     "monthlyAverage": "[PL] monthlyAverage",
+    "noAccountsDescription": "Nie znaleziono kont w planie kont. Możesz dodać nowe konto lub zastosować gotowy szablon.",
+    "noAccountsTitle": "Brak Kont",
+    "noChartTemplateApplied": "Nie Zastosowano Szablonu Planu",
     "noCompanySelected": "[PL] noCompanySelected",
     "noCustomers": "[PL] noCustomers",
     "noParent": "[PL] noParent",
@@ -501,6 +476,7 @@
       "workflow": "Przepływ pracy",
       "workflowDesc": "Ustawienia zatwierdzania i automatycznego księgowania"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Przepływ Gotówki",
       "netProfit": "Zysk Netto",
@@ -522,6 +498,30 @@
     "summary": "Podsumowanie",
     "suppliers": "Dostawcy",
     "tableView": "Widok Tabeli",
+    "templates": {
+      "appliedSuccess": "Szablon {name} został pomyślnie zastosowany",
+      "apply": "Zastosuj",
+      "applyError": "Nie udało się zastosować szablonu",
+      "applyingMessage": "Stosowanie szablonu... To może chwilę potrwać",
+      "existingChartError": "Firma ma już plan kont. Zamiast tego użyj funkcji aktualizacji.",
+      "loadError": "Nie udało się załadować szablonów",
+      "noCompany": "Najpierw wybierz firmę",
+      "noTemplates": "Brak dostępnych szablonów",
+      "refreshingAccounts": "Odświeżanie kont...",
+      "selectAndApply": "Wybierz i Zastosuj Szablon",
+      "selectDescription": "Wybierz gotowy szablon do zastosowania w Twojej firmie. Wszystkie konta zostaną utworzone automatycznie.",
+      "selectTemplate": "Wybierz Szablon Planu Kont",
+      "setupError": "Nie udało się skonfigurować szablonów",
+      "setupSuccess": "Szablony zostały pomyślnie skonfigurowane",
+      "setupTemplates": "Skonfiguruj Szablony",
+      "templateNotFound": "Nie znaleziono szablonu. Upewnij się, że szablony są skonfigurowane dla najemcy.",
+      "types": {
+        "extended": "Rozszerzony",
+        "fabric_extended": "Rozszerzony dla Tkanin",
+        "simple": "Standardowy"
+      },
+      "withDemoData": "Z Danymi Demo"
+    },
     "totalAccounts": "[PL] totalAccounts",
     "totalBalance": "[PL] totalBalance",
     "totalInvoices": "[PL] totalInvoices",
@@ -828,10 +828,10 @@
     "active": "Aktywny",
     "add": "Dodaj",
     "all": "Wszystko",
-    "applying": "Stosowanie...",
     "allItems": "[PL] All",
     "amount": "Kwota",
     "and": "i",
+    "applying": "Stosowanie...",
     "back": "Wstecz",
     "balance": "Saldo",
     "cancel": "Anuluj",
@@ -930,6 +930,7 @@
     "receipt": "Paragon",
     "reference": "Referencja",
     "refresh": "Odśwież",
+    "refunded": "[PL] Refunded",
     "remaining": "[PL] remaining",
     "required": "Wymagane",
     "reset": "Resetuj",
@@ -937,6 +938,7 @@
     "search": "Szukaj",
     "select": "Wybierz",
     "selectAll": "Zaznacz Wszystko",
+    "sent": "[PL] Sent",
     "showCancelledEntries": "[PL] showCancelledEntries",
     "status": {
       "_": "Status",
@@ -976,6 +978,7 @@
     },
     "to": "Do",
     "total": "Suma",
+    "totalAmount": "[PL] Total Amount",
     "totals": "SUMY",
     "transactions": "[PL] Transactions",
     "type": "Typ",
@@ -1083,6 +1086,14 @@
       "quickReceiptDialog": {
         "description": "Dialog szybkiego wprowadzania dla dowodów",
         "name": "Dialog Szybkiego Dowodu"
+      },
+      "registerPage": {
+        "description": "[PL] Basic registration page for new users with multilingual support and RTL",
+        "name": "[PL] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[PL] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[PL] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "Wyświetlanie i edycja szczegółów transakcji",
@@ -2009,19 +2020,73 @@
   "saas": {
     "activate": "Aktywuj",
     "agents": "Agenci",
+    "agentsGrid": {
+      "balance": "[PL] Current Balance",
+      "code": "[PL] Agent Code",
+      "commission": "[PL] Commission %",
+      "earned": "[PL] Total Earned",
+      "name": "[PL] Agent Name",
+      "pending": "[PL] Pending Balance",
+      "tenants": "[PL] Tenants Count",
+      "tier": "[PL] Tier",
+      "title": "[PL] Agents Management",
+      "type": "[PL] Agent Type",
+      "withdrawn": "[PL] Total Withdrawn"
+    },
     "analytics": "Analityka",
     "approve": "Zatwierdź",
     "comingSoon": "Wkrótce - W przygotowaniu",
+    "companySwitcher": {
+      "availableCompanies": "[PL] Available Companies",
+      "current": "[PL] Current",
+      "currentCompany": "[PL] Current Company",
+      "description": "[PL] Switch the currently active company",
+      "fabricInfo": "[PL] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[PL] Failed to load companies",
+      "singleCompany": "[PL] You have only one company",
+      "switch": "[PL] Switch",
+      "switchError": "[PL] Failed to switch company",
+      "switchSuccess": "[PL] Company switched successfully",
+      "title": "[PL] Company Switcher",
+      "types": {
+        "production": "[PL] Production",
+        "testing": "[PL] Testing"
+      }
+    },
     "coupons": "Kupony",
     "createNew": "Utwórz nowy",
     "dashboard": "Panel",
     "delete": "Usuń",
     "edit": "Edytuj",
+    "invoicesGrid": {
+      "amount": "[PL] Amount",
+      "dueDate": "[PL] Due Date",
+      "issueDate": "[PL] Issue Date",
+      "number": "[PL] Invoice Number",
+      "paidDate": "[PL] Paid Date",
+      "period": "[PL] Billing Period",
+      "plan": "[PL] Subscription Plan",
+      "tax": "[PL] Tax Amount",
+      "tenant": "[PL] Tenant",
+      "title": "[PL] Invoices Management",
+      "total": "[PL] Total Amount"
+    },
     "marketing": "Marketing",
     "modules": "Moduły",
     "notifications": "Powiadomienia",
     "packages": "Pakiety",
     "payments": "Płatności",
+    "paymentsGrid": {
+      "agent": "[PL] Agent",
+      "commission": "[PL] Commission Amount",
+      "date": "[PL] Payment Date",
+      "dueDate": "[PL] Due Date",
+      "invoiceNumber": "[PL] Invoice Number",
+      "method": "[PL] Payment Method",
+      "reference": "[PL] Reference",
+      "tenant": "[PL] Tenant",
+      "title": "[PL] Payments Management"
+    },
     "plans": {
       "enterprise": "Korporacyjny",
       "professional": "Profesjonalny",
@@ -2044,18 +2109,23 @@
     "suspend": "Zawieś",
     "tenants": {
       "activate": "Aktywuj Subskrybenta",
+      "agent": "[PL] Agent",
       "agentInfo": "Powiązany z Agentem",
       "billing": "Rozliczenia",
+      "code": "[PL] Tenant Code",
       "create": "Utwórz Nowego Subskrybenta",
       "createDescription": "Utwórz nowego subskrybenta w systemie",
       "description": "Zarządzaj subskrybentami i subskrypcjami",
       "details": "Szczegóły Subskrybenta",
+      "documents": "[PL] Documents",
       "edit": "Edytuj Subskrybenta",
       "error": {
         "createFailed": "Nie udało się utworzyć subskrybenta",
         "loadFailed": "Nie udało się załadować subskrybentów",
         "noPermission": "Brak uprawnień dostępu"
       },
+      "language": "[PL] Default Language",
+      "name": "[PL] Tenant Name",
       "ownerName": "Imię Właściciela",
       "placeholders": {
         "companyName": "Nazwa Firmy",
@@ -2066,6 +2136,7 @@
       "referral": "Polecenie",
       "referralCode": "Kod Polecenia",
       "referralSource": "Źródło Polecenia",
+      "storage": "[PL] Storage Used",
       "subscription": "Subskrypcja",
       "suspend": "Zawieś Subskrybenta",
       "tabs": {
@@ -2075,11 +2146,71 @@
       },
       "title": "Zarządzanie Subskrybentami",
       "total": "Łącznie Subskrybentów",
-      "usage": "Użycie"
+      "usage": "Użycie",
+      "users": "[PL] Users Count"
     },
     "title": "Zarządzanie SaaS",
     "view": "Podgląd",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Nazwa Planu",
+      "price": "Cena",
+      "billingCycle": "Cykl Rozliczeniowy",
+      "monthly": "Miesięczny",
+      "yearly": "Roczny",
+      "maxUsers": "Maks. Użytkowników",
+      "product": "Produkt",
+      "status": "Status",
+      "popular": "Popularny",
+      "basicInfo": "Podstawowe Informacje",
+      "modules": "Moduły",
+      "limitsAndFeatures": "Limity i Funkcje",
+      "subscribers": "Subskrybenci",
+      "ledger": "Księga",
+      "assignedModules": "Przypisane Moduły",
+      "noModules": "Brak przypisanych modułów",
+      "availableModules": "Dostępne Moduły",
+      "limits": "Limity",
+      "storageLimit": "Limit Przechowywania",
+      "maxDocuments": "Maks. Dokumentów",
+      "maxImages": "Maks. Obrazów",
+      "features": "Funkcje",
+      "feature": {
+        "multiCurrency": "Obsługa Wielu Walut",
+        "advancedReports": "Zaawansowane Raporty",
+        "apiAccess": "Dostęp do API",
+        "customBranding": "Własny Branding",
+        "prioritySupport": "Wsparcie Priorytetowe"
+      },
+      "noSubscribers": "Brak subskrybentów dla tego planu",
+      "setPopular": "Ustaw jako Popularny",
+      "removePopular": "Usuń Status Popularnego",
+      "deactivateConfirm": "Potwierdź Dezaktywację",
+      "deactivateDescription": "Czy na pewno chcesz dezaktywować ten plan? Nowi subskrybenci nie będą mogli się zapisać.",
+      "archiveConfirm": "Potwierdź Archiwizację",
+      "archiveDescription": "Czy na pewno chcesz zarchiwizować ten plan? Zostanie dezaktywowany i ukryty z list."
+    },
+    "subscription": {
+      "startDate": "Data Rozpoczęcia",
+      "endDate": "Data Zakończenia",
+      "expired": "Wygasła",
+      "suspended": "Zawieszona",
+      "cancelled": "Anulowana"
+    },
+    "payment": {
+      "totalRevenue": "Całkowity Przychód",
+      "totalPayments": "Całkowite Płatności",
+      "avgPayment": "Średnia Płatność",
+      "noPayments": "Brak płatności"
+    },
+    "activity": {
+      "planCreated": "Plan utworzony",
+      "planUpdated": "Plan zaktualizowany",
+      "planActivated": "Plan aktywowany",
+      "planDeactivated": "Plan dezaktywowany",
+      "planArchived": "Plan zarchiwizowany",
+      "planSetPopular": "Plan oznaczony jako popularny"
+    },
     "whiteLabel": "Biała etykieta",
     "whiteLabelDetails": {
       "activate": "Aktywuj White Label",
@@ -2146,7 +2277,10 @@
     "collapse": "Zwiń",
     "contactSupport": "Skontaktuj się z pomocą",
     "expand": "Rozwiń",
-    "needHelp": "Potrzebujesz pomocy?"
+    "moduleDisabled": "[PL] Module Disabled",
+    "needHelp": "Potrzebujesz pomocy?",
+    "upgrade": "[PL] Upgrade",
+    "upgradeRequired": "[PL] Upgrade Required"
   },
   "sku": "[PL] sku",
   "stats": {
@@ -2542,5 +2676,108 @@
     "invalidInput": "Nieprawidłowe dane",
     "negative": "Ujemny!",
     "required": "Wymagane"
+  },
+  "wizard": {
+    "address": "[PL] Address",
+    "addressPlaceholder": "[PL] Example: King Fahd Street, Al Olaya",
+    "back": "[PL] Back",
+    "businessType": "[PL] Business Type",
+    "businessTypeHint": "[PL] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[PL] Online retail store",
+        "name": "[PL] E-commerce"
+      },
+      "exchange": {
+        "description": "[PL] Money transfer and exchange",
+        "name": "[PL] Exchange"
+      },
+      "fabric": {
+        "description": "[PL] Fabric and textile trading",
+        "name": "[PL] Fabric"
+      },
+      "general": {
+        "description": "[PL] General and diverse business",
+        "name": "[PL] General"
+      },
+      "healthcare": {
+        "description": "[PL] Medical and healthcare services",
+        "name": "[PL] Healthcare"
+      }
+    },
+    "city": "[PL] City",
+    "cityPlaceholder": "[PL] Example: Riyadh",
+    "cityRequired": "[PL] Please enter a city",
+    "companyName": "[PL] Company Name",
+    "companyNameFromRegistration": "[PL] Company name from registration (you can edit it)",
+    "companyNameHint": "[PL] Please enter your company name to continue",
+    "companyNamePlaceholder": "[PL] Example: Advanced Technology Company",
+    "companyNameRequired": "[PL] Company name is required",
+    "complete": "[PL] Complete Registration",
+    "country": "[PL] Country",
+    "countryAndCityRequired": "[PL] Please select country and city",
+    "countryRequired": "[PL] Please select a country",
+    "description": "[PL] Complete your company information to start using the system",
+    "email": "[PL] Email",
+    "emailPlaceholder": "[PL] info@example.com",
+    "fabricCurrencyNote": "[PL] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[PL] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[PL] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[PL] Fiscal Year Start",
+    "localCurrency": "[PL] Local Currency",
+    "localCurrencyNote": "[PL] Currency used in your country (can be changed later)",
+    "mainCurrency": "[PL] Main Currency",
+    "mainCurrencyNote": "[PL] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[PL] April",
+      "august": "[PL] August",
+      "december": "[PL] December",
+      "february": "[PL] February",
+      "january": "[PL] January",
+      "july": "[PL] July",
+      "june": "[PL] June",
+      "march": "[PL] March",
+      "may": "[PL] May",
+      "november": "[PL] November",
+      "october": "[PL] October",
+      "september": "[PL] September"
+    },
+    "next": "[PL] Next",
+    "of": "[PL] of",
+    "phone": "[PL] Phone",
+    "phonePlaceholder": "[PL] +966 XX XXX XXXX",
+    "registrationFailed": "[PL] Registration failed. Please try again",
+    "selectBusinessType": "[PL] Please select a business type",
+    "selectBusinessTypeAndName": "[PL] Please select business type and enter company name",
+    "selectCountry": "[PL] Select Country",
+    "selectCurrency": "[PL] Select Currency",
+    "selectMainCurrency": "[PL] Select Main Currency",
+    "step": "[PL] Step",
+    "step1": {
+      "description": "[PL] Select the business activity that fits your company",
+      "title": "[PL] Choose Your Business Type"
+    },
+    "step1Description": "[PL] Choose your business type and enter your company name",
+    "step1Title": "[PL] Business Type & Company Name",
+    "step2": {
+      "description": "[PL] Enter your company's basic details",
+      "title": "[PL] Company Information"
+    },
+    "step2Description": "[PL] Enter your company's basic details",
+    "step2Title": "[PL] Company Information",
+    "step3": {
+      "description": "[PL] Set your currency and fiscal year start",
+      "title": "[PL] Financial Settings"
+    },
+    "step3Description": "[PL] Set currencies and fiscal year start",
+    "step3Title": "[PL] Financial Settings",
+    "submitting": "[PL] Completing...",
+    "success": "[PL] Registration completed successfully! Redirecting...",
+    "successFabric": "[PL] Two companies created successfully! Redirecting...",
+    "summary": "[PL] Summary",
+    "title": "[PL] Account Setup",
+    "userNotFound": "[PL] User not found. Please login again",
+    "website": "[PL] Website",
+    "websitePlaceholder": "[PL] https://example.com"
   }
 }

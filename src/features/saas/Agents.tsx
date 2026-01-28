@@ -2,37 +2,17 @@
  * Agents Management Page
  * إدارة الوكلاء والمسوقين
  * 
- * Updated to use UniversalDetailSheet system
+ * Updated to use LedgerTable for consistent UI
  */
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { agentsService, type Agent } from '@/services/saas/agentsService';
-import { NexaTable, Column } from '@/components/shared/tables/NexaTable';
+import { LedgerTable, type LedgerColumn } from '@/components/shared/tables/LedgerTable';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Search, 
-  Plus, 
-  Eye, 
-  Edit, 
-  MoreHorizontal,
-  UserCog,
-  DollarSign,
-  Users,
-  TrendingUp,
-  Shield,
-  Globe
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Plus, Globe } from 'lucide-react';
 import { UniversalDetailSheet } from '@/components/sheets';
 import { cn } from '@/lib/utils';
 
@@ -42,9 +22,9 @@ export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
   // Load agents
   const loadAgents = async () => {
@@ -65,33 +45,6 @@ export default function Agents() {
     loadAgents();
   }, []);
 
-  // Filter agents by search query
-  const filteredAgents = agents.filter(agent => {
-    const query = searchQuery.toLowerCase();
-    return (
-      agent.name.toLowerCase().includes(query) ||
-      agent.email.toLowerCase().includes(query) ||
-      agent.code.toLowerCase().includes(query) ||
-      (agent.phone && agent.phone.includes(query))
-    );
-  });
-
-  // Get status badge
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      active: { label: t('saas.status.active'), className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-      pending: { label: t('saas.status.pending'), className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-      suspended: { label: t('saas.status.suspended'), className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-      terminated: { label: t('saas.status.cancelled'), className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
-    };
-    const statusInfo = statusMap[status] || statusMap.pending;
-    return (
-      <Badge className={cn('text-xs font-medium', statusInfo.className)}>
-        {statusInfo.label}
-      </Badge>
-    );
-  };
-
   // Get tier badge
   const getTierBadge = (tier: string) => {
     const tierMap: Record<string, { labelKey: string; className: string }> = {
@@ -109,21 +62,21 @@ export default function Agents() {
     );
   };
 
-  // Table columns
-  const columns: Column<Agent>[] = [
+  // Columns configuration
+  const columns: LedgerColumn<Agent>[] = [
     {
       key: 'code',
-      title: t('common.code'),
+      title: 'saas.agentsGrid.code',
+      type: 'text',
       width: '120px',
       sortable: true,
       filterable: true,
-      render: (value) => (
-        <span className="font-mono text-sm font-semibold">{value}</span>
-      ),
     },
     {
       key: 'name',
-      title: t('common.name'),
+      title: 'saas.agentsGrid.name',
+      type: 'text',
+      width: '250px',
       sortable: true,
       filterable: true,
       render: (value, row) => (
@@ -137,24 +90,32 @@ export default function Agents() {
     },
     {
       key: 'tier',
-      title: t('saas.agents.tier'),
-      width: '120px',
-      sortable: true,
-      render: (value) => getTierBadge(value),
-    },
-    {
-      key: 'status',
-      title: t('common.status._'),
+      title: 'saas.agentsGrid.tier',
+      type: 'text',
       width: '120px',
       sortable: true,
       filterable: true,
-      render: (value) => getStatusBadge(value),
+      render: (value) => getTierBadge(value as string),
+    },
+    {
+      key: 'status',
+      title: 'common.status._',
+      type: 'status',
+      width: '130px',
+      sortable: true,
+      filterable: true,
+      statusConfig: {
+        active: { label: 'saas.status.active', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+        pending: { label: 'saas.status.pending', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+        suspended: { label: 'saas.status.suspended', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+        terminated: { label: 'saas.status.cancelled', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
+      },
     },
     {
       key: 'commission_percent',
-      title: t('saas.agents.commissions'),
+      title: 'saas.agentsGrid.commission',
+      type: 'number',
       width: '120px',
-      align: 'end',
       sortable: true,
       render: (value) => (
         <span className="font-semibold text-blue-600 dark:text-blue-400">
@@ -164,18 +125,19 @@ export default function Agents() {
     },
     {
       key: 'current_balance',
-      title: t('saas.agents.balance'),
-      width: '150px',
-      align: 'end',
+      title: 'saas.agentsGrid.balance',
+      type: 'currency',
+      width: '180px',
       sortable: true,
+      colorize: true,
       render: (value, row) => (
         <div className="flex flex-col items-end">
-          <span className="font-semibold text-green-600 dark:text-green-400">
+          <span className="font-semibold text-green-600 dark:text-green-400 font-mono">
             {value.toLocaleString()} {row.currency}
           </span>
           {row.pending_balance > 0 && (
             <span className="text-xs text-yellow-600 dark:text-yellow-400">
-              {t('saas.agents.pendingBalance')}: {row.pending_balance.toLocaleString()}
+              {row.pending_balance.toLocaleString()}
             </span>
           )}
         </div>
@@ -183,88 +145,44 @@ export default function Agents() {
     },
     {
       key: 'has_white_label',
-      title: t('saas.whiteLabelDetails.title'),
-      width: '120px',
-      align: 'center',
-      render: (value, row) => {
+      title: 'saas.whiteLabel',
+      type: 'text',
+      width: '110px',
+      render: (value) => {
         if (!value) return <span className="text-gray-400">-</span>;
         return (
           <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-            <Globe className="w-3 h-3 mr-1" />
-            {t('saas.whiteLabelDetails.title')}
+            <Globe className="w-3 h-3 me-1" />
+            WL
           </Badge>
         );
       },
     },
-    {
-      key: 'actions',
-      title: t('common.actions'),
-      width: '120px',
-      align: 'center',
-      render: (_value, row) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => {
-              setSelectedAgent(row);
-              setIsDetailsOpen(true);
-            }}>
-              <Eye className="w-4 h-4 mr-2" />
-              {t('common.view')}
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Edit className="w-4 h-4 mr-2" />
-              {t('common.edit')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {row.status === 'pending' && (
-              <DropdownMenuItem onClick={async () => {
-                try {
-                  await agentsService.approve(row.id);
-                  await loadAgents();
-                } catch (err: any) {
-                  setError(err.message);
-                }
-              }}>
-                <Shield className="w-4 h-4 mr-2" />
-                {t('saas.agents.approve')}
-              </DropdownMenuItem>
-            )}
-            {row.status === 'active' && (
-              <DropdownMenuItem onClick={async () => {
-                try {
-                  await agentsService.suspend(row.id);
-                  await loadAgents();
-                } catch (err: any) {
-                  setError(err.message);
-                }
-              }}>
-                <Shield className="w-4 h-4 mr-2" />
-                {t('saas.agents.suspend')}
-              </DropdownMenuItem>
-            )}
-            {row.status === 'suspended' && (
-              <DropdownMenuItem onClick={async () => {
-                try {
-                  await agentsService.activate(row.id);
-                  await loadAgents();
-                } catch (err: any) {
-                  setError(err.message);
-                }
-              }}>
-                <Shield className="w-4 h-4 mr-2" />
-                {t('saas.agents.activate')}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
   ];
+
+  // Stats configuration
+  const stats = {
+    label1: {
+      title: 'saas.status.active',
+      value: agents.filter(a => a.status === 'active').length,
+      color: 'green' as const,
+    },
+    label2: {
+      title: 'common.total',
+      value: agents.length,
+      color: 'blue' as const,
+    },
+    label3: {
+      title: 'saas.whiteLabel',
+      value: agents.filter(a => a.has_white_label).length,
+      color: 'gray' as const,
+    },
+    label4: {
+      title: 'saas.agentsGrid.balance',
+      value: agents.reduce((sum, a) => sum + (a.current_balance || 0), 0).toLocaleString(),
+      color: 'gray' as const,
+    },
+  };
 
   return (
     <div className="space-y-6" dir={direction}>
@@ -279,80 +197,9 @@ export default function Agents() {
           </p>
         </div>
         <Button onClick={() => {/* TODO: Open create dialog */}}>
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-4 h-4 me-2" />
           {t('saas.agents.create')}
         </Button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.agents.totalAgents')}
-              </p>
-              <p className="text-2xl font-bold text-erp-navy dark:text-white mt-1">
-                {agents.length}
-              </p>
-            </div>
-            <UserCog className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.agents.activeAgents')}
-              </p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                {agents.filter(a => a.status === 'active').length}
-              </p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.agents.totalTenants')}
-              </p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                {agents.reduce((sum, a) => sum + (a.total_earned || 0), 0).toLocaleString()}
-              </p>
-            </div>
-            <Users className="w-8 h-8 text-purple-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.agents.totalCommissions')}
-              </p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                {agents.reduce((sum, a) => sum + (a.total_earned || 0), 0).toLocaleString()}
-              </p>
-            </div>
-            <DollarSign className="w-8 h-8 text-amber-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder={t('common.search')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Error Message */}
@@ -363,22 +210,32 @@ export default function Agents() {
       )}
 
       {/* Agents Table */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm">
-        <NexaTable
-          data={filteredAgents}
+      <div className="h-[calc(100vh-300px)]">
+        <LedgerTable
+          data={agents}
           columns={columns}
           loading={loading}
+          error={error}
+          showFilters={false}
+          showStats={true}
+          stats={stats}
+          selectable={true}
+          selectedRows={selectedRows}
+          onSelectionChange={setSelectedRows}
+          rowKey="id"
           onRowClick={(row) => {
             setSelectedAgent(row);
             setIsDetailsOpen(true);
           }}
-          rowKey="id"
-          emptyMessage={t('common.noData')}
+          onRefresh={loadAgents}
+          variant="default"
           stickyHeader={true}
+          showRowNumbers={true}
+          emptyMessage="table.noData"
         />
       </div>
 
-      {/* Agent Details Sheet - Using Universal Detail Sheet System */}
+      {/* Agent Details Sheet */}
       <UniversalDetailSheet
         isOpen={isDetailsOpen}
         onClose={() => {

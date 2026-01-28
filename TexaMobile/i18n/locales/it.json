@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Benvenuto",
+    "hello": "Ciao",
+    "logout": "Esci",
+    "loading": "Caricamento",
+    "refresh": "Aggiorna",
+    "error": "Errore",
+    "success": "Successo",
+    "cancel": "Annulla",
+    "save": "Salva",
+    "delete": "Elimina",
+    "edit": "Modifica",
+    "add": "Aggiungi",
+    "search": "Cerca",
+    "filter": "Filtra",
+    "sort": "Ordina",
+    "close": "Chiudi",
+    "back": "Indietro",
+    "next": "Avanti",
+    "previous": "Precedente",
+    "submit": "Invia",
+    "confirm": "Conferma"
+  },
+  
+  "auth": {
+    "login": "Accedi",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Password dimenticata?",
+    "rememberMe": "Ricordami",
+    "biometricLogin": "Accedi con biometria",
+    "loginError": "Errore di accesso",
+    "invalidCredentials": "Email o password non validi",
+    "emailRequired": "Email richiesta",
+    "passwordRequired": "Password richiesta",
+    "loginSuccess": "Accesso riuscito"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Dashboard Amministratore",
+      "welcome": "Benvenuto",
+      "systemStats": "Statistiche Sistema",
+      "recentActivities": "Attività Recenti",
+      "quickActions": "Azioni Rapide",
+      "totalUsers": "Utenti",
+      "activeCompanies": "Aziende",
+      "totalRevenue": "Ricavi",
+      "growthRate": "Tasso di Crescita",
+      "addUser": "Aggiungi Utente",
+      "settings": "Impostazioni",
+      "reports": "Rapporti"
+    },
+    
+    "cashier": {
+      "title": "Dashboard Cassiere",
+      "quickSummary": "Riepilogo Rapido",
+      "todayTransactions": "Transazioni di Oggi",
+      "balance": "Saldo",
+      "deposit": "Deposito",
+      "withdraw": "Preleva",
+      "transfer": "Trasferimento",
+      "transactions": "Transazioni"
+    },
+    
+    "driver": {
+      "title": "Dashboard Autista",
+      "todayStats": "Statistiche di Oggi",
+      "deliveries": "Consegne",
+      "completed": "Completate",
+      "pending": "In Attesa",
+      "distance": "Distanza",
+      "deliveryRequests": "Richieste di Consegna"
+    },
+    
+    "warehouse": {
+      "title": "Dashboard Magazzino",
+      "inventory": "Inventario",
+      "lowStock": "Scorte Basse",
+      "movements": "Movimenti"
+    }
+  },
+  
+  "roles": {
+    "admin": "Amministratore di Sistema",
+    "full_admin": "Amministratore Completo",
+    "cashier": "Cassiere",
+    "driver": "Autista",
+    "warehouse_keeper": "Magazziniere",
+    "warehouse_manager": "Responsabile Magazzino",
+    "accountant": "Contabile",
+    "sales_rep": "Rappresentante Vendite",
+    "purchasing_manager": "Responsabile Acquisti"
+  },
+  
+  "errors": {
+    "networkError": "Errore di Rete",
+    "serverError": "Errore del Server",
+    "notFound": "Non Trovato",
+    "unauthorized": "Non Autorizzato",
+    "forbidden": "Vietato",
+    "invalidInput": "Input Non Valido",
+    "tryAgain": "Riprova"
+  },
+  
+  "messages": {
+    "dataLoaded": "Dati Caricati",
+    "dataSaved": "Dati Salvati",
+    "dataDeleted": "Dati Eliminati",
+    "operationSuccess": "Operazione Riuscita",
+    "operationFailed": "Operazione Fallita"
+  },
+  
+  "date": {
+    "today": "Oggi",
+    "yesterday": "Ieri",
+    "tomorrow": "Domani",
+    "thisWeek": "Questa Settimana",
+    "thisMonth": "Questo Mese",
+    "thisYear": "Quest'Anno"
+  },
+  
+  "notifications": {
+    "title": "Notifiche",
+    "newCount": "{{count}} nuova notifica",
+    "newCount_plural": "{{count}} nuove notifiche",
+    "markAllRead": "Segna tutte come lette",
+    "noNotifications": "Nessuna notifica",
+    "noNotificationsSubtitle": "Le nuove notifiche appariranno qui",
+    "types": {
+      "success": "Salvato con Successo",
+      "newUser": "Nuovo Utente",
+      "warning": "Avviso",
+      "report": "Nuovo Rapporto",
+      "transaction": "Nuova Transazione"
+    },
+    "messages": {
+      "accountSaved": "Le modifiche al tuo account sono state salvate con successo",
+      "userAdded": "Un nuovo utente è stato aggiunto al sistema",
+      "lowStock": "Scorte basse per alcuni prodotti",
+      "reportReady": "Il rapporto mensile sulle vendite è pronto per la revisione",
+      "transactionComplete": "Transazione finanziaria completata con successo"
+    },
+    "time": {
+      "now": "Ora",
+      "minutesAgo": "{{count}} minuto fa",
+      "minutesAgo_plural": "{{count}} minuti fa",
+      "hoursAgo": "{{count}} ora fa",
+      "hoursAgo_plural": "{{count}} ore fa",
+      "yesterday": "Ieri",
+      "daysAgo": "{{count}} giorno fa",
+      "daysAgo_plural": "{{count}} giorni fa"
+    }
+  },
+  
+  "settings": {
+    "title": "Impostazioni",
+    "sections": {
+      "account": "Account",
+      "preferences": "Preferenze",
+      "app": "App"
+    },
+    "account": {
+      "profile": "Profilo",
+      "profileSubtitle": "Visualizza e aggiorna le tue informazioni",
+      "changePassword": "Cambia Password",
+      "changePasswordSubtitle": "Aggiorna la tua password"
+    },
+    "preferences": {
+      "notifications": "Notifiche",
+      "notificationsSubtitle": "Abilita notifiche push",
+      "biometric": "Biometria",
+      "biometricSubtitle": "Accedi con biometria",
+      "darkMode": "Modalità Scura",
+      "darkModeSubtitle": "Abilita tema scuro"
+    },
+    "app": {
+      "language": "Lingua",
+      "languageValue": "Italiano",
+      "help": "Aiuto e Supporto",
+      "helpSubtitle": "FAQ e supporto",
+      "about": "Informazioni sull'App",
+      "aboutSubtitle": "Versione {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Esci"
+  },
+  
+  "profile": {
+    "title": "Profilo",
+    "info": {
+      "name": "Nome Completo",
+      "email": "Email",
+      "role": "Ruolo",
+      "memberSince": "Membro dal",
+      "lastLogin": "Ultimo Accesso",
+      "phone": "Numero di Telefono",
+      "language": "Lingua",
+      "company": "Azienda"
+    },
+    "actions": {
+      "updateInfo": "Aggiorna Informazioni",
+      "security": "Impostazioni di Sicurezza"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Azioni Rapide",
+    "subtitle": "Scorciatoie rapide per operazioni comuni",
+    "actions": {
+      "addUser": "Aggiungi Utente",
+      "newDeposit": "Nuovo Deposito",
+      "newWithdrawal": "Nuovo Prelievo",
+      "startRoute": "Inizia Percorso",
+      "completeDelivery": "Completa Consegna",
+      "scanProduct": "Scansiona Prodotto",
+      "checkInventory": "Controlla Inventario"
+    }
+  },
+  
+  "languages": {
+    "ar": "Arabo",
+    "en": "Inglese",
+    "de": "Tedesco",
+    "tr": "Turco",
+    "ru": "Russo",
+    "uk": "Ucraino",
+    "it": "Italiano",
+    "pl": "Polacco",
+    "ro": "Rumeno",
+    "fr": "Francese"
+  }
+}

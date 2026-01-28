@@ -77,6 +77,7 @@
     "accountsWatchlist": "[RO] Watchlist",
     "activeAccounts": "[RO] activeAccounts",
     "addAccount": "Adaugă cont",
+    "addFirstAccount": "Adăugați Primul Cont",
     "addGroup": "[RO] addGroup",
     "addNewRow": "Adaugă rând nou",
     "addRow": "Adaugă rând",
@@ -84,6 +85,7 @@
     "addSubGroup": "[RO] Add Sub-group",
     "addToWatchlist": "[RO] Add to Watchlist",
     "amountInWords": "Suma în cuvinte",
+    "applyTemplateInstructions": "Pentru a aplica un șablon de plan de conturi, rulați una dintre următoarele comenzi în Supabase SQL Editor:",
     "assets": "[RO] assets",
     "avgTransaction": "[RO] avgTransaction",
     "balanceAfter": "[RO] balanceAfter",
@@ -122,38 +124,8 @@
     },
     "chartOfAccounts": "Plan de Conturi",
     "chartOfAccountsDescription": "[RO] chartOfAccountsDescription",
-    "noAccountsTitle": "Niciun Cont Încă",
-    "noAccountsDescription": "Nu s-au găsit conturi în planul de conturi. Puteți adăuga un cont nou sau aplica un șablon gata făcut.",
     "chartTypeApplied": "Tip de Plan Aplicat",
     "chartTypeButNoAccounts": "Tipul de plan a fost aplicat dar nu există conturi. Poate fi necesar să aplicați din nou șablonul.",
-    "noChartTemplateApplied": "Niciun Șablon de Plan Aplicat",
-    "applyTemplateInstructions": "Pentru a aplica un șablon de plan de conturi, rulați una dintre următoarele comenzi în Supabase SQL Editor:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "Adăugați Primul Cont",
-    "templates": {
-      "selectTemplate": "Selectați Șablon Plan Conturi",
-      "selectDescription": "Alegeți un șablon gata făcut pentru a-l aplica companiei dvs. Toate conturile vor fi create automat.",
-      "selectAndApply": "Selectați și Aplicați Șablon",
-      "apply": "Aplică",
-      "appliedSuccess": "Șablonul {name} a fost aplicat cu succes",
-      "applyError": "Nu s-a putut aplica șablonul",
-      "loadError": "Nu s-au putut încărca șabloanele",
-      "noTemplates": "Nu există șabloane disponibile",
-      "noCompany": "Vă rugăm să selectați mai întâi o companie",
-      "setupTemplates": "Configurare Șabloane",
-      "setupSuccess": "Șabloanele au fost configurate cu succes",
-      "setupError": "Nu s-au putut configura șabloanele",
-      "withDemoData": "Cu Date Demo",
-      "types": {
-        "simple": "Standard",
-        "extended": "Extins",
-        "fabric_extended": "Extins pentru Țesături"
-      },
-      "applyingMessage": "Se aplică șablonul... Acest lucru poate dura câteva momente",
-      "refreshingAccounts": "Se actualizează conturile...",
-      "existingChartError": "Compania are deja un plan de conturi. Folosiți funcția de actualizare în schimb.",
-      "templateNotFound": "Șablonul nu a fost găsit. Asigurați-vă că șabloanele sunt configurate pentru chiriaș."
-    },
     "closingBalance": "Sold Final",
     "closingEntries": "Înregistrări de Închidere",
     "collapseAll": "Restrânge Tot",
@@ -392,6 +364,9 @@
     "lines": "[RO] lines",
     "module": "Contabilitate",
     "monthlyAverage": "[RO] monthlyAverage",
+    "noAccountsDescription": "Nu s-au găsit conturi în planul de conturi. Puteți adăuga un cont nou sau aplica un șablon gata făcut.",
+    "noAccountsTitle": "Niciun Cont Încă",
+    "noChartTemplateApplied": "Niciun Șablon de Plan Aplicat",
     "noCompanySelected": "[RO] noCompanySelected",
     "noCustomers": "[RO] noCustomers",
     "noParent": "[RO] noParent",
@@ -501,6 +476,7 @@
       "workflow": "Flux de Lucru",
       "workflowDesc": "Setări de aprobare și înregistrare automată"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Flux de Numerar",
       "netProfit": "Profit Net",
@@ -522,6 +498,30 @@
     "summary": "Rezumat",
     "suppliers": "Furnizori",
     "tableView": "Vedere Tabel",
+    "templates": {
+      "appliedSuccess": "Șablonul {name} a fost aplicat cu succes",
+      "apply": "Aplică",
+      "applyError": "Nu s-a putut aplica șablonul",
+      "applyingMessage": "Se aplică șablonul... Acest lucru poate dura câteva momente",
+      "existingChartError": "Compania are deja un plan de conturi. Folosiți funcția de actualizare în schimb.",
+      "loadError": "Nu s-au putut încărca șabloanele",
+      "noCompany": "Vă rugăm să selectați mai întâi o companie",
+      "noTemplates": "Nu există șabloane disponibile",
+      "refreshingAccounts": "Se actualizează conturile...",
+      "selectAndApply": "Selectați și Aplicați Șablon",
+      "selectDescription": "Alegeți un șablon gata făcut pentru a-l aplica companiei dvs. Toate conturile vor fi create automat.",
+      "selectTemplate": "Selectați Șablon Plan Conturi",
+      "setupError": "Nu s-au putut configura șabloanele",
+      "setupSuccess": "Șabloanele au fost configurate cu succes",
+      "setupTemplates": "Configurare Șabloane",
+      "templateNotFound": "Șablonul nu a fost găsit. Asigurați-vă că șabloanele sunt configurate pentru chiriaș.",
+      "types": {
+        "extended": "Extins",
+        "fabric_extended": "Extins pentru Țesături",
+        "simple": "Standard"
+      },
+      "withDemoData": "Cu Date Demo"
+    },
     "totalAccounts": "[RO] totalAccounts",
     "totalBalance": "[RO] totalBalance",
     "totalInvoices": "[RO] totalInvoices",
@@ -828,10 +828,10 @@
     "active": "Activ",
     "add": "Adaugă",
     "all": "Toate",
-    "applying": "Se aplică...",
     "allItems": "[RO] All",
     "amount": "Sumă",
     "and": "și",
+    "applying": "Se aplică...",
     "back": "Înapoi",
     "balance": "Sold",
     "cancel": "Anulează",
@@ -930,6 +930,7 @@
     "receipt": "Încasare",
     "reference": "Referință",
     "refresh": "Reîmprospătează",
+    "refunded": "[RO] Refunded",
     "remaining": "[RO] remaining",
     "required": "Obligatoriu",
     "reset": "Resetează",
@@ -937,6 +938,7 @@
     "search": "Caută",
     "select": "Selectează",
     "selectAll": "Selectează Tot",
+    "sent": "[RO] Sent",
     "showCancelledEntries": "[RO] showCancelledEntries",
     "status": {
       "_": "Stare",
@@ -976,6 +978,7 @@
     },
     "to": "Până la",
     "total": "Total",
+    "totalAmount": "[RO] Total Amount",
     "totals": "TOTALURI",
     "transactions": "[RO] Transactions",
     "type": "Tip",
@@ -1083,6 +1086,14 @@
       "quickReceiptDialog": {
         "description": "Dialog introducere rapidă pentru chitanțe",
         "name": "Dialog Chitanță Rapidă"
+      },
+      "registerPage": {
+        "description": "[RO] Basic registration page for new users with multilingual support and RTL",
+        "name": "[RO] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[RO] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[RO] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "Vizualizare și editare detalii tranzacție",
@@ -2009,19 +2020,73 @@
   "saas": {
     "activate": "Activează",
     "agents": "Agenți",
+    "agentsGrid": {
+      "balance": "[RO] Current Balance",
+      "code": "[RO] Agent Code",
+      "commission": "[RO] Commission %",
+      "earned": "[RO] Total Earned",
+      "name": "[RO] Agent Name",
+      "pending": "[RO] Pending Balance",
+      "tenants": "[RO] Tenants Count",
+      "tier": "[RO] Tier",
+      "title": "[RO] Agents Management",
+      "type": "[RO] Agent Type",
+      "withdrawn": "[RO] Total Withdrawn"
+    },
     "analytics": "Analitică",
     "approve": "Aprobă",
     "comingSoon": "În curând - În dezvoltare",
+    "companySwitcher": {
+      "availableCompanies": "[RO] Available Companies",
+      "current": "[RO] Current",
+      "currentCompany": "[RO] Current Company",
+      "description": "[RO] Switch the currently active company",
+      "fabricInfo": "[RO] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[RO] Failed to load companies",
+      "singleCompany": "[RO] You have only one company",
+      "switch": "[RO] Switch",
+      "switchError": "[RO] Failed to switch company",
+      "switchSuccess": "[RO] Company switched successfully",
+      "title": "[RO] Company Switcher",
+      "types": {
+        "production": "[RO] Production",
+        "testing": "[RO] Testing"
+      }
+    },
     "coupons": "Cupoane",
     "createNew": "Creează nou",
     "dashboard": "Panou de control",
     "delete": "Șterge",
     "edit": "Editează",
+    "invoicesGrid": {
+      "amount": "[RO] Amount",
+      "dueDate": "[RO] Due Date",
+      "issueDate": "[RO] Issue Date",
+      "number": "[RO] Invoice Number",
+      "paidDate": "[RO] Paid Date",
+      "period": "[RO] Billing Period",
+      "plan": "[RO] Subscription Plan",
+      "tax": "[RO] Tax Amount",
+      "tenant": "[RO] Tenant",
+      "title": "[RO] Invoices Management",
+      "total": "[RO] Total Amount"
+    },
     "marketing": "Marketing",
     "modules": "Module",
     "notifications": "Notificări",
     "packages": "Pachete",
     "payments": "Plăți",
+    "paymentsGrid": {
+      "agent": "[RO] Agent",
+      "commission": "[RO] Commission Amount",
+      "date": "[RO] Payment Date",
+      "dueDate": "[RO] Due Date",
+      "invoiceNumber": "[RO] Invoice Number",
+      "method": "[RO] Payment Method",
+      "reference": "[RO] Reference",
+      "tenant": "[RO] Tenant",
+      "title": "[RO] Payments Management"
+    },
     "plans": {
       "enterprise": "Enterprise",
       "professional": "Profesional",
@@ -2044,18 +2109,23 @@
     "suspend": "Suspendă",
     "tenants": {
       "activate": "Activează Abonat",
+      "agent": "[RO] Agent",
       "agentInfo": "Legat de Agent",
       "billing": "Facturare",
+      "code": "[RO] Tenant Code",
       "create": "Creează Abonat Nou",
       "createDescription": "Creează un nou abonat în sistem",
       "description": "Administrează abonații și abonamentele",
       "details": "Detalii Abonat",
+      "documents": "[RO] Documents",
       "edit": "Editează Abonat",
       "error": {
         "createFailed": "Nu s-a putut crea abonatul",
         "loadFailed": "Nu s-au putut încărca abonații",
         "noPermission": "Acces interzis"
       },
+      "language": "[RO] Default Language",
+      "name": "[RO] Tenant Name",
       "ownerName": "Nume Proprietar",
       "placeholders": {
         "companyName": "Numele Companiei",
@@ -2066,6 +2136,7 @@
       "referral": "Recomandare",
       "referralCode": "Cod Recomandare",
       "referralSource": "Sursă Recomandare",
+      "storage": "[RO] Storage Used",
       "subscription": "Abonament",
       "suspend": "Suspendă Abonat",
       "tabs": {
@@ -2075,11 +2146,71 @@
       },
       "title": "Administrare Abonați",
       "total": "Total Abonați",
-      "usage": "Utilizare"
+      "usage": "Utilizare",
+      "users": "[RO] Users Count"
     },
     "title": "Administrare SaaS",
     "view": "Vizualizează",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Nume Plan",
+      "price": "Preț",
+      "billingCycle": "Ciclu de Facturare",
+      "monthly": "Lunar",
+      "yearly": "Anual",
+      "maxUsers": "Utilizatori Maximi",
+      "product": "Produs",
+      "status": "Status",
+      "popular": "Popular",
+      "basicInfo": "Informații de Bază",
+      "modules": "Module",
+      "limitsAndFeatures": "Limite și Funcționalități",
+      "subscribers": "Abonați",
+      "ledger": "Registru",
+      "assignedModules": "Module Atribuite",
+      "noModules": "Niciun modul atribuit",
+      "availableModules": "Module Disponibile",
+      "limits": "Limite",
+      "storageLimit": "Limită de Stocare",
+      "maxDocuments": "Documente Maxime",
+      "maxImages": "Imagini Maxime",
+      "features": "Funcționalități",
+      "feature": {
+        "multiCurrency": "Suport Multi-Valută",
+        "advancedReports": "Rapoarte Avansate",
+        "apiAccess": "Acces API",
+        "customBranding": "Branding Personalizat",
+        "prioritySupport": "Suport Prioritar"
+      },
+      "noSubscribers": "Niciun abonat pentru acest plan",
+      "setPopular": "Setează ca Popular",
+      "removePopular": "Elimină Status Popular",
+      "deactivateConfirm": "Confirmă Dezactivarea",
+      "deactivateDescription": "Sigur doriți să dezactivați acest plan? Noii abonați nu vor putea să se aboneze.",
+      "archiveConfirm": "Confirmă Arhivarea",
+      "archiveDescription": "Sigur doriți să arhivați acest plan? Va fi dezactivat și ascuns din liste."
+    },
+    "subscription": {
+      "startDate": "Data de Început",
+      "endDate": "Data de Sfârșit",
+      "expired": "Expirat",
+      "suspended": "Suspendat",
+      "cancelled": "Anulat"
+    },
+    "payment": {
+      "totalRevenue": "Venit Total",
+      "totalPayments": "Plăți Totale",
+      "avgPayment": "Plată Medie",
+      "noPayments": "Fără plăți"
+    },
+    "activity": {
+      "planCreated": "Plan creat",
+      "planUpdated": "Plan actualizat",
+      "planActivated": "Plan activat",
+      "planDeactivated": "Plan dezactivat",
+      "planArchived": "Plan arhivat",
+      "planSetPopular": "Plan setat ca popular"
+    },
     "whiteLabel": "Etichetă Albă",
     "whiteLabelDetails": {
       "activate": "Activează White Label",
@@ -2146,7 +2277,10 @@
     "collapse": "Restrânge",
     "contactSupport": "Contactează Suportul",
     "expand": "Extinde",
-    "needHelp": "Ai nevoie de ajutor?"
+    "moduleDisabled": "[RO] Module Disabled",
+    "needHelp": "Ai nevoie de ajutor?",
+    "upgrade": "[RO] Upgrade",
+    "upgradeRequired": "[RO] Upgrade Required"
   },
   "sku": "[RO] sku",
   "stats": {
@@ -2542,5 +2676,108 @@
     "invalidInput": "Intrare invalidă",
     "negative": "Negativ!",
     "required": "Obligatoriu"
+  },
+  "wizard": {
+    "address": "[RO] Address",
+    "addressPlaceholder": "[RO] Example: King Fahd Street, Al Olaya",
+    "back": "[RO] Back",
+    "businessType": "[RO] Business Type",
+    "businessTypeHint": "[RO] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[RO] Online retail store",
+        "name": "[RO] E-commerce"
+      },
+      "exchange": {
+        "description": "[RO] Money transfer and exchange",
+        "name": "[RO] Exchange"
+      },
+      "fabric": {
+        "description": "[RO] Fabric and textile trading",
+        "name": "[RO] Fabric"
+      },
+      "general": {
+        "description": "[RO] General and diverse business",
+        "name": "[RO] General"
+      },
+      "healthcare": {
+        "description": "[RO] Medical and healthcare services",
+        "name": "[RO] Healthcare"
+      }
+    },
+    "city": "[RO] City",
+    "cityPlaceholder": "[RO] Example: Riyadh",
+    "cityRequired": "[RO] Please enter a city",
+    "companyName": "[RO] Company Name",
+    "companyNameFromRegistration": "[RO] Company name from registration (you can edit it)",
+    "companyNameHint": "[RO] Please enter your company name to continue",
+    "companyNamePlaceholder": "[RO] Example: Advanced Technology Company",
+    "companyNameRequired": "[RO] Company name is required",
+    "complete": "[RO] Complete Registration",
+    "country": "[RO] Country",
+    "countryAndCityRequired": "[RO] Please select country and city",
+    "countryRequired": "[RO] Please select a country",
+    "description": "[RO] Complete your company information to start using the system",
+    "email": "[RO] Email",
+    "emailPlaceholder": "[RO] info@example.com",
+    "fabricCurrencyNote": "[RO] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[RO] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[RO] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[RO] Fiscal Year Start",
+    "localCurrency": "[RO] Local Currency",
+    "localCurrencyNote": "[RO] Currency used in your country (can be changed later)",
+    "mainCurrency": "[RO] Main Currency",
+    "mainCurrencyNote": "[RO] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[RO] April",
+      "august": "[RO] August",
+      "december": "[RO] December",
+      "february": "[RO] February",
+      "january": "[RO] January",
+      "july": "[RO] July",
+      "june": "[RO] June",
+      "march": "[RO] March",
+      "may": "[RO] May",
+      "november": "[RO] November",
+      "october": "[RO] October",
+      "september": "[RO] September"
+    },
+    "next": "[RO] Next",
+    "of": "[RO] of",
+    "phone": "[RO] Phone",
+    "phonePlaceholder": "[RO] +966 XX XXX XXXX",
+    "registrationFailed": "[RO] Registration failed. Please try again",
+    "selectBusinessType": "[RO] Please select a business type",
+    "selectBusinessTypeAndName": "[RO] Please select business type and enter company name",
+    "selectCountry": "[RO] Select Country",
+    "selectCurrency": "[RO] Select Currency",
+    "selectMainCurrency": "[RO] Select Main Currency",
+    "step": "[RO] Step",
+    "step1": {
+      "description": "[RO] Select the business activity that fits your company",
+      "title": "[RO] Choose Your Business Type"
+    },
+    "step1Description": "[RO] Choose your business type and enter your company name",
+    "step1Title": "[RO] Business Type & Company Name",
+    "step2": {
+      "description": "[RO] Enter your company's basic details",
+      "title": "[RO] Company Information"
+    },
+    "step2Description": "[RO] Enter your company's basic details",
+    "step2Title": "[RO] Company Information",
+    "step3": {
+      "description": "[RO] Set your currency and fiscal year start",
+      "title": "[RO] Financial Settings"
+    },
+    "step3Description": "[RO] Set currencies and fiscal year start",
+    "step3Title": "[RO] Financial Settings",
+    "submitting": "[RO] Completing...",
+    "success": "[RO] Registration completed successfully! Redirecting...",
+    "successFabric": "[RO] Two companies created successfully! Redirecting...",
+    "summary": "[RO] Summary",
+    "title": "[RO] Account Setup",
+    "userNotFound": "[RO] User not found. Please login again",
+    "website": "[RO] Website",
+    "websitePlaceholder": "[RO] https://example.com"
   }
 }

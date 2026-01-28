@@ -78,6 +78,7 @@
     "accountsWatchlist": "Список наблюдения",
     "activeAccounts": "Активные счета",
     "addAccount": "Добавить счет",
+    "addFirstAccount": "Добавить первый счет",
     "addGroup": "Добавить группу",
     "addNewRow": "Добавить новую строку",
     "addRow": "Добавить строку",
@@ -85,6 +86,7 @@
     "addSubGroup": "Добавить подгруппу",
     "addToWatchlist": "Добавить в список",
     "amountInWords": "Сумма прописью",
+    "applyTemplateInstructions": "Чтобы применить шаблон плана счетов, выполните одну из следующих команд в Supabase SQL Editor:",
     "assets": "Активы",
     "avgTransaction": "Средняя транзакция",
     "balanceAfter": "Баланс после",
@@ -123,38 +125,8 @@
     },
     "chartOfAccounts": "План счетов",
     "chartOfAccountsDescription": "Управление планом счетов с иерархической структурой",
-    "noAccountsTitle": "Пока нет счетов",
-    "noAccountsDescription": "Счета не найдены в плане счетов. Вы можете добавить новый счет или применить готовый шаблон.",
     "chartTypeApplied": "Примененный тип плана",
     "chartTypeButNoAccounts": "Тип плана применен, но счета отсутствуют. Возможно, потребуется снова применить шаблон.",
-    "noChartTemplateApplied": "Шаблон плана счетов не применен",
-    "applyTemplateInstructions": "Чтобы применить шаблон плана счетов, выполните одну из следующих команд в Supabase SQL Editor:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "Добавить первый счет",
-    "templates": {
-      "selectTemplate": "Выбрать шаблон плана",
-      "selectDescription": "Выберите готовый шаблон для применения к вашей компании. Все счета будут созданы автоматически.",
-      "selectAndApply": "Выбрать и применить шаблон",
-      "apply": "Применить",
-      "appliedSuccess": "Шаблон {name} успешно применен",
-      "applyError": "Не удалось применить шаблон",
-      "loadError": "Не удалось загрузить шаблоны",
-      "noTemplates": "Нет доступных шаблонов",
-      "noCompany": "Пожалуйста, сначала выберите компанию",
-      "setupTemplates": "Настроить шаблоны",
-      "setupSuccess": "Шаблоны успешно настроены",
-      "setupError": "Не удалось настроить шаблоны",
-      "withDemoData": "С демо-данными",
-      "types": {
-        "simple": "Стандартный",
-        "extended": "Расширенный",
-        "fabric_extended": "Расширенный для тканей"
-      },
-      "applyingMessage": "Применение шаблона... Это может занять несколько мгновений",
-      "refreshingAccounts": "Обновление счетов...",
-      "existingChartError": "У компании уже есть план счетов. Используйте функцию обновления.",
-      "templateNotFound": "Шаблон не найден. Убедитесь, что шаблоны настроены для арендатора."
-    },
     "closingBalance": "Конечный баланс",
     "closingEntries": "Закрывающие записи",
     "collapseAll": "Свернуть все",
@@ -393,6 +365,9 @@
     "lines": "[RU] lines",
     "module": "Бухгалтерия",
     "monthlyAverage": "[RU] monthlyAverage",
+    "noAccountsDescription": "Счета не найдены в плане счетов. Вы можете добавить новый счет или применить готовый шаблон.",
+    "noAccountsTitle": "Пока нет счетов",
+    "noChartTemplateApplied": "Шаблон плана счетов не применен",
     "noCompanySelected": "Компания не выбрана",
     "noCustomers": "[RU] noCustomers",
     "noParent": "Без родителя (Корневой счет)",
@@ -502,6 +477,7 @@
       "workflow": "Рабочий процесс",
       "workflowDesc": "Настройки утверждения и автоматической проводки"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Денежный поток",
       "netProfit": "Чистая прибыль",
@@ -523,6 +499,30 @@
     "summary": "Сводка",
     "suppliers": "Поставщики",
     "tableView": "Табличный вид",
+    "templates": {
+      "appliedSuccess": "Шаблон {name} успешно применен",
+      "apply": "Применить",
+      "applyError": "Не удалось применить шаблон",
+      "applyingMessage": "Применение шаблона... Это может занять несколько мгновений",
+      "existingChartError": "У компании уже есть план счетов. Используйте функцию обновления.",
+      "loadError": "Не удалось загрузить шаблоны",
+      "noCompany": "Пожалуйста, сначала выберите компанию",
+      "noTemplates": "Нет доступных шаблонов",
+      "refreshingAccounts": "Обновление счетов...",
+      "selectAndApply": "Выбрать и применить шаблон",
+      "selectDescription": "Выберите готовый шаблон для применения к вашей компании. Все счета будут созданы автоматически.",
+      "selectTemplate": "Выбрать шаблон плана",
+      "setupError": "Не удалось настроить шаблоны",
+      "setupSuccess": "Шаблоны успешно настроены",
+      "setupTemplates": "Настроить шаблоны",
+      "templateNotFound": "Шаблон не найден. Убедитесь, что шаблоны настроены для арендатора.",
+      "types": {
+        "extended": "Расширенный",
+        "fabric_extended": "Расширенный для тканей",
+        "simple": "Стандартный"
+      },
+      "withDemoData": "С демо-данными"
+    },
     "totalAccounts": "Всего счетов",
     "totalBalance": "Общий баланс",
     "totalInvoices": "[RU] totalInvoices",
@@ -829,10 +829,10 @@
     "active": "Активный",
     "add": "Добавить",
     "all": "Все",
-    "applying": "Применение...",
     "allItems": "[RU] All",
     "amount": "Сумма",
     "and": "и",
+    "applying": "Применение...",
     "back": "Назад",
     "balance": "Баланс",
     "cancel": "Отмена",
@@ -931,6 +931,7 @@
     "receipt": "Поступление",
     "reference": "Ссылка",
     "refresh": "Обновить",
+    "refunded": "[RU] Refunded",
     "remaining": "[RU] remaining",
     "required": "Обязательно",
     "reset": "Сбросить",
@@ -938,6 +939,7 @@
     "search": "Поиск",
     "select": "Выбрать",
     "selectAll": "Выбрать все",
+    "sent": "[RU] Sent",
     "showCancelledEntries": "[RU] showCancelledEntries",
     "status": {
       "_": "Статус",
@@ -977,6 +979,7 @@
     },
     "to": "До",
     "total": "Итого",
+    "totalAmount": "[RU] Total Amount",
     "totals": "ИТОГО",
     "transactions": "Транзакции",
     "type": "Тип",
@@ -1084,6 +1087,14 @@
       "quickReceiptDialog": {
         "description": "Диалог быстрого ввода для квитанций",
         "name": "Диалог быстрой квитанции"
+      },
+      "registerPage": {
+        "description": "[RU] Basic registration page for new users with multilingual support and RTL",
+        "name": "[RU] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[RU] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[RU] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "Просмотр и редактирование деталей транзакции",
@@ -2010,19 +2021,73 @@
   "saas": {
     "activate": "Активировать",
     "agents": "Агенты",
+    "agentsGrid": {
+      "balance": "[RU] Current Balance",
+      "code": "[RU] Agent Code",
+      "commission": "[RU] Commission %",
+      "earned": "[RU] Total Earned",
+      "name": "[RU] Agent Name",
+      "pending": "[RU] Pending Balance",
+      "tenants": "[RU] Tenants Count",
+      "tier": "[RU] Tier",
+      "title": "[RU] Agents Management",
+      "type": "[RU] Agent Type",
+      "withdrawn": "[RU] Total Withdrawn"
+    },
     "analytics": "Аналитика",
     "approve": "Одобрить",
     "comingSoon": "Скоро - В разработке",
+    "companySwitcher": {
+      "availableCompanies": "[RU] Available Companies",
+      "current": "[RU] Current",
+      "currentCompany": "[RU] Current Company",
+      "description": "[RU] Switch the currently active company",
+      "fabricInfo": "[RU] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[RU] Failed to load companies",
+      "singleCompany": "[RU] You have only one company",
+      "switch": "[RU] Switch",
+      "switchError": "[RU] Failed to switch company",
+      "switchSuccess": "[RU] Company switched successfully",
+      "title": "[RU] Company Switcher",
+      "types": {
+        "production": "[RU] Production",
+        "testing": "[RU] Testing"
+      }
+    },
     "coupons": "Купоны",
     "createNew": "Создать",
     "dashboard": "Панель управления",
     "delete": "Удалить",
     "edit": "Редактировать",
+    "invoicesGrid": {
+      "amount": "[RU] Amount",
+      "dueDate": "[RU] Due Date",
+      "issueDate": "[RU] Issue Date",
+      "number": "[RU] Invoice Number",
+      "paidDate": "[RU] Paid Date",
+      "period": "[RU] Billing Period",
+      "plan": "[RU] Subscription Plan",
+      "tax": "[RU] Tax Amount",
+      "tenant": "[RU] Tenant",
+      "title": "[RU] Invoices Management",
+      "total": "[RU] Total Amount"
+    },
     "marketing": "Маркетинг",
     "modules": "Модули",
     "notifications": "Уведомления",
     "packages": "Пакеты",
     "payments": "Платежи",
+    "paymentsGrid": {
+      "agent": "[RU] Agent",
+      "commission": "[RU] Commission Amount",
+      "date": "[RU] Payment Date",
+      "dueDate": "[RU] Due Date",
+      "invoiceNumber": "[RU] Invoice Number",
+      "method": "[RU] Payment Method",
+      "reference": "[RU] Reference",
+      "tenant": "[RU] Tenant",
+      "title": "[RU] Payments Management"
+    },
     "plans": {
       "enterprise": "Корпоративный",
       "professional": "Профессиональный",
@@ -2045,18 +2110,23 @@
     "suspend": "Приостановить",
     "tenants": {
       "activate": "Активировать подписчика",
+      "agent": "[RU] Agent",
       "agentInfo": "Связан с агентом",
       "billing": "Счета",
+      "code": "[RU] Tenant Code",
       "create": "Создать подписчика",
       "createDescription": "Создать нового подписчика в системе",
       "description": "Управление подписчиками и подписками",
       "details": "Детали подписчика",
+      "documents": "[RU] Documents",
       "edit": "Редактировать подписчика",
       "error": {
         "createFailed": "Не удалось создать подписчика",
         "loadFailed": "Не удалось загрузить подписчиков",
         "noPermission": "Нет доступа"
       },
+      "language": "[RU] Default Language",
+      "name": "[RU] Tenant Name",
       "ownerName": "Имя владельца",
       "placeholders": {
         "companyName": "Название компании",
@@ -2067,6 +2137,7 @@
       "referral": "Реферал",
       "referralCode": "Реферальный код",
       "referralSource": "Источник реферала",
+      "storage": "[RU] Storage Used",
       "subscription": "Подписка",
       "suspend": "Приостановить подписчика",
       "tabs": {
@@ -2076,11 +2147,71 @@
       },
       "title": "Управление подписчиками",
       "total": "Всего подписчиков",
-      "usage": "Использование"
+      "usage": "Использование",
+      "users": "[RU] Users Count"
     },
     "title": "Управление SaaS",
     "view": "Просмотр",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Название плана",
+      "price": "Цена",
+      "billingCycle": "Платежный цикл",
+      "monthly": "Ежемесячно",
+      "yearly": "Ежегодно",
+      "maxUsers": "Макс. пользователей",
+      "product": "Продукт",
+      "status": "Статус",
+      "popular": "Популярный",
+      "basicInfo": "Основная информация",
+      "modules": "Модули",
+      "limitsAndFeatures": "Лимиты и функции",
+      "subscribers": "Подписчики",
+      "ledger": "Книга учета",
+      "assignedModules": "Назначенные модули",
+      "noModules": "Модули не назначены",
+      "availableModules": "Доступные модули",
+      "limits": "Лимиты",
+      "storageLimit": "Лимит хранения",
+      "maxDocuments": "Макс. документов",
+      "maxImages": "Макс. изображений",
+      "features": "Функции",
+      "feature": {
+        "multiCurrency": "Поддержка мультивалюты",
+        "advancedReports": "Расширенные отчеты",
+        "apiAccess": "Доступ к API",
+        "customBranding": "Индивидуальный брендинг",
+        "prioritySupport": "Приоритетная поддержка"
+      },
+      "noSubscribers": "Нет подписчиков для этого плана",
+      "setPopular": "Сделать популярным",
+      "removePopular": "Убрать статус популярного",
+      "deactivateConfirm": "Подтвердить деактивацию",
+      "deactivateDescription": "Вы уверены, что хотите деактивировать этот план? Новые подписчики не смогут подписаться на него.",
+      "archiveConfirm": "Подтвердить архивацию",
+      "archiveDescription": "Вы уверены, что хотите архивировать этот план? Он будет деактивирован и скрыт из списков."
+    },
+    "subscription": {
+      "startDate": "Дата начала",
+      "endDate": "Дата окончания",
+      "expired": "Истёк",
+      "suspended": "Приостановлен",
+      "cancelled": "Отменён"
+    },
+    "payment": {
+      "totalRevenue": "Общий доход",
+      "totalPayments": "Всего платежей",
+      "avgPayment": "Средний платёж",
+      "noPayments": "Нет платежей"
+    },
+    "activity": {
+      "planCreated": "План создан",
+      "planUpdated": "План обновлён",
+      "planActivated": "План активирован",
+      "planDeactivated": "План деактивирован",
+      "planArchived": "План архивирован",
+      "planSetPopular": "План отмечен как популярный"
+    },
     "whiteLabel": "Белый ярлык",
     "whiteLabelDetails": {
       "activate": "Активировать White Label",
@@ -2147,7 +2278,10 @@
     "collapse": "Свернуть",
     "contactSupport": "Связаться с поддержкой",
     "expand": "Развернуть",
-    "needHelp": "Нужна помощь?"
+    "moduleDisabled": "[RU] Module Disabled",
+    "needHelp": "Нужна помощь?",
+    "upgrade": "[RU] Upgrade",
+    "upgradeRequired": "[RU] Upgrade Required"
   },
   "sku": "[RU] sku",
   "stats": {
@@ -2543,5 +2677,108 @@
     "invalidInput": "Неверный ввод",
     "negative": "Отрицательный!",
     "required": "Обязательно"
+  },
+  "wizard": {
+    "address": "[RU] Address",
+    "addressPlaceholder": "[RU] Example: King Fahd Street, Al Olaya",
+    "back": "[RU] Back",
+    "businessType": "[RU] Business Type",
+    "businessTypeHint": "[RU] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[RU] Online retail store",
+        "name": "[RU] E-commerce"
+      },
+      "exchange": {
+        "description": "[RU] Money transfer and exchange",
+        "name": "[RU] Exchange"
+      },
+      "fabric": {
+        "description": "[RU] Fabric and textile trading",
+        "name": "[RU] Fabric"
+      },
+      "general": {
+        "description": "[RU] General and diverse business",
+        "name": "[RU] General"
+      },
+      "healthcare": {
+        "description": "[RU] Medical and healthcare services",
+        "name": "[RU] Healthcare"
+      }
+    },
+    "city": "[RU] City",
+    "cityPlaceholder": "[RU] Example: Riyadh",
+    "cityRequired": "[RU] Please enter a city",
+    "companyName": "[RU] Company Name",
+    "companyNameFromRegistration": "[RU] Company name from registration (you can edit it)",
+    "companyNameHint": "[RU] Please enter your company name to continue",
+    "companyNamePlaceholder": "[RU] Example: Advanced Technology Company",
+    "companyNameRequired": "[RU] Company name is required",
+    "complete": "[RU] Complete Registration",
+    "country": "[RU] Country",
+    "countryAndCityRequired": "[RU] Please select country and city",
+    "countryRequired": "[RU] Please select a country",
+    "description": "[RU] Complete your company information to start using the system",
+    "email": "[RU] Email",
+    "emailPlaceholder": "[RU] info@example.com",
+    "fabricCurrencyNote": "[RU] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[RU] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[RU] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[RU] Fiscal Year Start",
+    "localCurrency": "[RU] Local Currency",
+    "localCurrencyNote": "[RU] Currency used in your country (can be changed later)",
+    "mainCurrency": "[RU] Main Currency",
+    "mainCurrencyNote": "[RU] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[RU] April",
+      "august": "[RU] August",
+      "december": "[RU] December",
+      "february": "[RU] February",
+      "january": "[RU] January",
+      "july": "[RU] July",
+      "june": "[RU] June",
+      "march": "[RU] March",
+      "may": "[RU] May",
+      "november": "[RU] November",
+      "october": "[RU] October",
+      "september": "[RU] September"
+    },
+    "next": "[RU] Next",
+    "of": "[RU] of",
+    "phone": "[RU] Phone",
+    "phonePlaceholder": "[RU] +966 XX XXX XXXX",
+    "registrationFailed": "[RU] Registration failed. Please try again",
+    "selectBusinessType": "[RU] Please select a business type",
+    "selectBusinessTypeAndName": "[RU] Please select business type and enter company name",
+    "selectCountry": "[RU] Select Country",
+    "selectCurrency": "[RU] Select Currency",
+    "selectMainCurrency": "[RU] Select Main Currency",
+    "step": "[RU] Step",
+    "step1": {
+      "description": "[RU] Select the business activity that fits your company",
+      "title": "[RU] Choose Your Business Type"
+    },
+    "step1Description": "[RU] Choose your business type and enter your company name",
+    "step1Title": "[RU] Business Type & Company Name",
+    "step2": {
+      "description": "[RU] Enter your company's basic details",
+      "title": "[RU] Company Information"
+    },
+    "step2Description": "[RU] Enter your company's basic details",
+    "step2Title": "[RU] Company Information",
+    "step3": {
+      "description": "[RU] Set your currency and fiscal year start",
+      "title": "[RU] Financial Settings"
+    },
+    "step3Description": "[RU] Set currencies and fiscal year start",
+    "step3Title": "[RU] Financial Settings",
+    "submitting": "[RU] Completing...",
+    "success": "[RU] Registration completed successfully! Redirecting...",
+    "successFabric": "[RU] Two companies created successfully! Redirecting...",
+    "summary": "[RU] Summary",
+    "title": "[RU] Account Setup",
+    "userNotFound": "[RU] User not found. Please login again",
+    "website": "[RU] Website",
+    "websitePlaceholder": "[RU] https://example.com"
   }
 }

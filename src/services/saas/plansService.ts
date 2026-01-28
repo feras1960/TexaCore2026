@@ -131,20 +131,42 @@ class PlansService {
    */
   async getAll(): Promise<Plan[]> {
     const { data, error } = await supabase
-      .from('saas_plans')
+      .from('subscription_plans')
       .select('*')
-      .order('sort_order', { ascending: true });
+      .order('display_order', { ascending: true });
 
     if (error) {
-      // If table doesn't exist, return default plans
       if (error.code === '42P01') {
-        return this.getDefaultPlans();
+        console.warn('subscription_plans table not found');
+        return [];
       }
       console.error('Error fetching plans:', error);
       throw new Error(error.message);
     }
 
-    return data || this.getDefaultPlans();
+    // Map database fields to frontend Plan interface
+    return (data || []).map(plan => ({
+      id: plan.id,
+      code: plan.code,
+      name: plan.name_en || plan.name,
+      name_ar: plan.name_ar,
+      description: plan.description,
+      description_ar: plan.description_ar,
+      price_monthly: plan.price_monthly,
+      price_yearly: plan.price_yearly,
+      currency: plan.currency || 'SAR',
+      max_users: plan.max_users,
+      max_companies: plan.max_companies,
+      max_storage_gb: plan.storage_gb,
+      features: Array.isArray(plan.features) ? plan.features : [],
+      modules: Array.isArray(plan.included_modules) ? plan.included_modules : [],
+      is_active: plan.is_active !== false,
+      is_popular: plan.is_popular || false,
+      trial_days: plan.trial_days || 14,
+      sort_order: plan.display_order || 0,
+      created_at: plan.created_at,
+      updated_at: plan.updated_at,
+    })) as Plan[];
   }
 
   /**
@@ -152,20 +174,42 @@ class PlansService {
    */
   async getActive(): Promise<Plan[]> {
     const { data, error } = await supabase
-      .from('saas_plans')
+      .from('subscription_plans')
       .select('*')
       .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+      .order('display_order', { ascending: true});
 
     if (error) {
       if (error.code === '42P01') {
-        return this.getDefaultPlans().filter(p => p.is_active);
+        return [];
       }
       console.error('Error fetching active plans:', error);
       throw new Error(error.message);
     }
 
-    return data || this.getDefaultPlans().filter(p => p.is_active);
+    // Map database fields to frontend Plan interface
+    return (data || []).map(plan => ({
+      id: plan.id,
+      code: plan.code,
+      name: plan.name_en || plan.name,
+      name_ar: plan.name_ar,
+      description: plan.description,
+      description_ar: plan.description_ar,
+      price_monthly: plan.price_monthly,
+      price_yearly: plan.price_yearly,
+      currency: plan.currency || 'SAR',
+      max_users: plan.max_users,
+      max_companies: plan.max_companies,
+      max_storage_gb: plan.storage_gb,
+      features: Array.isArray(plan.features) ? plan.features : [],
+      modules: Array.isArray(plan.included_modules) ? plan.included_modules : [],
+      is_active: plan.is_active !== false,
+      is_popular: plan.is_popular || false,
+      trial_days: plan.trial_days || 14,
+      sort_order: plan.display_order || 0,
+      created_at: plan.created_at,
+      updated_at: plan.updated_at,
+    })) as Plan[];
   }
 
   /**
@@ -252,14 +296,32 @@ class PlansService {
    * Update plan
    */
   async update(id: string, input: UpdatePlanInput): Promise<Plan> {
+    // Map frontend fields to database fields
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.name) updateData.name_en = input.name;
+    if (input.name_ar) updateData.name_ar = input.name_ar;
+    if (input.description) updateData.description = input.description;
+    if (input.description_ar) updateData.description_ar = input.description_ar;
+    if (input.price_monthly !== undefined) updateData.price_monthly = input.price_monthly;
+    if (input.price_yearly !== undefined) updateData.price_yearly = input.price_yearly;
+    if (input.max_users !== undefined) updateData.max_users = input.max_users;
+    if (input.max_companies !== undefined) updateData.max_companies = input.max_companies;
+    if (input.max_storage_gb !== undefined) updateData.storage_gb = input.max_storage_gb;
+    if (input.modules) updateData.included_modules = input.modules;
+    if (input.features) updateData.features = input.features;
+    if (input.trial_days !== undefined) updateData.trial_days = input.trial_days;
+    if (input.is_active !== undefined) updateData.is_active = input.is_active;
+    if (input.is_popular !== undefined) updateData.is_popular = input.is_popular;
+    if (input.sort_order !== undefined) updateData.display_order = input.sort_order;
+
     const { data, error } = await supabase
-      .from('saas_plans')
-      .update({
-        ...input,
-        updated_at: new Date().toISOString(),
-      })
+      .from('subscription_plans')
+      .update(updateData)
       .eq('id', id)
-      .select()
+      .select('*')
       .single();
 
     if (error) {
@@ -267,7 +329,29 @@ class PlansService {
       throw new Error(error.message);
     }
 
-    return data;
+    // Map database fields to frontend Plan interface
+    return {
+      id: data.id,
+      code: data.code,
+      name: data.name_en || data.name,
+      name_ar: data.name_ar,
+      description: data.description,
+      description_ar: data.description_ar,
+      price_monthly: data.price_monthly,
+      price_yearly: data.price_yearly,
+      currency: data.currency || 'SAR',
+      max_users: data.max_users,
+      max_companies: data.max_companies,
+      max_storage_gb: data.storage_gb,
+      features: Array.isArray(data.features) ? data.features : [],
+      modules: Array.isArray(data.included_modules) ? data.included_modules : [],
+      is_active: data.is_active !== false,
+      is_popular: data.is_popular || false,
+      trial_days: data.trial_days || 14,
+      sort_order: data.display_order || 0,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    } as Plan;
   }
 
   /**

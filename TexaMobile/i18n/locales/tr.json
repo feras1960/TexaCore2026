@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Hoş geldiniz",
+    "hello": "Merhaba",
+    "logout": "Çıkış yap",
+    "loading": "Yükleniyor",
+    "refresh": "Yenile",
+    "error": "Hata",
+    "success": "Başarılı",
+    "cancel": "İptal",
+    "save": "Kaydet",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "add": "Ekle",
+    "search": "Ara",
+    "filter": "Filtrele",
+    "sort": "Sırala",
+    "close": "Kapat",
+    "back": "Geri",
+    "next": "İleri",
+    "previous": "Önceki",
+    "submit": "Gönder",
+    "confirm": "Onayla"
+  },
+  
+  "auth": {
+    "login": "Giriş yap",
+    "email": "E-posta",
+    "password": "Şifre",
+    "forgotPassword": "Şifrenizi mi unuttunuz?",
+    "rememberMe": "Beni hatırla",
+    "biometricLogin": "Biyometrik ile giriş",
+    "loginError": "Giriş hatası",
+    "invalidCredentials": "Geçersiz e-posta veya şifre",
+    "emailRequired": "E-posta gerekli",
+    "passwordRequired": "Şifre gerekli",
+    "loginSuccess": "Giriş başarılı"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Yönetici Paneli",
+      "welcome": "Hoş geldiniz",
+      "systemStats": "Sistem İstatistikleri",
+      "recentActivities": "Son Aktiviteler",
+      "quickActions": "Hızlı İşlemler",
+      "totalUsers": "Kullanıcılar",
+      "activeCompanies": "Şirketler",
+      "totalRevenue": "Gelir",
+      "growthRate": "Büyüme Oranı",
+      "addUser": "Kullanıcı Ekle",
+      "settings": "Ayarlar",
+      "reports": "Raporlar"
+    },
+    
+    "cashier": {
+      "title": "Kasiyer Paneli",
+      "quickSummary": "Hızlı Özet",
+      "todayTransactions": "Bugünkü İşlemler",
+      "balance": "Bakiye",
+      "deposit": "Yatırma",
+      "withdraw": "Çekme",
+      "transfer": "Transfer",
+      "transactions": "İşlemler"
+    },
+    
+    "driver": {
+      "title": "Sürücü Paneli",
+      "todayStats": "Bugünkü İstatistikler",
+      "deliveries": "Teslimatlar",
+      "completed": "Tamamlandı",
+      "pending": "Beklemede",
+      "distance": "Mesafe",
+      "deliveryRequests": "Teslimat Talepleri"
+    },
+    
+    "warehouse": {
+      "title": "Depo Paneli",
+      "inventory": "Envanter",
+      "lowStock": "Düşük Stok",
+      "movements": "Hareketler"
+    }
+  },
+  
+  "roles": {
+    "admin": "Sistem Yöneticisi",
+    "full_admin": "Tam Yönetici",
+    "cashier": "Kasiyer",
+    "driver": "Sürücü",
+    "warehouse_keeper": "Depo Sorumlusu",
+    "warehouse_manager": "Depo Müdürü",
+    "accountant": "Muhasebeci",
+    "sales_rep": "Satış Temsilcisi",
+    "purchasing_manager": "Satın Alma Müdürü"
+  },
+  
+  "errors": {
+    "networkError": "Ağ Hatası",
+    "serverError": "Sunucu Hatası",
+    "notFound": "Bulunamadı",
+    "unauthorized": "Yetkisiz",
+    "forbidden": "Yasak",
+    "invalidInput": "Geçersiz Giriş",
+    "tryAgain": "Tekrar Dene"
+  },
+  
+  "messages": {
+    "dataLoaded": "Veri Yüklendi",
+    "dataSaved": "Veri Kaydedildi",
+    "dataDeleted": "Veri Silindi",
+    "operationSuccess": "İşlem Başarılı",
+    "operationFailed": "İşlem Başarısız"
+  },
+  
+  "date": {
+    "today": "Bugün",
+    "yesterday": "Dün",
+    "tomorrow": "Yarın",
+    "thisWeek": "Bu Hafta",
+    "thisMonth": "Bu Ay",
+    "thisYear": "Bu Yıl"
+  },
+  
+  "notifications": {
+    "title": "Bildirimler",
+    "newCount": "{{count}} yeni bildirim",
+    "newCount_plural": "{{count}} yeni bildirim",
+    "markAllRead": "Tümünü okundu işaretle",
+    "noNotifications": "Bildirim yok",
+    "noNotificationsSubtitle": "Yeni bildirimler burada görünecek",
+    "types": {
+      "success": "Başarıyla Kaydedildi",
+      "newUser": "Yeni Kullanıcı",
+      "warning": "Uyarı",
+      "report": "Yeni Rapor",
+      "transaction": "Yeni İşlem"
+    },
+    "messages": {
+      "accountSaved": "Hesap değişiklikleriniz başarıyla kaydedildi",
+      "userAdded": "Sisteme yeni bir kullanıcı eklendi",
+      "lowStock": "Bazı ürünler için stok düşük",
+      "reportReady": "Aylık satış raporu incelemeye hazır",
+      "transactionComplete": "Finansal işlem başarıyla tamamlandı"
+    },
+    "time": {
+      "now": "Şimdi",
+      "minutesAgo": "{{count}} dakika önce",
+      "minutesAgo_plural": "{{count}} dakika önce",
+      "hoursAgo": "{{count}} saat önce",
+      "hoursAgo_plural": "{{count}} saat önce",
+      "yesterday": "Dün",
+      "daysAgo": "{{count}} gün önce",
+      "daysAgo_plural": "{{count}} gün önce"
+    }
+  },
+  
+  "settings": {
+    "title": "Ayarlar",
+    "sections": {
+      "account": "Hesap",
+      "preferences": "Tercihler",
+      "app": "Uygulama"
+    },
+    "account": {
+      "profile": "Profil",
+      "profileSubtitle": "Bilgilerinizi görüntüleyin ve güncelleyin",
+      "changePassword": "Şifre Değiştir",
+      "changePasswordSubtitle": "Şifrenizi güncelleyin"
+    },
+    "preferences": {
+      "notifications": "Bildirimler",
+      "notificationsSubtitle": "Anlık bildirimleri etkinleştir",
+      "biometric": "Biyometrik",
+      "biometricSubtitle": "Biyometrik ile giriş yap",
+      "darkMode": "Karanlık Mod",
+      "darkModeSubtitle": "Koyu temayı etkinleştir"
+    },
+    "app": {
+      "language": "Dil",
+      "languageValue": "Türkçe",
+      "help": "Yardım ve Destek",
+      "helpSubtitle": "SSS ve destek",
+      "about": "Uygulama Hakkında",
+      "aboutSubtitle": "Sürüm {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Çıkış yap"
+  },
+  
+  "profile": {
+    "title": "Profil",
+    "info": {
+      "name": "Tam Ad",
+      "email": "E-posta",
+      "role": "Rol",
+      "memberSince": "Üyelik Tarihi",
+      "lastLogin": "Son Giriş",
+      "phone": "Telefon Numarası",
+      "language": "Dil",
+      "company": "Şirket"
+    },
+    "actions": {
+      "updateInfo": "Bilgileri Güncelle",
+      "security": "Güvenlik Ayarları"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Hızlı İşlemler",
+    "subtitle": "Yaygın işlemler için hızlı kısayollar",
+    "actions": {
+      "addUser": "Kullanıcı Ekle",
+      "newDeposit": "Yeni Yatırma",
+      "newWithdrawal": "Yeni Çekme",
+      "startRoute": "Rota Başlat",
+      "completeDelivery": "Teslimatı Tamamla",
+      "scanProduct": "Ürün Tara",
+      "checkInventory": "Envanteri Kontrol Et"
+    }
+  },
+  
+  "languages": {
+    "ar": "Arapça",
+    "en": "İngilizce",
+    "de": "Almanca",
+    "tr": "Türkçe",
+    "ru": "Rusça",
+    "uk": "Ukraynaca",
+    "it": "İtalyanca",
+    "pl": "Lehçe",
+    "ro": "Rumence",
+    "fr": "Fransızca"
+  }
+}

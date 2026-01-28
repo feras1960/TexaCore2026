@@ -53,7 +53,8 @@ import {
   Users,
   Clock,
   AlertTriangle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  DollarSign
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -65,6 +66,8 @@ import {
 // Import Module Management
 import ModuleManagement from './components/ModuleManagement';
 import { CompanySwitcher } from '@/components/settings/CompanySwitcher';
+import SubscriptionAlerts from '@/pages/SubscriptionAlerts';
+import BillingAccountingSettings from '@/pages/SaasSettings';
 
 // Mock webhooks data
 const mockWebhooks = [
@@ -81,7 +84,7 @@ const mockApiKeys = [
 
 export default function SaaSSettings() {
   const { t, language, direction } = useLanguage();
-  const [activeTab, setActiveTab] = useState('modules');
+  const [activeTab, setActiveTab] = useState('billing');
   const [webhooks, setWebhooks] = useState(mockWebhooks);
   const [apiKeys, setApiKeys] = useState(mockApiKeys);
 
@@ -132,6 +135,14 @@ export default function SaaSSettings() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={direction}>
         <TabsList className="w-full justify-start bg-white dark:bg-gray-800 p-1 border border-gray-200 dark:border-gray-700 rounded-lg mb-6 overflow-x-auto">
+          <TabsTrigger value="billing" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white">
+            <DollarSign className="w-4 h-4" />
+            {language === 'ar' ? 'الفوترة والمحاسبة' : 'Billing & Accounting'}
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white">
+            <Bell className="w-4 h-4" />
+            {language === 'ar' ? 'التنبيهات' : 'Alerts'}
+          </TabsTrigger>
           <TabsTrigger value="company" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white">
             <ArrowRightLeft className="w-4 h-4" />
             {language === 'ar' ? 'الشركات' : 'Companies'}
@@ -157,6 +168,16 @@ export default function SaaSSettings() {
             {language === 'ar' ? 'الأمان' : 'Security'}
           </TabsTrigger>
         </TabsList>
+
+        {/* Billing & Accounting Settings Tab */}
+        <TabsContent value="billing">
+          <BillingAccountingSettings />
+        </TabsContent>
+
+        {/* Alerts Tab */}
+        <TabsContent value="alerts">
+          <SubscriptionAlerts />
+        </TabsContent>
 
         {/* Company Switcher Tab */}
         <TabsContent value="company">

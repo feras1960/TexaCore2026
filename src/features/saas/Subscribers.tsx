@@ -2,47 +2,19 @@
  * Subscribers Management Page
  * إدارة المشتركين (Tenants)
  * 
- * Updated to use UniversalDetailSheet system
+ * Updated to use LedgerTable for consistent UI
  */
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { tenantsService, type Tenant } from '@/services/saas/tenantsService';
-import { NexaTable, Column } from '@/components/shared/tables/NexaTable';
+import { LedgerTable, type LedgerColumn } from '@/components/shared/tables/LedgerTable';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Search, 
-  Plus, 
-  Eye, 
-  Edit, 
-  MoreHorizontal,
-  Building2,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Package,
-  Users,
-  HardDrive,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  PauseCircle
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Plus } from 'lucide-react';
 import { UniversalDetailSheet } from '@/components/sheets';
 import { CreateTenantDialog } from './components/CreateTenantDialog';
-import { cn } from '@/lib/utils';
 
 export default function Subscribers() {
   const { t, direction } = useLanguage();
@@ -50,10 +22,10 @@ export default function Subscribers() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
   // Load tenants
   const loadTenants = async () => {
@@ -79,66 +51,21 @@ export default function Subscribers() {
     loadTenants();
   }, [isSuperAdmin]);
 
-  // Filter tenants by search query
-  const filteredTenants = tenants.filter(tenant => {
-    const query = searchQuery.toLowerCase();
-    return (
-      tenant.name.toLowerCase().includes(query) ||
-      tenant.code.toLowerCase().includes(query) ||
-      (tenant.email && tenant.email.toLowerCase().includes(query)) ||
-      (tenant.phone && tenant.phone.includes(query))
-    );
-  });
-
-  // Get status badge
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string; icon: any }> = {
-      active: { 
-        label: t('saas.status.active'), 
-        className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-        icon: CheckCircle2
-      },
-      inactive: { 
-        label: t('saas.status.inactive'), 
-        className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
-        icon: XCircle
-      },
-      suspended: { 
-        label: t('saas.status.suspended'), 
-        className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-        icon: PauseCircle
-      },
-      expired: { 
-        label: t('saas.status.expired'), 
-        className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-        icon: AlertCircle
-      },
-    };
-    const statusInfo = statusMap[status] || statusMap.inactive;
-    const Icon = statusInfo.icon;
-    return (
-      <Badge className={cn('text-xs font-medium flex items-center gap-1', statusInfo.className)}>
-        <Icon className="w-3 h-3" />
-        {statusInfo.label}
-      </Badge>
-    );
-  };
-
-  // Table columns
-  const columns: Column<Tenant>[] = [
+  // Columns configuration
+  const columns: LedgerColumn<Tenant>[] = [
     {
       key: 'code',
-      title: t('common.code'),
+      title: 'saas.tenants.code',
+      type: 'text',
       width: '120px',
       sortable: true,
       filterable: true,
-      render: (value) => (
-        <span className="font-mono text-sm font-semibold">{value}</span>
-      ),
     },
     {
       key: 'name',
-      title: t('common.name'),
+      title: 'saas.tenants.name',
+      type: 'text',
+      width: '250px',
       sortable: true,
       filterable: true,
       render: (value, row) => (
@@ -152,15 +79,34 @@ export default function Subscribers() {
     },
     {
       key: 'status',
-      title: t('common.status._'),
-      width: '120px',
+      title: 'common.status._',
+      type: 'status',
+      width: '130px',
       sortable: true,
       filterable: true,
-      render: (value) => getStatusBadge(value),
+      statusConfig: {
+        active: { 
+          label: 'saas.status.active', 
+          color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+        },
+        inactive: { 
+          label: 'saas.status.inactive', 
+          color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' 
+        },
+        suspended: { 
+          label: 'saas.status.suspended', 
+          color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' 
+        },
+        expired: { 
+          label: 'saas.status.expired', 
+          color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' 
+        },
+      },
     },
     {
       key: 'country',
-      title: t('common.country'),
+      title: 'common.country',
+      type: 'text',
       width: '120px',
       sortable: true,
       filterable: true,
@@ -168,7 +114,8 @@ export default function Subscribers() {
     },
     {
       key: 'default_language',
-      title: t('common.language'),
+      title: 'saas.tenants.language',
+      type: 'text',
       width: '100px',
       sortable: true,
       render: (value) => (
@@ -179,79 +126,36 @@ export default function Subscribers() {
     },
     {
       key: 'created_at',
-      title: t('common.date'),
+      title: 'common.createdAt',
+      type: 'date',
       width: '120px',
       sortable: true,
-      render: (value) => (
-        <span className="text-sm text-gray-600 dark:text-gray-400">
-          {new Date(value).toLocaleDateString()}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      title: t('common.actions'),
-      width: '120px',
-      align: 'center',
-      render: (_value, row) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => {
-              setSelectedTenant(row);
-              setIsDetailsOpen(true);
-            }}>
-              <Eye className="w-4 h-4 mr-2" />
-              {t('common.view')}
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Edit className="w-4 h-4 mr-2" />
-              {t('common.edit')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {row.status === 'active' && (
-              <DropdownMenuItem onClick={async () => {
-                try {
-                  await tenantsService.suspend(row.id);
-                  await loadTenants();
-                } catch (err: any) {
-                  setError(err.message);
-                }
-              }}>
-                <PauseCircle className="w-4 h-4 mr-2" />
-                {t('saas.tenants.suspend')}
-              </DropdownMenuItem>
-            )}
-            {(row.status === 'suspended' || row.status === 'inactive') && (
-              <DropdownMenuItem onClick={async () => {
-                try {
-                  await tenantsService.activate(row.id);
-                  await loadTenants();
-                } catch (err: any) {
-                  setError(err.message);
-                }
-              }}>
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                {t('saas.tenants.activate')}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      render: (value) => new Date(value).toLocaleDateString(),
     },
   ];
 
-  // Stats
+  // Stats configuration
   const stats = {
-    total: tenants.length,
-    active: tenants.filter(t => t.status === 'active').length,
-    inactive: tenants.filter(t => t.status === 'inactive').length,
-    suspended: tenants.filter(t => t.status === 'suspended').length,
-    expired: tenants.filter(t => t.status === 'expired').length,
+    label1: {
+      title: 'saas.status.active',
+      value: tenants.filter(t => t.status === 'active').length,
+      color: 'green' as const,
+    },
+    label2: {
+      title: 'saas.tenants.total',
+      value: tenants.length,
+      color: 'blue' as const,
+    },
+    label3: {
+      title: 'saas.status.suspended',
+      value: tenants.filter(t => t.status === 'suspended').length,
+      color: 'red' as const,
+    },
+    label4: {
+      title: 'saas.status.expired',
+      value: tenants.filter(t => t.status === 'expired').length,
+      color: 'gray' as const,
+    },
   };
 
   return (
@@ -267,93 +171,9 @@ export default function Subscribers() {
           </p>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-4 h-4 me-2" />
           {t('saas.tenants.create')}
         </Button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.tenants.total')}
-              </p>
-              <p className="text-2xl font-bold text-erp-navy dark:text-white mt-1">
-                {stats.total}
-              </p>
-            </div>
-            <Building2 className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.status.active')}
-              </p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                {stats.active}
-              </p>
-            </div>
-            <CheckCircle2 className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.status.inactive')}
-              </p>
-              <p className="text-2xl font-bold text-gray-600 dark:text-gray-400 mt-1">
-                {stats.inactive}
-              </p>
-            </div>
-            <XCircle className="w-8 h-8 text-gray-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.status.suspended')}
-              </p>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-                {stats.suspended}
-              </p>
-            </div>
-            <PauseCircle className="w-8 h-8 text-red-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                {t('saas.status.expired')}
-              </p>
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
-                {stats.expired}
-              </p>
-            </div>
-            <AlertCircle className="w-8 h-8 text-yellow-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder={t('common.search')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Error Message */}
@@ -364,22 +184,32 @@ export default function Subscribers() {
       )}
 
       {/* Tenants Table */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm">
-        <NexaTable
-          data={filteredTenants}
+      <div className="h-[calc(100vh-300px)]">
+        <LedgerTable
+          data={tenants}
           columns={columns}
           loading={loading}
+          error={error}
+          showFilters={false}
+          showStats={true}
+          stats={stats}
+          selectable={true}
+          selectedRows={selectedRows}
+          onSelectionChange={setSelectedRows}
+          rowKey="id"
           onRowClick={(row) => {
             setSelectedTenant(row);
             setIsDetailsOpen(true);
           }}
-          rowKey="id"
-          emptyMessage={t('common.noData')}
+          onRefresh={loadTenants}
+          variant="default"
           stickyHeader={true}
+          showRowNumbers={true}
+          emptyMessage="table.noData"
         />
       </div>
 
-      {/* Tenant Details Sheet - Using Universal Detail Sheet System */}
+      {/* Tenant Details Sheet */}
       <UniversalDetailSheet
         isOpen={isDetailsOpen}
         onClose={() => {

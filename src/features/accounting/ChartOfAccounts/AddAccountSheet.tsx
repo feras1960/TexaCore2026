@@ -4,7 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+// UnifiedSheet has been removed - TODO: Convert to UniversalDetailSheet
+// import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,7 +62,7 @@ export function AddAccountSheet({
   companyId,
   isGroupMode = false,
 }: AddAccountSheetProps) {
-  const { t, language } = useLanguage();
+  const { t, language, direction } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [accountTypes, setAccountTypes] = useState<AccountType[]>([]);
   const [accountTypesLoading, setAccountTypesLoading] = useState(true);
@@ -298,14 +300,18 @@ export function AddAccountSheet({
   const parentOptions = allAccounts.filter((a) => a.is_group);
 
   return (
-    <UnifiedSheet
-      isOpen={isOpen}
-      onClose={onClose}
-      size="lg"
-      icon={editingAccount ? undefined : Plus}
-      title={editingAccount ? t('accounting.editAccount') : t('accounting.addAccount')}
-      subtitle={parentAccount ? `${t('accounting.account.parent')}: ${parentAccount.name}` : undefined}
-    >
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent side={direction === 'rtl' ? 'left' : 'right'} className="w-[600px] sm:max-w-[600px]">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold">
+            {editingAccount ? t('accounting.editAccount') : t('accounting.addAccount')}
+          </h2>
+          {parentAccount && (
+            <p className="text-sm text-gray-500">
+              {t('accounting.account.parent')}: {parentAccount.name}
+            </p>
+          )}
+        </div>
       <form onSubmit={handleSubmit} className="space-y-6 p-6">
         {/* Account Code - Auto-generated */}
         <div className="space-y-2">
@@ -477,7 +483,8 @@ export function AddAccountSheet({
           </Button>
         </div>
       </form>
-    </UnifiedSheet>
+      </SheetContent>
+    </Sheet>
   );
 }
 

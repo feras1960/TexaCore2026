@@ -77,6 +77,7 @@
     "accountsWatchlist": "[UK] Watchlist",
     "activeAccounts": "[UK] activeAccounts",
     "addAccount": "Додати рахунок",
+    "addFirstAccount": "Додати перший рахунок",
     "addGroup": "[UK] addGroup",
     "addNewRow": "Додати новий рядок",
     "addRow": "Додати рядок",
@@ -84,6 +85,7 @@
     "addSubGroup": "[UK] Add Sub-group",
     "addToWatchlist": "[UK] Add to Watchlist",
     "amountInWords": "Сума прописом",
+    "applyTemplateInstructions": "Щоб застосувати шаблон плану рахунків, виконайте одну з наступних команд у Supabase SQL Editor:",
     "assets": "[UK] assets",
     "avgTransaction": "[UK] avgTransaction",
     "balanceAfter": "[UK] balanceAfter",
@@ -122,38 +124,8 @@
     },
     "chartOfAccounts": "План рахунків",
     "chartOfAccountsDescription": "[UK] chartOfAccountsDescription",
-    "noAccountsTitle": "Поки що немає рахунків",
-    "noAccountsDescription": "Рахунки не знайдено в плані рахунків. Ви можете додати новий рахунок або застосувати готовий шаблон.",
     "chartTypeApplied": "Застосований тип плану",
     "chartTypeButNoAccounts": "Тип плану застосовано, але рахунків немає. Можливо, потрібно знову застосувати шаблон.",
-    "noChartTemplateApplied": "Шаблон плану рахунків не застосовано",
-    "applyTemplateInstructions": "Щоб застосувати шаблон плану рахунків, виконайте одну з наступних команд у Supabase SQL Editor:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "Додати перший рахунок",
-    "templates": {
-      "selectTemplate": "Вибрати шаблон плану",
-      "selectDescription": "Виберіть готовий шаблон для застосування до вашої компанії. Всі рахунки будуть створені автоматично.",
-      "selectAndApply": "Вибрати та застосувати шаблон",
-      "apply": "Застосувати",
-      "appliedSuccess": "Шаблон {name} успішно застосовано",
-      "applyError": "Не вдалося застосувати шаблон",
-      "loadError": "Не вдалося завантажити шаблони",
-      "noTemplates": "Немає доступних шаблонів",
-      "noCompany": "Будь ласка, спочатку виберіть компанію",
-      "setupTemplates": "Налаштувати шаблони",
-      "setupSuccess": "Шаблони успішно налаштовано",
-      "setupError": "Не вдалося налаштувати шаблони",
-      "withDemoData": "З демо-даними",
-      "types": {
-        "simple": "Стандартний",
-        "extended": "Розширений",
-        "fabric_extended": "Розширений для тканин"
-      },
-      "applyingMessage": "Застосування шаблону... Це може зайняти кілька секунд",
-      "refreshingAccounts": "Оновлення рахунків...",
-      "existingChartError": "У компанії вже є план рахунків. Використовуйте функцію оновлення замість цього.",
-      "templateNotFound": "Шаблон не знайдено. Переконайтеся, що шаблони налаштовані для орендаря."
-    },
     "closingBalance": "Кінцевий баланс",
     "closingEntries": "Закриваючі записи",
     "collapseAll": "Згорнути все",
@@ -392,6 +364,9 @@
     "lines": "[UK] lines",
     "module": "Бухгалтерія",
     "monthlyAverage": "[UK] monthlyAverage",
+    "noAccountsDescription": "Рахунки не знайдено в плані рахунків. Ви можете додати новий рахунок або застосувати готовий шаблон.",
+    "noAccountsTitle": "Поки що немає рахунків",
+    "noChartTemplateApplied": "Шаблон плану рахунків не застосовано",
     "noCompanySelected": "[UK] noCompanySelected",
     "noCustomers": "[UK] noCustomers",
     "noParent": "[UK] noParent",
@@ -501,6 +476,7 @@
       "workflow": "Робочий процес",
       "workflowDesc": "Налаштування затвердження та автоматичного проведення"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Грошовий потік",
       "netProfit": "Чистий прибуток",
@@ -522,6 +498,30 @@
     "summary": "Підсумок",
     "suppliers": "Постачальники",
     "tableView": "Табличний вигляд",
+    "templates": {
+      "appliedSuccess": "Шаблон {name} успішно застосовано",
+      "apply": "Застосувати",
+      "applyError": "Не вдалося застосувати шаблон",
+      "applyingMessage": "Застосування шаблону... Це може зайняти кілька секунд",
+      "existingChartError": "У компанії вже є план рахунків. Використовуйте функцію оновлення замість цього.",
+      "loadError": "Не вдалося завантажити шаблони",
+      "noCompany": "Будь ласка, спочатку виберіть компанію",
+      "noTemplates": "Немає доступних шаблонів",
+      "refreshingAccounts": "Оновлення рахунків...",
+      "selectAndApply": "Вибрати та застосувати шаблон",
+      "selectDescription": "Виберіть готовий шаблон для застосування до вашої компанії. Всі рахунки будуть створені автоматично.",
+      "selectTemplate": "Вибрати шаблон плану",
+      "setupError": "Не вдалося налаштувати шаблони",
+      "setupSuccess": "Шаблони успішно налаштовано",
+      "setupTemplates": "Налаштувати шаблони",
+      "templateNotFound": "Шаблон не знайдено. Переконайтеся, що шаблони налаштовані для орендаря.",
+      "types": {
+        "extended": "Розширений",
+        "fabric_extended": "Розширений для тканин",
+        "simple": "Стандартний"
+      },
+      "withDemoData": "З демо-даними"
+    },
     "totalAccounts": "[UK] totalAccounts",
     "totalBalance": "[UK] totalBalance",
     "totalInvoices": "[UK] totalInvoices",
@@ -828,10 +828,10 @@
     "active": "Активний",
     "add": "Додати",
     "all": "Все",
-    "applying": "Застосування...",
     "allItems": "[UK] All",
     "amount": "Сума",
     "and": "та",
+    "applying": "Застосування...",
     "back": "Назад",
     "balance": "Баланс",
     "cancel": "Скасувати",
@@ -930,6 +930,7 @@
     "receipt": "Надходження",
     "reference": "Посилання",
     "refresh": "Оновити",
+    "refunded": "[UK] Refunded",
     "remaining": "[UK] remaining",
     "required": "Обовʼязково",
     "reset": "Скинути",
@@ -937,6 +938,7 @@
     "search": "Пошук",
     "select": "Вибрати",
     "selectAll": "Вибрати все",
+    "sent": "[UK] Sent",
     "showCancelledEntries": "[UK] showCancelledEntries",
     "status": {
       "_": "Статус",
@@ -976,6 +978,7 @@
     },
     "to": "До",
     "total": "Всього",
+    "totalAmount": "[UK] Total Amount",
     "totals": "ПІДСУМКИ",
     "transactions": "Транзакції",
     "type": "Тип",
@@ -1083,6 +1086,14 @@
       "quickReceiptDialog": {
         "description": "Діалог швидкого введення для квитанцій",
         "name": "Діалог швидкої квитанції"
+      },
+      "registerPage": {
+        "description": "[UK] Basic registration page for new users with multilingual support and RTL",
+        "name": "[UK] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[UK] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[UK] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "Перегляд та редагування деталей транзакції",
@@ -2009,19 +2020,73 @@
   "saas": {
     "activate": "Активувати",
     "agents": "Агенти",
+    "agentsGrid": {
+      "balance": "[UK] Current Balance",
+      "code": "[UK] Agent Code",
+      "commission": "[UK] Commission %",
+      "earned": "[UK] Total Earned",
+      "name": "[UK] Agent Name",
+      "pending": "[UK] Pending Balance",
+      "tenants": "[UK] Tenants Count",
+      "tier": "[UK] Tier",
+      "title": "[UK] Agents Management",
+      "type": "[UK] Agent Type",
+      "withdrawn": "[UK] Total Withdrawn"
+    },
     "analytics": "Аналітика",
     "approve": "Схвалити",
     "comingSoon": "Незабаром - В розробці",
+    "companySwitcher": {
+      "availableCompanies": "[UK] Available Companies",
+      "current": "[UK] Current",
+      "currentCompany": "[UK] Current Company",
+      "description": "[UK] Switch the currently active company",
+      "fabricInfo": "[UK] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[UK] Failed to load companies",
+      "singleCompany": "[UK] You have only one company",
+      "switch": "[UK] Switch",
+      "switchError": "[UK] Failed to switch company",
+      "switchSuccess": "[UK] Company switched successfully",
+      "title": "[UK] Company Switcher",
+      "types": {
+        "production": "[UK] Production",
+        "testing": "[UK] Testing"
+      }
+    },
     "coupons": "Купони",
     "createNew": "Створити",
     "dashboard": "Панель керування",
     "delete": "Видалити",
     "edit": "Редагувати",
+    "invoicesGrid": {
+      "amount": "[UK] Amount",
+      "dueDate": "[UK] Due Date",
+      "issueDate": "[UK] Issue Date",
+      "number": "[UK] Invoice Number",
+      "paidDate": "[UK] Paid Date",
+      "period": "[UK] Billing Period",
+      "plan": "[UK] Subscription Plan",
+      "tax": "[UK] Tax Amount",
+      "tenant": "[UK] Tenant",
+      "title": "[UK] Invoices Management",
+      "total": "[UK] Total Amount"
+    },
     "marketing": "Маркетинг",
     "modules": "Модулі",
     "notifications": "Сповіщення",
     "packages": "Пакети",
     "payments": "Платежі",
+    "paymentsGrid": {
+      "agent": "[UK] Agent",
+      "commission": "[UK] Commission Amount",
+      "date": "[UK] Payment Date",
+      "dueDate": "[UK] Due Date",
+      "invoiceNumber": "[UK] Invoice Number",
+      "method": "[UK] Payment Method",
+      "reference": "[UK] Reference",
+      "tenant": "[UK] Tenant",
+      "title": "[UK] Payments Management"
+    },
     "plans": {
       "enterprise": "Корпоративний",
       "professional": "Професійний",
@@ -2044,18 +2109,23 @@
     "suspend": "Призупинити",
     "tenants": {
       "activate": "Активувати підписника",
+      "agent": "[UK] Agent",
       "agentInfo": "Пов'язаний з агентом",
       "billing": "Рахунки",
+      "code": "[UK] Tenant Code",
       "create": "Створити підписника",
       "createDescription": "Створити нового підписника в системі",
       "description": "Управління підписниками та підписками",
       "details": "Деталі підписника",
+      "documents": "[UK] Documents",
       "edit": "Редагувати підписника",
       "error": {
         "createFailed": "Не вдалося створити підписника",
         "loadFailed": "Не вдалося завантажити підписників",
         "noPermission": "Немає доступу"
       },
+      "language": "[UK] Default Language",
+      "name": "[UK] Tenant Name",
       "ownerName": "Ім'я власника",
       "placeholders": {
         "companyName": "Назва компанії",
@@ -2066,6 +2136,7 @@
       "referral": "Реферал",
       "referralCode": "Реферальний код",
       "referralSource": "Джерело рефералу",
+      "storage": "[UK] Storage Used",
       "subscription": "Підписка",
       "suspend": "Призупинити підписника",
       "tabs": {
@@ -2075,11 +2146,71 @@
       },
       "title": "Управління підписниками",
       "total": "Всього підписників",
-      "usage": "Використання"
+      "usage": "Використання",
+      "users": "[UK] Users Count"
     },
     "title": "Управління SaaS",
     "view": "Переглянути",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Назва плану",
+      "price": "Ціна",
+      "billingCycle": "Платіжний цикл",
+      "monthly": "Щомісяця",
+      "yearly": "Щорічно",
+      "maxUsers": "Макс. користувачів",
+      "product": "Продукт",
+      "status": "Статус",
+      "popular": "Популярний",
+      "basicInfo": "Основна інформація",
+      "modules": "Модулі",
+      "limitsAndFeatures": "Ліміти та функції",
+      "subscribers": "Підписники",
+      "ledger": "Книга обліку",
+      "assignedModules": "Призначені модулі",
+      "noModules": "Модулі не призначені",
+      "availableModules": "Доступні модулі",
+      "limits": "Ліміти",
+      "storageLimit": "Ліміт зберігання",
+      "maxDocuments": "Макс. документів",
+      "maxImages": "Макс. зображень",
+      "features": "Функції",
+      "feature": {
+        "multiCurrency": "Підтримка мультивалюти",
+        "advancedReports": "Розширені звіти",
+        "apiAccess": "Доступ до API",
+        "customBranding": "Індивідуальний брендинг",
+        "prioritySupport": "Пріоритетна підтримка"
+      },
+      "noSubscribers": "Немає підписників для цього плану",
+      "setPopular": "Зробити популярним",
+      "removePopular": "Прибрати статус популярного",
+      "deactivateConfirm": "Підтвердити деактивацію",
+      "deactivateDescription": "Ви впевнені, що хочете деактивувати цей план? Нові підписники не зможуть підписатися на нього.",
+      "archiveConfirm": "Підтвердити архівацію",
+      "archiveDescription": "Ви впевнені, що хочете архівувати цей план? Він буде деактивований і прихований зі списків."
+    },
+    "subscription": {
+      "startDate": "Дата початку",
+      "endDate": "Дата закінчення",
+      "expired": "Минув",
+      "suspended": "Призупинено",
+      "cancelled": "Скасовано"
+    },
+    "payment": {
+      "totalRevenue": "Загальний дохід",
+      "totalPayments": "Всього платежів",
+      "avgPayment": "Середній платіж",
+      "noPayments": "Немає платежів"
+    },
+    "activity": {
+      "planCreated": "План створено",
+      "planUpdated": "План оновлено",
+      "planActivated": "План активовано",
+      "planDeactivated": "План деактивовано",
+      "planArchived": "План архівовано",
+      "planSetPopular": "План позначено як популярний"
+    },
     "whiteLabel": "Біла мітка",
     "whiteLabelDetails": {
       "activate": "Активувати White Label",
@@ -2146,7 +2277,10 @@
     "collapse": "Згорнути",
     "contactSupport": "Звʼязатися з підтримкою",
     "expand": "Розгорнути",
-    "needHelp": "Потрібна допомога?"
+    "moduleDisabled": "[UK] Module Disabled",
+    "needHelp": "Потрібна допомога?",
+    "upgrade": "[UK] Upgrade",
+    "upgradeRequired": "[UK] Upgrade Required"
   },
   "sku": "[UK] sku",
   "stats": {
@@ -2542,5 +2676,108 @@
     "invalidInput": "Невірний ввід",
     "negative": "Від'ємний!",
     "required": "Обов'язково"
+  },
+  "wizard": {
+    "address": "[UK] Address",
+    "addressPlaceholder": "[UK] Example: King Fahd Street, Al Olaya",
+    "back": "[UK] Back",
+    "businessType": "[UK] Business Type",
+    "businessTypeHint": "[UK] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[UK] Online retail store",
+        "name": "[UK] E-commerce"
+      },
+      "exchange": {
+        "description": "[UK] Money transfer and exchange",
+        "name": "[UK] Exchange"
+      },
+      "fabric": {
+        "description": "[UK] Fabric and textile trading",
+        "name": "[UK] Fabric"
+      },
+      "general": {
+        "description": "[UK] General and diverse business",
+        "name": "[UK] General"
+      },
+      "healthcare": {
+        "description": "[UK] Medical and healthcare services",
+        "name": "[UK] Healthcare"
+      }
+    },
+    "city": "[UK] City",
+    "cityPlaceholder": "[UK] Example: Riyadh",
+    "cityRequired": "[UK] Please enter a city",
+    "companyName": "[UK] Company Name",
+    "companyNameFromRegistration": "[UK] Company name from registration (you can edit it)",
+    "companyNameHint": "[UK] Please enter your company name to continue",
+    "companyNamePlaceholder": "[UK] Example: Advanced Technology Company",
+    "companyNameRequired": "[UK] Company name is required",
+    "complete": "[UK] Complete Registration",
+    "country": "[UK] Country",
+    "countryAndCityRequired": "[UK] Please select country and city",
+    "countryRequired": "[UK] Please select a country",
+    "description": "[UK] Complete your company information to start using the system",
+    "email": "[UK] Email",
+    "emailPlaceholder": "[UK] info@example.com",
+    "fabricCurrencyNote": "[UK] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[UK] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[UK] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[UK] Fiscal Year Start",
+    "localCurrency": "[UK] Local Currency",
+    "localCurrencyNote": "[UK] Currency used in your country (can be changed later)",
+    "mainCurrency": "[UK] Main Currency",
+    "mainCurrencyNote": "[UK] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[UK] April",
+      "august": "[UK] August",
+      "december": "[UK] December",
+      "february": "[UK] February",
+      "january": "[UK] January",
+      "july": "[UK] July",
+      "june": "[UK] June",
+      "march": "[UK] March",
+      "may": "[UK] May",
+      "november": "[UK] November",
+      "october": "[UK] October",
+      "september": "[UK] September"
+    },
+    "next": "[UK] Next",
+    "of": "[UK] of",
+    "phone": "[UK] Phone",
+    "phonePlaceholder": "[UK] +966 XX XXX XXXX",
+    "registrationFailed": "[UK] Registration failed. Please try again",
+    "selectBusinessType": "[UK] Please select a business type",
+    "selectBusinessTypeAndName": "[UK] Please select business type and enter company name",
+    "selectCountry": "[UK] Select Country",
+    "selectCurrency": "[UK] Select Currency",
+    "selectMainCurrency": "[UK] Select Main Currency",
+    "step": "[UK] Step",
+    "step1": {
+      "description": "[UK] Select the business activity that fits your company",
+      "title": "[UK] Choose Your Business Type"
+    },
+    "step1Description": "[UK] Choose your business type and enter your company name",
+    "step1Title": "[UK] Business Type & Company Name",
+    "step2": {
+      "description": "[UK] Enter your company's basic details",
+      "title": "[UK] Company Information"
+    },
+    "step2Description": "[UK] Enter your company's basic details",
+    "step2Title": "[UK] Company Information",
+    "step3": {
+      "description": "[UK] Set your currency and fiscal year start",
+      "title": "[UK] Financial Settings"
+    },
+    "step3Description": "[UK] Set currencies and fiscal year start",
+    "step3Title": "[UK] Financial Settings",
+    "submitting": "[UK] Completing...",
+    "success": "[UK] Registration completed successfully! Redirecting...",
+    "successFabric": "[UK] Two companies created successfully! Redirecting...",
+    "summary": "[UK] Summary",
+    "title": "[UK] Account Setup",
+    "userNotFound": "[UK] User not found. Please login again",
+    "website": "[UK] Website",
+    "websitePlaceholder": "[UK] https://example.com"
   }
 }

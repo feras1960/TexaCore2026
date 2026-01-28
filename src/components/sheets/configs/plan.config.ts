@@ -35,6 +35,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { type SheetConfig } from './sheet.types';
+import * as planActions from '@/services/saas/planActionsHandler';
 
 // Import tab components
 import { OverviewTab } from '../tabs/shared/OverviewTab';
@@ -266,14 +267,23 @@ export const planConfig: SheetConfig = {
       label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: () => {},
+      onClick: (data, context) => {
+        // سيتم فتح dialog للتعديل
+        context?.handlers?.onEdit?.(data);
+      },
     },
     {
       id: 'duplicate',
       label: 'actions.duplicate',
       icon: Copy,
       variant: 'outline',
-      onClick: () => {},
+      onClick: async (data, context) => {
+        try {
+          await planActions.duplicatePlan(data, context?.language || 'en', context?.handlers);
+        } catch (error) {
+          console.error('Error in duplicate action:', error);
+        }
+      },
     },
     {
       id: 'set_popular',
@@ -281,7 +291,13 @@ export const planConfig: SheetConfig = {
       icon: Star,
       variant: 'outline',
       show: (data) => !data.is_popular,
-      onClick: () => {},
+      onClick: async (data, context) => {
+        try {
+          await planActions.setAsPopular(data.id, context?.language || 'en', context?.handlers);
+        } catch (error) {
+          console.error('Error in set popular action:', error);
+        }
+      },
     },
     {
       id: 'remove_popular',
@@ -289,7 +305,13 @@ export const planConfig: SheetConfig = {
       icon: Star,
       variant: 'ghost',
       show: (data) => data.is_popular,
-      onClick: () => {},
+      onClick: async (data, context) => {
+        try {
+          await planActions.removePopular(data.id, context?.language || 'en', context?.handlers);
+        } catch (error) {
+          console.error('Error in remove popular action:', error);
+        }
+      },
     },
     {
       id: 'deactivate',
@@ -301,7 +323,13 @@ export const planConfig: SheetConfig = {
         title: 'dialogs.confirmDeactivation',
         description: 'dialogs.deactivatePlanWarning',
       },
-      onClick: () => {},
+      onClick: async (data, context) => {
+        try {
+          await planActions.deactivatePlan(data.id, context?.language || 'en', context?.handlers);
+        } catch (error) {
+          console.error('Error in deactivate action:', error);
+        }
+      },
     },
     {
       id: 'activate',
@@ -309,7 +337,30 @@ export const planConfig: SheetConfig = {
       icon: CheckCircle,
       variant: 'success',
       show: (data) => !data.is_active,
-      onClick: () => {},
+      onClick: async (data, context) => {
+        try {
+          await planActions.activatePlan(data.id, context?.language || 'en', context?.handlers);
+        } catch (error) {
+          console.error('Error in activate action:', error);
+        }
+      },
+    },
+    {
+      id: 'archive',
+      label: 'actions.archive',
+      icon: XCircle,
+      variant: 'outline',
+      confirm: {
+        title: 'dialogs.confirmArchive',
+        description: 'dialogs.archivePlanWarning',
+      },
+      onClick: async (data, context) => {
+        try {
+          await planActions.archivePlan(data.id, context?.language || 'en', context?.handlers);
+        } catch (error) {
+          console.error('Error in archive action:', error);
+        }
+      },
     },
   ],
   

@@ -20,6 +20,7 @@ const Login = React.lazy(() => import('@/features/auth/Login'));
 const Register = React.lazy(() => import('@/features/auth/Register'));
 const RegistrationWizard = React.lazy(() => import('@/features/auth/RegistrationWizard'));
 const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
+const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
 
 // Public Route Guard (redirects to home if already authenticated)
 // Reserved for future use when public routes are needed
@@ -92,6 +93,7 @@ function AppRoutes() {
           <Route path="/activity-log" element={<ActivityLog />} />
           <Route path="/component-lab" element={<ComponentLab />} />
           <Route path="/design-system" element={<DesignSystemDemo />} />
+          <Route path="/sheets-preview" element={<SheetsPreview />} />
           </Route>
         </Route>
 

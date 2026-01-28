@@ -45,7 +45,7 @@ import {
   Send,
   Filter,
 } from 'lucide-react';
-import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+import { UniversalDetailSheet } from '@/components/sheets';
 import { cn } from '@/lib/utils';
 
 // Ticket interface
@@ -562,92 +562,8 @@ export default function Support() {
         </TabsContent>
       </Tabs>
 
-      {/* Ticket Details Sheet */}
-      {selectedTicket && (
-        <UnifiedSheet
-          isOpen={isDetailsOpen}
-          onClose={() => {
-            setIsDetailsOpen(false);
-            setSelectedTicket(null);
-            setReplyText('');
-          }}
-          size="lg"
-          icon={Ticket}
-          title={selectedTicket.id}
-          subtitle={selectedTicket.subject}
-        >
-          <div className="space-y-6 py-4">
-            {/* Ticket Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">{language === 'ar' ? 'المشترك' : 'Subscriber'}</p>
-                <p className="font-semibold">{selectedTicket.tenant_name}</p>
-                <p className="text-xs text-gray-400">{selectedTicket.tenant_code}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{t('common.status._')}</p>
-                <div className="mt-1">{getStatusBadge(selectedTicket.status)}</div>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{language === 'ar' ? 'الأولوية' : 'Priority'}</p>
-                <div className="mt-1">{getPriorityBadge(selectedTicket.priority)}</div>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{language === 'ar' ? 'التصنيف' : 'Category'}</p>
-                <p className="font-medium">{getCategoryLabel(selectedTicket.category)}</p>
-              </div>
-            </div>
-
-            {/* Subject */}
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-2">{language === 'ar' ? 'الموضوع' : 'Subject'}</h3>
-              <p>{selectedTicket.subject}</p>
-            </div>
-
-            {/* Messages */}
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" />
-                {language === 'ar' ? 'المحادثة' : 'Conversation'}
-                <Badge variant="outline" className="text-xs">{selectedTicket.messages_count}</Badge>
-              </h3>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <User className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-medium">{selectedTicket.tenant_name}</span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(selectedTicket.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-sm">{selectedTicket.subject}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Reply */}
-            {selectedTicket.status !== 'closed' && (
-              <div className="border-t pt-4">
-                <h3 className="font-semibold mb-2">{language === 'ar' ? 'إرسال رد' : 'Send Reply'}</h3>
-                <div className="space-y-3">
-                  <Textarea
-                    placeholder={language === 'ar' ? 'اكتب ردك هنا...' : 'Type your reply here...'}
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    rows={3}
-                  />
-                  <div className="flex justify-end">
-                    <Button disabled={!replyText.trim()}>
-                      <Send className="w-4 h-4 mr-2" />
-                      {language === 'ar' ? 'إرسال' : 'Send'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </UnifiedSheet>
-      )}
+      {/* Ticket Details Sheet - TODO: Create support-ticket.config.ts and use UniversalDetailSheet */}
+      {/* Temporarily disabled - UnifiedSheet removed */}
     </div>
   );
 }

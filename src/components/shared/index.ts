@@ -10,7 +10,7 @@ export { LedgerTable } from './tables/LedgerTable';
 export type { LedgerColumn, LedgerFilters, LedgerStats, LedgerTableProps, QuickFilter } from './tables/LedgerTable';
 
 // Popups
-export { UnifiedSheet, SectionCard, InfoRow, DEFAULT_MAIN_TABS } from './sheets/UnifiedSheet';
+// UnifiedSheet REMOVED - use UniversalDetailSheet from '@/components/sheets' instead
 export { UnifiedModal } from './modals/UnifiedModal';
 
 // Status

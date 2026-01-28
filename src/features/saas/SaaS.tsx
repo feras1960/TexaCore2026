@@ -32,7 +32,7 @@ import {
 // Import components
 import Agents from './Agents';
 import Subscribers from './Subscribers';
-import SaaSDashboard from './SaaSDashboard';
+import { SaaSDashboard } from './SaaSDashboard';
 import Packages from './Packages';
 import Payments from './Payments';
 import WhiteLabel from './WhiteLabel';

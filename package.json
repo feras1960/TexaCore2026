@@ -16,7 +16,7 @@
     "sync:translations": "node scripts/sync-translations.cjs",
     "check:translations": "node scripts/check-translations.cjs",
     "validate": "npm run typecheck && npm run lint && npm run check:translations",
-    "prepare": "husky install",
+    "prepare": "husky install || true",
     "pre-commit": "npm run validate",
     "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
   },

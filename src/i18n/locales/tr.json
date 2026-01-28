@@ -77,6 +77,7 @@
     "accountsWatchlist": "[TR] Watchlist",
     "activeAccounts": "[TR] activeAccounts",
     "addAccount": "Hesap ekle",
+    "addFirstAccount": "İlk Hesabı Ekle",
     "addGroup": "[TR] addGroup",
     "addNewRow": "Yeni satır ekle",
     "addRow": "Satır ekle",
@@ -84,6 +85,7 @@
     "addSubGroup": "[TR] Add Sub-group",
     "addToWatchlist": "[TR] Add to Watchlist",
     "amountInWords": "Yazıyla Tutar",
+    "applyTemplateInstructions": "Hesap planı şablonu uygulamak için Supabase SQL Editor'de aşağıdaki komutlardan birini çalıştırın:",
     "assets": "Varlıklar",
     "avgTransaction": "[TR] avgTransaction",
     "balanceAfter": "[TR] balanceAfter",
@@ -122,38 +124,8 @@
     },
     "chartOfAccounts": "Hesap Planı",
     "chartOfAccountsDescription": "[TR] chartOfAccountsDescription",
-    "noAccountsTitle": "Henüz Hesap Yok",
-    "noAccountsDescription": "Hesap planında hesap bulunamadı. Yeni bir hesap ekleyebilir veya hazır bir şablon uygulayabilirsiniz.",
     "chartTypeApplied": "Uygulanan Hesap Planı Türü",
     "chartTypeButNoAccounts": "Hesap planı türü uygulandı ancak hesap yok. Şablonu tekrar uygulamanız gerekebilir.",
-    "noChartTemplateApplied": "Hesap Planı Şablonu Uygulanmadı",
-    "applyTemplateInstructions": "Hesap planı şablonu uygulamak için Supabase SQL Editor'de aşağıdaki komutlardan birini çalıştırın:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "İlk Hesabı Ekle",
-    "templates": {
-      "selectTemplate": "Hesap Planı Şablonu Seç",
-      "selectDescription": "Şirketinize uygulanacak hazır bir şablon seçin. Tüm hesaplar otomatik olarak oluşturulacaktır.",
-      "selectAndApply": "Şablon Seç ve Uygula",
-      "apply": "Uygula",
-      "appliedSuccess": "{name} şablonu başarıyla uygulandı",
-      "applyError": "Şablon uygulanamadı",
-      "loadError": "Şablonlar yüklenemedi",
-      "noTemplates": "Kullanılabilir şablon yok",
-      "noCompany": "Lütfen önce bir şirket seçin",
-      "setupTemplates": "Şablonları Ayarla",
-      "setupSuccess": "Şablonlar başarıyla ayarlandı",
-      "setupError": "Şablonlar ayarlanamadı",
-      "withDemoData": "Demo Verilerle",
-      "types": {
-        "simple": "Standart",
-        "extended": "Genişletilmiş",
-        "fabric_extended": "Kumaş için Genişletilmiş"
-      },
-      "applyingMessage": "Şablon uygulanıyor... Bu birkaç saniye sürebilir",
-      "refreshingAccounts": "Hesaplar yenileniyor...",
-      "existingChartError": "Şirketin zaten bir hesap planı var. Bunun yerine yükseltme işlevini kullanın.",
-      "templateNotFound": "Şablon bulunamadı. Lütfen şablonların kiracı için ayarlandığından emin olun."
-    },
     "closingBalance": "Kapanış Bakiyesi",
     "closingEntries": "Kapanış Kayıtları",
     "collapseAll": "Tümünü Daralt",
@@ -392,6 +364,9 @@
     "lines": "[TR] lines",
     "module": "Muhasebe",
     "monthlyAverage": "[TR] monthlyAverage",
+    "noAccountsDescription": "Hesap planında hesap bulunamadı. Yeni bir hesap ekleyebilir veya hazır bir şablon uygulayabilirsiniz.",
+    "noAccountsTitle": "Henüz Hesap Yok",
+    "noChartTemplateApplied": "Hesap Planı Şablonu Uygulanmadı",
     "noCompanySelected": "[TR] noCompanySelected",
     "noCustomers": "[TR] noCustomers",
     "noParent": "[TR] noParent",
@@ -501,6 +476,7 @@
       "workflow": "İş Akışı",
       "workflowDesc": "Onay ve otomatik kayıt ayarları"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Nakit Akışı",
       "netProfit": "Net Kar",
@@ -522,6 +498,30 @@
     "summary": "Özet",
     "suppliers": "Tedarikçiler",
     "tableView": "Tablo Görünümü",
+    "templates": {
+      "appliedSuccess": "{name} şablonu başarıyla uygulandı",
+      "apply": "Uygula",
+      "applyError": "Şablon uygulanamadı",
+      "applyingMessage": "Şablon uygulanıyor... Bu birkaç saniye sürebilir",
+      "existingChartError": "Şirketin zaten bir hesap planı var. Bunun yerine yükseltme işlevini kullanın.",
+      "loadError": "Şablonlar yüklenemedi",
+      "noCompany": "Lütfen önce bir şirket seçin",
+      "noTemplates": "Kullanılabilir şablon yok",
+      "refreshingAccounts": "Hesaplar yenileniyor...",
+      "selectAndApply": "Şablon Seç ve Uygula",
+      "selectDescription": "Şirketinize uygulanacak hazır bir şablon seçin. Tüm hesaplar otomatik olarak oluşturulacaktır.",
+      "selectTemplate": "Hesap Planı Şablonu Seç",
+      "setupError": "Şablonlar ayarlanamadı",
+      "setupSuccess": "Şablonlar başarıyla ayarlandı",
+      "setupTemplates": "Şablonları Ayarla",
+      "templateNotFound": "Şablon bulunamadı. Lütfen şablonların kiracı için ayarlandığından emin olun.",
+      "types": {
+        "extended": "Genişletilmiş",
+        "fabric_extended": "Kumaş için Genişletilmiş",
+        "simple": "Standart"
+      },
+      "withDemoData": "Demo Verilerle"
+    },
     "totalAccounts": "[TR] totalAccounts",
     "totalBalance": "[TR] totalBalance",
     "totalInvoices": "[TR] totalInvoices",
@@ -828,10 +828,10 @@
     "active": "Aktif",
     "add": "Ekle",
     "all": "Tümü",
-    "applying": "Uygulanıyor...",
     "allItems": "[TR] All",
     "amount": "Tutar",
     "and": "ve",
+    "applying": "Uygulanıyor...",
     "back": "Geri",
     "balance": "Bakiye",
     "cancel": "İptal",
@@ -930,6 +930,7 @@
     "receipt": "Makbuz",
     "reference": "Referans",
     "refresh": "Yenile",
+    "refunded": "[TR] Refunded",
     "remaining": "[TR] remaining",
     "required": "Zorunlu",
     "reset": "Sıfırla",
@@ -937,6 +938,7 @@
     "search": "Ara",
     "select": "Seç",
     "selectAll": "Tümünü Seç",
+    "sent": "[TR] Sent",
     "showCancelledEntries": "[TR] showCancelledEntries",
     "status": {
       "_": "Durum",
@@ -976,6 +978,7 @@
     },
     "to": "Bitiş",
     "total": "Toplam",
+    "totalAmount": "[TR] Total Amount",
     "totals": "TOPLAMLAR",
     "transactions": "[TR] Transactions",
     "type": "Tür",
@@ -1083,6 +1086,14 @@
       "quickReceiptDialog": {
         "description": "Makbuzlar için hızlı giriş diyaloğu",
         "name": "Hızlı Makbuz Diyaloğu"
+      },
+      "registerPage": {
+        "description": "[TR] Basic registration page for new users with multilingual support and RTL",
+        "name": "[TR] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[TR] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[TR] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "İşlem detaylarını görüntüleme ve düzenleme",
@@ -2009,19 +2020,73 @@
   "saas": {
     "activate": "Etkinleştir",
     "agents": "Acenteler",
+    "agentsGrid": {
+      "balance": "[TR] Current Balance",
+      "code": "[TR] Agent Code",
+      "commission": "[TR] Commission %",
+      "earned": "[TR] Total Earned",
+      "name": "[TR] Agent Name",
+      "pending": "[TR] Pending Balance",
+      "tenants": "[TR] Tenants Count",
+      "tier": "[TR] Tier",
+      "title": "[TR] Agents Management",
+      "type": "[TR] Agent Type",
+      "withdrawn": "[TR] Total Withdrawn"
+    },
     "analytics": "Analitik",
     "approve": "Onayla",
     "comingSoon": "Yakında - Geliştirme Aşamasında",
+    "companySwitcher": {
+      "availableCompanies": "[TR] Available Companies",
+      "current": "[TR] Current",
+      "currentCompany": "[TR] Current Company",
+      "description": "[TR] Switch the currently active company",
+      "fabricInfo": "[TR] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[TR] Failed to load companies",
+      "singleCompany": "[TR] You have only one company",
+      "switch": "[TR] Switch",
+      "switchError": "[TR] Failed to switch company",
+      "switchSuccess": "[TR] Company switched successfully",
+      "title": "[TR] Company Switcher",
+      "types": {
+        "production": "[TR] Production",
+        "testing": "[TR] Testing"
+      }
+    },
     "coupons": "Kuponlar",
     "createNew": "Yeni Oluştur",
     "dashboard": "Kontrol Paneli",
     "delete": "Sil",
     "edit": "Düzenle",
+    "invoicesGrid": {
+      "amount": "[TR] Amount",
+      "dueDate": "[TR] Due Date",
+      "issueDate": "[TR] Issue Date",
+      "number": "[TR] Invoice Number",
+      "paidDate": "[TR] Paid Date",
+      "period": "[TR] Billing Period",
+      "plan": "[TR] Subscription Plan",
+      "tax": "[TR] Tax Amount",
+      "tenant": "[TR] Tenant",
+      "title": "[TR] Invoices Management",
+      "total": "[TR] Total Amount"
+    },
     "marketing": "Pazarlama",
     "modules": "Modüller",
     "notifications": "Bildirimler",
     "packages": "Paketler",
     "payments": "Ödemeler",
+    "paymentsGrid": {
+      "agent": "[TR] Agent",
+      "commission": "[TR] Commission Amount",
+      "date": "[TR] Payment Date",
+      "dueDate": "[TR] Due Date",
+      "invoiceNumber": "[TR] Invoice Number",
+      "method": "[TR] Payment Method",
+      "reference": "[TR] Reference",
+      "tenant": "[TR] Tenant",
+      "title": "[TR] Payments Management"
+    },
     "plans": {
       "enterprise": "Kurumsal",
       "professional": "Profesyonel",
@@ -2044,18 +2109,23 @@
     "suspend": "Askıya Al",
     "tenants": {
       "activate": "Aboneyi Etkinleştir",
+      "agent": "[TR] Agent",
       "agentInfo": "Acenteye Bağlı",
       "billing": "Faturalama",
+      "code": "[TR] Tenant Code",
       "create": "Yeni Abone Oluştur",
       "createDescription": "Sistemde yeni bir abone oluşturun",
       "description": "Aboneleri ve abonelikleri yönetin",
       "details": "Abone Detayları",
+      "documents": "[TR] Documents",
       "edit": "Aboneyi Düzenle",
       "error": {
         "createFailed": "Abone oluşturulamadı",
         "loadFailed": "Aboneler yüklenemedi",
         "noPermission": "Erişim izni yok"
       },
+      "language": "[TR] Default Language",
+      "name": "[TR] Tenant Name",
       "ownerName": "Sahip Adı",
       "placeholders": {
         "companyName": "Şirket Adı",
@@ -2066,6 +2136,7 @@
       "referral": "Referans",
       "referralCode": "Referans Kodu",
       "referralSource": "Referans Kaynağı",
+      "storage": "[TR] Storage Used",
       "subscription": "Abonelik",
       "suspend": "Aboneyi Askıya Al",
       "tabs": {
@@ -2075,11 +2146,71 @@
       },
       "title": "Abone Yönetimi",
       "total": "Toplam Abone",
-      "usage": "Kullanım"
+      "usage": "Kullanım",
+      "users": "[TR] Users Count"
     },
     "title": "SaaS Yönetimi",
     "view": "Görüntüle",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Plan Adı",
+      "price": "Fiyat",
+      "billingCycle": "Faturalama Döngüsü",
+      "monthly": "Aylık",
+      "yearly": "Yıllık",
+      "maxUsers": "Maksimum Kullanıcı",
+      "product": "Ürün",
+      "status": "Durum",
+      "popular": "Popüler",
+      "basicInfo": "Temel Bilgiler",
+      "modules": "Modüller",
+      "limitsAndFeatures": "Limitler ve Özellikler",
+      "subscribers": "Aboneler",
+      "ledger": "Hesap Özeti",
+      "assignedModules": "Atanmış Modüller",
+      "noModules": "Atanmış modül yok",
+      "availableModules": "Kullanılabilir Modüller",
+      "limits": "Limitler",
+      "storageLimit": "Depolama Limiti",
+      "maxDocuments": "Maksimum Belge",
+      "maxImages": "Maksimum Görüntü",
+      "features": "Özellikler",
+      "feature": {
+        "multiCurrency": "Çoklu Para Birimi Desteği",
+        "advancedReports": "Gelişmiş Raporlar",
+        "apiAccess": "API Erişimi",
+        "customBranding": "Özel Markalaşma",
+        "prioritySupport": "Öncelikli Destek"
+      },
+      "noSubscribers": "Bu plan için abone yok",
+      "setPopular": "Popüler Olarak Ayarla",
+      "removePopular": "Popüler Durumunu Kaldır",
+      "deactivateConfirm": "Devre Dışı Bırakmayı Onayla",
+      "deactivateDescription": "Bu planı devre dışı bırakmak istediğinizden emin misiniz? Yeni aboneler buna abone olamayacak.",
+      "archiveConfirm": "Arşivlemeyi Onayla",
+      "archiveDescription": "Bu planı arşivlemek istediğinizden emin misiniz? Devre dışı bırakılacak ve listelerden gizlenecek."
+    },
+    "subscription": {
+      "startDate": "Başlangıç Tarihi",
+      "endDate": "Bitiş Tarihi",
+      "expired": "Süresi Dolmuş",
+      "suspended": "Askıya Alınmış",
+      "cancelled": "İptal Edilmiş"
+    },
+    "payment": {
+      "totalRevenue": "Toplam Gelir",
+      "totalPayments": "Toplam Ödemeler",
+      "avgPayment": "Ortalama Ödeme",
+      "noPayments": "Ödeme yok"
+    },
+    "activity": {
+      "planCreated": "Plan oluşturuldu",
+      "planUpdated": "Plan güncellendi",
+      "planActivated": "Plan etkinleştirildi",
+      "planDeactivated": "Plan devre dışı bırakıldı",
+      "planArchived": "Plan arşivlendi",
+      "planSetPopular": "Plan popüler olarak ayarlandı"
+    },
     "whiteLabel": "Beyaz Etiket",
     "whiteLabelDetails": {
       "activate": "White Label'ı Etkinleştir",
@@ -2146,7 +2277,10 @@
     "collapse": "Daralt",
     "contactSupport": "Destek ile İletişim",
     "expand": "Genişlet",
-    "needHelp": "Yardıma mı ihtiyacınız var?"
+    "moduleDisabled": "[TR] Module Disabled",
+    "needHelp": "Yardıma mı ihtiyacınız var?",
+    "upgrade": "[TR] Upgrade",
+    "upgradeRequired": "[TR] Upgrade Required"
   },
   "sku": "[TR] sku",
   "stats": {
@@ -2542,5 +2676,108 @@
     "invalidInput": "Geçersiz giriş",
     "negative": "Negatif!",
     "required": "Gerekli"
+  },
+  "wizard": {
+    "address": "[TR] Address",
+    "addressPlaceholder": "[TR] Example: King Fahd Street, Al Olaya",
+    "back": "[TR] Back",
+    "businessType": "[TR] Business Type",
+    "businessTypeHint": "[TR] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[TR] Online retail store",
+        "name": "[TR] E-commerce"
+      },
+      "exchange": {
+        "description": "[TR] Money transfer and exchange",
+        "name": "[TR] Exchange"
+      },
+      "fabric": {
+        "description": "[TR] Fabric and textile trading",
+        "name": "[TR] Fabric"
+      },
+      "general": {
+        "description": "[TR] General and diverse business",
+        "name": "[TR] General"
+      },
+      "healthcare": {
+        "description": "[TR] Medical and healthcare services",
+        "name": "[TR] Healthcare"
+      }
+    },
+    "city": "[TR] City",
+    "cityPlaceholder": "[TR] Example: Riyadh",
+    "cityRequired": "[TR] Please enter a city",
+    "companyName": "[TR] Company Name",
+    "companyNameFromRegistration": "[TR] Company name from registration (you can edit it)",
+    "companyNameHint": "[TR] Please enter your company name to continue",
+    "companyNamePlaceholder": "[TR] Example: Advanced Technology Company",
+    "companyNameRequired": "[TR] Company name is required",
+    "complete": "[TR] Complete Registration",
+    "country": "[TR] Country",
+    "countryAndCityRequired": "[TR] Please select country and city",
+    "countryRequired": "[TR] Please select a country",
+    "description": "[TR] Complete your company information to start using the system",
+    "email": "[TR] Email",
+    "emailPlaceholder": "[TR] info@example.com",
+    "fabricCurrencyNote": "[TR] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[TR] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[TR] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[TR] Fiscal Year Start",
+    "localCurrency": "[TR] Local Currency",
+    "localCurrencyNote": "[TR] Currency used in your country (can be changed later)",
+    "mainCurrency": "[TR] Main Currency",
+    "mainCurrencyNote": "[TR] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[TR] April",
+      "august": "[TR] August",
+      "december": "[TR] December",
+      "february": "[TR] February",
+      "january": "[TR] January",
+      "july": "[TR] July",
+      "june": "[TR] June",
+      "march": "[TR] March",
+      "may": "[TR] May",
+      "november": "[TR] November",
+      "october": "[TR] October",
+      "september": "[TR] September"
+    },
+    "next": "[TR] Next",
+    "of": "[TR] of",
+    "phone": "[TR] Phone",
+    "phonePlaceholder": "[TR] +966 XX XXX XXXX",
+    "registrationFailed": "[TR] Registration failed. Please try again",
+    "selectBusinessType": "[TR] Please select a business type",
+    "selectBusinessTypeAndName": "[TR] Please select business type and enter company name",
+    "selectCountry": "[TR] Select Country",
+    "selectCurrency": "[TR] Select Currency",
+    "selectMainCurrency": "[TR] Select Main Currency",
+    "step": "[TR] Step",
+    "step1": {
+      "description": "[TR] Select the business activity that fits your company",
+      "title": "[TR] Choose Your Business Type"
+    },
+    "step1Description": "[TR] Choose your business type and enter your company name",
+    "step1Title": "[TR] Business Type & Company Name",
+    "step2": {
+      "description": "[TR] Enter your company's basic details",
+      "title": "[TR] Company Information"
+    },
+    "step2Description": "[TR] Enter your company's basic details",
+    "step2Title": "[TR] Company Information",
+    "step3": {
+      "description": "[TR] Set your currency and fiscal year start",
+      "title": "[TR] Financial Settings"
+    },
+    "step3Description": "[TR] Set currencies and fiscal year start",
+    "step3Title": "[TR] Financial Settings",
+    "submitting": "[TR] Completing...",
+    "success": "[TR] Registration completed successfully! Redirecting...",
+    "successFabric": "[TR] Two companies created successfully! Redirecting...",
+    "summary": "[TR] Summary",
+    "title": "[TR] Account Setup",
+    "userNotFound": "[TR] User not found. Please login again",
+    "website": "[TR] Website",
+    "websitePlaceholder": "[TR] https://example.com"
   }
 }

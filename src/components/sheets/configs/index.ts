@@ -7,6 +7,7 @@ import { type SheetConfig, type DocType } from './sheet.types';
 import { tenantConfig } from './tenant.config';
 import { agentConfig } from './agent.config';
 import { invoiceConfig } from './invoice.config';
+import { paymentConfig } from './payment.config';
 import { accountConfig } from './account.config';
 import { customerConfig } from './customer.config';
 import { supplierConfig } from './supplier.config';
@@ -23,6 +24,7 @@ const configRegistry: Partial<Record<DocType, SheetConfig>> = {
   // SaaS Sheets
   tenant: tenantConfig,
   agent: agentConfig,
+  payment: paymentConfig,
   plan: planConfig,
   subscription: subscriptionConfig,
   coupon: couponConfig,
@@ -76,6 +78,7 @@ export * from './sheet.types';
 // SaaS Sheets
 export { tenantConfig } from './tenant.config';
 export { agentConfig } from './agent.config';
+export { paymentConfig } from './payment.config';
 export { planConfig } from './plan.config';
 export { subscriptionConfig } from './subscription.config';
 export { couponConfig } from './coupon.config';

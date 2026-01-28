@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Witaj",
+    "hello": "Cześć",
+    "logout": "Wyloguj",
+    "loading": "Ładowanie",
+    "refresh": "Odśwież",
+    "error": "Błąd",
+    "success": "Sukces",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "delete": "Usuń",
+    "edit": "Edytuj",
+    "add": "Dodaj",
+    "search": "Szukaj",
+    "filter": "Filtruj",
+    "sort": "Sortuj",
+    "close": "Zamknij",
+    "back": "Wstecz",
+    "next": "Dalej",
+    "previous": "Poprzedni",
+    "submit": "Wyślij",
+    "confirm": "Potwierdź"
+  },
+  
+  "auth": {
+    "login": "Zaloguj się",
+    "email": "Email",
+    "password": "Hasło",
+    "forgotPassword": "Zapomniałeś hasła?",
+    "rememberMe": "Zapamiętaj mnie",
+    "biometricLogin": "Zaloguj się biometrycznie",
+    "loginError": "Błąd logowania",
+    "invalidCredentials": "Nieprawidłowy email lub hasło",
+    "emailRequired": "Email jest wymagany",
+    "passwordRequired": "Hasło jest wymagane",
+    "loginSuccess": "Logowanie pomyślne"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Panel Administratora",
+      "welcome": "Witaj",
+      "systemStats": "Statystyki Systemu",
+      "recentActivities": "Ostatnie Aktywności",
+      "quickActions": "Szybkie Akcje",
+      "totalUsers": "Użytkownicy",
+      "activeCompanies": "Firmy",
+      "totalRevenue": "Przychody",
+      "growthRate": "Tempo Wzrostu",
+      "addUser": "Dodaj Użytkownika",
+      "settings": "Ustawienia",
+      "reports": "Raporty"
+    },
+    
+    "cashier": {
+      "title": "Panel Kasjera",
+      "quickSummary": "Szybkie Podsumowanie",
+      "todayTransactions": "Dzisiejsze Transakcje",
+      "balance": "Saldo",
+      "deposit": "Wpłata",
+      "withdraw": "Wypłata",
+      "transfer": "Przelew",
+      "transactions": "Transakcje"
+    },
+    
+    "driver": {
+      "title": "Panel Kierowcy",
+      "todayStats": "Dzisiejsze Statystyki",
+      "deliveries": "Dostawy",
+      "completed": "Ukończone",
+      "pending": "Oczekujące",
+      "distance": "Dystans",
+      "deliveryRequests": "Zapytania o Dostawę"
+    },
+    
+    "warehouse": {
+      "title": "Panel Magazynu",
+      "inventory": "Inwentarz",
+      "lowStock": "Niski Stan",
+      "movements": "Ruchy"
+    }
+  },
+  
+  "roles": {
+    "admin": "Administrator Systemu",
+    "full_admin": "Pełny Administrator",
+    "cashier": "Kasjer",
+    "driver": "Kierowca",
+    "warehouse_keeper": "Magazynier",
+    "warehouse_manager": "Menedżer Magazynu",
+    "accountant": "Księgowy",
+    "sales_rep": "Przedstawiciel Handlowy",
+    "purchasing_manager": "Menedżer Zakupów"
+  },
+  
+  "errors": {
+    "networkError": "Błąd Sieci",
+    "serverError": "Błąd Serwera",
+    "notFound": "Nie Znaleziono",
+    "unauthorized": "Nieautoryzowany",
+    "forbidden": "Zabronione",
+    "invalidInput": "Nieprawidłowe Dane",
+    "tryAgain": "Spróbuj Ponownie"
+  },
+  
+  "messages": {
+    "dataLoaded": "Dane Załadowane",
+    "dataSaved": "Dane Zapisane",
+    "dataDeleted": "Dane Usunięte",
+    "operationSuccess": "Operacja Udana",
+    "operationFailed": "Operacja Nieudana"
+  },
+  
+  "date": {
+    "today": "Dziś",
+    "yesterday": "Wczoraj",
+    "tomorrow": "Jutro",
+    "thisWeek": "Ten Tydzień",
+    "thisMonth": "Ten Miesiąc",
+    "thisYear": "Ten Rok"
+  },
+  
+  "notifications": {
+    "title": "Powiadomienia",
+    "newCount": "{{count}} nowe powiadomienie",
+    "newCount_plural": "{{count}} nowych powiadomień",
+    "markAllRead": "Oznacz wszystkie jako przeczytane",
+    "noNotifications": "Brak powiadomień",
+    "noNotificationsSubtitle": "Nowe powiadomienia pojawią się tutaj",
+    "types": {
+      "success": "Zapisano Pomyślnie",
+      "newUser": "Nowy Użytkownik",
+      "warning": "Ostrzeżenie",
+      "report": "Nowy Raport",
+      "transaction": "Nowa Transakcja"
+    },
+    "messages": {
+      "accountSaved": "Zmiany w twoim koncie zostały pomyślnie zapisane",
+      "userAdded": "Nowy użytkownik został dodany do systemu",
+      "lowStock": "Niski stan dla niektórych produktów",
+      "reportReady": "Miesięczny raport sprzedaży jest gotowy do przeglądu",
+      "transactionComplete": "Transakcja finansowa zakończona pomyślnie"
+    },
+    "time": {
+      "now": "Teraz",
+      "minutesAgo": "{{count}} minutę temu",
+      "minutesAgo_plural": "{{count}} minut temu",
+      "hoursAgo": "{{count}} godzinę temu",
+      "hoursAgo_plural": "{{count}} godzin temu",
+      "yesterday": "Wczoraj",
+      "daysAgo": "{{count}} dzień temu",
+      "daysAgo_plural": "{{count}} dni temu"
+    }
+  },
+  
+  "settings": {
+    "title": "Ustawienia",
+    "sections": {
+      "account": "Konto",
+      "preferences": "Preferencje",
+      "app": "Aplikacja"
+    },
+    "account": {
+      "profile": "Profil",
+      "profileSubtitle": "Wyświetl i zaktualizuj swoje informacje",
+      "changePassword": "Zmień Hasło",
+      "changePasswordSubtitle": "Zaktualizuj swoje hasło"
+    },
+    "preferences": {
+      "notifications": "Powiadomienia",
+      "notificationsSubtitle": "Włącz powiadomienia push",
+      "biometric": "Biometria",
+      "biometricSubtitle": "Zaloguj się biometrycznie",
+      "darkMode": "Tryb Ciemny",
+      "darkModeSubtitle": "Włącz ciemny motyw"
+    },
+    "app": {
+      "language": "Język",
+      "languageValue": "Polski",
+      "help": "Pomoc i Wsparcie",
+      "helpSubtitle": "FAQ i wsparcie",
+      "about": "O Aplikacji",
+      "aboutSubtitle": "Wersja {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Wyloguj"
+  },
+  
+  "profile": {
+    "title": "Profil",
+    "info": {
+      "name": "Pełne Imię",
+      "email": "Email",
+      "role": "Rola",
+      "memberSince": "Członek od",
+      "lastLogin": "Ostatnie Logowanie",
+      "phone": "Numer Telefonu",
+      "language": "Język",
+      "company": "Firma"
+    },
+    "actions": {
+      "updateInfo": "Zaktualizuj Informacje",
+      "security": "Ustawienia Bezpieczeństwa"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Szybkie Akcje",
+    "subtitle": "Szybkie skróty do typowych operacji",
+    "actions": {
+      "addUser": "Dodaj Użytkownika",
+      "newDeposit": "Nowa Wpłata",
+      "newWithdrawal": "Nowa Wypłata",
+      "startRoute": "Rozpocznij Trasę",
+      "completeDelivery": "Ukończ Dostawę",
+      "scanProduct": "Skanuj Produkt",
+      "checkInventory": "Sprawdź Inwentarz"
+    }
+  },
+  
+  "languages": {
+    "ar": "Arabski",
+    "en": "Angielski",
+    "de": "Niemiecki",
+    "tr": "Turecki",
+    "ru": "Rosyjski",
+    "uk": "Ukraiński",
+    "it": "Włoski",
+    "pl": "Polski",
+    "ro": "Rumuński",
+    "fr": "Francuski"
+  }
+}

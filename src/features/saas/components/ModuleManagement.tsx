@@ -35,7 +35,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+import { UniversalDetailSheet } from '@/components/sheets';
 import ModuleDetailsContent from './ModuleDetailsContent';
 
 // Types
@@ -397,21 +397,12 @@ export default function ModuleManagement() {
       </Card>
 
       {/* Module Details Sheet */}
-      {selectedModule && (
-        <UnifiedSheet
-          isOpen={isDetailsOpen}
-          onClose={() => setIsDetailsOpen(false)}
-          title={language === 'ar' ? selectedModule.nameAr : selectedModule.name}
-          subtitle={`v${selectedModule.version}`}
-          icon={Package}
-          size="lg"
-        >
-          <ModuleDetailsContent 
-            module={selectedModule} 
-            onSave={handleSaveModule}
-          />
-        </UnifiedSheet>
-      )}
+      <UniversalDetailSheet
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        docType="module"
+        data={selectedModule}
+      />
     </div>
   );
 }

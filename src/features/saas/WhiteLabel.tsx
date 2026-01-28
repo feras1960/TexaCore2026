@@ -46,7 +46,7 @@ import {
   DollarSign,
   UserCog,
 } from 'lucide-react';
-import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+import { UniversalDetailSheet } from '@/components/sheets';
 import { cn } from '@/lib/utils';
 
 // Mock data for demonstration
@@ -438,97 +438,8 @@ export default function WhiteLabel() {
         </CardContent>
       </Card>
 
-      {/* Details Sheet */}
-      {selectedAgent && (
-        <UnifiedSheet
-          isOpen={isDetailsOpen}
-          onClose={() => {
-            setIsDetailsOpen(false);
-            setSelectedAgent(null);
-          }}
-          size="lg"
-          icon={Globe}
-          title={selectedAgent.brand_name}
-          subtitle={selectedAgent.domain}
-        >
-          <div className="space-y-6 py-4">
-            {/* Brand Preview */}
-            <div 
-              className="p-6 rounded-lg text-white text-center"
-              style={{ backgroundColor: selectedAgent.primary_color }}
-            >
-              <h2 className="text-2xl font-bold">{selectedAgent.brand_name}</h2>
-              <p className="text-sm opacity-80 mt-1">{selectedAgent.domain}</p>
-            </div>
-
-            {/* Agent Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">{language === 'ar' ? 'الوكيل' : 'Agent'}</p>
-                <p className="font-semibold">{selectedAgent.agent_name}</p>
-                <p className="text-xs text-gray-400">{selectedAgent.agent_code}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{t('common.status._')}</p>
-                <div className="mt-1">{getStatusBadge(selectedAgent.status)}</div>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">{language === 'ar' ? 'الإحصائيات' : 'Statistics'}</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <UserCog className="w-6 h-6 mx-auto text-blue-500 mb-2" />
-                  <p className="text-2xl font-bold">{selectedAgent.tenants_count}</p>
-                  <p className="text-xs text-gray-500">{language === 'ar' ? 'عميل' : 'Tenants'}</p>
-                </div>
-                <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <DollarSign className="w-6 h-6 mx-auto text-green-500 mb-2" />
-                  <p className="text-2xl font-bold">{selectedAgent.commission_percent}%</p>
-                  <p className="text-xs text-gray-500">{language === 'ar' ? 'عمولة' : 'Commission'}</p>
-                </div>
-                <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <Shield className="w-6 h-6 mx-auto text-purple-500 mb-2" />
-                  <p className="text-sm font-bold">{getPaymentStatusBadge(selectedAgent.payment_status)}</p>
-                  <p className="text-xs text-gray-500 mt-1">{language === 'ar' ? 'حالة الدفع' : 'Payment'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Branding */}
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">{language === 'ar' ? 'العلامة التجارية' : 'Branding'}</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">{language === 'ar' ? 'اللون الأساسي' : 'Primary Color'}</span>
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-6 h-6 rounded border"
-                      style={{ backgroundColor: selectedAgent.primary_color }}
-                    />
-                    <span className="font-mono text-sm">{selectedAgent.primary_color}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiry Date'}</span>
-                  <span className="font-medium">
-                    {selectedAgent.expiry_date 
-                      ? new Date(selectedAgent.expiry_date).toLocaleDateString()
-                      : '-'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">{language === 'ar' ? 'تاريخ التفعيل' : 'Activation Date'}</span>
-                  <span className="font-medium">
-                    {new Date(selectedAgent.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </UnifiedSheet>
-      )}
+      {/* Details Sheet - TODO: Create white-label.config.ts and use UniversalDetailSheet */}
+      {/* Temporarily disabled - use agent sheet instead */}
     </div>
   );
 }

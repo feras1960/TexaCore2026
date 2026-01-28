@@ -1,0 +1,149 @@
+/**
+ * Plan Overview Tab - نظرة عامة على الباقة
+ */
+
+import React from 'react';
+import { TabComponentProps } from '@/components/shared/sheets/types';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Calendar, DollarSign, Users, Package, 
+  CheckCircle2, XCircle, Archive, Star 
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
+import { getLocalizedField, getSafeValue } from '@/lib/i18n-helpers';
+
+export const PlanOverviewTab: React.FC<TabComponentProps> = ({ 
+  data, 
+  language, 
+  t 
+}) => {
+  const locale = language === 'ar' ? ar : enUS;
+
+  const InfoRow = ({ icon: Icon, label, value, highlight = false }: any) => (
+    <div className="flex items-start gap-3 py-3 border-b border-border/50 last:border-0">
+      <div className="mt-0.5">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="flex-1">
+        <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
+        <div className={highlight ? 'text-lg font-bold text-primary' : 'text-sm font-medium'}>
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Basic Info */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Package className="h-4 w-4" />
+          {t('saas.plan.basicInfo')}
+        </h3>
+        <div className="space-y-0">
+          <InfoRow
+            icon={Package}
+            label={t('saas.plan.planName')}
+            value={getLocalizedField(data, 'name', language, t('common.notSet'))}
+            highlight
+          />
+          <InfoRow
+            icon={DollarSign}
+            label={t('saas.plan.price')}
+            value={`${getSafeValue(data, 'price', getSafeValue(data, 'price_monthly', 0))} ${getSafeValue(data, 'currency', 'USD')}`}
+            highlight
+          />
+          <InfoRow
+            icon={Calendar}
+            label={t('saas.plan.billingCycle')}
+            value={data.billing_cycle ? t(`saas.plan.${data.billing_cycle}`) : t('saas.plan.monthly')}
+          />
+          <InfoRow
+            icon={Users}
+            label={t('saas.plan.maxUsers')}
+            value={data.max_users === 0 ? t('common.unlimited') : data.max_users}
+          />
+          <InfoRow
+            icon={Package}
+            label={t('saas.plan.product')}
+            value={getLocalizedField(data.saas_products || data.product, 'name', language, t('common.notSet'))}
+          />
+        </div>
+      </Card>
+
+      {/* Status & Flags */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold mb-3">
+          {t('saas.plan.status')}
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          <Badge 
+            variant={data.is_active ? 'default' : 'secondary'}
+            className="flex items-center gap-1"
+          >
+            {data.is_active ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+            {data.is_active ? t('common.active') : t('common.inactive')}
+          </Badge>
+          
+          {data.is_popular && (
+            <Badge variant="outline" className="flex items-center gap-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+              <Star className="h-3 w-3" />
+              {t('saas.plan.popular')}
+            </Badge>
+          )}
+          
+          {data.is_archived && (
+            <Badge variant="outline" className="flex items-center gap-1 bg-gray-50 text-gray-700">
+              <Archive className="h-3 w-3" />
+              {t('common.archived')}
+            </Badge>
+          )}
+        </div>
+      </Card>
+
+      {/* Description */}
+      {(getLocalizedField(data, 'description', language)) && (
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-3">
+            {t('common.description')}
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {getLocalizedField(data, 'description', language)}
+          </p>
+        </Card>
+      )}
+
+      {/* Timestamps */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Calendar className="h-4 w-4" />
+          {t('common.dates')}
+        </h3>
+        <div className="space-y-0">
+          <InfoRow
+            icon={Calendar}
+            label={t('common.createdAt')}
+            value={format(new Date(data.created_at), 'PPp', { locale })}
+          />
+          {data.updated_at && (
+            <InfoRow
+              icon={Calendar}
+              label={t('common.updatedAt')}
+              value={format(new Date(data.updated_at), 'PPp', { locale })}
+            />
+          )}
+          {data.archived_at && (
+            <InfoRow
+              icon={Archive}
+              label={t('common.archivedAt')}
+              value={format(new Date(data.archived_at), 'PPp', { locale })}
+            />
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+};

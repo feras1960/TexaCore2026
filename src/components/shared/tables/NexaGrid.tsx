@@ -2053,9 +2053,9 @@ export function NexaGrid<T extends Record<string, any>>({
         
         {/* AG Grid */}
         <div 
-          className={cn('ag-theme-alpine w-full flex-1', isRTL && 'rtl-mode')}
+          className={cn('ag-theme-alpine w-full', isRTL && 'rtl-mode')}
           style={{ 
-            height: typeof height === 'number' ? height : height,
+            height: typeof height === 'number' ? `${height}px` : height,
             width: '100%',
             minWidth: 0, // Prevents flex item from overflowing
           }}

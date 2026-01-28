@@ -77,6 +77,7 @@
     "accountsWatchlist": "[IT] Watchlist",
     "activeAccounts": "[IT] activeAccounts",
     "addAccount": "Aggiungi conto",
+    "addFirstAccount": "Aggiungi Primo Conto",
     "addGroup": "[IT] addGroup",
     "addNewRow": "Aggiungi nuova riga",
     "addRow": "Aggiungi riga",
@@ -84,6 +85,7 @@
     "addSubGroup": "[IT] Add Sub-group",
     "addToWatchlist": "[IT] Add to Watchlist",
     "amountInWords": "Importo in lettere",
+    "applyTemplateInstructions": "Per applicare un modello di piano dei conti, esegui uno dei seguenti comandi in Supabase SQL Editor:",
     "assets": "[IT] assets",
     "avgTransaction": "[IT] avgTransaction",
     "balanceAfter": "[IT] balanceAfter",
@@ -122,38 +124,8 @@
     },
     "chartOfAccounts": "Piano dei Conti",
     "chartOfAccountsDescription": "[IT] chartOfAccountsDescription",
-    "noAccountsTitle": "Nessun Conto Ancora",
-    "noAccountsDescription": "Nessun conto trovato nel piano dei conti. Puoi aggiungere un nuovo conto o applicare un modello pronto.",
     "chartTypeApplied": "Tipo di Piano Applicato",
     "chartTypeButNoAccounts": "Il tipo di piano è stato applicato ma non ci sono conti. Potrebbe essere necessario applicare nuovamente il modello.",
-    "noChartTemplateApplied": "Nessun Modello di Piano Applicato",
-    "applyTemplateInstructions": "Per applicare un modello di piano dei conti, esegui uno dei seguenti comandi in Supabase SQL Editor:",
-    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
-    "addFirstAccount": "Aggiungi Primo Conto",
-    "templates": {
-      "selectTemplate": "Seleziona Modello Piano Conti",
-      "selectDescription": "Scegli un modello pronto da applicare alla tua azienda. Tutti i conti verranno creati automaticamente.",
-      "selectAndApply": "Seleziona e Applica Modello",
-      "apply": "Applica",
-      "appliedSuccess": "Modello {name} applicato con successo",
-      "applyError": "Impossibile applicare il modello",
-      "loadError": "Impossibile caricare i modelli",
-      "noTemplates": "Nessun modello disponibile",
-      "noCompany": "Seleziona prima un'azienda",
-      "setupTemplates": "Configura Modelli",
-      "setupSuccess": "Modelli configurati con successo",
-      "setupError": "Impossibile configurare i modelli",
-      "withDemoData": "Con Dati Demo",
-      "types": {
-        "simple": "Standard",
-        "extended": "Esteso",
-        "fabric_extended": "Esteso per Tessuti"
-      },
-      "applyingMessage": "Applicazione modello... Questo potrebbe richiedere alcuni istanti",
-      "refreshingAccounts": "Aggiornamento conti...",
-      "existingChartError": "L'azienda ha già un piano dei conti. Utilizzare invece la funzione di aggiornamento.",
-      "templateNotFound": "Modello non trovato. Assicurarsi che i modelli siano configurati per il tenant."
-    },
     "closingBalance": "Saldo di Chiusura",
     "closingEntries": "Scritture di Chiusura",
     "collapseAll": "Comprimi Tutto",
@@ -392,6 +364,9 @@
     "lines": "[IT] lines",
     "module": "Contabilità",
     "monthlyAverage": "[IT] monthlyAverage",
+    "noAccountsDescription": "Nessun conto trovato nel piano dei conti. Puoi aggiungere un nuovo conto o applicare un modello pronto.",
+    "noAccountsTitle": "Nessun Conto Ancora",
+    "noChartTemplateApplied": "Nessun Modello di Piano Applicato",
     "noCompanySelected": "[IT] noCompanySelected",
     "noCustomers": "[IT] noCustomers",
     "noParent": "[IT] noParent",
@@ -501,6 +476,7 @@
       "workflow": "Flusso di Lavoro",
       "workflowDesc": "Impostazioni di approvazione e registrazione automatica"
     },
+    "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
       "cashFlow": "Flusso di Cassa",
       "netProfit": "Utile Netto",
@@ -522,6 +498,30 @@
     "summary": "Riepilogo",
     "suppliers": "Fornitori",
     "tableView": "Vista Tabella",
+    "templates": {
+      "appliedSuccess": "Modello {name} applicato con successo",
+      "apply": "Applica",
+      "applyError": "Impossibile applicare il modello",
+      "applyingMessage": "Applicazione modello... Questo potrebbe richiedere alcuni istanti",
+      "existingChartError": "L'azienda ha già un piano dei conti. Utilizzare invece la funzione di aggiornamento.",
+      "loadError": "Impossibile caricare i modelli",
+      "noCompany": "Seleziona prima un'azienda",
+      "noTemplates": "Nessun modello disponibile",
+      "refreshingAccounts": "Aggiornamento conti...",
+      "selectAndApply": "Seleziona e Applica Modello",
+      "selectDescription": "Scegli un modello pronto da applicare alla tua azienda. Tutti i conti verranno creati automaticamente.",
+      "selectTemplate": "Seleziona Modello Piano Conti",
+      "setupError": "Impossibile configurare i modelli",
+      "setupSuccess": "Modelli configurati con successo",
+      "setupTemplates": "Configura Modelli",
+      "templateNotFound": "Modello non trovato. Assicurarsi che i modelli siano configurati per il tenant.",
+      "types": {
+        "extended": "Esteso",
+        "fabric_extended": "Esteso per Tessuti",
+        "simple": "Standard"
+      },
+      "withDemoData": "Con Dati Demo"
+    },
     "totalAccounts": "[IT] totalAccounts",
     "totalBalance": "[IT] totalBalance",
     "totalInvoices": "[IT] totalInvoices",
@@ -828,10 +828,10 @@
     "active": "Attivo",
     "add": "Aggiungi",
     "all": "Tutti",
-    "applying": "Applicazione...",
     "allItems": "[IT] All",
     "amount": "Importo",
     "and": "e",
+    "applying": "Applicazione...",
     "back": "Indietro",
     "balance": "Saldo",
     "cancel": "Annulla",
@@ -930,6 +930,7 @@
     "receipt": "Ricevuta",
     "reference": "Riferimento",
     "refresh": "Aggiorna",
+    "refunded": "[IT] Refunded",
     "remaining": "[IT] remaining",
     "required": "Obbligatorio",
     "reset": "Reimposta",
@@ -937,6 +938,7 @@
     "search": "Cerca",
     "select": "Seleziona",
     "selectAll": "Seleziona Tutto",
+    "sent": "[IT] Sent",
     "showCancelledEntries": "[IT] showCancelledEntries",
     "status": {
       "_": "Stato",
@@ -976,6 +978,7 @@
     },
     "to": "A",
     "total": "Totale",
+    "totalAmount": "[IT] Total Amount",
     "totals": "TOTALI",
     "transactions": "[IT] Transactions",
     "type": "Tipo",
@@ -1083,6 +1086,14 @@
       "quickReceiptDialog": {
         "description": "Dialogo di inserimento rapido per ricevute",
         "name": "Dialogo Ricevuta Rapida"
+      },
+      "registerPage": {
+        "description": "[IT] Basic registration page for new users with multilingual support and RTL",
+        "name": "[IT] Register Page"
+      },
+      "registrationWizard": {
+        "description": "[IT] Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
+        "name": "[IT] Registration Wizard"
       },
       "transactionDetailsSheet": {
         "description": "Visualizza e modifica i dettagli della transazione",
@@ -2009,19 +2020,73 @@
   "saas": {
     "activate": "Attiva",
     "agents": "Agenti",
+    "agentsGrid": {
+      "balance": "[IT] Current Balance",
+      "code": "[IT] Agent Code",
+      "commission": "[IT] Commission %",
+      "earned": "[IT] Total Earned",
+      "name": "[IT] Agent Name",
+      "pending": "[IT] Pending Balance",
+      "tenants": "[IT] Tenants Count",
+      "tier": "[IT] Tier",
+      "title": "[IT] Agents Management",
+      "type": "[IT] Agent Type",
+      "withdrawn": "[IT] Total Withdrawn"
+    },
     "analytics": "Analisi",
     "approve": "Approva",
     "comingSoon": "In arrivo - In sviluppo",
+    "companySwitcher": {
+      "availableCompanies": "[IT] Available Companies",
+      "current": "[IT] Current",
+      "currentCompany": "[IT] Current Company",
+      "description": "[IT] Switch the currently active company",
+      "fabricInfo": "[IT] 💡 Fabric companies have two environments: Production for real work, and Testing for experiments",
+      "loadError": "[IT] Failed to load companies",
+      "singleCompany": "[IT] You have only one company",
+      "switch": "[IT] Switch",
+      "switchError": "[IT] Failed to switch company",
+      "switchSuccess": "[IT] Company switched successfully",
+      "title": "[IT] Company Switcher",
+      "types": {
+        "production": "[IT] Production",
+        "testing": "[IT] Testing"
+      }
+    },
     "coupons": "Coupon",
     "createNew": "Crea nuovo",
     "dashboard": "Pannello di controllo",
     "delete": "Elimina",
     "edit": "Modifica",
+    "invoicesGrid": {
+      "amount": "[IT] Amount",
+      "dueDate": "[IT] Due Date",
+      "issueDate": "[IT] Issue Date",
+      "number": "[IT] Invoice Number",
+      "paidDate": "[IT] Paid Date",
+      "period": "[IT] Billing Period",
+      "plan": "[IT] Subscription Plan",
+      "tax": "[IT] Tax Amount",
+      "tenant": "[IT] Tenant",
+      "title": "[IT] Invoices Management",
+      "total": "[IT] Total Amount"
+    },
     "marketing": "Marketing",
     "modules": "Moduli",
     "notifications": "Notifiche",
     "packages": "Pacchetti",
     "payments": "Pagamenti",
+    "paymentsGrid": {
+      "agent": "[IT] Agent",
+      "commission": "[IT] Commission Amount",
+      "date": "[IT] Payment Date",
+      "dueDate": "[IT] Due Date",
+      "invoiceNumber": "[IT] Invoice Number",
+      "method": "[IT] Payment Method",
+      "reference": "[IT] Reference",
+      "tenant": "[IT] Tenant",
+      "title": "[IT] Payments Management"
+    },
     "plans": {
       "enterprise": "Enterprise",
       "professional": "Professional",
@@ -2044,18 +2109,23 @@
     "suspend": "Sospendi",
     "tenants": {
       "activate": "Attiva Abbonato",
+      "agent": "[IT] Agent",
       "agentInfo": "Collegato ad Agente",
       "billing": "Fatturazione",
+      "code": "[IT] Tenant Code",
       "create": "Crea Nuovo Abbonato",
       "createDescription": "Crea un nuovo abbonato nel sistema",
       "description": "Gestisci abbonati e abbonamenti",
       "details": "Dettagli Abbonato",
+      "documents": "[IT] Documents",
       "edit": "Modifica Abbonato",
       "error": {
         "createFailed": "Impossibile creare l'abbonato",
         "loadFailed": "Impossibile caricare gli abbonati",
         "noPermission": "Accesso negato"
       },
+      "language": "[IT] Default Language",
+      "name": "[IT] Tenant Name",
       "ownerName": "Nome Proprietario",
       "placeholders": {
         "companyName": "Nome Azienda",
@@ -2066,6 +2136,7 @@
       "referral": "Referral",
       "referralCode": "Codice Referral",
       "referralSource": "Fonte Referral",
+      "storage": "[IT] Storage Used",
       "subscription": "Abbonamento",
       "suspend": "Sospendi Abbonato",
       "tabs": {
@@ -2075,11 +2146,71 @@
       },
       "title": "Gestione Abbonati",
       "total": "Totale Abbonati",
-      "usage": "Utilizzo"
+      "usage": "Utilizzo",
+      "users": "[IT] Users Count"
     },
     "title": "Gestione SaaS",
     "view": "Visualizza",
     "webhooks": "Webhooks",
+    "plan": {
+      "planName": "Nome Piano",
+      "price": "Prezzo",
+      "billingCycle": "Ciclo di Fatturazione",
+      "monthly": "Mensile",
+      "yearly": "Annuale",
+      "maxUsers": "Utenti Massimi",
+      "product": "Prodotto",
+      "status": "Stato",
+      "popular": "Popolare",
+      "basicInfo": "Informazioni di Base",
+      "modules": "Moduli",
+      "limitsAndFeatures": "Limiti e Funzionalità",
+      "subscribers": "Abbonati",
+      "ledger": "Registro",
+      "assignedModules": "Moduli Assegnati",
+      "noModules": "Nessun modulo assegnato",
+      "availableModules": "Moduli Disponibili",
+      "limits": "Limiti",
+      "storageLimit": "Limite di Archiviazione",
+      "maxDocuments": "Documenti Massimi",
+      "maxImages": "Immagini Massime",
+      "features": "Funzionalità",
+      "feature": {
+        "multiCurrency": "Supporto Multivaluta",
+        "advancedReports": "Report Avanzati",
+        "apiAccess": "Accesso API",
+        "customBranding": "Branding Personalizzato",
+        "prioritySupport": "Supporto Prioritario"
+      },
+      "noSubscribers": "Nessun abbonato per questo piano",
+      "setPopular": "Imposta come Popolare",
+      "removePopular": "Rimuovi Stato Popolare",
+      "deactivateConfirm": "Conferma Disattivazione",
+      "deactivateDescription": "Sei sicuro di voler disattivare questo piano? I nuovi abbonati non potranno iscriversi.",
+      "archiveConfirm": "Conferma Archiviazione",
+      "archiveDescription": "Sei sicuro di voler archiviare questo piano? Verrà disattivato e nascosto dagli elenchi."
+    },
+    "subscription": {
+      "startDate": "Data di Inizio",
+      "endDate": "Data di Fine",
+      "expired": "Scaduto",
+      "suspended": "Sospeso",
+      "cancelled": "Cancellato"
+    },
+    "payment": {
+      "totalRevenue": "Entrate Totali",
+      "totalPayments": "Pagamenti Totali",
+      "avgPayment": "Pagamento Medio",
+      "noPayments": "Nessun pagamento"
+    },
+    "activity": {
+      "planCreated": "Piano creato",
+      "planUpdated": "Piano aggiornato",
+      "planActivated": "Piano attivato",
+      "planDeactivated": "Piano disattivato",
+      "planArchived": "Piano archiviato",
+      "planSetPopular": "Piano impostato come popolare"
+    },
     "whiteLabel": "Etichetta Bianca",
     "whiteLabelDetails": {
       "activate": "Attiva White Label",
@@ -2146,7 +2277,10 @@
     "collapse": "Comprimi",
     "contactSupport": "Contatta il Supporto",
     "expand": "Espandi",
-    "needHelp": "Hai bisogno di aiuto?"
+    "moduleDisabled": "[IT] Module Disabled",
+    "needHelp": "Hai bisogno di aiuto?",
+    "upgrade": "[IT] Upgrade",
+    "upgradeRequired": "[IT] Upgrade Required"
   },
   "sku": "[IT] sku",
   "stats": {
@@ -2542,5 +2676,108 @@
     "invalidInput": "Input non valido",
     "negative": "Negativo!",
     "required": "Richiesto"
+  },
+  "wizard": {
+    "address": "[IT] Address",
+    "addressPlaceholder": "[IT] Example: King Fahd Street, Al Olaya",
+    "back": "[IT] Back",
+    "businessType": "[IT] Business Type",
+    "businessTypeHint": "[IT] Choose the business type that fits your company",
+    "businessTypes": {
+      "ecommerce": {
+        "description": "[IT] Online retail store",
+        "name": "[IT] E-commerce"
+      },
+      "exchange": {
+        "description": "[IT] Money transfer and exchange",
+        "name": "[IT] Exchange"
+      },
+      "fabric": {
+        "description": "[IT] Fabric and textile trading",
+        "name": "[IT] Fabric"
+      },
+      "general": {
+        "description": "[IT] General and diverse business",
+        "name": "[IT] General"
+      },
+      "healthcare": {
+        "description": "[IT] Medical and healthcare services",
+        "name": "[IT] Healthcare"
+      }
+    },
+    "city": "[IT] City",
+    "cityPlaceholder": "[IT] Example: Riyadh",
+    "cityRequired": "[IT] Please enter a city",
+    "companyName": "[IT] Company Name",
+    "companyNameFromRegistration": "[IT] Company name from registration (you can edit it)",
+    "companyNameHint": "[IT] Please enter your company name to continue",
+    "companyNamePlaceholder": "[IT] Example: Advanced Technology Company",
+    "companyNameRequired": "[IT] Company name is required",
+    "complete": "[IT] Complete Registration",
+    "country": "[IT] Country",
+    "countryAndCityRequired": "[IT] Please select country and city",
+    "countryRequired": "[IT] Please select a country",
+    "description": "[IT] Complete your company information to start using the system",
+    "email": "[IT] Email",
+    "emailPlaceholder": "[IT] info@example.com",
+    "fabricCurrencyNote": "[IT] 💰 Production company in selected local currency, Testing company in USD",
+    "fabricNote": "[IT] 📌 Two companies will be created for you: Production for real work, and Testing for experiments",
+    "fabricSummary": "[IT] Two companies will be created: Production (for real work) and Testing (for experiments)",
+    "fiscalYearStart": "[IT] Fiscal Year Start",
+    "localCurrency": "[IT] Local Currency",
+    "localCurrencyNote": "[IT] Currency used in your country (can be changed later)",
+    "mainCurrency": "[IT] Main Currency",
+    "mainCurrencyNote": "[IT] Primary currency for reports and analytics (you can add additional currencies from settings)",
+    "months": {
+      "april": "[IT] April",
+      "august": "[IT] August",
+      "december": "[IT] December",
+      "february": "[IT] February",
+      "january": "[IT] January",
+      "july": "[IT] July",
+      "june": "[IT] June",
+      "march": "[IT] March",
+      "may": "[IT] May",
+      "november": "[IT] November",
+      "october": "[IT] October",
+      "september": "[IT] September"
+    },
+    "next": "[IT] Next",
+    "of": "[IT] of",
+    "phone": "[IT] Phone",
+    "phonePlaceholder": "[IT] +966 XX XXX XXXX",
+    "registrationFailed": "[IT] Registration failed. Please try again",
+    "selectBusinessType": "[IT] Please select a business type",
+    "selectBusinessTypeAndName": "[IT] Please select business type and enter company name",
+    "selectCountry": "[IT] Select Country",
+    "selectCurrency": "[IT] Select Currency",
+    "selectMainCurrency": "[IT] Select Main Currency",
+    "step": "[IT] Step",
+    "step1": {
+      "description": "[IT] Select the business activity that fits your company",
+      "title": "[IT] Choose Your Business Type"
+    },
+    "step1Description": "[IT] Choose your business type and enter your company name",
+    "step1Title": "[IT] Business Type & Company Name",
+    "step2": {
+      "description": "[IT] Enter your company's basic details",
+      "title": "[IT] Company Information"
+    },
+    "step2Description": "[IT] Enter your company's basic details",
+    "step2Title": "[IT] Company Information",
+    "step3": {
+      "description": "[IT] Set your currency and fiscal year start",
+      "title": "[IT] Financial Settings"
+    },
+    "step3Description": "[IT] Set currencies and fiscal year start",
+    "step3Title": "[IT] Financial Settings",
+    "submitting": "[IT] Completing...",
+    "success": "[IT] Registration completed successfully! Redirecting...",
+    "successFabric": "[IT] Two companies created successfully! Redirecting...",
+    "summary": "[IT] Summary",
+    "title": "[IT] Account Setup",
+    "userNotFound": "[IT] User not found. Please login again",
+    "website": "[IT] Website",
+    "websitePlaceholder": "[IT] https://example.com"
   }
 }

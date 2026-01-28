@@ -1,441 +1,556 @@
-/**
- * SaaS Admin Dashboard
- * لوحة تحكم إدارة SaaS - مربوطة بقاعدة البيانات الفعلية
- */
-
-import React, { useState, useEffect } from 'react';
-import { useLanguage } from '@/app/providers/LanguageProvider';
-import { dashboardService, type DashboardStats } from '@/services/saas/dashboardService';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DollarSign,
-  Users,
-  TrendingUp,
-  TrendingDown,
   Building2,
+  Users,
   Package,
-  Server,
-  CheckCircle,
-  AlertTriangle,
-  Clock,
-  CreditCard,
+  TrendingUp,
+  DollarSign,
+  Activity,
+  AlertCircle,
+  TrendingDown,
   BarChart3,
-  UserCog,
-  Eye,
   Plus,
-  RefreshCw,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ProductSwitcher } from './components/ProductSwitcher';
+import { CurrencySwitcher, formatCurrency } from './components/CurrencySwitcher';
+import { PaymentFormDialog } from './components/PaymentFormDialog';
+import {
+  SubscribersGrowthChart,
+  RevenueTrendChart,
+  PlanDistributionChart,
+  ProductRevenueChart,
+  PaymentMethodsChart,
+  RecentPaymentsTable,
+} from './components/DashboardCharts';
+import { saasStatsService, DashboardStats, ProductStats } from '@/services/saas/saasStatsService';
+import { useLanguage } from '@/hooks';
+import { motion } from 'framer-motion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
-export default function SaaSDashboard() {
-  const { t, language, direction } = useLanguage();
-  const navigate = useNavigate();
+export function SaaSDashboard() {
+  const { language, t } = useLanguage();
+  const [selectedProduct, setSelectedProduct] = useState('all');
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentTenants, setRecentTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load data from database
-  const loadData = async () => {
+  // Charts data
+  const [subscribersGrowth, setSubscribersGrowth] = useState<any[]>([]);
+  const [revenueTrend, setRevenueTrend] = useState<any[]>([]);
+  const [planDistribution, setPlanDistribution] = useState<any[]>([]);
+  const [productRevenue, setProductRevenue] = useState<any[]>([]);
+  const [churnRate, setChurnRate] = useState<any>({ total: 0, active: 0, cancelled: 0, churnRate: 0 });
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [recentPayments, setRecentPayments] = useState<any[]>([]);
+
+  // Payment form dialog
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [deletingPayment, setDeletingPayment] = useState<any>(null);
+
+  useEffect(() => {
+    loadAllData();
+  }, [selectedProduct, selectedCurrency]);
+
+  const loadAllData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [statsData, tenantsData] = await Promise.all([
-        dashboardService.getStats(),
-        dashboardService.getRecentTenants(5),
-      ]);
+      // Load main stats
+      const statsData = await saasStatsService.getDashboardStats();
       setStats(statsData);
-      setRecentTenants(tenantsData);
-    } catch (err) {
-      console.error('Error loading dashboard data:', err);
+
+      // Load charts data in parallel
+      const [growth, revenue, distribution, prodRevenue, churn, payMethods, recPayments] = await Promise.all([
+        saasStatsService.getSubscribersGrowth(),
+        saasStatsService.getRevenueTrend(),
+        saasStatsService.getPlanDistribution(),
+        saasStatsService.getRevenueByProduct(selectedCurrency),
+        saasStatsService.getChurnRate(),
+        saasStatsService.getPaymentsByMethod(),
+        saasStatsService.getRecentPayments(10),
+      ]);
+
+      setSubscribersGrowth(growth);
+      setRevenueTrend(revenue);
+      setPlanDistribution(distribution);
+      setProductRevenue(prodRevenue);
+      setChurnRate(churn);
+      setPaymentMethods(payMethods);
+      setRecentPayments(recPayments);
+    } catch (err: any) {
+      console.error('Error loading stats:', err);
+      setError(err.message || 'Failed to load statistics');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const handleAddPayment = () => {
+    setEditingPayment(null);
+    setPaymentDialogOpen(true);
+  };
 
-  // Pending tasks based on real data
-  const pendingTasks = stats ? [
-    { 
-      type: 'subscription', 
-      label: language === 'ar' ? 'اشتراكات بحاجة للتجديد' : 'Subscriptions pending renewal', 
-      count: stats.expiredTenants
-    },
-    { 
-      type: 'approval', 
-      label: language === 'ar' ? 'وكلاء بانتظار الموافقة' : 'Agents pending approval', 
-      count: stats.pendingAgents
-    },
-    { 
-      type: 'suspended', 
-      label: language === 'ar' ? 'حسابات موقوفة' : 'Suspended accounts', 
-      count: stats.suspendedTenants
-    },
-    { 
-      type: 'trial', 
-      label: language === 'ar' ? 'حسابات تجريبية' : 'Trial accounts', 
-      count: stats.trialTenants
-    },
-  ] : [];
+  const handleEditPayment = (payment: any) => {
+    setEditingPayment(payment);
+    setPaymentDialogOpen(true);
+  };
 
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500" dir={direction}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-            {t('saas.dashboard')}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
-            {language === 'ar' ? 'نظرة عامة على إحصائيات النظام' : 'System statistics overview'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={loadData}
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {t('common.refresh')}
-          </Button>
-          <Button onClick={() => navigate('/saas/subscribers')}>
-            <Plus className="w-4 h-4 mr-2" />
-            {t('saas.tenants.create')}
-          </Button>
-        </div>
-      </div>
+  const handleViewPayment = (payment: any) => {
+    // TODO: Open payment details sheet
+    toast.info(language === 'ar' ? 'عرض التفاصيل قريباً' : 'View details coming soon');
+  };
 
-      {/* Main Stats Bar */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {/* MRR */}
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 font-tajawal">
-                    {language === 'ar' ? 'الإيرادات الشهرية' : 'MRR'}
-                  </p>
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-1">
-                    {stats.mrr.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">SAR</p>
-                </div>
-                <DollarSign className="w-8 h-8 text-blue-500/50" />
-              </div>
-            </CardContent>
-          </Card>
+  const handleDeletePayment = async () => {
+    if (!deletingPayment) return;
 
-          {/* Total Tenants */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-tajawal">
-                    {t('saas.tenants.total')}
-                  </p>
-                  <p className="text-2xl font-bold text-erp-navy dark:text-white mt-1">
-                    {stats.totalTenants}
-                  </p>
-                  <p className="text-xs text-green-600 mt-1">
-                    {stats.activeTenants} {t('saas.status.active')}
-                  </p>
-                </div>
-                <Building2 className="w-8 h-8 text-gray-300 dark:text-gray-600" />
-              </div>
-            </CardContent>
-          </Card>
+    try {
+      const { error } = await supabase
+        .from('saas_payments')
+        .delete()
+        .eq('id', deletingPayment.id);
 
-          {/* Active Agents */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-tajawal">
-                    {t('saas.agents.totalAgents')}
-                  </p>
-                  <p className="text-2xl font-bold text-erp-navy dark:text-white mt-1">
-                    {stats.totalAgents}
-                  </p>
-                  <p className="text-xs text-green-600 mt-1">
-                    {stats.activeAgents} {t('saas.status.active')}
-                  </p>
-                </div>
-                <UserCog className="w-8 h-8 text-gray-300 dark:text-gray-600" />
-              </div>
-            </CardContent>
-          </Card>
+      if (error) throw error;
 
-          {/* Churn Rate */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-tajawal">
-                    {language === 'ar' ? 'معدل التسرب' : 'Churn Rate'}
-                  </p>
-                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                    {stats.churnRate}%
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {stats.suspendedTenants + stats.expiredTenants} {language === 'ar' ? 'متراجع' : 'churned'}
-                  </p>
-                </div>
-                <TrendingDown className="w-8 h-8 text-amber-300 dark:text-amber-600" />
-              </div>
-            </CardContent>
-          </Card>
+      toast.success(language === 'ar' ? 'تم حذف الدفعة بنجاح' : 'Payment deleted successfully');
+      loadAllData(); // Reload data
+    } catch (error: any) {
+      console.error('Error deleting payment:', error);
+      toast.error(error.message || (language === 'ar' ? 'حدث خطأ أثناء الحذف' : 'Error deleting payment'));
+    } finally {
+      setDeletingPayment(null);
+    }
+  };
 
-          {/* System Uptime */}
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-green-600 dark:text-green-400 font-tajawal">
-                    {language === 'ar' ? 'وقت التشغيل' : 'Uptime'}
-                  </p>
-                  <p className="text-2xl font-bold text-green-700 dark:text-green-300 mt-1">
-                    {stats.uptime}%
-                  </p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
-                    <span className="text-xs text-green-600">
-                      {language === 'ar' ? 'يعمل' : 'Operational'}
-                    </span>
-                  </div>
-                </div>
-                <Server className="w-8 h-8 text-green-500/50" />
-              </div>
-            </CardContent>
-          </Card>
+  const handlePaymentSuccess = () => {
+    loadAllData(); // Reload all data after successful payment operation
+  };
 
-          {/* Retention Rate */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-tajawal">
-                    {language === 'ar' ? 'معدل الاحتفاظ' : 'Retention'}
-                  </p>
-                  <p className="text-2xl font-bold text-erp-navy dark:text-white mt-1">
-                    {stats.retentionRate}%
-                  </p>
-                  <Progress value={stats.retentionRate} className="h-1.5 mt-2" />
-                </div>
-                <Users className="w-8 h-8 text-gray-300 dark:text-gray-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+  // Filter stats based on selected product
+  const filteredStats = () => {
+    if (!stats) return null;
+    
+    if (selectedProduct === 'all') {
+      return stats;
+    }
+    
+    const productStat = stats.products.find((p) => p.product_code === selectedProduct);
+    if (!productStat) return null;
+    
+    return {
+      totalProducts: 1,
+      totalPlans: productStat.total_plans,
+      totalTenants: productStat.total_tenants,
+      activeTenants: productStat.active_tenants,
+      totalRevenue: stats.totalRevenue,
+      products: [productStat],
+    };
+  };
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Subscribers */}
-        <Card className="lg:col-span-2">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-            <h3 className="font-semibold text-erp-navy dark:text-white font-cairo">
-              {language === 'ar' ? 'أحدث المشتركين' : 'Recent Subscribers'}
-            </h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-xs"
-              onClick={() => navigate('/saas/subscribers')}
-            >
-              {language === 'ar' ? 'عرض الكل' : 'View All'}
-            </Button>
-          </div>
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="p-8 text-center text-gray-500">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                {t('common.loading')}
-              </div>
-            ) : recentTenants.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">{t('common.code')}</TableHead>
-                    <TableHead className="text-xs">{t('common.name')}</TableHead>
-                    <TableHead className="text-xs">{language === 'ar' ? 'الباقة' : 'Plan'}</TableHead>
-                    <TableHead className="text-xs">{t('common.status._')}</TableHead>
-                    <TableHead className="text-xs">{t('common.date')}</TableHead>
-                    <TableHead className="text-xs w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentTenants.map((tenant) => {
-                    const subscription = tenant.tenant_subscriptions?.[0];
-                    return (
-                      <TableRow key={tenant.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                        <TableCell className="font-mono text-xs text-gray-600">{tenant.code}</TableCell>
-                        <TableCell className="font-medium text-sm">{tenant.name}</TableCell>
-                        <TableCell>
-                          {subscription?.plan_code && (
-                            <Badge variant="outline" className="text-[10px] capitalize">
-                              {subscription.plan_code}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${
-                              tenant.status === 'active'
-                                ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400'
-                                : tenant.status === 'trial'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400'
-                                : tenant.status === 'suspended'
-                                ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400'
-                                : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400'
-                            }`}
-                          >
-                            {t(`saas.status.${tenant.status}`)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-gray-500">
-                          {new Date(tenant.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                            <Eye className="w-4 h-4 text-gray-400" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="p-8 text-center text-gray-500">
-                {t('common.noData')}
-              </div>
-            )}
+  const currentStats = filteredStats();
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              <p>{error}</p>
+            </div>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Pending Tasks */}
-          <Card>
-            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-              <h3 className="font-semibold text-erp-navy dark:text-white font-cairo flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                {language === 'ar' ? 'المهام المعلقة' : 'Pending Tasks'}
-              </h3>
-            </div>
-            <CardContent className="p-4 space-y-3">
-              {pendingTasks.map((task, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                >
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{task.label}</span>
-                  <Badge variant="outline" className="bg-white dark:bg-gray-800">
-                    {task.count}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* System Health */}
-          <Card>
-            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-              <h3 className="font-semibold text-erp-navy dark:text-white font-cairo flex items-center gap-2">
-                <Server className="w-4 h-4 text-green-500" />
-                {language === 'ar' ? 'صحة النظام' : 'System Health'}
-              </h3>
-            </div>
-            <CardContent className="p-4 space-y-3">
-              {[
-                { label: language === 'ar' ? 'الخوادم' : 'Servers', status: 'good' },
-                { label: language === 'ar' ? 'قاعدة البيانات' : 'Database', status: 'good' },
-                { label: 'API', status: 'good' },
-                { label: language === 'ar' ? 'النسخ الاحتياطي' : 'Backup', status: 'warning' },
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{item.label}</span>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${
-                      item.status === 'good'
-                        ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400'
-                        : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400'
-                    }`}
-                  >
-                    {item.status === 'good'
-                      ? (language === 'ar' ? 'يعمل' : 'OK')
-                      : (language === 'ar' ? 'يحتاج مراجعة' : 'Warning')}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-              <h3 className="font-semibold text-erp-navy dark:text-white font-cairo">
-                {language === 'ar' ? 'إجراءات سريعة' : 'Quick Actions'}
-              </h3>
-            </div>
-            <CardContent className="p-4 space-y-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full justify-start"
-                onClick={() => navigate('/saas/subscribers')}
-              >
-                <Building2 className="w-4 h-4 mr-2" />
-                {language === 'ar' ? 'إضافة مشترك' : 'Add Subscriber'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full justify-start"
-                onClick={() => navigate('/saas/packages')}
-              >
-                <Package className="w-4 h-4 mr-2" />
-                {language === 'ar' ? 'إدارة الباقات' : 'Manage Packages'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full justify-start"
-                onClick={() => navigate('/saas/agents')}
-              >
-                <UserCog className="w-4 h-4 mr-2" />
-                {language === 'ar' ? 'إدارة الوكلاء' : 'Manage Agents'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full justify-start"
-                onClick={() => navigate('/saas/payments')}
-              >
-                <CreditCard className="w-4 h-4 mr-2" />
-                {language === 'ar' ? 'المدفوعات' : 'View Payments'}
-              </Button>
-            </CardContent>
-          </Card>
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {t('saas.dashboard.title')}
+          </h1>
+          <p className="text-muted-foreground">
+            {t('saas.dashboard.subtitle')}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <Button onClick={handleAddPayment} className="gap-2">
+            <Plus className="h-4 w-4" />
+            {language === 'ar' ? 'إضافة دفعة' : 'Add Payment'}
+          </Button>
+          <ProductSwitcher
+            selectedProduct={selectedProduct}
+            onProductChange={setSelectedProduct}
+          />
+          <CurrencySwitcher
+            selectedCurrency={selectedCurrency}
+            onCurrencyChange={setSelectedCurrency}
+          />
         </div>
       </div>
+
+      {/* Stats Cards */}
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-[100px]" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-[60px]" />
+                <Skeleton className="h-4 w-[120px] mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : currentStats ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {/* Products Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {selectedProduct === 'all' 
+                    ? t('saas.dashboard.totalProducts')
+                    : t('saas.dashboard.product')}
+                </CardTitle>
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {currentStats.totalProducts}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {selectedProduct === 'all'
+                    ? language === 'ar' ? 'منتجات نشطة' : 'Active products'
+                    : currentStats.products[0]?.product_name}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Plans Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {t('saas.dashboard.totalPlans')}
+                </CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {currentStats.totalPlans}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {language === 'ar' ? 'باقات متاحة' : 'Available plans'}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Subscribers Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {t('saas.dashboard.totalSubscribers')}
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {currentStats.totalTenants}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-green-600">
+                    {currentStats.activeTenants}
+                  </span>{' '}
+                  {language === 'ar' ? 'نشط' : 'active'}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Revenue Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {t('saas.dashboard.monthlyRevenue')}
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(currentStats.totalRevenue, selectedCurrency)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {currentStats.totalRevenue === 0 ? (
+                    <span className="text-amber-600">
+                      {language === 'ar' ? 'لا توجد اشتراكات نشطة' : 'No active subscriptions'}
+                    </span>
+                  ) : (
+                    <span className="text-green-600">
+                      <TrendingUp className="inline h-3 w-3" />
+                      {language === 'ar' ? ' من الاشتراكات النشطة' : ' from active subscriptions'}
+                    </span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Churn Rate Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {language === 'ar' ? 'معدل الإلغاء' : 'Churn Rate'}
+                </CardTitle>
+                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {churnRate.churnRate.toFixed(1)}%
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <span className={churnRate.churnRate > 10 ? 'text-red-600' : 'text-green-600'}>
+                    {churnRate.cancelled} {language === 'ar' ? 'ملغي' : 'cancelled'}
+                  </span>
+                  {' / '}
+                  <span>{churnRate.total} {language === 'ar' ? 'إجمالي' : 'total'}</span>
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      ) : null}
+
+      {/* Charts Section */}
+      {!loading && currentStats && (
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="overview">
+              <BarChart3 className="h-4 w-4 me-2" />
+              {language === 'ar' ? 'نظرة عامة' : 'Overview'}
+            </TabsTrigger>
+            <TabsTrigger value="analytics">
+              <Activity className="h-4 w-4 me-2" />
+              {language === 'ar' ? 'التحليلات' : 'Analytics'}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            {/* Products Grid (when "All Products" selected) */}
+            {selectedProduct === 'all' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5" />
+                      {language === 'ar' ? 'نظرة عامة على المنتجات' : 'Products Overview'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {currentStats.products.map((product, index) => (
+                        <motion.div
+                          key={product.product_code}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.3, delay: index * 0.1 }}
+                        >
+                          <Card className="cursor-pointer hover:shadow-md transition-shadow"
+                            onClick={() => setSelectedProduct(product.product_code)}>
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                {product.product_name}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                  {language === 'ar' ? 'الباقات' : 'Plans'}:
+                                </span>
+                                <span className="font-medium">{product.total_plans}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                  {language === 'ar' ? 'المشتركين' : 'Subscribers'}:
+                                </span>
+                                <span className="font-medium">
+                                  {product.total_tenants}{' '}
+                                  <span className="text-xs text-green-600">
+                                    ({product.active_tenants} {language === 'ar' ? 'نشط' : 'active'})
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                  {language === 'ar' ? 'الموديولات' : 'Modules'}:
+                                </span>
+                                <span className="font-medium">{product.available_modules}</span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Charts Grid */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <SubscribersGrowthChart data={subscribersGrowth} />
+              <RevenueTrendChart data={revenueTrend} currency={selectedCurrency} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <PlanDistributionChart data={planDistribution} />
+              <ProductRevenueChart data={productRevenue} currency={selectedCurrency} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <PaymentMethodsChart data={paymentMethods} currency={selectedCurrency} />
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      {language === 'ar' ? 'ملخص الدفعات' : 'Payments Summary'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {language === 'ar' ? 'إجمالي الدفعات' : 'Total Payments'}
+                      </span>
+                      <span className="text-lg font-bold">{recentPayments.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {language === 'ar' ? 'إجمالي المبلغ' : 'Total Amount'}
+                      </span>
+                      <span className="text-lg font-bold">
+                        {formatCurrency(
+                          recentPayments.reduce((sum, p) => sum + (p.amount || 0), 0),
+                          selectedCurrency
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {language === 'ar' ? 'متوسط الدفعة' : 'Average Payment'}
+                      </span>
+                      <span className="text-lg font-bold">
+                        {formatCurrency(
+                          recentPayments.length > 0
+                            ? recentPayments.reduce((sum, p) => sum + (p.amount || 0), 0) / recentPayments.length
+                            : 0,
+                          selectedCurrency
+                        )}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Recent Payments Table */}
+            <RecentPaymentsTable 
+              data={recentPayments} 
+              currency={selectedCurrency}
+              onEdit={handleEditPayment}
+              onView={handleViewPayment}
+              onDelete={(payment) => setDeletingPayment(payment)}
+            />
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {/* Payment Form Dialog */}
+      <PaymentFormDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        onSuccess={handlePaymentSuccess}
+        editingPayment={editingPayment}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingPayment} onOpenChange={(open) => !open && setDeletingPayment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === 'ar' ? 'تأكيد الحذف' : 'Confirm Deletion'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === 'ar' 
+                ? `هل أنت متأكد من حذف الدفعة ${deletingPayment?.payment_number}؟ لا يمكن التراجع عن هذا الإجراء.`
+                : `Are you sure you want to delete payment ${deletingPayment?.payment_number}? This action cannot be undone.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {language === 'ar' ? 'إلغاء' : 'Cancel'}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePayment} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {language === 'ar' ? 'حذف' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Добро пожаловать",
+    "hello": "Привет",
+    "logout": "Выйти",
+    "loading": "Загрузка",
+    "refresh": "Обновить",
+    "error": "Ошибка",
+    "success": "Успех",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "add": "Добавить",
+    "search": "Поиск",
+    "filter": "Фильтр",
+    "sort": "Сортировка",
+    "close": "Закрыть",
+    "back": "Назад",
+    "next": "Далее",
+    "previous": "Предыдущий",
+    "submit": "Отправить",
+    "confirm": "Подтвердить"
+  },
+  
+  "auth": {
+    "login": "Войти",
+    "email": "Электронная почта",
+    "password": "Пароль",
+    "forgotPassword": "Забыли пароль?",
+    "rememberMe": "Запомнить меня",
+    "biometricLogin": "Вход по биометрии",
+    "loginError": "Ошибка входа",
+    "invalidCredentials": "Неверный email или пароль",
+    "emailRequired": "Email обязателен",
+    "passwordRequired": "Пароль обязателен",
+    "loginSuccess": "Вход выполнен успешно"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Панель администратора",
+      "welcome": "Добро пожаловать",
+      "systemStats": "Статистика системы",
+      "recentActivities": "Последние действия",
+      "quickActions": "Быстрые действия",
+      "totalUsers": "Пользователи",
+      "activeCompanies": "Компании",
+      "totalRevenue": "Доход",
+      "growthRate": "Темп роста",
+      "addUser": "Добавить пользователя",
+      "settings": "Настройки",
+      "reports": "Отчеты"
+    },
+    
+    "cashier": {
+      "title": "Панель кассира",
+      "quickSummary": "Краткая сводка",
+      "todayTransactions": "Сегодняшние транзакции",
+      "balance": "Баланс",
+      "deposit": "Депозит",
+      "withdraw": "Снятие",
+      "transfer": "Перевод",
+      "transactions": "Транзакции"
+    },
+    
+    "driver": {
+      "title": "Панель водителя",
+      "todayStats": "Статистика за сегодня",
+      "deliveries": "Доставки",
+      "completed": "Завершено",
+      "pending": "В ожидании",
+      "distance": "Расстояние",
+      "deliveryRequests": "Запросы на доставку"
+    },
+    
+    "warehouse": {
+      "title": "Панель склада",
+      "inventory": "Инвентарь",
+      "lowStock": "Низкий запас",
+      "movements": "Движения"
+    }
+  },
+  
+  "roles": {
+    "admin": "Системный администратор",
+    "full_admin": "Полный администратор",
+    "cashier": "Кассир",
+    "driver": "Водитель",
+    "warehouse_keeper": "Кладовщик",
+    "warehouse_manager": "Менеджер склада",
+    "accountant": "Бухгалтер",
+    "sales_rep": "Торговый представитель",
+    "purchasing_manager": "Менеджер по закупкам"
+  },
+  
+  "errors": {
+    "networkError": "Ошибка сети",
+    "serverError": "Ошибка сервера",
+    "notFound": "Не найдено",
+    "unauthorized": "Неавторизован",
+    "forbidden": "Запрещено",
+    "invalidInput": "Неверный ввод",
+    "tryAgain": "Попробуйте еще раз"
+  },
+  
+  "messages": {
+    "dataLoaded": "Данные загружены",
+    "dataSaved": "Данные сохранены",
+    "dataDeleted": "Данные удалены",
+    "operationSuccess": "Операция успешна",
+    "operationFailed": "Операция не удалась"
+  },
+  
+  "date": {
+    "today": "Сегодня",
+    "yesterday": "Вчера",
+    "tomorrow": "Завтра",
+    "thisWeek": "На этой неделе",
+    "thisMonth": "В этом месяце",
+    "thisYear": "В этом году"
+  },
+  
+  "notifications": {
+    "title": "Уведомления",
+    "newCount": "{{count}} новое уведомление",
+    "newCount_plural": "{{count}} новых уведомлений",
+    "markAllRead": "Отметить все как прочитанные",
+    "noNotifications": "Нет уведомлений",
+    "noNotificationsSubtitle": "Новые уведомления появятся здесь",
+    "types": {
+      "success": "Успешно сохранено",
+      "newUser": "Новый пользователь",
+      "warning": "Предупреждение",
+      "report": "Новый отчет",
+      "transaction": "Новая транзакция"
+    },
+    "messages": {
+      "accountSaved": "Изменения в вашем аккаунте успешно сохранены",
+      "userAdded": "Новый пользователь добавлен в систему",
+      "lowStock": "Низкий запас для некоторых продуктов",
+      "reportReady": "Ежемесячный отчет о продажах готов к проверке",
+      "transactionComplete": "Финансовая транзакция успешно завершена"
+    },
+    "time": {
+      "now": "Сейчас",
+      "minutesAgo": "{{count}} минуту назад",
+      "minutesAgo_plural": "{{count}} минут назад",
+      "hoursAgo": "{{count}} час назад",
+      "hoursAgo_plural": "{{count}} часов назад",
+      "yesterday": "Вчера",
+      "daysAgo": "{{count}} день назад",
+      "daysAgo_plural": "{{count}} дней назад"
+    }
+  },
+  
+  "settings": {
+    "title": "Настройки",
+    "sections": {
+      "account": "Аккаунт",
+      "preferences": "Предпочтения",
+      "app": "Приложение"
+    },
+    "account": {
+      "profile": "Профиль",
+      "profileSubtitle": "Просмотр и обновление информации",
+      "changePassword": "Изменить пароль",
+      "changePasswordSubtitle": "Обновить пароль"
+    },
+    "preferences": {
+      "notifications": "Уведомления",
+      "notificationsSubtitle": "Включить push-уведомления",
+      "biometric": "Биометрия",
+      "biometricSubtitle": "Вход по биометрии",
+      "darkMode": "Темная тема",
+      "darkModeSubtitle": "Включить темную тему"
+    },
+    "app": {
+      "language": "Язык",
+      "languageValue": "Русский",
+      "help": "Помощь и поддержка",
+      "helpSubtitle": "FAQ и поддержка",
+      "about": "О приложении",
+      "aboutSubtitle": "Версия {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Выйти"
+  },
+  
+  "profile": {
+    "title": "Профиль",
+    "info": {
+      "name": "Полное имя",
+      "email": "Электронная почта",
+      "role": "Роль",
+      "memberSince": "Участник с",
+      "lastLogin": "Последний вход",
+      "phone": "Номер телефона",
+      "language": "Язык",
+      "company": "Компания"
+    },
+    "actions": {
+      "updateInfo": "Обновить информацию",
+      "security": "Настройки безопасности"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Быстрые действия",
+    "subtitle": "Быстрые ярлыки для общих операций",
+    "actions": {
+      "addUser": "Добавить пользователя",
+      "newDeposit": "Новый депозит",
+      "newWithdrawal": "Новое снятие",
+      "startRoute": "Начать маршрут",
+      "completeDelivery": "Завершить доставку",
+      "scanProduct": "Сканировать продукт",
+      "checkInventory": "Проверить инвентарь"
+    }
+  },
+  
+  "languages": {
+    "ar": "Арабский",
+    "en": "Английский",
+    "de": "Немецкий",
+    "tr": "Турецкий",
+    "ru": "Русский",
+    "uk": "Украинский",
+    "it": "Итальянский",
+    "pl": "Польский",
+    "ro": "Румынский",
+    "fr": "Французский"
+  }
+}

@@ -9,7 +9,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaTable, Column } from '@/components/shared/tables/NexaTable';
 import { NexaGrid, type NexaGridColumn } from '@/components/shared/tables/NexaGrid';
 import { LedgerTable, type LedgerColumn } from '@/components/shared/tables/LedgerTable';
-import { UnifiedSheet } from '@/components/shared/sheets/UnifiedSheet';
+// UnifiedSheet removed - using UniversalDetailSheet instead
 import { UnifiedModal } from '@/components/shared/modals/UnifiedModal';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +22,7 @@ import {
   FileText, Sheet, MessageSquare, Eye, FileText as FileTextIcon, 
   ChevronDown, Layers, Copy, Check, Database, TestTube,
   Code, List, Settings2, RefreshCw, AlertCircle, ChevronRight,
-  ChevronLeft, PanelLeftClose, PanelLeft, Minimize2, Maximize2
+  ChevronLeft, PanelLeftClose, PanelLeft, Minimize2, Maximize2, Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -50,7 +50,9 @@ import { JournalEntryDetailSheet } from '@/components/shared/details/JournalEntr
 import { InvoiceDetailSheet } from '@/components/shared/details/InvoiceDetailSheet';
 import { PaymentDetailSheet } from '@/components/shared/details/PaymentDetailSheet';
 import { CreateTenantDialog } from '@/features/saas/components/CreateTenantDialog';
-import { AgentDetailsSheet } from '@/features/saas/components/AgentDetailsSheet';
+// AgentDetailsSheet removed - using UniversalDetailSheet with docType="agent" instead
+import Register from '@/features/auth/Register';
+import RegistrationWizard from '@/features/auth/RegistrationWizard';
 import { 
   UniversalDetailSheet,
   UniversalDetailSheetPreview,
@@ -59,6 +61,7 @@ import {
   type DocType,
   type SheetConfig
 } from '@/components/sheets';
+import { SimplePlanSheet } from '@/components/sheets/SimplePlanSheet';
 
 interface PopupRegistry {
   id: string;
@@ -1215,6 +1218,53 @@ export default function ComponentLab() {
       type: 'sheet',
       status: 'ready',
       path: 'src/components/sheets/universal/UniversalDetailSheet.tsx',
+      badge: '⚠️ Component Lab Only',
+    },
+    // Simple Plan Sheet (Production Ready)
+    {
+      id: 'simple-plan-sheet',
+      nameKey: 'componentLab.popups.simplePlanSheet.name',
+      descriptionKey: 'componentLab.popups.simplePlanSheet.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/components/sheets/SimplePlanSheet.tsx',
+      badge: '✅ Production',
+    },
+    {
+      id: 'base-detail-sheet',
+      nameKey: 'componentLab.popups.baseDetailSheet.name',
+      descriptionKey: 'componentLab.popups.baseDetailSheet.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/components/shared/sheets/BaseDetailSheet.tsx',
+      badge: '🏗️ Foundation',
+    },
+    {
+      id: 'saas-detail-sheet',
+      nameKey: 'componentLab.popups.saasDetailSheet.name',
+      descriptionKey: 'componentLab.popups.saasDetailSheet.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/features/saas/components/SaaSDetailSheet.tsx',
+      badge: '✅ Production',
+    },
+    // Registration Components
+    {
+      id: 'register-page',
+      nameKey: 'componentLab.popups.registerPage.name',
+      descriptionKey: 'componentLab.popups.registerPage.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/features/auth/Register.tsx',
+      route: '/register',
+    },
+    {
+      id: 'registration-wizard',
+      nameKey: 'componentLab.popups.registrationWizard.name',
+      descriptionKey: 'componentLab.popups.registrationWizard.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/features/auth/RegistrationWizard.tsx',
     },
   ];
 
@@ -1370,47 +1420,16 @@ export default function ComponentLab() {
         />
       </div>
 
-      {/* UnifiedSheet Preview */}
+      {/* UnifiedSheet Preview - REMOVED */}
       {selectedPopup === 'unified-sheet' && (
-        <UnifiedSheet
-          isOpen={true}
-          onClose={() => setSelectedPopup(null)}
-          size="lg"
-          icon={FileTextIcon}
-          title={t('componentLab.popups.unifiedSheet.name')}
-          subtitle={t('componentLab.popups.unifiedSheet.description')}
-          badge={{
-            text: 'DEMO',
-            colorClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-          }}
-        >
-          <div className="space-y-4 py-2">
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-2 font-cairo">
-                {t('componentLab.preview.title')}
-              </h4>
-              <p className="text-sm text-blue-700 dark:text-blue-300 font-tajawal">
-                {t('componentLab.popups.unifiedSheet.description')}
-              </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-mono">
-                {t('componentLab.table.pathLabel')}: {popupsRegistry.find(p => p.id === 'unified-sheet')?.path}
-              </p>
-            </div>
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-tajawal">
-                {t('componentLab.info.description')}
-              </p>
-            </div>
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-              <h4 className="font-semibold text-green-900 dark:text-green-200 mb-2 font-cairo">
-                {t('componentLab.info.title')}
-              </h4>
-              <p className="text-sm text-green-700 dark:text-green-300 font-tajawal">
-                {t('componentLab.preview.exampleContent')}
-              </p>
-            </div>
-          </div>
-        </UnifiedSheet>
+        <div className="p-8 bg-gray-50 dark:bg-gray-900 rounded-lg text-center">
+          <p className="text-gray-700 dark:text-gray-300 font-semibold mb-2">
+            ⚠️ UnifiedSheet has been removed
+          </p>
+          <p className="text-sm text-gray-500">
+            Use UniversalDetailSheet instead (ID: universal-detail-sheet)
+          </p>
+        </div>
       )}
 
       {/* UnifiedModal Preview */}
@@ -1942,6 +1961,11 @@ export default function ComponentLab() {
 
           {/* NexaGrid Component */}
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            {/* Debug Info */}
+            <div className="p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
+              {direction === 'rtl' ? 'عدد الصفوف' : 'Rows'}: {GRID_DOC_CONFIGS[selectedGridDocType].data.length} | 
+              {direction === 'rtl' ? ' عدد الأعمدة' : ' Columns'}: {GRID_DOC_CONFIGS[selectedGridDocType].columns.length}
+            </div>
             <NexaGrid
               key={selectedGridDocType} // Force re-render when doc type changes
               data={GRID_DOC_CONFIGS[selectedGridDocType].data}
@@ -2018,40 +2042,215 @@ export default function ComponentLab() {
         />
       )}
 
-      {/* AgentDetailsSheet Preview */}
+      {/* AgentDetailsSheet Preview - REMOVED */}
       {selectedPopup === 'agent-details-sheet' && (
-        <AgentDetailsSheet
-          open={true}
-          onOpenChange={(open) => !open && setSelectedPopup(null)}
-          agent={{
-            id: '1',
-            code: 'AGT-001',
-            name: 'Tech Solutions Co.',
-            email: 'agent@techsolutions.com',
-            phone: '+966 50 123 4567',
-            country: 'Saudi Arabia',
-            city: 'Riyadh',
-            tenant_id: null,
-            user_id: null,
-            agent_type: 'reseller',
-            tier: 'gold',
-            commission_percent: 20,
-            recurring_commission_percent: 15,
-            bonus_per_tenant: 100,
-            current_balance: 50000,
-            pending_balance: 5000,
-            total_earned: 150000,
-            total_withdrawn: 100000,
-            currency: 'SAR',
-            min_withdrawal: 1000,
-            free_tenant_id: null,
-            referral_code: 'TECH2024',
-            status: 'active',
-            has_white_label: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }}
-        />
+        <div className="p-8 bg-gray-50 dark:bg-gray-900 rounded-lg text-center">
+          <p className="text-gray-700 dark:text-gray-300 font-semibold mb-2">
+            ⚠️ AgentDetailsSheet has been removed
+          </p>
+          <p className="text-sm text-gray-500">
+            Use UniversalDetailSheet with docType="agent" instead
+          </p>
+        </div>
+      )}
+
+      {/* Register Page Preview */}
+      {selectedPopup === 'register-page' && (
+        <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-1">
+              📝 {direction === 'rtl' ? 'صفحة التسجيل' : 'Registration Page'}
+            </h4>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              {direction === 'rtl' 
+                ? 'هذه هي صفحة التسجيل الأساسية للمستخدمين الجدد. تحتوي على نموذج تسجيل مع دعم تعدد اللغات وRTL.'
+                : 'This is the basic registration page for new users. Contains a registration form with multilingual support and RTL.'}
+            </p>
+          </div>
+          <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-950" style={{ height: '600px' }}>
+            <Register />
+          </div>
+        </div>
+      )}
+
+      {/* Registration Wizard Preview */}
+      {selectedPopup === 'registration-wizard' && (
+        <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+            <h4 className="font-semibold text-purple-900 dark:text-purple-200 mb-1">
+              🧙‍♂️ {direction === 'rtl' ? 'معالج التسجيل المتقدم' : 'Advanced Registration Wizard'}
+            </h4>
+            <p className="text-sm text-purple-700 dark:text-purple-300">
+              {direction === 'rtl' 
+                ? 'معالج تسجيل متعدد الخطوات يظهر بعد التسجيل الأساسي لإكمال إعداد الحساب (نوع العمل، معلومات الشركة، الإعدادات المالية).'
+                : 'Multi-step registration wizard shown after basic registration to complete account setup (business type, company info, financial settings).'}
+            </p>
+          </div>
+          <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-950" style={{ height: '600px' }}>
+            <RegistrationWizard />
+          </div>
+        </div>
+      )}
+
+      {/* Simple Plan Sheet Preview */}
+      {selectedPopup === 'simple-plan-sheet' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-2xl w-full p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                ✅ {direction === 'rtl' ? 'شيت الباقات البسيط' : 'Simple Plan Sheet'}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedPopup(null)}
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-sm">
+                  ✅ No Focus Loop
+                </span>
+                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-sm">
+                  🎯 Production Ready
+                </span>
+              </div>
+
+              <div className="text-center py-8">
+                <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 dark:text-gray-400">
+                  {direction === 'rtl' 
+                    ? 'هذا المكون يعمل في صفحة الباقات الفعلية'
+                    : 'This component works in the actual Packages page'}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-2 text-sm">
+                <div>1️⃣ {direction === 'rtl' ? 'اذهب إلى قسم SaaS' : 'Go to SaaS section'}</div>
+                <div>2️⃣ {direction === 'rtl' ? 'اضغط على الباقات' : 'Click on Packages'}</div>
+                <div>3️⃣ {direction === 'rtl' ? 'عرض جدولي' : 'Table View'}</div>
+                <div>4️⃣ {direction === 'rtl' ? 'اضغط على باقة' : 'Click any package'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Base Detail Sheet Preview */}
+      {selectedPopup === 'base-detail-sheet' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-2xl w-full p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                🏗️ {direction === 'rtl' ? 'المكون الأساسي للشيتات' : 'Base Detail Sheet'}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedPopup(null)}
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-sm">
+                  🏗️ Foundation
+                </span>
+                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-sm">
+                  ✅ Stable
+                </span>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                  {direction === 'rtl' ? 'المكون الأساسي' : 'Foundation Component'}
+                </h4>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  {direction === 'rtl'
+                    ? 'هذا هو المكون الأساسي الذي تُبنى عليه جميع الشيتات المخصصة. لا يُستخدم مباشرة، بل يُستورد في المكونات المتخصصة مثل SaaSDetailSheet.'
+                    : 'This is the foundation component that all custom sheets are built upon. Not used directly, but imported in specialized components like SaaSDetailSheet.'}
+                </p>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">{direction === 'rtl' ? 'الميزات الرئيسية:' : 'Key Features:'}</div>
+                <ul className="space-y-1 list-disc list-inside text-gray-600 dark:text-gray-400">
+                  <li>{direction === 'rtl' ? 'لا توجد مشاكل في التركيز' : 'No focus loop issues'}</li>
+                  <li>{direction === 'rtl' ? 'نظام تبويبات قابل للتخصيص' : 'Customizable tab system'}</li>
+                  <li>{direction === 'rtl' ? 'إحصائيات وأزرار إجراءات مرنة' : 'Flexible stats and action buttons'}</li>
+                  <li>{direction === 'rtl' ? 'دعم RTL كامل' : 'Full RTL support'}</li>
+                  <li>{direction === 'rtl' ? 'حوارات تأكيد آمنة' : 'Safe confirmation dialogs'}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SaaS Detail Sheet Preview */}
+      {selectedPopup === 'saas-detail-sheet' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-2xl w-full p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                ✅ {direction === 'rtl' ? 'شيت SaaS الموحد' : 'SaaS Detail Sheet'}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedPopup(null)}
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-sm">
+                  ✅ Production Ready
+                </span>
+                <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-sm">
+                  🎯 Active in Packages
+                </span>
+              </div>
+
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                <h4 className="font-semibold text-purple-900 dark:text-purple-200 mb-2">
+                  {direction === 'rtl' ? 'الشيت الموحد لـ SaaS' : 'Unified SaaS Sheet'}
+                </h4>
+                <p className="text-sm text-purple-700 dark:text-purple-300">
+                  {direction === 'rtl'
+                    ? 'يدعم 4 أنواع من المستندات: Plans, Tenants, Agents, Modules. حاليًا مُفعَّل للباقات (Plans) مع 6 تبويبات كاملة.'
+                    : 'Supports 4 document types: Plans, Tenants, Agents, Modules. Currently active for Plans with 6 complete tabs.'}
+                </p>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">{direction === 'rtl' ? 'التبويبات المتاحة للباقات:' : 'Available Tabs for Plans:'}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded">1️⃣ Overview</div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded">2️⃣ Modules</div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded">3️⃣ Limits & Features</div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded">4️⃣ Subscribers</div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded">5️⃣ Ledger</div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded">6️⃣ Activity</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-2 text-sm">
+                <div className="font-semibold">{direction === 'rtl' ? 'كيفية العرض:' : 'How to View:'}</div>
+                <div>1️⃣ {direction === 'rtl' ? 'اذهب إلى قسم SaaS' : 'Go to SaaS section'}</div>
+                <div>2️⃣ {direction === 'rtl' ? 'الباقات → عرض جدولي' : 'Packages → Table View'}</div>
+                <div>3️⃣ {direction === 'rtl' ? 'اضغط على أي باقة' : 'Click any package'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Universal Detail Sheet System Preview */}

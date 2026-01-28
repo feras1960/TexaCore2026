@@ -7,10 +7,12 @@ import { useState, useCallback, useEffect, createContext, useContext } from 'rea
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
-  MotionSheet,
-  MotionSheetContent,
-  SPRING_PRESETS,
-} from '@/components/ui/motion-sheet';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -167,17 +169,23 @@ export function UniversalDetailSheet({
 
   return (
     <EditModeContext.Provider value={{ isEditing, hasUnsavedChanges, setIsEditing, setHasUnsavedChanges }}>
-      {/* Main Sheet with Smooth Motion Animation */}
-      <MotionSheet 
+      {/* Main Sheet - استخدام Sheet العادي بدلاً من MotionSheet */}
+      <Sheet 
         open={isOpen} 
-        onOpenChange={(open) => !open && !preventCloseOnOutsideClick && handleCloseAttempt()}
+        onOpenChange={(open) => {
+          if (!open && !preventCloseOnOutsideClick) {
+            handleCloseAttempt();
+          }
+        }}
         modal={!preventCloseOnOutsideClick}
       >
-        <MotionSheetContent
-          isOpen={isOpen}
+        <SheetContent
           side={isRTL ? 'left' : 'right'}
-          preventCloseOnOutsideClick={preventCloseOnOutsideClick}
-          springConfig={isSwiss ? SPRING_PRESETS.swiss : SPRING_PRESETS.smooth}
+          onInteractOutside={(e) => {
+            if (preventCloseOnOutsideClick) {
+              e.preventDefault();
+            }
+          }}
           className={cn(
             isSwiss
               ? 'p-0 bg-[#F7F7F7] dark:bg-[#111111] flex flex-col overflow-hidden border-l border-[#E5E5E5] dark:border-[#222222] rounded-none shadow-none h-[100dvh] min-h-[100dvh] max-h-[100dvh]'
@@ -187,6 +195,13 @@ export function UniversalDetailSheet({
             hasNestedSheets && '!w-[45%]'
           )}
         >
+          {/* Hidden Title & Description for accessibility */}
+          <SheetTitle className="sr-only">
+            {typeof config.title === 'function' ? config.title(data) : config.title}
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            {t('common.details')}
+          </SheetDescription>
           {/* Header */}
           {isSwiss ? (
             <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#111111]/95 backdrop-blur border-b border-[#E5E5E5] dark:border-[#222222]">
@@ -231,7 +246,7 @@ export function UniversalDetailSheet({
               />
             </div>
           ) : (
-            <div className="bg-gradient-to-r from-teal-100/80 via-cyan-50 to-teal-100/80 dark:from-teal-900/40 dark:via-cyan-900/30 dark:to-teal-900/40 px-4 py-3 border-b border-teal-200/50 dark:border-teal-800/50 backdrop-blur-sm">
+            <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-blue-950/50 dark:via-indigo-950/40 dark:to-blue-950/50 px-4 py-3 border-b border-blue-200/60 dark:border-blue-800/40 backdrop-blur-sm">
               <UniversalDetailTabs
                 tabs={config.tabs}
                 activeTab={activeTab}
@@ -257,8 +272,8 @@ export function UniversalDetailSheet({
             onRowClick={handleNestedOpen}
             onRefresh={onRefresh}
           />
-        </MotionSheetContent>
-      </MotionSheet>
+        </SheetContent>
+      </Sheet>
 
       {/* Close Confirmation Dialog */}
       <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
@@ -391,11 +406,9 @@ export function UniversalDetailSheetWithUnderlineTabs({
 
   return (
     <EditModeContext.Provider value={{ isEditing, hasUnsavedChanges, setIsEditing, setHasUnsavedChanges }}>
-      <MotionSheet open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
-        <MotionSheetContent
-          isOpen={isOpen}
+      <Sheet open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
+        <SheetContent
           side={isRTL ? 'left' : 'right'}
-          springConfig={isSwiss ? SPRING_PRESETS.swiss : SPRING_PRESETS.smooth}
           className={cn(
             isSwiss
               ? 'p-0 bg-[#F7F7F7] dark:bg-[#111111] flex flex-col overflow-hidden border-l border-[#E5E5E5] dark:border-[#222222] rounded-none shadow-none h-[100dvh] min-h-[100dvh] max-h-[100dvh]'
@@ -404,6 +417,13 @@ export function UniversalDetailSheetWithUnderlineTabs({
             hasNestedSheets && '!w-[45%]'
           )}
         >
+          {/* Hidden Title & Description for accessibility */}
+          <SheetTitle className="sr-only">
+            {typeof config.title === 'function' ? config.title(data) : config.title}
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            {t('common.details')}
+          </SheetDescription>
           {/* Header */}
           {isSwiss ? (
             <div className="sticky top-0 z-30 bg-white/95 dark:bg-[#111111]/95 backdrop-blur border-b border-[#E5E5E5] dark:border-[#222222]">
@@ -472,8 +492,8 @@ export function UniversalDetailSheetWithUnderlineTabs({
             onRowClick={handleNestedOpen}
             onRefresh={onRefresh}
           />
-        </MotionSheetContent>
-      </MotionSheet>
+        </SheetContent>
+      </Sheet>
 
       {/* Close Confirmation Dialog */}
       <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
@@ -507,7 +527,8 @@ export function UniversalDetailSheetWithUnderlineTabs({
         </AlertDialogContent>
       </AlertDialog>
 
-      {enableNestedSheets && hasNestedSheets && (
+      {/* Nested Sheets - Temporarily Disabled to fix focus loop */}
+      {/* {enableNestedSheets && hasNestedSheets && (
         <NestedSheetManager
           sheets={nestedSheets}
           onClose={closeNestedSheet}
@@ -516,7 +537,7 @@ export function UniversalDetailSheetWithUnderlineTabs({
           direction={direction}
           onNestedOpen={handleNestedOpen}
         />
-      )}
+      )} */}
     </EditModeContext.Provider>
   );
 }

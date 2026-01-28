@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Bine ați venit",
+    "hello": "Salut",
+    "logout": "Deconectare",
+    "loading": "Se încarcă",
+    "refresh": "Actualizare",
+    "error": "Eroare",
+    "success": "Succes",
+    "cancel": "Anulare",
+    "save": "Salvare",
+    "delete": "Ștergere",
+    "edit": "Editare",
+    "add": "Adăugare",
+    "search": "Căutare",
+    "filter": "Filtrare",
+    "sort": "Sortare",
+    "close": "Închidere",
+    "back": "Înapoi",
+    "next": "Următorul",
+    "previous": "Anterior",
+    "submit": "Trimite",
+    "confirm": "Confirmă"
+  },
+  
+  "auth": {
+    "login": "Autentificare",
+    "email": "Email",
+    "password": "Parolă",
+    "forgotPassword": "Ai uitat parola?",
+    "rememberMe": "Ține-mă minte",
+    "biometricLogin": "Autentificare biometrică",
+    "loginError": "Eroare de autentificare",
+    "invalidCredentials": "Email sau parolă invalidă",
+    "emailRequired": "Email-ul este obligatoriu",
+    "passwordRequired": "Parola este obligatorie",
+    "loginSuccess": "Autentificare reușită"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Panou Administrator",
+      "welcome": "Bine ați venit",
+      "systemStats": "Statistici Sistem",
+      "recentActivities": "Activități Recente",
+      "quickActions": "Acțiuni Rapide",
+      "totalUsers": "Utilizatori",
+      "activeCompanies": "Companii",
+      "totalRevenue": "Venituri",
+      "growthRate": "Rata de Creștere",
+      "addUser": "Adaugă Utilizator",
+      "settings": "Setări",
+      "reports": "Rapoarte"
+    },
+    
+    "cashier": {
+      "title": "Panou Casier",
+      "quickSummary": "Rezumat Rapid",
+      "todayTransactions": "Tranzacții de Azi",
+      "balance": "Sold",
+      "deposit": "Depozit",
+      "withdraw": "Retragere",
+      "transfer": "Transfer",
+      "transactions": "Tranzacții"
+    },
+    
+    "driver": {
+      "title": "Panou Șofer",
+      "todayStats": "Statistici de Azi",
+      "deliveries": "Livrări",
+      "completed": "Finalizate",
+      "pending": "În Așteptare",
+      "distance": "Distanță",
+      "deliveryRequests": "Cereri de Livrare"
+    },
+    
+    "warehouse": {
+      "title": "Panou Depozit",
+      "inventory": "Inventar",
+      "lowStock": "Stoc Redus",
+      "movements": "Mișcări"
+    }
+  },
+  
+  "roles": {
+    "admin": "Administrator Sistem",
+    "full_admin": "Administrator Complet",
+    "cashier": "Casier",
+    "driver": "Șofer",
+    "warehouse_keeper": "Gestionar Depozit",
+    "warehouse_manager": "Manager Depozit",
+    "accountant": "Contabil",
+    "sales_rep": "Reprezentant Vânzări",
+    "purchasing_manager": "Manager Achiziții"
+  },
+  
+  "errors": {
+    "networkError": "Eroare de Rețea",
+    "serverError": "Eroare de Server",
+    "notFound": "Nu a Fost Găsit",
+    "unauthorized": "Neautorizat",
+    "forbidden": "Interzis",
+    "invalidInput": "Intrare Invalidă",
+    "tryAgain": "Încearcă Din Nou"
+  },
+  
+  "messages": {
+    "dataLoaded": "Date Încărcate",
+    "dataSaved": "Date Salvate",
+    "dataDeleted": "Date Șterse",
+    "operationSuccess": "Operațiune Reușită",
+    "operationFailed": "Operațiune Eșuată"
+  },
+  
+  "date": {
+    "today": "Astăzi",
+    "yesterday": "Ieri",
+    "tomorrow": "Mâine",
+    "thisWeek": "Săptămâna Aceasta",
+    "thisMonth": "Luna Aceasta",
+    "thisYear": "Anul Acesta"
+  },
+  
+  "notifications": {
+    "title": "Notificări",
+    "newCount": "{{count}} notificare nouă",
+    "newCount_plural": "{{count}} notificări noi",
+    "markAllRead": "Marchează toate ca citite",
+    "noNotifications": "Fără notificări",
+    "noNotificationsSubtitle": "Notificările noi vor apărea aici",
+    "types": {
+      "success": "Salvat cu Succes",
+      "newUser": "Utilizator Nou",
+      "warning": "Avertisment",
+      "report": "Raport Nou",
+      "transaction": "Tranzacție Nouă"
+    },
+    "messages": {
+      "accountSaved": "Modificările contului tău au fost salvate cu succes",
+      "userAdded": "Un utilizator nou a fost adăugat în sistem",
+      "lowStock": "Stoc redus pentru unele produse",
+      "reportReady": "Raportul lunar de vânzări este gata pentru revizuire",
+      "transactionComplete": "Tranzacție financiară finalizată cu succes"
+    },
+    "time": {
+      "now": "Acum",
+      "minutesAgo": "acum {{count}} minut",
+      "minutesAgo_plural": "acum {{count}} minute",
+      "hoursAgo": "acum {{count}} oră",
+      "hoursAgo_plural": "acum {{count}} ore",
+      "yesterday": "Ieri",
+      "daysAgo": "acum {{count}} zi",
+      "daysAgo_plural": "acum {{count}} zile"
+    }
+  },
+  
+  "settings": {
+    "title": "Setări",
+    "sections": {
+      "account": "Cont",
+      "preferences": "Preferințe",
+      "app": "Aplicație"
+    },
+    "account": {
+      "profile": "Profil",
+      "profileSubtitle": "Vizualizează și actualizează informațiile tale",
+      "changePassword": "Schimbă Parola",
+      "changePasswordSubtitle": "Actualizează parola ta"
+    },
+    "preferences": {
+      "notifications": "Notificări",
+      "notificationsSubtitle": "Activează notificările push",
+      "biometric": "Biometric",
+      "biometricSubtitle": "Autentificare biometrică",
+      "darkMode": "Mod Întunecat",
+      "darkModeSubtitle": "Activează tema întunecată"
+    },
+    "app": {
+      "language": "Limbă",
+      "languageValue": "Română",
+      "help": "Ajutor și Suport",
+      "helpSubtitle": "Întrebări frecvente și suport",
+      "about": "Despre Aplicație",
+      "aboutSubtitle": "Versiunea {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Deconectare"
+  },
+  
+  "profile": {
+    "title": "Profil",
+    "info": {
+      "name": "Nume Complet",
+      "email": "Email",
+      "role": "Rol",
+      "memberSince": "Membru din",
+      "lastLogin": "Ultima Autentificare",
+      "phone": "Număr de Telefon",
+      "language": "Limbă",
+      "company": "Companie"
+    },
+    "actions": {
+      "updateInfo": "Actualizează Informații",
+      "security": "Setări de Securitate"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Acțiuni Rapide",
+    "subtitle": "Scurtături rapide pentru operațiuni comune",
+    "actions": {
+      "addUser": "Adaugă Utilizator",
+      "newDeposit": "Depozit Nou",
+      "newWithdrawal": "Retragere Nouă",
+      "startRoute": "Începe Ruta",
+      "completeDelivery": "Finalizează Livrarea",
+      "scanProduct": "Scanează Produs",
+      "checkInventory": "Verifică Inventarul"
+    }
+  },
+  
+  "languages": {
+    "ar": "Arabă",
+    "en": "Engleză",
+    "de": "Germană",
+    "tr": "Turcă",
+    "ru": "Rusă",
+    "uk": "Ucraineană",
+    "it": "Italiană",
+    "pl": "Poloneză",
+    "ro": "Română",
+    "fr": "Franceză"
+  }
+}

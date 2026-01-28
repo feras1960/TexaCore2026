@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "hello": "Hello",
+    "logout": "Logout",
+    "loading": "Loading",
+    "refresh": "Refresh",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "confirm": "Confirm"
+  },
+  
+  "auth": {
+    "login": "Login",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "rememberMe": "Remember Me",
+    "biometricLogin": "Login with Biometrics",
+    "loginError": "Login Error",
+    "invalidCredentials": "Invalid email or password",
+    "emailRequired": "Email is required",
+    "passwordRequired": "Password is required",
+    "loginSuccess": "Login successful"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Admin Dashboard",
+      "welcome": "Welcome",
+      "systemStats": "System Statistics",
+      "recentActivities": "Recent Activities",
+      "quickActions": "Quick Actions",
+      "totalUsers": "Users",
+      "activeCompanies": "Companies",
+      "totalRevenue": "Revenue",
+      "growthRate": "Growth Rate",
+      "addUser": "Add User",
+      "settings": "Settings",
+      "reports": "Reports"
+    },
+    
+    "cashier": {
+      "title": "Cashier Dashboard",
+      "quickSummary": "Quick Summary",
+      "todayTransactions": "Today's Transactions",
+      "balance": "Balance",
+      "deposit": "Deposit",
+      "withdraw": "Withdraw",
+      "transfer": "Transfer",
+      "transactions": "Transactions"
+    },
+    
+    "driver": {
+      "title": "Driver Dashboard",
+      "todayStats": "Today's Stats",
+      "deliveries": "Deliveries",
+      "completed": "Completed",
+      "pending": "Pending",
+      "distance": "Distance",
+      "deliveryRequests": "Delivery Requests"
+    },
+    
+    "warehouse": {
+      "title": "Warehouse Dashboard",
+      "inventory": "Inventory",
+      "lowStock": "Low Stock",
+      "movements": "Movements"
+    }
+  },
+  
+  "roles": {
+    "admin": "System Administrator",
+    "full_admin": "Full Administrator",
+    "cashier": "Cashier",
+    "driver": "Driver",
+    "warehouse_keeper": "Warehouse Keeper",
+    "warehouse_manager": "Warehouse Manager",
+    "accountant": "Accountant",
+    "sales_rep": "Sales Representative",
+    "purchasing_manager": "Purchasing Manager"
+  },
+  
+  "errors": {
+    "networkError": "Network Error",
+    "serverError": "Server Error",
+    "notFound": "Not Found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Forbidden",
+    "invalidInput": "Invalid Input",
+    "tryAgain": "Try Again"
+  },
+  
+  "messages": {
+    "dataLoaded": "Data Loaded",
+    "dataSaved": "Data Saved",
+    "dataDeleted": "Data Deleted",
+    "operationSuccess": "Operation Successful",
+    "operationFailed": "Operation Failed"
+  },
+  
+  "date": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "thisYear": "This Year"
+  },
+  
+  "notifications": {
+    "title": "Notifications",
+    "newCount": "{{count}} new notification",
+    "newCount_plural": "{{count}} new notifications",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications",
+    "noNotificationsSubtitle": "New notifications will appear here",
+    "types": {
+      "success": "Saved Successfully",
+      "newUser": "New User",
+      "warning": "Warning",
+      "report": "New Report",
+      "transaction": "New Transaction"
+    },
+    "messages": {
+      "accountSaved": "Your account changes have been saved successfully",
+      "userAdded": "A new user has been added to the system",
+      "lowStock": "Stock is low for some products",
+      "reportReady": "Monthly sales report is ready for review",
+      "transactionComplete": "Financial transaction completed successfully"
+    },
+    "time": {
+      "now": "Now",
+      "minutesAgo": "{{count}} minute ago",
+      "minutesAgo_plural": "{{count}} minutes ago",
+      "hoursAgo": "{{count}} hour ago",
+      "hoursAgo_plural": "{{count}} hours ago",
+      "yesterday": "Yesterday",
+      "daysAgo": "{{count}} day ago",
+      "daysAgo_plural": "{{count}} days ago"
+    }
+  },
+  
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "account": "Account",
+      "preferences": "Preferences",
+      "app": "App"
+    },
+    "account": {
+      "profile": "Profile",
+      "profileSubtitle": "View and update your information",
+      "changePassword": "Change Password",
+      "changePasswordSubtitle": "Update your password"
+    },
+    "preferences": {
+      "notifications": "Notifications",
+      "notificationsSubtitle": "Enable push notifications",
+      "biometric": "Biometric",
+      "biometricSubtitle": "Login with biometrics",
+      "darkMode": "Dark Mode",
+      "darkModeSubtitle": "Enable dark theme"
+    },
+    "app": {
+      "language": "Language",
+      "languageValue": "English",
+      "help": "Help & Support",
+      "helpSubtitle": "FAQs and support",
+      "about": "About App",
+      "aboutSubtitle": "Version {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Logout"
+  },
+  
+  "profile": {
+    "title": "Profile",
+    "info": {
+      "name": "Full Name",
+      "email": "Email",
+      "role": "Role",
+      "memberSince": "Member Since",
+      "lastLogin": "Last Login",
+      "phone": "Phone Number",
+      "language": "Language",
+      "company": "Company"
+    },
+    "actions": {
+      "updateInfo": "Update Info",
+      "security": "Security Settings"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Quick Actions",
+    "subtitle": "Quick shortcuts for common operations",
+    "actions": {
+      "addUser": "Add User",
+      "newDeposit": "New Deposit",
+      "newWithdrawal": "New Withdrawal",
+      "startRoute": "Start Route",
+      "completeDelivery": "Complete Delivery",
+      "scanProduct": "Scan Product",
+      "checkInventory": "Check Inventory"
+    }
+  },
+  
+  "languages": {
+    "ar": "Arabic",
+    "en": "English",
+    "de": "German",
+    "tr": "Turkish",
+    "ru": "Russian",
+    "uk": "Ukrainian",
+    "it": "Italian",
+    "pl": "Polish",
+    "ro": "Romanian",
+    "fr": "French"
+  }
+}
