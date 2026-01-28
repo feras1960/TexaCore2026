@@ -61,7 +61,7 @@ import {
   type DocType,
   type SheetConfig
 } from '@/components/sheets';
-import { SimplePlanSheet } from '@/components/sheets/SimplePlanSheet';
+// SimplePlanSheet removed - using UniversalDetailSheet with docType="plan" instead
 
 interface PopupRegistry {
   id: string;
@@ -1220,16 +1220,7 @@ export default function ComponentLab() {
       path: 'src/components/sheets/universal/UniversalDetailSheet.tsx',
       badge: '⚠️ Component Lab Only',
     },
-    // Simple Plan Sheet (Production Ready)
-    {
-      id: 'simple-plan-sheet',
-      nameKey: 'componentLab.popups.simplePlanSheet.name',
-      descriptionKey: 'componentLab.popups.simplePlanSheet.description',
-      type: 'sheet',
-      status: 'ready',
-      path: 'src/components/sheets/SimplePlanSheet.tsx',
-      badge: '✅ Production',
-    },
+    // Simple Plan Sheet moved to deprecated/ - use UniversalDetailSheet with docType="plan" instead
     {
       id: 'base-detail-sheet',
       nameKey: 'componentLab.popups.baseDetailSheet.name',

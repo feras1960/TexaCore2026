@@ -64,6 +64,9 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 src/
 ├── app/              # App providers and configuration
 ├── components/       # Shared components
+│   ├── ui/          # shadcn/ui components
+│   ├── shared/      # Reusable components (NexaTable, StatCard, etc.)
+│   └── deprecated/  # ⚠️ Deprecated components (will be removed)
 ├── features/         # Feature modules (accounting, saas, etc.)
 ├── hooks/            # Custom React hooks
 ├── i18n/             # Translations (9 languages)
@@ -71,22 +74,61 @@ src/
 ├── services/         # API Services
 └── types/            # TypeScript Types
 
-docs/
-└── COMPLETE_REFERENCE_GUIDE.md  # 📖 المرجع الشامل
+docs/                 # 📚 Documentation (161 files organized)
+├── setup/           # Installation & setup guides
+├── architecture/    # System architecture docs
+├── features/        # Feature documentation
+├── backend/         # Backend documentation
+├── fixes/           # Fix history
+└── reports/         # Daily reports
+
+database/            # 🗄️ Database files (120 files organized)
+├── migrations/      # Supabase migrations
+├── setup/          # Setup scripts (.sh)
+├── tests/          # SQL test files
+└── fixes/          # SQL fix files
+
+archive/             # 📦 Old files
+├── old-docs/       # Old documentation
+└── old-scripts/    # Old scripts
 
 supabase/
-└── migrations/       # Database Migrations
+└── migrations/      # Database Migrations
 ```
 
 ---
 
 ## 📚 التوثيق
 
+### 📖 المراجع الرئيسية
+
 | الملف | المحتوى |
 |-------|---------|
-| 📖 `docs/COMPLETE_REFERENCE_GUIDE.md` | **المرجع الشامل** - يحتوي على 13 قسم شامل |
-| 📜 `PROJECT_CONSTITUTION.md` | دستور المشروع - القواعد الإلزامية |
+| 📋 `CLEANUP_SUMMARY.md` | **ملخص التنظيف** - التفاصيل الكاملة للتنظيف الأخير |
+| 📖 `docs/architecture/COMPLETE_REFERENCE_GUIDE.md` | **المرجع الشامل** - يحتوي على 13 قسم شامل |
+| 🚀 `docs/setup/EASY_SETUP_GUIDE.md` | **دليل الإعداد السريع** |
+| 📜 `docs/architecture/PROJECT_CONSTITUTION.md` | دستور المشروع - القواعد الإلزامية |
 | 🤖 `.cursorrules` | قواعد التصميم للـ AI |
+
+### 📂 مجلدات التوثيق
+
+| المجلد | المحتوى |
+|--------|---------|
+| `docs/setup/` | أدلة التثبيت والإعداد |
+| `docs/architecture/` | معمارية النظام |
+| `docs/features/` | توثيق الميزات (SAAS, Payments, etc.) |
+| `docs/backend/` | توثيق Backend وقاعدة البيانات |
+| `docs/fixes/` | سجل الإصلاحات |
+| `docs/reports/` | التقارير اليومية |
+
+### 🗄️ قاعدة البيانات
+
+| المجلد | المحتوى |
+|--------|---------|
+| `database/setup/` | سكربتات الإعداد |
+| `database/tests/` | اختبارات SQL |
+| `database/fixes/` | إصلاحات SQL |
+| `database/migrations/` | Supabase migrations |
 
 ---
 
@@ -162,5 +204,6 @@ npm run lint
 
 ---
 
-**آخر تحديث:** يناير 2026  
-**الإصدار:** 2.0.0
+**آخر تحديث:** يناير 28, 2026  
+**الإصدار:** 2.0.0  
+**حالة المشروع:** ✅ منظم ونظيف (راجع `CLEANUP_SUMMARY.md`)

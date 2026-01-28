@@ -15,8 +15,7 @@ export { UnifiedModal } from './modals/UnifiedModal';
 
 // Status
 export { StatusBadge, StatusBadgeWithArrow } from './status/StatusBadge';
-export { StatusSelector } from './status/StatusSelector';
-export { StatusManager } from './status/StatusManager';
+// StatusSelector and StatusManager moved to deprecated/ - not used in production code
 
 // Stats
 export { StatCard, StatsGrid } from './stats/StatCard';
@@ -24,10 +23,10 @@ export type { StatType } from './stats/StatCard';
 
 // Tabs
 export { MainTabsBar } from './tabs/MainTabsBar';
-export { DynamicTabsBar, useDynamicTabs } from './tabs/DynamicTabs';
+// DynamicTabsBar moved to deprecated/ - not used in production code
 
 // Actions
-export { ActionButtonsBar } from './actions/ActionButtonsBar';
+// ActionButtonsBar moved to deprecated/ - not used in production code
 export { QuickActionsBar } from './actions/QuickActionsBar';
 
 // Marker
