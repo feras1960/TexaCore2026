@@ -1031,14 +1031,7 @@ export default function ComponentLab() {
 
   // Popup Registry - will be populated with actual components
   const popupsRegistry: PopupRegistry[] = [
-    {
-      id: 'unified-sheet',
-      nameKey: 'componentLab.popups.unifiedSheet.name',
-      descriptionKey: 'componentLab.popups.unifiedSheet.description',
-      type: 'sheet',
-      status: 'ready',
-      path: 'src/components/shared/sheets/UnifiedSheet.tsx',
-    },
+    // unified-sheet removed - deleted component, use UniversalDetailSheet instead
     {
       id: 'unified-modal',
       nameKey: 'componentLab.popups.unifiedModal.name',
@@ -1201,15 +1194,7 @@ export default function ComponentLab() {
       path: 'src/features/saas/components/CreateTenantDialog.tsx',
       route: '/saas/subscribers',
     },
-    {
-      id: 'agent-details-sheet',
-      nameKey: 'componentLab.popups.agentDetailsSheet.name',
-      descriptionKey: 'componentLab.popups.agentDetailsSheet.description',
-      type: 'sheet',
-      status: 'ready',
-      path: 'src/features/saas/components/AgentDetailsSheet.tsx',
-      route: '/saas/agents',
-    },
+    // agent-details-sheet removed - deleted component, use SaaSDetailSheet with docType="agent"
     // Universal Detail Sheet System (Swiss Style)
     {
       id: 'universal-detail-sheet',
@@ -1410,18 +1395,6 @@ export default function ComponentLab() {
           stickyHeader={true}
         />
       </div>
-
-      {/* UnifiedSheet Preview - REMOVED */}
-      {selectedPopup === 'unified-sheet' && (
-        <div className="p-8 bg-gray-50 dark:bg-gray-900 rounded-lg text-center">
-          <p className="text-gray-700 dark:text-gray-300 font-semibold mb-2">
-            ⚠️ UnifiedSheet has been removed
-          </p>
-          <p className="text-sm text-gray-500">
-            Use UniversalDetailSheet instead (ID: universal-detail-sheet)
-          </p>
-        </div>
-      )}
 
       {/* UnifiedModal Preview */}
       {selectedPopup === 'unified-modal' && (
@@ -2031,18 +2004,6 @@ export default function ComponentLab() {
           open={true}
           onOpenChange={(open) => !open && setSelectedPopup(null)}
         />
-      )}
-
-      {/* AgentDetailsSheet Preview - REMOVED */}
-      {selectedPopup === 'agent-details-sheet' && (
-        <div className="p-8 bg-gray-50 dark:bg-gray-900 rounded-lg text-center">
-          <p className="text-gray-700 dark:text-gray-300 font-semibold mb-2">
-            ⚠️ AgentDetailsSheet has been removed
-          </p>
-          <p className="text-sm text-gray-500">
-            Use UniversalDetailSheet with docType="agent" instead
-          </p>
-        </div>
       )}
 
       {/* Register Page Preview */}
