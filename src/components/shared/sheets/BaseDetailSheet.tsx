@@ -12,9 +12,10 @@
  * - RTL Support
  * - No Animation Issues
  * - No Focus Loop
+ * - ✨ Edit Mode Support (Toggle/Always/None)
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -36,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Edit, Save, XCircle } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn } from '@/lib/utils';
 import {
@@ -45,6 +46,8 @@ import {
   STAT_COLOR_CLASSES,
   ActionConfig,
 } from './types';
+import { useEditMode } from './hooks/useEditMode';
+import { toast } from 'sonner';
 
 export const BaseDetailSheet: React.FC<BaseDetailSheetProps> = ({
   isOpen,
@@ -55,11 +58,43 @@ export const BaseDetailSheet: React.FC<BaseDetailSheetProps> = ({
   onEdit,
   loading = false,
   handlers,
+  editMode = 'none', // ✨ Default: no editing
+  onSave,
+  editable = true,
 }) => {
   const { t, language, direction } = useLanguage();
   const [activeTab, setActiveTab] = useState(config.defaultTab);
   const [confirmAction, setConfirmAction] = useState<ActionConfig | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
+
+  // ✨ Edit Mode Hook
+  const editHook = useEditMode({
+    initialData: data,
+    onSave: async (editedData) => {
+      if (onSave) {
+        await onSave(editedData);
+        toast.success(t('common.saved'));
+        if (onRefresh) onRefresh();
+      }
+    },
+    onCancel: () => {
+      toast.info(t('common.cancelled'));
+    },
+    validateAll: config.editConfig?.validation,
+  });
+
+  // Determine if we're in edit mode
+  const isEditingMode = editMode === 'always' || (editMode === 'toggle' && editHook.isEditing);
+  
+  // Show edit button?
+  const showEditButton = editMode === 'toggle' && config.editConfig?.enabled && editable;
+
+  // Reset edit state when sheet closes
+  useEffect(() => {
+    if (!isOpen) {
+      editHook.cancelEdit();
+    }
+  }, [isOpen]);
 
   // Resolve title and subtitle
   const title = typeof config.title === 'function' 
@@ -157,14 +192,59 @@ export const BaseDetailSheet: React.FC<BaseDetailSheetProps> = ({
               )}>
                 <config.icon className="h-5 w-5 text-white" />
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onClose}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              
+              {/* ✨ Edit/Save Buttons + Close */}
+              <div className="flex items-center gap-2">
+                {showEditButton && !editHook.isEditing && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={editHook.startEdit}
+                    className="h-8"
+                  >
+                    <Edit className="w-3.5 h-3.5 me-1.5" />
+                    {t('common.edit')}
+                  </Button>
+                )}
+                
+                {showEditButton && editHook.isEditing && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={editHook.cancelEdit}
+                      disabled={editHook.isSaving}
+                      className="h-8"
+                    >
+                      <XCircle className="w-3.5 h-3.5 me-1.5" />
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={editHook.saveEdit}
+                      disabled={editHook.isSaving || !editHook.isDirty}
+                      className="h-8"
+                    >
+                      {editHook.isSaving ? (
+                        <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5 me-1.5" />
+                      )}
+                      {t('common.save')}
+                    </Button>
+                  </>
+                )}
+                
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onClose}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Title & Badge */}
@@ -275,11 +355,14 @@ export const BaseDetailSheet: React.FC<BaseDetailSheetProps> = ({
                       </div>
                     ) : (
                       <tab.component
-                        data={data}
+                        data={isEditingMode ? editHook.editedData : data}
                         language={language}
                         t={t}
                         direction={direction}
                         onRefresh={onRefresh}
+                        isEditing={isEditingMode}
+                        onUpdate={editHook.updateField}
+                        errors={editHook.errors}
                       />
                     )}
                   </TabsContent>

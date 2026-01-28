@@ -257,5 +257,127 @@ export const getPlanConfig = (
 
     // Size
     width: 'full',
+    
+    // ✨ Edit Configuration
+    editConfig: {
+      enabled: true,
+      defaultMode: 'view',
+      fields: [
+        // Basic Info Fields
+        {
+          key: 'name_ar',
+          type: 'text',
+          label: 'اسم الباقة (عربي)',
+          editable: true,
+          required: true,
+          tab: 'overview',
+          validate: (value) => {
+            if (!value || value.trim().length < 3) {
+              return t('errors.minLength').replace('{min}', '3');
+            }
+            return null;
+          },
+        },
+        {
+          key: 'name_en',
+          type: 'text',
+          label: 'Plan Name (English)',
+          editable: true,
+          required: true,
+          tab: 'overview',
+          validate: (value) => {
+            if (!value || value.trim().length < 3) {
+              return t('errors.minLength').replace('{min}', '3');
+            }
+            return null;
+          },
+        },
+        {
+          key: 'description_ar',
+          type: 'textarea',
+          label: 'الوصف (عربي)',
+          editable: true,
+          required: false,
+          tab: 'overview',
+        },
+        {
+          key: 'description_en',
+          type: 'textarea',
+          label: 'Description (English)',
+          editable: true,
+          required: false,
+          tab: 'overview',
+        },
+        {
+          key: 'price',
+          type: 'number',
+          label: t('saas.plan.price'),
+          editable: true,
+          required: true,
+          tab: 'overview',
+          min: 0,
+          validate: (value) => {
+            if (value < 0) {
+              return t('errors.invalidValue');
+            }
+            return null;
+          },
+        },
+        {
+          key: 'currency',
+          type: 'select',
+          label: t('saas.plan.currency'),
+          editable: true,
+          required: true,
+          tab: 'overview',
+          options: [
+            { value: 'USD', label: 'USD' },
+            { value: 'SAR', label: 'SAR' },
+            { value: 'EUR', label: 'EUR' },
+            { value: 'TRY', label: 'TRY' },
+          ],
+        },
+        {
+          key: 'billing_cycle',
+          type: 'select',
+          label: t('saas.plan.billingCycle'),
+          editable: true,
+          required: true,
+          tab: 'overview',
+          options: [
+            { value: 'monthly', label: t('saas.plan.monthly') },
+            { value: 'yearly', label: t('saas.plan.yearly') },
+          ],
+        },
+        {
+          key: 'max_users',
+          type: 'number',
+          label: t('saas.plan.maxUsers'),
+          editable: true,
+          required: true,
+          tab: 'overview',
+          min: 0,
+          helpText: '0 = ' + t('common.unlimited'),
+        },
+      ],
+      validation: (data) => {
+        const errors: Record<string, string> = {};
+        
+        // Validate required fields
+        if (!data.name_ar || data.name_ar.trim().length < 3) {
+          errors.name_ar = t('errors.required');
+        }
+        if (!data.name_en || data.name_en.trim().length < 3) {
+          errors.name_en = t('errors.required');
+        }
+        if (!data.price || data.price < 0) {
+          errors.price = t('errors.invalidValue');
+        }
+        
+        return errors;
+      },
+      saveButtonText: t('common.save'),
+      cancelButtonText: t('common.cancel'),
+    },
   };
 };

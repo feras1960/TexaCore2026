@@ -26,6 +26,11 @@ export interface SaaSDetailSheetProps {
   onRefresh?: () => void;
   onEdit?: () => void;
   loading?: boolean;
+  
+  // ✨ Edit Mode Props
+  editMode?: 'none' | 'toggle' | 'always';
+  onSave?: (data: any) => Promise<void>;
+  editable?: boolean;
 }
 
 export const SaaSDetailSheet: React.FC<SaaSDetailSheetProps> = ({
@@ -36,6 +41,9 @@ export const SaaSDetailSheet: React.FC<SaaSDetailSheetProps> = ({
   onRefresh,
   onEdit,
   loading,
+  editMode = 'none', // ✨ Default: no editing
+  onSave,
+  editable = true,
 }) => {
   const { t, language } = useLanguage();
 
@@ -66,6 +74,9 @@ export const SaaSDetailSheet: React.FC<SaaSDetailSheetProps> = ({
       onRefresh={onRefresh}
       onEdit={onEdit}
       loading={loading}
+      editMode={editMode}
+      onSave={onSave}
+      editable={editable}
       handlers={{
         onRefresh,
         onEdit,

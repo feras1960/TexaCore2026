@@ -374,6 +374,35 @@ export default function PackagesTable() {
     },
   }), [loadPlans, language]);
 
+  // ✨ Handle save edited plan
+  const handleSavePlan = async (editedData: any) => {
+    try {
+      const { error } = await supabase
+        .from('subscription_plans')
+        .update({
+          name_ar: editedData.name_ar,
+          name_en: editedData.name_en,
+          description_ar: editedData.description_ar,
+          description_en: editedData.description_en,
+          price: editedData.price,
+          currency: editedData.currency,
+          billing_cycle: editedData.billing_cycle,
+          max_users: editedData.max_users,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editedData.id);
+
+      if (error) throw error;
+
+      toast.success(language === 'ar' ? 'تم حفظ التعديلات بنجاح' : 'Changes saved successfully');
+      await loadPlans();
+    } catch (error: any) {
+      console.error('Error saving plan:', error);
+      toast.error(language === 'ar' ? 'فشل حفظ التعديلات' : 'Failed to save changes');
+      throw error;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with Product Filter and Currency Filter */}
@@ -450,7 +479,7 @@ export default function PackagesTable() {
         emptyMessage={language === 'ar' ? 'لا توجد باقات' : 'No packages found'}
       />
 
-      {/* Plan Details Sheet - SaaS Unified Version */}
+      {/* Plan Details Sheet - SaaS Unified Version with Edit Mode */}
       {selectedPlan && (
         <SaaSDetailSheet
           isOpen={isDetailsOpen}
@@ -461,9 +490,9 @@ export default function PackagesTable() {
           docType="plan"
           data={selectedPlan}
           onRefresh={loadPlans}
-          onEdit={() => {
-            toast.info(language === 'ar' ? 'سيتم فتح نافذة التعديل قريباً' : 'Edit dialog coming soon');
-          }}
+          editMode="toggle"
+          onSave={handleSavePlan}
+          editable={true}
         />
       )}
     </div>

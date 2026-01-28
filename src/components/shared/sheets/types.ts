@@ -30,6 +30,11 @@ export interface TabComponentProps {
   t: (key: string) => string;
   direction: 'ltr' | 'rtl';
   onRefresh?: () => void;
+  
+  // ✨ Edit Mode Support
+  isEditing?: boolean;
+  onUpdate?: (key: string, value: any) => void;
+  errors?: Record<string, string>;
 }
 
 // ===== Action Button =====
@@ -55,6 +60,48 @@ export interface ActionContext {
   };
 }
 
+// ===== Field Configuration for Edit Mode =====
+export type FieldType = 
+  | 'text' 
+  | 'number' 
+  | 'select' 
+  | 'multiselect' 
+  | 'date' 
+  | 'datetime'
+  | 'textarea' 
+  | 'checkbox' 
+  | 'switch'
+  | 'currency'
+  | 'email'
+  | 'url';
+
+export interface FieldConfig {
+  key: string; // Field key in data object
+  type: FieldType;
+  label?: string; // Auto-generate from key if not provided
+  editable: boolean;
+  required?: boolean;
+  tab?: string; // Which tab this field belongs to
+  placeholder?: string;
+  helpText?: string;
+  options?: Array<{ value: any; label: string }>; // For select/multiselect
+  min?: number; // For number/date
+  max?: number; // For number/date
+  validate?: (value: any, allData?: any) => string | null; // Custom validation
+  transform?: (value: any) => any; // Transform before save
+  dependencies?: string[]; // Fields that affect this field
+}
+
+export interface EditConfig {
+  enabled: boolean;
+  defaultMode?: 'view' | 'edit';
+  fields: FieldConfig[];
+  onSave?: (data: any) => Promise<void>;
+  validation?: (data: any) => Record<string, string>; // Global validation
+  saveButtonText?: string;
+  cancelButtonText?: string;
+}
+
 // ===== Sheet Configuration =====
 export interface BaseSheetConfig {
   // Header
@@ -76,6 +123,9 @@ export interface BaseSheetConfig {
   
   // Size
   width?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  
+  // ✨ Edit Mode Configuration
+  editConfig?: EditConfig;
 }
 
 // ===== Props =====
@@ -91,6 +141,11 @@ export interface BaseDetailSheetProps {
     onRefresh?: () => void;
     onEdit?: (data: any) => void;
   };
+  
+  // ✨ Edit Mode Props
+  editMode?: 'none' | 'toggle' | 'always'; // none = view only, toggle = show edit button, always = always in edit mode
+  onSave?: (data: any) => Promise<void>;
+  editable?: boolean; // Can this item be edited?
 }
 
 // ===== Size Classes =====
