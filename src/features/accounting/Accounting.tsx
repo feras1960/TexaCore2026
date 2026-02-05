@@ -9,15 +9,17 @@ import { useLocation } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import SectionLoader from '@/components/common/SectionLoader';
-import { 
-  LayoutDashboard, 
-  BookOpen, 
-  Calculator, 
-  BookMarked, 
-  Wallet, 
-  Users, 
-  Settings, 
-  FileText 
+import {
+  LayoutDashboard,
+  BookOpen,
+  Calculator,
+  BookMarked,
+  Wallet,
+  Users,
+  Settings,
+  FileText,
+  PieChart,
+  RefreshCw
 } from 'lucide-react';
 
 // Lazy load components for better performance
@@ -29,6 +31,9 @@ const AccountingDashboard = lazy(() => import('./AccountingDashboard'));
 const AccountingReports = lazy(() => import('./AccountingReports'));
 const Parties = lazy(() => import('./Parties'));
 const AccountingSettings = lazy(() => import('./AccountingSettings'));
+
+const BudgetPage = lazy(() => import('./BudgetPage'));
+const RecurringEntriesPage = lazy(() => import('./RecurringEntriesPage'));
 
 // Loading component for Suspense
 const TabContentLoader = () => (
@@ -48,6 +53,9 @@ export default function Accounting() {
       if (path.includes('/general-ledger')) return 'general-ledger';
       if (path.includes('/funds')) return 'funds';
       if (path.includes('/parties')) return 'parties';
+
+      if (path.includes('/budget')) return 'budget';
+      if (path.includes('/recurring')) return 'recurring';
       if (path.includes('/settings')) return 'settings';
       if (path.includes('/reports')) return 'reports';
       return 'dashboard';
@@ -91,8 +99,19 @@ export default function Accounting() {
     },
     {
       id: 'parties',
-      labelKey: 'accounting.parties',
+      labelKey: 'parties.title',
       icon: Users,
+    },
+
+    {
+      id: 'budget',
+      labelKey: 'accounting.budget',
+      icon: PieChart,
+    },
+    {
+      id: 'recurring',
+      labelKey: 'accounting.recurring',
+      icon: RefreshCw,
     },
     {
       id: 'settings',
@@ -127,6 +146,11 @@ export default function Accounting() {
         return <FundsManagement />;
       case 'parties':
         return <Parties />;
+
+      case 'budget':
+        return <BudgetPage />;
+      case 'recurring':
+        return <RecurringEntriesPage />;
       case 'settings':
         return <AccountingSettings />;
       case 'reports':

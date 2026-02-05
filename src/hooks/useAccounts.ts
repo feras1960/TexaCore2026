@@ -1,9 +1,10 @@
 /**
- * useAccounts Hook
- * React hook for managing accounts data
+ * useAccounts Hook (Optimized with React Query)
+ * Features caching with long staleTime for instant load.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { accountsService, type Account, type CreateAccountInput } from '@/services/accountsService';
 
 interface UseAccountsOptions {
@@ -24,121 +25,78 @@ interface UseAccountsReturn {
 
 export function useAccounts(options: UseAccountsOptions = {}): UseAccountsReturn {
   const { companyId, accountType, autoFetch = true } = options;
+  const queryClient = useQueryClient();
 
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const queryKey = ['accounts', companyId, accountType || 'all'];
 
-  /**
-   * Fetch accounts from Supabase
-   */
-  const fetchAccounts = useCallback(async () => {
-    if (!companyId) {
-      // Don't clear accounts when companyId is temporarily unavailable
-      // This prevents flickering during auth state changes
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      let data: Account[];
-
+  // Query: Fetch Accounts
+  const {
+    data: accounts = [],
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!companyId) return [];
       if (accountType) {
-        data = await accountsService.getByType(companyId, accountType);
+        return await accountsService.getByType(companyId, accountType);
       } else {
-        data = await accountsService.getAll(companyId);
-      }
-
-      setAccounts(data);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to fetch accounts');
-      setError(error);
-      console.error('Error fetching accounts:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId, accountType]);
-
-  /**
-   * Refetch accounts
-   */
-  const refetch = useCallback(async () => {
-    await fetchAccounts();
-  }, [fetchAccounts]);
-
-  /**
-   * Create a new account
-   */
-  const createAccount = useCallback(
-    async (input: CreateAccountInput): Promise<Account> => {
-      setError(null);
-      try {
-        const newAccount = await accountsService.create(input);
-        // Refresh the list
-        await fetchAccounts();
-        return newAccount;
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to create account');
-        setError(error);
-        throw error;
+        return await accountsService.getAll(companyId);
       }
     },
-    [fetchAccounts]
-  );
+    enabled: !!companyId && autoFetch,
+    staleTime: 10 * 60 * 1000, // 10 minutes (Consider fresh for 10 mins)
+    gcTime: 30 * 60 * 1000, // 30 minutes (Keep in cache)
+  });
 
-  /**
-   * Update an account
-   */
-  const updateAccount = useCallback(
-    async (id: string, updates: Partial<CreateAccountInput>): Promise<Account> => {
-      setError(null);
-      try {
-        const updatedAccount = await accountsService.update(id, updates);
-        // Refresh the list
-        await fetchAccounts();
-        return updatedAccount;
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to update account');
-        setError(error);
-        throw error;
-      }
+  // Mutation: Create Account
+  const createMutation = useMutation({
+    mutationFn: (input: CreateAccountInput) => accountsService.create(input),
+    onSuccess: () => {
+      // Invalidate valid queries so they refetch next time (or optimistic update)
+      queryClient.invalidateQueries({ queryKey: ['accounts', companyId] });
     },
-    [fetchAccounts]
-  );
+  });
 
-  /**
-   * Delete an account
-   */
-  const deleteAccount = useCallback(
-    async (id: string): Promise<void> => {
-      setError(null);
-      try {
-        await accountsService.delete(id);
-        // Refresh the list
-        await fetchAccounts();
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to delete account');
-        setError(error);
-        throw error;
-      }
+  // Mutation: Update Account
+  const updateMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<CreateAccountInput> }) =>
+      accountsService.update(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts', companyId] });
     },
-    [fetchAccounts]
-  );
+  });
 
-  // Auto-fetch on mount and when dependencies change
-  useEffect(() => {
-    if (autoFetch) {
-      fetchAccounts();
-    }
-  }, [fetchAccounts, autoFetch]);
+  // Mutation: Delete Account
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => accountsService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts', companyId] });
+    },
+  });
+
+  // Wrappers to match original interface
+  const createAccount = useCallback(async (input: CreateAccountInput) => {
+    return await createMutation.mutateAsync(input);
+  }, [createMutation]);
+
+  const updateAccount = useCallback(async (id: string, updates: Partial<CreateAccountInput>) => {
+    return await updateMutation.mutateAsync({ id, updates });
+  }, [updateMutation]);
+
+  const deleteAccount = useCallback(async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+  }, [deleteMutation]);
+
+  // Cast error to Error type safely
+  const formattedError = error instanceof Error ? error : error ? new Error('Unknown error') : null;
 
   return {
     accounts,
     loading,
-    error,
-    refetch,
+    error: formattedError,
+    refetch: async () => { await refetch(); },
     createAccount,
     updateAccount,
     deleteAccount,

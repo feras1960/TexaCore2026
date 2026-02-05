@@ -4,8 +4,7 @@
 // Tables
 export { NexaTable } from './tables/NexaTable';
 export type { Column, NexaTableProps } from './tables/NexaTable';
-export { NexaGrid } from './tables/NexaGrid';
-export type { NexaGridColumn, NexaGridProps, NexaGridStats } from './tables/NexaGrid';
+
 export { LedgerTable } from './tables/LedgerTable';
 export type { LedgerColumn, LedgerFilters, LedgerStats, LedgerTableProps, QuickFilter } from './tables/LedgerTable';
 

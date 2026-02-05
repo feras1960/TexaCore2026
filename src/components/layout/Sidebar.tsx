@@ -4,28 +4,15 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { useModules } from '@/hooks/useModules';
+import { useAuth } from '@/hooks/useAuth';
+import { useRBAC } from '@/hooks/useRBAC';
+import { STATIC_MODULES } from '@/config/modules';
 import Logo from '@/components/common/Logo';
-import { 
-  LayoutDashboard, 
-  Calculator, 
-  Package, 
-  ShoppingCart, 
-  ShoppingBag, 
-  Users, 
-  Settings,
-  Brain,
-  Crown,
-  ScanBarcode,
-  ArrowRightLeft,
-  Factory,
-  UserCog,
-  Building2,
-  Globe,
-  Beaker,
-  History,
+import {
+  Package,
   Lock,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from 'lucide-react';
 import {
   Tooltip,
@@ -38,87 +25,63 @@ interface SidebarProps {
   className?: string;
 }
 
-// خريطة الأيقونات لكل موديول
-const moduleIcons: Record<string, any> = {
-  dashboard: LayoutDashboard,
-  accounting: Calculator,
-  inventory: Package,
-  sales: ShoppingCart,
-  purchases: ShoppingBag,
-  crm: Users,
-  real_estate: Building2,
-  pos: ScanBarcode,
-  exchange: ArrowRightLeft,
-  manufacturing: Factory,
-  hr: UserCog,
-  ecommerce: Globe,
-  saas: Crown,
-  ai_analytics: Brain,
-  activity_log: History,
-  system_config: Settings,
-  component_lab: Beaker,
-};
-
-// خريطة المسارات لكل موديول
-const modulePaths: Record<string, string> = {
-  dashboard: '/',
-  accounting: '/accounting',
-  inventory: '/inventory',
-  sales: '/sales',
-  purchases: '/purchases',
-  crm: '/crm',
-  real_estate: '/real-estate',
-  pos: '/pos',
-  exchange: '/exchange',
-  manufacturing: '/manufacturing',
-  hr: '/hr',
-  ecommerce: '/ecommerce',
-  saas: '/saas',
-  ai_analytics: '/ai-analytics',
-  activity_log: '/activity-log',
-  system_config: '/system-config',
-  component_lab: '/component-lab',
-};
-
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
   const { t, direction, language } = useLanguage();
-  const { modules, loading, error } = useModules();
+  const { isSuperAdmin } = useAuth();
 
-  // التعامل مع حالة التحميل
-  if (loading) {
+  // 🛡️ RBAC: استخدام نظام الصلاحيات للتحكم بالموديولات
+  const {
+    visibleModules: roleVisibleModules,
+    canSeeModule,
+    isPlatformAdmin,
+    loading: rbacLoading
+  } = useRBAC();
+
+  // 🛡️ SECURITY: فلترة الموديولات حسب الصلاحيات والأدوار
+  const filteredModules = STATIC_MODULES.filter(module => {
+    // 1. إذا كان الموديول يتطلب Super Admin (مدير المنصة)، نتحقق من الصلاحية
+    if (module.requires_super_admin && !isSuperAdmin && !isPlatformAdmin()) {
+      return false;
+    }
+
+    // 2. إذا كان المستخدم super_admin أو isSuperAdmin، يرى كل شيء
+    if (isSuperAdmin || isPlatformAdmin()) {
+      return true;
+    }
+
+    // 3. التحقق من visible_modules للدور (من قاعدة البيانات)
+    // إذا كانت القائمة تحتوي على 'all'، يرى كل شيء
+    if (roleVisibleModules.includes('all')) {
+      return true;
+    }
+
+    // 4. التحقق من أن الموديول موجود في قائمة الموديولات المسموح بها للدور
+    if (roleVisibleModules.length > 0 && !canSeeModule(module.code)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // عرض مؤشر تحميل أثناء جلب الصلاحيات
+  if (rbacLoading) {
     return (
-      <TooltipProvider delayDuration={100}>
-        <motion.aside 
-          className={cn(
-            "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full overflow-y-auto py-6 px-3 lg:px-4 hidden md:flex flex-col", 
-            direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
-            className
-          )}
-        >
-          <div className="mb-6 flex justify-center px-2">
-            <Logo size="lg" showText={true} />
-          </div>
-          <div className="space-y-2 animate-pulse">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg" />
-            ))}
-          </div>
-        </motion.aside>
-      </TooltipProvider>
+      <aside className={cn(
+        "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full py-6 px-3 lg:px-4 hidden md:flex flex-col items-center justify-center",
+        direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
+        className
+      )}>
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </aside>
     );
-  }
-
-  // التعامل مع الخطأ - عرض قائمة افتراضية
-  if (error) {
-    console.error('Error loading modules:', error);
   }
 
   return (
     <TooltipProvider delayDuration={100}>
-      <motion.aside 
+      <motion.aside
         className={cn(
-          "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full overflow-y-auto py-6 px-3 lg:px-4 hidden md:flex flex-col", 
+          "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full overflow-y-auto py-6 px-3 lg:px-4 hidden md:flex flex-col",
           direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
           className
         )}
@@ -133,21 +96,20 @@ export function Sidebar({ className }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="space-y-1.5 flex-1">
-          {modules.map((module) => {
-            const path = modulePaths[module.module_code] || `/${module.module_code}`;
-            const isActive = path === '/' 
-              ? location.pathname === '/' 
-              : location.pathname.startsWith(path);
-            
-            const Icon = moduleIcons[module.module_code] || Package;
-            
+          {filteredModules.map((module) => {
+            const isActive = module.path === '/'
+              ? location.pathname === '/'
+              : location.pathname.startsWith(module.path);
+
+            const Icon = module.icon || Package;
+
             // اسم الموديول حسب اللغة
             const moduleName = language === 'ar' ? module.name_ar : module.name_en;
-            
+
             // إذا كان الموديول غير مفعل، عرض زر Upgrade
             if (!module.is_enabled) {
               return (
-                <Tooltip key={module.module_code}>
+                <Tooltip key={module.code}>
                   <TooltipTrigger asChild>
                     <div
                       className={cn(
@@ -158,7 +120,7 @@ export function Sidebar({ className }: SidebarProps) {
                       <Icon className="w-5 h-5 flex-shrink-0 text-gray-300 dark:text-gray-700" />
                       <span className="hidden lg:block truncate">{moduleName}</span>
                       <Lock className="w-3.5 h-3.5 ms-auto flex-shrink-0 text-gray-300 dark:text-gray-700" />
-                      
+
                       {/* Upgrade Badge */}
                       <div className="absolute inset-0 bg-gradient-to-r from-erp-teal/5 to-blue-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
@@ -167,8 +129,8 @@ export function Sidebar({ className }: SidebarProps) {
                     <div className="text-center max-w-xs">
                       <p className="font-semibold mb-1">{moduleName}</p>
                       <p className="text-xs text-gray-400 mb-2">
-                        {module.requires_upgrade 
-                          ? t('sidebar.upgradeRequired') 
+                        {module.requires_upgrade
+                          ? t('sidebar.upgradeRequired')
                           : t('sidebar.moduleDisabled')}
                       </p>
                       {module.requires_upgrade && (
@@ -182,22 +144,22 @@ export function Sidebar({ className }: SidebarProps) {
                 </Tooltip>
               );
             }
-            
+
             // الموديول مفعل - عرض عادي
             return (
-              <Tooltip key={module.module_code}>
+              <Tooltip key={module.code}>
                 <TooltipTrigger asChild>
                   <Link
-                    to={path}
+                    to={module.path}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-tajawal font-medium text-sm group",
-                      isActive 
-                        ? "bg-erp-navy dark:bg-gray-800 text-white shadow-md" 
+                      isActive
+                        ? "bg-erp-navy dark:bg-gray-800 text-white shadow-md"
                         : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-erp-navy dark:hover:text-white"
                     )}
                   >
                     <Icon className={cn(
-                      "w-5 h-5 flex-shrink-0 transition-colors", 
+                      "w-5 h-5 flex-shrink-0 transition-colors",
                       isActive ? "text-erp-teal" : "text-gray-400 dark:text-gray-500 group-hover:text-erp-teal"
                     )} />
                     <span className="hidden lg:block truncate">{moduleName}</span>
@@ -217,9 +179,9 @@ export function Sidebar({ className }: SidebarProps) {
             <p className="text-xs text-gray-500 dark:text-gray-400 font-tajawal mb-3">
               {t('sidebar.needHelp')}
             </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="w-full border-erp-navy dark:border-gray-600 text-erp-navy dark:text-gray-200 hover:bg-erp-navy dark:hover:bg-gray-700 hover:text-white font-tajawal text-xs"
             >
               {t('sidebar.contactSupport')}
@@ -230,3 +192,4 @@ export function Sidebar({ className }: SidebarProps) {
     </TooltipProvider>
   );
 }
+

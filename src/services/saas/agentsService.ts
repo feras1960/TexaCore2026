@@ -74,10 +74,15 @@ class AgentsService {
    */
   async getAll(): Promise<Agent[]> {
     const tenantId = await getCurrentTenantIdAsync();
-    
+
     // Check if user is super admin - they see all agents
+    // 🛡️ SECURITY: استدعاء الدالة الآمنة بدلاً من قراءة user_metadata
     const { data: { user } } = await supabase.auth.getUser();
-    const isSuperAdmin = user?.app_metadata?.is_super_admin || user?.user_metadata?.is_super_admin;
+    let isSuperAdmin = false;
+    if (user) {
+      const { data: superAdminCheck } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
+      isSuperAdmin = superAdminCheck === true;
+    }
 
     let query = supabase
       .from('agents')
@@ -88,9 +93,9 @@ class AgentsService {
       if (!isSuperAdmin && tenantId) {
         query = query.eq('tenant_id', tenantId);
       }
-      
+
       const { data, error } = await query.order('created_at', { ascending: false });
-      
+
       if (error) {
         // If it's a "column does not exist" error, retry without the filter
         if (error.message.includes('column agents.tenant_id does not exist')) {
@@ -99,7 +104,7 @@ class AgentsService {
             .from('agents')
             .select('*')
             .order('created_at', { ascending: false });
-            
+
           if (retryError) throw new Error(retryError.message);
           return retryData || [];
         }
@@ -115,7 +120,7 @@ class AgentsService {
           .select('*')
           .order('created_at', { ascending: false });
         if (!error) return data || [];
-      } catch (innerErr) {}
+      } catch (innerErr) { }
       throw err;
     }
   }

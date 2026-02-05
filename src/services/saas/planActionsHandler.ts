@@ -25,14 +25,14 @@ export async function activatePlan(planId: string, language: 'ar' | 'en', handle
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم تفعيل الباقة بنجاح' : 'Plan activated successfully');
-    
+
     // التحديث بعد تأخير صغير
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error activating plan:', error);
@@ -54,14 +54,14 @@ export async function deactivatePlan(planId: string, language: 'ar' | 'en', hand
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم تعطيل الباقة بنجاح' : 'Plan deactivated successfully');
-    
+
     // التحديث بعد تأخير صغير
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error deactivating plan:', error);
@@ -92,13 +92,13 @@ export async function setAsPopular(planId: string, language: 'ar' | 'en', handle
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم تعيين الباقة كمميزة' : 'Plan set as popular');
-    
+
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error setting plan as popular:', error);
@@ -120,13 +120,13 @@ export async function removePopular(planId: string, language: 'ar' | 'en', handl
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم إزالة علامة "مميز"' : 'Removed popular status');
-    
+
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error removing popular status:', error);
@@ -145,8 +145,8 @@ export async function duplicatePlan(plan: Plan, language: 'ar' | 'en', handlers?
       ...plan,
       id: undefined, // سيتم توليد ID جديد
       code: `${plan.code}_copy_${Date.now()}`,
-      name_en: `${plan.name_en} (Copy)`,
-      name_ar: `${plan.name_ar} (نسخة)`,
+      name: `${plan.name} (Copy)`,
+      name_ar: `${plan.name_ar || plan.name} (نسخة)`,
       is_popular: false,
       is_active: false,
       created_at: undefined,
@@ -162,13 +162,13 @@ export async function duplicatePlan(plan: Plan, language: 'ar' | 'en', handlers?
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم نسخ الباقة بنجاح' : 'Plan duplicated successfully');
-    
+
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return data;
   } catch (error: any) {
     console.error('Error duplicating plan:', error);
@@ -184,7 +184,7 @@ export async function archivePlan(planId: string, language: 'ar' | 'en', handler
   try {
     const { error } = await supabase
       .from('subscription_plans')
-      .update({ 
+      .update({
         is_active: false,
         is_archived: true,
         archived_at: new Date().toISOString()
@@ -194,13 +194,13 @@ export async function archivePlan(planId: string, language: 'ar' | 'en', handler
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم أرشفة الباقة بنجاح' : 'Plan archived successfully');
-    
+
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error archiving plan:', error);
@@ -226,8 +226,8 @@ export async function deletePlan(planId: string, language: 'ar' | 'en', handlers
 
     if (subscriptions && subscriptions.length > 0) {
       toast.error(
-        language === 'ar' 
-          ? 'لا يمكن حذف باقة لديها اشتراكات نشطة' 
+        language === 'ar'
+          ? 'لا يمكن حذف باقة لديها اشتراكات نشطة'
           : 'Cannot delete plan with active subscriptions'
       );
       return false;
@@ -241,13 +241,13 @@ export async function deletePlan(planId: string, language: 'ar' | 'en', handlers
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم حذف الباقة بنجاح' : 'Plan deleted successfully');
-    
+
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error deleting plan:', error);
@@ -269,13 +269,13 @@ export async function updatePlan(planId: string, updates: Partial<Plan>, languag
     if (error) throw error;
 
     toast.success(language === 'ar' ? 'تم تحديث الباقة بنجاح' : 'Plan updated successfully');
-    
+
     if (handlers?.onRefresh) {
       setTimeout(() => {
         handlers.onRefresh?.();
       }, 300);
     }
-    
+
     return true;
   } catch (error: any) {
     console.error('Error updating plan:', error);

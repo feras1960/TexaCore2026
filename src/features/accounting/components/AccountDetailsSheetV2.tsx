@@ -19,9 +19,9 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
-import { 
-  FileText, 
-  Receipt, 
+import {
+  FileText,
+  Receipt,
   Printer,
   X,
   Edit2,
@@ -54,7 +54,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
 // Import LedgerTable
-import { LedgerTable, type LedgerColumn, type LedgerStats } from '@/components/shared';
+import { LedgerTable, type LedgerColumn, type LedgerStats, type MarkerColorId } from '@/components/shared';
 
 // Import hooks for real data
 import { useAccountLedger, useAccountPayments, useRecentActivity } from '@/hooks/useAccountLedger';
@@ -78,9 +78,9 @@ interface AccountDetailsSheetV2Props {
 }
 
 // ===== MAIN COMPONENT =====
-export default function AccountDetailsSheetV2({ 
-  account, 
-  open, 
+export default function AccountDetailsSheetV2({
+  account,
+  open,
   isOpen: isOpenProp,
   onOpenChange,
   onClose: onCloseProp,
@@ -188,13 +188,13 @@ export default function AccountDetailsSheetV2({
 
   const accountName = getAccountName(account, language as SupportedLanguage);
   const accountStatus = account.is_active !== false ? 'active' : 'inactive';
-  const statusColor = accountStatus === 'active' 
-    ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400' 
+  const statusColor = accountStatus === 'active'
+    ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400'
     : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400';
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent 
+      <SheetContent
         side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[75vw] p-0 gap-0 flex flex-col"
       >
@@ -313,9 +313,9 @@ export default function AccountDetailsSheetV2({
             />
           )}
           {mainTab === 'invoices' && (
-            <InvoicesTab 
-              language={language} 
-              t={t} 
+            <InvoicesTab
+              language={language}
+              t={t}
               invoices={realInvoices}
               stats={invoiceStats}
               loading={invoicesLoading}
@@ -334,9 +334,9 @@ export default function AccountDetailsSheetV2({
             />
           )}
           {mainTab === 'reservations' && (
-            <ReservationsTab 
-              language={language} 
-              t={t} 
+            <ReservationsTab
+              language={language}
+              t={t}
               reservations={realReservations}
               stats={reservationStats}
               loading={reservationsLoading}
@@ -371,7 +371,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
   const creditLimit = 100000;
   const usedCredit = Math.abs(stats.currentBalance);
   const creditUsagePercent = Math.min((usedCredit / creditLimit) * 100, 100);
-  
+
   return (
     <ScrollArea className="h-full">
       <div className="p-4 space-y-4">
@@ -386,7 +386,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
               {stats.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <ArrowDownRight className="w-4 h-4 text-red-500" />
@@ -396,7 +396,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
               {stats.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <BarChart3 className="w-4 h-4 text-gray-500" />
@@ -406,7 +406,7 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
               {stats.transactionCount}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <Calendar className="w-4 h-4 text-gray-500" />
@@ -553,6 +553,35 @@ function OverviewTab({ account, language, t, stats, loading, recentActivities, a
 
 // ===== LEDGER TAB - Using LedgerTable =====
 function LedgerTab({ account, language, t, entries, loading, error, totalDebit, totalCredit, openingBalance, currentBalance, onRefresh }: any) {
+  // Handle marker color change - save to database
+  const handleMarkerChange = async (rowIds: string[], color: MarkerColorId) => {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // Update marker_color for selected journal entry lines
+      const { error } = await supabase
+        .from('journal_entry_lines')
+        .update({
+          marker_color: color,
+          marked_at: new Date().toISOString()
+        })
+        .in('id', rowIds);
+
+      if (error) {
+        console.error('Error updating marker:', error);
+        return;
+      }
+
+      // Refresh data to show the new colors
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error('Error updating marker:', err);
+    }
+  };
+
   // Column order: debit, credit, description, date, status, reference, balance
   const columns: LedgerColumn<LedgerEntry>[] = [
     {
@@ -663,6 +692,8 @@ function LedgerTab({ account, language, t, entries, loading, error, totalDebit, 
       showRowNumbers
       showFooterTotals
       variant="ledger"
+      enableMarker
+      onMarkerChange={handleMarkerChange}
       onRefresh={onRefresh}
       onPrint={() => window.print()}
       onExport={() => { /* TODO: Implement export */ }}
@@ -694,22 +725,22 @@ function InvoicesTab({ language, t, invoices, stats: invoiceStats, loading, onRe
     { key: 'status', title: 'common.status', width: '100px', type: 'status' },
     { key: 'date', title: 'common.date', width: '100px', type: 'date' },
     { key: 'customerName', title: t('common.customer') },
-    { 
-      key: 'paidAmount', 
-      title: t('common.paid'), 
-      width: '120px', 
-      align: 'end', 
+    {
+      key: 'paidAmount',
+      title: t('common.paid'),
+      width: '120px',
+      align: 'end',
       render: (value) => (
         <span className="font-mono text-green-600 dark:text-green-400">
           {value > 0 ? value.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}
         </span>
       ),
     },
-    { 
-      key: 'amount', 
-      title: 'common.amount', 
-      width: '120px', 
-      align: 'end', 
+    {
+      key: 'amount',
+      title: 'common.amount',
+      width: '120px',
+      align: 'end',
       render: (value) => (
         <span className="font-mono font-medium text-gray-700 dark:text-gray-300">
           {value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -739,7 +770,7 @@ function InvoicesTab({ language, t, invoices, stats: invoiceStats, loading, onRe
       showFooterTotals
       variant="invoices"
       onRefresh={onRefresh}
-      emptyMessage={language === 'ar' 
+      emptyMessage={language === 'ar'
         ? 'لا توجد فواتير مرتبطة بهذا الحساب'
         : 'No invoices linked to this account'}
       emptyIcon={<Receipt className="w-16 h-16 text-gray-300 dark:text-gray-600" />}
@@ -851,22 +882,22 @@ function ReservationsTab({ language, t, reservations, stats: reservationStats, l
     { key: 'status', title: 'common.status', width: '100px', type: 'status' },
     { key: 'date', title: 'common.date', width: '100px', type: 'date' },
     { key: 'customerName', title: t('common.customer') },
-    { 
-      key: 'depositPaid', 
-      title: t('common.deposit'), 
-      width: '120px', 
-      align: 'end', 
+    {
+      key: 'depositPaid',
+      title: t('common.deposit'),
+      width: '120px',
+      align: 'end',
       render: (value) => (
         <span className="font-mono text-green-600 dark:text-green-400">
           {value > 0 ? value.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}
         </span>
       ),
     },
-    { 
-      key: 'value', 
-      title: t('common.value'), 
-      width: '120px', 
-      align: 'end', 
+    {
+      key: 'value',
+      title: t('common.value'),
+      width: '120px',
+      align: 'end',
       render: (value) => (
         <span className="font-mono font-medium text-gray-700 dark:text-gray-300">
           {value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -907,7 +938,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
   // Growth rate calculation
   const growthRate = stats.totalDebit > 0 ? ((stats.totalDebit - stats.totalCredit) / stats.totalDebit * 100) : 0;
   const avgTransaction = entriesCount > 0 ? (stats.totalDebit + stats.totalCredit) / 2 / entriesCount : 0;
-  
+
   return (
     <ScrollArea className="h-full">
       <div className="p-4 space-y-4">
@@ -945,7 +976,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
                   {t('ai.spendingPattern')}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {language === 'ar' 
+                  {language === 'ar'
                     ? `لاحظنا زيادة بنسبة ${Math.abs(growthRate).toFixed(0)}% في المصروفات مقارنة بالشهر الماضي`
                     : `We noticed a ${Math.abs(growthRate).toFixed(0)}% ${growthRate >= 0 ? 'increase' : 'decrease'} in expenses compared to last month`}
                 </p>
@@ -964,7 +995,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
                   {t('ai.balanceForecast')}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {language === 'ar' 
+                  {language === 'ar'
                     ? `بناءً على النمط الحالي، نتوقع أن يصل الرصيد إلى ${(stats.currentBalance * 1.1).toLocaleString()} ر.س بنهاية الشهر`
                     : `Based on current patterns, we expect the balance to reach ${(stats.currentBalance * 1.1).toLocaleString()} SAR by month end`}
                 </p>
@@ -983,7 +1014,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
                   {language === 'ar' ? 'تنبيه مهم' : 'Important Alert'}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {language === 'ar' 
+                  {language === 'ar'
                     ? 'هناك 3 فواتير مستحقة الدفع خلال الأسبوع القادم'
                     : 'There are 3 invoices due for payment within the next week'}
                 </p>
@@ -1006,7 +1037,7 @@ function AIAnalysisTab({ language, t, stats, entriesCount }: any) {
               {growthRate >= 0 ? '+' : ''}{growthRate.toFixed(1)}%
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <BarChart3 className="w-4 h-4" />
@@ -1105,8 +1136,8 @@ function EventsTab({ language, t, activities, loading }: any) {
             ))}
           </div>
         ) : (
-          <EmptyState 
-            message={t('common.noRecentEvents')} 
+          <EmptyState
+            message={t('common.noRecentEvents')}
           />
         )}
       </div>

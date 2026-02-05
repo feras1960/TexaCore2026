@@ -50,6 +50,8 @@ export interface LedgerFilters {
   status?: 'all' | 'posted' | 'draft';
   entryType?: string;
   search?: string;
+  costCenterId?: string;
+  projectId?: string;
 }
 
 export interface PaymentEntry {
@@ -134,10 +136,27 @@ export const accountLedgerService = {
       }
     }
 
+    // Cost Center Filter
+    if (filters.costCenterId && filters.costCenterId !== 'all') {
+      const isNull = filters.costCenterId === 'null'; // Handle "No Cost Center" case if needed
+      if (!isNull) {
+        query = query.eq('cost_center_id', filters.costCenterId);
+      } else {
+        query = query.is('cost_center_id', null);
+      }
+    }
+
+    // Project Filter (Assuming project_id exists in lines, if not, we check journal_entries)
+    // Based on standard schemas, project usually lines or header. 
+    // Checking previous mocks, project was line level. I will assume line level `project_id`.
+    if (filters.projectId && filters.projectId !== 'all') {
+      query = query.eq('project_id', filters.projectId);
+    }
+
     // Order by date and entry number
     query = query.order('journal_entries(entry_date)', { ascending: true })
-                 .order('journal_entries(entry_number)', { ascending: true })
-                 .order('line_number', { ascending: true });
+      .order('journal_entries(entry_number)', { ascending: true })
+      .order('line_number', { ascending: true });
 
     const { data, error } = await query;
 
@@ -161,7 +180,7 @@ export const accountLedgerService = {
       const entry = line.journal_entries;
       const debit = line.debit || 0;
       const credit = line.credit || 0;
-      
+
       // Calculate running balance (debit increases, credit decreases for asset accounts)
       runningBalance = runningBalance + debit - credit;
 

@@ -31,13 +31,14 @@ export interface Company {
   zakat_rate?: number;
   inventory_valuation_method: string;
   chart_type?: string; // نوع شجرة الحسابات: simple, extended, fabric_extended
+  status?: 'active' | 'suspended' | 'deleted';
   created_at: string;
   updated_at: string;
 }
 
 export const companiesService = {
   /**
-   * Get all companies
+   * Get all companies (Super Admin)
    */
   async getAll(): Promise<Company[]> {
     const { data, error } = await supabase
@@ -51,6 +52,74 @@ export const companiesService = {
     }
 
     return data || [];
+  },
+
+  /**
+   * Get all companies with Tenant info (Super Admin)
+   */
+  async getAllWithTenant(): Promise<any[]> {
+    // We explicitly cast the result because the types usually don't have the joined table
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*, tenant:tenants(id, name, code, status)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching companies with tenant:', error);
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  /**
+   * Get companies by Tenant ID
+   */
+  async getByTenantId(tenantId: string): Promise<Company[]> {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*, tenants(name)')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Suspend a company
+   */
+  async suspend(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('companies')
+      .update({ status: 'suspended', updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Activate a company
+   */
+  async activate(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('companies')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Delete a company
+   */
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('companies')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
   },
 
   /**

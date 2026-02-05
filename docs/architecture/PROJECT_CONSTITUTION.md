@@ -80,6 +80,60 @@ try {
 
 ---
 
+### 5️⃣ Performance (الأداء) - إلزامي 100%
+
+```typescript
+// ⚡ Keep-Mounted Pattern للتبويبات (بدون رمشة)
+// جميع التبويبات تُبنى مرة واحدة ويتم التحكم بالرؤية عبر CSS
+
+{tabs.map((tab) => (
+  <div
+    key={tab.id}
+    className={activeTab === tab.id ? 'block' : 'hidden'}
+    style={{ 
+      contain: activeTab === tab.id ? 'none' : 'strict',
+      contentVisibility: activeTab === tab.id ? 'visible' : 'hidden'
+    }}
+  >
+    <TabComponent />
+  </div>
+))}
+```
+
+**📋 قواعد الأداء:**
+- [ ] استخدم Keep-Mounted للتبويبات (بدلاً من Lazy/Suspense)
+- [ ] استخدم `useMemo` و `useCallback` لمنع re-renders
+- [ ] استخدم `contain: strict` للعناصر المخفية
+- [ ] لا تستخدم Lazy Loading للتبويبات الداخلية
+
+---
+
+### 6️⃣ Typography (الخطوط) - إلزامي 100%
+
+```css
+/* العناوين الرئيسية */
+.heading { font-family: Cairo; font-weight: 700; }
+
+/* المحتوى والنصوص */
+.content { font-family: Tajawal; }
+
+/* الأرقام والأكواد */
+.numbers { font-family: monospace; }
+
+/* التسميات الصغيرة */
+.labels { font-size: 12px; /* text-xs */ }
+```
+
+**📋 معايير الخطوط:**
+
+| العنصر | الخط | الـ class |
+|--------|------|-----------|
+| العناوين | Cairo | `font-cairo font-bold` |
+| المحتوى | Tajawal | `font-tajawal` |
+| الأرقام | Mono | `font-mono` |
+| التسميات | - | `text-xs text-muted-foreground` |
+| المبالغ | Mono + Color | `font-mono font-bold text-erp-teal` |
+
 ## 🌍 اللغات المدعومة (9 لغات)
 
 | اللغة | الكود | الملف |

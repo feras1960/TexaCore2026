@@ -30,22 +30,22 @@ import { ActivityTab } from '../tabs/shared/ActivityTab';
 
 export const customerConfig: SheetConfig = {
   docType: 'customer',
-  
+
   // Header
   title: (data) => data.name || data.nameAr || 'Customer',
   subtitle: (data) => data.code,
   icon: Users,
   iconBg: 'bg-gradient-to-br from-blue-600 to-blue-800',
-  
+
   // Status Badge
   badge: (data) => {
     const status = data.status || (data.is_active !== false ? 'active' : 'inactive');
     return {
-      label: status === 'active' ? 'نشط' : 'غير نشط',
+      label: status === 'active' ? 'common.status.active' : 'common.status.inactive',
       variant: status === 'active' ? 'success' : 'default',
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data) => data.balance || data.current_balance || 0,
@@ -53,7 +53,7 @@ export const customerConfig: SheetConfig = {
     currency: 'SAR',
     showSign: true,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -85,7 +85,7 @@ export const customerConfig: SheetConfig = {
       color: 'yellow',
     },
   ],
-  
+
   // Info Fields for Overview
   infoFields: [
     {
@@ -146,7 +146,7 @@ export const customerConfig: SheetConfig = {
       colSpan: 2,
     },
   ],
-  
+
   // Tabs Configuration
   tabs: [
     {
@@ -183,7 +183,7 @@ export const customerConfig: SheetConfig = {
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -194,7 +194,7 @@ export const customerConfig: SheetConfig = {
     },
     {
       id: 'create_invoice',
-      label: 'Create Invoice',
+      label: 'parties.actions.createInvoice',
       labelAr: 'إنشاء فاتورة',
       icon: Receipt,
       variant: 'default',
@@ -225,7 +225,7 @@ export const customerConfig: SheetConfig = {
       },
     },
   ],
-  
+
   // Quick Actions (in header)
   quickActions: [
     {
@@ -236,10 +236,10 @@ export const customerConfig: SheetConfig = {
       onClick: () => window.print(),
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'invoice' || row.invoice_id) {

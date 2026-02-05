@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAccounts } from '@/hooks/useAccounts';
+import { AccountTreeSidePanel } from './AccountTreeSidePanel';
+import { AccountCombobox } from './AccountCombobox';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,10 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  Plus, 
-  Trash2, 
-  Save, 
+import {
+  Plus,
+  Trash2,
+  Save,
   Calendar as CalendarIcon,
   Calculator,
   CheckCircle2,
@@ -48,8 +50,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
-import { AccountCombobox } from './AccountCombobox';
-import { AccountTreeSidePanel } from './AccountTreeSidePanel';
+
 import { currencies, costCenters } from '../data/accountingData';
 import { supabase } from '@/lib/supabase';
 import type { Account } from '@/services/accountsService';
@@ -141,29 +142,21 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
   const [reference, setReference] = useState('');
   const [description, setDescription] = useState('');
   const [rows, setRows] = useState<JournalEntryRow[]>([]);
+
+  // Tree panel state for account selection
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
   const [treePanelOpen, setTreePanelOpen] = useState(false);
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
-  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
 
-  // Transform accounts from Supabase format to AccountCombobox format
-  const accountsForCombobox = useMemo(() => {
-    return accounts
-      .filter(acc => !acc.is_group && acc.is_active) // Only active, non-group accounts
-      .map(acc => ({
-        id: acc.id,
-        code: acc.code,
-        name: acc.name_en || acc.name,
-        nameAr: acc.name,
-      }));
-  }, [accounts]);
+  // SmartAccountSelector handles account fetching internally
 
   // Filter for Cash and Bank accounts (Assets -> Current Assets -> Cash/Bank)
   // Filter by account_type = 'asset' and code starts with 11 (typically cash/bank accounts)
   const cashBankAccounts = useMemo(() => {
     return accounts
-      .filter(acc => 
-        acc.account_type === 'asset' && 
-        !acc.is_group && 
+      .filter(acc =>
+        acc.account_type === 'asset' &&
+        !acc.is_group &&
         acc.is_active &&
         (acc.code.startsWith('11') || acc.code.startsWith('101') || acc.code.startsWith('102'))
       )
@@ -175,12 +168,24 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       }));
   }, [accounts]);
 
+  // All accounts for combobox (for journal entry lines)
+  const accountsForCombobox = useMemo(() => {
+    return accounts
+      .filter(acc => !acc.is_group && acc.is_active)
+      .map(acc => ({
+        id: acc.id,
+        code: acc.code,
+        name: acc.name_en || acc.name,
+        nameAr: acc.name,
+      }));
+  }, [accounts]);
+
   const isDirty = React.useMemo(() => {
     if (reference || description || selectedAccountId) return true;
-    return rows.some(row => 
-      row.debit !== '' || 
-      row.credit !== '' || 
-      row.accountId !== '' || 
+    return rows.some(row =>
+      row.debit !== '' ||
+      row.credit !== '' ||
+      row.accountId !== '' ||
       row.description !== ''
     );
   }, [reference, description, rows]);
@@ -192,7 +197,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
   // Get next voucher number automatically based on mode
   useEffect(() => {
     if (!companyId || !isActive) return;
-    
+
     const fetchNextVoucherNo = async () => {
       try {
         const prefix = mode === 'receipt' ? 'RV' : mode === 'payment' ? 'PV' : 'CV';
@@ -278,7 +283,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
     setRows(rows.map(row => {
       if (row.id === id) {
         const updates: Partial<JournalEntryRow> = { [field]: value };
-        
+
         // If updating accountId, clear invoiceId and container
         if (field === 'accountId') {
           updates.invoiceId = undefined;
@@ -286,7 +291,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
           updates.containerExpenseType = undefined;
           updates.linkType = undefined;
         }
-        
+
         // If updating linkType, clear the opposite link
         if (field === 'linkType') {
           if (value === 'invoice') {
@@ -300,17 +305,17 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
             updates.containerExpenseType = undefined;
           }
         }
-        
+
         // If updating debit and it has a value, clear credit
         if (field === 'debit' && value !== '') {
           updates.credit = '';
         }
-        
+
         // If updating credit and it has a value, clear debit
         if (field === 'credit' && value !== '') {
           updates.debit = '';
         }
-        
+
         return { ...row, ...updates };
       }
       return row;
@@ -339,7 +344,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
     const currentTotalDebit = rows.reduce((sum, row) => sum + (Number(row.debit) || 0), 0);
     const currentTotalCredit = rows.reduce((sum, row) => sum + (Number(row.credit) || 0), 0);
     const diff = currentTotalDebit - currentTotalCredit;
-    
+
     if (Math.abs(diff) < 0.01) {
       return; // Already balanced
     }
@@ -347,7 +352,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
     const row = rows[rowIndex];
     const currentDebit = Number(row.debit) || 0;
     const currentCredit = Number(row.credit) || 0;
-    
+
     // If diff is positive, we need more credit (add to credit)
     // If diff is negative, we need more debit (add to debit)
     if (diff > 0) {
@@ -414,7 +419,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
     setRows([...rows, newRow]);
     setSelectedAccountIds(prev => new Set(prev).add(account.id));
     setActiveRowIndex(rows.length);
-    
+
     // Close tree panel after selection
     setTreePanelOpen(false);
     setActiveRowIndex(null);
@@ -428,7 +433,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
 
   const totalDebit = rows.reduce((sum, row) => sum + (Number(row.debit) || 0), 0);
   const totalCredit = rows.reduce((sum, row) => sum + (Number(row.credit) || 0), 0);
-  
+
   // For Cash Journal: Receipts (Credit) - Payments (Debit)
   // If mode is receipt, we only care about totalCredit (which are the lines) matching the header amount? 
   // Actually, usually in these forms you just enter the lines and the system calculates the total.
@@ -442,7 +447,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
   // because the "other side" is implicit (the Header Account).
   // So difference should be 0 only for 'all' mode?
   // Or maybe we should show the "Total" and that's it.
-  
+
   const difference = mode === 'all' ? totalCredit - totalDebit : 0;
 
   const handleSave = () => {
@@ -469,7 +474,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       // Last field is always exchangeRate regardless of mode
       const isLastRow = index === rows.length - 1;
       const isLastField = field === 'exchangeRate';
-      
+
       // If at last row and last field, add new row
       if (isLastRow && isLastField) {
         e.preventDefault();
@@ -525,23 +530,23 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
     if (e.key === 'ArrowDown' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       e.stopPropagation();
-      
+
       // Copy the current field from previous row to current row
       if (index > 0) {
         const prevRow = rows[index - 1];
         const currentRow = rows[index];
-        
+
         // Copy the field value from previous row to current row
         const prevValue = prevRow[field];
         if (prevValue !== undefined && prevValue !== null && prevValue !== '') {
           updateRow(currentRow.id, field, prevValue);
-          
+
           // If copying accountId, also update selectedAccountIds
           if (field === 'accountId') {
             setSelectedAccountIds(prev => new Set(prev).add(prevValue as string));
           }
         }
-        
+
         // Move focus to next row's same field (infinite loop capability)
         const nextRowIndex = index + 1;
         setTimeout(() => {
@@ -599,29 +604,29 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       if (index > 0) {
         const prevRow = rows[index - 1];
         updateRow(rows[index].id, field, prevRow[field]);
-        
+
         // Move focus to next field if Tab
         if (e.key === 'Tab') {
-             // Updated column order for Cash Journal
-             const columns: (keyof JournalEntryRow)[] = [
-                'credit', 'debit', 'accountId', 'linkType', 'invoiceId', 'containerId', 'containerExpenseType', 'description', 'costCenter', 'currency', 'exchangeRate'
-              ];
-             let nextColIndex = columns.indexOf(field);
-             let nextRow = index;
-             
-             // Standard Tab behavior is always forward in DOM
-             nextColIndex = nextColIndex + 1;
-             
-             if (nextColIndex >= columns.length) {
-                 nextColIndex = 0;
-                 nextRow = index + 1;
-             }
-             
-             if (nextRow < rows.length) {
-                 const nextField = columns[nextColIndex];
-                 const element = document.getElementById(`cell-${nextRow}-${nextField}`);
-                 element?.focus();
-             }
+          // Updated column order for Cash Journal
+          const columns: (keyof JournalEntryRow)[] = [
+            'credit', 'debit', 'accountId', 'linkType', 'invoiceId', 'containerId', 'containerExpenseType', 'description', 'costCenter', 'currency', 'exchangeRate'
+          ];
+          let nextColIndex = columns.indexOf(field);
+          let nextRow = index;
+
+          // Standard Tab behavior is always forward in DOM
+          nextColIndex = nextColIndex + 1;
+
+          if (nextColIndex >= columns.length) {
+            nextColIndex = 0;
+            nextRow = index + 1;
+          }
+
+          if (nextRow < rows.length) {
+            const nextField = columns[nextColIndex];
+            const element = document.getElementById(`cell-${nextRow}-${nextField}`);
+            element?.focus();
+          }
         }
       }
       return;
@@ -631,22 +636,22 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
       const target = e.currentTarget as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      
+
       // For Left/Right in inputs, only move if at boundary
       if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         const input = target as HTMLInputElement;
         if (e.key === 'ArrowLeft' && input.selectionStart !== 0) return;
         if (e.key === 'ArrowRight' && input.selectionStart !== input.value.length) return;
       }
-      
+
       e.preventDefault();
       e.stopPropagation();
-      
+
       // Updated column order for Cash Journal
       const columns: (keyof JournalEntryRow)[] = [
         'credit', 'debit', 'accountId', 'linkType', 'invoiceId', 'containerId', 'containerExpenseType', 'description', 'costCenter', 'currency', 'exchangeRate'
       ];
-      
+
       let nextRow = index;
       let nextColIndex = columns.indexOf(field);
 
@@ -656,29 +661,29 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       if (e.key === 'ArrowDown') {
         nextRow = Math.min(rows.length - 1, index + 1);
       }
-      
+
       if (e.key === 'ArrowLeft') {
         if (direction === 'rtl') {
-           nextColIndex = Math.min(columns.length - 1, nextColIndex + 1);
+          nextColIndex = Math.min(columns.length - 1, nextColIndex + 1);
         } else {
-           nextColIndex = Math.max(0, nextColIndex - 1);
+          nextColIndex = Math.max(0, nextColIndex - 1);
         }
       }
-      
+
       if (e.key === 'ArrowRight') {
         if (direction === 'rtl') {
-           nextColIndex = Math.max(0, nextColIndex - 1);
+          nextColIndex = Math.max(0, nextColIndex - 1);
         } else {
-           nextColIndex = Math.min(columns.length - 1, nextColIndex + 1);
+          nextColIndex = Math.min(columns.length - 1, nextColIndex + 1);
         }
       }
 
       const nextField = columns[nextColIndex];
       const elementId = `cell-${nextRow}-${nextField}`;
-      
+
       // Try to find element by ID first
       let element = document.getElementById(elementId);
-      
+
       // If not found, try to find input/select within the cell
       if (!element) {
         const cell = document.querySelector(`[id="${elementId}"]`);
@@ -695,7 +700,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
           }
         }
       }
-      
+
       if (element) {
         element.focus();
         if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
@@ -727,7 +732,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
 
   // Get selected fund balance
   const selectedFundBalance = selectedAccountId ? (fundBalances[selectedAccountId] || 0) : 0;
-  
+
   // Calculate balance after transaction
   const balanceAfter = React.useMemo(() => {
     if (mode === 'receipt') {
@@ -750,18 +755,18 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
 
   return (
     <TooltipProvider>
-    <div className={cn("flex flex-col h-full relative", !isActive && "hidden")} dir={direction}>
-      {/* Account Tree Side Panel */}
-      <AccountTreeSidePanel
-        accounts={accounts}
-        open={treePanelOpen}
-        onClose={() => {
-          setTreePanelOpen(false);
-          setActiveRowIndex(null);
-        }}
-        onAccountSelect={handleAccountSelectFromTree}
-        selectedAccountIds={selectedAccountIds}
-      />
+      <div className={cn("flex flex-col h-full relative", !isActive && "hidden")} dir={direction}>
+        {/* Account Tree Side Panel */}
+        <AccountTreeSidePanel
+          accounts={accounts}
+          open={treePanelOpen}
+          onClose={() => {
+            setTreePanelOpen(false);
+            setActiveRowIndex(null);
+          }}
+          onAccountSelect={handleAccountSelectFromTree}
+          selectedAccountIds={selectedAccountIds}
+        />
         <div className="flex-1 p-4 space-y-4 overflow-y-auto">
           {/* Enhanced Header Form */}
           <Card className="p-4 bg-white dark:bg-gray-900/80 border-0 shadow-lg rounded-xl overflow-hidden">
@@ -795,37 +800,37 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                   </PopoverContent>
                 </Popover>
               </div>
-              
+
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">
                   {t('reference')}
                 </Label>
-                <Input 
+                <Input
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   placeholder={language === 'ar' ? 'PMT-001' : 'PMT-001'}
                   className="h-9 text-sm rounded-lg border-gray-200 dark:border-gray-700"
                 />
               </div>
-              
+
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
                   <Wallet className="w-3 h-3" />
                   {t('accounting.cashBank')}
                 </Label>
-                <AccountCombobox 
+                <AccountCombobox
                   value={selectedAccountId}
                   onChange={setSelectedAccountId}
                   accounts={cashBankAccounts}
                   className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 h-9"
                 />
               </div>
-              
+
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">
                   {t('description')}
                 </Label>
-                <Input 
+                <Input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={t('placeholders.enterDescription')}
@@ -897,7 +902,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                 </Tooltip>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto border rounded-lg">
               <Table className="border-collapse w-full">
                 <TableHeader className="bg-gray-100 sticky top-0 z-10 shadow-sm">
@@ -944,8 +949,8 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                 </TableHeader>
                 <TableBody>
                   {rows.map((row, index) => (
-                    <TableRow 
-                      key={row.id} 
+                    <TableRow
+                      key={row.id}
                       className="hover:bg-gray-50/50"
                     >
                       <TableCell className="p-1 px-2 text-center border border-gray-300">
@@ -953,7 +958,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           {index + 1}
                         </span>
                       </TableCell>
-                      
+
                       {(mode === 'all' || mode === 'receipt') && (
                         <TableCell className="p-0 border border-gray-300">
                           <Input
@@ -973,7 +978,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           />
                         </TableCell>
                       )}
-                      
+
                       {(mode === 'all' || mode === 'payment') && (
                         <TableCell className="p-0 border border-gray-300">
                           <Input
@@ -993,9 +998,9 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           />
                         </TableCell>
                       )}
-                      
+
                       <TableCell className="p-0 border border-gray-300">
-                        <AccountCombobox 
+                        <AccountCombobox
                           id={`cell-${index}-accountId`}
                           onKeyDown={(e: any) => handleKeyDown(e, index, 'accountId')}
                           value={row.accountId}
@@ -1010,7 +1015,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           onOpenTree={() => openTreePanel(index)}
                         />
                       </TableCell>
-                      
+
                       {/* نوع الربط */}
                       <TableCell className="p-1 px-2 border border-gray-300">
                         <Select
@@ -1018,7 +1023,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           onValueChange={(val) => updateRow(row.id, 'linkType', val)}
                           disabled={!row.accountId}
                         >
-                          <SelectTrigger 
+                          <SelectTrigger
                             id={`cell-${index}-linkType`}
                             className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px]"
                             onKeyDown={(e) => handleKeyDown(e, index, 'linkType')}
@@ -1059,7 +1064,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                             value={row.invoiceId}
                             onValueChange={(val) => updateRow(row.id, 'invoiceId', val)}
                           >
-                            <SelectTrigger 
+                            <SelectTrigger
                               id={`cell-${index}-invoiceId`}
                               className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px]"
                               onKeyDown={(e) => handleKeyDown(e, index, 'invoiceId')}
@@ -1086,7 +1091,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                             value={row.containerId}
                             onValueChange={(val) => updateRow(row.id, 'containerId', val)}
                           >
-                            <SelectTrigger 
+                            <SelectTrigger
                               id={`cell-${index}-containerId`}
                               className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px]"
                               onKeyDown={(e) => handleKeyDown(e, index, 'containerId')}
@@ -1124,7 +1129,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                               value={row.containerExpenseType}
                               onValueChange={(val) => updateRow(row.id, 'containerExpenseType', val)}
                             >
-                              <SelectTrigger 
+                              <SelectTrigger
                                 id={`cell-${index}-containerExpenseType`}
                                 className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px]"
                               >
@@ -1143,7 +1148,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           )}
                         </TableCell>
                       )}
-                      
+
                       <TableCell className="p-0 border border-gray-300">
                         <Input
                           id={`cell-${index}-description`}
@@ -1154,13 +1159,13 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           placeholder={t('placeholders.enterDescription')}
                         />
                       </TableCell>
-                      
+
                       <TableCell className="p-1 px-2 border border-gray-300">
                         <Select
                           value={row.costCenter}
                           onValueChange={(val) => updateRow(row.id, 'costCenter', val)}
                         >
-                          <SelectTrigger 
+                          <SelectTrigger
                             id={`cell-${index}-costCenter`}
                             className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px]"
                             onKeyDown={(e) => handleKeyDown(e, index, 'costCenter')}
@@ -1176,7 +1181,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      
+
                       <TableCell className="p-0 border border-gray-300">
                         <Select
                           value={row.currency}
@@ -1196,7 +1201,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                             }
                           }}
                         >
-                          <SelectTrigger 
+                          <SelectTrigger
                             id={`cell-${index}-currency`}
                             onKeyDown={(e) => handleKeyDown(e, index, 'currency')}
                             className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px] font-medium"
@@ -1210,7 +1215,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      
+
                       <TableCell className="p-0 border border-gray-300">
                         <Input
                           id={`cell-${index}-exchangeRate`}
@@ -1232,7 +1237,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           dir="ltr"
                         />
                       </TableCell>
-                      
+
                       <TableCell className="p-1 px-2 text-center border border-gray-300">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1276,7 +1281,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           <>
                             <div className="w-px h-4 bg-gray-300"></div>
                             <span className="text-gray-500">
-                              {t('accounting.labels.difference')}: 
+                              {t('accounting.labels.difference')}:
                               <span className={cn(
                                 "font-mono font-bold ml-1",
                                 Math.abs(difference) < 0.01 ? "text-emerald-600" : "text-amber-600"
@@ -1291,17 +1296,17 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                 </tfoot>
               </Table>
             </div>
-            
+
             {/* Add Row Button */}
             <div className="p-2 border-t border-gray-100 dark:border-gray-800 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-800/30 dark:to-gray-900/30">
-               <Button 
-                 variant="ghost" 
-                 className={cn(
-                   "w-full text-erp-navy dark:text-white hover:bg-erp-teal/10 dark:hover:bg-erp-teal/20 hover:text-erp-teal dark:hover:text-erp-teal rounded-xl h-10 transition-all duration-200",
-                   direction === 'rtl' && "flex-row-reverse"
-                 )} 
-                 onClick={addRow}
-               >
+              <Button
+                variant="ghost"
+                className={cn(
+                  "w-full text-erp-navy dark:text-white hover:bg-erp-teal/10 dark:hover:bg-erp-teal/20 hover:text-erp-teal dark:hover:text-erp-teal rounded-xl h-10 transition-all duration-200",
+                  direction === 'rtl' && "flex-row-reverse"
+                )}
+                onClick={addRow}
+              >
                 <Plus className={cn("w-4 h-4", direction === 'rtl' ? 'ml-2' : 'mr-2')} />
                 {t('accounting.addNewRow') || (language === 'ar' ? 'إضافة سطر جديد' : 'Add New Row')}
               </Button>
@@ -1319,24 +1324,24 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
               <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">Enter</kbd>
               <span className={direction === 'rtl' ? 'mr-1' : 'ml-1'}>{language === 'ar' ? 'للحفظ' : 'to save'}</span>
             </div>
-            
-            <Button 
-              variant="outline" 
-              className="flex-1 sm:flex-none sm:w-28 h-11 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800" 
+
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none sm:w-28 h-11 rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
               onClick={onCancel}
             >
               {t('common.cancel')}
             </Button>
-            
-            <Button 
-              onClick={handleSave} 
+
+            <Button
+              onClick={handleSave}
               className={cn(
                 "flex-1 sm:flex-none sm:w-40 h-11 rounded-xl text-white shadow-lg transition-all duration-200",
-                mode === 'payment' 
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-orange-500/25' 
+                mode === 'payment'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-orange-500/25'
                   : mode === 'receipt'
-                  ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-green-500/25'
-                  : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-purple-500/25'
+                    ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-green-500/25'
+                    : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-purple-500/25'
               )}
             >
               <Save className={cn("w-4 h-4", direction === 'rtl' ? 'ml-2' : 'mr-2')} />
@@ -1344,7 +1349,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
             </Button>
           </div>
         </div>
-    </div>
+      </div>
     </TooltipProvider>
   );
 }

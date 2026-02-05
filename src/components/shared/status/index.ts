@@ -4,5 +4,5 @@
  */
 
 export { StatusBadge, StatusBadgeWithArrow } from './StatusBadge';
-export { StatusSelector } from './StatusSelector';
-export { StatusManager } from './StatusManager';
+// Note: StatusSelector and StatusManager were moved to _archived_deprecated
+// Use the StatusBadge component or statusService for status management

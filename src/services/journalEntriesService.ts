@@ -40,6 +40,7 @@ export interface JournalEntryLine {
 export interface CreateJournalEntryInput {
   company_id: string;
   branch_id?: string;
+  entry_type?: string;
   entry_date: string;
   description: string;
   lines: {
@@ -135,10 +136,13 @@ export const journalEntriesService = {
       return null;
     }
 
-    // Get lines
+    // Get lines with account details
     const { data: lines, error: linesError } = await supabase
       .from('journal_entry_lines')
-      .select('*')
+      .select(`
+        *,
+        account:chart_of_accounts(id, account_code, name_ar, name_en)
+      `)
       .eq('entry_id', id)
       .eq('tenant_id', tenantId)
       .order('line_number', { ascending: true });
@@ -188,6 +192,7 @@ export const journalEntriesService = {
         branch_id: input.branch_id || null,
         entry_number: entryNumber.data || `JE-${Date.now()}`,
         entry_date: input.entry_date,
+        entry_type: input.entry_type || 'manual',
         description: input.description,
         total_debit: totalDebit,
         total_credit: totalCredit,
@@ -281,6 +286,7 @@ export const journalEntriesService = {
           total_credit: totalCredit,
           description: updates.description,
           entry_date: updates.entry_date,
+          entry_type: updates.entry_type,
         })
         .eq('id', id)
         .eq('tenant_id', tenantId);
@@ -330,6 +336,44 @@ export const journalEntriesService = {
 
     // Return updated entry with lines
     return this.getById(id) as Promise<JournalEntryWithLines>;
+  },
+
+
+
+  // Unpost entry (return to draft)
+  async unpost(id: string): Promise<void> {
+    const tenantId = await getCurrentTenantIdAsync();
+    if (!tenantId) throw new Error('No tenant ID available');
+
+    const { error } = await supabase
+      .from('journal_entries')
+      .update({ status: 'draft', is_posted: false })
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+  },
+
+  // Duplicate entry
+  async duplicate(id: string): Promise<string> {
+    const originalEntry = await this.getById(id);
+    if (!originalEntry) throw new Error('Original entry not found');
+
+    const newEntryInput: CreateJournalEntryInput = {
+      company_id: originalEntry.company_id, // Added required field
+      entry_date: new Date().toISOString().split('T')[0], // Today's date
+      description: `${originalEntry.description} (Copy)`,
+      lines: originalEntry.lines.map(line => ({
+        account_id: line.account_id,
+        debit: line.debit,
+        credit: line.credit,
+        description: line.description,
+        cost_center_id: line.cost_center_id,
+      }))
+    };
+
+    const newEntry = await this.create(newEntryInput);
+    return newEntry.id;
   },
 
   /**

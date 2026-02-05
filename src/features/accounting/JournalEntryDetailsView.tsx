@@ -9,21 +9,21 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  Printer, 
-  Download, 
-  Share2, 
-  FileText, 
-  Calendar, 
-  User, 
+import {
+  Printer,
+  Download,
+  Share2,
+  FileText,
+  Calendar,
+  User,
   Hash,
   Package,
   CreditCard,
@@ -219,13 +219,12 @@ function ProductDetailsView({ product, onClose }: { product: any; onClose: () =>
                       <TableCell className="text-center font-mono text-gray-500">{warehouse.minQty}</TableCell>
                       <TableCell className="text-center font-mono text-gray-500">{warehouse.maxQty}</TableCell>
                       <TableCell className="text-center">
-                        <Badge className={`${
-                          warehouse.status === 'good' 
-                            ? 'bg-green-100 text-green-700' 
+                        <Badge className={`${warehouse.status === 'good'
+                            ? 'bg-green-100 text-green-700'
                             : warehouse.status === 'low'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}>
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
                           {warehouse.status === 'good' ? (t('good') || 'جيد') : warehouse.status === 'low' ? (t('low') || 'منخفض') : (t('critical') || 'حرج')}
                         </Badge>
                       </TableCell>
@@ -435,7 +434,7 @@ function AccountQuickView({ account, onClose, onFullView }: { account: any; onCl
 
 export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsViewProps) {
   const { t, direction, language } = useLanguage();
-  
+
   // State for nested views
   const [activeNestedView, setActiveNestedView] = useState<'none' | 'account' | 'product'>('none');
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
@@ -488,25 +487,17 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
     setSelectedProduct(null);
   };
 
-  // Enhanced mock lines with product information for sales invoices
-  const lines = entry.lines || [
-    { 
-      id: 1, 
-      account: '1010 - ' + (language === 'ar' ? 'الصندوق' : 'Cash'), 
-      description: entry.description, 
-      debit: entry.amount || 15000, 
-      credit: 0,
-      product: entry.type === 'sales' ? { code: 'PRD-001', name: language === 'ar' ? 'لابتوب HP' : 'HP Laptop' } : null
-    },
-    { 
-      id: 2, 
-      account: '4010 - ' + (language === 'ar' ? 'إيرادات المبيعات' : 'Sales Revenue'), 
-      description: entry.description, 
-      debit: 0, 
-      credit: entry.amount || 15000,
-      product: entry.type === 'sales' ? { code: 'PRD-001', name: language === 'ar' ? 'لابتوب HP' : 'HP Laptop' } : null
-    },
-  ];
+  // Use real entry lines with account information
+  const lines = entry.lines?.map((line: any, index: number) => ({
+    id: line.id || index + 1,
+    account: line.account
+      ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
+      : (line.account_id || '-'),
+    description: line.description || entry.description || '',
+    debit: line.debit || 0,
+    credit: line.credit || 0,
+    product: null // Products will be added later when inventory integration is ready
+  })) || [];
 
   const totalDebit = lines.reduce((sum: number, line: any) => sum + (line.debit || 0), 0);
   const totalCredit = lines.reduce((sum: number, line: any) => sum + (line.credit || 0), 0);
@@ -514,9 +505,9 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
   // Show nested view if active
   if (activeNestedView === 'account' && selectedAccount) {
     return (
-      <AccountQuickView 
-        account={selectedAccount} 
-        onClose={closeNestedView} 
+      <AccountQuickView
+        account={selectedAccount}
+        onClose={closeNestedView}
         onFullView={handleAccountFullView}
       />
     );
@@ -524,8 +515,8 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
 
   if (activeNestedView === 'product' && selectedProduct) {
     return (
-      <ProductDetailsView 
-        product={selectedProduct} 
+      <ProductDetailsView
+        product={selectedProduct}
         onClose={closeNestedView}
       />
     );
@@ -541,11 +532,10 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
               <h2 className="text-xl font-semibold text-erp-navy font-mono">{entry.id}</h2>
               <p className="text-gray-500 text-sm mt-1">{t('journalEntryDetails') || 'Journal Entry Details'}</p>
             </div>
-            <Badge variant="outline" className={`px-3 py-1 ${
-              entry.status === 'posted' 
-                ? 'bg-green-50 text-green-700 border-green-200' 
+            <Badge variant="outline" className={`px-3 py-1 ${entry.status === 'posted'
+                ? 'bg-green-50 text-green-700 border-green-200'
                 : 'bg-amber-50 text-amber-700 border-amber-200'
-            }`}>
+              }`}>
               {t(entry.status) || entry.status}
             </Badge>
           </div>
@@ -563,7 +553,7 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
                 <Hash className="w-3 h-3" />
                 {t('reference')}
               </div>
-              <p 
+              <p
                 className={`font-medium font-mono ${entry.reference && entry.reference !== '-' ? 'text-erp-teal cursor-pointer hover:underline' : 'text-erp-navy'}`}
                 onClick={() => handleReferenceClick(entry.reference)}
               >
@@ -609,7 +599,7 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
               <TableBody>
                 {lines.map((line: any) => (
                   <TableRow key={line.id}>
-                    <TableCell 
+                    <TableCell
                       className="font-medium font-mono text-xs cursor-pointer hover:text-erp-teal hover:underline transition-colors"
                       onClick={() => handleAccountClick(line.account)}
                     >
@@ -620,7 +610,7 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
                     </TableCell>
                     <TableCell>
                       {line.product ? (
-                        <div 
+                        <div
                           className="flex items-center gap-2 cursor-pointer hover:text-erp-teal transition-colors"
                           onClick={() => handleProductClick(line.product.code, line.product.name)}
                         >
@@ -652,7 +642,7 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
               </TableBody>
             </Table>
           </div>
-          
+
           {/* Quick Tip */}
           <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
             <Eye className="w-4 h-4 text-blue-500" />

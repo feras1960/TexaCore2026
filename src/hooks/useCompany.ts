@@ -18,11 +18,11 @@ interface UseCompanyReturn {
 }
 
 export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
-  const { user, isAuthenticated } = useAuth();
+  const { user, session, isAuthenticated, loading: authLoading } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start as true until we fetch
   const [error, setError] = useState<Error | null>(null);
-  
+
   // Use ref to track if we've already fetched to prevent multiple fetches
   const hasFetchedRef = useRef(false);
   const isFetchingRef = useRef(false);
@@ -31,7 +31,7 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
     // Prevent concurrent fetches and unnecessary re-fetches
     if (isFetchingRef.current) return;
     if (!force && hasFetchedRef.current && company) return;
-    
+
     isFetchingRef.current = true;
     setLoading(true);
     setError(null);
@@ -81,10 +81,15 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
   }, [fetchCompany]);
 
   useEffect(() => {
+    // Wait for auth to finish loading before fetching company
+    if (authLoading) {
+      return;
+    }
+
     if (autoFetch && !hasFetchedRef.current) {
       fetchCompany();
     }
-  }, [autoFetch]); // Remove fetchCompany from deps to prevent re-triggers
+  }, [autoFetch, authLoading, isAuthenticated, user?.id]); // Add auth deps
 
   return {
     company,

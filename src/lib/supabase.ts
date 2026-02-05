@@ -36,7 +36,7 @@ export const getCurrentTenantId = (): string | null => {
   try {
     const session = supabase.auth.getSession();
     if (!session) return null;
-    
+
     // Try to get from session synchronously (cached)
     const cachedSession = localStorage.getItem(`sb-${supabaseUrl.split('//')[1]?.split('.')[0]}-auth-token`);
     if (cachedSession) {
@@ -47,7 +47,7 @@ export const getCurrentTenantId = (): string | null => {
         // Ignore parse errors
       }
     }
-    
+
     return null;
   } catch {
     return null;
@@ -61,7 +61,7 @@ export const getCurrentTenantIdAsync = async (): Promise<string | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    
+
     return user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || null;
   } catch {
     return null;
@@ -75,7 +75,7 @@ export const getCurrentCompanyId = async (): Promise<string | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    
+
     return user.user_metadata?.company_id || user.app_metadata?.company_id || null;
   } catch {
     return null;
@@ -84,17 +84,22 @@ export const getCurrentCompanyId = async (): Promise<string | null> => {
 
 /**
  * Check if current user is super admin
+ * 🛡️ SECURITY: يستدعي الـ database function الآمنة بدلاً من قراءة user_metadata
  */
 export const isSuperAdmin = async (): Promise<boolean> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-    
-    return (
-      user.user_metadata?.is_super_admin === true ||
-      user.app_metadata?.is_super_admin === true ||
-      false
-    );
+
+    // ✅ استدعاء الدالة الآمنة من قاعدة البيانات
+    const { data, error } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
+
+    if (error) {
+      console.error('Error checking super admin status:', error);
+      return false;
+    }
+
+    return data === true;
   } catch {
     return false;
   }

@@ -8,9 +8,9 @@ import type { User } from '@supabase/supabase-js';
 
 // Helper to check if error is AbortError (should be ignored)
 const isAbortError = (error: any): boolean => {
-  return error?.name === 'AbortError' || 
-         error?.message?.includes('abort') ||
-         error?.message?.includes('signal');
+  return error?.name === 'AbortError' ||
+    error?.message?.includes('abort') ||
+    error?.message?.includes('signal');
 };
 
 export interface AuthUser {
@@ -52,9 +52,9 @@ export async function signInWithMetadata(
         .select('tenant_id, company_id')
         .eq('id', authData.user.id)
         .single();
-      
+
       profile = data;
-      
+
       if (profileError && !isAbortError(profileError)) {
         console.warn('Could not fetch user profile:', profileError.message);
       }
@@ -159,10 +159,15 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
     // Get tenant_id and company_id from metadata or profile
     const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || null;
     const companyId = user.user_metadata?.company_id || user.app_metadata?.company_id || null;
-    const isSuper =
-      user.user_metadata?.is_super_admin === true ||
-      user.app_metadata?.is_super_admin === true ||
-      false;
+
+    // 🛡️ SECURITY: استدعاء الدالة الآمنة للتحقق من Super Admin
+    let isSuper = false;
+    try {
+      const { data: superAdminCheck } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
+      isSuper = superAdminCheck === true;
+    } catch {
+      // Ignore super admin check errors - default to false
+    }
 
     return {
       id: user.id,

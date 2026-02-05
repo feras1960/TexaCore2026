@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatsGrid, StatCard } from '@/components/shared/stats/StatCard';
 import { StatusBadge } from '@/components/shared/status/StatusBadge';
-import { 
-  RefreshCw, 
+import {
+  RefreshCw,
   Building2,
   Coins,
   TrendingUp,
@@ -22,65 +22,47 @@ import { toast } from 'sonner';
 export default function Dashboard() {
   const { t, direction, language } = useLanguage();
   const { user, isSuperAdmin } = useAuth();
-  
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState('SAR');
   const [selectedBranch, setSelectedBranch] = useState('all');
-  const [isPromoting, setIsPromoting] = useState(false);
+
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
-  const handlePromoteToSuperAdmin = async () => {
-    if (!user) return;
-    setIsPromoting(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: { is_super_admin: true }
-      });
-      
-      if (error) throw error;
-      
-      toast.success(language === 'ar' ? 'تمت ترقيتك لمدير عام بنجاح! يرجى تحديث الصفحة.' : 'Successfully promoted to Super Admin! Please refresh the page.');
-      setTimeout(() => window.location.reload(), 2000);
-    } catch (err: any) {
-      console.error('Promotion error:', err);
-      toast.error(err.message || 'Failed to promote to Super Admin');
-    } finally {
-      setIsPromoting(false);
-    }
-  };
+
 
   // Mock Data - using translation keys for labels
   const statsData = [
-    { 
-      label: t('stats.totalSales'), 
-      value: 1250000, 
-      type: 'positive' as const, 
-      change: 12.5, 
+    {
+      label: t('stats.totalSales'),
+      value: 1250000,
+      type: 'positive' as const,
+      change: 12.5,
       icon: TrendingUp,
     },
-    { 
-      label: t('stats.totalRevenue'), 
-      value: 980000, 
-      type: 'info' as const, 
-      change: 8.3, 
+    {
+      label: t('stats.totalRevenue'),
+      value: 980000,
+      type: 'info' as const,
+      change: 8.3,
       icon: CreditCard,
     },
-    { 
-      label: t('stats.totalOrders'), 
-      value: 1247, 
-      type: 'neutral' as const, 
-      change: -2.1, 
+    {
+      label: t('stats.totalOrders'),
+      value: 1247,
+      type: 'neutral' as const,
+      change: -2.1,
       icon: ShoppingCart
     },
-    { 
-      label: t('stats.activeCustomers'), 
-      value: 342, 
-      type: 'positive' as const, 
-      change: 5.7, 
+    {
+      label: t('stats.activeCustomers'),
+      value: 342,
+      type: 'positive' as const,
+      change: 5.7,
       icon: Users
     },
   ];
@@ -105,25 +87,9 @@ export default function Dashboard() {
             {t('dashboard.subtitle')}
           </p>
         </div>
-        
+
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Dev Tool: Promote to Super Admin (Only show if not already Super Admin) */}
-          {!isSuperAdmin && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handlePromoteToSuperAdmin}
-              disabled={isPromoting}
-              className="bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800"
-            >
-              {isPromoting ? (
-                <RefreshCw className="w-4 h-4 me-2 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4 me-2" />
-              )}
-              {language === 'ar' ? 'تفعيل كمدير عام' : 'Activate as Super Admin'}
-            </Button>
-          )}
+
 
           {/* Currency Filter */}
           <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
@@ -137,7 +103,7 @@ export default function Dashboard() {
               <SelectItem value="EUR">{t('currencies.EUR')}</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {/* Branch Filter */}
           <Select value={selectedBranch} onValueChange={setSelectedBranch}>
             <SelectTrigger className="w-full lg:w-[180px] bg-white dark:bg-gray-800 h-10 text-sm border-gray-200 dark:border-gray-700">
@@ -150,9 +116,9 @@ export default function Dashboard() {
             </SelectContent>
           </Select>
 
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             onClick={handleRefresh}
             className={cn(
               "h-10 w-10 border-gray-200 dark:border-gray-700",
@@ -206,7 +172,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-3">
               {recentOrders.map((order) => (
-                <div 
+                <div
                   key={order.id}
                   className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                 >

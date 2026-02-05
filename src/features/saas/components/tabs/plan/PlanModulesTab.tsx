@@ -35,12 +35,15 @@ export const PlanModulesTab: React.FC<TabComponentProps> = ({
     try {
       setLoading(true);
       
-      // Load plan modules
+      // Load plan modules with system_modules details
       const { data: planModules, error: planError } = await supabase
         .from('plan_modules')
         .select(`
-          *,
-          modules:module_id (
+          id,
+          module_id,
+          is_enabled,
+          is_core,
+          system_modules (
             id,
             name_en,
             name_ar,
@@ -48,18 +51,25 @@ export const PlanModulesTab: React.FC<TabComponentProps> = ({
             is_active
           )
         `)
-        .eq('plan_id', data.id);
+        .eq('plan_id', data.id)
+        .eq('is_enabled', true);
 
-      if (planError) throw planError;
+      if (planError) {
+        console.error('Error loading plan modules:', planError);
+        throw planError;
+      }
 
-      // Load all available modules
+      // Load all available modules from system_modules
       const { data: allModules, error: modulesError } = await supabase
-        .from('modules')
+        .from('system_modules')
         .select('*')
         .eq('is_active', true)
         .order('name_en');
 
-      if (modulesError) throw modulesError;
+      if (modulesError) {
+        console.error('Error loading system modules:', modulesError);
+        throw modulesError;
+      }
 
       console.log('🟢 Modules Loaded:', {
         planModules: planModules?.length || 0,
@@ -164,10 +174,15 @@ export const PlanModulesTab: React.FC<TabComponentProps> = ({
                     <Package className="h-4 w-4 text-primary" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium">
-                      {language === 'ar' ? item.modules.name_ar : item.modules.name_en}
+                    <div className="text-sm font-medium flex items-center gap-2">
+                      {language === 'ar' ? item.system_modules?.name_ar : item.system_modules?.name_en}
+                      {item.is_core && (
+                        <Badge variant="secondary" className="text-xs">
+                          {t('common.core')}
+                        </Badge>
+                      )}
                     </div>
-                    {item.modules.is_active ? (
+                    {item.system_modules?.is_active ? (
                       <Badge variant="outline" className="mt-1 text-xs">
                         <CheckCircle2 className="h-3 w-3 me-1" />
                         {t('common.active')}
@@ -184,8 +199,9 @@ export const PlanModulesTab: React.FC<TabComponentProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={() => handleRemoveModule(item.id)}
-                  disabled={saving}
+                  disabled={saving || item.is_core}
                   className="h-8 w-8 text-destructive hover:text-destructive"
+                  title={item.is_core ? t('saas.plan.coreModuleCannotRemove') : ''}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

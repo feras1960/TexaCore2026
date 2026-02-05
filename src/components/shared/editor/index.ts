@@ -1,13 +1,12 @@
 /**
  * Editor Components Export
  * تصدير مكونات المحرر
+ *
+ * Note: FormEditor was moved to _archived_deprecated
+ * This file is kept for reference but exports are disabled
  */
 
-export { 
-  FormEditor, 
-  type FieldConfig, 
-  type SectionConfig, 
-  type FormConfig,
-  type FieldType 
-} from './FormEditor';
-export { default } from './FormEditor';
+// FormEditor has been deprecated and moved to _archived_deprecated
+// If you need form editing functionality, consider using:
+// - React Hook Form with shadcn/ui components
+// - @tanstack/react-form

@@ -7,20 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Download, 
-  FileText, 
+
+import {
+  Search,
+  Plus,
+  Filter,
+  Download,
+  FileText,
   MoreHorizontal,
   Calendar as CalendarIcon,
   ArrowUpDown,
@@ -42,6 +35,8 @@ import {
   Upload
 } from 'lucide-react';
 import NewJournalEntrySheet from './components/NewJournalEntrySheet';
+import AutomaticEntriesTab from './components/AutomaticEntriesTab';
+import { NexaTable } from '@/components/shared/tables/NexaTable';
 import { ImportWizard } from '@/features/import';
 import {
   DropdownMenu,
@@ -49,7 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -64,20 +59,16 @@ import { format, subDays, startOfMonth, endOfMonth, startOfYear, startOfWeek, en
 import { ar } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 
-// Reconciliation Colors - Same as GeneralLedgerPage
-const RECONCILIATION_COLORS = [
-  { id: 'none', color: 'transparent', bg: 'bg-transparent', label: 'بدون', labelEn: 'None' },
-  { id: 'green', color: '#22c55e', bg: 'bg-green-100', label: 'أخضر', labelEn: 'Green' },
-  { id: 'red', color: '#ef4444', bg: 'bg-red-100', label: 'أحمر', labelEn: 'Red' },
-  { id: 'yellow', color: '#eab308', bg: 'bg-yellow-100', label: 'أصفر', labelEn: 'Yellow' },
-  { id: 'blue', color: '#3b82f6', bg: 'bg-blue-100', label: 'أزرق', labelEn: 'Blue' },
-  { id: 'purple', color: '#a855f7', bg: 'bg-purple-100', label: 'بنفسجي', labelEn: 'Purple' },
-  { id: 'orange', color: '#f97316', bg: 'bg-orange-100', label: 'برتقالي', labelEn: 'Orange' },
-  { id: 'gray', color: '#6b7280', bg: 'bg-gray-200', label: 'رمادي', labelEn: 'Gray' },
-  { id: 'pink', color: '#ec4899', bg: 'bg-pink-100', label: 'وردي', labelEn: 'Pink' },
-  { id: 'cyan', color: '#06b6d4', bg: 'bg-cyan-100', label: 'سماوي', labelEn: 'Cyan' },
-];
+// Import the new unified marker colors with fixed meanings
+import {
+  ColorMarkerPalette,
+  MARKER_COLORS,
+  getMarkerBackgroundColor,
+  type MarkerColorId
+} from '@/components/shared/ColorMarkerPalette';
 
 type SortConfig = {
   key: string;
@@ -107,12 +98,17 @@ export default function JournalEntries() {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
-  
-  // Reconciliation
-  const [selectedReconciliationColor, setSelectedReconciliationColor] = useState<string>('green');
-  const [markedEntries, setMarkedEntries] = useState<Record<string, string>>({});
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refetching
+
+  // Edit mode state
+  const [editEntryId, setEditEntryId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Marker Colors - using unified ColorMarkerPalette with fixed meanings
+  const [selectedMarkerColor, setSelectedMarkerColor] = useState<MarkerColorId>('green');
+  const [markedEntries, setMarkedEntries] = useState<Record<string, MarkerColorId>>({});
+
+
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
@@ -121,21 +117,30 @@ export default function JournalEntries() {
     origin: 'all',
     entryNumber: '',
     reference: '',
-    dateRange: undefined,
-    datePreset: 'thisMonth'
+    dateRange: {
+      from: startOfWeek(new Date(), { weekStartsOn: 6 }), // Start from Saturday
+      to: new Date()
+    },
+    datePreset: 'thisWeek' // Default to This Week for performance
   });
+
 
   // Entry Types
   const entryTypes = [
     { value: 'all', label: language === 'ar' ? 'الكل' : 'All' },
-    { value: 'receipt', label: language === 'ar' ? 'مقبوضات' : 'Receipts' },
-    { value: 'payment', label: language === 'ar' ? 'مدفوعات' : 'Payments' },
-    { value: 'cash', label: language === 'ar' ? 'يومية الصندوق' : 'Cash Journal' },
-    { value: 'sales', label: language === 'ar' ? 'قيد مبيعات' : 'Sales Entry' },
-    { value: 'purchase', label: language === 'ar' ? 'قيد مشتريات' : 'Purchase Entry' },
-    { value: 'expense', label: language === 'ar' ? 'قيد مصروفات' : 'Expense Entry' },
-    { value: 'payroll', label: language === 'ar' ? 'قيد رواتب' : 'Payroll Entry' },
-    { value: 'adjustment', label: language === 'ar' ? 'قيد تسوية' : 'Adjustment Entry' },
+    { value: 'journal', label: language === 'ar' ? 'قيد يومية' : 'Journal Entry' },
+    { value: 'opening', label: language === 'ar' ? 'قيد افتتاحي' : 'Opening Entry' },
+    { value: 'closing', label: language === 'ar' ? 'قيد إغلاق' : 'Closing Entry' },
+    { value: 'receipt', label: language === 'ar' ? 'سند قبض' : 'Receipt Voucher' },
+    { value: 'payment', label: language === 'ar' ? 'سند صرف' : 'Payment Voucher' },
+    { value: 'sales', label: language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice' },
+    { value: 'purchase', label: language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice' },
+    { value: 'return', label: language === 'ar' ? 'مرتجع' : 'Return' },
+    { value: 'asset', label: language === 'ar' ? 'أصل ثابت' : 'Fixed Asset' },
+    { value: 'depreciation', label: language === 'ar' ? 'إهلاك' : 'Depreciation' },
+    { value: 'expense', label: language === 'ar' ? 'مصروف' : 'Expense' },
+    { value: 'payroll', label: language === 'ar' ? 'رواتب' : 'Payroll' },
+    { value: 'adjustment', label: language === 'ar' ? 'تسوية' : 'Adjustment' },
     { value: 'mixed', label: language === 'ar' ? 'قيد مختلف' : 'Mixed Entry' },
   ];
 
@@ -168,12 +173,18 @@ export default function JournalEntries() {
     { value: 'lastWeek', label: language === 'ar' ? 'الأسبوع الماضي' : 'Last Week' },
     { value: 'thisMonth', label: language === 'ar' ? 'هذا الشهر' : 'This Month' },
     { value: 'lastMonth', label: language === 'ar' ? 'الشهر الماضي' : 'Last Month' },
-    { value: 'last7Days', label: language === 'ar' ? 'آخر 7 أيام' : 'Last 7 Days' },
-    { value: 'last30Days', label: language === 'ar' ? 'آخر 30 يوم' : 'Last 30 Days' },
-    { value: 'last90Days', label: language === 'ar' ? 'آخر 90 يوم' : 'Last 90 Days' },
     { value: 'thisYear', label: language === 'ar' ? 'هذه السنة' : 'This Year' },
-    { value: 'custom', label: language === 'ar' ? 'فترة مخصصة' : 'Custom Range' },
+    { value: 'lastYear', label: language === 'ar' ? 'السنة الماضية' : 'Last Year' },
+    { value: 'custom', label: language === 'ar' ? 'تاريخ مخصص' : 'Custom Range' },
   ];
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
 
   const getDateRangeFromPreset = (preset: string): DateRange | undefined => {
     const today = new Date();
@@ -184,99 +195,79 @@ export default function JournalEntries() {
         const yesterday = subDays(today, 1);
         return { from: yesterday, to: yesterday };
       case 'thisWeek':
-        return { from: startOfWeek(today, { weekStartsOn: 0 }), to: endOfWeek(today, { weekStartsOn: 0 }) };
+        return { from: startOfWeek(today, { weekStartsOn: 6 }), to: endOfWeek(today, { weekStartsOn: 6 }) };
       case 'lastWeek':
-        const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 0 });
-        const lastWeekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 0 });
+        const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 6 });
+        const lastWeekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 6 });
         return { from: lastWeekStart, to: lastWeekEnd };
       case 'thisMonth':
         return { from: startOfMonth(today), to: endOfMonth(today) };
       case 'lastMonth':
-        const lastMonth = subDays(startOfMonth(today), 1);
-        return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
-      case 'last7Days':
-        return { from: subDays(today, 7), to: today };
-      case 'last30Days':
-        return { from: subDays(today, 30), to: today };
-      case 'last90Days':
-        return { from: subDays(today, 90), to: today };
+        const lastMonthStart = startOfMonth(subDays(startOfMonth(today), 1));
+        const lastMonthEnd = endOfMonth(subDays(startOfMonth(today), 1));
+        return { from: lastMonthStart, to: lastMonthEnd };
       case 'thisYear':
-        return { from: startOfYear(today), to: today };
+        return { from: startOfYear(today), to: new Date() }; // Until now
+      case 'lastYear':
+        const lastYearStart = startOfYear(subDays(startOfYear(today), 1));
+        const lastYearEnd = endOfMonth(subDays(startOfYear(today), 1));
+        return { from: lastYearStart, to: lastYearEnd };
+      case 'all':
+        return undefined;
       default:
         return undefined;
     }
   };
 
-  const handleDatePresetChange = (preset: string) => {
-    const dateRange = preset === 'custom' ? undefined : getDateRangeFromPreset(preset);
-    setFilters(prev => ({
-      ...prev,
-      datePreset: preset,
-      dateRange: preset === 'custom' ? prev.dateRange : dateRange
-    }));
-  };
-
-  // Set default date range to this month on mount
   useEffect(() => {
-    if (filters.datePreset === 'thisMonth' && !filters.dateRange) {
-      setFilters(prev => ({
-        ...prev,
-        dateRange: getDateRangeFromPreset('thisMonth')
-      }));
-    }
-  }, []);
-
-  const resetFilters = () => {
-    setFilters({
-      search: '',
-      entryType: 'all',
-      status: 'all',
-      origin: 'all',
-      entryNumber: '',
-      reference: '',
-      dateRange: undefined,
-      datePreset: 'thisMonth'
-    });
-  };
-
-  const hasActiveFilters = filters.search || filters.entryType !== 'all' || filters.status !== 'all' || 
-    filters.origin !== 'all' || filters.entryNumber || filters.reference || filters.dateRange;
-
-  // Fetch journal entries from Supabase
-  useEffect(() => {
-    if (!companyId) return;
-
     const fetchEntries = async () => {
+      if (!companyId) return;
+
       setLoading(true);
       try {
         let query = supabase
           .from('journal_entries')
           .select(`
             *,
-            lines:journal_entry_lines(*)
+            lines:journal_entry_lines(
+              id,
+              account_id,
+              description,
+              debit,
+              credit,
+              account:chart_of_accounts(
+                id,
+                account_code,
+                name_ar,
+                name_en
+              )
+            )
           `)
           .eq('company_id', companyId)
-          .order('entry_date', { ascending: false })
-          .order('created_at', { ascending: false });
+          .order('entry_date', { ascending: false });
 
         // Apply filters
-        if (filters.status && filters.status !== 'all') {
+        if (filters.status !== 'all') {
           query = query.eq('status', filters.status);
         }
-        if (filters.entryType && filters.entryType !== 'all') {
-          query = query.eq('voucher_type', filters.entryType);
+
+        if (filters.entryType !== 'all') {
+          query = query.eq('entry_type', filters.entryType);
         }
-        if (filters.dateRange?.from) {
-          query = query.gte('entry_date', filters.dateRange.from.toISOString().split('T')[0]);
-        }
-        if (filters.dateRange?.to) {
-          query = query.lte('entry_date', filters.dateRange.to.toISOString().split('T')[0]);
-        }
+
         if (filters.entryNumber) {
-          query = query.ilike('voucher_no', `%${filters.entryNumber}%`);
+          query = query.ilike('entry_number', `%${filters.entryNumber}%`);
         }
+
         if (filters.reference) {
           query = query.ilike('reference', `%${filters.reference}%`);
+        }
+
+        if (filters.dateRange?.from) {
+          query = query.gte('entry_date', format(filters.dateRange.from, 'yyyy-MM-dd'));
+          if (filters.dateRange.to) {
+            query = query.lte('entry_date', format(filters.dateRange.to, 'yyyy-MM-dd'));
+          }
         }
 
         const { data, error } = await query;
@@ -288,25 +279,40 @@ export default function JournalEntries() {
           // Transform data to match the expected format
           const transformedEntries = (data || []).map((entry: any) => ({
             id: entry.id,
-            voucherNo: entry.voucher_no,
+            voucherNo: entry.entry_number || entry.id,
             date: entry.entry_date,
             reference: entry.reference || '',
             description: entry.description || '',
-            amount: entry.total_debit || entry.total_credit || 0,
+            amount: Number(entry.total_debit || 0) || Number(entry.total_credit || 0) || 0,
             status: entry.status,
             createdBy: entry.created_by || '',
-            type: entry.voucher_type || 'journal',
-            origin: 'manual', // You can add origin field to database if needed
+            type: entry.entry_type || 'manual',
+            origin: 'manual',
+            marker_color: entry.marker_color || null, // Load marker_color from database
             lines: (entry.lines || []).map((line: any) => ({
               id: line.id,
-              account: `${line.account_code || ''} - ${line.account_name || ''}`,
+              account_id: line.account_id,
+              account: line.account
+                ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
+                : '-',
+              account_code: line.account?.account_code || '',
+              account_name: language === 'ar' ? line.account?.name_ar : line.account?.name_en || '',
               description: line.description || '',
-              debit: line.debit || 0,
-              credit: line.credit || 0,
+              debit: Number(line.debit || 0),
+              credit: Number(line.credit || 0),
               product: null,
             })),
           }));
           setEntries(transformedEntries);
+
+          // Initialize markedEntries from database marker_color
+          const markers: Record<string, MarkerColorId> = {};
+          transformedEntries.forEach((entry: any) => {
+            if (entry.marker_color) {
+              markers[entry.id] = entry.marker_color;
+            }
+          });
+          setMarkedEntries(markers);
         }
       } catch (error) {
         console.error('Error fetching journal entries:', error);
@@ -317,13 +323,13 @@ export default function JournalEntries() {
     };
 
     fetchEntries();
-  }, [companyId, filters.status, filters.entryType, filters.dateRange, filters.entryNumber, filters.reference]);
+  }, [companyId, filters.status, filters.entryType, filters.dateRange, filters.entryNumber, filters.reference, refreshTrigger, language]);
 
   const handleSort = (key: string) => {
     setSortConfig((current) => {
       if (current?.key === key) {
-        return current.direction === 'asc' 
-          ? { key, direction: 'desc' } 
+        return current.direction === 'asc'
+          ? { key, direction: 'desc' }
           : null;
       }
       return { key, direction: 'asc' };
@@ -336,61 +342,20 @@ export default function JournalEntries() {
     // Apply Search Filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      data = data.filter((item) => 
+      data = data.filter((item) =>
         item.id.toLowerCase().includes(searchLower) ||
-        item.description.toLowerCase().includes(searchLower) ||
+        item.voucherNo.toString().toLowerCase().includes(searchLower) ||
         item.reference.toLowerCase().includes(searchLower) ||
-        item.createdBy.toLowerCase().includes(searchLower)
+        item.description.toLowerCase().includes(searchLower) ||
+        item.amount.toString().includes(searchLower)
       );
-    }
-
-    // Apply Entry Type Filter
-    if (filters.entryType && filters.entryType !== 'all') {
-      data = data.filter((item) => item.type === filters.entryType);
-    }
-
-    // Apply Status Filter
-    if (filters.status && filters.status !== 'all') {
-      data = data.filter((item) => item.status === filters.status);
-    }
-
-    // Apply Origin Filter
-    if (filters.origin && filters.origin !== 'all') {
-      data = data.filter((item) => item.origin === filters.origin);
-    }
-
-    // Apply Entry Number Filter
-    if (filters.entryNumber) {
-      data = data.filter((item) => 
-        (item.voucherNo || item.id || '').toLowerCase().includes(filters.entryNumber.toLowerCase())
-      );
-    }
-
-    // Apply Reference Filter
-    if (filters.reference) {
-      data = data.filter((item) => 
-        item.reference.toLowerCase().includes(filters.reference.toLowerCase())
-      );
-    }
-
-    // Apply Date Range Filter
-    if (filters.dateRange?.from) {
-      data = data.filter((item) => {
-        const itemDate = new Date(item.date);
-        if (filters.dateRange?.from && filters.dateRange?.to) {
-          return itemDate >= filters.dateRange.from && itemDate <= filters.dateRange.to;
-        } else if (filters.dateRange?.from) {
-          return itemDate >= filters.dateRange.from;
-        }
-        return true;
-      });
     }
 
     // Apply Sort
     if (sortConfig) {
       data.sort((a, b) => {
-        const aValue = (a as any)[sortConfig.key];
-        const bValue = (b as any)[sortConfig.key];
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
 
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -399,18 +364,75 @@ export default function JournalEntries() {
     }
 
     return data;
-  }, [filters, sortConfig, entries]);
+  }, [entries, filters.search, sortConfig]);
 
-  const getEntryTypeLabel = (type: string) => {
-    const found = entryTypes.find(t => t.value === type);
-    return found?.label || type;
+  // Calculate Totals
+  const totals = useMemo(() => {
+    const totalDebit = filteredAndSortedData.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+    const totalCredit = filteredAndSortedData.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0); // Assuming balanced entries for now
+    const postedCount = filteredAndSortedData.filter(e => e.status === 'posted').length;
+    const draftCount = filteredAndSortedData.filter(e => e.status === 'draft').length;
+    const pendingCount = filteredAndSortedData.filter(e => e.status === 'pending').length;
+
+    return {
+      totalDebit,
+      totalCredit,
+      count: filteredAndSortedData.length,
+      postedCount,
+      draftCount,
+      pendingCount
+    };
+  }, [filteredAndSortedData]);
+
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      entryType: 'all',
+      status: 'all',
+      origin: 'all',
+      entryNumber: '',
+      reference: '',
+      dateRange: {
+        from: startOfWeek(new Date(), { weekStartsOn: 6 }),
+        to: new Date()
+      },
+      datePreset: 'thisWeek'
+    });
   };
 
-  const getEntryTypeBadgeColor = (type: string) => {
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.search !== '' ||
+      filters.entryType !== 'all' ||
+      filters.status !== 'all' ||
+      filters.origin !== 'all' ||
+      filters.entryNumber !== '' ||
+      filters.reference !== '' ||
+      filters.datePreset !== 'thisWeek' // Default
+    );
+  }, [filters]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'posted':
+        return <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-200">{language === 'ar' ? 'مرحّل' : 'Posted'}</Badge>;
+      case 'draft':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200">{language === 'ar' ? 'مسودة' : 'Draft'}</Badge>;
+      case 'pending':
+        return <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200">{language === 'ar' ? 'معلّق' : 'Pending'}</Badge>;
+      case 'cancelled':
+        return <Badge variant="secondary" className="bg-red-100 text-red-700 hover:bg-red-200">{language === 'ar' ? 'ملغي' : 'Cancelled'}</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getTypeStyle = (type: string) => {
     switch (type) {
-      case 'receipt': return 'bg-green-100 text-green-700 border-green-200';
+      case 'journal': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'opening': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
       case 'payment': return 'bg-red-100 text-red-700 border-red-200';
-      case 'cash': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'receipt': return 'bg-green-100 text-green-700 border-green-200';
       case 'sales': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'purchase': return 'bg-orange-100 text-orange-700 border-orange-200';
       case 'expense': return 'bg-amber-100 text-amber-700 border-amber-200';
@@ -422,70 +444,54 @@ export default function JournalEntries() {
   };
 
   const handleViewDetails = (entry: any) => {
-    // Convert entry format to JournalEntryData format
-    const entryType = entry.type || entry.voucher_type || 'journal';
-    const journalEntryData: JournalEntryData = {
+    console.log('Opening Entry Details:', {
       id: entry.id,
-      voucherNo: entry.voucherNo || entry.voucher_no || entry.id,
-      voucherType: entryType === 'receipt' ? 'receipt' : 
-                   entryType === 'payment' ? 'payment' : 
-                   entryType === 'cash' ? 'journal' : 
-                   entryType === 'transfer' ? 'transfer' : 'journal',
-      date: entry.date || entry.entry_date,
-      status: entry.status,
-      description: entry.description || '',
-      reference: entry.reference || '',
-      createdBy: entry.createdBy || entry.created_by || '',
-      lines: entry.lines?.map((line: any, index: number) => {
-        // Handle both formats: "code - name" string or separate fields
-        const accountStr = line.account || '';
-        const accountParts = accountStr.includes(' - ') ? accountStr.split(' - ') : [line.account_code || '', line.account_name || ''];
-        return {
-          id: line.id || String(index + 1),
-          lineNo: index + 1,
-          accountCode: accountParts[0] || line.account_code || '',
-          accountName: accountParts[1] || line.account_name || accountStr || '',
-          debit: line.debit || 0,
-          credit: line.credit || 0,
-          description: line.description || '',
-        };
-      }) || [],
-      totalDebit: entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.total_debit || entry.amount || 0,
-      totalCredit: entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.total_credit || entry.amount || 0,
-      isBalanced: Math.abs(
-        (entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.total_debit || entry.amount || 0) -
-        (entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.total_credit || entry.amount || 0)
-      ) < 0.01,
-    };
-    setSelectedEntryForDetails(journalEntryData);
+      linesCount: entry.lines?.length,
+      lines: entry.lines
+    });
+    setSelectedEntryForDetails(entry);
   };
 
-  // Toggle reconciliation mark for an entry
-  const toggleReconciliationMark = (entryId: string, e?: React.MouseEvent) => {
+  // Toggle marker for an entry - saves to database
+  const toggleMarker = async (entryId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const currentColor = markedEntries[entryId];
+    const newColor: MarkerColorId = currentColor === selectedMarkerColor ? null : selectedMarkerColor;
+
+    // Update local state immediately for responsive UI
     setMarkedEntries(prev => {
       const newMarked = { ...prev };
-      if (newMarked[entryId] === selectedReconciliationColor) {
-        // If same color, remove mark
+      if (newColor === null) {
         delete newMarked[entryId];
       } else {
-        // Set new color
-        newMarked[entryId] = selectedReconciliationColor;
+        newMarked[entryId] = newColor;
       }
       return newMarked;
     });
+
+    // Save to Supabase - PERSIST to database
+    try {
+      const { error } = await supabase
+        .from('journal_entries')
+        .update({ marker_color: newColor })
+        .eq('id', entryId);
+
+      if (error) {
+        console.error('Error saving marker:', error);
+      }
+    } catch (err) {
+      console.error('Error saving marker:', err);
+    }
   };
 
-  // Get background class for marked entry
-  const getReconciliationBg = (entryId: string) => {
+  // Get background color for marked entry - using new unified system
+  const getMarkerBg = (entryId: string): string => {
     const colorId = markedEntries[entryId];
-    if (!colorId) return '';
-    const color = RECONCILIATION_COLORS.find(c => c.id === colorId);
-    return color?.bg || '';
+    return colorId ? (getMarkerBackgroundColor(colorId) || '') : '';
   };
 
   const renderSortableHeader = (label: string, key: string) => (
-    <span 
+    <span
       className="cursor-pointer hover:text-erp-navy flex items-center gap-1"
       onClick={() => handleSort(key)}
     >
@@ -498,44 +504,54 @@ export default function JournalEntries() {
     </span>
   );
 
-  // Calculate totals for summary
-  const totals = useMemo(() => {
-    return filteredAndSortedData.reduce((acc, entry) => {
-      // Calculate total debit and credit from entry lines
-      const entryDebit = entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.amount;
-      const entryCredit = entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.amount;
-      
-      return {
-        totalDebit: acc.totalDebit + entryDebit,
-        totalCredit: acc.totalCredit + entryCredit,
-        count: acc.count + 1,
-        postedCount: acc.postedCount + (entry.status === 'posted' ? 1 : 0),
-        draftCount: acc.draftCount + (entry.status === 'draft' ? 1 : 0),
-        pendingCount: acc.pendingCount + (entry.status === 'pending' ? 1 : 0),
-      };
-    }, { totalDebit: 0, totalCredit: 0, count: 0, postedCount: 0, draftCount: 0, pendingCount: 0 });
-  }, [filteredAndSortedData]);
+  const setActiveViewTab = (value: string) => {
+    // Handle tab change logic if needed
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10" dir={direction}>
-      {/* Compact Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">{t('accounting.journalEntries')}</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('receipt'); setIsNewEntryOpen(true); }}>
-            <ArrowDownRight className="w-3.5 h-3.5 text-green-600" />
-            {t('accounting.receipts')}
+    <div className="space-y-4 p-4 lg:p-6 pb-20 max-w-[1600px] mx-auto relative min-h-screen" dir={direction}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('accounting.journalEntries')}</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">{t('accounting.manageEntries')}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Marker Colors Palette - with help icon */}
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+            <span className="text-xs font-medium text-slate-500 px-2 hidden sm:inline-block">
+              {language === 'ar' ? 'التعليم:' : 'Mark:'}
+            </span>
+
+            <ColorMarkerPalette
+              selectedColor={selectedMarkerColor}
+              onColorSelect={setSelectedMarkerColor}
+              size="sm"
+              showClear={false}
+              showHelp={true}
+            />
+
+            <Separator orientation="vertical" className="h-5" />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-slate-500 hover:text-red-600"
+              onClick={() => setMarkedEntries({})}
+              disabled={Object.keys(markedEntries).length === 0}
+            >
+              <RotateCcw className="w-3 h-3 mr-1" />
+              {language === 'ar' ? 'مسح الكل' : 'Clear All'}
+            </Button>
+          </div>
+
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowImportWizard(true)}>
+            <Upload className="w-4 h-4" />
+            {t('common.import')}
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('payment'); setIsNewEntryOpen(true); }}>
-            <ArrowUpRight className="w-3.5 h-3.5 text-orange-600" />
-            {t('accounting.paymentsLabel')}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('cash'); setIsNewEntryOpen(true); }}>
-            <Wallet className="w-3.5 h-3.5 text-purple-600" />
-            {t('accounting.cashJournal')}
-          </Button>
+
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('transfer'); setIsNewEntryOpen(true); }}>
-            <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-600" />
+            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" />
             {t('accounting.transfer')}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setDefaultTab('exchange'); setIsNewEntryOpen(true); }}>
@@ -549,417 +565,218 @@ export default function JournalEntries() {
         </div>
       </div>
 
-      {/* Summary Stats Bar - Same style as General Ledger */}
-      <div className="flex items-center gap-6 px-4 py-2.5 bg-gradient-to-r from-gray-50 to-white border-b shrink-0">
-        {/* Total Entries */}
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-blue-500" />
-          <span className="text-xs text-gray-500">{language === 'ar' ? 'عدد القيود' : 'Entries'}:</span>
-          <span className="font-mono font-bold text-base text-blue-600">{totals.count}</span>
-        </div>
-        <div className="h-6 w-px bg-gray-200" />
+      <Tabs defaultValue="journal_entries" className="w-full" onValueChange={setActiveViewTab}>
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+          <TabsTrigger value="journal_entries">{t('accounting.manualEntries') || 'Manual Entries'}</TabsTrigger>
+          <TabsTrigger value="automatic_entries">{t('accounting.automaticEntries') || 'Automatic Entries'}</TabsTrigger>
+        </TabsList>
 
-        {/* Total Debit */}
-        <div className="flex items-center gap-2">
-          <ArrowUpRight className="w-5 h-5 text-green-500" />
-          <span className="text-xs text-gray-500">{language === 'ar' ? 'إجمالي المدين' : 'Total Debit'}:</span>
-          <span className="font-mono font-bold text-base text-green-600">{totals.totalDebit.toLocaleString()}</span>
-        </div>
-        <div className="h-6 w-px bg-gray-200" />
+        <TabsContent value="journal_entries" className="space-y-4">
 
-        {/* Total Credit */}
-        <div className="flex items-center gap-2">
-          <ArrowDownRight className="w-5 h-5 text-rose-500" />
-          <span className="text-xs text-gray-500">{language === 'ar' ? 'إجمالي الدائن' : 'Total Credit'}:</span>
-          <span className="font-mono font-bold text-base text-rose-600">{totals.totalCredit.toLocaleString()}</span>
-        </div>
-        <div className="h-6 w-px bg-gray-200" />
 
-        {/* Posted Count */}
-        <div className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-green-500" />
-          <span className="text-xs text-gray-500">{language === 'ar' ? 'مرحّل' : 'Posted'}:</span>
-          <span className="font-mono font-bold text-base text-green-600">{totals.postedCount}</span>
-        </div>
-        <div className="h-6 w-px bg-gray-200" />
-
-        {/* Draft Count */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">{language === 'ar' ? 'مسودات' : 'Drafts'}:</span>
-          <span className="font-mono font-bold text-base text-amber-600">{totals.draftCount}</span>
-        </div>
-
-        <span className="text-[10px] text-gray-400 mr-auto">SAR</span>
-
-        {/* Import */}
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setShowImportWizard(true)}>
-          <Upload className="w-3.5 h-3.5" />
-          {t('common.import')}
-        </Button>
-
-        {/* Export */}
-        <Button variant="ghost" size="sm" className="gap-1.5">
-          <Download className="w-3.5 h-3.5" />
-          {t('export')}
-        </Button>
-      </div>
-
-      {/* Main Content */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden">
-        {/* Search and Filter Row */}
-        <div className="p-3 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:w-80">
-              <Search className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400`} />
-              <Input 
-                placeholder={language === 'ar' ? 'بحث في القيود...' : 'Search entries...'} 
-                className={`${direction === 'rtl' ? 'pr-9' : 'pl-9'} h-9 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700`}
-                value={filters.search}
-                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Button 
-                variant={showFilters ? "default" : "outline"} 
-                size="sm"
-                className={`gap-1.5 ${showFilters ? 'bg-erp-navy' : ''}`}
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter className="w-3.5 h-3.5" />
-                {language === 'ar' ? 'فلترة' : 'Filter'}
-                {hasActiveFilters && (
-                  <Badge variant="secondary" className="bg-erp-teal text-white text-[10px] h-4 px-1">
-                    {Object.values(filters).filter(v => v && v !== 'all').length}
-                  </Badge>
-                )}
-              </Button>
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" className="gap-1 text-gray-500 hover:text-red-600" onClick={resetFilters}>
-                  <RotateCcw className="w-3 h-3" />
-                </Button>
-              )}
-              
-              {/* Reconciliation Colors */}
-              <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-9 px-2.5">
-                    <Palette className="w-3.5 h-3.5" />
-                    <div 
-                      className="w-3.5 h-3.5 rounded-full border"
-                      style={{ backgroundColor: RECONCILIATION_COLORS.find(c => c.id === selectedReconciliationColor)?.color }}
-                    />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-3" align="end">
-                  <div className="flex gap-2">
-                    {RECONCILIATION_COLORS.slice(1).map((color) => (
-                      <button
-                        key={color.id}
-                        onClick={() => {
-                          setSelectedReconciliationColor(color.id);
-                          setShowColorPicker(false);
-                        }}
-                        className={cn(
-                          "w-6 h-6 rounded-full border-2 transition-all hover:scale-110",
-                          selectedReconciliationColor === color.id 
-                            ? "ring-2 ring-offset-2 ring-erp-navy scale-110" 
-                            : "border-gray-300"
-                        )}
-                        style={{ backgroundColor: color.color }}
-                        title={language === 'ar' ? color.label : color.labelEn}
-                      />
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              {/* Export Buttons */}
-              <Button variant="outline" size="sm" className="h-9 px-2.5" title={language === 'ar' ? 'جداول غوغل' : 'Google Sheets'}>
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 px-2.5" title="PDF">
-                <FileText className="w-3.5 h-3.5" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 px-2.5" title={language === 'ar' ? 'طباعة' : 'Print'}>
-                <Printer className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-3 bg-gray-50 dark:bg-gray-800 rounded-md p-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
-              {/* Filters Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                {/* Entry Type */}
-                <Select value={filters.entryType} onValueChange={(v) => setFilters(prev => ({ ...prev, entryType: v }))}>
-                  <SelectTrigger className="h-8 text-xs bg-white dark:bg-gray-900">
-                    <SelectValue placeholder={language === 'ar' ? 'النوع' : 'Type'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {entryTypes.map(type => (
-                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Status */}
-                <Select value={filters.status} onValueChange={(v) => setFilters(prev => ({ ...prev, status: v }))}>
-                  <SelectTrigger className="h-8 text-xs bg-white dark:bg-gray-900">
-                    <SelectValue placeholder={language === 'ar' ? 'الحالة' : 'Status'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusTypes.map(status => (
-                      <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Origin */}
-                <Select value={filters.origin} onValueChange={(v) => setFilters(prev => ({ ...prev, origin: v }))}>
-                  <SelectTrigger className="h-8 text-xs bg-white dark:bg-gray-900">
-                    <SelectValue placeholder={language === 'ar' ? 'المنشأ' : 'Origin'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {originTypes.map(origin => (
-                      <SelectItem key={origin.value} value={origin.value}>{origin.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Date Preset */}
-                <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
-                  <SelectTrigger className="h-8 text-xs bg-white dark:bg-gray-900">
-                    <SelectValue placeholder={language === 'ar' ? 'الفترة' : 'Period'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {datePresets.map(preset => (
-                      <SelectItem key={preset.value} value={preset.value}>{preset.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Entry Number */}
-                <Input 
-                  placeholder={language === 'ar' ? 'رقم القيد' : 'Entry #'}
-                  value={filters.entryNumber}
-                  onChange={(e) => setFilters(prev => ({ ...prev, entryNumber: e.target.value }))}
-                  className="h-8 text-xs bg-white dark:bg-gray-900"
-                />
-
-                {/* Reference */}
-                <Input 
-                  placeholder={language === 'ar' ? 'المرجع' : 'Reference'}
-                  value={filters.reference}
-                  onChange={(e) => setFilters(prev => ({ ...prev, reference: e.target.value }))}
-                  className="h-8 text-xs bg-white dark:bg-gray-900"
-                />
-              </div>
-
-              {/* Custom Date Range (only shown when custom is selected) */}
-              {filters.datePreset === 'custom' && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 text-xs justify-start text-left font-normal bg-white dark:bg-gray-900">
-                      <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                      {filters.dateRange?.from ? (
-                        filters.dateRange.to ? (
-                          <>
-                            {format(filters.dateRange.from, "yyyy/MM/dd", { locale: language === 'ar' ? ar : undefined })} -{" "}
-                            {format(filters.dateRange.to, "yyyy/MM/dd", { locale: language === 'ar' ? ar : undefined })}
-                          </>
-                        ) : (
-                          format(filters.dateRange.from, "yyyy/MM/dd", { locale: language === 'ar' ? ar : undefined })
-                        )
-                      ) : (
-                        <span className="text-gray-500">{language === 'ar' ? 'اختر الفترة' : 'Pick range'}</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={filters.dateRange?.from}
-                      selected={filters.dateRange}
-                      onSelect={(range) => setFilters(prev => ({ ...prev, dateRange: range }))}
-                      numberOfMonths={2}
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
-
-              {/* Active Filters - Compact */}
-              {hasActiveFilters && (
-                <div className="flex flex-wrap items-center gap-1">
-                  {filters.entryType !== 'all' && (
-                    <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5">
-                      {entryTypes.find(t => t.value === filters.entryType)?.label}
-                      <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, entryType: 'all' }))} />
-                    </Badge>
-                  )}
-                  {filters.status !== 'all' && (
-                    <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5">
-                      {statusTypes.find(s => s.value === filters.status)?.label}
-                      <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, status: 'all' }))} />
-                    </Badge>
-                  )}
-                  {filters.origin !== 'all' && (
-                    <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5">
-                      {originTypes.find(o => o.value === filters.origin)?.label}
-                      <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, origin: 'all' }))} />
-                    </Badge>
-                  )}
-                  {filters.entryNumber && (
-                    <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5">
-                      #{filters.entryNumber}
-                      <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, entryNumber: '' }))} />
-                    </Badge>
-                  )}
-                  {filters.reference && (
-                    <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5">
-                      {filters.reference}
-                      <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, reference: '' }))} />
-                    </Badge>
-                  )}
-                  {filters.dateRange?.from && (
-                    <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5">
-                      {datePresets.find(p => p.value === filters.datePreset)?.label}
-                      <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, dateRange: undefined, datePreset: 'all' }))} />
-                    </Badge>
-                  )}
+          {/* Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 scale-95 origin-top-left -mb-2">
+            <Card>
+              <CardContent className="p-4 flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('accounting.totalDebit')}</span>
+                <div className="text-xl font-bold font-mono text-erp-teal">
+                  {formatCurrency(totals.totalDebit)}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Table - Same style as GeneralLedgerPage */}
-        <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full">
-          <TableHeader className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-10">
-            <TableRow className="h-12 border-b-2 border-slate-300 dark:border-slate-600">
-              <TableHead className="w-[40px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">✓</TableHead>
-              <TableHead className="w-[100px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'مدين' : 'Debit'}</TableHead>
-              <TableHead className="w-[100px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'دائن' : 'Credit'}</TableHead>
-              <TableHead className="w-[80px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'المرجع' : 'Ref'}</TableHead>
-              <TableHead className="min-w-[180px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{renderSortableHeader(t('description'), 'description')}</TableHead>
-              <TableHead className="w-[60px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 text-center">{language === 'ar' ? 'النوع' : 'Type'}</TableHead>
-              <TableHead className="w-[100px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{renderSortableHeader(language === 'ar' ? 'رقم القيد' : 'Entry #', 'id')}</TableHead>
-              <TableHead className="w-[90px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 text-center">{renderSortableHeader(t('date'), 'date')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAndSortedData.length > 0 ? (
-              filteredAndSortedData.map((entry, index) => {
-                // Calculate debit/credit from lines
-                const entryDebit = entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.amount;
-                const entryCredit = entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.amount;
-                
-                return (
-                  <TableRow 
-                    key={entry.id}
-                    onClick={() => handleViewDetails(entry)}
-                    className={cn(
-                      "h-12 hover:bg-blue-50/80 dark:hover:bg-slate-800 cursor-pointer transition-all duration-150",
-                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/60 dark:bg-slate-800/50",
-                      getReconciliationBg(entry.id)
-                    )}
-                  >
-                    <TableCell className="text-center border border-slate-200 dark:border-slate-700 px-3 py-2.5">
-                      <Checkbox
-                        checked={!!markedEntries[entry.id]}
-                        onCheckedChange={() => toggleReconciliationMark(entry.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={cn(
-                          "w-4 h-4",
-                          markedEntries[entry.id] && "border-2"
-                        )}
-                        style={{
-                          borderColor: markedEntries[entry.id] 
-                            ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color 
-                            : undefined,
-                          backgroundColor: markedEntries[entry.id] 
-                            ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color 
-                            : undefined,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell className={`text-center text-sm font-mono border border-slate-200 dark:border-slate-700 px-3 py-2.5 ${entryDebit > 0 ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
-                      {entryDebit > 0 ? entryDebit.toLocaleString() : '-'}
-                    </TableCell>
-                    <TableCell className={`text-center text-sm font-mono border border-slate-200 dark:border-slate-700 px-3 py-2.5 ${entryCredit > 0 ? "text-rose-600 font-semibold" : "text-slate-400"}`}>
-                      {entryCredit > 0 ? entryCredit.toLocaleString() : '-'}
-                    </TableCell>
-                    <TableCell className="text-sm font-mono text-slate-500 border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.reference}</TableCell>
-                    <TableCell className="truncate max-w-[180px] text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-4 py-2.5" title={entry.description}>{entry.description}</TableCell>
-                    <TableCell className="border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-center">
-                      <Badge className={`text-xs font-medium px-2.5 py-1 ${getEntryTypeBadgeColor(entry.type)}`}>
-                        {getEntryTypeLabel(entry.type)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm font-mono text-blue-600 border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.voucherNo || entry.id}</TableCell>
-                    <TableCell className="text-sm font-mono text-center border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.date}</TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-slate-500">
-                  <div className="flex flex-col items-center gap-2">
-                    <FileText className="w-10 h-10 text-slate-300" />
-                    <p className="text-sm">{language === 'ar' ? 'لا توجد قيود مطابقة' : 'No matching entries'}</p>
-                    {hasActiveFilters && (
-                      <Button variant="link" size="sm" onClick={resetFilters} className="text-erp-teal">
-                        {language === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}
-                      </Button>
-                    )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('accounting.totalCredit')}</span>
+                <div className="text-xl font-bold font-mono text-erp-indigo">
+                  {formatCurrency(totals.totalCredit)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('accounting.netMovement')}</span>
+                <div className={cn("text-xl font-bold font-mono", totals.totalDebit - totals.totalCredit === 0 ? "text-slate-600" : "text-amber-600")}>
+                  {formatCurrency(totals.totalDebit - totals.totalCredit)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('accounting.entriesCount')}</span>
+                <div className="flex items-center gap-3">
+                  <div className="text-xl font-bold text-slate-700 dark:text-slate-200">{totals.count}</div>
+                  <div className="flex gap-1">
+                    {totals.postedCount > 0 && <Badge variant="secondary" className="bg-green-100 text-green-700 h-5 px-1.5 text-[10px]">{totals.postedCount} posted</Badge>}
+                    {totals.draftCount > 0 && <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 h-5 px-1.5 text-[10px]">{totals.draftCount} draft</Badge>}
                   </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-        </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Fixed Footer with Totals - Aligned to columns */}
-        <div className="shrink-0 border-t-2 border-erp-navy bg-erp-navy text-white">
-          <div className="grid grid-cols-[40px_100px_100px_80px_minmax(180px,1fr)_60px_100px_90px] gap-0 py-2">
-            <div className="text-center border-l border-gray-600 px-2">
-              <span className="font-mono font-bold text-sm">{Object.keys(markedEntries).length}</span>
-            </div>
-            <div className="text-center border-l border-gray-600 px-2">
-              <span className="font-mono font-bold text-green-300">{totals.totalDebit.toLocaleString()}</span>
-            </div>
-            <div className="text-center border-l border-gray-600 px-2">
-              <span className="font-mono font-bold text-rose-300">{totals.totalCredit.toLocaleString()}</span>
-            </div>
-            <div className="border-l border-gray-600 px-2"></div>
-            <div className="border-l border-gray-600 px-3">
-              <span className="text-xs text-gray-400">
-                {language === 'ar' 
-                  ? `${totals.postedCount} مرحّل • ${totals.draftCount} مسودة • ${totals.pendingCount} معلّق`
-                  : `${totals.postedCount} posted • ${totals.draftCount} draft • ${totals.pendingCount} pending`
+          <div className="bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+            <NexaTable
+              data={filteredAndSortedData}
+              columns={[
+                {
+                  key: 'marker',
+                  title: language === 'ar' ? 'تعليم' : 'Mark',
+                  width: '60px',
+                  align: 'center',
+                  render: (_, row) => (
+                    <Checkbox
+                      checked={!!markedEntries[row.id]}
+                      onCheckedChange={() => toggleMarker(row.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        "w-4 h-4",
+                        markedEntries[row.id] && "border-2"
+                      )}
+                      style={{
+                        borderColor: markedEntries[row.id]
+                          ? MARKER_COLORS.find(c => c.id === markedEntries[row.id])?.color
+                          : undefined,
+                        backgroundColor: markedEntries[row.id]
+                          ? MARKER_COLORS.find(c => c.id === markedEntries[row.id])?.color
+                          : undefined,
+                      }}
+                    />
+                  )
+                },
+                {
+                  key: 'type',
+                  title: language === 'ar' ? 'النوع' : 'Type',
+                  width: '120px',
+                  align: 'center',
+                  render: (_, row) => (
+                    <Badge variant="outline" className={cn("font-medium border shadow-sm", getTypeStyle(row.type))}>
+                      {entryTypes.find(t => t.value === row.type)?.label || row.type}
+                    </Badge>
+                  )
+                },
+                {
+                  key: 'voucherNo',
+                  title: language === 'ar' ? 'رقم القيد' : 'Entry #',
+                  width: '100px',
+                  align: 'start',
+                  render: (val) => <span className="font-mono font-medium">{val}</span>
+                },
+                {
+                  key: 'date',
+                  title: t('date'),
+                  width: '100px',
+                  align: 'center',
+                  render: (val) => <span className="text-slate-600 dark:text-slate-400">{format(new Date(val), 'dd/MM/yyyy')}</span>
+                },
+                {
+                  key: 'description',
+                  title: t('accounting.description'),
+                  align: 'start',
+                  render: (_, row) => (
+                    <div className="max-w-[300px] truncate" title={row.description}>
+                      {row.description}
+                      {row.lines?.length > 0 && (
+                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                          {row.lines[0].account_name} {row.lines.length > 1 ? `+ ${row.lines.length - 1} ${language === 'ar' ? 'آخرين' : 'more'}` : ''}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  key: 'status',
+                  title: t('status'),
+                  width: '100px',
+                  align: 'center',
+                  render: (val) => getStatusBadge(val)
+                },
+                {
+                  key: 'amount',
+                  title: t('accounting.amount'),
+                  width: '140px',
+                  align: 'end',
+                  render: (val) => <span className="font-bold">{formatCurrency(Number(val))}</span>
+                },
+                {
+                  key: 'actions',
+                  title: '',
+                  width: '60px',
+                  align: 'center',
+                  render: (_, row) => (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-erp-navy hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); handleViewDetails(row); }}>
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  )
                 }
-              </span>
-            </div>
-            <div className="border-l border-gray-600 px-2"></div>
-            <div className="border-l border-gray-600 px-2">
-              <span className="text-[10px] text-gray-300">{language === 'ar' ? 'عدد:' : 'Count:'}</span>
-              <span className="font-mono font-bold text-sm mr-1">{filteredAndSortedData.length}</span>
-            </div>
-            <div className="px-2">
-              <span className={`font-mono font-bold text-sm ${totals.totalDebit === totals.totalCredit ? 'text-green-300' : 'text-amber-300'}`}>
-                {totals.totalDebit === totals.totalCredit ? '✓' : (totals.totalDebit - totals.totalCredit).toLocaleString()}
-              </span>
+              ]}
+              showRowNumbers={false}
+              bordered
+              striped
+              loading={loading}
+              emptyMessage={language === 'ar' ? 'لا توجد قيود مطابقة' : 'No matching entries'}
+              rowStyle={(row) => {
+                const bgColor = getMarkerBg(row.id);
+                return bgColor ? { backgroundColor: bgColor } : undefined;
+              }}
+              onRowClick={(row) => handleViewDetails(row)}
+            />
+          </div>
+
+          {/* Fixed Footer with Totals - Aligned to columns */}
+          <div className="shrink-0 border-t-2 border-erp-navy bg-erp-navy text-white">
+            <div className="grid grid-cols-[40px_100px_100px_80px_minmax(180px,1fr)_60px_100px_90px] gap-0 py-2">
+              <div className="text-center border-l border-gray-600 px-2">
+                <span className="font-mono font-bold text-sm">{Object.keys(markedEntries).length}</span>
+              </div>
+              <div className="text-center border-l border-gray-600 px-2">
+                <span className="font-mono font-bold text-green-300">{totals.totalDebit.toLocaleString()}</span>
+              </div>
+              <div className="text-center border-l border-gray-600 px-2">
+                <span className="font-mono font-bold text-rose-300">{totals.totalCredit.toLocaleString()}</span>
+              </div>
+              <div className="border-l border-gray-600 px-2"></div>
+              <div className="border-l border-gray-600 px-3">
+                <span className="text-xs text-gray-400">
+                  {language === 'ar'
+                    ? `${totals.postedCount} مرحّل • ${totals.draftCount} مسودة • ${totals.pendingCount} معلّق`
+                    : `${totals.postedCount} posted • ${totals.draftCount} draft • ${totals.pendingCount} pending`
+                  }
+                </span>
+              </div>
+              <div className="border-l border-gray-600 px-2"></div>
+              <div className="border-l border-gray-600 px-2">
+                <span className="text-[10px] text-gray-300">{language === 'ar' ? 'عدد:' : 'Count:'}</span>
+                <span className="font-mono font-bold text-sm mr-1">{filteredAndSortedData.length}</span>
+              </div>
+              <div className="px-2">
+                <span className={`font-mono font-bold text-sm ${totals.totalDebit === totals.totalCredit ? 'text-green-300' : 'text-amber-300'}`}>
+                  {totals.totalDebit === totals.totalCredit ? '✓' : (totals.totalDebit - totals.totalCredit).toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </TabsContent>
 
-      <NewJournalEntrySheet 
-        open={isNewEntryOpen} 
-        onOpenChange={setIsNewEntryOpen} 
+        <TabsContent value="automatic_entries">
+          <AutomaticEntriesTab onViewDetails={handleViewDetails} />
+        </TabsContent>
+      </Tabs>
+
+      <NewJournalEntrySheet
+        open={isNewEntryOpen}
+        onOpenChange={(open) => {
+          setIsNewEntryOpen(open);
+          if (!open) {
+            setIsEditMode(false);
+            setEditEntryId(null);
+          }
+        }}
         defaultTab={defaultTab}
+        editMode={isEditMode}
+        entryId={editEntryId}
+        onUpdate={() => {
+          setRefreshTrigger(prev => prev + 1);
+        }}
       />
 
       {/* Journal Entry Details Sheet - Universal */}

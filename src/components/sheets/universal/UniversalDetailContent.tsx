@@ -72,7 +72,7 @@ function StatsCard({ stat, data, language, t }: {
             'text-2xl font-bold font-mono mt-1',
             stat.color ? colorClasses[stat.color] : 'text-gray-900 dark:text-white'
           )}>
-            {typeof formattedValue === 'number' 
+            {typeof formattedValue === 'number'
               ? formattedValue.toLocaleString('en-US')
               : formattedValue}
           </p>
@@ -95,7 +95,7 @@ function StatsGrid({ stats, data, language, t }: {
   if (!stats || stats.length === 0) return null;
 
   const gridCols = Math.min(stats.length, 4);
-  
+
   return (
     <div className={cn(
       'grid gap-4 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50',
@@ -106,10 +106,10 @@ function StatsGrid({ stats, data, language, t }: {
       stats.length >= 4 && 'grid-cols-4'
     )}>
       {stats.map((stat) => (
-        <StatsCard 
-          key={stat.key} 
-          stat={stat} 
-          data={data} 
+        <StatsCard
+          key={stat.key}
+          stat={stat}
+          data={data}
           language={language}
           t={t}
         />
@@ -129,9 +129,19 @@ export function UniversalDetailContent({
   onRowClick,
   onRefresh,
 }: UniversalDetailContentProps) {
+
+  // DEBUG LOG
+  if (config.docType === 'journal_entry') {
+    console.log('UniversalDetailContent Data:', {
+      id: data.id,
+      linesCount: data.lines?.length,
+      lines: data.lines,
+      firstLineAccount: data.lines?.[0]?.account
+    });
+  }
   // Find active tab component
   const activeTabConfig = config.tabs.find(tab => tab.id === activeTab);
-  
+
   if (!activeTabConfig) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -164,14 +174,14 @@ export function UniversalDetailContent({
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Stats Cards */}
       {config.stats && config.stats.length > 0 && activeTab === config.defaultTab && (
-        <StatsGrid 
-          stats={config.stats} 
+        <StatsGrid
+          stats={config.stats}
           data={data}
           language={language}
           t={t}
         />
       )}
-      
+
       {/* Tab Content */}
       <ScrollArea className="flex-1">
         <div className="h-full">

@@ -24,22 +24,18 @@
     "website": "الموقع الإلكتروني",
     "currency": "العملة",
     "fiscalYearStart": "بداية السنة المالية",
-    
     "step1": {
       "title": "اختر نوع عملك",
       "description": "اختر نوع النشاط التجاري الذي يناسب شركتك"
     },
-    
     "step2": {
       "title": "معلومات الشركة",
       "description": "أدخل التفاصيل الأساسية لشركتك"
     },
-    
     "step3": {
       "title": "الإعدادات المالية",
       "description": "حدد العملة وبداية السنة المالية"
     },
-    
     "businessTypes": {
       "general": {
         "name": "عام",
@@ -61,9 +57,53 @@
         "name": "تجارة إلكترونية",
         "description": "متجر إلكتروني أونلاين"
       }
+    },
+    "selectChartTemplate": "اختر نوع الشجرة المحاسبية",
+    "chartTemplate": "الشجرة المحاسبية",
+    "chartSimple": "الشجرة القياسية",
+    "chartSimpleDesc": "مناسبة للشركات الصغيرة والخدمية. حسابات أساسية ومختصرة.",
+    "chartSimpleNote": "يمكنك ترقيتها لاحقاً إلى الموسعة",
+    "chartExtended": "الشجرة الموسعة",
+    "chartExtendedDesc": "شجرة كاملة ومفصلة. مناسبة للشركات التجارية والصناعية الكبيرة.",
+    "chartFabric": "شجرة الأقمشة المتخصصة 🧵",
+    "chartFabricDesc": "خصيصاً لشركات الأقمشة. تشمل تفاصيل: المخزون (خام/تام)، الإكسسوارات، والآلات.",
+    "mainCurrency": "العملة الرئيسية",
+    "fabricCurrencyNote": "الشركة التجريبية ستكون بالدولار",
+    "step4Title": "اختر باقتك",
+    "step4Description": "اختر الخطة التي تناسب حجم أعمالك",
+    "billingMonthly": "شهري",
+    "billingYearly": "سنوي",
+    "savePercent": "وفر 20%",
+    "mostPopular": "الأكثر شيوعاً",
+    "planSelect": "اختيار الباقة",
+    "planSelected": "تم الاختيار",
+    "plans": {
+      "starter": {
+        "name": "الأساسية",
+        "description": "للشركات الناشئة والصغيرة",
+        "feature1": "مستخدم واحد",
+        "feature2": "حسابات أساسية",
+        "feature3": "فواتير غير محدودة",
+        "feature4": "دعم عبر البريد الإلكتروني"
+      },
+      "professional": {
+        "name": "المحترفة",
+        "description": "للشركات المتنامية",
+        "feature1": "5 مستخدمين",
+        "feature2": "حسابات متقدمة ومخزون",
+        "feature3": "إدارة أصول",
+        "feature4": "دعم فني ذو أولوية"
+      },
+      "enterprise": {
+        "name": "المؤسسات",
+        "description": "للشركات الكبيرة",
+        "feature1": "مستخدمين غير محدودين",
+        "feature2": "كل المميزات والخصائص",
+        "feature3": "ربط API مخصص",
+        "feature4": "مدير حساب خاص"
+      }
     }
   },
-  
   "settings": {
     "companySwitcher": {
       "title": "التنقل بين الشركات",

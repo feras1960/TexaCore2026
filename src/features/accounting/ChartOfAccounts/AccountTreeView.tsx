@@ -133,24 +133,35 @@ function TreeNode({
           )}
           <span className={cn(
             'text-[10px] font-mono flex-shrink-0 px-1.5 py-0.5 rounded transition-colors',
-            isSelected 
-              ? 'bg-erp-navy/20 dark:bg-erp-navy/40 text-erp-navy dark:text-white font-semibold' 
+            isSelected
+              ? 'bg-erp-navy/20 dark:bg-erp-navy/40 text-erp-navy dark:text-white font-semibold'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
           )}>
             {node.code}
           </span>
           <span className={cn(
-            'font-medium text-sm font-tajawal truncate transition-colors',
+            'font-medium text-sm font-tajawal truncate transition-colors flex-1',
             isSelected ? 'text-erp-navy dark:text-white' : 'text-gray-700 dark:text-gray-300'
           )}>
             {accountName}
           </span>
+
+          {/* Balance Display */}
+          <span className={cn(
+            'text-xs font-mono px-2',
+            (node.current_balance || 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' :
+              (node.current_balance || 0) < 0 ? 'text-rose-600 dark:text-rose-400' :
+                'text-gray-400'
+          )}>
+            {Number(node.current_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+
           {/* عرض عدد الحسابات الفرعية بجانب المجموعات */}
           {node.is_group && getChildrenCount && getChildrenCount(node) > 0 && (
             <span className={cn(
               'text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0',
-              isSelected 
-                ? 'bg-erp-teal/20 text-erp-teal dark:bg-erp-teal/30 dark:text-erp-teal' 
+              isSelected
+                ? 'bg-erp-teal/20 text-erp-teal dark:bg-erp-teal/30 dark:text-erp-teal'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
             )}>
               {getChildrenCount(node)}
@@ -380,7 +391,7 @@ export function AccountTreeView({
   // Use fullTreeData to get all children (groups + accounts) for table view
   const selectedGroup = useMemo(() => {
     if (!selectedId) return null;
-    
+
     const findNode = (nodes: AccountTreeNode[]): AccountTreeNode | null => {
       for (const node of nodes) {
         if (node.id === selectedId && node.is_group) return node;
@@ -391,7 +402,7 @@ export function AccountTreeView({
       }
       return null;
     };
-    
+
     // Use fullTreeData to get all children (groups + accounts)
     return findNode(fullTreeData);
   }, [selectedId, fullTreeData]);
@@ -401,13 +412,13 @@ export function AccountTreeView({
   // Calculate stats for selected group
   const groupStats = useMemo(() => {
     if (!selectedGroup || !rightPanelAccounts.length) return null;
-    
+
     const totalChildren = rightPanelAccounts.length;
     const groupsCount = rightPanelAccounts.filter(a => a.is_group).length;
     const accountsCount = rightPanelAccounts.filter(a => !a.is_group).length;
     const totalBalance = rightPanelAccounts.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
     const activeCount = rightPanelAccounts.filter(a => a.is_active).length;
-    
+
     return {
       totalChildren,
       groupsCount,
@@ -432,15 +443,15 @@ export function AccountTreeView({
       style={height ? { height } : undefined}
     >
       <ResizablePanelGroup
+        key="coa-layout-40-60"
         direction="horizontal"
         className={cn('w-full', height ? 'flex-1 min-h-0 flex' : 'h-auto')}
         style={height ? undefined : { height: 'auto' }}
       >
-        {/* Left Panel - Tree View (30%) - Groups */}
         <ResizablePanel
-          defaultSize={30}
-          minSize={20}
-          maxSize={40}
+          defaultSize={40}
+          minSize={30}
+          maxSize={70}
           className="border-e border-gray-100 dark:border-gray-800 flex flex-col"
           style={height ? undefined : { height: 'auto' }}
         >
@@ -475,7 +486,7 @@ export function AccountTreeView({
 
         {/* Right Panel - Table View (70%) - Accounts */}
         <ResizablePanel
-          defaultSize={70}
+          defaultSize={60}
           className="flex flex-col"
           style={height ? undefined : { height: 'auto' }}
         >
@@ -571,7 +582,7 @@ export function AccountTreeView({
                               </div>
                             </TableCell>
                             <TableCell className="text-gray-600 dark:text-gray-400">
-                              {account.account_type_code 
+                              {account.account_type_code
                                 ? t(`accounting.accountTypes.${account.account_type_code.toLowerCase()}`)
                                 : account.account_type || '-'}
                             </TableCell>

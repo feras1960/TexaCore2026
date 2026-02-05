@@ -16,14 +16,14 @@ const generateId = () => {
   return `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
-export function useNestedSheets(maxNestLevel: number = 3): UseNestedSheetsReturn {
+export function useNestedSheets(maxNestLevel: number = 5): UseNestedSheetsReturn {
   const [sheets, setSheets] = useState<NestedSheetState[]>([]);
 
   // Open a nested sheet
   const openNestedSheet = useCallback((config: NestedSheetConfig) => {
     setSheets(prev => {
       const currentLevel = prev.length;
-      
+
       // Check max nesting level
       if (currentLevel >= maxNestLevel) {
         console.warn(`Max nesting level (${maxNestLevel}) reached`);
@@ -32,10 +32,10 @@ export function useNestedSheets(maxNestLevel: number = 3): UseNestedSheetsReturn
 
       // Check if sheet with same data already exists
       const existingSheet = prev.find(
-        s => s.docType === config.docType && 
-             s.data?.id === config.data?.id
+        s => s.docType === config.docType &&
+          s.data?.id === config.data?.id
       );
-      
+
       if (existingSheet) {
         // Just focus the existing sheet (move to end)
         const filtered = prev.filter(s => s.id !== existingSheet.id);
@@ -63,7 +63,7 @@ export function useNestedSheets(maxNestLevel: number = 3): UseNestedSheetsReturn
     setSheets(prev => {
       const index = prev.findIndex(s => s.id === id);
       if (index === -1) return prev;
-      
+
       // Close this sheet and all sheets after it
       return prev.slice(0, index);
     });

@@ -26,7 +26,7 @@ interface JournalLinesTabProps {
 export function JournalLinesTab({ data, language, onAction: _onAction, onRowClick }: JournalLinesTabProps) {
   const isRTL = language === 'ar';
   const lines = data.lines || [];
-  
+
   // Calculate totals
   const totalDebit = lines.reduce((sum: number, line: any) => sum + (line.debit || 0), 0);
   const totalCredit = lines.reduce((sum: number, line: any) => sum + (line.credit || 0), 0);
@@ -85,7 +85,7 @@ export function JournalLinesTab({ data, language, onAction: _onAction, onRowClic
             </TableHeader>
             <TableBody>
               {lines.map((line: any, index: number) => (
-                <TableRow 
+                <TableRow
                   key={line.id || index}
                   className={cn(
                     "hover:bg-blue-50/80 dark:hover:bg-slate-800 transition-all",
@@ -95,18 +95,31 @@ export function JournalLinesTab({ data, language, onAction: _onAction, onRowClic
                   onClick={() => handleAccountClick(line)}
                 >
                   <TableCell className="text-center border border-slate-200 dark:border-slate-700 px-2 text-sm text-gray-500">
-                    {line.lineNo || index + 1}
+                    {(() => {
+                      console.log('Rendering Line:', {
+                        code: line.accountCode,
+                        accObj: line.account,
+                        nameAr: line.account?.name_ar,
+                        nameEn: line.account?.name_en
+                      });
+                      return line.lineNo || index + 1;
+                    })()}
                   </TableCell>
                   <TableCell className="border border-slate-200 dark:border-slate-700 px-3">
                     <div>
-                      <p className="font-mono text-xs text-gray-400">{line.accountCode}</p>
+                      <p className="font-mono text-xs text-gray-400">
+                        {line.account?.account_code || line.accountCode}
+                      </p>
                       <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">
-                        {isRTL ? line.accountNameAr || line.accountName : line.accountName}
+                        {isRTL
+                          ? (line.account?.name_ar || line.accountNameAr || line.account?.name_en || line.accountName)
+                          : (line.account?.name_en || line.accountName || line.account?.name_ar || line.accountNameAr)
+                        }
                       </p>
                       {line.party && (
                         <Badge variant="outline" className="mt-1 text-xs">
-                          {line.partyType === 'customer' 
-                            ? (isRTL ? 'عميل:' : 'Customer:') 
+                          {line.partyType === 'customer'
+                            ? (isRTL ? 'عميل:' : 'Customer:')
                             : (isRTL ? 'مورد:' : 'Supplier:')} {line.party}
                         </Badge>
                       )}

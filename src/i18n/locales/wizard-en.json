@@ -24,22 +24,18 @@
     "website": "Website",
     "currency": "Currency",
     "fiscalYearStart": "Fiscal Year Start",
-    
     "step1": {
       "title": "Choose Your Business Type",
       "description": "Select the business activity that fits your company"
     },
-    
     "step2": {
       "title": "Company Information",
       "description": "Enter your company's basic details"
     },
-    
     "step3": {
       "title": "Financial Settings",
       "description": "Set your currency and fiscal year start"
     },
-    
     "businessTypes": {
       "general": {
         "name": "General",
@@ -61,9 +57,53 @@
         "name": "E-commerce",
         "description": "Online retail store"
       }
+    },
+    "selectChartTemplate": "Select Chart Template",
+    "chartTemplate": "Chart Template",
+    "chartSimple": "Standard Chart",
+    "chartSimpleDesc": "Suitable for small service companies. Basic accounts.",
+    "chartSimpleNote": "You can upgrade to Extended later",
+    "chartExtended": "Extended Chart",
+    "chartExtendedDesc": "Comprehensive chart. Suitable for commercial/industrial companies.",
+    "chartFabric": "Fabric Specialized Chart 🧵",
+    "chartFabricDesc": "Specialized for Fabric trade. Includes detailed inventory, accessories, and machinery.",
+    "mainCurrency": "Main Currency",
+    "fabricCurrencyNote": "Testing company will be in USD",
+    "step4Title": "Select Your Plan",
+    "step4Description": "Choose the plan that fits your business",
+    "billingMonthly": "Monthly",
+    "billingYearly": "Yearly",
+    "savePercent": "Save 20%",
+    "mostPopular": "Most Popular",
+    "planSelect": "Select Plan",
+    "planSelected": "Selected",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "description": "For startups & small businesses",
+        "feature1": "1 User",
+        "feature2": "Basic Accounting",
+        "feature3": "Unlimited Invoices",
+        "feature4": "Email Support"
+      },
+      "professional": {
+        "name": "Professional",
+        "description": "For growing companies",
+        "feature1": "5 Users",
+        "feature2": "Advanced Accounting & Inventory",
+        "feature3": "Asset Management",
+        "feature4": "Priority Support"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "For large organizations",
+        "feature1": "Unlimited Users",
+        "feature2": "All Features",
+        "feature3": "Custom API",
+        "feature4": "Dedicated Account Manager"
+      }
     }
   },
-  
   "settings": {
     "companySwitcher": {
       "title": "Company Switcher",

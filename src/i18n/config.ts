@@ -18,91 +18,91 @@ export interface LanguageConfig {
 }
 
 export const SUPPORTED_LANGUAGES: LanguageConfig[] = [
-  { 
-    code: 'en', 
-    name: 'English', 
-    nativeName: 'English', 
-    direction: 'ltr', 
+  {
+    code: 'en',
+    name: 'English',
+    nativeName: 'English',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'EN',
     flag: '🇬🇧',
     shortcut: 'Alt+1'
   },
-  { 
-    code: 'ar', 
-    name: 'Arabic', 
-    nativeName: 'العربية', 
-    direction: 'rtl', 
+  {
+    code: 'ar',
+    name: 'Arabic',
+    nativeName: 'العربية',
+    direction: 'rtl',
     locale: 'en-US',
     shortCode: 'ع',
     flag: '🇸🇦',
     shortcut: 'Alt+2'
   },
-  { 
-    code: 'ru', 
-    name: 'Russian', 
-    nativeName: 'Русский', 
-    direction: 'ltr', 
+  {
+    code: 'ru',
+    name: 'Russian',
+    nativeName: 'Русский',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'RU',
     flag: '🇷🇺',
     shortcut: 'Alt+3'
   },
-  { 
-    code: 'uk', 
-    name: 'Ukrainian', 
-    nativeName: 'Українська', 
-    direction: 'ltr', 
+  {
+    code: 'uk',
+    name: 'Ukrainian',
+    nativeName: 'Українська',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'UK',
     flag: '🇺🇦',
     shortcut: 'Alt+4'
   },
-  { 
-    code: 'ro', 
-    name: 'Romanian', 
-    nativeName: 'Română', 
-    direction: 'ltr', 
+  {
+    code: 'ro',
+    name: 'Romanian',
+    nativeName: 'Română',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'RO',
     flag: '🇷🇴',
     shortcut: 'Alt+5'
   },
-  { 
-    code: 'pl', 
-    name: 'Polish', 
-    nativeName: 'Polski', 
-    direction: 'ltr', 
+  {
+    code: 'pl',
+    name: 'Polish',
+    nativeName: 'Polski',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'PL',
     flag: '🇵🇱',
     shortcut: 'Alt+6'
   },
-  { 
-    code: 'tr', 
-    name: 'Turkish', 
-    nativeName: 'Türkçe', 
-    direction: 'ltr', 
+  {
+    code: 'tr',
+    name: 'Turkish',
+    nativeName: 'Türkçe',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'TR',
     flag: '🇹🇷',
     shortcut: 'Alt+7'
   },
-  { 
-    code: 'de', 
-    name: 'German', 
-    nativeName: 'Deutsch', 
-    direction: 'ltr', 
+  {
+    code: 'de',
+    name: 'German',
+    nativeName: 'Deutsch',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'DE',
     flag: '🇩🇪',
     shortcut: 'Alt+8'
   },
-  { 
-    code: 'it', 
-    name: 'Italian', 
-    nativeName: 'Italiano', 
-    direction: 'ltr', 
+  {
+    code: 'it',
+    name: 'Italian',
+    nativeName: 'Italiano',
+    direction: 'ltr',
     locale: 'en-US',
     shortCode: 'IT',
     flag: '🇮🇹',
@@ -146,6 +146,7 @@ import trTranslations from './locales/tr.json';
 import deTranslations from './locales/de.json';
 import itTranslations from './locales/it.json';
 
+// Force HMR reload
 export const translations: Record<SupportedLanguage, Record<string, unknown>> = {
   en: enTranslations,
   ar: arTranslations,

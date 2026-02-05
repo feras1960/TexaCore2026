@@ -49,7 +49,7 @@ export const PlanSubscribersTab: React.FC<TabComponentProps> = ({
             name,
             email,
             phone,
-            is_active
+            status
           )
         `)
         .eq('plan_id', data.id)

@@ -7,12 +7,12 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Plus, 
-  RefreshCw, 
-  BarChart3, 
-  CheckCircle2, 
-  Folder, 
+import {
+  Plus,
+  RefreshCw,
+  BarChart3,
+  CheckCircle2,
+  Folder,
   DollarSign,
   Search,
   FileText,
@@ -35,6 +35,7 @@ import { ImportWizard } from '@/features/import';
 import { ChartTemplateSelector } from '@/components/accounting/ChartTemplateSelector';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCompany } from '@/hooks/useCompany';
+import { useViewCurrency } from '../hooks/useViewCurrency';
 import { StatCard } from '@/components/shared/stats/StatCard';
 import { NexaTable, type Column, UnifiedModal, StatusBadge } from '@/components/shared';
 import { cn } from '@/lib/utils';
@@ -64,12 +65,11 @@ export function ChartOfAccounts() {
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState<string>('');
-  const userSelectedCurrencyRef = useRef(false);
+  const { selectedCurrency, setSelectedCurrency, currencyOptions, formatAmount } = useViewCurrency();
 
   // Get company from hook (fetches first company automatically)
   const { company, companyId, loading: companyLoading, refetch: refetchCompany } = useCompany(true);
-  
+
   const { accounts, loading, error, refetch, createAccount, updateAccount, deleteAccount } = useAccounts({
     companyId: companyId || undefined,
     autoFetch: !!companyId, // Only auto-fetch if we have a company ID
@@ -78,10 +78,10 @@ export function ChartOfAccounts() {
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
-  
+
   // Import wizard state
   const [showImportWizard, setShowImportWizard] = useState(false);
-  
+
   // Chart template selector state
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
@@ -122,7 +122,7 @@ export function ChartOfAccounts() {
 
   const handleDeleteConfirm = async () => {
     if (!accountToDelete) return;
-    
+
     try {
       await deleteAccount(accountToDelete.id);
       setDeleteConfirmOpen(false);
@@ -140,11 +140,11 @@ export function ChartOfAccounts() {
       } else {
         await createAccount(accountData);
       }
-      
+
       // fetchAccounts is called automatically by createAccount/updateAccount
       // Wait a bit for the accounts to be refreshed
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       setIsAddSheetOpen(false);
       setEditingAccount(null);
       setSelectedParent(null);
@@ -174,7 +174,7 @@ export function ChartOfAccounts() {
       language === 'ar' ? 'الرصيد' : 'Balance',
       language === 'ar' ? 'العملة' : 'Currency',
     ];
-    
+
     const rows = filteredAccounts.map(account => [
       account.code || '',
       getAccountName(account, language as SupportedLanguage),
@@ -184,7 +184,7 @@ export function ChartOfAccounts() {
       (account.current_balance ?? 0).toString(),
       account.currency_code || 'SAR',
     ]);
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   };
 
@@ -225,62 +225,13 @@ export function ChartOfAccounts() {
       );
     }
 
-    // Currency filter
-    if (selectedCurrency && selectedCurrency !== 'all') {
-      filtered = filtered.filter((account) => {
-        const accountCurrency = account.currency_code || account.currency || company?.default_currency || '';
-        return accountCurrency === selectedCurrency;
-      });
-    }
+    // Currency filter - REMOVED: Now acts as a View As selector, not a row filter
+    // if (selectedCurrency && selectedCurrency !== 'all') { ... }
 
     return filtered;
   }, [accounts, searchQuery, accountTypeFilter, statusFilter, selectedCurrency, company?.default_currency]);
 
-  const currencyOptions = useMemo(() => {
-    const currencies = new Set<string>();
-    accounts.forEach((account) => {
-      const currency = account.currency_code || account.currency;
-      if (currency) {
-        currencies.add(currency);
-      }
-    });
-    if (company?.default_currency) {
-      currencies.add(company.default_currency);
-    }
-    return Array.from(currencies).sort();
-  }, [accounts, company?.default_currency]);
 
-  const getCurrencyLabel = useCallback((code: string) => {
-    const normalized = code.toUpperCase();
-    const translated = t(`currencies.${normalized}`);
-    return translated && translated !== `currencies.${normalized}`
-      ? `${normalized} - ${translated}`
-      : normalized;
-  }, [t]);
-
-  const handleCurrencyChange = useCallback((value: string) => {
-    userSelectedCurrencyRef.current = true;
-    setSelectedCurrency(value);
-  }, []);
-
-  useEffect(() => {
-    if (company?.default_currency && !userSelectedCurrencyRef.current) {
-      setSelectedCurrency(company.default_currency);
-    }
-  }, [company?.default_currency]);
-
-  useEffect(() => {
-    if (company?.default_currency || userSelectedCurrencyRef.current || selectedCurrency) return;
-    const stored = localStorage.getItem('coa.selectedCurrency');
-    if (stored) {
-      setSelectedCurrency(stored);
-    }
-  }, [company?.default_currency, selectedCurrency]);
-
-  useEffect(() => {
-    if (!selectedCurrency) return;
-    localStorage.setItem('coa.selectedCurrency', selectedCurrency);
-  }, [selectedCurrency]);
 
   // Build tree structure from flat accounts list
   const buildTree = useCallback((accs: Account[]): AccountTreeNode[] => {
@@ -377,8 +328,8 @@ export function ChartOfAccounts() {
       render: (_value, row) => (
         <span className={cn(
           'px-2 py-1 rounded-full text-xs font-medium',
-          row.is_group 
-            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+          row.is_group
+            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
             : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
         )}>
           {row.is_group ? t('accounting.group') : t('accounting.detail')}
@@ -476,22 +427,22 @@ export function ChartOfAccounts() {
 
   if (error) {
     // Check if the error is related to missing database table
-    const isMissingTableError = error.message?.includes('chart_of_accounts') || 
-                                 error.message?.includes('schema cache') ||
-                                 error.message?.includes('404');
-    
+    const isMissingTableError = error.message?.includes('chart_of_accounts') ||
+      error.message?.includes('schema cache') ||
+      error.message?.includes('404');
+
     return (
       <div className="p-6">
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <p className="text-red-800 dark:text-red-200 font-semibold mb-2">{t('messages.loadingError')}</p>
-          
+
           {isMissingTableError && (
             <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
               <p className="text-yellow-800 dark:text-yellow-200 text-sm font-medium mb-1">
                 {language === 'ar' ? 'جدول قاعدة البيانات غير موجود' : 'Database table not found'}
               </p>
               <p className="text-yellow-700 dark:text-yellow-300 text-xs">
-                {language === 'ar' 
+                {language === 'ar'
                   ? 'يرجى تشغيل ملفات الترحيل (migrations) في Supabase لإنشاء جدول chart_of_accounts'
                   : 'Please run the migration files in Supabase to create the chart_of_accounts table'
                 }
@@ -501,7 +452,7 @@ export function ChartOfAccounts() {
               </p>
             </div>
           )}
-          
+
           <Button onClick={refetch} variant="outline" className="mt-3">
             {t('common.refresh')}
           </Button>
@@ -589,7 +540,7 @@ export function ChartOfAccounts() {
 
           {/* Currency Selector */}
           <div className="min-w-[160px] sm:w-52">
-            <Select value={selectedCurrency || 'all'} onValueChange={handleCurrencyChange}>
+            <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
               <SelectTrigger className="h-9 bg-gray-50 dark:bg-gray-800 border-none">
                 <Globe className="w-4 h-4 me-2 text-gray-400 dark:text-gray-500" />
                 <SelectValue placeholder={t('common.currency')} />
@@ -598,7 +549,7 @@ export function ChartOfAccounts() {
                 <SelectItem value="all">{t('common.all')}</SelectItem>
                 {currencyOptions.map((code) => (
                   <SelectItem key={code} value={code}>
-                    {getCurrencyLabel(code)}
+                    {code}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -651,8 +602,8 @@ export function ChartOfAccounts() {
                 onClick={() => setViewMode('tree')}
                 className={cn(
                   'h-8 px-3',
-                  viewMode === 'tree' 
-                    ? 'bg-erp-navy text-white dark:bg-erp-navy dark:text-white' 
+                  viewMode === 'tree'
+                    ? 'bg-erp-navy text-white dark:bg-erp-navy dark:text-white'
                     : 'text-gray-600 dark:text-gray-400'
                 )}
               >
@@ -665,8 +616,8 @@ export function ChartOfAccounts() {
                 onClick={() => setViewMode('table')}
                 className={cn(
                   'h-8 px-3',
-                  viewMode === 'table' 
-                    ? 'bg-erp-navy text-white dark:bg-erp-navy dark:text-white' 
+                  viewMode === 'table'
+                    ? 'bg-erp-navy text-white dark:bg-erp-navy dark:text-white'
                     : 'text-gray-600 dark:text-gray-400'
                 )}
               >
@@ -722,7 +673,6 @@ export function ChartOfAccounts() {
                 onClick={() => {
                   setAccountTypeFilter('all');
                   setStatusFilter('all');
-                  userSelectedCurrencyRef.current = true;
                   setSelectedCurrency('all');
                 }}
                 className="h-7 text-xs"
@@ -956,21 +906,21 @@ export function ChartOfAccounts() {
             } catch (error) {
               console.error('Error refreshing company:', error);
             }
-            
+
             // Wait a bit for database to finish creating accounts
             // Then retry fetching accounts multiple times
             let retries = 0;
             const maxRetries = 6;
             const retryDelay = 2000; // 2 seconds between retries
-            
+
             const tryFetchAccounts = async () => {
               try {
                 await refetch();
-                
+
                 // Check if we got accounts by checking the accounts array
                 // We'll check this in the next render cycle
                 retries++;
-                
+
                 if (retries < maxRetries) {
                   setTimeout(tryFetchAccounts, retryDelay);
                 } else {
@@ -985,7 +935,7 @@ export function ChartOfAccounts() {
                 }
               }
             };
-            
+
             // Start fetching after initial delay (give DB time to create accounts)
             setTimeout(tryFetchAccounts, 3000);
           }}

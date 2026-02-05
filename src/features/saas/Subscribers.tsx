@@ -39,6 +39,12 @@ export default function Subscribers() {
     try {
       const data = await tenantsService.getAll();
       setTenants(data);
+
+      // Update selected tenant if open to reflect changes
+      if (selectedTenant) {
+        const updated = data.find(t => t.id === selectedTenant.id);
+        if (updated) setSelectedTenant(updated);
+      }
     } catch (err: any) {
       console.error('Error loading tenants:', err);
       setError(err.message || t('saas.tenants.error.loadFailed'));
@@ -85,21 +91,21 @@ export default function Subscribers() {
       sortable: true,
       filterable: true,
       statusConfig: {
-        active: { 
-          label: 'saas.status.active', 
-          color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+        active: {
+          label: 'saas.status.active',
+          color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
         },
-        inactive: { 
-          label: 'saas.status.inactive', 
-          color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' 
+        inactive: {
+          label: 'saas.status.inactive',
+          color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
         },
-        suspended: { 
-          label: 'saas.status.suspended', 
-          color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' 
+        suspended: {
+          label: 'saas.status.suspended',
+          color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
         },
-        expired: { 
-          label: 'saas.status.expired', 
-          color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' 
+        expired: {
+          label: 'saas.status.expired',
+          color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
         },
       },
     },

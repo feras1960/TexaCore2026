@@ -9,7 +9,7 @@ import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { 
+import {
   LayoutDashboard,
   Users,
   Package,
@@ -26,12 +26,14 @@ import {
   Share2,
   Webhook,
   TrendingUp,
-  Crown
+  Crown,
+  Boxes
 } from 'lucide-react';
 
 // Import components
 import Agents from './Agents';
 import Subscribers from './Subscribers';
+import { Companies } from './Companies';
 import { SaaSDashboard } from './SaaSDashboard';
 import Packages from './Packages';
 import Payments from './Payments';
@@ -40,6 +42,7 @@ import Support from './Support';
 import Marketing from './Marketing';
 import Reports from './Reports';
 import SaaSSettings from './Settings';
+import Modules from './Modules';
 
 export default function SaaS() {
   const { t, language } = useLanguage();
@@ -53,14 +56,16 @@ export default function SaaS() {
     if (path.startsWith('/saas')) {
       if (path === '/saas' || path === '/saas/') return 'dashboard';
       if (path.includes('/subscribers')) return 'subscribers';
+      if (path.includes('/companies')) return 'companies'; // New Tab
       if (path.includes('/packages')) return 'packages';
+      if (path.includes('/modules')) return 'modules';
       if (path.includes('/agents')) return 'agents';
       if (path.includes('/white-label')) return 'white-label';
       if (path.includes('/payments')) return 'payments';
       if (path.includes('/support') || path.includes('/notifications')) return 'support';
       if (path.includes('/marketing') || path.includes('/coupons') || path.includes('/referrals')) return 'marketing';
       if (path.includes('/reports') || path.includes('/analytics')) return 'reports';
-      if (path.includes('/settings') || path.includes('/modules') || path.includes('/webhooks')) return 'settings';
+      if (path.includes('/settings') || path.includes('/webhooks')) return 'settings';
       return 'dashboard';
     }
     return 'dashboard';
@@ -73,11 +78,11 @@ export default function SaaS() {
     setActiveTab(getActiveTab());
   }, [location.pathname]);
 
-  // Tabs configuration - Simplified from 15 to 9 tabs
+  // Tabs configuration
   const tabs = [
     {
       id: 'dashboard',
-      labelKey: 'saas.dashboard',
+      labelKey: 'saas.dashboard.label',
       icon: LayoutDashboard,
     },
     {
@@ -86,9 +91,19 @@ export default function SaaS() {
       icon: Building2,
     },
     {
+      id: 'companies',
+      labelKey: 'saas.companies', // Need to add translation key
+      icon: Building2,
+    },
+    {
       id: 'packages',
       labelKey: 'saas.packages',
       icon: Package,
+    },
+    {
+      id: 'modules',
+      labelKey: 'saas.modules', // Need to add translation key
+      icon: Boxes,
     },
     {
       id: 'agents',
@@ -109,25 +124,21 @@ export default function SaaS() {
       id: 'support',
       labelKey: 'saas.support',
       icon: Ticket,
-      // Includes: notifications
     },
     {
       id: 'marketing',
       labelKey: 'saas.marketing',
       icon: Gift,
-      // Includes: coupons, referrals
     },
     {
       id: 'reports',
       labelKey: 'saas.reports',
       icon: BarChart3,
-      // Includes: analytics
     },
     {
       id: 'settings',
       labelKey: 'saas.settings',
       icon: Settings,
-      // Includes: modules, webhooks
     },
   ];
 
@@ -148,8 +159,12 @@ export default function SaaS() {
         return <SaaSDashboard />;
       case 'subscribers':
         return <Subscribers />;
+      case 'companies':
+        return <Companies />;
       case 'packages':
         return <Packages />;
+      case 'modules':
+        return <Modules />;
       case 'agents':
         return <Agents />;
       case 'white-label':
@@ -190,11 +205,11 @@ export default function SaaS() {
           {t('saas.tenants.error.noPermission')}
         </h2>
         <p className="text-gray-500 dark:text-gray-400 font-tajawal max-w-md text-center">
-          {language === 'ar' 
-            ? 'عذراً، لا تمتلك صلاحيات المدير العام للوصول إلى إدارة النظام. يرجى التواصل مع الإدارة.' 
+          {language === 'ar'
+            ? 'عذراً، لا تمتلك صلاحيات المدير العام للوصول إلى إدارة النظام. يرجى التواصل مع الإدارة.'
             : 'Sorry, you do not have Super Admin permissions to access the SaaS management section. Please contact administration.'}
         </p>
-        <Button 
+        <Button
           className="mt-6 bg-erp-navy hover:bg-erp-navy/90"
           onClick={() => navigate('/')}
         >

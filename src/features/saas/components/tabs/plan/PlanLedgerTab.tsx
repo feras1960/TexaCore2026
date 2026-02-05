@@ -55,7 +55,7 @@ export const PlanLedgerTab: React.FC<TabComponentProps> = ({
           )
         `)
         .eq('plan_id', data.id)
-        .order('payment_date', { ascending: false });
+        .order('collection_date', { ascending: false });
 
       if (error) throw error;
 

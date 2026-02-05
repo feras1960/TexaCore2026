@@ -13,16 +13,23 @@ import { customerConfig } from './customer.config';
 import { supplierConfig } from './supplier.config';
 import { journalEntryConfig } from './journal_entry.config';
 import { fundConfig } from './fund.config';
+// Voucher Configs
+import { receiptConfig } from './receipt.config';
+import { transferConfig } from './transfer.config';
+import { cashJournalConfig } from './cash_journal.config';
+import { exchangeConfig } from './exchange.config';
 // SaaS Sheet Configs
 import { planConfig } from './plan.config';
 import { subscriptionConfig } from './subscription.config';
 import { couponConfig } from './coupon.config';
 import { moduleConfig } from './module.config';
+import { companyConfig } from './company.config';
 
 // ===== Config Registry =====
 const configRegistry: Partial<Record<DocType, SheetConfig>> = {
   // SaaS Sheets
   tenant: tenantConfig,
+  company: companyConfig,
   agent: agentConfig,
   payment: paymentConfig,
   plan: planConfig,
@@ -36,6 +43,11 @@ const configRegistry: Partial<Record<DocType, SheetConfig>> = {
   supplier: supplierConfig,
   journal_entry: journalEntryConfig,
   fund: fundConfig,
+  // Voucher Sheets
+  receipt: receiptConfig,
+  transfer: transferConfig,
+  cash_journal: cashJournalConfig,
+  exchange: exchangeConfig,
 };
 
 /**
@@ -90,3 +102,8 @@ export { customerConfig } from './customer.config';
 export { supplierConfig } from './supplier.config';
 export { journalEntryConfig } from './journal_entry.config';
 export { fundConfig } from './fund.config';
+// Voucher Sheets
+export { receiptConfig } from './receipt.config';
+export { transferConfig } from './transfer.config';
+export { cashJournalConfig } from './cash_journal.config';
+export { exchangeConfig } from './exchange.config';

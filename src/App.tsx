@@ -16,11 +16,22 @@ const Accounting = React.lazy(() => import('@/features/accounting/Accounting'));
 const SaaS = React.lazy(() => import('@/features/saas/SaaS'));
 const ActivityLog = React.lazy(() => import('@/features/admin/activityLog/ActivityLog'));
 const ComponentLab = React.lazy(() => import('@/features/componentLab/ComponentLab'));
+const AccountingSheetsLab = React.lazy(() => import('@/features/componentLab/AccountingSheetsLab'));
 const Login = React.lazy(() => import('@/features/auth/Login'));
 const Register = React.lazy(() => import('@/features/auth/Register'));
-const RegistrationWizard = React.lazy(() => import('@/features/auth/RegistrationWizard'));
+const RegistrationWizard = React.lazy(() => import('@/features/auth/FabricRegistrationWizard'));
 const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
 const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
+
+const Fabrics = React.lazy(() => import('@/features/fabrics/Fabrics')); // Keep file name as is for now, but route is /fabric
+const Pharmacy = React.lazy(() => import('@/features/pharmacy/Pharmacy'));
+const Healthcare = React.lazy(() => import('@/features/healthcare/Healthcare'));
+const Doctors = React.lazy(() => import('@/features/doctors/Doctors'));
+const Restaurant = React.lazy(() => import('@/features/restaurant/Restaurant'));
+const Gold = React.lazy(() => import('@/features/gold/Gold'));
+const Shipments = React.lazy(() => import('@/features/shipments/Shipments'));
+const WarehouseModule = React.lazy(() => import('@/features/warehouse/WarehouseModule'));
+const SystemConfigPage = React.lazy(() => import('@/features/settings/SystemConfigPage'));
 
 // Public Route Guard (redirects to home if already authenticated)
 // Reserved for future use when public routes are needed
@@ -76,24 +87,36 @@ function AppRoutes() {
           <Route path="/registration-wizard" element={<RegistrationWizard />} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<Dashboard />} />
-          <Route path="/accounting/*" element={<Accounting />} />
-          <Route path="/saas/*" element={<SaaS />} />
-          <Route path="/sales/*" element={<PlaceholderPage titleKey="navigation.sales" />} />
-          <Route path="/crm/*" element={<PlaceholderPage titleKey="navigation.crm" />} />
-          <Route path="/inventory/*" element={<PlaceholderPage titleKey="navigation.inventory" />} />
-          <Route path="/purchases/*" element={<PlaceholderPage titleKey="navigation.purchases" />} />
-          <Route path="/pos/*" element={<PlaceholderPage titleKey="navigation.pos" />} />
-          <Route path="/exchange/*" element={<PlaceholderPage titleKey="navigation.exchange" />} />
-          <Route path="/real-estate/*" element={<PlaceholderPage titleKey="navigation.realEstate" />} />
-          <Route path="/manufacturing/*" element={<PlaceholderPage titleKey="navigation.manufacturing" />} />
-          <Route path="/hr/*" element={<PlaceholderPage titleKey="navigation.hr" />} />
-          <Route path="/ecommerce/*" element={<PlaceholderPage titleKey="navigation.ecommerce" />} />
-          <Route path="/ai-analytics" element={<PlaceholderPage titleKey="navigation.aiAnalytics" />} />
-          <Route path="/system-config/*" element={<PlaceholderPage titleKey="navigation.systemConfig" />} />
-          <Route path="/activity-log" element={<ActivityLog />} />
-          <Route path="/component-lab" element={<ComponentLab />} />
-          <Route path="/design-system" element={<DesignSystemDemo />} />
-          <Route path="/sheets-preview" element={<SheetsPreview />} />
+            <Route path="/accounting/*" element={<Accounting />} />
+            <Route path="/saas/*" element={<SaaS />} />
+
+            {/* Hardcoded Modules */}
+            <Route path="/fabric/*" element={<Fabrics />} />
+            <Route path="/pharmacy/*" element={<Pharmacy />} />
+            <Route path="/healthcare/*" element={<Healthcare />} />
+            <Route path="/doctors/*" element={<Doctors />} />
+            <Route path="/restaurant/*" element={<Restaurant />} />
+            <Route path="/gold/*" element={<Gold />} />
+            <Route path="/shipments/*" element={<Shipments />} />
+
+            <Route path="/sales/*" element={<PlaceholderPage titleKey="navigation.sales" />} />
+            <Route path="/crm/*" element={<PlaceholderPage titleKey="navigation.crm" />} />
+            <Route path="/warehouse/*" element={<WarehouseModule />} />
+            <Route path="/inventory/*" element={<WarehouseModule />} />
+            <Route path="/purchases/*" element={<PlaceholderPage titleKey="navigation.purchases" />} />
+            <Route path="/pos/*" element={<PlaceholderPage titleKey="navigation.pos" />} />
+            <Route path="/exchange/*" element={<PlaceholderPage titleKey="navigation.exchange" />} />
+            <Route path="/real-estate/*" element={<PlaceholderPage titleKey="navigation.realEstate" />} />
+            <Route path="/manufacturing/*" element={<PlaceholderPage titleKey="navigation.manufacturing" />} />
+            <Route path="/hr/*" element={<PlaceholderPage titleKey="navigation.hr" />} />
+            <Route path="/ecommerce/*" element={<PlaceholderPage titleKey="navigation.ecommerce" />} />
+            <Route path="/ai-analytics" element={<PlaceholderPage titleKey="navigation.aiAnalytics" />} />
+            <Route path="/system-config/*" element={<SystemConfigPage />} />
+            <Route path="/activity-log" element={<ActivityLog />} />
+            <Route path="/component-lab" element={<ComponentLab />} />
+            <Route path="/sheets-lab" element={<AccountingSheetsLab />} />
+            <Route path="/design-system" element={<DesignSystemDemo />} />
+            <Route path="/sheets-preview" element={<SheetsPreview />} />
           </Route>
         </Route>
 

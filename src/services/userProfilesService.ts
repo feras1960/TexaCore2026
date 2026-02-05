@@ -50,6 +50,24 @@ export const userProfilesService = {
     if (!user) return null;
     return this.getByUserId(user.id);
   },
+
+  /**
+   * Get all user profiles for a specific company
+   */
+  async getByCompanyId(companyId: string): Promise<UserProfile[]> {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching company users:', error);
+      throw error;
+    }
+
+    return data || [];
+  },
 };
 
 export default userProfilesService;

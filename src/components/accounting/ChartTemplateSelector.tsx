@@ -49,7 +49,9 @@ export function ChartTemplateSelector({
     setLoading(true);
     try {
       const data = await chartTemplatesService.getAll();
-      setTemplates(data);
+      // Filter out demo templates to keep only the 3 main options
+      const filteredData = data.filter(t => !t.include_demo_data);
+      setTemplates(filteredData);
     } catch (error: any) {
       console.error('Error loading templates:', error);
       toast.error(error.message || t('accounting.templates.loadError'));
@@ -70,34 +72,34 @@ export function ChartTemplateSelector({
       toast.info(t('accounting.templates.applyingMessage'), {
         duration: 3000,
       });
-      
+
       await chartTemplatesService.applyTemplate(companyId, template.template_code);
-      
+
       toast.success(t('accounting.templates.appliedSuccess', { name: template.template_name_ar }), {
         description: t('accounting.templates.refreshingAccounts'),
         duration: 4000,
       });
-      
+
       // Call onApplied callback to trigger refresh
       onApplied();
-      
+
       // Close dialog after a short delay to show success message
       setTimeout(() => {
         onClose();
       }, 500);
     } catch (error: any) {
       console.error('Error applying template:', error);
-      
+
       // Extract error message
       let errorMessage = error.message || t('accounting.templates.applyError');
-      
+
       // Handle specific error cases
       if (errorMessage.includes('شجرة حسابات مسبقة')) {
         errorMessage = t('accounting.templates.existingChartError');
       } else if (errorMessage.includes('غير موجود')) {
         errorMessage = t('accounting.templates.templateNotFound');
       }
-      
+
       toast.error(errorMessage, {
         duration: 5000,
       });

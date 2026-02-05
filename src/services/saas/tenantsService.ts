@@ -223,6 +223,26 @@ class TenantsService {
 
     return data || [];
   }
+  /**
+   * Delete tenant - Uses RPC function to handle all dependencies
+   */
+  async delete(id: string): Promise<boolean> {
+    // 🛡️ استخدام دالة RPC الآمنة التي تحذف كل البيانات المرتبطة
+    const { data, error } = await supabase.rpc('delete_tenant_complete', {
+      p_tenant_id: id
+    });
+
+    if (error) {
+      console.error('Error deleting tenant:', error);
+      throw new Error(error.message);
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'فشل في حذف المشترك');
+    }
+
+    return true;
+  }
 }
 
 export const tenantsService = new TenantsService();

@@ -20,9 +20,10 @@ interface LedgerEntry {
   type?: string;
   docType?: DocType;
   docId?: string;
+  marker_color?: string | null; // For marker feature
 }
 
-export function LedgerTab({ data, docType: _docType, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function LedgerTab({ data, docType: _docType, language, t, onRowClick, onRefresh, onMarkerChange }: TabComponentProps) {
   const isArabic = language === 'ar';
   const [loading, _setLoading] = useState(false);
 
@@ -45,6 +46,7 @@ export function LedgerTab({ data, docType: _docType, language, t, onRowClick, on
         type: t.type || t.transaction_type,
         docType: t.doc_type,
         docId: t.doc_id,
+        marker_color: t.marker_color || null, // Load marker color
       }));
     }
     if (data.entries && Array.isArray(data.entries)) {
@@ -142,25 +144,25 @@ export function LedgerTab({ data, docType: _docType, language, t, onRowClick, on
 
   // Stats configuration
   const stats: LedgerStats = {
-    label1: { 
-      title: t('ledger.totalDebit'), 
-      value: totals.totalDebit, 
-      color: 'blue' 
+    label1: {
+      title: t('ledger.totalDebit'),
+      value: totals.totalDebit,
+      color: 'blue'
     },
-    label2: { 
-      title: t('ledger.totalCredit'), 
-      value: totals.totalCredit, 
-      color: 'red' 
+    label2: {
+      title: t('ledger.totalCredit'),
+      value: totals.totalCredit,
+      color: 'red'
     },
-    label3: { 
-      title: t('common.balance'), 
-      value: currentBalance, 
-      color: currentBalance >= 0 ? 'green' : 'red' 
+    label3: {
+      title: t('common.balance'),
+      value: currentBalance,
+      color: currentBalance >= 0 ? 'green' : 'red'
     },
-    label4: { 
-      title: t('common.transactions'), 
-      value: entries.length, 
-      color: 'gray' 
+    label4: {
+      title: t('common.transactions'),
+      value: entries.length,
+      color: 'gray'
     },
   };
 
@@ -191,6 +193,8 @@ export function LedgerTab({ data, docType: _docType, language, t, onRowClick, on
       showRowNumbers
       showFooterTotals
       variant="ledger"
+      enableMarker
+      onMarkerChange={onMarkerChange ? (rowIds, color) => onMarkerChange(rowIds, color, 'journal_entry_lines') : undefined}
       onRowClick={handleRowClick}
       onReferenceClick={handleReferenceClick}
       onRefresh={onRefresh}

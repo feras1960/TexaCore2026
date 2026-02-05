@@ -5,19 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
   MoreHorizontal,
   Palette
 } from 'lucide-react';
@@ -64,8 +64,8 @@ export default function CostCentersList() {
     { id: 5, code: 'CC-001-02', name: 'IT Support', parent: 'Administration', budget: 100000, status: 'Active' },
   ]);
 
-  const filteredCostCenters = costCenters.filter(cc => 
-    cc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredCostCenters = costCenters.filter(cc =>
+    cc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     cc.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -137,7 +137,7 @@ export default function CostCentersList() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2 h-9 px-3">
                     <Palette className="w-4 h-4" />
-                    <div 
+                    <div
                       className="w-4 h-4 rounded-full border-2"
                       style={{ backgroundColor: RECONCILIATION_COLORS.find(c => c.id === selectedReconciliationColor)?.color }}
                     />
@@ -154,8 +154,8 @@ export default function CostCentersList() {
                         }}
                         className={cn(
                           "w-8 h-8 rounded-full border-2 transition-all hover:scale-110",
-                          selectedReconciliationColor === color.id 
-                            ? "ring-2 ring-offset-2 ring-erp-navy scale-110" 
+                          selectedReconciliationColor === color.id
+                            ? "ring-2 ring-offset-2 ring-erp-navy scale-110"
                             : "border-gray-300"
                         )}
                         style={{ backgroundColor: color.color }}
@@ -190,7 +190,7 @@ export default function CostCentersList() {
                 </TableRow>
               ) : (
                 filteredCostCenters.map((cc, index) => (
-                  <TableRow 
+                  <TableRow
                     key={cc.id}
                     className={cn(
                       `h-12 hover:bg-blue-50/80 dark:hover:bg-slate-800 cursor-pointer transition-all duration-150 ${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/60 dark:bg-slate-800/50'}`,
@@ -207,11 +207,11 @@ export default function CostCentersList() {
                           markedCostCenters[cc.id] && "border-2"
                         )}
                         style={{
-                          borderColor: markedCostCenters[cc.id] 
-                            ? RECONCILIATION_COLORS.find(c => c.id === markedCostCenters[cc.id])?.color 
+                          borderColor: markedCostCenters[cc.id]
+                            ? RECONCILIATION_COLORS.find(c => c.id === markedCostCenters[cc.id])?.color
                             : undefined,
-                          backgroundColor: markedCostCenters[cc.id] 
-                            ? RECONCILIATION_COLORS.find(c => c.id === markedCostCenters[cc.id])?.color 
+                          backgroundColor: markedCostCenters[cc.id]
+                            ? RECONCILIATION_COLORS.find(c => c.id === markedCostCenters[cc.id])?.color
                             : undefined,
                         }}
                       />
@@ -256,7 +256,7 @@ export default function CostCentersList() {
                 <span className="font-mono font-bold text-sm">{Object.keys(markedCostCenters).length}</span>
               </div>
               <div className="border-l border-gray-600 px-3">
-                <span className="text-[10px] text-gray-300">عدد: </span>
+                <span className="text-[10px] text-gray-300">{language === 'ar' ? 'عدد:' : 'Count:'} </span>
                 <span className="font-mono font-bold">{filteredCostCenters.length}</span>
               </div>
               <div className="border-l border-gray-600 px-2"></div>
@@ -280,8 +280,8 @@ export default function CostCentersList() {
         </CardContent>
       </Card>
 
-      <AddCostCenterDialog 
-        open={isAddDialogOpen} 
+      <AddCostCenterDialog
+        open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         initialData={editingCostCenter}
       />

@@ -7,24 +7,29 @@ import { ReactNode } from 'react';
 import { LucideIcon } from 'lucide-react';
 
 // ===== Document Types =====
-export type DocType = 
-  | 'tenant' 
-  | 'subscription' 
-  | 'invoice' 
+export type DocType =
+  | 'company'
+  | 'tenant'
+  | 'subscription'
+  | 'invoice'
   | 'payment'
-  | 'plan' 
-  | 'module' 
-  | 'agent' 
-  | 'coupon' 
+  | 'plan'
+  | 'module'
+  | 'agent'
+  | 'coupon'
   | 'account'
   | 'journal'
   | 'journal_entry'
   | 'receipt'
+  | 'transfer'
+  | 'cash_journal'
+  | 'exchange'
   | 'customer'
   | 'supplier'
   | 'fund'
   | 'cost_center'
   | 'party';
+
 
 // ===== Sheet Size =====
 export type SheetSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
@@ -56,16 +61,16 @@ export const BADGE_VARIANT_CLASSES: Record<BadgeVariant, string> = {
 };
 
 // ===== Info Field Types =====
-export type InfoFieldType = 
-  | 'text' 
-  | 'number' 
-  | 'currency' 
-  | 'date' 
-  | 'datetime' 
-  | 'email' 
-  | 'phone' 
-  | 'badge' 
-  | 'link' 
+export type InfoFieldType =
+  | 'text'
+  | 'number'
+  | 'currency'
+  | 'date'
+  | 'datetime'
+  | 'email'
+  | 'phone'
+  | 'badge'
+  | 'link'
   | 'percentage'
   | 'custom';
 
@@ -102,6 +107,7 @@ export interface TabComponentProps {
   t: (key: string) => string;
   onRowClick?: (row: any, rowDocType: DocType) => void;
   onRefresh?: () => void;
+  onMarkerChange?: (rowIds: string[], color: string | null, tableName?: string) => void;
 }
 
 // ===== Action Types =====
@@ -127,6 +133,8 @@ export interface SheetAction {
     cancelLabel?: string;
     cancelLabelAr?: string;
   };
+  requiresAuth?: boolean;
+  closeOnSuccess?: boolean;
 }
 
 // ===== Stat Card Types =====
@@ -150,14 +158,14 @@ export interface NestedSheetConfig {
 // ===== Main Sheet Configuration =====
 export interface SheetConfig {
   docType: DocType;
-  
+
   // Header Configuration
   title: (data: any) => string;
   subtitle?: (data: any) => string;
   icon: LucideIcon;
   iconBg?: string;
   badge?: (data: any) => BadgeConfig | null;
-  
+
   // Balance Display (optional)
   balance?: {
     value: (data: any) => number;
@@ -166,30 +174,30 @@ export interface SheetConfig {
     currency?: string;
     showSign?: boolean;
   };
-  
+
   // Stats Cards (optional, shown below header)
   stats?: StatCardConfig[];
-  
+
   // Info Fields (shown in overview)
   infoFields: InfoField[];
-  
+
   // Tabs Configuration
   tabs: SheetTab[];
   defaultTab?: string;
-  
+
   // Actions
   actions: SheetAction[];
   quickActions?: SheetAction[];
-  
+
   // Sheet Settings
   width?: SheetSize;
-  
+
   // Row Click Handler for nested tables
   onRowClick?: (row: any, rowDocType: DocType) => NestedSheetConfig | null;
-  
+
   // Data Fetching
   fetchData?: (id: string) => Promise<any>;
-  
+
   // Refresh Handler
   onRefresh?: () => void;
 }

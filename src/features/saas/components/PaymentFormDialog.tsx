@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/hooks';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getLocalizedField } from '@/lib/i18n-helpers';
 import { 
   CalendarIcon, 
   Loader2, 

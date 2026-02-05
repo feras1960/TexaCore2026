@@ -32,21 +32,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
   TableRow,
   TableFooter
 } from '@/components/ui/table';
 // Commented out - qrcode.react package not installed
 // import { QRCodeSVG } from 'qrcode.react';
-import { 
-  FileText, 
-  Receipt, 
-  CreditCard, 
+import {
+  FileText,
+  Receipt,
+  CreditCard,
   Printer,
   X,
   Save,
@@ -178,9 +178,9 @@ interface AccountDetailsSheetProps {
   onEditClick?: () => void;
 }
 
-export default function AccountDetailsSheet({ 
-  account, 
-  open, 
+export default function AccountDetailsSheet({
+  account,
+  open,
   isOpen: isOpenProp,
   onOpenChange,
   onClose: onCloseProp,
@@ -198,7 +198,7 @@ export default function AccountDetailsSheet({
 
   // Main Tab State
   const [mainTab, setMainTab] = useState<MainTabType>('overview');
-  
+
   // Account edit state
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -415,8 +415,8 @@ export default function AccountDetailsSheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="!w-[60%] !max-w-none p-0 flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-hidden z-[9999]"
       >
         {!account ? (
@@ -454,8 +454,8 @@ export default function AccountDetailsSheet({
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "px-4 py-2 rounded-xl shadow-sm border",
-                    currentBalance >= 0 
-                      ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200" 
+                    currentBalance >= 0
+                      ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200"
                       : "bg-gradient-to-r from-red-50 to-rose-50 border-red-200"
                   )}>
                     <p className="text-[10px] text-gray-500 mb-0.5">{language === 'ar' ? 'الرصيد الحالي' : 'Current Balance'}</p>
@@ -464,7 +464,7 @@ export default function AccountDetailsSheet({
                       currentBalance >= 0 ? "text-green-600" : "text-red-600"
                     )}>
                       {currentBalance.toLocaleString()}
-                      <span className="text-xs mr-1 opacity-70">ر.س</span>
+                      <span className="text-xs mr-1 opacity-70">{language === 'ar' ? 'ر.س' : 'SAR'}</span>
                     </p>
                   </div>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpenEditTab}>
@@ -476,9 +476,9 @@ export default function AccountDetailsSheet({
               {/* Document Tabs (when document is open) */}
               {tabs.length > 0 && (
                 <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1">
-                  <Button 
-                    variant={activeDocTab === null ? "default" : "ghost"} 
-                    size="sm" 
+                  <Button
+                    variant={activeDocTab === null ? "default" : "ghost"}
+                    size="sm"
                     className="gap-1.5 text-xs h-8 shrink-0"
                     onClick={backToMain}
                   >
@@ -522,8 +522,8 @@ export default function AccountDetailsSheet({
                         size="sm"
                         className={cn(
                           "gap-1.5 text-xs h-8 shrink-0 transition-all",
-                          mainTab === tab.id 
-                            ? "bg-erp-navy text-white shadow-md" 
+                          mainTab === tab.id
+                            ? "bg-erp-navy text-white shadow-md"
                             : "hover:bg-gray-100 dark:hover:bg-gray-700"
                         )}
                         onClick={() => setMainTab(tab.id)}
@@ -558,7 +558,7 @@ export default function AccountDetailsSheet({
               {activeDocTab === null && (
                 <>
                   {mainTab === 'overview' && (
-                    <OverviewTab 
+                    <OverviewTab
                       account={account}
                       language={language}
                       t={t}
@@ -651,15 +651,15 @@ export default function AccountDetailsSheet({
 }
 
 // ===== OVERVIEW TAB =====
-function OverviewTab({ 
-  account, 
-  language, 
-  t, 
-  totalDebit, 
-  totalCredit, 
-  currentBalance, 
+function OverviewTab({
+  account,
+  language,
+  t,
+  totalDebit,
+  totalCredit,
+  currentBalance,
   openingBalance,
-  ledgerEntries, 
+  ledgerEntries,
   onOpenEditTab,
   loading,
   stats: realStats,
@@ -946,25 +946,25 @@ function LedgerTab({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'من' : 'From'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateFrom} 
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'إلى' : 'To'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateTo} 
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'العملة' : 'Currency'}</Label>
-            <Select value={filters.currency} onValueChange={(v) => setFilters({...filters, currency: v})}>
+            <Select value={filters.currency} onValueChange={(v) => setFilters({ ...filters, currency: v })}>
               <SelectTrigger className="h-7 text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -977,10 +977,10 @@ function LedgerTab({
           </div>
           <div className="flex items-end gap-1">
             {/* Refresh Button */}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-7 px-2 gap-1" 
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 gap-1"
               onClick={onRefresh}
               disabled={loading}
             >
@@ -991,7 +991,7 @@ function LedgerTab({
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5 h-7 px-2">
                   <Palette className="w-3.5 h-3.5" />
-                  <div 
+                  <div
                     className="w-3.5 h-3.5 rounded-full border"
                     style={{ backgroundColor: RECONCILIATION_COLORS.find(c => c.id === selectedReconciliationColor)?.color }}
                   />
@@ -1012,8 +1012,8 @@ function LedgerTab({
                       }}
                       className={cn(
                         "w-8 h-8 rounded-full border-2 transition-all hover:scale-110 cursor-pointer",
-                        selectedReconciliationColor === color.id 
-                          ? "ring-2 ring-offset-2 ring-blue-500 scale-110 border-white" 
+                        selectedReconciliationColor === color.id
+                          ? "ring-2 ring-offset-2 ring-blue-500 scale-110 border-white"
                           : "border-gray-300 dark:border-gray-600"
                       )}
                       style={{ backgroundColor: color.color }}
@@ -1031,7 +1031,7 @@ function LedgerTab({
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 gap-1" onClick={exportToGoogleSheets}>
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z" fill="#0F9D58"/>
+                <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z" fill="#0F9D58" />
               </svg>
               Sheets
             </Button>
@@ -1085,101 +1085,101 @@ function LedgerTab({
       {/* Ledger Table */}
       <div className="flex-1 bg-white dark:bg-gray-900 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full" dir={direction}>
-          <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-            <TableRow className="h-8">
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">✓</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'مدين' : 'Debit'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'دائن' : 'Credit'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{language === 'ar' ? 'البيان' : 'Description'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المرجع' : 'Reference'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الرصيد' : 'Balance'}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ledgerEntries.map((entry: any, index: number) => (
-              <TableRow 
-                key={entry.id}
-                className={cn(
-                  "hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer",
-                  getReconciliationBg(entry.id)
-                )}
-                onClick={() => onRowClick(entry)}
-              >
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
-                  {index + 1}
+          <Table className="border-collapse w-full" dir={direction}>
+            <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
+              <TableRow className="h-8">
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">✓</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'مدين' : 'Debit'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'دائن' : 'Credit'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{language === 'ar' ? 'البيان' : 'Description'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المرجع' : 'Reference'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الرصيد' : 'Balance'}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ledgerEntries.map((entry: any, index: number) => (
+                <TableRow
+                  key={entry.id}
+                  className={cn(
+                    "hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer",
+                    getReconciliationBg(entry.id)
+                  )}
+                  onClick={() => onRowClick(entry)}
+                >
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-center">
+                    <Checkbox
+                      checked={!!markedEntries[entry.id]}
+                      onCheckedChange={() => toggleReconciliationMark(entry.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        "w-4 h-4",
+                        markedEntries[entry.id] && "border-2"
+                      )}
+                      style={{
+                        borderColor: markedEntries[entry.id]
+                          ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color
+                          : undefined,
+                        backgroundColor: markedEntries[entry.id]
+                          ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color
+                          : undefined,
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-green-600">
+                    {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-red-600">
+                    {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[200px]">{entry.description}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{entry.date}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
+                    <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === entry.status)?.color)}>
+                      {language === 'ar'
+                        ? documentStatuses.find(s => s.value === entry.status)?.labelAr
+                        : documentStatuses.find(s => s.value === entry.status)?.labelEn
+                      }
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{entry.reference}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold text-erp-navy">
+                    {entry.balance.toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter className="bg-gray-100 dark:bg-gray-800 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
+              <TableRow className="h-9 border-t-2 border-erp-navy">
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
+                  {ledgerEntries.length}
                 </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-center">
-                  <Checkbox
-                    checked={!!markedEntries[entry.id]}
-                    onCheckedChange={() => toggleReconciliationMark(entry.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "w-4 h-4",
-                      markedEntries[entry.id] && "border-2"
-                    )}
-                    style={{
-                      borderColor: markedEntries[entry.id] 
-                        ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color 
-                        : undefined,
-                      backgroundColor: markedEntries[entry.id] 
-                        ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color 
-                        : undefined,
-                    }}
-                  />
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
+                  <span className="text-purple-600">{Object.keys(markedEntries).length}</span>
                 </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-green-600">
-                  {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-green-600">
+                  {totalDebit.toLocaleString()}
                 </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-red-600">
-                  {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-red-600">
+                  {totalCredit.toLocaleString()}
                 </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[200px]">{entry.description}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{entry.date}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
-                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === entry.status)?.color)}>
-                    {language === 'ar' 
-                      ? documentStatuses.find(s => s.value === entry.status)?.labelAr 
-                      : documentStatuses.find(s => s.value === entry.status)?.labelEn
-                    }
-                  </Badge>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
+                  {language === 'ar' ? 'الإجمالي' : 'Total'}
                 </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{entry.reference}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold text-erp-navy">
-                  {entry.balance.toLocaleString()}
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
+                  {currentBalance.toLocaleString()}
                 </TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-          <TableFooter className="bg-gray-100 dark:bg-gray-800 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
-            <TableRow className="h-9 border-t-2 border-erp-navy">
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
-                {ledgerEntries.length}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
-                <span className="text-purple-600">{Object.keys(markedEntries).length}</span>
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-green-600">
-                {totalDebit.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-red-600">
-                {totalCredit.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                {language === 'ar' ? 'الإجمالي' : 'Total'}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
-                {currentBalance.toLocaleString()}
-              </TableCell>
-            </TableRow>
-          </TableFooter>
-        </Table>
+            </TableFooter>
+          </Table>
         </div>
       </div>
     </div>
@@ -1245,25 +1245,25 @@ function InvoicesTab({ account, language, t, onRowClick }: any) {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'من' : 'From'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateFrom} 
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'إلى' : 'To'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateTo} 
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'الحالة' : 'Status'}</Label>
-            <Select value={filters.status} onValueChange={(v) => setFilters({...filters, status: v})}>
+            <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
               <SelectTrigger className="h-7 text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -1279,10 +1279,10 @@ function InvoicesTab({ account, language, t, onRowClick }: any) {
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'بحث' : 'Search'}</Label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input 
+              <Input
                 placeholder={language === 'ar' ? 'رقم أو عميل...' : 'Number or customer...'}
                 value={filters.search}
-                onChange={(e) => setFilters({...filters, search: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 className="h-7 text-xs pr-8 bg-white"
               />
             </div>
@@ -1348,73 +1348,73 @@ function InvoicesTab({ account, language, t, onRowClick }: any) {
       {/* Invoices Table */}
       <div className="flex-1 bg-white dark:bg-gray-900 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full">
-          <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-            <TableRow className="h-8">
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المدفوع' : 'Paid'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[180px]">{language === 'ar' ? 'العميل' : 'Customer'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'رقم الفاتورة' : 'Invoice No'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الاستحقاق' : 'Due Date'}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invoices.map((inv, index) => (
-              <TableRow 
-                key={inv.id}
-                className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
-                onClick={() => onRowClick({ ...inv, type: 'invoice', reference: inv.id, debit: inv.amount })}
-              >
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
-                  {index + 1}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-blue-600 font-bold">
-                  {inv.amount.toLocaleString()}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-green-600">
-                  {inv.paid > 0 ? inv.paid.toLocaleString() : '-'}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[180px]">{inv.customer}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{inv.date}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
-                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === inv.status)?.color)}>
-                    {language === 'ar' 
-                      ? documentStatuses.find(s => s.value === inv.status)?.labelAr 
-                      : documentStatuses.find(s => s.value === inv.status)?.labelEn
-                    }
-                  </Badge>
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{inv.id}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{inv.dueDate}</TableCell>
+          <Table className="border-collapse w-full">
+            <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
+              <TableRow className="h-8">
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المدفوع' : 'Paid'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[180px]">{language === 'ar' ? 'العميل' : 'Customer'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'رقم الفاتورة' : 'Invoice No'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الاستحقاق' : 'Due Date'}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-          <tfoot>
-            <TableRow className="h-9 border-t-2 border-erp-navy">
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
-                {invoices.length}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-blue-600">
-                {totalAmount.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-green-600">
-                {totalPaid.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                {language === 'ar' ? 'الإجمالي' : 'Total'}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
-                {totalRemaining.toLocaleString()}
-              </TableCell>
-            </TableRow>
-          </tfoot>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {invoices.map((inv, index) => (
+                <TableRow
+                  key={inv.id}
+                  className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
+                  onClick={() => onRowClick({ ...inv, type: 'invoice', reference: inv.id, debit: inv.amount })}
+                >
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-blue-600 font-bold">
+                    {inv.amount.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-green-600">
+                    {inv.paid > 0 ? inv.paid.toLocaleString() : '-'}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[180px]">{inv.customer}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{inv.date}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
+                    <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === inv.status)?.color)}>
+                      {language === 'ar'
+                        ? documentStatuses.find(s => s.value === inv.status)?.labelAr
+                        : documentStatuses.find(s => s.value === inv.status)?.labelEn
+                      }
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{inv.id}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{inv.dueDate}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <tfoot>
+              <TableRow className="h-9 border-t-2 border-erp-navy">
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
+                  {invoices.length}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-blue-600">
+                  {totalAmount.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-green-600">
+                  {totalPaid.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
+                  {language === 'ar' ? 'الإجمالي' : 'Total'}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
+                  {totalRemaining.toLocaleString()}
+                </TableCell>
+              </TableRow>
+            </tfoot>
+          </Table>
         </div>
       </div>
     </div>
@@ -1422,10 +1422,10 @@ function InvoicesTab({ account, language, t, onRowClick }: any) {
 }
 
 // ===== PAYMENTS TAB =====
-function PaymentsTab({ 
-  account, 
-  language, 
-  t, 
+function PaymentsTab({
+  account,
+  language,
+  t,
   onRowClick,
   realPayments,
   loading,
@@ -1508,25 +1508,25 @@ function PaymentsTab({
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'من' : 'From'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateFrom} 
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'إلى' : 'To'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateTo} 
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'النوع' : 'Type'}</Label>
-            <Select value={filters.type} onValueChange={(v) => setFilters({...filters, type: v})}>
+            <Select value={filters.type} onValueChange={(v) => setFilters({ ...filters, type: v })}>
               <SelectTrigger className="h-7 text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -1539,7 +1539,7 @@ function PaymentsTab({
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'طريقة الدفع' : 'Method'}</Label>
-            <Select value={filters.method} onValueChange={(v) => setFilters({...filters, method: v})}>
+            <Select value={filters.method} onValueChange={(v) => setFilters({ ...filters, method: v })}>
               <SelectTrigger className="h-7 text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -1554,10 +1554,10 @@ function PaymentsTab({
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'بحث' : 'Search'}</Label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input 
+              <Input
                 placeholder={language === 'ar' ? 'رقم أو وصف...' : 'Number or description...'}
                 value={filters.search}
-                onChange={(e) => setFilters({...filters, search: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 className="h-7 text-xs pr-8 bg-white"
               />
             </div>
@@ -1569,10 +1569,10 @@ function PaymentsTab({
             <Button variant="outline" size="sm" className="h-7 px-2">
               <Download className="w-3.5 h-3.5" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-7 px-2 gap-1" 
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 gap-1"
               onClick={onRefresh}
               disabled={loading}
             >
@@ -1634,84 +1634,84 @@ function PaymentsTab({
       {/* Payments Table */}
       <div className="flex-1 bg-white dark:bg-gray-900 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full">
-          <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-            <TableRow className="h-8">
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">↕</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{language === 'ar' ? 'البيان' : 'Description'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الرقم' : 'Number'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الطريقة' : 'Method'}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {payments.map((pmt, index) => (
-              <TableRow 
-                key={pmt.id}
-                className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
-                onClick={() => onRowClick({ 
-                  ...pmt, 
-                  type: pmt.isReceipt ? 'receipt' : 'payment', 
-                  reference: pmt.id, 
-                  debit: pmt.isReceipt ? pmt.amount : 0,
-                  credit: pmt.isReceipt ? 0 : pmt.amount
-                })}
-              >
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
-                  {index + 1}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-center">
-                  {pmt.isReceipt ? (
-                    <ArrowUpRight className="w-4 h-4 text-green-500 mx-auto" />
-                  ) : (
-                    <ArrowDownRight className="w-4 h-4 text-red-500 mx-auto" />
-                  )}
-                </TableCell>
-                <TableCell className={cn(
-                  "border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold",
-                  pmt.isReceipt ? "text-green-600" : "text-red-600"
-                )}>
-                  {pmt.isReceipt ? '+' : '-'}{pmt.amount.toLocaleString()}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[200px]">{pmt.description}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{pmt.date}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
-                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === pmt.status)?.color)}>
-                    {language === 'ar' 
-                      ? documentStatuses.find(s => s.value === pmt.status)?.labelAr 
-                      : documentStatuses.find(s => s.value === pmt.status)?.labelEn
-                    }
-                  </Badge>
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{pmt.id}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px]">{language === 'ar' ? pmt.method : pmt.methodEn}</TableCell>
+          <Table className="border-collapse w-full">
+            <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
+              <TableRow className="h-8">
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">↕</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{language === 'ar' ? 'البيان' : 'Description'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الرقم' : 'Number'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الطريقة' : 'Method'}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-          <tfoot>
-            <TableRow className="h-9 border-t-2 border-erp-navy">
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
-                {payments.length}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
-                ↕
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
-                {netBalance >= 0 ? '+' : ''}{netBalance.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                {language === 'ar' ? 'الصافي' : 'Net'}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-            </TableRow>
-          </tfoot>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {payments.map((pmt, index) => (
+                <TableRow
+                  key={pmt.id}
+                  className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
+                  onClick={() => onRowClick({
+                    ...pmt,
+                    type: pmt.isReceipt ? 'receipt' : 'payment',
+                    reference: pmt.id,
+                    debit: pmt.isReceipt ? pmt.amount : 0,
+                    credit: pmt.isReceipt ? 0 : pmt.amount
+                  })}
+                >
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-center">
+                    {pmt.isReceipt ? (
+                      <ArrowUpRight className="w-4 h-4 text-green-500 mx-auto" />
+                    ) : (
+                      <ArrowDownRight className="w-4 h-4 text-red-500 mx-auto" />
+                    )}
+                  </TableCell>
+                  <TableCell className={cn(
+                    "border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold",
+                    pmt.isReceipt ? "text-green-600" : "text-red-600"
+                  )}>
+                    {pmt.isReceipt ? '+' : '-'}{pmt.amount.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[200px]">{pmt.description}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{pmt.date}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
+                    <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === pmt.status)?.color)}>
+                      {language === 'ar'
+                        ? documentStatuses.find(s => s.value === pmt.status)?.labelAr
+                        : documentStatuses.find(s => s.value === pmt.status)?.labelEn
+                      }
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{pmt.id}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px]">{language === 'ar' ? pmt.method : pmt.methodEn}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <tfoot>
+              <TableRow className="h-9 border-t-2 border-erp-navy">
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
+                  {payments.length}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
+                  ↕
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
+                  {netBalance >= 0 ? '+' : ''}{netBalance.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
+                  {language === 'ar' ? 'الصافي' : 'Net'}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+              </TableRow>
+            </tfoot>
+          </Table>
         </div>
       </div>
     </div>
@@ -1783,25 +1783,25 @@ function ReservationsTab({ account, language, t }: any) {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'من' : 'From'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateFrom} 
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'إلى' : 'To'}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateTo} 
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'الحالة' : 'Status'}</Label>
-            <Select value={filters.status} onValueChange={(v) => setFilters({...filters, status: v})}>
+            <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
               <SelectTrigger className="h-7 text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -1817,10 +1817,10 @@ function ReservationsTab({ account, language, t }: any) {
             <Label className="text-[10px] text-gray-500">{language === 'ar' ? 'بحث' : 'Search'}</Label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input 
+              <Input
                 placeholder={language === 'ar' ? 'رقم أو منتج...' : 'Number or product...'}
                 value={filters.search}
-                onChange={(e) => setFilters({...filters, search: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 className="h-7 text-xs pr-8 bg-white"
               />
             </div>
@@ -1886,70 +1886,70 @@ function ReservationsTab({ account, language, t }: any) {
       {/* Reservations Table */}
       <div className="flex-1 bg-white dark:bg-gray-900 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full">
-          <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-            <TableRow className="h-8">
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الكمية' : 'Quantity'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'القيمة' : 'Value'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[180px]">{language === 'ar' ? 'المنتج' : 'Product'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'رقم الحجز' : 'Res. No'}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الانتهاء' : 'Expiry'}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {reservations.map((res, index) => (
-              <TableRow 
-                key={res.id}
-                className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
-              >
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
-                  {index + 1}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center">
-                  {res.quantity} {language === 'ar' ? res.unit : res.unitEn}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-blue-600 font-bold">
-                  {res.value.toLocaleString()}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[180px]">{language === 'ar' ? res.product : res.productEn}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{res.date}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
-                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", reservationStatuses.find(s => s.value === res.status)?.color)}>
-                    {language === 'ar' 
-                      ? reservationStatuses.find(s => s.value === res.status)?.labelAr 
-                      : reservationStatuses.find(s => s.value === res.status)?.labelEn
-                    }
-                  </Badge>
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{res.id}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{res.expiryDate}</TableCell>
+          <Table className="border-collapse w-full">
+            <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
+              <TableRow className="h-8">
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 w-[40px] text-center text-xs font-bold text-erp-navy">#</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الكمية' : 'Quantity'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'القيمة' : 'Value'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[180px]">{language === 'ar' ? 'المنتج' : 'Product'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'رقم الحجز' : 'Res. No'}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{language === 'ar' ? 'الانتهاء' : 'Expiry'}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-          <tfoot>
-            <TableRow className="h-9 border-t-2 border-erp-navy">
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
-                {reservations.length}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-center bg-gray-100">
-                {reservations.reduce((sum, r) => sum + r.quantity, 0).toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
-                {totalValue.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                {language === 'ar' ? 'الإجمالي' : 'Total'}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-            </TableRow>
-          </tfoot>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {reservations.map((res, index) => (
+                <TableRow
+                  key={res.id}
+                  className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
+                >
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-[11px] font-mono text-center text-gray-500">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center">
+                    {res.quantity} {language === 'ar' ? res.unit : res.unitEn}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-blue-600 font-bold">
+                    {res.value.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[180px]">{language === 'ar' ? res.product : res.productEn}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{res.date}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
+                    <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", reservationStatuses.find(s => s.value === res.status)?.color)}>
+                      {language === 'ar'
+                        ? reservationStatuses.find(s => s.value === res.status)?.labelAr
+                        : reservationStatuses.find(s => s.value === res.status)?.labelEn
+                      }
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{res.id}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{res.expiryDate}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <tfoot>
+              <TableRow className="h-9 border-t-2 border-erp-navy">
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 text-xs font-bold text-center bg-gray-100">
+                  {reservations.length}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-center bg-gray-100">
+                  {reservations.reduce((sum, r) => sum + r.quantity, 0).toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
+                  {totalValue.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
+                  {language === 'ar' ? 'الإجمالي' : 'Total'}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+              </TableRow>
+            </tfoot>
+          </Table>
         </div>
       </div>
     </div>
@@ -1962,7 +1962,7 @@ function AIAnalysisTab({ account, language, t, ledgerEntries, totalDebit, totalC
     {
       type: 'trend',
       title: language === 'ar' ? 'نمط الإنفاق' : 'Spending Pattern',
-      description: language === 'ar' 
+      description: language === 'ar'
         ? 'لاحظنا زيادة بنسبة 15% في المصروفات مقارنة بالشهر الماضي'
         : 'We noticed a 15% increase in expenses compared to last month',
       icon: TrendingUp,
@@ -2133,12 +2133,12 @@ function EventsTab({ account, language, t }: any) {
 }
 
 // Account Info with Ledger Component (Legacy - kept for reference)
-function AccountInfoWithLedger({ 
-  account, 
-  editForm, 
-  setEditForm, 
-  isEditing, 
-  setIsEditing, 
+function AccountInfoWithLedger({
+  account,
+  editForm,
+  setEditForm,
+  isEditing,
+  setIsEditing,
   onSave,
   onOpenEditTab,
   language,
@@ -2170,9 +2170,9 @@ function AccountInfoWithLedger({
               <span className="font-medium">{account.group || t('erp.accounting.accounts.typesPlural.asset')}</span>
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onOpenEditTab}
             className="gap-1 text-xs h-7"
           >
@@ -2203,25 +2203,25 @@ function AccountInfoWithLedger({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{t('erp.common.from')}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateFrom} 
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{t('erp.common.to')}</Label>
-            <Input 
-              type="date" 
-              value={filters.dateTo} 
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               className="h-7 text-xs bg-white font-mono"
             />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-gray-500">{t('common.currency')}</Label>
-            <Select value={filters.currency} onValueChange={(v) => setFilters({...filters, currency: v})}>
+            <Select value={filters.currency} onValueChange={(v) => setFilters({ ...filters, currency: v })}>
               <SelectTrigger className="h-7 text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -2241,7 +2241,7 @@ function AccountInfoWithLedger({
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 gap-1" onClick={exportToGoogleSheets}>
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z" fill="#0F9D58"/>
+                <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z" fill="#0F9D58" />
               </svg>
               Sheets
             </Button>
@@ -2273,66 +2273,66 @@ function AccountInfoWithLedger({
       {/* Ledger Table */}
       <div className="flex-1 bg-white dark:bg-gray-900 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full" dir={direction}>
-          <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-            <TableRow className="h-8">
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.date')}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.reference')}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{t('erp.common.description')}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.debit')}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.credit')}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.balance')}</TableHead>
-              <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{t('erp.common.status')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ledgerEntries.map((entry: any) => (
-              <TableRow 
-                key={entry.id}
-                className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
-                onClick={() => onRowClick(entry)}
-              >
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{entry.date}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{entry.reference}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[200px]">{entry.description}</TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-green-600">
-                  {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-red-600">
-                  {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold text-erp-navy">
-                  {entry.balance.toLocaleString()}
-                </TableCell>
-                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
-                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === entry.status)?.color)}>
-                    {language === 'ar' 
-                      ? documentStatuses.find(s => s.value === entry.status)?.labelAr 
-                      : documentStatuses.find(s => s.value === entry.status)?.labelEn
-                    }
-                  </Badge>
-                </TableCell>
+          <Table className="border-collapse w-full" dir={direction}>
+            <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
+              <TableRow className="h-8">
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.date')}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.reference')}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{t('erp.common.description')}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.debit')}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.credit')}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('erp.common.balance')}</TableHead>
+                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy text-center">{t('erp.common.status')}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-          <TableFooter className="bg-gray-100 dark:bg-gray-800 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
-            <TableRow className="h-9 border-t-2 border-erp-navy">
-              <TableCell colSpan={3} className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                {t('erp.common.total')}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-green-600">
-                {totalDebit.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-red-600">
-                {totalCredit.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
-                {currentBalance.toLocaleString()}
-              </TableCell>
-              <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
-            </TableRow>
-          </TableFooter>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {ledgerEntries.map((entry: any) => (
+                <TableRow
+                  key={entry.id}
+                  className="hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8 cursor-pointer"
+                  onClick={() => onRowClick(entry)}
+                >
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{entry.date}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-blue-600 hover:underline">{entry.reference}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate max-w-[200px]">{entry.description}</TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-green-600">
+                    {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-red-600">
+                    {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold text-erp-navy">
+                    {entry.balance.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-center">
+                    <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", documentStatuses.find(s => s.value === entry.status)?.color)}>
+                      {language === 'ar'
+                        ? documentStatuses.find(s => s.value === entry.status)?.labelAr
+                        : documentStatuses.find(s => s.value === entry.status)?.labelEn
+                      }
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter className="bg-gray-100 dark:bg-gray-800 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
+              <TableRow className="h-9 border-t-2 border-erp-navy">
+                <TableCell colSpan={3} className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
+                  {t('erp.common.total')}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-green-600">
+                  {totalDebit.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white text-red-600">
+                  {totalCredit.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
+                  {currentBalance.toLocaleString()}
+                </TableCell>
+                <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 bg-gray-100"></TableCell>
+              </TableRow>
+            </TableFooter>
+          </Table>
         </div>
       </div>
     </div>
@@ -2357,7 +2357,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
       { id: 3, name: 'منتج B - أدوات', quantity: 5, price: 908.6, tax: 15 },
     ],
   });
-  
+
   // Calculate totals
   const subtotal = invoiceForm.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
   const vatAmount = invoiceForm.items.reduce((sum, item) => sum + (item.quantity * item.price * item.tax / 100), 0);
@@ -2376,19 +2376,19 @@ function InvoiceDetailTab({ data, language, t }: any) {
   // Add item
   const addItem = () => {
     const newItem = { id: Date.now(), name: '', quantity: 1, price: 0, tax: 15 };
-    setInvoiceForm({...invoiceForm, items: [...invoiceForm.items, newItem]});
+    setInvoiceForm({ ...invoiceForm, items: [...invoiceForm.items, newItem] });
   };
 
   // Remove item
   const removeItem = (id: number) => {
-    setInvoiceForm({...invoiceForm, items: invoiceForm.items.filter(item => item.id !== id)});
+    setInvoiceForm({ ...invoiceForm, items: invoiceForm.items.filter(item => item.id !== id) });
   };
 
   // Update item
   const updateItem = (id: number, field: string, value: any) => {
     setInvoiceForm({
       ...invoiceForm,
-      items: invoiceForm.items.map(item => item.id === id ? {...item, [field]: value} : item)
+      items: invoiceForm.items.map(item => item.id === id ? { ...item, [field]: value } : item)
     });
   };
 
@@ -2424,9 +2424,9 @@ function InvoiceDetailTab({ data, language, t }: any) {
           </div>
         </div>
         <div className="flex gap-1.5">
-          <Button 
-            variant={isEditing ? "default" : "outline"} 
-            size="sm" 
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
             className="gap-1.5 h-7 text-xs"
             onClick={() => setIsEditing(!isEditing)}
           >
@@ -2448,7 +2448,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem className="gap-2 text-xs">
                 <svg className="w-3.5 h-3.5 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z"/>
+                  <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z" />
                 </svg>
                 {t('erp.common.sendToGoogleSheets')}
               </DropdownMenuItem>
@@ -2477,45 +2477,45 @@ function InvoiceDetailTab({ data, language, t }: any) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('erp.common.invoiceNumber')}</Label>
-                <Input 
-                  value={invoiceForm.number} 
-                  onChange={(e) => setInvoiceForm({...invoiceForm, number: e.target.value})}
+                <Input
+                  value={invoiceForm.number}
+                  onChange={(e) => setInvoiceForm({ ...invoiceForm, number: e.target.value })}
                   disabled={!isEditing}
                   className="h-8 text-sm font-mono"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('erp.common.customer')}</Label>
-                <Input 
-                  value={invoiceForm.customer} 
-                  onChange={(e) => setInvoiceForm({...invoiceForm, customer: e.target.value})}
+                <Input
+                  value={invoiceForm.customer}
+                  onChange={(e) => setInvoiceForm({ ...invoiceForm, customer: e.target.value })}
                   disabled={!isEditing}
                   className="h-8 text-sm"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('erp.common.date')}</Label>
-                <Input 
+                <Input
                   type="date"
-                  value={invoiceForm.date} 
-                  onChange={(e) => setInvoiceForm({...invoiceForm, date: e.target.value})}
+                  value={invoiceForm.date}
+                  onChange={(e) => setInvoiceForm({ ...invoiceForm, date: e.target.value })}
                   disabled={!isEditing}
                   className="h-8 text-sm font-mono"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('erp.common.dueDate')}</Label>
-                <Input 
+                <Input
                   type="date"
-                  value={invoiceForm.dueDate} 
-                  onChange={(e) => setInvoiceForm({...invoiceForm, dueDate: e.target.value})}
+                  value={invoiceForm.dueDate}
+                  onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })}
                   disabled={!isEditing}
                   className="h-8 text-sm font-mono"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('common.currency')}</Label>
-                <Select value={invoiceForm.currency} onValueChange={(v) => setInvoiceForm({...invoiceForm, currency: v})} disabled={!isEditing}>
+                <Select value={invoiceForm.currency} onValueChange={(v) => setInvoiceForm({ ...invoiceForm, currency: v })} disabled={!isEditing}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
@@ -2578,7 +2578,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
                 return (
                   <TableRow key={item.id} className="h-9">
                     <TableCell className="p-1">
-                      <Input 
+                      <Input
                         value={item.name}
                         onChange={(e) => updateItem(item.id, 'name', e.target.value)}
                         disabled={!isEditing}
@@ -2586,7 +2586,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
                       />
                     </TableCell>
                     <TableCell className="p-1">
-                      <Input 
+                      <Input
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
@@ -2595,7 +2595,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
                       />
                     </TableCell>
                     <TableCell className="p-1">
-                      <Input 
+                      <Input
                         type="number"
                         value={item.price}
                         onChange={(e) => updateItem(item.id, 'price', Number(e.target.value))}
@@ -2604,7 +2604,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
                       />
                     </TableCell>
                     <TableCell className="p-1">
-                      <Input 
+                      <Input
                         type="number"
                         value={item.tax}
                         onChange={(e) => updateItem(item.id, 'tax', Number(e.target.value))}
@@ -2679,19 +2679,19 @@ function JournalDetailTab({ data, language, t }: any) {
   // Add entry
   const addEntry = () => {
     const newEntry = { id: Date.now(), account: '', accountName: '', debit: 0, credit: 0 };
-    setJournalForm({...journalForm, entries: [...journalForm.entries, newEntry]});
+    setJournalForm({ ...journalForm, entries: [...journalForm.entries, newEntry] });
   };
 
   // Remove entry
   const removeEntry = (id: number) => {
-    setJournalForm({...journalForm, entries: journalForm.entries.filter(e => e.id !== id)});
+    setJournalForm({ ...journalForm, entries: journalForm.entries.filter(e => e.id !== id) });
   };
 
   // Update entry
   const updateEntry = (id: number, field: string, value: any) => {
     setJournalForm({
       ...journalForm,
-      entries: journalForm.entries.map(e => e.id === id ? {...e, [field]: value} : e)
+      entries: journalForm.entries.map(e => e.id === id ? { ...e, [field]: value } : e)
     });
   };
 
@@ -2700,15 +2700,15 @@ function JournalDetailTab({ data, language, t }: any) {
       {/* Header */}
       <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border shadow-sm">
         <Badge className={documentStatuses.find(s => s.value === data?.status)?.color}>
-          {language === 'ar' 
-            ? documentStatuses.find(s => s.value === data?.status)?.labelAr 
+          {language === 'ar'
+            ? documentStatuses.find(s => s.value === data?.status)?.labelAr
             : (documentStatuses.find(s => s.value === data?.status)?.labelEn || documentStatuses.find(s => s.value === data?.status)?.labelAr)
           }
         </Badge>
         <div className="flex gap-1.5">
-          <Button 
-            variant={isEditing ? "default" : "outline"} 
-            size="sm" 
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
             className="gap-1.5 h-7 text-xs"
             onClick={() => setIsEditing(!isEditing)}
           >
@@ -2720,7 +2720,7 @@ function JournalDetailTab({ data, language, t }: any) {
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs">
             <svg className="w-3.5 h-3.5 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z"/>
+              <path d="M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6.545h6.545m0 15.273H2.727V2.182h12l6.546 6.545v13.09z" />
             </svg>
             Sheets
           </Button>
@@ -2734,26 +2734,26 @@ function JournalDetailTab({ data, language, t }: any) {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('erp.common.entryNumber')}</Label>
-                <Input 
-                  value={journalForm.number} 
-                  onChange={(e) => setJournalForm({...journalForm, number: e.target.value})}
+                <Input
+                  value={journalForm.number}
+                  onChange={(e) => setJournalForm({ ...journalForm, number: e.target.value })}
                   disabled={!isEditing}
                   className="h-8 text-sm font-mono"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('erp.common.date')}</Label>
-                <Input 
+                <Input
                   type="date"
-                  value={journalForm.date} 
-                  onChange={(e) => setJournalForm({...journalForm, date: e.target.value})}
+                  value={journalForm.date}
+                  onChange={(e) => setJournalForm({ ...journalForm, date: e.target.value })}
                   disabled={!isEditing}
                   className="h-8 text-sm font-mono"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">{t('common.currency')}</Label>
-                <Select value={journalForm.currency} onValueChange={(v) => setJournalForm({...journalForm, currency: v})} disabled={!isEditing}>
+                <Select value={journalForm.currency} onValueChange={(v) => setJournalForm({ ...journalForm, currency: v })} disabled={!isEditing}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
@@ -2767,9 +2767,9 @@ function JournalDetailTab({ data, language, t }: any) {
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] text-gray-500">{t('erp.common.description')}</Label>
-              <Textarea 
+              <Textarea
                 value={journalForm.description}
-                onChange={(e) => setJournalForm({...journalForm, description: e.target.value})}
+                onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })}
                 disabled={!isEditing}
                 className="min-h-[60px] text-sm"
               />
@@ -2843,7 +2843,7 @@ function JournalDetailTab({ data, language, t }: any) {
                   </TableCell>
                   <TableCell className="p-1 text-xs">{entry.accountName}</TableCell>
                   <TableCell className="p-1">
-                    <Input 
+                    <Input
                       type="number"
                       value={entry.debit || ''}
                       onChange={(e) => updateEntry(entry.id, 'debit', Number(e.target.value) || 0)}
@@ -2852,7 +2852,7 @@ function JournalDetailTab({ data, language, t }: any) {
                     />
                   </TableCell>
                   <TableCell className="p-1">
-                    <Input 
+                    <Input
                       type="number"
                       value={entry.credit || ''}
                       onChange={(e) => updateEntry(entry.id, 'credit', Number(e.target.value) || 0)}
@@ -2915,8 +2915,8 @@ function PaymentDetailTab({ data, language, t }: any) {
     <div className="space-y-4">
       <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border shadow-sm">
         <Badge className={documentStatuses.find(s => s.value === data?.status)?.color}>
-          {language === 'ar' 
-            ? documentStatuses.find(s => s.value === data?.status)?.labelAr 
+          {language === 'ar'
+            ? documentStatuses.find(s => s.value === data?.status)?.labelAr
             : (documentStatuses.find(s => s.value === data?.status)?.labelEn || documentStatuses.find(s => s.value === data?.status)?.labelAr)
           }
         </Badge>
@@ -2944,7 +2944,7 @@ function PaymentDetailTab({ data, language, t }: any) {
                   <p className="text-lg font-bold font-mono text-erp-navy">{data?.reference}</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-[10px] text-gray-500">{t('erp.common.date')}</p>
@@ -2994,8 +2994,8 @@ function ReceiptDetailTab({ data, language, t }: any) {
     <div className="space-y-4">
       <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border shadow-sm">
         <Badge className={documentStatuses.find(s => s.value === data?.status)?.color}>
-          {language === 'ar' 
-            ? documentStatuses.find(s => s.value === data?.status)?.labelAr 
+          {language === 'ar'
+            ? documentStatuses.find(s => s.value === data?.status)?.labelAr
             : (documentStatuses.find(s => s.value === data?.status)?.labelEn || documentStatuses.find(s => s.value === data?.status)?.labelAr)
           }
         </Badge>
@@ -3027,7 +3027,7 @@ function ReceiptDetailTab({ data, language, t }: any) {
                   <p className="text-lg font-bold font-mono text-erp-teal">{data?.reference}</p>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
                   <span className="text-xs text-gray-500">{t('erp.common.date')}</span>
@@ -3069,7 +3069,7 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     // Basic Info - mapped from actual account data
     code: account?.code || account?.account_code || '',
@@ -3080,33 +3080,33 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
     description: account?.description || '',
     parentAccount: account?.parent_id || account?.parent || '',
     currency: account?.currency || 'SAR',
-    
+
     // Bank Info
     is_bank_account: account?.is_bank_account || false,
     bank_name: account?.bank_name || '',
     bank_account_number: account?.bank_account_number || '',
-    
+
     // Flags
     is_cash_account: account?.is_cash_account || false,
     is_receivable: account?.is_receivable || false,
     is_payable: account?.is_payable || false,
-    
+
     // Notes
     notes: account?.notes || '',
-    
+
     // Contact Info
     contactPerson: (account as any)?.contact_person || '',
     phone: (account as any)?.phone || '',
     mobile: (account as any)?.mobile || '',
     email: (account as any)?.email || '',
     website: (account as any)?.website || '',
-    
+
     // Address
     address: (account as any)?.address || '',
     city: (account as any)?.city || '',
     country: (account as any)?.country || '',
     postalCode: (account as any)?.postal_code || '',
-    
+
     // Financial Info
     creditLimit: (account as any)?.credit_limit || 0,
     paymentTerms: (account as any)?.payment_terms || '',
@@ -3134,14 +3134,14 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
         parent_id: formData.parentAccount || undefined,
         currency: formData.currency,
       });
-      
+
       setSaveSuccess(true);
-      
+
       // Notify parent component
       if (onSaveSuccess) {
         onSaveSuccess();
       }
-      
+
       // Reset success message after 3 seconds
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
@@ -3181,8 +3181,8 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {saving 
-              ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') 
+            {saving
+              ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...')
               : (language === 'ar' ? 'حفظ التغييرات' : 'Save Changes')
             }
           </Button>
@@ -3202,18 +3202,18 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.accountCode')}</Label>
-                <Input 
+                <Input
                   value={formData.code}
-                  onChange={(e) => setFormData({...formData, code: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                   className="font-mono text-sm"
                   dir="ltr"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.accountType')}</Label>
-                <Select 
+                <Select
                   value={formData.type}
-                  onValueChange={(value) => setFormData({...formData, type: value})}
+                  onValueChange={(value) => setFormData({ ...formData, type: value })}
                 >
                   <SelectTrigger className="text-sm">
                     <SelectValue />
@@ -3228,22 +3228,22 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
                 </Select>
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.arabicName')}</Label>
-              <Input 
+              <Input
                 value={formData.nameAr}
-                onChange={(e) => setFormData({...formData, nameAr: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
                 className="text-sm"
                 dir="rtl"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.englishName')}</Label>
-              <Input 
+              <Input
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="text-sm"
                 dir="ltr"
               />
@@ -3251,9 +3251,9 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
 
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.status')}</Label>
-              <Select 
+              <Select
                 value={formData.status}
-                onValueChange={(value) => setFormData({...formData, status: value})}
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
               >
                 <SelectTrigger className="text-sm">
                   <SelectValue />
@@ -3270,9 +3270,9 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
 
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.description')}</Label>
-              <Textarea 
+              <Textarea
                 value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="text-sm min-h-[80px]"
                 dir={direction}
               />
@@ -3291,19 +3291,19 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.contactPerson')}</Label>
-              <Input 
+              <Input
                 value={formData.contactPerson}
-                onChange={(e) => setFormData({...formData, contactPerson: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                 className="text-sm"
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.phone')}</Label>
-                <Input 
+                <Input
                   value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="text-sm font-mono"
                   dir="ltr"
                   placeholder="+966 xx xxx xxxx"
@@ -3311,33 +3311,33 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.mobile')}</Label>
-                <Input 
+                <Input
                   value={formData.mobile}
-                  onChange={(e) => setFormData({...formData, mobile: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
                   className="text-sm font-mono"
                   dir="ltr"
                   placeholder="+966 5x xxx xxxx"
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.email')}</Label>
-              <Input 
+              <Input
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="text-sm"
                 dir="ltr"
                 type="email"
                 placeholder="email@example.com"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.website')}</Label>
-              <Input 
+              <Input
                 value={formData.website}
-                onChange={(e) => setFormData({...formData, website: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                 className="text-sm"
                 dir="ltr"
                 placeholder="https://www.example.com"
@@ -3357,38 +3357,38 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.address')}</Label>
-              <Textarea 
+              <Textarea
                 value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 className="text-sm min-h-[60px]"
                 dir={direction}
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.city')}</Label>
-                <Input 
+                <Input
                   value={formData.city}
-                  onChange={(e) => setFormData({...formData, city: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   className="text-sm"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.country')}</Label>
-                <Input 
+                <Input
                   value={formData.country}
-                  onChange={(e) => setFormData({...formData, country: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   className="text-sm"
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.postalCode')}</Label>
-              <Input 
+              <Input
                 value={formData.postalCode}
-                onChange={(e) => setFormData({...formData, postalCode: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
                 className="text-sm font-mono"
                 dir="ltr"
               />
@@ -3408,9 +3408,9 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.creditLimit')}</Label>
-                <Input 
+                <Input
                   value={formData.creditLimit}
-                  onChange={(e) => setFormData({...formData, creditLimit: parseFloat(e.target.value) || 0})}
+                  onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
                   className="text-sm font-mono"
                   dir="ltr"
                   type="number"
@@ -3418,32 +3418,32 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">{t('erp.common.paymentTerms')}</Label>
-                <Input 
+                <Input
                   value={formData.paymentTerms}
-                  onChange={(e) => setFormData({...formData, paymentTerms: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setFormData({ ...formData, paymentTerms: parseInt(e.target.value) || 0 })}
                   className="text-sm font-mono"
                   dir="ltr"
                   type="number"
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.taxNumber')}</Label>
-              <Input 
+              <Input
                 value={formData.taxNumber}
-                onChange={(e) => setFormData({...formData, taxNumber: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
                 className="text-sm font-mono"
                 dir="ltr"
                 placeholder="3xxxxxxxxxx00003"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.commercialRegister')}</Label>
-              <Input 
+              <Input
                 value={formData.commercialRegister}
-                onChange={(e) => setFormData({...formData, commercialRegister: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, commercialRegister: e.target.value })}
                 className="text-sm font-mono"
                 dir="ltr"
               />
@@ -3451,9 +3451,9 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
 
             <div className="space-y-2">
               <Label className="text-xs">{t('erp.common.defaultCurrency')}</Label>
-              <Select 
+              <Select
                 value={formData.currency}
-                onValueChange={(value) => setFormData({...formData, currency: value})}
+                onValueChange={(value) => setFormData({ ...formData, currency: value })}
               >
                 <SelectTrigger className="text-sm">
                   <SelectValue />
@@ -3480,9 +3480,9 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Textarea 
+          <Textarea
             value={formData.notes}
-            onChange={(e) => setFormData({...formData, notes: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             className="text-sm min-h-[100px]"
             dir={direction}
             placeholder={t('erp.common.addNotesPlaceholder')}

@@ -69,6 +69,7 @@ interface CompanyFormData {
   fiscalYearStart: number;
   selectedPlan: string; // 🆕 الباقة المختارة
   billingCycle: 'monthly' | 'yearly'; // 🆕 دورة الفوترة
+  chartTemplate: string; // 🆕 قالب شجرة الحسابات
 }
 
 interface Country {
@@ -107,7 +108,7 @@ const countries: Country[] = [
   { code: 'KM', name: 'Comoros', nameAr: 'جزر القمر', currency: 'KMF', region: 'arab' },
   { code: 'MR', name: 'Mauritania', nameAr: 'موريتانيا', currency: 'MRU', region: 'arab' },
   { code: 'PS', name: 'Palestine', nameAr: 'فلسطين', currency: 'ILS', region: 'arab' },
-  
+
   // دول ناطقة بالروسية
   { code: 'RU', name: 'Russia', nameAr: 'روسيا', currency: 'RUB', region: 'russian' },
   { code: 'UA', name: 'Ukraine', nameAr: 'أوكرانيا', currency: 'UAH', region: 'russian' },
@@ -117,10 +118,10 @@ const countries: Country[] = [
   { code: 'AZ', name: 'Azerbaijan', nameAr: 'أذربيجان', currency: 'AZN', region: 'russian' },
   { code: 'GE', name: 'Georgia', nameAr: 'جورجيا', currency: 'GEL', region: 'russian' },
   { code: 'AM', name: 'Armenia', nameAr: 'أرمينيا', currency: 'AMD', region: 'russian' },
-  
+
   // دول ناطقة بالتركية
   { code: 'TR', name: 'Turkey', nameAr: 'تركيا', currency: 'TRY', region: 'turkish' },
-  
+
   // دول أوروبية
   { code: 'DE', name: 'Germany', nameAr: 'ألمانيا', currency: 'EUR', region: 'european' },
   { code: 'IT', name: 'Italy', nameAr: 'إيطاليا', currency: 'EUR', region: 'european' },
@@ -141,30 +142,121 @@ const countries: Country[] = [
   { code: 'GR', name: 'Greece', nameAr: 'اليونان', currency: 'EUR', region: 'european' },
   { code: 'CZ', name: 'Czech Republic', nameAr: 'التشيك', currency: 'CZK', region: 'european' },
   { code: 'HU', name: 'Hungary', nameAr: 'المجر', currency: 'HUF', region: 'european' },
-  
+
   // أخرى
   { code: 'US', name: 'United States', nameAr: 'الولايات المتحدة', currency: 'USD', region: 'other' },
   { code: 'CA', name: 'Canada', nameAr: 'كندا', currency: 'CAD', region: 'other' },
   { code: 'CN', name: 'China', nameAr: 'الصين', currency: 'CNY', region: 'other' },
   { code: 'JP', name: 'Japan', nameAr: 'اليابان', currency: 'JPY', region: 'other' },
-  { code: 'IN', name: 'India', nameAr: 'الهند', currency: 'INR', region: 'other' },
-  { code: 'BR', name: 'Brazil', nameAr: 'البرازيل', currency: 'BRL', region: 'other' },
+  { code: 'IN', name: 'India', nameAr: 'الهند', currency: 'INR', region: 'asian' },
+  { code: 'BR', name: 'Brazil', nameAr: 'البرازيل', currency: 'BRL', region: 'american' },
   { code: 'AU', name: 'Australia', nameAr: 'أستراليا', currency: 'AUD', region: 'other' },
   { code: 'NZ', name: 'New Zealand', nameAr: 'نيوزيلندا', currency: 'NZD', region: 'other' },
-  { code: 'ZA', name: 'South Africa', nameAr: 'جنوب أفريقيا', currency: 'ZAR', region: 'other' },
+  { code: 'ZA', name: 'South Africa', nameAr: 'جنوب أفريقيا', currency: 'ZAR', region: 'african' },
+
+  // المزيد من الدول الآسيوية
+  { code: 'PK', name: 'Pakistan', nameAr: 'باكستان', currency: 'PKR', region: 'asian' },
+  { code: 'BD', name: 'Bangladesh', nameAr: 'بنغلاديش', currency: 'BDT', region: 'asian' },
+  { code: 'ID', name: 'Indonesia', nameAr: 'إندونيسيا', currency: 'IDR', region: 'asian' },
+  { code: 'MY', name: 'Malaysia', nameAr: 'ماليزيا', currency: 'MYR', region: 'asian' },
+  { code: 'TH', name: 'Thailand', nameAr: 'تايلاند', currency: 'THB', region: 'asian' },
+  { code: 'VN', name: 'Vietnam', nameAr: 'فيتنام', currency: 'VND', region: 'asian' },
+  { code: 'PH', name: 'Philippines', nameAr: 'الفلبين', currency: 'PHP', region: 'asian' },
+  { code: 'SG', name: 'Singapore', nameAr: 'سنغافورة', currency: 'SGD', region: 'asian' },
+  { code: 'HK', name: 'Hong Kong', nameAr: 'هونغ كونغ', currency: 'HKD', region: 'asian' },
+  { code: 'TW', name: 'Taiwan', nameAr: 'تايوان', currency: 'TWD', region: 'asian' },
+  { code: 'KR', name: 'South Korea', nameAr: 'كوريا الجنوبية', currency: 'KRW', region: 'asian' },
+  { code: 'LK', name: 'Sri Lanka', nameAr: 'سريلانكا', currency: 'LKR', region: 'asian' },
+  { code: 'NP', name: 'Nepal', nameAr: 'نيبال', currency: 'NPR', region: 'asian' },
+  { code: 'MM', name: 'Myanmar', nameAr: 'ميانمار', currency: 'MMK', region: 'asian' },
+  { code: 'KH', name: 'Cambodia', nameAr: 'كمبوديا', currency: 'KHR', region: 'asian' },
+  { code: 'AF', name: 'Afghanistan', nameAr: 'أفغانستان', currency: 'AFN', region: 'asian' },
+  { code: 'MV', name: 'Maldives', nameAr: 'المالديف', currency: 'MVR', region: 'asian' },
+  { code: 'BN', name: 'Brunei', nameAr: 'بروناي', currency: 'BND', region: 'asian' },
+  { code: 'LA', name: 'Laos', nameAr: 'لاوس', currency: 'LAK', region: 'asian' },
+  { code: 'MN', name: 'Mongolia', nameAr: 'منغوليا', currency: 'MNT', region: 'asian' },
+
+  // دول أفريقية إضافية
+  { code: 'NG', name: 'Nigeria', nameAr: 'نيجيريا', currency: 'NGN', region: 'african' },
+  { code: 'KE', name: 'Kenya', nameAr: 'كينيا', currency: 'KES', region: 'african' },
+  { code: 'TZ', name: 'Tanzania', nameAr: 'تنزانيا', currency: 'TZS', region: 'african' },
+  { code: 'UG', name: 'Uganda', nameAr: 'أوغندا', currency: 'UGX', region: 'african' },
+  { code: 'GH', name: 'Ghana', nameAr: 'غانا', currency: 'GHS', region: 'african' },
+  { code: 'SN', name: 'Senegal', nameAr: 'السنغال', currency: 'XOF', region: 'african' },
+  { code: 'CI', name: 'Ivory Coast', nameAr: 'ساحل العاج', currency: 'XOF', region: 'african' },
+  { code: 'CM', name: 'Cameroon', nameAr: 'الكاميرون', currency: 'XAF', region: 'african' },
+  { code: 'ET', name: 'Ethiopia', nameAr: 'إثيوبيا', currency: 'ETB', region: 'african' },
+  { code: 'RW', name: 'Rwanda', nameAr: 'رواندا', currency: 'RWF', region: 'african' },
+  { code: 'ZW', name: 'Zimbabwe', nameAr: 'زيمبابوي', currency: 'ZWL', region: 'african' },
+  { code: 'ZM', name: 'Zambia', nameAr: 'زامبيا', currency: 'ZMW', region: 'african' },
+  { code: 'BW', name: 'Botswana', nameAr: 'بوتسوانا', currency: 'BWP', region: 'african' },
+  { code: 'NA', name: 'Namibia', nameAr: 'ناميبيا', currency: 'NAD', region: 'african' },
+  { code: 'MU', name: 'Mauritius', nameAr: 'موريشيوس', currency: 'MUR', region: 'african' },
+  { code: 'MG', name: 'Madagascar', nameAr: 'مدغشقر', currency: 'MGA', region: 'african' },
+  { code: 'SC', name: 'Seychelles', nameAr: 'سيشل', currency: 'SCR', region: 'african' },
+  { code: 'AO', name: 'Angola', nameAr: 'أنغولا', currency: 'AOA', region: 'african' },
+  { code: 'MZ', name: 'Mozambique', nameAr: 'موزمبيق', currency: 'MZN', region: 'african' },
+  { code: 'CD', name: 'DR Congo', nameAr: 'الكونغو الديمقراطية', currency: 'CDF', region: 'african' },
+  { code: 'CG', name: 'Congo', nameAr: 'الكونغو', currency: 'XAF', region: 'african' },
+
+  // دول أمريكا اللاتينية
+  { code: 'MX', name: 'Mexico', nameAr: 'المكسيك', currency: 'MXN', region: 'american' },
+  { code: 'AR', name: 'Argentina', nameAr: 'الأرجنتين', currency: 'ARS', region: 'american' },
+  { code: 'CL', name: 'Chile', nameAr: 'تشيلي', currency: 'CLP', region: 'american' },
+  { code: 'CO', name: 'Colombia', nameAr: 'كولومبيا', currency: 'COP', region: 'american' },
+  { code: 'PE', name: 'Peru', nameAr: 'بيرو', currency: 'PEN', region: 'american' },
+  { code: 'VE', name: 'Venezuela', nameAr: 'فنزويلا', currency: 'VES', region: 'american' },
+  { code: 'EC', name: 'Ecuador', nameAr: 'الإكوادور', currency: 'USD', region: 'american' },
+  { code: 'UY', name: 'Uruguay', nameAr: 'أوروغواي', currency: 'UYU', region: 'american' },
+  { code: 'PY', name: 'Paraguay', nameAr: 'باراغواي', currency: 'PYG', region: 'american' },
+  { code: 'BO', name: 'Bolivia', nameAr: 'بوليفيا', currency: 'BOB', region: 'american' },
+  { code: 'PA', name: 'Panama', nameAr: 'بنما', currency: 'PAB', region: 'american' },
+  { code: 'CR', name: 'Costa Rica', nameAr: 'كوستاريكا', currency: 'CRC', region: 'american' },
+  { code: 'GT', name: 'Guatemala', nameAr: 'غواتيمالا', currency: 'GTQ', region: 'american' },
+  { code: 'CU', name: 'Cuba', nameAr: 'كوبا', currency: 'CUP', region: 'american' },
+  { code: 'DO', name: 'Dominican Republic', nameAr: 'جمهورية الدومينيكان', currency: 'DOP', region: 'american' },
+  { code: 'HN', name: 'Honduras', nameAr: 'هندوراس', currency: 'HNL', region: 'american' },
+  { code: 'SV', name: 'El Salvador', nameAr: 'السلفادور', currency: 'USD', region: 'american' },
+  { code: 'NI', name: 'Nicaragua', nameAr: 'نيكاراغوا', currency: 'NIO', region: 'american' },
+  { code: 'JM', name: 'Jamaica', nameAr: 'جامايكا', currency: 'JMD', region: 'american' },
+  { code: 'TT', name: 'Trinidad & Tobago', nameAr: 'ترينيداد وتوباغو', currency: 'TTD', region: 'american' },
+
+  // دول أوروبية إضافية
+  { code: 'IE', name: 'Ireland', nameAr: 'أيرلندا', currency: 'EUR', region: 'european' },
+  { code: 'LU', name: 'Luxembourg', nameAr: 'لوكسمبورغ', currency: 'EUR', region: 'european' },
+  { code: 'SK', name: 'Slovakia', nameAr: 'سلوفاكيا', currency: 'EUR', region: 'european' },
+  { code: 'SI', name: 'Slovenia', nameAr: 'سلوفينيا', currency: 'EUR', region: 'european' },
+  { code: 'HR', name: 'Croatia', nameAr: 'كرواتيا', currency: 'EUR', region: 'european' },
+  { code: 'RS', name: 'Serbia', nameAr: 'صربيا', currency: 'RSD', region: 'european' },
+  { code: 'BA', name: 'Bosnia', nameAr: 'البوسنة', currency: 'BAM', region: 'european' },
+  { code: 'AL', name: 'Albania', nameAr: 'ألبانيا', currency: 'ALL', region: 'european' },
+  { code: 'MK', name: 'North Macedonia', nameAr: 'مقدونيا الشمالية', currency: 'MKD', region: 'european' },
+  { code: 'ME', name: 'Montenegro', nameAr: 'الجبل الأسود', currency: 'EUR', region: 'european' },
+  { code: 'XK', name: 'Kosovo', nameAr: 'كوسوفو', currency: 'EUR', region: 'european' },
+  { code: 'LT', name: 'Lithuania', nameAr: 'ليتوانيا', currency: 'EUR', region: 'european' },
+  { code: 'LV', name: 'Latvia', nameAr: 'لاتفيا', currency: 'EUR', region: 'european' },
+  { code: 'EE', name: 'Estonia', nameAr: 'إستونيا', currency: 'EUR', region: 'european' },
+  { code: 'IS', name: 'Iceland', nameAr: 'آيسلندا', currency: 'ISK', region: 'european' },
+  { code: 'CY', name: 'Cyprus', nameAr: 'قبرص', currency: 'EUR', region: 'european' },
+  { code: 'MT', name: 'Malta', nameAr: 'مالطا', currency: 'EUR', region: 'european' },
+  { code: 'MD', name: 'Moldova', nameAr: 'مولدوفا', currency: 'MDL', region: 'european' },
+
+  // أوقيانوسيا
+  { code: 'FJ', name: 'Fiji', nameAr: 'فيجي', currency: 'FJD', region: 'other' },
+  { code: 'PG', name: 'Papua New Guinea', nameAr: 'بابوا غينيا', currency: 'PGK', region: 'other' },
 ];
 
 // Map language to region priority
 const languageRegionMap: Record<string, string[]> = {
-  'ar': ['arab', 'turkish', 'european', 'russian', 'other'],
-  'en': ['other', 'european', 'arab', 'turkish', 'russian'],
-  'de': ['european', 'other', 'arab', 'turkish', 'russian'],
-  'tr': ['turkish', 'arab', 'european', 'russian', 'other'],
-  'ru': ['russian', 'european', 'arab', 'turkish', 'other'],
-  'uk': ['russian', 'european', 'arab', 'turkish', 'other'],
-  'it': ['european', 'other', 'arab', 'turkish', 'russian'],
-  'pl': ['european', 'other', 'arab', 'turkish', 'russian'],
-  'ro': ['european', 'other', 'arab', 'turkish', 'russian'],
+  'ar': ['arab', 'asian', 'african', 'turkish', 'european', 'russian', 'american', 'other'],
+  'en': ['other', 'american', 'european', 'asian', 'african', 'arab', 'turkish', 'russian'],
+  'de': ['european', 'other', 'american', 'asian', 'african', 'arab', 'turkish', 'russian'],
+  'tr': ['turkish', 'arab', 'european', 'asian', 'african', 'russian', 'american', 'other'],
+  'ru': ['russian', 'european', 'asian', 'arab', 'african', 'turkish', 'american', 'other'],
+  'uk': ['russian', 'european', 'asian', 'arab', 'african', 'turkish', 'american', 'other'],
+  'it': ['european', 'other', 'american', 'asian', 'african', 'arab', 'turkish', 'russian'],
+  'pl': ['european', 'other', 'american', 'asian', 'african', 'arab', 'turkish', 'russian'],
+  'ro': ['european', 'other', 'american', 'asian', 'african', 'arab', 'turkish', 'russian'],
 };
 
 const defaultCountryByLanguage: Record<string, string> = {
@@ -217,10 +309,10 @@ export default function RegistrationWizard() {
   const { t, direction, language } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // قراءة بيانات التسجيل من localStorage
   const registrationData = React.useMemo(() => {
     const data = localStorage.getItem('registration_data');
@@ -233,7 +325,7 @@ export default function RegistrationWizard() {
     }
     return null;
   }, []);
-  
+
   const [formData, setFormData] = useState<CompanyFormData>({
     companyName: registrationData?.companyName || '',
     businessType: '',
@@ -247,7 +339,8 @@ export default function RegistrationWizard() {
     mainCurrency: 'USD',
     fiscalYearStart: 1,
     selectedPlan: 'starter', // 🆕 الباقة الافتراضية
-    billingCycle: 'monthly' // 🆕 شهري افتراضياً
+    billingCycle: 'monthly', // 🆕 شهري افتراضياً
+    chartTemplate: 'standard' // 🆕 قالب شجرة الحسابات الافتراضي
   });
 
   // 🆕 قراءة الباقة من URL
@@ -266,25 +359,18 @@ export default function RegistrationWizard() {
   const totalSteps = 4; // 🆕 زيادة عدد الخطوات إلى 4
   const progress = (currentStep / totalSteps) * 100;
 
-  // ترتيب الدول حسب اللغة
+  // ترتيب الدول أبجدياً عالمياً
   const sortedCountries = React.useMemo(() => {
-    const regionPriority = languageRegionMap[language] || languageRegionMap['en'];
-    
+    console.log('📍 Total countries:', countries.length);
+    console.log('📍 Ukraine exists:', countries.some(c => c.code === 'UA'));
     const sorted = [...countries].sort((a, b) => {
-      const aIndex = regionPriority.indexOf(a.region);
-      const bIndex = regionPriority.indexOf(b.region);
-      
-      if (aIndex !== bIndex) {
-        return aIndex - bIndex;
-      }
-      
-      // نفس المنطقة - ترتيب أبجدي
+      // ترتيب أبجدي حسب اللغة
       if (isRTL) {
         return a.nameAr.localeCompare(b.nameAr, 'ar');
       }
       return a.name.localeCompare(b.name);
     });
-    
+
     return sorted;
   }, [language, isRTL]);
 
@@ -358,7 +444,7 @@ export default function RegistrationWizard() {
       ...prev,
       [field]: value
     }));
-    
+
     // إذا تغيرت الدولة، نحدث العملة المحلية
     if (field === 'country') {
       const selectedCountry = countries.find(c => c.code === value);
@@ -383,7 +469,7 @@ export default function RegistrationWizard() {
         return;
       }
     }
-    
+
     // Step 2: التحقق من الدولة والمدينة
     if (currentStep === 2) {
       if (!formData.country) {
@@ -406,7 +492,7 @@ export default function RegistrationWizard() {
         return;
       }
     }
-    
+
     // Step 3: التحقق من العملات
     if (currentStep === 3) {
       if (!formData.localCurrency) {
@@ -418,7 +504,7 @@ export default function RegistrationWizard() {
         return;
       }
     }
-    
+
     // 🆕 Step 4: التحقق من الباقة
     if (currentStep === 4) {
       if (!formData.selectedPlan) {
@@ -426,7 +512,7 @@ export default function RegistrationWizard() {
         return;
       }
     }
-    
+
     setCurrentStep(prev => Math.min(prev + 1, totalSteps));
   };
 
@@ -475,7 +561,8 @@ export default function RegistrationWizard() {
         p_business_type: formData.businessType,
         p_currency: formData.localCurrency,
         p_country_code: formData.country,
-        p_plan_code: formData.selectedPlan // 🆕 إرسال الباقة المختارة
+        p_plan_code: formData.selectedPlan, // 🆕 إرسال الباقة المختارة
+        p_chart_template: formData.chartTemplate // 🆕 إرسال القالب المختار
       });
 
       console.log('📊 RPC Response:', { data, error });
@@ -530,43 +617,36 @@ export default function RegistrationWizard() {
 
       // Success!
       console.log('🎉 Registration complete! Cleaning up...');
-      
+
       // تنظيف البيانات المؤقتة
       localStorage.removeItem('registration_data');
-      
+
       // عرض رسالة النجاح
-      const successMessage = formData.businessType === 'fabric' 
-        ? t('wizard.successFabric') 
+      const successMessage = formData.businessType === 'fabric'
+        ? t('wizard.successFabric')
         : t('wizard.success');
-      
+
       console.log('✅ Success message:', successMessage);
       toast.success(successMessage);
-      
-      console.log('🚀 Preparing redirect to dashboard in 1 second...');
-      
-      // Redirect to dashboard بعد ثانية واحدة
-      const redirectTimer = setTimeout(() => {
-        console.log('➡️ Executing redirect now...');
-        try {
-          window.location.href = '/';
-          console.log('✅ Redirect executed');
-        } catch (redirectError) {
-          console.error('❌ Redirect error:', redirectError);
-          // محاولة بديلة
-          window.location.replace('/');
-        }
-      }, 1000);
 
-      // تنظيف Timer إذا تم unmount المكون
-      return () => clearTimeout(redirectTimer);
+      console.log('🚀 Preparing redirect to dashboard...');
+
+      // Force immediate redirect attempt
+      try {
+        window.location.href = '/';
+      } catch (e) {
+        console.warn('Standard redirect failed, trying replace', e);
+        window.location.replace('/');
+      }
 
     } catch (err: any) {
       console.error('💥 Submission error:', err);
       console.error('Error stack:', err.stack);
-      toast.error(err.message || t('wizard.registrationFailed'));
+      toast.error(err.message || (t && t('wizard.registrationFailed')) || 'Registration Failed');
       setIsSubmitting(false);
     }
   };
+
 
   // ============================================
   // STEP 1: Business Type + Company Name
@@ -633,7 +713,7 @@ export default function RegistrationWizard() {
           {Object.entries(businessTypes).map(([key, type]) => {
             const Icon = type.icon;
             const isSelected = formData.businessType === key;
-            
+
             return (
               <button
                 key={key}
@@ -657,7 +737,7 @@ export default function RegistrationWizard() {
                       isSelected ? type.color : 'text-gray-600'
                     )} />
                   </div>
-                  
+
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-1">
                       {t(`wizard.businessTypes.${key}.name`)}
@@ -680,16 +760,6 @@ export default function RegistrationWizard() {
           })}
         </div>
       </div>
-
-      {/* Fabric Alert */}
-      {formData.businessType === 'fabric' && (
-        <Alert className="bg-purple-50 border-purple-200">
-          <Info className="w-4 h-4 text-purple-600" />
-          <AlertDescription className="text-purple-900">
-            {t('wizard.fabricNote')}
-          </AlertDescription>
-        </Alert>
-      )}
     </motion.div>
   );
 
@@ -921,6 +991,80 @@ export default function RegistrationWizard() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* 🆕 اختيار الشجرة المحاسبية */}
+        <div>
+          <Label className="flex items-center gap-2 mb-2 text-base font-semibold">
+            <DollarSign className="w-4 h-4" />
+            {t('wizard.selectChartTemplate') || 'اختر نوع الشجرة المحاسبية'}
+          </Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* الشجرة المبسطة - متاح للجميع */}
+            <button
+              type="button"
+              onClick={() => handleChange('chartTemplate', 'simple')}
+              className={cn(
+                "p-4 rounded-xl border-2 transition-all text-start",
+                formData.chartTemplate === 'simple'
+                  ? "border-teal-600 bg-teal-50"
+                  : "border-gray-200 hover:border-teal-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-gray-900">{t('wizard.chartSimple') || 'الشجرة القياسية'}</span>
+                {formData.chartTemplate === 'simple' && <Check className="w-4 h-4 text-teal-600" />}
+              </div>
+              <p className="text-sm text-gray-500 mb-2">
+                {t('wizard.chartSimpleDesc') || 'مناسبة للشركات الصغيرة والخدمية. حسابات أساسية ومختصرة.'}
+              </p>
+              <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded inline-block">
+                💡 {t('wizard.chartSimpleNote') || 'يمكنك ترقيتها لاحقاً إلى الموسعة'}
+              </div>
+            </button>
+
+            {/* الشجرة الموسعة - متاح للجميع */}
+            <button
+              type="button"
+              onClick={() => handleChange('chartTemplate', 'extended')}
+              className={cn(
+                "p-4 rounded-xl border-2 transition-all text-start",
+                formData.chartTemplate === 'extended'
+                  ? "border-teal-600 bg-teal-50"
+                  : "border-gray-200 hover:border-teal-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-gray-900">{t('wizard.chartExtended') || 'الشجرة الموسعة'}</span>
+                {formData.chartTemplate === 'extended' && <Check className="w-4 h-4 text-teal-600" />}
+              </div>
+              <p className="text-sm text-gray-500">
+                {t('wizard.chartExtendedDesc') || 'شجرة كاملة ومفصلة. مناسبة للشركات التجارية والصناعية الكبيرة.'}
+              </p>
+            </button>
+
+            {/* شجرة الأقمشة - تظهر فقط لتجارة الأقمشة */}
+            {formData.businessType === 'fabric' && (
+              <button
+                type="button"
+                onClick={() => handleChange('chartTemplate', 'fabric_extended')}
+                className={cn(
+                  "p-4 rounded-xl border-2 transition-all text-start col-span-1 md:col-span-2",
+                  formData.chartTemplate === 'fabric_extended'
+                    ? "border-purple-600 bg-purple-50"
+                    : "border-gray-200 hover:border-purple-200"
+                )}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-purple-900">{t('wizard.chartFabric') || 'شجرة الأقمشة المتخصصة 🧵'}</span>
+                  {formData.chartTemplate === 'fabric_extended' && <Check className="w-4 h-4 text-purple-600" />}
+                </div>
+                <p className="text-sm text-gray-600">
+                  {t('wizard.chartFabricDesc') || 'خصيصاً لشركات الأقمشة. تشمل تفاصيل: المخزون (خام/تام)، الإكسسوارات، الآلات، والهالِك.'}
+                </p>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Summary */}
@@ -943,8 +1087,8 @@ export default function RegistrationWizard() {
           <div className="flex justify-between">
             <span className="text-gray-600">{t('wizard.country')}:</span>
             <span className="font-medium">
-              {isRTL 
-                ? countries.find(c => c.code === formData.country)?.nameAr 
+              {isRTL
+                ? countries.find(c => c.code === formData.country)?.nameAr
                 : countries.find(c => c.code === formData.country)?.name
               }
             </span>
@@ -957,17 +1101,14 @@ export default function RegistrationWizard() {
             <span className="text-gray-600">{t('wizard.mainCurrency')}:</span>
             <span className="font-medium">{formData.mainCurrency}</span>
           </div>
-
-          {formData.businessType === 'fabric' && (
-            <Alert className="mt-4 bg-purple-50 border-purple-200">
-              <Info className="w-4 h-4 text-purple-600" />
-              <AlertDescription className="text-xs text-purple-900">
-                {t('wizard.fabricSummary')}
-                <br />
-                <strong>{t('wizard.fabricCurrencyNote')}</strong>
-              </AlertDescription>
-            </Alert>
-          )}
+          <div className="flex justify-between">
+            <span className="text-gray-600">{t('wizard.chartTemplate') || 'الشجرة المحاسبية'}:</span>
+            <span className="font-medium">
+              {formData.chartTemplate === 'simple' && (t('wizard.chartSimple') || 'القياسية')}
+              {formData.chartTemplate === 'extended' && (t('wizard.chartExtended') || 'الموسعة')}
+              {formData.chartTemplate === 'fabric_extended' && (t('wizard.chartFabric') || 'الأقمشة')}
+            </span>
+          </div>
         </CardContent>
       </Card>
     </motion.div>
@@ -1118,8 +1259,8 @@ export default function RegistrationWizard() {
           {plans.map((plan) => {
             const isSelected = formData.selectedPlan === plan.code;
             const colors = getColorClasses(plan.color, isSelected);
-            const price = formData.billingCycle === 'monthly' 
-              ? plan.discountedMonthly 
+            const price = formData.billingCycle === 'monthly'
+              ? plan.discountedMonthly
               : plan.discountedYearly;
             const originalPrice = formData.billingCycle === 'monthly'
               ? plan.priceMonthly
@@ -1176,7 +1317,7 @@ export default function RegistrationWizard() {
                       ${price}
                     </span>
                     <span className="text-gray-600">
-                      / {formData.billingCycle === 'monthly' 
+                      / {formData.billingCycle === 'monthly'
                         ? (t('wizard.month') || 'شهر')
                         : (t('wizard.year') || 'سنة')
                       }
@@ -1185,7 +1326,7 @@ export default function RegistrationWizard() {
                   {/* خصم */}
                   <div className="mt-2 text-xs text-teal-600 font-medium">
                     🎉 {t('wizard.discount50') || 'خصم 50%'}
-                    {formData.billingCycle === 'yearly' && 
+                    {formData.billingCycle === 'yearly' &&
                       ` + ${t('wizard.freeMonths') || '2 أشهر مجاناً'}`
                     }
                   </div>

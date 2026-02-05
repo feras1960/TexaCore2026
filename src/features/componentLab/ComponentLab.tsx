@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaTable, Column } from '@/components/shared/tables/NexaTable';
-import { NexaGrid, type NexaGridColumn } from '@/components/shared/tables/NexaGrid';
+// import { NexaGrid, type NexaGridColumn } from '@/components/shared/tables/NexaGrid';
 import { LedgerTable, type LedgerColumn } from '@/components/shared/tables/LedgerTable';
 // UnifiedSheet removed - using UniversalDetailSheet instead
 import { UnifiedModal } from '@/components/shared/modals/UnifiedModal';
@@ -18,8 +18,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  FileText, Sheet, MessageSquare, Eye, FileText as FileTextIcon, 
+import {
+  FileText, Sheet, MessageSquare, Eye, FileText as FileTextIcon,
   ChevronDown, Layers, Copy, Check, Database, TestTube,
   Code, List, Settings2, RefreshCw, AlertCircle, ChevronRight,
   ChevronLeft, PanelLeftClose, PanelLeft, Minimize2, Maximize2, Package
@@ -53,7 +53,7 @@ import { CreateTenantDialog } from '@/features/saas/components/CreateTenantDialo
 // AgentDetailsSheet removed - using UniversalDetailSheet with docType="agent" instead
 import Register from '@/features/auth/Register';
 import RegistrationWizard from '@/features/auth/RegistrationWizard';
-import { 
+import {
   UniversalDetailSheet,
   UniversalDetailSheetPreview,
   getRegisteredDocTypes,
@@ -838,7 +838,7 @@ export default function ComponentLab() {
   const navigate = useNavigate();
   const [selectedPopup, setSelectedPopup] = useState<string | null>(null);
   const [selectedGridDocType, setSelectedGridDocType] = useState<GridDocType>('general_ledger');
-  
+
   // Sheet Groups Configuration
   type SheetGroup = 'saas' | 'accounting';
   const SHEET_GROUPS: Record<SheetGroup, { label: string; labelAr: string; color: string; docTypes: DocType[] }> = {
@@ -855,7 +855,7 @@ export default function ComponentLab() {
       docTypes: ['invoice', 'account', 'customer', 'supplier', 'journal_entry', 'fund'],
     },
   };
-  
+
   // Universal Detail Sheet state
   const [sheetGroup, setSheetGroup] = useState<SheetGroup>('saas');
   const [universalSheetDocType, setUniversalSheetDocType] = useState<DocType>('tenant');
@@ -874,10 +874,10 @@ export default function ComponentLab() {
   // Load real data when toggled
   const loadRealData = useCallback(async () => {
     if (!useRealData) return;
-    
+
     setIsLoadingRealData(true);
     setRealDataError(null);
-    
+
     try {
       if (universalSheetDocType === 'tenant') {
         const tenants = await tenantsService.getAll();
@@ -984,7 +984,7 @@ export default function ComponentLab() {
         // Fall through to other options
       }
     }
-    
+
     // Real data mode
     if (useRealData) {
       if (universalSheetDocType === 'tenant') {
@@ -994,7 +994,7 @@ export default function ComponentLab() {
         return realAgents.find(a => a.id === selectedRealId) || null;
       }
     }
-    
+
     // Mock data - SaaS Sheets
     if (universalSheetDocType === 'tenant') return MOCK_TENANT_DATA;
     if (universalSheetDocType === 'agent') return MOCK_AGENT_DATA;
@@ -1824,11 +1824,11 @@ export default function ComponentLab() {
                 { id: '6', date: '2024-03-10', reference: 'RCT-008', status: 'posted', description: 'استلام دفعة من عميل', debit: 12000, credit: 0, balance: 64000 },
               ]}
               columns={[
-                { 
-                  key: 'debit', 
-                  title: 'accounting.entry.debit', 
-                  width: '120px', 
-                  align: 'end', 
+                {
+                  key: 'debit',
+                  title: 'accounting.entry.debit',
+                  width: '120px',
+                  align: 'end',
                   type: 'currency',
                   showZeroAs: '-',
                   footer: 'sum',
@@ -1836,11 +1836,11 @@ export default function ComponentLab() {
                     <span className="font-mono text-green-600">{value.toLocaleString('en-US', { minimumFractionDigits: 0 })}</span>
                   ) : <span className="text-gray-300">-</span>
                 },
-                { 
-                  key: 'credit', 
-                  title: 'accounting.entry.credit', 
-                  width: '120px', 
-                  align: 'end', 
+                {
+                  key: 'credit',
+                  title: 'accounting.entry.credit',
+                  width: '120px',
+                  align: 'end',
                   type: 'currency',
                   showZeroAs: '-',
                   footer: 'sum',
@@ -1852,10 +1852,10 @@ export default function ComponentLab() {
                 { key: 'date', title: 'common.date', width: '110px', type: 'date', sortable: true },
                 { key: 'status', title: 'common.status', width: '100px', type: 'status' },
                 { key: 'reference', title: 'common.reference', width: '100px', type: 'reference', clickable: true, sortable: true },
-                { 
-                  key: 'balance', 
-                  title: 'common.balance', 
-                  width: '120px', 
+                {
+                  key: 'balance',
+                  title: 'common.balance',
+                  width: '120px',
                   align: 'end',
                   render: (value: number) => (
                     <span className="font-mono font-medium text-gray-700 dark:text-gray-300">
@@ -1917,8 +1917,8 @@ export default function ComponentLab() {
               </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              💡 {direction === 'rtl' 
-                ? 'اختر نوع المستند لمعاينة ترتيب الأعمدة المناسب. يمكنك أخذ سكرين شوت لحفظ الترتيب الافتراضي.' 
+              💡 {direction === 'rtl'
+                ? 'اختر نوع المستند لمعاينة ترتيب الأعمدة المناسب. يمكنك أخذ سكرين شوت لحفظ الترتيب الافتراضي.'
                 : 'Select a document type to preview the appropriate column order. You can take a screenshot to save the default order.'}
             </p>
           </div>
@@ -1927,33 +1927,10 @@ export default function ComponentLab() {
           <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
             {/* Debug Info */}
             <div className="p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
-              {direction === 'rtl' ? 'عدد الصفوف' : 'Rows'}: {GRID_DOC_CONFIGS[selectedGridDocType].data.length} | 
+              {direction === 'rtl' ? 'عدد الصفوف' : 'Rows'}: {GRID_DOC_CONFIGS[selectedGridDocType].data.length} |
               {direction === 'rtl' ? ' عدد الأعمدة' : ' Columns'}: {GRID_DOC_CONFIGS[selectedGridDocType].columns.length}
             </div>
-            <NexaGrid
-              key={selectedGridDocType} // Force re-render when doc type changes
-              data={GRID_DOC_CONFIGS[selectedGridDocType].data}
-              columns={GRID_DOC_CONFIGS[selectedGridDocType].columns}
-              title={direction === 'rtl' 
-                ? GRID_DOC_CONFIGS[selectedGridDocType].nameAr 
-                : GRID_DOC_CONFIGS[selectedGridDocType].nameEn}
-              enableSearch
-              enableExport
-              enablePrint
-              enableMarker
-              enableSmartFilters
-              enableColumnFilters
-              enableColumnVisibility
-              enableColumnReordering
-              enablePagination
-              pageSize={25}
-              height={500}
-              showStats
-              showAmountInWords
-              showDebitCreditHelp
-              onRowClick={(row, idx) => console.log('Row clicked:', row, idx)}
-              onMarkerChange={(rowId, color) => console.log('Marker:', rowId, color)}
-            />
+            {/* NexaGrid removed */}
           </div>
 
           {/* Feature List */}
@@ -2014,7 +1991,7 @@ export default function ComponentLab() {
               📝 {direction === 'rtl' ? 'صفحة التسجيل' : 'Registration Page'}
             </h4>
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              {direction === 'rtl' 
+              {direction === 'rtl'
                 ? 'هذه هي صفحة التسجيل الأساسية للمستخدمين الجدد. تحتوي على نموذج تسجيل مع دعم تعدد اللغات وRTL.'
                 : 'This is the basic registration page for new users. Contains a registration form with multilingual support and RTL.'}
             </p>
@@ -2033,7 +2010,7 @@ export default function ComponentLab() {
               🧙‍♂️ {direction === 'rtl' ? 'معالج التسجيل المتقدم' : 'Advanced Registration Wizard'}
             </h4>
             <p className="text-sm text-purple-700 dark:text-purple-300">
-              {direction === 'rtl' 
+              {direction === 'rtl'
                 ? 'معالج تسجيل متعدد الخطوات يظهر بعد التسجيل الأساسي لإكمال إعداد الحساب (نوع العمل، معلومات الشركة، الإعدادات المالية).'
                 : 'Multi-step registration wizard shown after basic registration to complete account setup (business type, company info, financial settings).'}
             </p>
@@ -2074,7 +2051,7 @@ export default function ComponentLab() {
               <div className="text-center py-8">
                 <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 dark:text-gray-400">
-                  {direction === 'rtl' 
+                  {direction === 'rtl'
                     ? 'هذا المكون يعمل في صفحة الباقات الفعلية'
                     : 'This component works in the actual Packages page'}
                 </p>
@@ -2270,7 +2247,7 @@ export default function ComponentLab() {
                     <TestTube className="w-4 h-4 text-orange-500" />
                   )}
                   <Label htmlFor="data-mode" className="text-sm font-medium">
-                    {direction === 'rtl' 
+                    {direction === 'rtl'
                       ? (useRealData ? 'البيانات الحقيقية' : 'البيانات التجريبية')
                       : (useRealData ? 'Real Data' : 'Mock Data')
                     }
@@ -2468,7 +2445,7 @@ export default function ComponentLab() {
                       {direction === 'rtl' ? 'التبويبات المتاحة:' : 'Available Tabs:'}
                     </h4>
                     {TABS_INFO[universalSheetDocType]?.map((tab, index) => (
-                      <div 
+                      <div
                         key={tab.id}
                         className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs"
                       >
@@ -2556,7 +2533,7 @@ export default function ComponentLab() {
                     <Textarea
                       value={customJsonData}
                       onChange={(e) => handleJsonChange(e.target.value)}
-                      placeholder={direction === 'rtl' 
+                      placeholder={direction === 'rtl'
                         ? 'أدخل JSON مخصص أو اتركه فارغاً لاستخدام البيانات الافتراضية...'
                         : 'Enter custom JSON or leave empty for default data...'
                       }
@@ -2568,7 +2545,7 @@ export default function ComponentLab() {
                         <span>{jsonError}</span>
                       </div>
                     )}
-                    
+
                     {/* Quick fill buttons */}
                     <div className="flex flex-wrap gap-1 mt-2">
                       <Button
@@ -2577,8 +2554,8 @@ export default function ComponentLab() {
                         className="h-6 text-[10px]"
                         onClick={() => {
                           const mockData = universalSheetDocType === 'tenant' ? MOCK_TENANT_DATA :
-                                          universalSheetDocType === 'agent' ? MOCK_AGENT_DATA :
-                                          MOCK_INVOICE_DATA;
+                            universalSheetDocType === 'agent' ? MOCK_AGENT_DATA :
+                              MOCK_INVOICE_DATA;
                           setCustomJsonData(JSON.stringify(mockData, null, 2));
                           setJsonError(null);
                         }}
@@ -2628,11 +2605,11 @@ export default function ComponentLab() {
                 className={cn(
                   "fixed top-4 z-[10001] shadow-lg transition-all",
                   direction === 'rtl' ? 'right-2' : 'left-2',
-                  controlPanelCollapsed 
-                    ? "bg-erp-teal hover:bg-erp-teal/90" 
+                  controlPanelCollapsed
+                    ? "bg-erp-teal hover:bg-erp-teal/90"
                     : "bg-gray-700 hover:bg-gray-600"
                 )}
-                title={direction === 'rtl' 
+                title={direction === 'rtl'
                   ? (controlPanelCollapsed ? 'إظهار لوحة التحكم' : 'إخفاء لوحة التحكم')
                   : (controlPanelCollapsed ? 'Show Control Panel' : 'Hide Control Panel')
                 }
@@ -2662,7 +2639,7 @@ export default function ComponentLab() {
 
           {/* No data message */}
           {!getCurrentSheetData() && (
-            <div 
+            <div
               className={cn(
                 "fixed inset-y-0 h-[100dvh] min-h-[100dvh] bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-s border-gray-200 dark:border-gray-700 z-[100] animate-in fade-in duration-300 ease-out",
                 direction === 'rtl' ? 'left-0' : 'right-0',
@@ -2676,7 +2653,7 @@ export default function ComponentLab() {
                   {direction === 'rtl' ? 'لا توجد بيانات' : 'No Data'}
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  {direction === 'rtl' 
+                  {direction === 'rtl'
                     ? 'اختر سجلاً من القائمة أو أضف بيانات JSON مخصصة'
                     : 'Select a record from the list or add custom JSON data'
                   }

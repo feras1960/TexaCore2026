@@ -12,7 +12,7 @@ import React from 'react';
 import { BaseDetailSheet } from '@/components/shared/sheets/BaseDetailSheet';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { getPlanConfig } from './configs/plan.config';
-import { getTenantConfig } from './configs/tenant.config';
+import { tenantConfig } from '@/components/sheets/configs/tenant.config';
 import { getAgentConfig } from './configs/agent.config';
 import { getModuleConfig } from './configs/module.config';
 
@@ -26,7 +26,7 @@ export interface SaaSDetailSheetProps {
   onRefresh?: () => void;
   onEdit?: () => void;
   loading?: boolean;
-  
+
   // ✨ Edit Mode Props
   editMode?: 'none' | 'toggle' | 'always';
   onSave?: (data: any) => Promise<void>;
@@ -53,7 +53,7 @@ export const SaaSDetailSheet: React.FC<SaaSDetailSheetProps> = ({
       case 'plan':
         return getPlanConfig(t, language, data);
       case 'tenant':
-        return getTenantConfig(t, language, data);
+        return tenantConfig as any;
       case 'agent':
         return getAgentConfig(t, language, data);
       case 'module':

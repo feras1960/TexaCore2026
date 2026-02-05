@@ -68,6 +68,7 @@ import ModuleManagement from './components/ModuleManagement';
 import { CompanySwitcher } from '@/components/settings/CompanySwitcher';
 import SubscriptionAlerts from '@/pages/SubscriptionAlerts';
 import BillingAccountingSettings from '@/pages/SaasSettings';
+import { useMfaSettings } from '@/hooks/useMfa';
 
 // Mock webhooks data
 const mockWebhooks = [
@@ -88,6 +89,9 @@ export default function SaaSSettings() {
   const [webhooks, setWebhooks] = useState(mockWebhooks);
   const [apiKeys, setApiKeys] = useState(mockApiKeys);
 
+  // MFA settings from database
+  const { systemSettings: mfaSettings, updateSystemSettings: updateMfaSettings, loading: mfaLoading } = useMfaSettings();
+
   // General settings state
   const [generalSettings, setGeneralSettings] = useState({
     companyName: 'Namaa Systems',
@@ -101,11 +105,11 @@ export default function SaaSSettings() {
     maintenanceMode: false,
   });
 
-  // Security settings state
+  // Security settings state (synced with mfaSettings)
   const [securitySettings, setSecuritySettings] = useState({
-    requireTwoFactor: false,
+    requireTwoFactor: mfaSettings?.enforce_for_all ?? false,
     sessionTimeout: 60,
-    maxLoginAttempts: 5,
+    maxLoginAttempts: mfaSettings?.max_attempts ?? 5,
     enforceStrongPasswords: true,
     enableAuditLog: true,
     ipWhitelist: '',
@@ -514,25 +518,165 @@ export default function SaaSSettings() {
         {/* Security Tab */}
         <TabsContent value="security" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 2FA System Settings */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-lg font-cairo flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-erp-teal" />
+                  {language === 'ar' ? 'نظام التحقق بخطوتين (2FA)' : 'Two-Factor Authentication (2FA)'}
+                </CardTitle>
+                <CardDescription>
+                  {language === 'ar' ? 'إدارة إعدادات الأمان والتحقق بخطوتين' : 'Manage security and 2FA settings'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* تفعيل الخدمة */}
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900">
+                      <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <Label className="text-base font-semibold">{language === 'ar' ? 'تفعيل خدمة 2FA' : 'Enable 2FA Service'}</Label>
+                      <p className="text-xs text-gray-500">{language === 'ar' ? 'السماح للمستخدمين بتفعيل التحقق بخطوتين' : 'Allow users to enable two-factor authentication'}</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={mfaSettings?.is_enabled ?? false}
+                    disabled={mfaLoading}
+                    onCheckedChange={async (checked) => {
+                      await updateMfaSettings({ is_enabled: checked });
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* إلزامي للجميع */}
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <Label>{language === 'ar' ? 'إلزامي للجميع' : 'Required for All'}</Label>
+                      <p className="text-xs text-gray-500">{language === 'ar' ? 'كل المستخدمين يجب أن يفعلوا 2FA' : 'All users must enable 2FA'}</p>
+                    </div>
+                    <Switch
+                      checked={mfaSettings?.enforce_for_all ?? false}
+                      disabled={mfaLoading || !mfaSettings?.is_enabled}
+                      onCheckedChange={async (checked) => {
+                        await updateMfaSettings({ enforce_for_all: checked });
+                      }}
+                    />
+                  </div>
+
+                  {/* إلزامي للمدراء */}
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <Label>{language === 'ar' ? 'إلزامي للمدراء' : 'Required for Admins'}</Label>
+                      <p className="text-xs text-gray-500">{language === 'ar' ? 'المدراء والمحاسبين فقط' : 'Admins and accountants only'}</p>
+                    </div>
+                    <Switch
+                      checked={mfaSettings?.enforce_for_admins ?? false}
+                      disabled={mfaLoading || !mfaSettings?.is_enabled || mfaSettings?.enforce_for_all}
+                      onCheckedChange={async (checked) => {
+                        await updateMfaSettings({ enforce_for_admins: checked });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* الطرق المتاحة */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">{language === 'ar' ? 'طرق التحقق المتاحة' : 'Available Verification Methods'}</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* TOTP */}
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded bg-purple-100 dark:bg-purple-900">
+                          <Key className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <span className="text-sm">Authenticator</span>
+                      </div>
+                      <Switch
+                        checked={mfaSettings?.allow_totp ?? true}
+                        disabled={mfaLoading || !mfaSettings?.is_enabled}
+                        onCheckedChange={async (checked) => {
+                          await updateMfaSettings({ allow_totp: checked });
+                        }}
+                      />
+                    </div>
+
+                    {/* Email */}
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded bg-green-100 dark:bg-green-900">
+                          <Mail className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span className="text-sm">Email OTP</span>
+                      </div>
+                      <Switch
+                        checked={mfaSettings?.allow_email_otp ?? true}
+                        disabled={mfaLoading || !mfaSettings?.is_enabled}
+                        onCheckedChange={async (checked) => {
+                          await updateMfaSettings({ allow_email_otp: checked });
+                        }}
+                      />
+                    </div>
+
+                    {/* SMS */}
+                    <div className="flex items-center justify-between p-3 border rounded-lg opacity-60">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded bg-orange-100 dark:bg-orange-900">
+                          <Bell className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div>
+                          <span className="text-sm">SMS OTP</span>
+                          <p className="text-xs text-gray-400">{language === 'ar' ? 'يتطلب Twilio' : 'Requires Twilio'}</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={mfaSettings?.allow_sms_otp ?? false}
+                        disabled={true}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* حالة النظام */}
+                <div className={`p-4 rounded-lg border ${mfaSettings?.is_enabled ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' : 'bg-gray-50 border-gray-200 dark:bg-gray-800/30 dark:border-gray-700'}`}>
+                  <div className="flex items-center gap-3">
+                    {mfaSettings?.is_enabled ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-gray-400" />
+                    )}
+                    <div>
+                      <p className={`font-medium ${mfaSettings?.is_enabled ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {mfaSettings?.is_enabled
+                          ? (language === 'ar' ? 'خدمة 2FA مفعّلة' : '2FA Service Enabled')
+                          : (language === 'ar' ? 'خدمة 2FA معطّلة' : '2FA Service Disabled')
+                        }
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {mfaSettings?.enforce_for_all
+                          ? (language === 'ar' ? 'إلزامي لجميع المستخدمين' : 'Required for all users')
+                          : mfaSettings?.enforce_for_admins
+                            ? (language === 'ar' ? 'إلزامي للمدراء فقط' : 'Required for admins only')
+                            : (language === 'ar' ? 'اختياري للمستخدمين' : 'Optional for users')
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Authentication */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg font-cairo flex items-center gap-2">
                   <Lock className="w-5 h-5 text-erp-teal" />
-                  {language === 'ar' ? 'المصادقة' : 'Authentication'}
+                  {language === 'ar' ? 'إعدادات الجلسة' : 'Session Settings'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Label>{language === 'ar' ? 'المصادقة الثنائية' : 'Two-Factor Auth'}</Label>
-                    <p className="text-xs text-gray-500">{language === 'ar' ? 'إلزام المستخدمين بالمصادقة الثنائية' : 'Require 2FA for all users'}</p>
-                  </div>
-                  <Switch
-                    checked={securitySettings.requireTwoFactor}
-                    onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, requireTwoFactor: checked })}
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label>{language === 'ar' ? 'مهلة الجلسة (دقائق)' : 'Session Timeout (minutes)'}</Label>
                   <Input

@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useLanguage } from '@/hooks';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Settings, Bell, DollarSign, FileText, Save, AlertTriangle } from 'lucide-react';
+import { Settings, Bell, DollarSign, FileText, Save, AlertTriangle, Shield } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { MfaSystemSettingsCard } from '@/components/settings/MfaSettings';
 
 interface SaasSettings {
   id: string;
@@ -49,7 +50,7 @@ export default function SaasSettings() {
         .single();
 
       if (error) throw error;
-      
+
       if (data) {
         setSettings(data);
         // تحويل array إلى string للعرض
@@ -123,15 +124,15 @@ export default function SaasSettings() {
             {language === 'ar' ? 'إعدادات SaaS' : 'SaaS Settings'}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {language === 'ar' 
-              ? 'إدارة إعدادات الاشتراكات والفوترة والتنبيهات' 
+            {language === 'ar'
+              ? 'إدارة إعدادات الاشتراكات والفوترة والتنبيهات'
               : 'Manage subscriptions, billing, and alerts settings'}
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving}>
           <Save className="h-4 w-4 me-2" />
-          {saving 
-            ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') 
+          {saving
+            ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...')
             : (language === 'ar' ? 'حفظ' : 'Save')}
         </Button>
       </div>
@@ -144,8 +145,8 @@ export default function SaasSettings() {
             {language === 'ar' ? 'إعدادات التنبيهات' : 'Alerts Settings'}
           </CardTitle>
           <CardDescription>
-            {language === 'ar' 
-              ? 'تخصيص تنبيهات انتهاء الاشتراكات' 
+            {language === 'ar'
+              ? 'تخصيص تنبيهات انتهاء الاشتراكات'
               : 'Customize subscription expiry notifications'}
           </CardDescription>
         </CardHeader>
@@ -157,8 +158,8 @@ export default function SaasSettings() {
                 {language === 'ar' ? 'تفعيل نظام التنبيهات' : 'Enable Alerts System'}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {language === 'ar' 
-                  ? 'تلقي إشعارات قبل انتهاء الاشتراكات' 
+                {language === 'ar'
+                  ? 'تلقي إشعارات قبل انتهاء الاشتراكات'
                   : 'Receive notifications before subscription expiry'}
               </p>
             </div>
@@ -176,8 +177,8 @@ export default function SaasSettings() {
               {language === 'ar' ? 'أيام التنبيه قبل الانتهاء' : 'Alert Days Before Expiry'}
             </Label>
             <p className="text-sm text-muted-foreground">
-              {language === 'ar' 
-                ? 'أدخل الأيام مفصولة بفواصل (مثال: 7, 3, 1)' 
+              {language === 'ar'
+                ? 'أدخل الأيام مفصولة بفواصل (مثال: 7, 3, 1)'
                 : 'Enter days separated by commas (example: 7, 3, 1)'}
             </p>
             <Input
@@ -192,7 +193,7 @@ export default function SaasSettings() {
                 if (isNaN(parsed)) return null;
                 return (
                   <Badge key={idx} variant="secondary">
-                    {parsed === 0 
+                    {parsed === 0
                       ? (language === 'ar' ? 'يوم الانتهاء' : 'Expiry day')
                       : `${parsed} ${language === 'ar' ? 'يوم قبل' : 'days before'}`
                     }
@@ -248,8 +249,8 @@ export default function SaasSettings() {
             {language === 'ar' ? 'إعدادات الفوترة' : 'Billing Settings'}
           </CardTitle>
           <CardDescription>
-            {language === 'ar' 
-              ? 'تخصيص نظام الحساب والفوترة' 
+            {language === 'ar'
+              ? 'تخصيص نظام الحساب والفوترة'
               : 'Customize billing and calculation system'}
           </CardDescription>
         </CardHeader>
@@ -298,14 +299,14 @@ export default function SaasSettings() {
               type="number"
               min="1"
               value={settings.default_minimum_days}
-              onChange={(e) => setSettings({ 
-                ...settings, 
-                default_minimum_days: parseInt(e.target.value) || 1 
+              onChange={(e) => setSettings({
+                ...settings,
+                default_minimum_days: parseInt(e.target.value) || 1
               })}
             />
             <p className="text-xs text-muted-foreground">
-              {language === 'ar' 
-                ? 'الحد الأدنى للأيام المطلوبة للتفعيل (موصى به: 7 أيام)' 
+              {language === 'ar'
+                ? 'الحد الأدنى للأيام المطلوبة للتفعيل (موصى به: 7 أيام)'
                 : 'Minimum days required for activation (recommended: 7 days)'}
             </p>
           </div>
@@ -321,14 +322,14 @@ export default function SaasSettings() {
               type="number"
               min="0"
               value={settings.default_grace_period_days}
-              onChange={(e) => setSettings({ 
-                ...settings, 
-                default_grace_period_days: parseInt(e.target.value) || 0 
+              onChange={(e) => setSettings({
+                ...settings,
+                default_grace_period_days: parseInt(e.target.value) || 0
               })}
             />
             <p className="text-xs text-muted-foreground">
-              {language === 'ar' 
-                ? 'عدد الأيام بعد الانتهاء قبل تعليق الخدمة (موصى به: 3 أيام)' 
+              {language === 'ar'
+                ? 'عدد الأيام بعد الانتهاء قبل تعليق الخدمة (موصى به: 3 أيام)'
                 : 'Days after expiry before service suspension (recommended: 3 days)'}
             </p>
           </div>
@@ -343,16 +344,16 @@ export default function SaasSettings() {
                 {language === 'ar' ? 'التعليق التلقائي بعد فترة السماح' : 'Auto-suspend After Grace Period'}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {language === 'ar' 
-                  ? 'إيقاف الخدمة تلقائياً للحسابات المنتهية بعد فترة السماح' 
+                {language === 'ar'
+                  ? 'إيقاف الخدمة تلقائياً للحسابات المنتهية بعد فترة السماح'
                   : 'Automatically suspend expired accounts after grace period'}
               </p>
             </div>
             <Switch
               checked={settings.auto_suspend_after_grace}
-              onCheckedChange={(checked) => setSettings({ 
-                ...settings, 
-                auto_suspend_after_grace: checked 
+              onCheckedChange={(checked) => setSettings({
+                ...settings,
+                auto_suspend_after_grace: checked
               })}
             />
           </div>
@@ -366,16 +367,16 @@ export default function SaasSettings() {
                 {language === 'ar' ? 'السماح بالدفعات الجزئية' : 'Allow Partial Payments'}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {language === 'ar' 
-                  ? 'السماح بدفع مبلغ أقل من سعر الباقة الشهري' 
+                {language === 'ar'
+                  ? 'السماح بدفع مبلغ أقل من سعر الباقة الشهري'
                   : 'Allow payments less than monthly plan price'}
               </p>
             </div>
             <Switch
               checked={settings.allow_partial_payments}
-              onCheckedChange={(checked) => setSettings({ 
-                ...settings, 
-                allow_partial_payments: checked 
+              onCheckedChange={(checked) => setSettings({
+                ...settings,
+                allow_partial_payments: checked
               })}
             />
           </div>
@@ -387,16 +388,16 @@ export default function SaasSettings() {
                 {language === 'ar' ? 'السماح بالدفعات الزائدة' : 'Allow Overpayments'}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {language === 'ar' 
-                  ? 'حفظ الرصيد المتبقي من الدفعات الزائدة' 
+                {language === 'ar'
+                  ? 'حفظ الرصيد المتبقي من الدفعات الزائدة'
                   : 'Save remaining balance from overpayments'}
               </p>
             </div>
             <Switch
               checked={settings.allow_overpayments}
-              onCheckedChange={(checked) => setSettings({ 
-                ...settings, 
-                allow_overpayments: checked 
+              onCheckedChange={(checked) => setSettings({
+                ...settings,
+                allow_overpayments: checked
               })}
             />
           </div>
@@ -434,8 +435,8 @@ export default function SaasSettings() {
             {language === 'ar' ? 'إعدادات المحاسبة' : 'Accounting Settings'}
           </CardTitle>
           <CardDescription>
-            {language === 'ar' 
-              ? 'ربط نظام الدفعات بالمحاسبة' 
+            {language === 'ar'
+              ? 'ربط نظام الدفعات بالمحاسبة'
               : 'Link payment system with accounting'}
           </CardDescription>
         </CardHeader>
@@ -447,16 +448,16 @@ export default function SaasSettings() {
                 {language === 'ar' ? 'إنشاء قيود محاسبية تلقائية' : 'Create Automatic Accounting Entries'}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {language === 'ar' 
-                  ? 'إنشاء قيد محاسبي تلقائياً عند كل دفعة' 
+                {language === 'ar'
+                  ? 'إنشاء قيد محاسبي تلقائياً عند كل دفعة'
                   : 'Automatically create journal entry for each payment'}
               </p>
             </div>
             <Switch
               checked={settings.create_accounting_entries}
-              onCheckedChange={(checked) => setSettings({ 
-                ...settings, 
-                create_accounting_entries: checked 
+              onCheckedChange={(checked) => setSettings({
+                ...settings,
+                create_accounting_entries: checked
               })}
             />
           </div>
@@ -464,7 +465,7 @@ export default function SaasSettings() {
           {settings.create_accounting_entries && (
             <>
               <Separator />
-              
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <FileText className="h-5 w-5 text-blue-600 mt-0.5" />
@@ -474,18 +475,18 @@ export default function SaasSettings() {
                     </p>
                     <div className="space-y-1 text-blue-800">
                       <p>
-                        {language === 'ar' 
-                          ? 'من حـ/ الصندوق أو البنك (حسب طريقة الدفع)' 
+                        {language === 'ar'
+                          ? 'من حـ/ الصندوق أو البنك (حسب طريقة الدفع)'
                           : 'From: Cash Box or Bank (based on payment method)'}
                       </p>
                       <p>
-                        {language === 'ar' 
-                          ? 'إلى حـ/ إيرادات الاشتراكات' 
+                        {language === 'ar'
+                          ? 'إلى حـ/ إيرادات الاشتراكات'
                           : 'To: Subscription Revenue'}
                       </p>
                       <p className="text-xs text-blue-600 mt-2">
-                        {language === 'ar' 
-                          ? '✅ يتم إنشاء القيد فوراً عند تفعيل الاشتراك' 
+                        {language === 'ar'
+                          ? '✅ يتم إنشاء القيد فوراً عند تفعيل الاشتراك'
                           : '✅ Entry created immediately upon subscription activation'}
                       </p>
                     </div>
@@ -496,6 +497,9 @@ export default function SaasSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* إعدادات التحقق بخطوتين */}
+      <MfaSystemSettingsCard />
 
       {/* ملخص الإعدادات */}
       <Card className="border-primary/20 bg-primary/5">
@@ -509,49 +513,49 @@ export default function SaasSettings() {
             <div>
               <span className="text-muted-foreground">{language === 'ar' ? 'نظام الحساب:' : 'Billing Mode:'}</span>
               <p className="font-semibold">
-                {settings.default_billing_mode === 'flexible' 
+                {settings.default_billing_mode === 'flexible'
                   ? (language === 'ar' ? '🔄 مرن' : '🔄 Flexible')
                   : settings.default_billing_mode === 'monthly'
-                  ? (language === 'ar' ? '📅 شهري' : '📅 Monthly')
-                  : (language === 'ar' ? '📆 يومي' : '📆 Daily')
+                    ? (language === 'ar' ? '📅 شهري' : '📅 Monthly')
+                    : (language === 'ar' ? '📆 يومي' : '📆 Daily')
                 }
               </p>
             </div>
-            
+
             <div>
               <span className="text-muted-foreground">{language === 'ar' ? 'الحد الأدنى:' : 'Minimum Days:'}</span>
               <p className="font-semibold">{settings.default_minimum_days} {language === 'ar' ? 'يوم' : 'days'}</p>
             </div>
-            
+
             <div>
               <span className="text-muted-foreground">{language === 'ar' ? 'فترة السماح:' : 'Grace Period:'}</span>
               <p className="font-semibold">{settings.default_grace_period_days} {language === 'ar' ? 'يوم' : 'days'}</p>
             </div>
-            
+
             <div>
               <span className="text-muted-foreground">{language === 'ar' ? 'التعليق التلقائي:' : 'Auto Suspend:'}</span>
               <p className="font-semibold">
-                {settings.auto_suspend_after_grace 
+                {settings.auto_suspend_after_grace
                   ? (language === 'ar' ? '✅ مفعّل' : '✅ Enabled')
                   : (language === 'ar' ? '❌ معطل' : '❌ Disabled')
                 }
               </p>
             </div>
-            
+
             <div>
               <span className="text-muted-foreground">{language === 'ar' ? 'القيود المحاسبية:' : 'Accounting Entries:'}</span>
               <p className="font-semibold">
-                {settings.create_accounting_entries 
+                {settings.create_accounting_entries
                   ? (language === 'ar' ? '✅ تلقائية' : '✅ Automatic')
                   : (language === 'ar' ? '❌ معطلة' : '❌ Disabled')
                 }
               </p>
             </div>
-            
+
             <div>
               <span className="text-muted-foreground">{language === 'ar' ? 'التنبيهات:' : 'Alerts:'}</span>
               <p className="font-semibold">
-                {settings.enable_alerts 
+                {settings.enable_alerts
                   ? `✅ ${settings.alert_days_before.length} ${language === 'ar' ? 'تنبيه' : 'alerts'}`
                   : (language === 'ar' ? '❌ معطلة' : '❌ Disabled')
                 }
@@ -565,8 +569,8 @@ export default function SaasSettings() {
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving} size="lg">
           <Save className="h-5 w-5 me-2" />
-          {saving 
-            ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') 
+          {saving
+            ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...')
             : (language === 'ar' ? 'حفظ الإعدادات' : 'Save Settings')}
         </Button>
       </div>

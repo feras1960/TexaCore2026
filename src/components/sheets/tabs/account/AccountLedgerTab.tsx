@@ -22,9 +22,10 @@ interface LedgerEntry {
   type?: string;
   voucher_type?: string;
   journal_id?: string;
+  marker_color?: string | null;
 }
 
-export function AccountLedgerTab({ data, language, t, onRowClick, onRefresh }: TabComponentProps) {
+export function AccountLedgerTab({ data, language, t, onRowClick, onRefresh, onMarkerChange }: TabComponentProps) {
   const [loading, setLoading] = useState(false);
   const [error, _setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -124,25 +125,25 @@ export function AccountLedgerTab({ data, language, t, onRowClick, onRefresh }: T
 
   // Stats configuration
   const stats: LedgerStats = {
-    label1: { 
-      title: language === 'ar' ? 'إجمالي المدين' : 'Total Debit', 
-      value: totalDebit, 
-      color: 'blue' 
+    label1: {
+      title: language === 'ar' ? 'إجمالي المدين' : 'Total Debit',
+      value: totalDebit,
+      color: 'blue'
     },
-    label2: { 
-      title: language === 'ar' ? 'إجمالي الدائن' : 'Total Credit', 
-      value: totalCredit, 
-      color: 'red' 
+    label2: {
+      title: language === 'ar' ? 'إجمالي الدائن' : 'Total Credit',
+      value: totalCredit,
+      color: 'red'
     },
-    label3: { 
-      title: language === 'ar' ? 'الرصيد' : 'Balance', 
-      value: currentBalance, 
-      color: currentBalance >= 0 ? 'green' : 'red' 
+    label3: {
+      title: language === 'ar' ? 'الرصيد' : 'Balance',
+      value: currentBalance,
+      color: currentBalance >= 0 ? 'green' : 'red'
     },
-    label4: { 
-      title: language === 'ar' ? 'الرصيد الافتتاحي' : 'Opening', 
-      value: openingBalance, 
-      color: 'gray' 
+    label4: {
+      title: language === 'ar' ? 'الرصيد الافتتاحي' : 'Opening',
+      value: openingBalance,
+      color: 'gray'
     },
   };
 
@@ -191,6 +192,8 @@ export function AccountLedgerTab({ data, language, t, onRowClick, onRefresh }: T
       showRowNumbers
       showFooterTotals
       variant="ledger"
+      enableMarker
+      onMarkerChange={onMarkerChange ? (rowIds, color) => onMarkerChange(rowIds, color, 'journal_entry_lines') : undefined}
       onRefresh={handleRefresh}
       onRowClick={handleRowClick}
       onPrint={() => window.print()}

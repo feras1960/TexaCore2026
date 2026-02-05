@@ -139,7 +139,7 @@ export const accountsService = {
    */
   async getAll(companyId: string): Promise<Account[]> {
     const tenantId = await getCurrentTenantIdAsync();
-    
+
     // Build query with join to account_types to get code
     let query = supabase
       .from('chart_of_accounts')
@@ -153,12 +153,12 @@ export const accountsService = {
       `)
       .eq('company_id', companyId)
       .eq('is_active', true);
-    
+
     // Add tenant filter if available (for multi-tenant support)
-    if (tenantId) {
-      query = query.eq('tenant_id', tenantId);
-    }
-    
+    // Note: We rely on company_id and RLS for security. 
+    // We do NOT filter by tenant_id explicitly here because it breaks visibility 
+    // for Super Admins viewing other tenants' companies.
+
     const { data, error } = await query.order('account_code', { ascending: true });
 
     if (error) {
@@ -168,10 +168,10 @@ export const accountsService = {
 
     return (data || []).map((record: any) => {
       // Handle both array and object formats from Supabase join
-      const accountType = Array.isArray(record.account_types) 
-        ? record.account_types[0] 
+      const accountType = Array.isArray(record.account_types)
+        ? record.account_types[0]
         : record.account_types;
-      
+
       return mapAccount({
         ...record,
         account_type_code: accountType?.code,
@@ -193,7 +193,7 @@ export const accountsService = {
       .select('*')
       .eq('id', id)
       .eq('tenant_id', tenantId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       if (error.code === 'PGRST116') return null;
@@ -216,11 +216,11 @@ export const accountsService = {
       .eq('company_id', companyId)
       .eq('account_type_id', accountTypeId)
       .eq('is_active', true);
-    
+
     if (tenantId) {
       query = query.eq('tenant_id', tenantId);
     }
-    
+
     const { data, error } = await query.order('account_code', { ascending: true });
 
     if (error) {
@@ -268,11 +268,11 @@ export const accountsService = {
       .eq('company_id', companyId)
       .is('parent_id', null)
       .eq('is_active', true);
-    
+
     if (tenantId) {
       query = query.eq('tenant_id', tenantId);
     }
-    
+
     const { data, error } = await query.order('account_code', { ascending: true });
 
     if (error) {
@@ -288,7 +288,7 @@ export const accountsService = {
    */
   async create(input: CreateAccountInput): Promise<Account> {
     let tenantId = await getCurrentTenantIdAsync();
-    
+
     // If no tenant_id from user metadata, get it from the company
     if (!tenantId) {
       const { data: companyData } = await supabase
@@ -296,10 +296,10 @@ export const accountsService = {
         .select('tenant_id')
         .eq('id', input.company_id)
         .single();
-      
+
       tenantId = companyData?.tenant_id || null;
     }
-    
+
     if (!tenantId) {
       throw new Error('No tenant ID available');
     }

@@ -30,22 +30,22 @@ import { ActivityTab } from '../tabs/shared/ActivityTab';
 
 export const supplierConfig: SheetConfig = {
   docType: 'supplier',
-  
+
   // Header
   title: (data) => data.name || data.nameAr || 'Supplier',
   subtitle: (data) => data.code,
   icon: Truck,
   iconBg: 'bg-gradient-to-br from-orange-600 to-orange-800',
-  
+
   // Status Badge
   badge: (data) => {
     const status = data.status || (data.is_active !== false ? 'active' : 'inactive');
     return {
-      label: status === 'active' ? 'نشط' : 'غير نشط',
+      label: status === 'active' ? 'common.status.active' : 'common.status.inactive',
       variant: status === 'active' ? 'success' : 'default',
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data) => data.balance || data.current_balance || 0,
@@ -53,7 +53,7 @@ export const supplierConfig: SheetConfig = {
     currency: 'SAR',
     showSign: true,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -85,7 +85,7 @@ export const supplierConfig: SheetConfig = {
       color: 'yellow',
     },
   ],
-  
+
   // Info Fields for Overview
   infoFields: [
     {
@@ -145,7 +145,7 @@ export const supplierConfig: SheetConfig = {
       colSpan: 2,
     },
   ],
-  
+
   // Tabs Configuration
   tabs: [
     {
@@ -182,7 +182,7 @@ export const supplierConfig: SheetConfig = {
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -193,7 +193,7 @@ export const supplierConfig: SheetConfig = {
     },
     {
       id: 'create_bill',
-      label: 'Create Bill',
+      label: 'parties.actions.createBill',
       labelAr: 'إنشاء فاتورة',
       icon: Receipt,
       variant: 'default',
@@ -230,7 +230,7 @@ export const supplierConfig: SheetConfig = {
       },
     },
   ],
-  
+
   // Quick Actions (in header)
   quickActions: [
     {
@@ -241,10 +241,10 @@ export const supplierConfig: SheetConfig = {
       onClick: () => window.print(),
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'invoice' || row.invoice_id || row.bill_id) {

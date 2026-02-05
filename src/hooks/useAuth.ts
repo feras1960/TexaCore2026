@@ -59,14 +59,14 @@ export function useAuth() {
     const initializeAuth = async () => {
       // Skip if component unmounted
       if (!mounted || abortController.signal.aborted) return;
-      
+
       try {
         // First, try to get session from storage
         const { session: storedSession, error: sessionError } = await getSession();
-        
+
         // Skip if unmounted during async operation
         if (!mounted || abortController.signal.aborted) return;
-        
+
         // Only log session errors if there's actually a session issue (not just missing session or connection error)
         if (sessionError && !isConnectionError(sessionError) && sessionError.message !== 'Auth session missing!') {
           console.error('Session error:', sessionError);
@@ -74,10 +74,10 @@ export function useAuth() {
 
         // Also verify the user is still valid
         const { user: currentUser, error: userError } = await getCurrentUser();
-        
+
         // Skip if unmounted during async operation
         if (!mounted || abortController.signal.aborted) return;
-        
+
         // Only log user errors if user is expected but missing (not just no user logged in or connection error)
         if (userError && !isConnectionError(userError) && storedSession && userError.message !== 'Auth session missing!') {
           console.error('User verification error:', userError);
@@ -138,16 +138,16 @@ export function useAuth() {
           }
           return;
         }
-        
+
         // Log errors except "Auth session missing"
         const errorMessage = err?.message || '';
         if (!errorMessage.includes('Auth session missing')) {
           console.error('Auth initialization error:', err);
         }
-        
+
         if (mounted && !abortController.signal.aborted) {
           const displayError = shouldShowErrorToUser(err?.message);
-            
+
           setState(prev => ({
             ...prev,
             loading: false,
@@ -162,25 +162,49 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (mounted && !abortController.signal.aborted) {
-          // Create simple authUser from session data (no extra API calls)
-          const authUser: AuthUser | null = session?.user ? {
+        if (!mounted || abortController.signal.aborted) return;
+
+        // إنشاء authUser فوري من بيانات الجلسة
+        let authUser: AuthUser | null = null;
+
+        if (session?.user) {
+          authUser = {
             id: session.user.id,
             email: session.user.email || '',
             tenant_id: session.user.user_metadata?.tenant_id || null,
             company_id: session.user.user_metadata?.company_id || null,
             is_super_admin: session.user.user_metadata?.is_super_admin || false,
             user_metadata: session.user.user_metadata || {},
-          } : null;
-          
-          setState(prev => ({
-            ...prev,
-            session,
-            user: session?.user ?? null,
-            authUser: authUser,
-            loading: false,
-            error: null, // Clear error on auth state change
-          }));
+          };
+        }
+
+        // تحديث الحالة فوراً
+        setState(prev => ({
+          ...prev,
+          session,
+          user: session?.user ?? null,
+          authUser: authUser,
+          loading: false,
+          error: null,
+        }));
+
+        // 🛡️ SECURITY FIX: للأحداث المهمة، تحقق من Super Admin بشكل غير متزامن
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          // استخدم setTimeout لتجنب blocking و AbortError
+          setTimeout(async () => {
+            if (!mounted || abortController.signal.aborted) return;
+            try {
+              const updatedAuthUser = await getCurrentUserWithMetadata();
+              if (updatedAuthUser && mounted && !abortController.signal.aborted) {
+                setState(prev => ({
+                  ...prev,
+                  authUser: updatedAuthUser,
+                }));
+              }
+            } catch {
+              // تجاهل الأخطاء - القيم المخزنة مؤقتاً كافية
+            }
+          }, 100);
         }
       }
     );
@@ -200,7 +224,7 @@ export function useAuth() {
         email,
         password,
       });
-      
+
       if (authError || !authData.user) {
         // Provide user-friendly error messages
         let errorMessage = 'فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.';
@@ -218,17 +242,18 @@ export function useAuth() {
         setState(prev => ({ ...prev, error: errorMessage, loading: false }));
         return { error: errorMessage };
       }
-      
+
       // Login succeeded - create minimal authUser from auth data
+      // 🛡️ SECURITY NOTE: is_super_admin يتم تحديثه من الـ RPC عند تسجيل الدخول عبر authService
       const authUser: AuthUser = {
         id: authData.user.id,
         email: authData.user.email || '',
         tenant_id: authData.user.user_metadata?.tenant_id || null,
         company_id: authData.user.user_metadata?.company_id || null,
-        is_super_admin: authData.user.user_metadata?.is_super_admin || false,
+        is_super_admin: authData.user.user_metadata?.is_super_admin || false, // cached from secure RPC
         user_metadata: authData.user.user_metadata || {},
       };
-      
+
       // Update state immediately with auth data - don't wait for profile
       setState({
         session: authData.session,
@@ -237,7 +262,7 @@ export function useAuth() {
         loading: false,
         error: null,
       });
-      
+
       return { data: { user: authData.user, authUser, success: true } };
     } catch (err: any) {
       // Don't log AbortError
@@ -258,15 +283,15 @@ export function useAuth() {
 
   const register = async (email: string, password: string) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
-    
+
     try {
       const { data, error } = await signUp(email, password);
-      
+
       if (error) {
         // Provide user-friendly error messages in Arabic
         let errorMessage = 'فشل التسجيل. حاول مرة أخرى.';
         const errorMsg = error.message?.toLowerCase() || '';
-        
+
         if (errorMsg.includes('user already registered') || errorMsg.includes('already exists') || errorMsg.includes('already been registered')) {
           errorMessage = 'هذا البريد الإلكتروني مسجل مسبقاً. جرّب تسجيل الدخول أو استخدم بريد آخر.';
         } else if (errorMsg.includes('invalid email') || errorMsg.includes('email') && errorMsg.includes('invalid')) {
@@ -282,19 +307,19 @@ export function useAuth() {
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
+
         console.error('Registration error:', error);
         setState(prev => ({ ...prev, error: errorMessage, loading: false }));
         return { error: { ...error, message: errorMessage } };
       }
-      
+
       // Check if email confirmation is required
       if (data?.user && !data.session) {
         // User created but needs email confirmation
         setState(prev => ({ ...prev, loading: false, error: null }));
         return { data, needsEmailConfirmation: true };
       }
-      
+
       setState(prev => ({ ...prev, loading: false, error: null }));
       return { data };
     } catch (err: any) {
@@ -319,7 +344,7 @@ export function useAuth() {
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
       }
-      
+
       const { error } = await signOut();
       if (error) {
         setState(prev => ({ ...prev, error: error.message, loading: false }));
