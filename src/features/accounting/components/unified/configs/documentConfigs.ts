@@ -689,7 +689,7 @@ export const warehouseConfig: DocumentConfig = {
     ],
 };
 
-// Material Configuration - تكوين المواد
+// Material Configuration - تكوين المواد (للعرض)
 export const materialConfig: DocumentConfig = {
     type: 'material',
     titleKey: 'warehouse.material.title',
@@ -700,23 +700,18 @@ export const materialConfig: DocumentConfig = {
     supportsModes: ['view', 'edit', 'create'],
     headerFields: ['code', 'name_ar', 'category', 'is_active'],
     tabs: [
+        // === View Mode Tabs (7 تبويبات - الهيكل المحدث) ===
         {
             id: 'overview',
             labelKey: 'warehouse.material.tabs.overview',
             icon: 'LayoutDashboard',
             component: 'MaterialOverviewTab',
-        },
-        {
-            id: 'variants',
-            labelKey: 'warehouse.material.tabs.variants',
-            icon: 'Layers',
-            component: 'MaterialVariantsTab',
-            showInModes: ['create', 'edit'],
+            showInModes: ['view'],
         },
         {
             id: 'inventory',
             labelKey: 'warehouse.material.tabs.inventory',
-            icon: 'Database',
+            icon: 'Package',
             component: 'MaterialInventoryTab',
             showInModes: ['view'],
         },
@@ -735,17 +730,10 @@ export const materialConfig: DocumentConfig = {
             showInModes: ['view'],
         },
         {
-            id: 'sales',
-            labelKey: 'warehouse.material.tabs.sales',
-            icon: 'ShoppingCart',
-            component: 'MaterialSalesTab',
-            showInModes: ['view'],
-        },
-        {
-            id: 'purchases',
-            labelKey: 'warehouse.material.tabs.purchases',
-            icon: 'ShoppingBag',
-            component: 'MaterialPurchasesTab',
+            id: 'images',
+            labelKey: 'warehouse.material.tabs.images',
+            icon: 'Image',
+            component: 'MaterialImagesTab',
             showInModes: ['view'],
         },
         {
@@ -753,7 +741,6 @@ export const materialConfig: DocumentConfig = {
             labelKey: 'warehouse.material.tabs.analytics',
             icon: 'BarChart3',
             component: 'MaterialAnalyticsTab',
-            badge: 'AI',
             showInModes: ['view'],
         },
         {
@@ -762,6 +749,49 @@ export const materialConfig: DocumentConfig = {
             icon: 'Clock',
             component: 'ActivityTab',
             showInModes: ['view'],
+        },
+        // === Create/Edit Mode Tabs ===
+        {
+            id: 'basicInfo',
+            labelKey: 'warehouse.material.tabs.basicInfo',
+            icon: 'FileText',
+            component: 'MaterialBasicInfoTab',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'specs',
+            labelKey: 'warehouse.material.tabs.specs',
+            icon: 'Ruler',
+            component: 'MaterialSpecsTab',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'variants',
+            labelKey: 'warehouse.material.tabs.variants',
+            icon: 'Layers',
+            component: 'MaterialVariantsTab',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'createImages',
+            labelKey: 'warehouse.material.tabs.images',
+            icon: 'Image',
+            component: 'MaterialImagesTab',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'createPricing',
+            labelKey: 'warehouse.material.tabs.pricing',
+            icon: 'DollarSign',
+            component: 'MaterialPricingTab',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'additionalInfo',
+            labelKey: 'warehouse.material.tabs.additionalInfo',
+            icon: 'Info',
+            component: 'MaterialAdditionalInfoTab',
+            showInModes: ['create', 'edit'],
         },
     ],
     actions: [
@@ -813,6 +843,14 @@ export const materialConfig: DocumentConfig = {
             colorClass: 'text-blue-600',
         },
         {
+            id: 'rollsCount',
+            labelKey: 'warehouse.material.stats.rollsCount',
+            valueKey: 'rolls_count',
+            icon: 'Cylinder',
+            format: 'number',
+            colorClass: 'text-purple-600',
+        },
+        {
             id: 'availableStock',
             labelKey: 'warehouse.material.stats.availableStock',
             valueKey: 'available_stock',
@@ -839,6 +877,45 @@ export const materialConfig: DocumentConfig = {
     ],
 };
 
+// Material Group Configuration - تكوين مجموعات المواد
+export const materialGroupConfig: DocumentConfig = {
+    type: 'materialGroup',
+    titleKey: 'warehouse.group.title',
+    subtitleKey: 'warehouse.group.subtitle',
+    icon: 'FolderPlus',
+    iconColor: 'bg-indigo-600',
+    defaultTab: 'groupInfo',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['code', 'name_ar', 'category'],
+    tabs: [
+        {
+            id: 'groupInfo',
+            labelKey: 'warehouse.group.tabs.info',
+            icon: 'FolderTree',
+            component: 'MaterialGroupInfoTab',
+        },
+    ],
+    actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['edit', 'create'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            showInModes: ['view', 'edit'],
+            requiresConfirm: true,
+            confirmMessageKey: 'warehouse.group.deleteConfirm',
+        },
+    ],
+    stats: [],
+};
+
 // Export all configs in a map
 export const documentConfigs: Record<string, DocumentConfig> = {
     account: accountConfig,
@@ -852,6 +929,7 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     transaction: transactionConfig,
     warehouse: warehouseConfig,
     material: materialConfig,
+    materialGroup: materialGroupConfig,
 };
 
 // Get config by type

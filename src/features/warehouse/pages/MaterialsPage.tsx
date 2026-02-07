@@ -5,6 +5,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
+import { MaterialTree } from '../components/MaterialTree';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
@@ -79,6 +80,7 @@ export default function MaterialsPage() {
     // State
     const [viewMode, setViewMode] = useState<ViewMode>('table');
     const [materials, setMaterials] = useState<Material[]>([]);
+    const [groups, setGroups] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -94,6 +96,11 @@ export default function MaterialsPage() {
     const [selectedParent, setSelectedParent] = useState<Material | null>(null);
     const [isGroupMode, setIsGroupMode] = useState(false);
 
+    // Group Sheet state
+    const [groupSheetOpen, setGroupSheetOpen] = useState(false);
+    const [groupSheetMode, setGroupSheetMode] = useState<SheetMode>('create');
+    const [selectedGroup, setSelectedGroup] = useState<any>(null);
+
     // Load materials
     const loadMaterials = async () => {
         if (!companyId) return;
@@ -104,7 +111,11 @@ export default function MaterialsPage() {
                 search: searchQuery || undefined,
                 categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
             });
-            setMaterials(data);
+            const enhancedData = data.map((m: any) => ({
+                ...m,
+                parent_id: m.parent_id || m.group_id // Ensure hierarchy works if using groups as parents
+            }));
+            setMaterials(enhancedData);
         } catch (err) {
             console.error('Error loading materials:', err);
         } finally {
@@ -112,8 +123,21 @@ export default function MaterialsPage() {
         }
     };
 
+    // Load groups
+    const loadGroups = async () => {
+        if (!companyId) return;
+        try {
+            const tenantId = user?.user_metadata?.tenant_id;
+            const data = await warehouseService.getGroups(companyId, tenantId);
+            setGroups(data);
+        } catch (err) {
+            console.error('Error loading groups:', err);
+        }
+    };
+
     useEffect(() => {
         loadMaterials();
+        loadGroups();
     }, [companyId, searchQuery, categoryFilter]);
 
     // Handlers
@@ -129,13 +153,11 @@ export default function MaterialsPage() {
     };
 
     const handleAddGroup = () => {
-        setSheetOpen(false);
+        setGroupSheetOpen(false);
         setTimeout(() => {
-            setSelectedParent(null);
-            setSelectedMaterial(null);
-            setIsGroupMode(true);
-            setSheetMode('create');
-            setSheetOpen(true);
+            setSelectedGroup(null);
+            setGroupSheetMode('create');
+            setGroupSheetOpen(true);
         }, 0);
     };
 
@@ -159,12 +181,17 @@ export default function MaterialsPage() {
         }, 0);
     };
 
-    const handleRowClick = (material: Material) => {
-        if (!material.is_group) {
-            setSelectedMaterial(material);
-            setSheetMode('view');
-            setSheetOpen(true);
+    const handleRowClick = (material: any) => {
+        if (material.is_group) {
+            setSelectedGroup(material);
+            setGroupSheetMode('edit');
+            setGroupSheetOpen(true);
+            return;
         }
+
+        setSelectedMaterial(material);
+        setSheetMode('view');
+        setSheetOpen(true);
     };
 
     const handleSave = async (data: any) => {
@@ -174,22 +201,52 @@ export default function MaterialsPage() {
                 return;
             }
 
-            // Map form data to fabric_materials schema
+            // === Handle GROUP creation ===
+            if (data.is_group || isGroupMode) {
+                const groupData = {
+                    tenant_id: user?.user_metadata?.tenant_id,
+                    code: data.code || `GRP-${Date.now()}`,
+                    name_ar: data.name_ar,
+                    name_en: data.name_en || '',
+                    description: data.description || data.composition || '',
+                    parent_id: data.parent_id || null,
+                    is_active: data.is_active ?? true,
+                };
+
+                if (selectedMaterial?.id) {
+                    const result = await warehouseService.updateGroup(selectedMaterial.id, groupData);
+                    if (result.success) {
+                        console.log('Group updated successfully');
+                        await loadGroups();
+                        await loadMaterials();
+                        setSheetOpen(false);
+                    } else {
+                        console.error('Failed to update group:', result.error);
+                    }
+                } else {
+                    const result = await warehouseService.createGroup(groupData);
+                    if (result.success) {
+                        console.log('Group created successfully');
+                        await loadGroups();
+                        setSheetOpen(false);
+                    } else {
+                        console.error('Failed to create group:', result.error);
+                    }
+                }
+                return;
+            }
+
+            // === Handle MATERIAL creation/update ===
             const materialData = {
                 tenant_id: user?.user_metadata?.tenant_id,
                 company_id: companyId,
                 code: data.code,
                 name_ar: data.name_ar,
                 name_en: data.name_en,
-                // group_id instead of category_id
                 group_id: data.category_id || data.group_id,
-                // composition instead of description
                 composition: data.description || data.composition,
-                // category field exists in fabric_materials
                 category: data.category || 'mixed',
-                // unit field exists
                 unit: data.unit_id || data.unit || 'meter',
-                // No direct color field in fabric_materials, but we can use custom_fields
                 custom_fields: {
                     ...(data.custom_fields || {}),
                     color: data.color,
@@ -197,18 +254,13 @@ export default function MaterialsPage() {
                     sku: data.sku,
                     barcode: data.barcode,
                 },
-                // min_stock and reorder_point exist
                 min_stock: data.min_stock_level || data.min_stock || 0,
                 reorder_point: data.max_stock_level || data.reorder_point || 0,
-                // status instead of is_active
                 status: (data.is_active ?? true) ? 'active' : 'inactive',
-                // No parent_id or is_group in fabric_materials, use group_id
                 notes: data.notes,
             };
 
-            // Check if we're creating or updating
             if (selectedMaterial?.id) {
-                // UPDATE existing material
                 const result = await warehouseService.updateMaterial(selectedMaterial.id, materialData);
                 if (result.success) {
                     console.log('Material updated successfully');
@@ -218,14 +270,11 @@ export default function MaterialsPage() {
                     console.error('Failed to update material:', result.error);
                 }
             } else {
-                // CREATE new material(s)
                 if (data.has_variants && data.variant_colors && data.variant_colors.length > 0) {
-                    // Create multiple materials for each color variant
                     const materialsToCreate = data.variant_colors.map((color: string) => ({
                         ...materialData,
                         name_ar: `${data.name_ar} - ${color}`,
                         name_en: data.name_en ? `${data.name_en} - ${color}` : undefined,
-                        // Generate unique code for each variant
                         code: `${data.code}-${color.substring(0, 3).toUpperCase()}`,
                         custom_fields: {
                             ...materialData.custom_fields,
@@ -242,7 +291,6 @@ export default function MaterialsPage() {
                         console.error('Failed to create material variants:', result.error);
                     }
                 } else {
-                    // Create single material
                     const result = await warehouseService.createMaterial(materialData);
                     if (result.success) {
                         console.log('Material created successfully');
@@ -260,7 +308,25 @@ export default function MaterialsPage() {
 
     // Filter materials
     const filteredMaterials = useMemo(() => {
-        let filtered = materials;
+        // Map groups to match Material structure
+        const mappedGroups = groups.map((g: any) => ({
+            id: g.id,
+            code: g.code,
+            name_ar: g.name_ar,
+            name_en: g.name_en,
+            description: g.description,
+            is_group: true,
+            is_active: g.is_active,
+            created_at: g.created_at,
+            parent_id: g.parent_id,
+            // Fallbacks
+            category_id: 'group',
+            category: { id: 'group', name_ar: language === 'ar' ? 'مجموعة' : 'Group', name_en: 'Group' },
+            unit_id: null,
+            unit: null
+        }));
+
+        let filtered = [...mappedGroups, ...materials];
 
         // Search filter
         if (searchQuery) {
@@ -314,17 +380,24 @@ export default function MaterialsPage() {
             }
         });
 
-        // Sort by code
-        const sortByCode = (nodes: MaterialTreeNode[]): MaterialTreeNode[] => {
+        // Sort by group first, then by code
+        const sortNodes = (nodes: MaterialTreeNode[]): MaterialTreeNode[] => {
             return nodes
-                .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                .sort((a, b) => {
+                    // 1. Groups first
+                    if (a.is_group && !b.is_group) return -1;
+                    if (!a.is_group && b.is_group) return 1;
+
+                    // 2. Then by code
+                    return (a.code || '').localeCompare(b.code || '');
+                })
                 .map((node) => ({
                     ...node,
-                    children: node.children ? sortByCode(node.children) : undefined,
+                    children: node.children ? sortNodes(node.children) : undefined,
                 }));
         };
 
-        return sortByCode(rootNodes);
+        return sortNodes(rootNodes);
     }, []);
 
     // Flatten tree for table view
@@ -681,7 +754,7 @@ export default function MaterialsPage() {
             </div>
 
             {/* Tree View or Table View */}
-            {!loading && materials.length === 0 ? (
+            {!loading && materials.length === 0 && groups.length === 0 ? (
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-8 text-center">
                     <div className="max-w-md mx-auto space-y-4">
                         <div className="flex justify-center">
@@ -716,17 +789,18 @@ export default function MaterialsPage() {
                     <p className="text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
                 </div>
             ) : viewMode === 'tree' ? (
-                <Card className="border-gray-100 dark:border-slate-800 p-8 text-center">
-                    <TreePine className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                    <h3 className="text-lg font-cairo font-bold text-gray-600 dark:text-gray-300 mb-2">
-                        {language === 'ar' ? 'عرض الشجرة' : 'Tree View'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                        {language === 'ar'
-                            ? 'سيتم تطبيق عرض الشجرة الهرمية للمواد قريباً'
-                            : 'Hierarchical tree view will be implemented soon'}
-                    </p>
-                </Card>
+                <MaterialTree
+                    data={treeData}
+                    onEdit={(node) => handleRowClick(node)}
+                    onAddChild={(node) => {
+                        if (node.is_group) {
+                            // Pre-fill parent/group when adding child
+                            setSelectedParent(node);
+                            handleAddClick();
+                        }
+                    }}
+                    className="h-[calc(100vh-240px)]"
+                />
             ) : (
                 <NexaTable
                     data={tableMaterials}
@@ -744,10 +818,21 @@ export default function MaterialsPage() {
                 onClose={() => setSheetOpen(false)}
                 docType="material"
                 mode={sheetMode}
+                companyId={companyId || undefined}
+                options={{
+                    groups: groups.map(g => ({
+                        id: g.id,
+                        name_ar: g.name_ar,
+                        name_en: g.name_en,
+                        code: g.code
+                    }))
+                }}
                 data={selectedMaterial || {
                     code: '',
                     name_ar: '',
-                    is_active: true
+                    is_active: true,
+                    parent_id: selectedParent?.id || null,
+                    parent_name: selectedParent ? (language === 'ar' ? selectedParent.name_ar : (selectedParent.name_en || selectedParent.name_ar)) : null,
                 }}
                 onSave={handleSave}
                 onDelete={async () => {
@@ -763,6 +848,77 @@ export default function MaterialsPage() {
                     }
                 }}
                 onModeChange={setSheetMode}
+            />
+
+            {/* Material Group Sheet */}
+            <UnifiedAccountingSheet
+                isOpen={groupSheetOpen}
+                onClose={() => setGroupSheetOpen(false)}
+                docType="materialGroup"
+                mode={groupSheetMode}
+                companyId={companyId || undefined}
+                data={selectedGroup || {
+                    code: '',
+                    [`name_${language}`]: '',
+                    name_en: '',
+                    icon: '📁',
+                    parent_id: null,
+                    description: '',
+                    is_active: true,
+                }}
+                onSave={async (formData: any) => {
+                    const tenantId = user?.user_metadata?.tenant_id;
+                    if (!tenantId) {
+                        throw new Error('tenant_id is required');
+                    }
+
+                    // Build payload with ONLY columns that exist in fabric_groups table
+                    const groupPayload: Record<string, any> = {
+                        tenant_id: tenantId,
+                        code: formData.code?.trim() || `GRP-${Date.now().toString(36).toUpperCase()}`,
+                        name_ar: formData.name_ar?.trim() || formData[`name_${language}`]?.trim() || '',
+                        name_en: formData.name_en?.trim() || '',
+                        description: formData.description?.trim() || '',
+                        parent_id: formData.parent_id || null,
+                        icon: formData.icon || '📁',
+                        is_active: true,
+                    };
+
+                    // Add translation names only if they have values
+                    const langCodes = ['ru', 'uk', 'ro', 'pl', 'tr', 'de', 'it'];
+                    for (const lang of langCodes) {
+                        const val = formData[`name_${lang}`] || '';
+                        if (val) {
+                            groupPayload[`name_${lang}`] = val;
+                        }
+                    }
+
+                    let result;
+                    if (selectedGroup?.id) {
+                        result = await warehouseService.updateGroup(selectedGroup.id, groupPayload);
+                    } else {
+                        result = await warehouseService.createGroup(groupPayload);
+                    }
+
+                    if (result.success) {
+                        setGroupSheetOpen(false);
+                        await loadGroups();
+                        await loadMaterials();
+                    } else {
+                        throw new Error(result.error || 'Failed to save group');
+                    }
+                }}
+                onDelete={async () => {
+                    if (selectedGroup?.id) {
+                        const result = await warehouseService.deleteGroup(selectedGroup.id);
+                        if (result.success) {
+                            setGroupSheetOpen(false);
+                            await loadGroups();
+                            await loadMaterials();
+                        }
+                    }
+                }}
+                onModeChange={setGroupSheetMode}
             />
         </div>
     );

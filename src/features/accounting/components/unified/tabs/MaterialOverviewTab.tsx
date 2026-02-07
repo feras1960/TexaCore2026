@@ -9,6 +9,7 @@ import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -20,9 +21,10 @@ interface MaterialOverviewTabProps {
     data: any;
     mode: SheetMode;
     onChange?: (updates: any) => void;
+    groups?: any[];
 }
 
-export function MaterialOverviewTab({ data, mode, onChange }: MaterialOverviewTabProps) {
+export function MaterialOverviewTab({ data, mode, onChange, groups = [] }: MaterialOverviewTabProps) {
     const { t, language, isRTL } = useLanguage();
     const isReadOnly = mode === 'view';
 
@@ -33,7 +35,7 @@ export function MaterialOverviewTab({ data, mode, onChange }: MaterialOverviewTa
     };
 
     return (
-        <div className="space-y-6 max-h-full overflow-y-auto pb-6">
+        <div className="space-y-6 pb-6">
             {/* Basic Information */}
             <Card>
                 <CardHeader>
@@ -44,33 +46,45 @@ export function MaterialOverviewTab({ data, mode, onChange }: MaterialOverviewTa
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Category */}
+                        {/* Group Selection */}
                         <div className="space-y-2">
-                            <Label htmlFor="category" className="flex items-center gap-2">
+                            <Label htmlFor="group_id" className="flex items-center gap-2">
                                 <Layers className="w-4 h-4" />
-                                {t('warehouse.material.category')} <span className="text-red-500">*</span>
+                                {language === 'ar' ? 'المجموعة' : 'Group'} <span className="text-red-500">*</span>
                             </Label>
                             <Select
-                                value={data?.category_id || ''}
+                                value={data?.group_id || data?.category_id || ''}
                                 onValueChange={(value) => {
-                                    handleChange('category_id', value);
+                                    handleChange('group_id', value);
+                                    handleChange('category_id', value); // Save both for compatibility
+
                                     if (mode === 'create' && !data?.code) {
-                                        const prefix = value === 'fabric' ? 'FAB' :
-                                            value === 'accessories' ? 'ACC' :
-                                                value === 'raw' ? 'RAW' : 'MAT';
+                                        const group = groups.find(g => g.id === value);
+                                        const prefix = group?.code || 'MAT';
                                         const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
                                         handleChange('code', `${prefix}-${randomNum}`);
                                     }
                                 }}
                                 disabled={isReadOnly}
                             >
-                                <SelectTrigger id="category">
-                                    <SelectValue placeholder={language === 'ar' ? 'اختر التصنيف' : 'Select Category'} />
+                                <SelectTrigger id="group_id">
+                                    <SelectValue placeholder={language === 'ar' ? 'اختر المجموعة' : 'Select Group'} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="fabric">{language === 'ar' ? 'أقمشة' : 'Fabrics'}</SelectItem>
-                                    <SelectItem value="accessories">{language === 'ar' ? 'إكسسوارات' : 'Accessories'}</SelectItem>
-                                    <SelectItem value="raw">{language === 'ar' ? 'مواد خام' : 'Raw Materials'}</SelectItem>
+                                    {groups.length > 0 ? (
+                                        groups.map((group) => (
+                                            <SelectItem key={group.id} value={group.id}>
+                                                <span className="flex items-center gap-2">
+                                                    <Badge variant="outline" className="text-xs">{group.code}</Badge>
+                                                    {language === 'ar' ? group.name_ar : (group.name_en || group.name_ar)}
+                                                </span>
+                                            </SelectItem>
+                                        ))
+                                    ) : (
+                                        <div className="p-2 text-center text-sm text-gray-500">
+                                            {language === 'ar' ? 'لا توجد مجموعات' : 'No groups available'}
+                                        </div>
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>

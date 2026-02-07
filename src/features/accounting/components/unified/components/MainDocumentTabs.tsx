@@ -58,6 +58,7 @@ const colorMap: Record<UnifiedDocType, string> = {
     exchange: 'text-yellow-600',
     transaction: 'text-gray-600',
     material: 'text-teal-600',
+    materialGroup: 'text-indigo-600',
     warehouse: 'text-cyan-600',
 };
 
@@ -84,7 +85,7 @@ export function MainDocumentTabs({
             "border-b bg-gray-50/50 dark:bg-gray-900/50",
             className
         )} dir={isRTL ? 'rtl' : 'ltr'}>
-            <ScrollArea className="w-full">
+            <ScrollArea className="w-full" dir={isRTL ? 'rtl' : 'ltr'}>
                 <div className="flex items-center gap-1 px-2 py-1.5 min-w-max">
                     {documents.map((doc, index) => {
                         const isActive = doc.id === activeId;

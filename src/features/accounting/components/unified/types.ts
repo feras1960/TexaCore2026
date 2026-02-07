@@ -14,7 +14,8 @@ export type UnifiedDocType =
     | 'transfer'     // تحويل
     | 'exchange'     // صرافة
     | 'warehouse'    // مستودع
-    | 'material'     // مادة (NEW)
+    | 'material'      // مادة (NEW)
+    | 'materialGroup' // مجموعة مواد (NEW)
     | 'transaction'; // عملية مفردة
 
 // Mode of the sheet
@@ -82,6 +83,7 @@ export interface UnifiedAccountingSheetProps {
 
     // Data
     data?: any;                // Data for view/edit
+    options?: any;             // Additional options (e.g. dropdown lists)
     documentId?: string;       // For loading from API
     companyId?: string;        // For edit permission check
 

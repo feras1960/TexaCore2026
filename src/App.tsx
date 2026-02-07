@@ -21,6 +21,7 @@ const Login = React.lazy(() => import('@/features/auth/Login'));
 const Register = React.lazy(() => import('@/features/auth/Register'));
 const RegistrationWizard = React.lazy(() => import('@/features/auth/FabricRegistrationWizard'));
 const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
+const NexaDataTableDemo = React.lazy(() => import('@/pages/NexaDataTableDemo'));
 const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
 
 const Fabrics = React.lazy(() => import('@/features/fabrics/Fabrics')); // Keep file name as is for now, but route is /fabric
@@ -116,6 +117,7 @@ function AppRoutes() {
             <Route path="/component-lab" element={<ComponentLab />} />
             <Route path="/sheets-lab" element={<AccountingSheetsLab />} />
             <Route path="/design-system" element={<DesignSystemDemo />} />
+            <Route path="/nexa-table" element={<NexaDataTableDemo />} />
             <Route path="/sheets-preview" element={<SheetsPreview />} />
           </Route>
         </Route>

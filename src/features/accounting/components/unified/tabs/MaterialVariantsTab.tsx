@@ -30,7 +30,7 @@ export function MaterialVariantsTab({ data, mode, onChange }: MaterialVariantsTa
     };
 
     return (
-        <div className="space-y-6 max-h-full overflow-y-auto pb-6">
+        <div className="space-y-6 pb-6">
             {/* Info Banner */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">

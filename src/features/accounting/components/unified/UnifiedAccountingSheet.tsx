@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -43,6 +43,12 @@ import {
     MaterialPurchasesTab,
     MaterialAnalyticsTab,
     MaterialVariantsTab,
+    MaterialRollsTab,
+    MaterialBasicInfoTab,
+    MaterialSpecsTab,
+    MaterialImagesTab,
+    MaterialAdditionalInfoTab,
+    MaterialGroupInfoTab,
 } from './tabs';
 
 // Import configs
@@ -79,6 +85,7 @@ export function UnifiedAccountingSheet({
     docType,
     mode: initialMode = 'view',
     data: initialData,
+    options,
     documentId,
     companyId,
     defaultTab,
@@ -133,7 +140,7 @@ export function UnifiedAccountingSheet({
             return [{
                 id: initialData.id || documentId || 'primary',
                 type: docType,
-                title: initialData.name || initialData.entry_number || 'Document',
+                title: initialData.name || initialData.entry_number || t(config.titleKey) || 'Document',
                 titleAr: initialData.nameAr || initialData.name_ar || initialData.name,
                 code: initialData.code || initialData.entry_number,
                 data: initialData,
@@ -398,6 +405,7 @@ export function UnifiedAccountingSheet({
                         <MaterialOverviewTab
                             data={data}
                             mode={mode}
+                            groups={options?.groups}
                             onChange={(updates: any) => {
                                 setData((prev: any) => ({ ...prev, ...updates }));
                                 setHasChanges(true);
@@ -512,6 +520,106 @@ export function UnifiedAccountingSheet({
                     />
                 );
 
+            // === New Material Tabs ===
+            case 'rolls':
+                if (docType === 'material') {
+                    return <MaterialRollsTab data={data} />;
+                }
+                break;
+
+            case 'images':
+            case 'createImages':
+                if (docType === 'material') {
+                    return (
+                        <MaterialImagesTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            case 'basicInfo':
+                if (docType === 'material') {
+                    return (
+                        <MaterialBasicInfoTab
+                            data={data}
+                            mode={mode}
+                            groups={options?.groups}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            // ═══ Material Group Tabs ═══
+            case 'groupInfo':
+                if (docType === 'materialGroup') {
+                    return (
+                        <MaterialGroupInfoTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            case 'specs':
+                if (docType === 'material') {
+                    return (
+                        <MaterialSpecsTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            case 'createPricing':
+                if (docType === 'material') {
+                    return (
+                        <MaterialPricingTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            case 'additionalInfo':
+                if (docType === 'material') {
+                    return (
+                        <MaterialAdditionalInfoTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
             // TODO: Add more tab content renderers
             default:
                 return (
@@ -526,12 +634,22 @@ export function UnifiedAccountingSheet({
         <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <SheetContent
                 className={cn(
-                    "!w-[50vw] !max-w-[50vw] p-0 flex flex-col h-full",
+                    docType === 'materialGroup'
+                        ? "!w-[38vw] !max-w-[38vw] p-0 flex flex-col h-full"
+                        : "!w-[50vw] !max-w-[50vw] p-0 flex flex-col h-full",
                     "bg-gray-50 dark:bg-gray-900"
                 )}
                 side={isRTL ? 'left' : 'right'}
             >
                 <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
+                    {/* Accessibility requirements */}
+                    <SheetHeader className="sr-only">
+                        <SheetTitle>{t(config.titleKey)}</SheetTitle>
+                        <SheetDescription>
+                            {language === 'ar' ? 'نموذج عرض وتعديل البيانات' : 'Data view and edit form'}
+                        </SheetDescription>
+                    </SheetHeader>
+
                     {/* Loading Overlay */}
                     {loading && (
                         <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 z-50 flex items-center justify-center">
@@ -680,7 +798,7 @@ export function UnifiedAccountingSheet({
                                 {renderTabContent(activeTab)}
                             </ScrollArea>
                         ) : (
-                            // Tabs layout
+                            // Tabs layout - SheetTabs is flex-col h-full with fixed header
                             <SheetTabs
                                 tabs={visibleTabs}
                                 activeTab={activeTab}
@@ -702,7 +820,7 @@ export function UnifiedAccountingSheet({
                                         ))}
                                     </div>
                                 ) : (
-                                    <ScrollArea className="flex-1">
+                                    <ScrollArea className="flex-1 h-full">
                                         <div className="p-4">
                                             {visibleTabs.map((tab) => (
                                                 <TabsContent

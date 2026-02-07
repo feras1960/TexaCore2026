@@ -36,6 +36,8 @@ import {
     FileEdit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NexaDataTable } from '@/components/ui/nexa-data-table';
+import { ColumnDef } from '@tanstack/react-table';
 
 // Import ALL AccountDetailsSheet components for comparison
 import AccountDetailsSheet from '@/features/accounting/components/AccountDetailsSheet';
@@ -131,6 +133,66 @@ const MOCK_TRANSACTION = {
     counterAccount: 'Rent Expense',
 };
 
+// Mock data for NexaDataTable demo
+interface DemoTableRow {
+    id: string;
+    code: string;
+    name_ar: string;
+    name_en: string;
+    type: string;
+    balance: number;
+    status: 'active' | 'inactive';
+    created_at: string;
+}
+
+const MOCK_TABLE_DATA: DemoTableRow[] = [
+    { id: '1', code: '1101', name_ar: 'الصندوق الرئيسي', name_en: 'Main Cash', type: 'أصول', balance: 125000, status: 'active', created_at: '2024-01-15' },
+    { id: '2', code: '1102', name_ar: 'بنك الراجحي', name_en: 'Al Rajhi Bank', type: 'أصول', balance: 450000, status: 'active', created_at: '2024-01-15' },
+    { id: '3', code: '1103', name_ar: 'بنك الأهلي', name_en: 'NCB Bank', type: 'أصول', balance: 320000, status: 'active', created_at: '2024-01-15' },
+    { id: '4', code: '2101', name_ar: 'الموردون', name_en: 'Suppliers', type: 'خصوم', balance: 85000, status: 'active', created_at: '2024-01-20' },
+    { id: '5', code: '2102', name_ar: 'القروض قصيرة الأجل', name_en: 'Short-term Loans', type: 'خصوم', balance: 200000, status: 'active', created_at: '2024-02-01' },
+    { id: '6', code: '3101', name_ar: 'رأس المال', name_en: 'Capital', type: 'حقوق ملكية', balance: 1000000, status: 'active', created_at: '2024-01-01' },
+    { id: '7', code: '4101', name_ar: 'إيرادات المبيعات', name_en: 'Sales Revenue', type: 'إيرادات', balance: 750000, status: 'active', created_at: '2024-01-15' },
+    { id: '8', code: '4102', name_ar: 'إيرادات أخرى', name_en: 'Other Income', type: 'إيرادات', balance: 25000, status: 'inactive', created_at: '2024-03-01' },
+    { id: '9', code: '5101', name_ar: 'تكلفة المبيعات', name_en: 'Cost of Sales', type: 'مصروفات', balance: 450000, status: 'active', created_at: '2024-01-15' },
+    { id: '10', code: '5102', name_ar: 'مصروفات الإيجار', name_en: 'Rent Expense', type: 'مصروفات', balance: 120000, status: 'active', created_at: '2024-01-20' },
+    { id: '11', code: '5103', name_ar: 'مصروفات الرواتب', name_en: 'Salary Expense', type: 'مصروفات', balance: 280000, status: 'active', created_at: '2024-01-15' },
+    { id: '12', code: '5104', name_ar: 'مصروفات التسويق', name_en: 'Marketing Expense', type: 'مصروفات', balance: 45000, status: 'active', created_at: '2024-02-10' },
+];
+
+const DEMO_TABLE_COLUMNS: ColumnDef<DemoTableRow>[] = [
+    { accessorKey: 'code', header: 'الرمز', size: 80 },
+    { accessorKey: 'name_ar', header: 'الاسم بالعربية', size: 180 },
+    { accessorKey: 'name_en', header: 'الاسم بالإنجليزية', size: 150 },
+    { accessorKey: 'type', header: 'النوع', size: 100 },
+    {
+        accessorKey: 'balance',
+        header: 'الرصيد',
+        size: 120,
+        cell: ({ row }) => (
+            <span className="font-mono font-medium">
+                {row.original.balance.toLocaleString('ar-SA')} ر.س
+            </span>
+        )
+    },
+    {
+        accessorKey: 'status',
+        header: 'الحالة',
+        size: 80,
+        cell: ({ row }) => (
+            <span className={cn(
+                'px-2 py-1 rounded-full text-xs font-medium',
+                row.original.status === 'active'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-500'
+            )}>
+                {row.original.status === 'active' ? 'نشط' : 'غير نشط'}
+            </span>
+        )
+    },
+    { accessorKey: 'created_at', header: 'تاريخ الإنشاء', size: 120 },
+];
+
 // Component type definition
 type ComponentCategory = 'sheet' | 'dialog' | 'form';
 type ComponentStatus = 'legacy' | 'current' | 'new' | 'deprecated';
@@ -156,6 +218,23 @@ interface ComponentInfo {
 
 // Complete registry of ALL accounting components
 const COMPONENTS_REGISTRY: ComponentInfo[] = [
+    // === 🆕 NEXA DATA TABLE (TanStack Table) ===
+    {
+        id: 'nexa-data-table',
+        name: 'NexaDataTable',
+        nameAr: '📊 جدول البيانات الجديد',
+        description: 'NEW data table with TanStack Table - RTL, Drag & Drop, Resize',
+        descriptionAr: 'جدول البيانات الجديد مع TanStack - RTL، سحب وإفلات، تغيير الحجم',
+        path: 'src/components/ui/nexa-data-table.tsx',
+        linesOfCode: 350,
+        sizeKB: 14,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: Layers,
+        features: ['RTL كامل', 'سحب وإفلات الأعمدة', 'تغيير حجم الأعمدة', 'بحث وفلترة', 'تصفح Pagination'],
+        issues: [],
+    },
     // === NEW UNIFIED COMPONENT ===
     {
         id: 'unified-accounting-sheet',
@@ -819,6 +898,92 @@ export default function AccountingSheetsLab() {
                     docType="account"
                     data={MOCK_ACCOUNT}
                 />
+            )}
+
+            {/* 📊 NexaDataTable Demo */}
+            {selectedComponent === 'nexa-data-table' && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedComponent(null)}>
+                    <div
+                        className="bg-background rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-auto p-6"
+                        onClick={(e) => e.stopPropagation()}
+                        dir={direction}
+                    >
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-erp-navy dark:text-white font-cairo">
+                                    {isAr ? '📊 NexaDataTable - جدول البيانات المتقدم' : '📊 NexaDataTable - Advanced Data Table'}
+                                </h2>
+                                <p className="text-sm text-muted-foreground font-tajawal mt-1">
+                                    {isAr
+                                        ? 'مبني على TanStack Table - جرب السحب والإفلات وتغيير حجم الأعمدة!'
+                                        : 'Built on TanStack Table - Try drag & drop and column resizing!'
+                                    }
+                                </p>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedComponent(null)}>
+                                <XCircle className="w-5 h-5" />
+                            </Button>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-lg p-4 mb-4">
+                            <div className="flex flex-wrap gap-2 text-xs">
+                                <span className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-full">✅ RTL كامل</span>
+                                <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">✅ سحب وإفلات الأعمدة</span>
+                                <span className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-1 rounded-full">✅ تغيير حجم الأعمدة</span>
+                                <span className="bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 px-2 py-1 rounded-full">✅ بحث وفلترة</span>
+                                <span className="bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-300 px-2 py-1 rounded-full">✅ تصفح الصفحات</span>
+                            </div>
+                        </div>
+
+                        <NexaDataTable
+                            data={MOCK_TABLE_DATA}
+                            columns={DEMO_TABLE_COLUMNS}
+                            isRTL={isAr}
+                            searchPlaceholder={isAr ? 'ابحث في الحسابات...' : 'Search accounts...'}
+                            emptyMessage={isAr ? 'لا توجد بيانات للعرض' : 'No data to display'}
+                            onRowClick={(row) => console.log('Row clicked:', row)}
+                            enableSequenceNumber={true}
+                            enableMarker={true}
+                            enableExcelMode={true}
+                            maxHeight="400px"
+                            showSummaryHeader={true}
+                            showTotalsFooter={true}
+                            openingBalance={6072}
+                            debitKey="debit"
+                            creditKey="credit"
+                            showAmountInWords={true}
+                        />
+
+                        <div className="mt-6 p-4 bg-muted/50 rounded-lg text-sm font-mono text-muted-foreground">
+                            <p className="font-bold mb-2">{isAr ? 'كيفية الاستخدام:' : 'Usage:'}</p>
+                            <pre className="text-xs overflow-x-auto">
+                                {`import { NexaDataTable } from '@/components/ui/nexa-data-table';
+
+<NexaDataTable
+  data={data}
+  columns={columns}
+  isRTL={true}
+  
+  // === وضع الإكسل ===
+  enableExcelMode={true}       // ✅ بدون pagination + scroll
+  maxHeight="500px"            // ✅ ارتفاع منطقة البيانات
+  
+  // === الأرقام والتعليم ===
+  enableSequenceNumber={true}  // ✅ عمود الرقم التسلسلي
+  enableMarker={true}          // ✅ نظام التعليم بالألوان
+  
+  // === المجاميع ===
+  showSummaryHeader={true}     // ✅ ملخص في الأعلى
+  showTotalsFooter={true}      // ✅ سطر المجاميع الثابت
+  openingBalance={6072}        // ✅ الرصيد الافتتاحي
+  debitKey="debit"             // ✅ مفتاح المدين
+  creditKey="credit"           // ✅ مفتاح الدائن
+  showAmountInWords={true}     // ✅ المبلغ بالكلمات
+/>`}
+                            </pre>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

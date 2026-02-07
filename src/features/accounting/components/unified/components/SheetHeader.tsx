@@ -17,6 +17,8 @@ import {
     ArrowRightLeft,
     RefreshCw,
     FileText,
+    FolderPlus,
+    FolderTree,
     Edit,
     Eye,
     Plus,
@@ -38,6 +40,8 @@ const iconMap: Record<string, any> = {
     ArrowRightLeft,
     RefreshCw,
     FileText,
+    FolderPlus,
+    FolderTree,
 };
 
 interface SheetHeaderProps {

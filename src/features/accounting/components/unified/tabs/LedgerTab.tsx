@@ -1,10 +1,12 @@
 /**
  * Enhanced Ledger Tab - تبويب كشف الحساب المحسن
- * يعرض سجل العمليات المالية مع:
+ * يعرض سجل العمليات المالية باستخدام NexaDataTable مع:
  * - فلاتر تواريخ سريعة
  * - فلتر العملة
  * - شريط مجاميع ثابت في الأسفل
  * - دعم MDI لفتح القيود في تبويبات
+ * - سحب وإفلات الأعمدة
+ * - تغيير حجم الأعمدة
  */
 
 import { useState, useMemo, useCallback } from 'react';
@@ -14,14 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import { NexaDataTable } from '@/components/ui/nexa-data-table';
+import { ColumnDef } from '@tanstack/react-table';
 import {
     Select,
     SelectContent,
@@ -30,17 +26,17 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    Search,
     Download,
     Printer,
     Filter,
     ChevronDown,
     ChevronUp,
     FileText,
-    ExternalLink,
+    Table as TableIcon,
+    LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatNumber, formatDate } from '../utils/formatters';
+import { formatNumber, formatDate } from '../utils/formatters';
 import type { LedgerEntry } from '../types';
 
 interface LedgerTabProps {
@@ -67,6 +63,9 @@ interface LedgerTabProps {
 // Quick date preset type
 type QuickDatePreset = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'thisYear' | 'all';
 
+// View mode type
+type ViewMode = 'nexa' | 'classic';
+
 export function LedgerTab({
     entries = [],
     loading = false,
@@ -85,7 +84,7 @@ export function LedgerTab({
     selectedCurrency,
     onCurrencyChange,
 }: LedgerTabProps) {
-    const { t, direction } = useLanguage();
+    const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
     const { supportedCurrencies } = useAccountingSettings();
 
@@ -93,12 +92,12 @@ export function LedgerTab({
     const currencies = availableCurrencies || supportedCurrencies || ['SAR'];
 
     // Local state for filters
-    const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
     const [localCurrency, setLocalCurrency] = useState(selectedCurrency || currency);
+    const [viewMode, setViewMode] = useState<ViewMode>('nexa'); // Default to new table
 
     // Quick date helper
     const applyQuickDate = useCallback((preset: QuickDatePreset) => {
@@ -141,25 +140,15 @@ export function LedgerTab({
         }
     }, []);
 
-    // Filter entries
+    // Filter entries by date only (search handled by NexaDataTable)
     const filteredEntries = useMemo(() => {
         return entries.filter((entry) => {
-            // Search filter
-            if (search) {
-                const searchLower = search.toLowerCase();
-                const matchesDescription = entry.description?.toLowerCase().includes(searchLower);
-                const matchesRef = entry.reference?.toLowerCase().includes(searchLower);
-                const matchesEntry = entry.entry_number?.toLowerCase().includes(searchLower);
-                if (!matchesDescription && !matchesRef && !matchesEntry) return false;
-            }
-
             // Date filters
             if (dateFrom && entry.date < dateFrom) return false;
             if (dateTo && entry.date > dateTo) return false;
-
             return true;
         });
-    }, [entries, search, dateFrom, dateTo]);
+    }, [entries, dateFrom, dateTo]);
 
     // Calculate filtered totals
     const filteredTotals = useMemo(() => {
@@ -172,25 +161,102 @@ export function LedgerTab({
         );
     }, [filteredEntries]);
 
-    // Get status badge
-    const getStatusBadge = (status?: string) => {
-        if (!status) return null;
-
-        const statusConfig: Record<string, { color: string; label: string }> = {
-            posted: { color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', label: t('status.posted') || 'مرحّل' },
-            draft: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', label: t('status.draft') || 'مسودة' },
-            cancelled: { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', label: t('status.cancelled') || 'ملغي' },
-        };
-
-        const config = statusConfig[status];
-        if (!config) return null;
-
-        return (
-            <Badge className={cn("text-[10px] px-1.5 py-0", config.color)}>
-                {config.label}
-            </Badge>
-        );
-    };
+    // NexaDataTable columns
+    const columns: ColumnDef<LedgerEntry>[] = useMemo(() => [
+        {
+            accessorKey: 'serial',
+            header: t('serial') || 'م',
+            size: 50,
+            cell: ({ row }) => (
+                <span className="text-gray-400 text-center block">
+                    {useArabicNumerals ? (row.index + 1).toLocaleString('ar-SA') : (row.index + 1)}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'debit',
+            header: t('debit') || 'مدين',
+            size: 100,
+            cell: ({ row }) => (
+                <span className="font-mono text-end block">
+                    {row.original.debit > 0 ? formatNumber(row.original.debit, useArabicNumerals) : '-'}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'credit',
+            header: t('credit') || 'دائن',
+            size: 100,
+            cell: ({ row }) => (
+                <span className="font-mono text-end block">
+                    {row.original.credit > 0 ? formatNumber(row.original.credit, useArabicNumerals) : '-'}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'balance',
+            header: t('balance') || 'الرصيد',
+            size: 120,
+            cell: ({ row }) => (
+                <span className={cn(
+                    "font-mono font-medium text-end block",
+                    row.original.balance < 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white"
+                )}>
+                    {formatNumber(row.original.balance, useArabicNumerals)}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'description',
+            header: t('description') || 'البيان',
+            size: 200,
+            cell: ({ row }) => (
+                <div className="flex flex-col gap-0.5">
+                    <span className="truncate font-medium text-gray-700 dark:text-gray-200" title={row.original.description}>
+                        {row.original.description || '-'}
+                    </span>
+                    {row.original.status && row.original.status !== 'posted' && (
+                        <Badge className={cn(
+                            "text-[10px] px-1.5 py-0 w-fit",
+                            row.original.status === 'draft' ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
+                        )}>
+                            {row.original.status === 'draft' ? (t('status.draft') || 'مسودة') : (t('status.cancelled') || 'ملغي')}
+                        </Badge>
+                    )}
+                </div>
+            ),
+        },
+        {
+            accessorKey: 'entry_number',
+            header: t('reference') || 'المرجع',
+            size: 100,
+            cell: ({ row }) => (
+                <span className="text-blue-600 dark:text-blue-400 font-mono text-[11px]">
+                    {row.original.entry_number || row.original.reference || '-'}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'date',
+            header: t('date') || 'التاريخ',
+            size: 100,
+            cell: ({ row }) => (
+                <span className="font-mono text-gray-600">
+                    {formatDate(row.original.date, useArabicNumerals, 'short')}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'cost_center',
+            header: t('costCenter') || 'مركز التكلفة',
+            size: 100,
+            cell: ({ row }) => (
+                <span className="text-gray-500 truncate block" title={row.original.cost_center}>
+                    {row.original.cost_center || '-'}
+                </span>
+            ),
+        },
+    ], [t, useArabicNumerals]);
 
     // Handle currency change
     const handleCurrencyChange = (value: string) => {
@@ -225,18 +291,26 @@ export function LedgerTab({
         <div className="flex flex-col h-full">
             {/* Compact Toolbar */}
             <div className="flex items-center gap-2 flex-wrap pb-2 border-b mb-2">
-                {/* Search */}
-                <div className="relative flex-1 min-w-[150px] max-w-xs">
-                    <Search className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400",
-                        isRTL ? "right-2.5" : "left-2.5"
-                    )} />
-                    <Input
-                        placeholder={t('accounting.searchTransactions') || 'بحث...'}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className={cn("h-8 text-xs", isRTL ? "pr-8" : "pl-8")}
-                    />
+                {/* View Mode Toggle */}
+                <div className="flex items-center border rounded-lg overflow-hidden">
+                    <Button
+                        variant={viewMode === 'nexa' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('nexa')}
+                        className="h-8 rounded-none px-3 gap-1.5"
+                    >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span className="text-xs hidden sm:inline">{t('views.advanced') || 'متقدم'}</span>
+                    </Button>
+                    <Button
+                        variant={viewMode === 'classic' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('classic')}
+                        className="h-8 rounded-none px-3 gap-1.5"
+                    >
+                        <TableIcon className="w-3.5 h-3.5" />
+                        <span className="text-xs hidden sm:inline">{t('views.classic') || 'كلاسيكي'}</span>
+                    </Button>
                 </div>
 
                 {/* Currency Filter */}
@@ -265,6 +339,8 @@ export function LedgerTab({
                     <Filter className="w-3.5 h-3.5" />
                     {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </Button>
+
+                <div className="flex-1" />
 
                 {/* Actions */}
                 {onPrint && (
@@ -326,7 +402,6 @@ export function LedgerTab({
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                            setSearch('');
                             setDateFrom('');
                             setDateTo('');
                             setQuickDatePreset('all');
@@ -338,187 +413,121 @@ export function LedgerTab({
                 </div>
             )}
 
-            {/* Table Container - Scrollable */}
-            <div className="flex-1 overflow-hidden border rounded-lg bg-white dark:bg-gray-900 flex flex-col min-h-0 shadow-sm relative">
-                <div className="flex-1 overflow-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
-                    <Table>
-                        <TableHeader className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-                            <TableRow className="hover:bg-transparent">
-                                <TableHead className="text-xs font-bold w-12 h-9 text-center">{t('serial') || 'م'}</TableHead>
-                                <TableHead className="text-xs font-bold text-end w-24 h-9">{t('debit') || 'مدين'}</TableHead>
-                                <TableHead className="text-xs font-bold text-end w-24 h-9">{t('credit') || 'دائن'}</TableHead>
-                                <TableHead className="text-xs font-bold text-end w-28 h-9 bg-gray-50/50 dark:bg-gray-800/50">{t('balance') || 'الرصيد'}</TableHead>
-                                <TableHead className="text-xs font-bold h-9">{t('description') || 'البيان'}</TableHead>
-                                <TableHead className="text-xs font-bold w-24 h-9">{t('reference') || 'المرجع'}</TableHead>
-                                <TableHead className="text-xs font-bold w-24 h-9">{t('date') || 'التاريخ'}</TableHead>
-                                <TableHead className="text-xs font-bold w-24 h-9">{t('costCenter') || 'مركز التكلفة'}</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {/* Opening Balance Row */}
-                            {openingBalance !== 0 && (
-                                <TableRow className="bg-blue-50/30 dark:bg-blue-900/10 hover:bg-blue-50/50">
-                                    <TableCell colSpan={3} className="p-0 border-none" />
-                                    <TableCell className="text-xs font-mono text-end font-bold py-2 text-blue-800 dark:text-blue-300">
-                                        {formatNumber(openingBalance, useArabicNumerals)}
-                                    </TableCell>
-                                    <TableCell colSpan={4} className="text-xs font-medium py-2 text-blue-800 dark:text-blue-300 px-4">
-                                        {t('accounting.openingBalance') || 'الرصيد الافتتاحي'}
-                                    </TableCell>
-                                </TableRow>
-                            )}
-
-                            {/* Entries */}
-                            {filteredEntries.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="text-center text-gray-500 py-12">
-                                        <div className="flex flex-col items-center justify-center gap-2">
-                                            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                                                <FileText className="w-6 h-6 text-gray-400" />
-                                            </div>
-                                            <p className="text-sm font-medium">{t('messages.noTransactions') || 'لا توجد حركات'}</p>
-                                            <p className="text-xs text-gray-400">{t('messages.tryAdjustingFilters') || 'جرب تغيير الفلاتر'}</p>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredEntries.map((entry, index) => (
-                                    <TableRow
+            {/* Table Container */}
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                {viewMode === 'nexa' ? (
+                    /* NexaDataTable View */
+                    <div className="flex-1 overflow-hidden">
+                        <NexaDataTable
+                            data={filteredEntries}
+                            columns={columns}
+                            isRTL={isRTL}
+                            pageSize={15}
+                            searchPlaceholder={t('accounting.searchTransactions') || 'بحث في الحركات...'}
+                            emptyMessage={t('messages.noTransactions') || 'لا توجد حركات'}
+                            enableColumnResizing={true}
+                            enableColumnReordering={true}
+                            enablePagination={true}
+                            enableSearch={true}
+                            onRowClick={(row) => onEntryOpen?.(row)}
+                        />
+                    </div>
+                ) : (
+                    /* Classic Table View - Keep existing simple table for comparison */
+                    <div className="flex-1 overflow-auto border rounded-lg bg-white dark:bg-gray-900">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                                <tr>
+                                    <th className="p-2 text-center w-12">{t('serial') || 'م'}</th>
+                                    <th className="p-2 text-end w-24">{t('debit') || 'مدين'}</th>
+                                    <th className="p-2 text-end w-24">{t('credit') || 'دائن'}</th>
+                                    <th className="p-2 text-end w-28">{t('balance') || 'الرصيد'}</th>
+                                    <th className="p-2">{t('description') || 'البيان'}</th>
+                                    <th className="p-2 w-24">{t('reference') || 'المرجع'}</th>
+                                    <th className="p-2 w-24">{t('date') || 'التاريخ'}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredEntries.map((entry, index) => (
+                                    <tr
                                         key={entry.id || index}
-                                        tabIndex={0}
-                                        role="button"
-                                        className={cn(
-                                            "group hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors border-b-0 focus:outline-none focus:bg-blue-50 dark:focus:bg-blue-900/20",
-                                            entry.status === 'cancelled' && "opacity-50 line-through bg-red-50/30",
-                                            index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/30 dark:bg-gray-800/30"
-                                        )}
+                                        className="border-b hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                                         onClick={() => onEntryOpen?.(entry)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                                e.preventDefault();
-                                                onEntryOpen?.(entry);
-                                            }
-                                        }}
                                     >
-                                        {/* Serial */}
-                                        <TableCell className="text-xs text-center text-gray-400 py-1.5 align-top">
-                                            {useArabicNumerals ? (index + 1).toLocaleString('ar-SA') : (index + 1)}
-                                        </TableCell>
-
-                                        {/* Debit */}
-                                        <TableCell className="text-xs font-mono text-end py-1.5 align-top">
-                                            {entry.debit > 0 ? (
-                                                <span className="text-gray-600 dark:text-gray-300">
-                                                    {formatNumber(entry.debit, useArabicNumerals)}
-                                                </span>
-                                            ) : '-'}
-                                        </TableCell>
-
-                                        {/* Credit */}
-                                        <TableCell className="text-xs font-mono text-end py-1.5 align-top">
-                                            {entry.credit > 0 ? (
-                                                <span className="text-gray-600 dark:text-gray-300">
-                                                    {formatNumber(entry.credit, useArabicNumerals)}
-                                                </span>
-                                            ) : '-'}
-                                        </TableCell>
-
-                                        {/* Balance */}
-                                        <TableCell className={cn(
-                                            "text-xs font-mono text-end font-medium py-1.5 align-top bg-gray-50/30 dark:bg-gray-800/30",
-                                            entry.balance < 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white"
-                                        )}>
+                                        <td className="p-2 text-center text-gray-400">{index + 1}</td>
+                                        <td className="p-2 text-end font-mono">{entry.debit > 0 ? formatNumber(entry.debit, useArabicNumerals) : '-'}</td>
+                                        <td className="p-2 text-end font-mono">{entry.credit > 0 ? formatNumber(entry.credit, useArabicNumerals) : '-'}</td>
+                                        <td className={cn("p-2 text-end font-mono font-medium", entry.balance < 0 && "text-red-600")}>
                                             {formatNumber(entry.balance, useArabicNumerals)}
-                                        </TableCell>
+                                        </td>
+                                        <td className="p-2 truncate max-w-[200px]">{entry.description || '-'}</td>
+                                        <td className="p-2 text-blue-600 font-mono text-xs">{entry.entry_number || '-'}</td>
+                                        <td className="p-2 font-mono text-xs">{formatDate(entry.date, useArabicNumerals, 'short')}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
 
-                                        {/* Description */}
-                                        <TableCell className="text-xs max-w-[200px] py-1.5 align-top">
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="truncate font-medium text-gray-700 dark:text-gray-200" title={entry.description}>
-                                                    {entry.description || '-'}
-                                                </span>
-                                                {entry.status && entry.status !== 'posted' && (
-                                                    <div className="flex">
-                                                        {getStatusBadge(entry.status)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </TableCell>
+            {/* FIXED TOTALS FOOTER */}
+            <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-sm p-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 mt-2 rounded-lg">
+                <div className="flex items-center justify-between">
+                    {/* Info Badge */}
+                    {viewMode === 'nexa' && (
+                        <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                                ✨ {t('messages.dragColumns') || 'اسحب الأعمدة لإعادة الترتيب'}
+                            </Badge>
+                        </div>
+                    )}
 
-                                        {/* Reference */}
-                                        <TableCell className="text-xs py-1.5 align-top">
-                                            <div className="flex items-center gap-1 group/ref">
-                                                <span className="text-blue-600 dark:text-blue-400 hover:underline font-mono text-[11px] truncate max-w-[90px] block" title={entry.entry_number || entry.reference}>
-                                                    {entry.entry_number || entry.reference || '-'}
-                                                </span>
-                                            </div>
-                                        </TableCell>
+                    {/* Right Side: Totals Breakdown */}
+                    <div className="flex items-center gap-6 flex-1 justify-end">
+                        {/* Opening (Hidden on small screens if needed) */}
+                        {openingBalance !== 0 && (
+                            <div className="flex flex-col items-end hidden sm:flex">
+                                <span className="text-[10px] text-gray-500 font-medium">{t('accounting.openingBalance') || 'الرصيد الافتتاحي'}</span>
+                                <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
+                                    {formatNumber(openingBalance, useArabicNumerals)}
+                                </span>
+                            </div>
+                        )}
 
-                                        {/* Date */}
-                                        <TableCell className="text-xs font-mono whitespace-nowrap py-1.5 align-top text-gray-600">
-                                            {formatDate(entry.date, useArabicNumerals, 'short')}
-                                        </TableCell>
+                        {/* Separator */}
+                        <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block" />
 
-                                        {/* Cost Center */}
-                                        <TableCell className="text-xs text-gray-500 py-1.5 align-top truncate max-w-[100px]" title={entry.cost_center}>
-                                            {entry.cost_center || '-'}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-
-                {/* FIXED TOTALS FOOTER - No sticky, part of flex layout */}
-                <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-sm p-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-                    <div className="flex items-center justify-between">
-                        {/* Right Side: Totals Breakdown */}
-                        <div className="flex items-center gap-6 flex-1 justify-end">
-                            {/* Opening (Hidden on small screens if needed) */}
-                            {openingBalance !== 0 && (
-                                <div className="flex flex-col items-end hidden sm:flex">
-                                    <span className="text-[10px] text-gray-500 font-medium">{t('accounting.openingBalance') || 'الرصيد الافتتاحي'}</span>
-                                    <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
-                                        {formatNumber(openingBalance, useArabicNumerals)}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Separator */}
-                            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block" />
-
-                            {/* Totals Group */}
-                            <div className="flex items-center gap-4">
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] text-gray-500 font-medium">{t('totalDebit') || 'مجموع المدين'}</span>
-                                    <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400">
-                                        {formatNumber(filteredTotals.debit, useArabicNumerals)}
-                                    </span>
-                                </div>
-
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] text-gray-500 font-medium">{t('totalCredit') || 'مجموع الدائن'}</span>
-                                    <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400">
-                                        {formatNumber(filteredTotals.credit, useArabicNumerals)}
-                                    </span>
-                                </div>
+                        {/* Totals Group */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] text-gray-500 font-medium">{t('totalDebit') || 'مجموع المدين'}</span>
+                                <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400">
+                                    {formatNumber(filteredTotals.debit, useArabicNumerals)}
+                                </span>
                             </div>
 
-                            {/* Closing Balance Card */}
-                            <div className={cn(
-                                "flex flex-col items-end px-3 py-1.5 rounded-lg shadow-sm min-w-[120px]",
-                                currentBalance >= 0
-                                    ? "bg-gradient-to-br from-erp-navy/90 to-erp-navy text-white"
-                                    : "bg-gradient-to-br from-red-600 to-red-700 text-white"
-                            )}>
-                                <span className="text-[10px] opacity-80 font-medium mb-0.5">{t('currentBalance') || 'الرصيد الحالي'}</span>
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-lg font-bold font-mono tracking-tight">
-                                        {formatNumber(Math.abs(currentBalance), useArabicNumerals)}
-                                    </span>
-                                    <span className="text-[10px] opacity-80">{currency}</span>
-                                </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] text-gray-500 font-medium">{t('totalCredit') || 'مجموع الدائن'}</span>
+                                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400">
+                                    {formatNumber(filteredTotals.credit, useArabicNumerals)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Closing Balance Card */}
+                        <div className={cn(
+                            "flex flex-col items-end px-3 py-1.5 rounded-lg shadow-sm min-w-[120px]",
+                            currentBalance >= 0
+                                ? "bg-gradient-to-br from-erp-navy/90 to-erp-navy text-white"
+                                : "bg-gradient-to-br from-red-600 to-red-700 text-white"
+                        )}>
+                            <span className="text-[10px] opacity-80 font-medium mb-0.5">{t('currentBalance') || 'الرصيد الحالي'}</span>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-lg font-bold font-mono tracking-tight">
+                                    {formatNumber(Math.abs(currentBalance), useArabicNumerals)}
+                                </span>
+                                <span className="text-[10px] opacity-80">{currency}</span>
                             </div>
                         </div>
                     </div>

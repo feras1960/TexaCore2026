@@ -1269,6 +1269,14 @@
         "description": "معالج متعدد الخطوات يظهر بعد التسجيل لإكمال إعداد الحساب (نوع العمل، معلومات الشركة، الإعدادات المالية)",
         "name": "معالج التسجيل"
       },
+      "nexaDataTableDemo": {
+        "name": "🎯 جدول البيانات المتقدم (Demo)",
+        "description": "صفحة اختبار NexaDataTable مع ميزات التعديل المباشر، التنقل بلوحة المفاتيح، والاختصارات المحاسبية"
+      },
+      "accountingSheetsLab": {
+        "name": "🧪 مختبر الشيتات المحاسبية",
+        "description": "اختبار قيود اليومية والكشوفات المحاسبية مع NexaDataTable والميزات المتقدمة"
+      },
       "saasDetailSheet": {
         "description": "شيت موحد لجميع كيانات SaaS (Plans, Tenants, Agents, Modules) - مع 6 تبويبات للباقات",
         "name": "شيت SaaS الموحد (Production)"
@@ -2905,7 +2913,8 @@
     "sortDesc": "ترتيب تنازلي",
     "status": "الحالة",
     "toggleColumns": "إظهار/إخفاء الأعمدة",
-    "totals": "المجاميع"
+    "totals": "المجاميع",
+    "markerHint": "اضغط على الرقم التسلسلي لتعليم/إزالة التعليم"
   },
   "tabs": {
     "accountStatement": "كشف الحساب",
@@ -3403,6 +3412,14 @@
         "import": "استيراد من Excel بـ 9 لغات"
       }
     },
+    "group": {
+      "title": "مجموعة المواد",
+      "subtitle": "تفاصيل مجموعة المواد",
+      "deleteConfirm": "هل أنت متأكد من حذف هذه المجموعة؟ سيتم فصل جميع المواد والمجموعات الفرعية.",
+      "tabs": {
+        "info": "المعلومات الأساسية"
+      }
+    },
     "material": {
       "title": "المادة",
       "subtitle": "تفاصيل المادة",
@@ -3429,13 +3446,19 @@
         "sales": "المبيعات",
         "purchases": "المشتريات",
         "analytics": "تحليلات الذكاء",
-        "activity": "السجل"
+        "activity": "السجل",
+        "images": "الصور",
+        "rolls": "الرولونات",
+        "basicInfo": "المعلومات الأساسية",
+        "specs": "المواصفات",
+        "additionalInfo": "معلومات إضافية"
       },
       "stats": {
         "totalStock": "إجمالي المخزون",
         "availableStock": "المخزون المتاح",
         "reservedStock": "المخزون المحجوز",
-        "avgPrice": "متوسط السعر"
+        "avgPrice": "متوسط السعر",
+        "rollsCount": "عدد الرولونات"
       }
     },
     "itemsCount": "عدد الأصناف",

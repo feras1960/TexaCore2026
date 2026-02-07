@@ -22,6 +22,14 @@ import {
     Paperclip,
     Info,
     List,
+    Image,
+    Database,
+    TrendingUp,
+    Ruler,
+    Layers,
+    Package,
+    ShoppingCart,
+    Truck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TabConfig, SheetMode } from '../types';
@@ -42,6 +50,15 @@ const tabIconMap: Record<string, any> = {
     Paperclip,
     Info,
     List,
+    Image,
+    Cylinder: Database,  // Cylinder not in lucide, use Database as visual fallback
+    Database,
+    TrendingUp,
+    Ruler,
+    Layers,
+    Package,
+    ShoppingCart,
+    Truck,
 };
 
 interface SheetTabsProps {
@@ -118,14 +135,14 @@ export function SheetTabs({
         <Tabs
             value={activeTab}
             onValueChange={onTabChange}
-            className={cn("w-full", className)}
+            className={cn("w-full flex flex-col h-full", className)}
             dir={direction}
         >
-            {/* Tabs Header */}
-            <div className="border-b bg-white dark:bg-gray-900 px-4 sticky top-0 z-10">
+            {/* Tabs Header - Fixed (shrink-0) */}
+            <div className="border-b bg-white dark:bg-gray-900 px-4 shrink-0 z-10">
                 <ScrollArea className="w-full" dir={direction}>
                     <TabsList className={cn(
-                        "inline-flex h-11 w-auto min-w-full justify-start gap-1",
+                        "inline-flex h-11 w-full gap-1 !justify-start",
                         getTabsListClass()
                     )}>
                         {visibleTabs.map((tab) => {
@@ -156,8 +173,10 @@ export function SheetTabs({
                 </ScrollArea>
             </div>
 
-            {/* Tab Content */}
-            {children}
+            {/* Tab Content - Scrollable (flex-1) */}
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                {children}
+            </div>
         </Tabs>
     );
 }

@@ -36,7 +36,8 @@ import {
 } from 'lucide-react';
 import NewJournalEntrySheet from './components/NewJournalEntrySheet';
 import AutomaticEntriesTab from './components/AutomaticEntriesTab';
-import { NexaTable } from '@/components/shared/tables/NexaTable';
+import { NexaDataTable } from '@/components/ui/nexa-data-table';
+import { ColumnDef } from '@tanstack/react-table';
 import { ImportWizard } from '@/features/import';
 import {
   DropdownMenu,
@@ -117,11 +118,8 @@ export default function JournalEntries() {
     origin: 'all',
     entryNumber: '',
     reference: '',
-    dateRange: {
-      from: startOfWeek(new Date(), { weekStartsOn: 6 }), // Start from Saturday
-      to: new Date()
-    },
-    datePreset: 'thisWeek' // Default to This Week for performance
+    dateRange: undefined, // No date filter by default - show all entries
+    datePreset: 'all' // Default to All entries
   });
 
 
@@ -277,32 +275,40 @@ export default function JournalEntries() {
           setEntries([]);
         } else {
           // Transform data to match the expected format
-          const transformedEntries = (data || []).map((entry: any) => ({
-            id: entry.id,
-            voucherNo: entry.entry_number || entry.id,
-            date: entry.entry_date,
-            reference: entry.reference || '',
-            description: entry.description || '',
-            amount: Number(entry.total_debit || 0) || Number(entry.total_credit || 0) || 0,
-            status: entry.status,
-            createdBy: entry.created_by || '',
-            type: entry.entry_type || 'manual',
-            origin: 'manual',
-            marker_color: entry.marker_color || null, // Load marker_color from database
-            lines: (entry.lines || []).map((line: any) => ({
-              id: line.id,
-              account_id: line.account_id,
-              account: line.account
-                ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
-                : '-',
-              account_code: line.account?.account_code || '',
-              account_name: language === 'ar' ? line.account?.name_ar : line.account?.name_en || '',
-              description: line.description || '',
-              debit: Number(line.debit || 0),
-              credit: Number(line.credit || 0),
-              product: null,
-            })),
-          }));
+          const transformedEntries = (data || []).map((entry: any) => {
+            // Calculate totals from lines if not stored on entry
+            const linesDebit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.debit || 0), 0);
+            const linesCredit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.credit || 0), 0);
+
+            return {
+              id: entry.id,
+              voucherNo: entry.entry_number || entry.id,
+              date: entry.entry_date,
+              reference: entry.reference || '',
+              description: entry.description || '',
+              totalDebit: Number(entry.total_debit) || linesDebit || 0,
+              totalCredit: Number(entry.total_credit) || linesCredit || 0,
+              costCenter: entry.cost_center_id || null,
+              status: entry.status,
+              createdBy: entry.created_by || '',
+              type: entry.entry_type || 'manual',
+              origin: 'manual',
+              marker_color: entry.marker_color || null,
+              lines: (entry.lines || []).map((line: any) => ({
+                id: line.id,
+                account_id: line.account_id,
+                account: line.account
+                  ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
+                  : '-',
+                account_code: line.account?.account_code || '',
+                account_name: language === 'ar' ? line.account?.name_ar : line.account?.name_en || '',
+                description: line.description || '',
+                debit: Number(line.debit || 0),
+                credit: Number(line.credit || 0),
+                product: null,
+              })),
+            };
+          });
           setEntries(transformedEntries);
 
           // Initialize markedEntries from database marker_color
@@ -368,8 +374,8 @@ export default function JournalEntries() {
 
   // Calculate Totals
   const totals = useMemo(() => {
-    const totalDebit = filteredAndSortedData.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
-    const totalCredit = filteredAndSortedData.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0); // Assuming balanced entries for now
+    const totalDebit = filteredAndSortedData.reduce((sum, entry) => sum + (Number(entry.totalDebit) || 0), 0);
+    const totalCredit = filteredAndSortedData.reduce((sum, entry) => sum + (Number(entry.totalCredit) || 0), 0);
     const postedCount = filteredAndSortedData.filter(e => e.status === 'posted').length;
     const draftCount = filteredAndSortedData.filter(e => e.status === 'draft').length;
     const pendingCount = filteredAndSortedData.filter(e => e.status === 'pending').length;
@@ -408,7 +414,7 @@ export default function JournalEntries() {
       filters.origin !== 'all' ||
       filters.entryNumber !== '' ||
       filters.reference !== '' ||
-      filters.datePreset !== 'thisWeek' // Default
+      filters.datePreset !== 'all' // Default
     );
   }, [filters]);
 
@@ -614,146 +620,169 @@ export default function JournalEntries() {
             </Card>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-            <NexaTable
+          <div className="bg-white dark:bg-slate-900 shadow-sm overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+            <NexaDataTable
               data={filteredAndSortedData}
-              columns={[
-                {
-                  key: 'marker',
-                  title: language === 'ar' ? 'تعليم' : 'Mark',
-                  width: '60px',
-                  align: 'center',
-                  render: (_, row) => (
-                    <Checkbox
-                      checked={!!markedEntries[row.id]}
-                      onCheckedChange={() => toggleMarker(row.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className={cn(
-                        "w-4 h-4",
-                        markedEntries[row.id] && "border-2"
-                      )}
-                      style={{
-                        borderColor: markedEntries[row.id]
-                          ? MARKER_COLORS.find(c => c.id === markedEntries[row.id])?.color
-                          : undefined,
-                        backgroundColor: markedEntries[row.id]
-                          ? MARKER_COLORS.find(c => c.id === markedEntries[row.id])?.color
-                          : undefined,
-                      }}
-                    />
+              columns={(() => {
+                // Define all columns
+                const debitCol = {
+                  accessorKey: 'totalDebit',
+                  header: language === 'ar' ? 'المدين' : 'Debit',
+                  size: 120,
+                  cell: ({ getValue }: any) => (
+                    <span className="font-mono font-bold text-green-600">{formatCurrency(Number(getValue()) || 0)}</span>
                   )
-                },
-                {
-                  key: 'type',
-                  title: language === 'ar' ? 'النوع' : 'Type',
-                  width: '120px',
-                  align: 'center',
-                  render: (_, row) => (
-                    <Badge variant="outline" className={cn("font-medium border shadow-sm", getTypeStyle(row.type))}>
-                      {entryTypes.find(t => t.value === row.type)?.label || row.type}
-                    </Badge>
+                };
+
+                const creditCol = {
+                  accessorKey: 'totalCredit',
+                  header: language === 'ar' ? 'الدائن' : 'Credit',
+                  size: 120,
+                  cell: ({ getValue }: any) => (
+                    <span className="font-mono font-bold text-red-600">{formatCurrency(Number(getValue()) || 0)}</span>
                   )
-                },
-                {
-                  key: 'voucherNo',
-                  title: language === 'ar' ? 'رقم القيد' : 'Entry #',
-                  width: '100px',
-                  align: 'start',
-                  render: (val) => <span className="font-mono font-medium">{val}</span>
-                },
-                {
-                  key: 'date',
-                  title: t('date'),
-                  width: '100px',
-                  align: 'center',
-                  render: (val) => <span className="text-slate-600 dark:text-slate-400">{format(new Date(val), 'dd/MM/yyyy')}</span>
-                },
-                {
-                  key: 'description',
-                  title: t('accounting.description'),
-                  align: 'start',
-                  render: (_, row) => (
-                    <div className="max-w-[300px] truncate" title={row.description}>
-                      {row.description}
-                      {row.lines?.length > 0 && (
+                };
+
+                const descriptionCol = {
+                  accessorKey: 'description',
+                  header: language === 'ar' ? 'البيان' : 'Description',
+                  size: 250,
+                  cell: ({ row }: any) => (
+                    <div className="max-w-[250px] truncate" title={row.original.description}>
+                      {row.original.description}
+                      {row.original.lines?.length > 0 && (
                         <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                          {row.lines[0].account_name} {row.lines.length > 1 ? `+ ${row.lines.length - 1} ${language === 'ar' ? 'آخرين' : 'more'}` : ''}
+                          {row.original.lines[0].account_name} {row.original.lines.length > 1 ? `+ ${row.original.lines.length - 1} ${language === 'ar' ? 'آخرين' : 'more'}` : ''}
                         </div>
                       )}
                     </div>
                   )
-                },
-                {
-                  key: 'status',
-                  title: t('status'),
-                  width: '100px',
-                  align: 'center',
-                  render: (val) => getStatusBadge(val)
-                },
-                {
-                  key: 'amount',
-                  title: t('accounting.amount'),
-                  width: '140px',
-                  align: 'end',
-                  render: (val) => <span className="font-bold">{formatCurrency(Number(val))}</span>
-                },
-                {
-                  key: 'actions',
-                  title: '',
-                  width: '60px',
-                  align: 'center',
-                  render: (_, row) => (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-erp-navy hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); handleViewDetails(row); }}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                  )
-                }
-              ]}
-              showRowNumbers={false}
-              bordered
-              striped
-              loading={loading}
-              emptyMessage={language === 'ar' ? 'لا توجد قيود مطابقة' : 'No matching entries'}
-              rowStyle={(row) => {
-                const bgColor = getMarkerBg(row.id);
-                return bgColor ? { backgroundColor: bgColor } : undefined;
-              }}
-              onRowClick={(row) => handleViewDetails(row)}
-            />
-          </div>
+                };
 
-          {/* Fixed Footer with Totals - Aligned to columns */}
-          <div className="shrink-0 border-t-2 border-erp-navy bg-erp-navy text-white">
-            <div className="grid grid-cols-[40px_100px_100px_80px_minmax(180px,1fr)_60px_100px_90px] gap-0 py-2">
-              <div className="text-center border-l border-gray-600 px-2">
-                <span className="font-mono font-bold text-sm">{Object.keys(markedEntries).length}</span>
-              </div>
-              <div className="text-center border-l border-gray-600 px-2">
-                <span className="font-mono font-bold text-green-300">{totals.totalDebit.toLocaleString()}</span>
-              </div>
-              <div className="text-center border-l border-gray-600 px-2">
-                <span className="font-mono font-bold text-rose-300">{totals.totalCredit.toLocaleString()}</span>
-              </div>
-              <div className="border-l border-gray-600 px-2"></div>
-              <div className="border-l border-gray-600 px-3">
-                <span className="text-xs text-gray-400">
-                  {language === 'ar'
-                    ? `${totals.postedCount} مرحّل • ${totals.draftCount} مسودة • ${totals.pendingCount} معلّق`
-                    : `${totals.postedCount} posted • ${totals.draftCount} draft • ${totals.pendingCount} pending`
+                const dateCol = {
+                  accessorKey: 'date',
+                  header: language === 'ar' ? 'التاريخ' : 'Date',
+                  size: 100,
+                  cell: ({ getValue }: any) => (
+                    <span className="text-slate-600 dark:text-slate-400">{format(new Date(getValue() as string), 'dd/MM/yyyy')}</span>
+                  )
+                };
+
+                const typeCol = {
+                  accessorKey: 'type',
+                  header: language === 'ar' ? 'النوع' : 'Type',
+                  size: 110,
+                  cell: ({ row }: any) => (
+                    <Badge variant="outline" className={cn("font-medium border shadow-sm text-xs", getTypeStyle(row.original.type))}>
+                      {entryTypes.find(t => t.value === row.original.type)?.label || row.original.type}
+                    </Badge>
+                  )
+                };
+
+                const voucherNoCol = {
+                  accessorKey: 'voucherNo',
+                  header: language === 'ar' ? 'رقم القيد' : 'Entry #',
+                  size: 90,
+                  cell: ({ getValue }: any) => <span className="font-mono font-medium">{getValue() as string}</span>
+                };
+
+                const statusCol = {
+                  accessorKey: 'status',
+                  header: language === 'ar' ? 'الحالة' : 'Status',
+                  size: 90,
+                  cell: ({ getValue }: any) => getStatusBadge(getValue() as string)
+                };
+
+                const costCenterCol = {
+                  accessorKey: 'costCenter',
+                  header: language === 'ar' ? 'م.التكلفة' : 'Cost Ctr',
+                  size: 80,
+                  enableHiding: true, // Can be hidden by user
+                  cell: ({ getValue }: any) => (
+                    <span className="text-xs text-slate-500">{getValue() ? getValue() : '-'}</span>
+                  )
+                };
+
+                // Optional/Hideable columns
+                const referenceCol = {
+                  accessorKey: 'reference',
+                  header: language === 'ar' ? 'المرجع' : 'Reference',
+                  size: 100,
+                  enableHiding: true,
+                  cell: ({ getValue }: any) => (
+                    <span className="text-xs text-slate-600 font-mono">{getValue() || '-'}</span>
+                  )
+                };
+
+                const createdByCol = {
+                  accessorKey: 'createdBy',
+                  header: language === 'ar' ? 'المنشئ' : 'Created By',
+                  size: 100,
+                  enableHiding: true,
+                  cell: ({ getValue }: any) => (
+                    <span className="text-xs text-slate-500">{getValue() || '-'}</span>
+                  )
+                };
+
+                const originCol = {
+                  accessorKey: 'origin',
+                  header: language === 'ar' ? 'الأصل' : 'Origin',
+                  size: 80,
+                  enableHiding: true,
+                  cell: ({ getValue }: any) => (
+                    <Badge variant="outline" className="text-[10px]">
+                      {getValue() === 'manual' ? (language === 'ar' ? 'يدوي' : 'Manual') : (language === 'ar' ? 'تلقائي' : 'Auto')}
+                    </Badge>
+                  )
+                };
+
+                // RTL order (Arabic): # → Debit → Credit → Description → Date → Type → Entry# → Status → CostCenter → [Hideable: Reference, CreatedBy, Origin]
+                // LTR order (English): [Hideable: Origin, CreatedBy, Reference] → CostCenter → Status → Entry# → Type → Date → Description → Credit → Debit → #
+                const rtlColumns = [debitCol, creditCol, descriptionCol, dateCol, typeCol, voucherNoCol, statusCol, costCenterCol, referenceCol, createdByCol, originCol];
+                const ltrColumns = [originCol, createdByCol, referenceCol, costCenterCol, statusCol, voucherNoCol, typeCol, dateCol, descriptionCol, creditCol, debitCol];
+
+                return (direction === 'rtl' ? rtlColumns : ltrColumns);
+              })() as ColumnDef<any>[]}
+              isRTL={direction === 'rtl'}
+              enableMarker={true}
+              enableSequenceNumber={true}
+              enableColumnResizing={true}
+              enableColumnVisibility={true}
+              persistKey="journal-entries-table"
+              enableSearch={false}
+              enableExport={true}
+              enablePagination={false}
+              enableExcelMode={true}
+              maxHeight="calc(100vh - 400px)"
+              showTotalsFooter={true}
+              debitKey="totalDebit"
+              creditKey="totalCredit"
+              emptyMessage={language === 'ar' ? 'لا توجد قيود مطابقة' : 'No matching entries'}
+              onRowClick={(row) => handleViewDetails(row)}
+              getRowId={(row) => row.id}
+              getRowMarker={(row) => markedEntries[row.id]}
+              onMarkerChange={(rowId, color) => {
+                setMarkedEntries(prev => {
+                  if (color) {
+                    return { ...prev, [rowId]: color };
+                  } else {
+                    const newMarked = { ...prev };
+                    delete newMarked[rowId];
+                    return newMarked;
                   }
-                </span>
-              </div>
-              <div className="border-l border-gray-600 px-2"></div>
-              <div className="border-l border-gray-600 px-2">
-                <span className="text-[10px] text-gray-300">{language === 'ar' ? 'عدد:' : 'Count:'}</span>
-                <span className="font-mono font-bold text-sm mr-1">{filteredAndSortedData.length}</span>
-              </div>
-              <div className="px-2">
-                <span className={`font-mono font-bold text-sm ${totals.totalDebit === totals.totalCredit ? 'text-green-300' : 'text-amber-300'}`}>
-                  {totals.totalDebit === totals.totalCredit ? '✓' : (totals.totalDebit - totals.totalCredit).toLocaleString()}
-                </span>
-              </div>
-            </div>
+                });
+                // Save to database
+                supabase
+                  .from('journal_entries')
+                  .update({ marker_color: color || null })
+                  .eq('id', rowId)
+                  .then(({ error }) => {
+                    if (error) console.error('Error saving marker:', error);
+                  });
+              }}
+              exportTitle={language === 'ar' ? 'القيود اليومية' : 'Journal Entries'}
+              exportFilename={`journal-entries-${format(new Date(), 'yyyy-MM-dd')}`}
+            />
           </div>
         </TabsContent>
 

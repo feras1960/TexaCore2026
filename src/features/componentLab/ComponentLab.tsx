@@ -1242,6 +1242,25 @@ export default function ComponentLab() {
       status: 'ready',
       path: 'src/features/auth/RegistrationWizard.tsx',
     },
+    // === Demo Pages (Quick Access) ===
+    {
+      id: 'nexa-data-table-demo',
+      nameKey: 'componentLab.popups.nexaDataTableDemo.name',
+      descriptionKey: 'componentLab.popups.nexaDataTableDemo.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/pages/NexaDataTableDemo.tsx',
+      route: '/nexa-table',
+    },
+    {
+      id: 'accounting-sheets-lab',
+      nameKey: 'componentLab.popups.accountingSheetsLab.name',
+      descriptionKey: 'componentLab.popups.accountingSheetsLab.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/features/componentLab/AccountingSheetsLab.tsx',
+      route: '/sheets-lab',
+    },
   ];
 
   const columns: Column<PopupRegistry>[] = [

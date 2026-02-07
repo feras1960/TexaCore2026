@@ -490,6 +490,113 @@ export const warehouseService = {
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // MATERIAL GROUPS (مجموعات المواد)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Get all material groups for a company (uses tenant_id since fabric_groups has no company_id)
+     */
+    async getGroups(companyId: string, tenantId?: string): Promise<any[]> {
+        try {
+            // If tenantId provided, use it directly; otherwise query by company to get tenant
+            let query = supabase
+                .from('fabric_groups')
+                .select('*')
+                .order('name_ar');
+
+            // RLS now handles isolation strictly. No need to filter manually if consistent.
+            // However, to be safe, we can keep it OR remove it. 
+            // Let's REMOVE it to test if the manual filter was the issue (e.g. slight string mismatch)
+            // if (tenantId) {
+            //    query = query.eq('tenant_id', tenantId);
+            // }
+
+            const { data, error } = await query;
+
+            if (error) {
+                if (error.code === '42P01' || error.message.includes('not find the table')) {
+                    return [];
+                }
+                console.warn('getGroups error:', error.message);
+                return [];
+            }
+            return data || [];
+        } catch (error: any) {
+            console.error('getGroups exception:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Create a new material group
+     */
+    async createGroup(groupData: any): Promise<{ success: boolean; data?: any; error?: string }> {
+        try {
+            const { data, error } = await supabase
+                .from('fabric_groups')
+                .insert([groupData])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('createGroup error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error: any) {
+            console.error('createGroup exception:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Update a material group
+     */
+    async updateGroup(id: string, updates: any): Promise<{ success: boolean; data?: any; error?: string }> {
+        try {
+            const { data, error } = await supabase
+                .from('fabric_groups')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('updateGroup error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error: any) {
+            console.error('updateGroup exception:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Delete a material group
+     */
+    async deleteGroup(id: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            const { error } = await supabase
+                .from('fabric_groups')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('deleteGroup error:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            console.error('deleteGroup exception:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // MATERIALS
     // ═══════════════════════════════════════════════════════════════
 

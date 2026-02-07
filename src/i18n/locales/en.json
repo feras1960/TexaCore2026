@@ -1226,6 +1226,14 @@
       "registrationWizard": {
         "description": "Multi-step wizard shown after registration to complete account setup (business type, company info, financial settings)",
         "name": "Registration Wizard"
+      },
+      "nexaDataTableDemo": {
+        "name": "🎯 NexaDataTable Demo",
+        "description": "Test page for NexaDataTable with inline editing, keyboard navigation, and accounting shortcuts"
+      },
+      "accountingSheetsLab": {
+        "name": "🧪 Accounting Sheets Lab",
+        "description": "Test journal entries and accounting sheets with NexaDataTable and advanced features"
       }
     },
     "preview": {
@@ -2817,7 +2825,8 @@
     "sortDesc": "Sort descending",
     "status": "Status",
     "toggleColumns": "Toggle columns",
-    "totals": "Totals"
+    "totals": "Totals",
+    "markerHint": "Click sequence number to toggle mark"
   },
   "tabs": {
     "accountStatement": "Account Statement",
@@ -3208,6 +3217,14 @@
       "van": "Distribution Van"
     },
     "types.main": "Main",
+    "group": {
+      "title": "Material Group",
+      "subtitle": "Material Group Details",
+      "deleteConfirm": "Are you sure you want to delete this group? All child materials and sub-groups will be detached.",
+      "tabs": {
+        "info": "Basic Information"
+      }
+    },
     "material": {
       "title": "Material",
       "subtitle": "Material Details",
@@ -3222,7 +3239,19 @@
         "sales": "Sales",
         "purchases": "Purchases",
         "analytics": "Analytics",
-        "activity": "Activity"
+        "activity": "Activity",
+        "images": "Images",
+        "rolls": "Rolls",
+        "basicInfo": "Basic Info",
+        "specs": "Specifications",
+        "additionalInfo": "Additional Info"
+      },
+      "stats": {
+        "totalStock": "Total Stock",
+        "availableStock": "Available Stock",
+        "reservedStock": "Reserved Stock",
+        "avgPrice": "Avg Price",
+        "rollsCount": "Rolls Count"
       }
     }
   },

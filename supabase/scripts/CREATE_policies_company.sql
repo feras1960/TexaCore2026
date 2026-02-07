@@ -411,16 +411,19 @@ DO $$
 DECLARE
     v_table TEXT;
     v_tables TEXT[] := ARRAY[
+        'fabric_groups',
         'fabric_rolls',
         'fabric_colors',
         'fabric_materials',
+        'fabric_material_colors',
         'fabric_transactions',
         'cutting_orders',
         'cutting_order_items',
         'sample_cuttings',
         'sample_cutting_items',
         'production_orders',
-        'production_order_items'
+        'production_order_items',
+        'warehouse_settings'
     ];
 BEGIN
     FOREACH v_table IN ARRAY v_tables
