@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -643,12 +643,12 @@ export function UnifiedAccountingSheet({
             >
                 <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
                     {/* Accessibility requirements */}
-                    <SheetHeader className="sr-only">
+                    <UiSheetHeader className="sr-only">
                         <SheetTitle>{t(config.titleKey)}</SheetTitle>
                         <SheetDescription>
                             {language === 'ar' ? 'نموذج عرض وتعديل البيانات' : 'Data view and edit form'}
                         </SheetDescription>
-                    </SheetHeader>
+                    </UiSheetHeader>
 
                     {/* Loading Overlay */}
                     {loading && (
