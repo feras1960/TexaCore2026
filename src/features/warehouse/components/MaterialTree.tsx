@@ -38,6 +38,7 @@ interface MaterialTreeNode {
     unit?: string;
     description?: string;
     category?: { name_ar: string; name_en?: string };
+    rolls?: { count: number }[]; // count returned from Supabase aggregation
 }
 
 interface MaterialTreeProps {
@@ -401,8 +402,13 @@ export function MaterialTree({
                                                         </div>
                                                     </div>
 
-                                                    <div className="text-sm font-mono text-gray-600 dark:text-gray-400 px-4">
-                                                        {item.current_stock || 0} {item.unit || '-'}
+                                                    <div className="text-sm font-mono text-gray-600 dark:text-gray-400 px-4 flex items-center gap-2">
+                                                        <span>{item.current_stock || 0} {item.unit || '-'}</span>
+                                                        {item.rolls && item.rolls[0]?.count > 0 && (
+                                                            <span className="text-xs text-gray-400 border-s border-gray-300 dark:border-gray-600 ps-2">
+                                                                {item.rolls[0].count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 p-0 h-8 w-8 text-gray-400 hover:text-gray-600">

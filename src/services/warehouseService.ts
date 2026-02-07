@@ -613,7 +613,8 @@ export const warehouseService = {
                 .from('fabric_materials')
                 .select(`
                     *,
-                    group:fabric_groups(id, name_ar, name_en)
+                    group:fabric_groups(id, name_ar, name_en),
+                    rolls:fabric_rolls(count)
                 `)
                 .eq('company_id', companyId)
                 .order('code');
