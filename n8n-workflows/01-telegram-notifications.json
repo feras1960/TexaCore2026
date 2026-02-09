@@ -1,0 +1,310 @@
+و {
+    "name": "TexaCore — ERP Telegram Notifications",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "texacore-erp-events",
+                "responseMode": "onReceived",
+                "responseData": "allEntries",
+                "options": {}
+            },
+            "id": "webhook-trigger",
+            "name": "🔔 ERP Event Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                240,
+                300
+            ],
+            "webhookId": "texacore-erp-events"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "event-type-check",
+                            "leftValue": "={{ $json.body.type }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "isNotEmpty"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "filter-valid",
+            "name": "✅ Filter Valid Events",
+            "type": "n8n-nodes-base.filter",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.type }}",
+                                        "rightValue": "INSERT",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    },
+                                    {
+                                        "leftValue": "={{ $json.body.table }}",
+                                        "rightValue": "journal_entries",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "outputIndex": 0
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.type }}",
+                                        "rightValue": "UPDATE",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    },
+                                    {
+                                        "leftValue": "={{ $json.body.table }}",
+                                        "rightValue": "journal_entries",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    },
+                                    {
+                                        "leftValue": "={{ $json.body.record.status }}",
+                                        "rightValue": "posted",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "outputIndex": 1
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "route-events",
+            "name": "🔀 Route by Event",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "msg-new-entry",
+                            "name": "message",
+                            "value": "=🆕 *قيد محاسبي جديد*\n━━━━━━━━━━━━━━━━━\n📋 *النوع:* {{ $json.body.record.entry_type }}\n🔢 *الرقم:* {{ $json.body.record.entry_number || 'تلقائي' }}\n💰 *المدين:* {{ Number($json.body.record.total_debit || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) }} SAR\n💳 *الدائن:* {{ Number($json.body.record.total_credit || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) }} SAR\n📝 *الوصف:* {{ $json.body.record.description || '—' }}\n📅 *التاريخ:* {{ $json.body.record.entry_date }}\n🔖 *الحالة:* {{ $json.body.record.status }}\n━━━━━━━━━━━━━━━━━\n⏰ {{ new Date().toLocaleString('ar-SA') }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "format-new-entry",
+            "name": "📝 Format New Entry",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                900,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "msg-posted",
+                            "name": "message",
+                            "value": "=✅ *تم ترحيل قيد محاسبي*\n━━━━━━━━━━━━━━━━━\n📋 *النوع:* {{ $json.body.record.entry_type }}\n🔢 *الرقم:* {{ $json.body.record.entry_number }}\n💰 *المبلغ:* {{ Number($json.body.record.total_debit || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) }} SAR\n📝 *الوصف:* {{ $json.body.record.description || '—' }}\n━━━━━━━━━━━━━━━━━\n🟢 تم الترحيل بنجاح\n⏰ {{ new Date().toLocaleString('ar-SA') }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "format-posted",
+            "name": "📝 Format Posted Entry",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                900,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "chatId": "866145826",
+                "text": "={{ $json.message }}",
+                "additionalFields": {
+                    "parse_mode": "Markdown"
+                }
+            },
+            "id": "telegram-send-new",
+            "name": "📨 Send to Telegram (New)",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [
+                1120,
+                200
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "TELEGRAM_CREDENTIAL_ID",
+                    "name": "TexaCore Telegram Bot"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "chatId": "866145826",
+                "text": "={{ $json.message }}",
+                "additionalFields": {
+                    "parse_mode": "Markdown"
+                }
+            },
+            "id": "telegram-send-posted",
+            "name": "📨 Send to Telegram (Posted)",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [
+                1120,
+                400
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "TELEGRAM_CREDENTIAL_ID",
+                    "name": "TexaCore Telegram Bot"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "🔔 ERP Event Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "✅ Filter Valid Events",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "✅ Filter Valid Events": {
+            "main": [
+                [
+                    {
+                        "node": "🔀 Route by Event",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "🔀 Route by Event": {
+            "main": [
+                [
+                    {
+                        "node": "📝 Format New Entry",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "📝 Format Posted Entry",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "📝 Format New Entry": {
+            "main": [
+                [
+                    {
+                        "node": "📨 Send to Telegram (New)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "📝 Format Posted Entry": {
+            "main": [
+                [
+                    {
+                        "node": "📨 Send to Telegram (Posted)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [
+        {
+            "name": "TexaCore ERP",
+            "createdAt": "2026-02-09T00:00:00.000Z",
+            "updatedAt": "2026-02-09T00:00:00.000Z"
+        },
+        {
+            "name": "Notifications",
+            "createdAt": "2026-02-09T00:00:00.000Z",
+            "updatedAt": "2026-02-09T00:00:00.000Z"
+        }
+    ]
+}

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { toast } from 'sonner';
+import { DevLabNav } from '@/features/componentLab/DevLabNav';
 
 // === Types ===
 interface InvoiceLine {
@@ -207,7 +208,7 @@ export default function NexaDataTableDemo() {
 
     return (
         <div className="container mx-auto py-8 px-4" dir={isRTL ? 'rtl' : 'ltr'}>
-            <div className="mb-8">
+            <div className="mb-4">
                 <h1 className="text-3xl font-bold text-primary mb-2">
                     {isRTL ? '🎯 NexaDataTable - جدول البيانات المتقدم' : '🎯 NexaDataTable - Advanced Data Table'}
                 </h1>
@@ -217,6 +218,11 @@ export default function NexaDataTableDemo() {
                         : 'Built on TanStack Table - Try drag & drop, column resize, pagination, sorting, and editing'
                     }
                 </p>
+            </div>
+
+            {/* ─── Lab Sub-Navigation ─── */}
+            <div className="mb-6">
+                <DevLabNav currentLabId="nexa-table" />
             </div>
 
             <Tabs defaultValue="invoice" className="space-y-6">

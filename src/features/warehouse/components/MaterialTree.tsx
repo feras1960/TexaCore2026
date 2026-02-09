@@ -38,7 +38,10 @@ interface MaterialTreeNode {
     unit?: string;
     description?: string;
     category?: { name_ar: string; name_en?: string };
-    rolls?: { count: number }[]; // count returned from Supabase aggregation
+    // Stats from RPC
+    rolls_count?: number;
+    rolls_total_length?: number;
+    loose_stock?: number;
 }
 
 interface MaterialTreeProps {
@@ -402,12 +405,25 @@ export function MaterialTree({
                                                         </div>
                                                     </div>
 
-                                                    <div className="text-sm font-mono text-gray-600 dark:text-gray-400 px-4 flex items-center gap-2">
-                                                        <span>{item.current_stock || 0} {item.unit || '-'}</span>
-                                                        {item.rolls && item.rolls[0]?.count > 0 && (
-                                                            <span className="text-xs text-gray-400 border-s border-gray-300 dark:border-gray-600 ps-2">
-                                                                {item.rolls[0].count} {language === 'ar' ? 'رول' : 'Rolls'}
-                                                            </span>
+                                                    <div className="text-sm font-mono text-gray-600 dark:text-gray-400 px-4 flex flex-col gap-0.5">
+                                                        {/* Total Stock */}
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-bold">{item.current_stock || 0} {item.unit || '-'}</span>
+                                                            <span className="text-[10px] text-gray-400">({language === 'ar' ? 'إجمالي' : 'Total'})</span>
+                                                        </div>
+
+                                                        {/* Roll Breakdown (Only if rolls exist) */}
+                                                        {(item.rolls_count || 0) > 0 && (
+                                                            <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                                                                <span className="bg-blue-50 text-blue-600 px-1 rounded">
+                                                                    {item.rolls_total_length} {item.unit} / {item.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                                                </span>
+                                                                {(item.loose_stock || 0) > 0 && (
+                                                                    <span className="bg-amber-50 text-amber-600 px-1 rounded">
+                                                                        {language === 'ar' ? 'سائب' : 'Loose'}: {item.loose_stock} {item.unit}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
 

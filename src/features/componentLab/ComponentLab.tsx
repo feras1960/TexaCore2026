@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { DevLabNav } from './DevLabNav';
 import { NexaTable, Column } from '@/components/shared/tables/NexaTable';
 // import { NexaGrid, type NexaGridColumn } from '@/components/shared/tables/NexaGrid';
 import { LedgerTable, type LedgerColumn } from '@/components/shared/tables/LedgerTable';
@@ -1261,6 +1262,16 @@ export default function ComponentLab() {
       path: 'src/features/componentLab/AccountingSheetsLab.tsx',
       route: '/sheets-lab',
     },
+    {
+      id: 'nexa-kanban-board',
+      nameKey: 'componentLab.popups.nexaKanbanBoard.name',
+      descriptionKey: 'componentLab.popups.nexaKanbanBoard.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/components/ui/nexa-kanban/NexaKanbanBoard.tsx',
+      route: '/kanban-lab',
+      badge: '✅ Production',
+    },
   ];
 
   const columns: Column<PopupRegistry>[] = [
@@ -1387,6 +1398,9 @@ export default function ComponentLab() {
           </p>
         </div>
       </div>
+
+      {/* ─── Lab Sub-Navigation ─── */}
+      <DevLabNav currentLabId="component-lab" />
 
       {/* Info Card */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

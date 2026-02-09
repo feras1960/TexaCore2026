@@ -18,6 +18,33 @@
     "openingBalance": "Opening Balance",
     "closingBalance": "Closing Balance"
   },
+  "trade": {
+    "order": {
+      "title": "Purchase Order",
+      "subtitle": "Manage purchase orders and suppliers"
+    },
+    "invoice": {
+      "title": "Sales Invoice",
+      "subtitle": "Manage sales invoices"
+    },
+    "tabs": {
+      "details": "Items & Details",
+      "attachments": "Attachments",
+      "shipping": "Shipping & Containers",
+      "expenses": "Expenses",
+      "activity": "Activity"
+    },
+    "total": "Total",
+    "shipping": {
+      "details": "Shipping Details",
+      "logistics": "Logistics & Driver",
+      "noData": "No shipping data"
+    },
+    "expenses": {
+      "title": "Shipment Expenses",
+      "total": "Total Expenses"
+    }
+  },
   "appName": "TexaCore",
   "_status_extended": "Moved to main status section",
   "_tabs_extended": {
@@ -60,6 +87,7 @@
     "accountStatement": "Account Statement",
     "newEntry": "New Journal Entry",
     "account": {
+      "title": "Account",
       "balance": "Balance",
       "closeTree": "Close Tree",
       "code": "Account Code",
@@ -415,6 +443,8 @@
       "marked": "Marked"
     },
     "lastActivity": "Last Activity",
+    "link": "Link",
+    "linkedDocument": "Document",
     "lines": "Lines",
     "module": "Accounting",
     "monthlyAverage": "Monthly Average",
@@ -566,6 +596,7 @@
       "ledger": "Ledger",
       "activity": "Activity Log",
       "journal": "Journal Entries",
+      "entry": "Entry",
       "transactions": "Transactions",
       "invoices": "Invoices",
       "payments": "Payments",
@@ -592,9 +623,74 @@
       "duplicate": "Duplicate entry",
       "delete": "Delete entry"
     },
+    "post": "Post",
     "unpost": "Unpost",
     "entryStatus": "Entry Status",
-    "notBalanced": "Not Balanced"
+    "notBalanced": "Not Balanced",
+    "columns": {
+      "debit": "Debit",
+      "credit": "Credit",
+      "account": "Account",
+      "description": "Description",
+      "costCenter": "Cost Center",
+      "currency": "Currency",
+      "exchangeRate": "Exchange Rate",
+      "amount": "Amount",
+      "link": "Link",
+      "invoice": "Invoice",
+      "receipts": "Receipts",
+      "payments": "Payments"
+    },
+    "totalAmount": "Total Amount",
+    "selectFund": "Select Fund",
+    "cashFund": "Fund / Bank",
+    "debitNote": {
+      "title": "Debit Note"
+    },
+    "creditNote": {
+      "title": "Credit Note"
+    },
+    "linkTypes": {
+      "none": "None",
+      "invoice": "Invoice",
+      "employee": "Employee",
+      "project": "Project",
+      "salary": "Salary",
+      "advance": "Advance",
+      "expense": "Expense"
+    },
+    "placeholders": {
+      "voucherAuto": "Auto",
+      "invoiceCheck": "Invoice no., check...",
+      "entryDescription": "Entry description...",
+      "selectFund": "Select fund...",
+      "selectBankFund": "Select bank/fund...",
+      "transferRef": "Transfer reference...",
+      "exchangeRef": "Exchange receipt...",
+      "exchangeRate": "Exchange rate",
+      "descriptionDots": "Description..."
+    },
+    "fundTransfer": {
+      "title": "Fund Transfer",
+      "fromFund": "From Fund / Bank",
+      "toFund": "To Fund / Bank",
+      "amount": "Transfer Amount",
+      "description": "Transfer Notes",
+      "date": "Transfer Date",
+      "reference": "Transfer Reference"
+    },
+    "currencyExchange": {
+      "title": "Currency Exchange",
+      "fromCurrency": "From Currency",
+      "toCurrency": "To Currency",
+      "fromAmount": "Sell Amount",
+      "toAmount": "Buy Amount",
+      "rate": "Exchange Rate",
+      "fromFund": "From Fund / Bank",
+      "toFund": "To Fund / Bank",
+      "reference": "Exchange Reference",
+      "date": "Exchange Date"
+    }
   },
   "accounts": "Accounts",
   "accountsPayable": "Accounts Payable",
@@ -603,7 +699,10 @@
   "accumulatedDepreciation": "Accumulated Depreciation",
   "actions": {
     "activate": "Activate",
+    "addCustomer": "Add Customer",
+    "addExpense": "Add Expense",
     "addModule": "Add Module",
+    "addReceipt": "Add Receipt",
     "approve": "Approve",
     "archive": "Archive",
     "cancel": "Cancel",
@@ -642,7 +741,9 @@
     "toSave": "to save",
     "transfer": "Transfer",
     "upgradePlan": "Upgrade Plan",
-    "view": "View"
+    "view": "View",
+    "addContainer": "Add Container",
+    "filter": "Filter"
   },
   "activity": {
     "activityLog": "Activity Log",
@@ -981,18 +1082,7 @@
     },
     "lastActivity": "Last Activity",
     "loading": "Loading...",
-    "main": "Main",
-    "method": "Method",
-    "modules": "Modules",
-    "more": "More",
-    "name": "Name",
-    "net": "Net",
     "next": "Next",
-    "no": "No",
-    "noData": "No data available",
-    "noDataToExport": "No data to export",
-    "noRecentEvents": "No recent events",
-    "none": "None",
     "notes": "Notes",
     "number": "Number",
     "ok": "OK",
@@ -1026,6 +1116,7 @@
     "select": "Select",
     "selectAll": "Select All",
     "sent": "Sent",
+    "share": "Share",
     "showCancelledEntries": "Show Cancelled",
     "statusDetails": {
       "_": "Status",
@@ -1071,7 +1162,7 @@
     "type": "Type",
     "unpaid": "Unpaid",
     "unsavedChanges": "Unsaved Changes",
-    "unsavedChangesDesc": "You have unsaved changes. Do you want to save them?",
+    "unsavedChangesDesc": "You have unsaved changes. Do you want to proceed?",
     "update": "Update",
     "updated": "Updated",
     "used": "Used",
@@ -1234,6 +1325,10 @@
       "accountingSheetsLab": {
         "name": "🧪 Accounting Sheets Lab",
         "description": "Test journal entries and accounting sheets with NexaDataTable and advanced features"
+      },
+      "nexaKanbanBoard": {
+        "name": "📋 Kanban Board (NexaKanban)",
+        "description": "Professional drag & drop Kanban board with colored columns, totals, RTL support, and reusable across all modules"
       }
     },
     "preview": {
@@ -1568,7 +1663,6 @@
     "creditLimit": "Credit Limit",
     "currentBalance": "Current Balance",
     "customer": "Customer",
-    "customerCode": "Customer Code",
     "date": "Date",
     "dependencies": "Dependencies",
     "description": "Description",
@@ -1613,7 +1707,9 @@
     "salesPerson": "Sales Person",
     "sortOrder": "Sort Order",
     "startDate": "Start Date",
+    "status": "Status",
     "subscriber": "Subscriber",
+    "supplier": "Supplier",
     "subscriptionAmount": "Subscription Amount",
     "subscriptionCode": "Subscription Code",
     "supplierCode": "Supplier Code",
@@ -1627,7 +1723,28 @@
     "version": "Version",
     "voucherNumber": "Voucher Number",
     "whiteLabel": "White Label",
-    "wlCommission": "WL Commission"
+    "wlCommission": "WL Commission",
+    "containerNumber": "Container Number",
+    "originCountry": "Origin Country",
+    "containerSize": "Container Size",
+    "containerType": "Container Type",
+    "billOfLading": "Bill of Lading",
+    "portOfLoading": "Port of Loading",
+    "portOfDischarge": "Port of Discharge",
+    "vesselName": "Vessel Name",
+    "shippingLine": "Shipping Line",
+    "etd": "ETD",
+    "eta": "ETA",
+    "customsDeclaration": "Customs Declaration",
+    "clearanceDate": "Clearance Date",
+    "driverName": "Driver Name",
+    "vehicleNumber": "Vehicle Number",
+    "deliveryDate": "Delivery Date",
+    "weight": "Weight",
+    "deliveryAddress": "Delivery Address",
+    "select": "Select...",
+    "search": "Search...",
+    "create": "Create"
   },
   "filter": "Filter",
   "filters": {
@@ -2021,6 +2138,7 @@
   "messages": {
     "accessDenied": "Access denied",
     "confirmCancel": "Are you sure you want to cancel?",
+    "contentComingSoon": "Content is coming soon...",
     "confirmDelete": "Are you sure you want to delete?",
     "deleteError": "Failed to delete",
     "deleteSuccess": "Deleted successfully",
@@ -2036,7 +2154,8 @@
     "unsavedChanges": "Unsaved Changes",
     "unsavedChangesDesc": "You have unsaved changes. Are you sure you want to close this form? All data will be lost.",
     "updateError": "Failed to update",
-    "updateSuccess": "Updated successfully"
+    "updateSuccess": "Updated successfully",
+    "selectSupplierFirst": "Please select a supplier first"
   },
   "minQty": "Min Quantity",
   "mockData": {
@@ -2173,14 +2292,28 @@
   "productDetails": "Product Details",
   "project": "Project",
   "purchases": {
+    "container_details": {
+      "title": "Containers Management",
+      "subtitle": "Track and manage import shipments",
+      "contents": "Container Contents",
+      "expenses": "Shipment Expenses"
+    },
     "module": "Purchases",
+    "title": "Purchases",
+    "dashboard": "Dashboard",
+    "suppliers": "Suppliers",
+    "cycle": "Purchase Cycle",
+    "orders": "Orders",
+    "invoices": "Invoices",
+    "payments": "Payments",
+    "returns": "Returns",
+    "containers": "Containers",
     "purchaseInvoice": "Purchase Invoice",
     "purchaseOrder": "Purchase Order",
     "purchaseReceipt": "Purchase Receipt",
     "purchaseRequest": "Purchase Request",
     "purchaseReturn": "Purchase Return",
-    "supplier": "Supplier",
-    "suppliers": "Suppliers"
+    "supplier": "Supplier"
   },
   "qrCode": {
     "copied": "Link copied",
@@ -2436,8 +2569,7 @@
       "storageLimit": "Storage Limit",
       "maxDocuments": "Max Documents",
       "maxImages": "Max Images",
-      "features": "Features",
-      "feature": {
+      "features": {
         "multiCurrency": "Multi-Currency Support",
         "advancedReports": "Advanced Reports",
         "apiAccess": "API Access",
@@ -2519,14 +2651,25 @@
   "sales": {
     "customer": "Customer",
     "customers": "Customers",
+    "customersSubtitle": "Manage customer profiles and contacts",
+    "cycle": "Sales Cycle",
+    "cycleSubtitle": "Full quote-to-cash process management",
+    "dashboard": "Sales Dashboard",
+    "dashboardSubtitle": "Overview of sales performance",
     "deliveryNote": "Delivery Note",
     "discount": "Discount",
+    "invoices": "Sales Invoices",
+    "invoicesSubtitle": "Manage billing and collections",
     "module": "Sales",
+    "payments": "Sales Payments",
+    "paymentsSubtitle": "Record and manage incoming payments",
     "priceList": "Price List",
     "quotation": "Quotation",
+    "reports": "Reports",
     "salesInvoice": "Sales Invoice",
     "salesOrder": "Sales Order",
     "salesReturn": "Sales Return",
+    "settings": "Settings",
     "tax": "Tax",
     "vat": "VAT"
   },
@@ -2632,18 +2775,31 @@
     "open": "Open",
     "overdue": "Overdue",
     "paid": "Paid",
-    "partial": "Partial",
+    "partially_paid": "Partially Paid",
     "pastDue": "Past Due",
-    "paused": "Paused",
     "pending": "Pending",
     "posted": "Posted",
+    "processing": "Processing",
+    "received": "Received",
     "rejected": "Rejected",
+    "returned": "Returned",
+    "shipped": "Shipped",
     "submitted": "Submitted",
     "suspended": "Suspended",
     "terminated": "Terminated",
     "trial": "Trial",
     "unpaid": "Unpaid",
-    "warning": "Warning"
+    "warning": "Warning",
+    "all": "All",
+    "inTransit": "In Transit",
+    "cleared": "Cleared"
+  },
+  "method": {
+    "cash": "Cash",
+    "bank": "Bank Transfer",
+    "check": "Check",
+    "transfer": "Wire Transfer",
+    "card": "Card"
   },
   "statusManager": {
     "addComment": "Add comment (optional)...",
@@ -2775,6 +2931,15 @@
     }
   },
   "table": {
+    "amount": "Amount",
+    "customer": "Customer",
+    "date": "Date",
+    "invoiceNumber": "Invoice #",
+    "receiptNumber": "Receipt #",
+    "method": "Payment Method",
+    "debtor": "Debtor",
+    "addColumn": "Add Column",
+    "addRow": "Add Row",
     "activeFilters": "active filter(s)",
     "additionalFilters": "Additional Filters",
     "applyMarker": "Apply Marker",
@@ -3296,5 +3461,11 @@
     "subtitle": "Manage appointments, surgeries, and medical records",
     "systemTitle": "Doctors Portal",
     "systemDescription": "A dedicated space for doctors to follow up on appointments and patient medical records."
+  },
+  "types": {
+    "dry": "Dry",
+    "reefer": "Reefer",
+    "open": "Open Top",
+    "flat": "Flat Rack"
   }
 }

@@ -9,6 +9,7 @@ export type UnifiedDocType =
     | 'fund'         // صندوق/بنك
     | 'party'        // عميل/مورد
     | 'journal'      // قيد محاسبي
+    | 'cash'         // يومية صندوق
     | 'receipt'      // سند قبض
     | 'payment'      // سند صرف
     | 'transfer'     // تحويل
@@ -16,7 +17,19 @@ export type UnifiedDocType =
     | 'warehouse'    // مستودع
     | 'material'      // مادة (NEW)
     | 'materialGroup' // مجموعة مواد (NEW)
-    | 'transaction'; // عملية مفردة
+    | 'transaction' // عملية مفردة
+    | 'trade_order'    // طلب تجاري (NEW)
+    | 'trade_request'  // طلب شراء (NEW)
+    | 'trade_invoice'  // فاتورة تجارية (NEW)
+    | 'trade_quotation'
+    | 'trade_receipt'  // استلام بضاعة/خدمة
+    | 'trade_return'   // مرتجع
+    | 'trade_delivery' // إذن تسليم (Delivery Note)
+    | 'trade_reservation' // حجز (Stock/Transit)
+    | 'trade_reservation' // حجز (Stock/Transit)
+    | 'trade_container' // كونتينر / شحنة (Container/Shipment)
+    | 'debit_note'     // إشعار مدين
+    | 'credit_note';   // إشعار دائن
 
 // Mode of the sheet
 export type SheetMode = 'view' | 'edit' | 'create';

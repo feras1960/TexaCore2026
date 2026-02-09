@@ -50,6 +50,11 @@ import {
     MaterialAdditionalInfoTab,
     MaterialGroupInfoTab,
 } from './tabs';
+import { TradeMainTab } from './tabs/TradeMainTab';
+import { TradeShippingTab } from './tabs/TradeShippingTab';
+import { ContainerExpensesTab } from './tabs/ContainerExpensesTab';
+// Accounting Entry Tabs (Phase 1 - Unified)
+import { AccountingEntryTab } from './tabs/AccountingEntryTab';
 
 // Import configs
 import { getDocumentConfig } from './configs/documentConfigs';
@@ -191,6 +196,94 @@ export function UnifiedAccountingSheet({
         onModeChange?.(newMode);
     }, [onModeChange]);
 
+    // ═══ Built-in Accounting Save Handler (Polymorphic Save Pattern) ═══
+    const isAccountingDocType = ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType);
+
+    const handleAccountingSave = useCallback(async (saveData: any) => {
+        if (!isAccountingDocType) return;
+        if (!saveData) {
+            toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ');
+            return;
+        }
+
+        // Dynamic import to avoid circular deps
+        const { journalEntriesService } = await import('@/services/journalEntriesService');
+
+        // Get company ID from the data or from component context
+        const saveCompanyId = saveData.company_id || companyId;
+        if (!saveCompanyId) {
+            toast.error(t('errors.companyRequired') || 'يجب تحديد الشركة');
+            return;
+        }
+
+        // --- Prepare lines ---
+        let finalLines = (saveData.lines || []).filter((line: any) =>
+            line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0)
+        );
+
+        // --- Auto-Balance for Receipt/Payment ---
+        const entryType = saveData.entry_type || docType;
+        if ((entryType === 'receipt' || entryType === 'payment') && saveData.header_account_id) {
+            const lineTotal = finalLines.reduce((sum: number, line: any) => {
+                return sum + (entryType === 'receipt'
+                    ? (Number(line.credit) || 0)
+                    : (Number(line.debit) || 0));
+            }, 0);
+
+            if (lineTotal > 0) {
+                // Add the balancing header account line
+                finalLines.push({
+                    account_id: saveData.header_account_id,
+                    description: saveData.description || (entryType === 'receipt' ? 'سند قبض' : 'سند صرف'),
+                    debit: entryType === 'receipt' ? lineTotal : 0,   // Receipt: fund is DEBIT
+                    credit: entryType === 'payment' ? lineTotal : 0,  // Payment: fund is CREDIT
+                    cost_center_id: null,
+                });
+            }
+        }
+
+        // --- Validation ---
+        if (finalLines.length < 2) {
+            toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ', {
+                description: t('accounting.errors.minLinesRequired') || 'يجب إدخال بندين على الأقل',
+            });
+            return;
+        }
+
+        const totalDebit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.debit) || 0), 0);
+        const totalCredit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.credit) || 0), 0);
+
+        if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            toast.error(t('accounting.errors.notBalanced') || 'القيد غير متوازن!', {
+                description: `${t('accounting.debit') || 'مدين'}: ${totalDebit.toFixed(2)} ≠ ${t('accounting.credit') || 'دائن'}: ${totalCredit.toFixed(2)}`,
+            });
+            return;
+        }
+
+        // --- Build entry data ---
+        const entryInput = {
+            company_id: saveCompanyId,
+            entry_date: saveData.entry_date || new Date().toISOString().split('T')[0],
+            description: saveData.description || '',
+            entry_type: entryType,
+            lines: finalLines.map((line: any) => ({
+                account_id: line.account_id,
+                debit: Number(line.debit) || 0,
+                credit: Number(line.credit) || 0,
+                description: line.description || '',
+                cost_center_id: line.cost_center_id || null,
+            })),
+        };
+
+        // --- Create or Update ---
+        const entryId = saveData.id || documentId;
+        if (mode === 'edit' && entryId) {
+            await journalEntriesService.update(entryId, entryInput);
+        } else {
+            await journalEntriesService.create(entryInput);
+        }
+    }, [isAccountingDocType, docType, companyId, documentId, mode, t]);
+
     // Check edit permission for journal entries
     const checkEditPermission = useCallback(async (): Promise<boolean> => {
         // Only check for journal entries when edit flow is enabled
@@ -259,10 +352,42 @@ export function UnifiedAccountingSheet({
                     break;
 
                 case 'save':
+                    // Check if the entry has any meaningful data
+                    if (isAccountingDocType) {
+                        const entryLines = data?.lines || [];
+                        const hasData = entryLines.some((line: any) =>
+                            line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0)
+                        );
+                        if (!hasData) {
+                            // Empty entry — do nothing
+                            toast.warning(
+                                language === 'ar'
+                                    ? 'لا يوجد بيانات للحفظ — أدخل بنوداً أولاً'
+                                    : 'No data to save — add line items first'
+                            );
+                            return;
+                        }
+                    }
+
+                    setLoading(true);
                     if (onSave) {
-                        setLoading(true);
                         await onSave(data);
-                        toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
+                    } else if (isAccountingDocType) {
+                        await handleAccountingSave(data);
+                    }
+                    toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
+                    setHasChanges(false);
+
+                    if (mode === 'create' && isAccountingDocType) {
+                        // Stay in sheet, reset for new entry
+                        setData({});
+                        // Trigger re-render with fresh state
+                        setTimeout(() => {
+                            setData({ type: docType });
+                        }, 50);
+                    } else if (mode === 'create') {
+                        onClose();
+                    } else {
                         handleModeChange('view');
                     }
                     break;
@@ -329,7 +454,7 @@ export function UnifiedAccountingSheet({
         } finally {
             setLoading(false);
         }
-    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, t]);
+    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, handleAccountingSave, isAccountingDocType, mode, t]);
 
     // Filter tabs based on props
     const visibleTabs = useMemo(() => {
@@ -384,6 +509,28 @@ export function UnifiedAccountingSheet({
     // Render tab content
     const renderTabContent = (tabId: string) => {
         switch (tabId) {
+            // ═══ Accounting Entry Tabs (Unified) ═══
+            case 'entry':
+            case 'form':
+                if (['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType)) {
+                    return (
+                        <AccountingEntryTab
+                            data={data}
+                            mode={mode}
+                            docType={docType}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                            onSaveComplete={() => {
+                                console.log('Entry saved successfully');
+                            }}
+                            companyId={companyId}
+                        />
+                    );
+                }
+                break;
+
             case 'items':
                 return <WarehouseItemsTab />;
 
@@ -620,6 +767,42 @@ export function UnifiedAccountingSheet({
                 }
                 break;
 
+            case 'trade_details':
+                return (
+                    <TradeMainTab
+                        data={data}
+                        mode={mode as any}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
+            case 'shipping':
+                return (
+                    <TradeShippingTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
+            case 'expenses':
+                return (
+                    <ContainerExpensesTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
             // TODO: Add more tab content renderers
             default:
                 return (
@@ -636,7 +819,7 @@ export function UnifiedAccountingSheet({
                 className={cn(
                     docType === 'materialGroup'
                         ? "!w-[38vw] !max-w-[38vw] p-0 flex flex-col h-full"
-                        : "!w-[50vw] !max-w-[50vw] p-0 flex flex-col h-full",
+                        : "!w-[60vw] !max-w-[60vw] p-0 flex flex-col h-full",
                     "bg-gray-50 dark:bg-gray-900"
                 )}
                 side={isRTL ? 'left' : 'right'}

@@ -25,6 +25,8 @@ interface SmartAccountSelectorProps {
     placeholder?: string;
     className?: string;
     error?: boolean;
+    type?: 'all' | 'fund' | 'customer' | 'vendor' | string;
+    disabled?: boolean;
 }
 
 export function SmartAccountSelector({

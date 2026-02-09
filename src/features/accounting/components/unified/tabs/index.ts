@@ -5,10 +5,14 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-// Accounting Tabs
-export { OverviewTab } from './OverviewTab';
-export { LedgerTab } from './LedgerTab';
-export { ActivityTab } from './ActivityTab';
+// Trade Tabs
+export * from './TradeMainTab';
+export * from './TradeShippingTab';
+
+// Common Tabs
+export * from './OverviewTab';
+export * from './LedgerTab';
+export * from './ActivityTab';
 
 // Warehouse Tabs
 export { WarehouseOverviewTab } from './WarehouseOverviewTab';
@@ -36,3 +40,12 @@ export { MaterialAdditionalInfoTab } from './MaterialAdditionalInfoTab';
 
 // Material Group Tabs
 export { MaterialGroupInfoTab } from './MaterialGroupInfoTab';
+
+// ═══ Accounting Entry Tabs (Phase 2 - Specialized) ═══
+export { AccountingEntryTab } from './AccountingEntryTab';
+export { JournalVoucherTab } from './JournalVoucherTab';
+export { CashJournalTab } from './CashJournalTab';
+export { ReceiptVoucherTab } from './ReceiptVoucherTab';
+export { PaymentVoucherTab } from './PaymentVoucherTab';
+export { FundTransferTab } from './FundTransferTab';
+export { CurrencyExchangeTab } from './CurrencyExchangeTab';

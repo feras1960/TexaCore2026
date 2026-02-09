@@ -629,15 +629,39 @@ export const warehouseService = {
             }
 
             const { data, error } = await query;
+
             if (error) {
                 if (error.code === '42P01' || error.message.includes('not find the table')) {
-                    // return empty silently if table missing
                     return [];
                 }
                 console.warn('getMaterials error:', error.message);
                 return [];
             }
-            return data || [];
+
+            if (!data || data.length === 0) return [];
+
+            // Fetch statistics for these materials using our custom RPC
+            const materialIds = data.map((m: any) => m.id);
+            const { data: stats } = await supabase
+                .rpc('get_material_inventory_stats_batch', { material_ids: materialIds });
+
+            // Merge stats with materials
+            // Default stats if none found
+            const materialsWithStats = data.map((material: any) => {
+                const stat = stats?.find((s: any) => s.material_id === material.id);
+                const rolls_count = stat?.rolls_count || 0;
+                const rolls_total_length = stat?.rolls_total_length || 0;
+
+                return {
+                    ...material,
+                    rolls_count,
+                    rolls_total_length,
+                    // Calculate loose stock (Total - Rolled)
+                    loose_stock: Math.max(0, (material.current_stock || 0) - rolls_total_length)
+                };
+            });
+
+            return materialsWithStats;
         } catch (error: any) {
             console.error('getMaterials exception:', error);
             return [];

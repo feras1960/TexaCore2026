@@ -344,6 +344,20 @@ export const journalConfig: DocumentConfig = {
     ],
     actions: [
         {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
             id: 'post',
             labelKey: 'accounting.post',
             icon: 'CheckCircle',
@@ -369,6 +383,7 @@ export const journalConfig: DocumentConfig = {
             labelKey: 'actions.print',
             icon: 'Printer',
             variant: 'ghost',
+            showInModes: ['view'],
         },
         {
             id: 'delete',
@@ -377,6 +392,7 @@ export const journalConfig: DocumentConfig = {
             variant: 'destructive',
             requiresConfirm: true,
             confirmMessageKey: 'messages.confirmDelete',
+            showInModes: ['view'],
         },
     ],
     stats: [
@@ -393,6 +409,104 @@ export const journalConfig: DocumentConfig = {
             labelKey: 'accounting.entry.credit',
             valueKey: 'total_credit',
             icon: 'ArrowDownRight',
+            format: 'currency',
+            colorClass: 'text-red-600',
+        },
+    ],
+};
+
+// Cash Journal Configuration - تكوين يومية الصندوق
+export const cashConfig: DocumentConfig = {
+    type: 'cash',
+    titleKey: 'accounting.entryTypes.cash',
+    subtitleKey: 'accounting.cashJournal.subtitle',
+    icon: 'Wallet',
+    iconColor: 'bg-purple-600',
+    defaultTab: 'entry',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['entry_number', 'date', 'fund_account', 'status'],
+    tabs: [
+        {
+            id: 'entry',
+            labelKey: 'accounting.tabs.entry',
+            icon: 'FileEdit',
+            component: 'CashJournalEntryTab',
+        },
+        {
+            id: 'attachments',
+            labelKey: 'accounting.tabs.attachments',
+            icon: 'Paperclip',
+            component: 'AttachmentsTab',
+            showInModes: ['view', 'edit'],
+        },
+        {
+            id: 'activity',
+            labelKey: 'accounting.tabs.activity',
+            icon: 'Clock',
+            component: 'ActivityTab',
+            showInModes: ['view'],
+        },
+    ],
+    actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'post',
+            labelKey: 'accounting.post',
+            icon: 'CheckCircle',
+            variant: 'default',
+            showInModes: ['view'],
+        },
+        {
+            id: 'unpost',
+            labelKey: 'accounting.unpost',
+            icon: 'XCircle',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+        {
+            id: 'print',
+            labelKey: 'actions.print',
+            icon: 'Printer',
+            variant: 'ghost',
+            showInModes: ['view'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
+            showInModes: ['view'],
+        },
+    ],
+    stats: [
+        {
+            id: 'credit',
+            labelKey: 'accounting.entryTypes.receipt',
+            valueKey: 'total_credit',
+            icon: 'ArrowDownRight',
+            format: 'currency',
+            colorClass: 'text-green-600',
+        },
+        {
+            id: 'debit',
+            labelKey: 'accounting.entryTypes.payment',
+            valueKey: 'total_debit',
+            icon: 'ArrowUpRight',
             format: 'currency',
             colorClass: 'text-red-600',
         },
@@ -423,6 +537,13 @@ export const receiptConfig: DocumentConfig = {
             labelKey: 'actions.save',
             icon: 'Save',
             variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
             showInModes: ['create', 'edit'],
         },
         {
@@ -478,6 +599,13 @@ export const paymentConfig: DocumentConfig = {
             showInModes: ['create', 'edit'],
         },
         {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
             id: 'post',
             labelKey: 'accounting.post',
             icon: 'CheckCircle',
@@ -511,7 +639,7 @@ export const transferConfig: DocumentConfig = {
     icon: 'ArrowRightLeft',
     iconColor: 'bg-orange-600',
     defaultTab: 'form',
-    supportsModes: ['create'],
+    supportsModes: ['view', 'edit', 'create'],
     headerFields: ['from', 'to', 'amount'],
     tabs: [
         {
@@ -520,6 +648,13 @@ export const transferConfig: DocumentConfig = {
             icon: 'FileEdit',
             component: 'TransferFormTab',
         },
+        {
+            id: 'activity',
+            labelKey: 'accounting.tabs.activity',
+            icon: 'Clock',
+            component: 'ActivityTab',
+            showInModes: ['view'],
+        },
     ],
     actions: [
         {
@@ -527,6 +662,23 @@ export const transferConfig: DocumentConfig = {
             labelKey: 'actions.save',
             icon: 'Save',
             variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            showInModes: ['view'],
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
         },
     ],
     stats: [],
@@ -540,7 +692,7 @@ export const exchangeConfig: DocumentConfig = {
     icon: 'RefreshCw',
     iconColor: 'bg-cyan-600',
     defaultTab: 'form',
-    supportsModes: ['create'],
+    supportsModes: ['view', 'edit', 'create'],
     headerFields: ['fromCurrency', 'toCurrency', 'amount', 'rate'],
     tabs: [
         {
@@ -549,6 +701,13 @@ export const exchangeConfig: DocumentConfig = {
             icon: 'FileEdit',
             component: 'ExchangeFormTab',
         },
+        {
+            id: 'activity',
+            labelKey: 'accounting.tabs.activity',
+            icon: 'Clock',
+            component: 'ActivityTab',
+            showInModes: ['view'],
+        },
     ],
     actions: [
         {
@@ -556,6 +715,23 @@ export const exchangeConfig: DocumentConfig = {
             labelKey: 'actions.save',
             icon: 'Save',
             variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            showInModes: ['view'],
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
         },
     ],
     stats: [],
@@ -916,12 +1092,69 @@ export const materialGroupConfig: DocumentConfig = {
     stats: [],
 };
 
+// Debit Note Configuration
+export const debitNoteConfig: DocumentConfig = {
+    type: 'debit_note',
+    titleKey: 'accounting.debitNote.title',
+    subtitleKey: 'accounting.debitNote.subtitle',
+    icon: 'FileText',
+    iconColor: 'bg-blue-600',
+    defaultTab: 'form',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['entry_number', 'date', 'amount'],
+    tabs: [
+        {
+            id: 'form',
+            labelKey: 'accounting.tabs.form',
+            icon: 'FileEdit',
+            component: 'JournalVoucherTab',
+        },
+    ],
+    actions: journalConfig.actions,
+    stats: [],
+};
+
+// Credit Note Configuration
+export const creditNoteConfig: DocumentConfig = {
+    type: 'credit_note',
+    titleKey: 'accounting.creditNote.title',
+    subtitleKey: 'accounting.creditNote.subtitle',
+    icon: 'FileText',
+    iconColor: 'bg-red-600',
+    defaultTab: 'form',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['entry_number', 'date', 'amount'],
+    tabs: [
+        {
+            id: 'form',
+            labelKey: 'accounting.tabs.form',
+            icon: 'FileEdit',
+            component: 'JournalVoucherTab',
+        },
+    ],
+    actions: journalConfig.actions,
+    stats: [],
+};
+
+import {
+    tradeOrderConfig,
+    tradeInvoiceConfig,
+    tradeQuotationConfig,
+    tradeReceiptConfig,
+    tradeReturnConfig,
+    tradeDeliveryConfig,
+    tradeReservationConfig,
+    tradeRequestConfig,
+    tradeContainerConfig
+} from './tradeConfigs';
+
 // Export all configs in a map
 export const documentConfigs: Record<string, DocumentConfig> = {
     account: accountConfig,
     fund: fundConfig,
     party: partyConfig,
     journal: journalConfig,
+    cash: cashConfig,
     receipt: receiptConfig,
     payment: paymentConfig,
     transfer: transferConfig,
@@ -930,6 +1163,17 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     warehouse: warehouseConfig,
     material: materialConfig,
     materialGroup: materialGroupConfig,
+    debit_note: debitNoteConfig,
+    credit_note: creditNoteConfig,
+    trade_order: tradeOrderConfig,
+    trade_request: tradeRequestConfig,
+    trade_invoice: tradeInvoiceConfig,
+    trade_quotation: tradeQuotationConfig,
+    trade_receipt: tradeReceiptConfig,
+    trade_return: tradeReturnConfig,
+    trade_delivery: tradeDeliveryConfig,
+    trade_reservation: tradeReservationConfig,
+    trade_container: tradeContainerConfig,
 };
 
 // Get config by type

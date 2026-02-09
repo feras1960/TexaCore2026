@@ -28,7 +28,11 @@ export type DocType =
   | 'supplier'
   | 'fund'
   | 'cost_center'
-  | 'party';
+  | 'party'
+  | 'purchase_order'
+  | 'purchase_request'
+  | 'quotation'
+  | 'return';
 
 
 // ===== Sheet Size =====

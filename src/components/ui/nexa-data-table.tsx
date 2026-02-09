@@ -150,6 +150,7 @@ export interface NexaDataTableProps<TData> {
     onDataChange?: (newData: TData[]) => void;  // عند تغيير البيانات
     onSave?: (data: TData[]) => Promise<void>;  // عند الحفظ
     onCancel?: () => void;              // عند الإلغاء
+    enableInstantEdit?: boolean;        // تفعيل التعديل الفوري (بدون أزرار حفظ/إلغاء)
     onAddRow?: () => TData;             // إنشاء صف جديد
     onDeleteRow?: (row: TData, index: number) => void;  // حذف صف
     onInsertRow?: (atIndex: number) => TData;  // إدراج صف في موضع معين
@@ -637,6 +638,7 @@ export function NexaDataTable<TData>({
     onAddRow,
     onDeleteRow,
     onInsertRow,
+    enableInstantEdit = false,
     canAddRows = false, // Default to false - auto-expand makes this unnecessary
     canDeleteRows = true,
     // Auto-Rows Props
@@ -678,7 +680,24 @@ export function NexaDataTable<TData>({
             const prefs = await getTablePreferences(persistKey);
             if (prefs) {
                 if (prefs.columnVisibility && Object.keys(prefs.columnVisibility).length > 0) {
-                    setColumnVisibility(prefs.columnVisibility);
+                    // Ensure new columns (not in saved prefs) default to visible
+                    const currentColumnKeys = initialColumns.map(
+                        (col) => (col as any).accessorKey || (col as any).id || ''
+                    ).filter(Boolean);
+                    const mergedVisibility = { ...prefs.columnVisibility };
+                    currentColumnKeys.forEach((key) => {
+                        if (!(key in mergedVisibility)) {
+                            mergedVisibility[key] = true;
+                        }
+                    });
+                    // Force-show columns with enableHiding: false
+                    initialColumns.forEach((col) => {
+                        if ((col as any).enableHiding === false) {
+                            const colKey = (col as any).accessorKey || (col as any).id;
+                            if (colKey) mergedVisibility[colKey] = true;
+                        }
+                    });
+                    setColumnVisibility(mergedVisibility);
                 }
                 if (prefs.columnOrder && prefs.columnOrder.length > 0) {
                     setColumnOrder(prefs.columnOrder);
@@ -716,7 +735,7 @@ export function NexaDataTable<TData>({
     }, [persistKey, columnSizing, preferencesLoaded]);
 
     // === Edit Mode State ===
-    const [isEditing, setIsEditing] = useState(false);
+    const [isEditing, setIsEditing] = useState(enableEditMode || enableInstantEdit);
     const [editedData, setEditedData] = useState<TData[]>([]);
     const [originalData, setOriginalData] = useState<TData[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -765,6 +784,35 @@ export function NexaDataTable<TData>({
         setIsEditing(true);
     }, [data, onAddRow, editModeExtraRows]);
 
+    // Force Edit Mode if Instant Edit is enabled
+    // Force Edit Mode if Instant Edit is enabled and handle Initial Empty Rows
+    useEffect(() => {
+        if (enableInstantEdit) {
+            setIsEditing(true);
+
+            let initialData = [...data];
+
+            // Append initial empty rows if specified and data is empty (or just append)
+            // Strategy: Ensure at least `initialEmptyRows` exist if data is empty, 
+            // or just append them? Typically for invoice, we want 10 empty rows at bottom.
+            if (onAddRow && initialEmptyRows > 0) {
+                // Check if we need to add rows. 
+                // Simple logic: If existing data < initialEmptyRows, fill up.
+                // OR: Always add N empty rows? 
+                // User request: "Start with 10 empty rows". Usually implies total rows if new.
+
+                const needed = Math.max(0, initialEmptyRows - initialData.length);
+                if (needed > 0) {
+                    for (let i = 0; i < needed; i++) {
+                        initialData.push(onAddRow());
+                    }
+                }
+            }
+
+            setEditedData(initialData);
+        }
+    }, [enableInstantEdit, data, initialEmptyRows, onAddRow]);
+
     // حفظ التغييرات
     const handleSave = useCallback(async () => {
         // تنظيف الأسطر الفارغة قبل الحفظ
@@ -809,9 +857,17 @@ export function NexaDataTable<TData>({
         setEditedData(prev => {
             const newData = [...prev];
             newData[rowIndex] = { ...newData[rowIndex], [colKey]: value };
+
+            // If Instant Edit, propagate immediately
+            if (enableInstantEdit && onDataChange) {
+                // We need to pass the FULL new array, so we must use the result of this operation
+                // Use setTimeout to avoid render loop if needed, or call directly
+                onDataChange(newData);
+            }
+
             return newData;
         });
-    }, []);
+    }, [enableInstantEdit, onDataChange]);
 
     // إضافة صف جديد
     const handleAddRow = useCallback(() => {
@@ -1334,29 +1390,34 @@ export function NexaDataTable<TData>({
                                         </Button>
                                     )}
 
-                                    {/* Save Button */}
-                                    <Button
-                                        variant="default"
-                                        size="sm"
-                                        className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                                        onClick={handleSave}
-                                        disabled={isSaving}
-                                    >
-                                        <Save className="w-4 h-4" />
-                                        {isSaving ? (isRTL ? 'جارٍ الحفظ...' : 'Saving...') : (isRTL ? 'حفظ' : 'Save')}
-                                    </Button>
+                                    {/* Save/Cancel Buttons - Only show if NOT instant edit */}
+                                    {!enableInstantEdit && (
+                                        <>
+                                            {/* Save Button */}
+                                            <Button
+                                                variant="default"
+                                                size="sm"
+                                                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                                                onClick={handleSave}
+                                                disabled={isSaving}
+                                            >
+                                                <Save className="w-4 h-4" />
+                                                {isSaving ? (isRTL ? 'جارٍ الحفظ...' : 'Saving...') : (isRTL ? 'حفظ' : 'Save')}
+                                            </Button>
 
-                                    {/* Cancel Button */}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="gap-2 border-red-300 hover:bg-red-50 text-red-700"
-                                        onClick={handleCancelEdit}
-                                        disabled={isSaving}
-                                    >
-                                        <X className="w-4 h-4" />
-                                        {isRTL ? 'إلغاء' : 'Cancel'}
-                                    </Button>
+                                            {/* Cancel Button */}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="gap-2 border-red-300 hover:bg-red-50 text-red-700"
+                                                onClick={handleCancelEdit}
+                                                disabled={isSaving}
+                                            >
+                                                <X className="w-4 h-4" />
+                                                {isRTL ? 'إلغاء' : 'Cancel'}
+                                            </Button>
+                                        </>
+                                    )}
 
                                     {/* Keyboard Shortcuts Help */}
                                     {showKeyboardHelp && (
@@ -1433,16 +1494,20 @@ export function NexaDataTable<TData>({
                                                             <span>{isRTL ? 'مسح الخلية' : 'Clear cell'}</span>
                                                         </div>
 
-                                                        {/* Save/Cancel */}
-                                                        <div className="font-medium text-muted-foreground pt-2">
-                                                            {isRTL ? '💾 الحفظ' : '💾 Save'}
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-1">
-                                                            <span className="text-muted-foreground">Ctrl+S</span>
-                                                            <span>{isRTL ? 'حفظ التغييرات' : 'Save changes'}</span>
-                                                            <span className="text-muted-foreground">Escape</span>
-                                                            <span>{isRTL ? 'إلغاء / خروج' : 'Cancel / Exit'}</span>
-                                                        </div>
+                                                        {/* Save/Cancel - Hide in Instant Edit Mode */}
+                                                        {!enableInstantEdit && (
+                                                            <>
+                                                                <div className="font-medium text-muted-foreground pt-2">
+                                                                    {isRTL ? '💾 الحفظ' : '💾 Save'}
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-1">
+                                                                    <span className="text-muted-foreground">Ctrl+S</span>
+                                                                    <span>{isRTL ? 'حفظ التغييرات' : 'Save changes'}</span>
+                                                                    <span className="text-muted-foreground">Escape</span>
+                                                                    <span>{isRTL ? 'إلغاء / خروج' : 'Cancel / Exit'}</span>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </PopoverContent>
@@ -1632,7 +1697,12 @@ export function NexaDataTable<TData>({
 
                                         {/* Actions Header - only in edit mode */}
                                         {isEditing && canDeleteRows && (
-                                            <th className="px-2 py-3 text-center bg-muted/50 text-muted-foreground font-medium text-xs w-10">
+                                            <th className={cn(
+                                                "px-2 py-3 text-center bg-muted/50 text-muted-foreground font-medium text-xs w-10 z-20",
+                                                isRTL
+                                                    ? "sticky left-0 border-r border-border/50 shadow-sm"
+                                                    : "sticky right-0 border-l border-border/50 shadow-sm"
+                                            )}>
                                                 {isRTL ? '✕' : '✕'}
                                             </th>
                                         )}
@@ -1663,7 +1733,7 @@ export function NexaDataTable<TData>({
                                                 key={row.id}
                                                 onClick={() => onRowClick?.(row.original)}
                                                 className={cn(
-                                                    'border-b border-border last:border-b-0',
+                                                    'group border-b border-border last:border-b-0',
                                                     'transition-colors',
                                                     onRowClick && 'cursor-pointer',
                                                     !markerColor && 'hover:bg-muted/50'
@@ -1762,7 +1832,12 @@ export function NexaDataTable<TData>({
 
                                                 {/* Delete Row Button - only in edit mode */}
                                                 {isEditing && canDeleteRows && (
-                                                    <td className="px-2 py-2 w-10">
+                                                    <td className={cn(
+                                                        "px-2 py-2 w-10 z-10 bg-background group-hover:bg-muted/50 transition-colors",
+                                                        isRTL
+                                                            ? "sticky left-0 border-r border-border/50 shadow-sm"
+                                                            : "sticky right-0 border-l border-border/50 shadow-sm"
+                                                    )}>
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"

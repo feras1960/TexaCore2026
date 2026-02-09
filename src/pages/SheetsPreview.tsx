@@ -17,6 +17,7 @@ import {
 } from '@/components/sheets';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import { Building2, Users, CreditCard, Package, Layers, Plus } from 'lucide-react';
+import { DevLabNav } from '@/features/componentLab/DevLabNav';
 
 export default function SheetsPreview() {
   const { t, direction } = useLanguage();
@@ -154,6 +155,11 @@ export default function SheetsPreview() {
               : 'Preview all sheet variants and choose the right one'}
           </p>
         </div>
+      </div>
+
+      {/* ─── Lab Sub-Navigation ─── */}
+      <div className="max-w-7xl mx-auto mb-4">
+        <DevLabNav currentLabId="sheets-preview" />
       </div>
 
       {/* Grid of Variants */}

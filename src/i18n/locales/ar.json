@@ -18,6 +18,33 @@
     "openingBalance": "الرصيد الافتتاحي",
     "closingBalance": "الرصيد الختامي"
   },
+  "trade": {
+    "order": {
+      "title": "أمر شراء / توريد",
+      "subtitle": "إدارة أوامر الشراء والموردين"
+    },
+    "invoice": {
+      "title": "فاتورة مبيعات",
+      "subtitle": "إدارة فواتير المبيعات للعملاء"
+    },
+    "tabs": {
+      "details": "الأصناف والتفاصيل",
+      "attachments": "المرفقات",
+      "shipping": "الشحن والكونتينرات",
+      "expenses": "المصاريف والتكاليف",
+      "activity": "السجل والنشاط"
+    },
+    "total": "الإجمالي",
+    "shipping": {
+      "details": "تفاصيل الشحن",
+      "logistics": "الخدمات اللوجستية والسائق",
+      "noData": "لا توجد بيانات شحن مسجلة"
+    },
+    "expenses": {
+      "title": "مصاريف الشحنة",
+      "total": "إجمالي المصاريف"
+    }
+  },
   "appName": "تيكسا كور",
   "_status_extended": "تم النقل إلى قسم الحالة الرئيسي",
   "_tabs_extended": {
@@ -60,6 +87,7 @@
     "accountStatement": "كشف حساب",
     "newEntry": "قيد يومية جديد",
     "account": {
+      "title": "الحساب",
       "balance": "الرصيد",
       "closeTree": "إغلاق الشجرة",
       "code": "رمز الحساب",
@@ -109,6 +137,7 @@
     "addSubAccount": "إضافة حساب فرعي",
     "addSubGroup": "إضافة مجموعة فرعية",
     "addToWatchlist": "إضافة إلى قائمة المراقبة",
+    "amount": "المبلغ",
     "amountInWords": "المبلغ بالتفقيط",
     "applyTemplateInstructions": "لتطبيق قالب شجرة الحسابات، قم بتشغيل أحد الأوامر التالية في Supabase SQL Editor:",
     "assets": "الأصول",
@@ -390,6 +419,8 @@
       "marked": "مؤشر"
     },
     "lastActivity": "آخر نشاط",
+    "link": "الربط",
+    "linkedDocument": "المستند",
     "lines": "عدد البنود",
     "module": "المحاسبة",
     "monthlyAverage": "المتوسط الشهري",
@@ -569,6 +600,7 @@
       "ledger": "كشف الحساب",
       "activity": "سجل النشاط",
       "journal": "قيود اليومية",
+      "entry": "القيد",
       "transactions": "العمليات",
       "invoices": "الفواتير",
       "payments": "المدفوعات",
@@ -594,8 +626,73 @@
       "delete": "حذف القيد"
     },
     "unpost": "إلغاء الترحيل",
+    "post": "ترحيل",
     "entryStatus": "حالة القيد",
-    "notBalanced": "غير متوازن"
+    "notBalanced": "غير متوازن",
+    "columns": {
+      "debit": "مدين",
+      "credit": "دائن",
+      "account": "الحساب",
+      "description": "البيان",
+      "costCenter": "م.التكلفة",
+      "currency": "العملة",
+      "exchangeRate": "سعر الصرف",
+      "amount": "المبلغ",
+      "link": "الربط",
+      "invoice": "الفاتورة",
+      "receipts": "مقبوضات",
+      "payments": "مدفوعات"
+    },
+    "totalAmount": "المجموع الكلي",
+    "selectFund": "اختر الصندوق",
+    "cashFund": "الصندوق / البنك",
+    "debitNote": {
+      "title": "إشعار مدين"
+    },
+    "creditNote": {
+      "title": "إشعار دائن"
+    },
+    "linkTypes": {
+      "none": "بدون",
+      "invoice": "فاتورة",
+      "employee": "موظف",
+      "project": "مشروع",
+      "salary": "راتب",
+      "advance": "سلفة",
+      "expense": "مصروف"
+    },
+    "placeholders": {
+      "voucherAuto": "تلقائي",
+      "invoiceCheck": "رقم الفاتورة، شيك...",
+      "entryDescription": "بيان القيد...",
+      "selectFund": "اختر الصندوق...",
+      "selectBankFund": "اختر البنك/الصندوق...",
+      "transferRef": "رقم الحوالة...",
+      "exchangeRef": "إيصال الصرافة...",
+      "exchangeRate": "سعر الصرف",
+      "descriptionDots": "الوصف..."
+    },
+    "fundTransfer": {
+      "title": "تحويل بين الصناديق",
+      "fromFund": "من صندوق / بنك",
+      "toFund": "إلى صندوق / بنك",
+      "amount": "مبلغ التحويل",
+      "description": "ملاحظات التحويل",
+      "date": "تاريخ التحويل",
+      "reference": "مرجع التحويل"
+    },
+    "currencyExchange": {
+      "title": "عملية صرافة",
+      "fromCurrency": "من عملة",
+      "toCurrency": "إلى عملة",
+      "fromAmount": "المبلغ المباع",
+      "toAmount": "المبلغ المشترى",
+      "rate": "سعر التحويل",
+      "fromFund": "من صندوق / بنك",
+      "toFund": "إلى صندوق / بنك",
+      "reference": "مرجع الصرافة",
+      "date": "تاريخ الصرف"
+    }
   },
   "accounts": "الحسابات",
   "accountsPayable": "الذمم الدائنة",
@@ -604,7 +701,10 @@
   "accumulatedDepreciation": "مجمع الإهلاك",
   "actions": {
     "activate": "تفعيل",
+    "addCustomer": "إضافة عميل",
+    "addExpense": "إضافة مصروف",
     "addModule": "إضافة وحدة",
+    "addReceipt": "إضافة سند قبض",
     "approve": "اعتماد",
     "archive": "أرشفة",
     "cancel": "إلغاء",
@@ -643,7 +743,9 @@
     "toSave": "للحفظ",
     "transfer": "تحويل",
     "upgradePlan": "ترقية الباقة",
-    "view": "عرض"
+    "view": "عرض",
+    "addContainer": "إضافة كونتينر",
+    "filter": "تصفية"
   },
   "activity": {
     "activityLog": "سجل النشاط",
@@ -912,6 +1014,8 @@
     "active": "نشط",
     "activity": "السجل",
     "add": "إضافة",
+    "addColumn": "إضافة عمود",
+    "addRow": "إضافة صف",
     "all": "الكل",
     "allItems": "الكل",
     "amount": "المبلغ",
@@ -947,6 +1051,7 @@
     "verifyAndProceed": "تحقق وتابع",
     "usersListNotImplemented": "قائمة المستخدمين قيد التطوير",
     "balance": "الرصيد",
+    "share": "مشاركة",
     "cancel": "إلغاء",
     "cancelled": "ملغى",
     "category": "التصنيف",
@@ -980,6 +1085,7 @@
     "customer": "العميل",
     "date": "التاريخ",
     "dates": "التواريخ",
+    "debtor": "المدين",
     "deactivate": "تعطيل",
     "default": "افتراضي",
     "delete": "حذف",
@@ -1004,6 +1110,8 @@
     "from": "من",
     "fullscreen": "ملء الشاشة",
     "googleSheets": "جداول غوغل",
+    "invoiceNumber": "رقم الفاتورة",
+    "name": "الاسم",
     "wizard": {
       "title": "إعداد حسابك",
       "subtitle": "أكمل بياناتك لتبدأ العمل",
@@ -1060,7 +1168,6 @@
     "method": "الطريقة",
     "modules": "الوحدات",
     "more": "المزيد",
-    "name": "الاسم",
     "net": "الصافي",
     "next": "التالي",
     "no": "لا",
@@ -1276,6 +1383,10 @@
       "accountingSheetsLab": {
         "name": "🧪 مختبر الشيتات المحاسبية",
         "description": "اختبار قيود اليومية والكشوفات المحاسبية مع NexaDataTable والميزات المتقدمة"
+      },
+      "nexaKanbanBoard": {
+        "name": "📋 لوحة كانبان (NexaKanban)",
+        "description": "لوحة كانبان احترافية مع السحب والإفلات، أعمدة ملونة، إجماليات، ودعم RTL - قابلة لإعادة الاستخدام في جميع الأقسام"
       },
       "saasDetailSheet": {
         "description": "شيت موحد لجميع كيانات SaaS (Plans, Tenants, Agents, Modules) - مع 6 تبويبات للباقات",
@@ -1682,12 +1793,35 @@
     "referralCode": "كود الإحالة",
     "referralSource": "مصدر الإحالة",
     "releaseDate": "تاريخ الإصدار",
+    "containerNumber": "رقم الكونتينر",
+    "originCountry": "بلد المنشأ",
+    "containerSize": "حجم الكونتينر",
+    "containerType": "نوع الكونتينر",
+    "billOfLading": "رقم البوليصة (B/L)",
+    "portOfLoading": "ميناء التحميل",
+    "portOfDischarge": "ميناء الوصول",
+    "vesselName": "اسم السفينة",
+    "shippingLine": "خط الشحن",
+    "etd": "موعد المغادرة (ETD)",
+    "eta": "موعد الوصول (ETA)",
+    "customsDeclaration": "البيان الجمركي",
+    "clearanceDate": "تاريخ التخليص",
+    "driverName": "اسم السائق",
+    "vehicleNumber": "رقم المركبة",
+    "deliveryDate": "تاريخ التوصيل",
+    "weight": "الوزن",
+    "deliveryAddress": "عنوان التوصيل",
+    "select": "اختر...",
+    "search": "بحث...",
+    "create": "إنجاز",
     "salesPerson": "المسؤول",
     "sortOrder": "ترتيب العرض",
     "startDate": "تاريخ البداية",
+    "status": "الحالة",
     "subscriber": "المشترك",
     "subscriptionAmount": "قيمة الاشتراك",
     "subscriptionCode": "كود الاشتراك",
+    "supplier": "المورد",
     "supplierCode": "رمز المورد",
     "taxNumber": "الرقم الضريبي",
     "tier": "المستوى",
@@ -2093,6 +2227,7 @@
   "messages": {
     "accessDenied": "الوصول مرفوض",
     "confirmCancel": "هل أنت متأكد أنك تريد الإلغاء؟",
+    "contentComingSoon": "المحتوى قريباً...",
     "confirmDelete": "هل أنت متأكد أنك تريد الحذف؟",
     "deleteError": "فشل الحذف",
     "deleteSuccess": "تم الحذف بنجاح",
@@ -2108,7 +2243,8 @@
     "unsavedChanges": "تغييرات غير محفوظة",
     "unsavedChangesDesc": "لديك تغييرات غير محفوظة. هل أنت متأكد من إغلاق هذا النموذج؟ سيتم فقدان جميع البيانات.",
     "updateError": "فشل التحديث",
-    "updateSuccess": "تم التحديث بنجاح"
+    "updateSuccess": "تم التحديث بنجاح",
+    "selectSupplierFirst": "الرجاء اختيار المورد أولاً"
   },
   "modes": {
     "view": "عرض",
@@ -2257,14 +2393,28 @@
   "productDetails": "تفاصيل المنتج",
   "project": "المشروع",
   "purchases": {
+    "container_details": {
+      "title": "إدارة الكونتينرات",
+      "subtitle": "تتبع وإدارة شحنات الاستيراد",
+      "contents": "محتويات الكونتينر",
+      "expenses": "مصاريف الشحنة"
+    },
     "module": "المشتريات",
+    "title": "المشتريات",
+    "dashboard": "لوحة المشتريات",
+    "suppliers": "الموردين",
+    "cycle": "دورة الشراء",
+    "orders": "الأوامر",
+    "invoices": "فواتير المشتريات",
+    "payments": "المدفوعات",
+    "returns": "المرتجعات",
+    "containers": "الكونتينرات",
     "purchaseInvoice": "فاتورة مشتريات",
     "purchaseOrder": "أمر شراء",
     "purchaseReceipt": "إذن استلام",
     "purchaseRequest": "طلب شراء",
     "purchaseReturn": "مرتجع مشتريات",
-    "supplier": "المورد",
-    "suppliers": "الموردين"
+    "supplier": "المورد"
   },
   "qrCode": {
     "copied": "تم نسخ الرابط",
@@ -2603,16 +2753,83 @@
   "sales": {
     "customer": "العميل",
     "customers": "العملاء",
+    "customersSubtitle": "إدارة ملفات العملاء وجهات الاتصال",
+    "cycle": "دورة المبيعات",
+    "cycleSubtitle": "إدارة عروض الأسعار وأوامر البيع والخدمات اللوجستية",
+    "dashboard": "لوحة المبيعات",
+    "dashboardSubtitle": "نظرة عامة على أداء المبيعات",
     "deliveryNote": "إذن تسليم",
     "discount": "الخصم",
+    "invoices": "فواتير المبيعات",
+    "invoicesSubtitle": "إدارة الفواتير والتحصيل",
     "module": "المبيعات",
+    "payments": "المقبوضات",
+    "paymentsSubtitle": "سندات القبض والدفعات",
     "priceList": "قائمة الأسعار",
     "quotation": "عرض سعر",
+    "reports": "التقارير",
     "salesInvoice": "فاتورة مبيعات",
     "salesOrder": "أمر بيع",
     "salesReturn": "مرتجع مبيعات",
+    "settings": "الإعدادات",
     "tax": "الضريبة",
-    "vat": "ضريبة القيمة المضافة"
+    "vat": "ضريبة القيمة المضافة",
+    "reportsPage": {
+      "title": "تقارير المبيعات",
+      "subtitle": "لوحة تحليل أداء المبيعات والمؤشرات الرئيسية",
+      "dailySales": "المبيعات اليومية",
+      "byProduct": "حسب المنتج",
+      "bySalesperson": "حسب المندوب",
+      "byRegion": "حسب المنطقة",
+      "byCategory": "حسب الفئة",
+      "customers": "تقارير العملاء",
+      "returns": "المرتجعات",
+      "profit": "هامش الربح",
+      "totalSales": "إجمالي المبيعات",
+      "invoiceCount": "عدد الفواتير",
+      "growthRate": "معدل النمو",
+      "productsSold": "المنتجات المباعة",
+      "dailyTrend": "اتجاه المبيعات اليومية",
+      "categoryDist": "توزيع المبيعات حسب الفئة",
+      "categoryDistSub": "حصة كل فئة من إجمالي الإيرادات",
+      "actualVsTarget": "أداء المندوبين (VS الهدف)",
+      "breakdown": "تفاصيل المبيعات اليومية",
+      "achieved": "المحقق",
+      "target": "الهدف"
+    },
+    "settingsPage": {
+      "title": "إعدادات المبيعات",
+      "subtitle": "إدارة الأسعار والخصومات والعمولات وأهداف المبيعات",
+      "tabs": {
+        "pricing": "قوائم الأسعار",
+        "discounts": "الخصومات",
+        "commissions": "العمولات",
+        "targets": "الأهداف",
+        "general": "إعدادات عامة"
+      },
+      "pricing": {
+        "title": "قوائم الأسعار",
+        "description": "إدارة قوائم أسعار متعددة للعملاء المختلفين",
+        "add": "إضافة قائمة أسعار",
+        "products": "المنتجات",
+        "default": "افتراضي"
+      },
+      "discounts": {
+        "title": "قواعد الخصومات",
+        "description": "إعداد خصومات تلقائية حسب الكمية أو العميل",
+        "add": "إضافة قاعدة خصم",
+        "ruleName": "اسم القاعدة",
+        "condition": "الشرط",
+        "value": "القيمة"
+      },
+      "commissions": {
+        "title": "خطط العمولات",
+        "description": "تحديد نسب العمولات والحوافز",
+        "add": "إضافة خطة",
+        "rate": "النسبة",
+        "bonus": "البونص"
+      }
+    }
   },
   "salesRevenue": "إيرادات المبيعات",
   "save": "حفظ",
@@ -2686,7 +2903,6 @@
     "totalBills": "إجمالي الفواتير",
     "totalCustomers": "إجمالي العملاء",
     "totalEarned": "إجمالي الأرباح",
-    "totalExpenses": "إجمالي المصروفات",
     "totalInvoices": "إجمالي الفواتير",
     "totalModules": "إجمالي الوحدات",
     "totalOrders": "إجمالي الطلبات",
@@ -2719,19 +2935,34 @@
     "inactive": "غير نشط",
     "open": "مفتوح",
     "overdue": "متأخر",
-    "paid": "مدفوع",
+    "paid": "مدفوع كلي",
     "partial": "جزئي",
     "pastDue": "متأخر",
+    "partially_paid": "مدفوع جزئي",
     "paused": "متوقف",
     "pending": "معلق",
-    "posted": "مؤكد",
+    "posted": "مرحلة",
+    "processing": "جاري المعالجة",
     "rejected": "مرفوض",
+    "received": "تم الاستلام",
+    "returned": "مرتجع",
+    "shipped": "تم الشحن",
     "submitted": "مقدم",
     "suspended": "موقوف",
     "terminated": "منتهي",
     "trial": "تجريبي",
     "unpaid": "غير مدفوع",
-    "warning": "تحذير"
+    "warning": "تحذير",
+    "all": "الكل",
+    "inTransit": "في الطريق",
+    "cleared": "مخلص جمركياً"
+  },
+  "method": {
+    "cash": "نقدي",
+    "bank": "تحويل بنكي",
+    "check": "شيك",
+    "transfer": "حوالة",
+    "card": "بطاقة"
   },
   "statusManager": {
     "addComment": "أضف تعليق (اختياري)...",
@@ -2863,6 +3094,15 @@
     }
   },
   "table": {
+    "amount": "المبلغ",
+    "customer": "العميل",
+    "date": "التاريخ",
+    "invoiceNumber": "رقم الفاتورة",
+    "receiptNumber": "رقم السند",
+    "method": "طريقة الدفع",
+    "debtor": "المدين",
+    "addColumn": "إضافة عمود",
+    "addRow": "إضافة صف",
     "activeFilters": "فلتر نشط",
     "additionalFilters": "فلاتر إضافية",
     "applyMarker": "تطبيق الماركر",
@@ -3675,5 +3915,11 @@
     "subtitle": "إدارة المواعيد، العمليات، والسجلات الطبية",
     "systemTitle": "بوابة الأطباء",
     "systemDescription": "مساحة مخصصة للأطباء لمتابعة المواعيد والسجلات الطبية للمرضى."
+  },
+  "types": {
+    "dry": "جاف",
+    "reefer": "مبرد",
+    "open": "مفتوح",
+    "flat": "مسطح"
   }
 }

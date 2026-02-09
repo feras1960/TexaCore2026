@@ -23,6 +23,9 @@ const RegistrationWizard = React.lazy(() => import('@/features/auth/FabricRegist
 const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
 const NexaDataTableDemo = React.lazy(() => import('@/pages/NexaDataTableDemo'));
 const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
+const KanbanLabPage = React.lazy(() => import('@/pages/KanbanLabPage'));
+const AdvancedQRScannerPage = React.lazy(() => import('@/pages/advanced/AdvancedQRScannerPage'));
+const CRM = React.lazy(() => import('@/features/crm/CRM'));
 
 const Fabrics = React.lazy(() => import('@/features/fabrics/Fabrics')); // Keep file name as is for now, but route is /fabric
 const Pharmacy = React.lazy(() => import('@/features/pharmacy/Pharmacy'));
@@ -32,7 +35,9 @@ const Restaurant = React.lazy(() => import('@/features/restaurant/Restaurant'));
 const Gold = React.lazy(() => import('@/features/gold/Gold'));
 const Shipments = React.lazy(() => import('@/features/shipments/Shipments'));
 const WarehouseModule = React.lazy(() => import('@/features/warehouse/WarehouseModule'));
+const Purchases = React.lazy(() => import('@/features/purchases/PurchasesPage'));
 const SystemConfigPage = React.lazy(() => import('@/features/settings/SystemConfigPage'));
+const Sales = React.lazy(() => import('@/features/sales/SalesPage'));
 
 // Public Route Guard (redirects to home if already authenticated)
 // Reserved for future use when public routes are needed
@@ -100,11 +105,11 @@ function AppRoutes() {
             <Route path="/gold/*" element={<Gold />} />
             <Route path="/shipments/*" element={<Shipments />} />
 
-            <Route path="/sales/*" element={<PlaceholderPage titleKey="navigation.sales" />} />
-            <Route path="/crm/*" element={<PlaceholderPage titleKey="navigation.crm" />} />
+            <Route path="/sales/*" element={<Sales />} />
+            <Route path="/crm/*" element={<CRM />} />
             <Route path="/warehouse/*" element={<WarehouseModule />} />
             <Route path="/inventory/*" element={<WarehouseModule />} />
-            <Route path="/purchases/*" element={<PlaceholderPage titleKey="navigation.purchases" />} />
+            <Route path="/purchases/*" element={<Purchases />} />
             <Route path="/pos/*" element={<PlaceholderPage titleKey="navigation.pos" />} />
             <Route path="/exchange/*" element={<PlaceholderPage titleKey="navigation.exchange" />} />
             <Route path="/real-estate/*" element={<PlaceholderPage titleKey="navigation.realEstate" />} />
@@ -119,6 +124,8 @@ function AppRoutes() {
             <Route path="/design-system" element={<DesignSystemDemo />} />
             <Route path="/nexa-table" element={<NexaDataTableDemo />} />
             <Route path="/sheets-preview" element={<SheetsPreview />} />
+            <Route path="/kanban-lab" element={<KanbanLabPage />} />
+            <Route path="/qr-scan" element={<AdvancedQRScannerPage />} />
           </Route>
         </Route>
 

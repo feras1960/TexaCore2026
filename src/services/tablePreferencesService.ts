@@ -15,12 +15,33 @@ export interface TablePreferences {
 
 const CACHE_PREFIX = 'nexa-table-prefs-cache-';
 
+// In-memory cache for instant access (avoids Supabase round-trip)
+const memoryCache: Record<string, { prefs: TablePreferences; timestamp: number }> = {};
+const MEMORY_CACHE_TTL = 60_000; // 60 seconds
+
 /**
  * جلب تفضيلات جدول معين للمستخدم الحالي
  */
 export async function getTablePreferences(tableKey: string): Promise<TablePreferences | null> {
+    // 0. Check in-memory cache first (fastest)
+    const memoryCached = memoryCache[tableKey];
+    if (memoryCached && (Date.now() - memoryCached.timestamp) < MEMORY_CACHE_TTL) {
+        return memoryCached.prefs;
+    }
+
     try {
-        // 1. Try to get from Supabase
+        // 1. Try localStorage cache first (fast, works offline)
+        const cached = localStorage.getItem(CACHE_PREFIX + tableKey);
+        let localPrefs: TablePreferences | null = null;
+        if (cached) {
+            localPrefs = JSON.parse(cached);
+            // Store in memory cache for even faster subsequent access
+            if (localPrefs) {
+                memoryCache[tableKey] = { prefs: localPrefs, timestamp: Date.now() };
+            }
+        }
+
+        // 2. Try Supabase in background (don't block rendering)
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
@@ -32,31 +53,27 @@ export async function getTablePreferences(tableKey: string): Promise<TablePrefer
                 .single();
 
             if (data && !error) {
-                // Cache locally for faster access
                 const prefs: TablePreferences = {
                     columnVisibility: data.column_visibility || {},
                     columnSizing: data.column_sizing || {},
                     columnOrder: data.column_order || [],
                 };
                 localStorage.setItem(CACHE_PREFIX + tableKey, JSON.stringify(prefs));
+                memoryCache[tableKey] = { prefs, timestamp: Date.now() };
                 return prefs;
             }
         }
 
-        // 2. Fallback to localStorage cache
-        const cached = localStorage.getItem(CACHE_PREFIX + tableKey);
-        if (cached) {
-            return JSON.parse(cached);
-        }
-
-        return null;
+        return localPrefs;
     } catch (error) {
         console.warn('Failed to get table preferences:', error);
 
         // Try localStorage fallback
         const cached = localStorage.getItem(CACHE_PREFIX + tableKey);
         if (cached) {
-            return JSON.parse(cached);
+            const prefs = JSON.parse(cached);
+            memoryCache[tableKey] = { prefs, timestamp: Date.now() };
+            return prefs;
         }
 
         return null;
@@ -116,11 +133,12 @@ export async function saveTablePreferences(
             return false;
         }
 
-        // Update local cache
+        // Update local cache + memory cache
         const existing = localStorage.getItem(CACHE_PREFIX + tableKey);
         const current = existing ? JSON.parse(existing) : {};
         const updated = { ...current, ...preferences };
         localStorage.setItem(CACHE_PREFIX + tableKey, JSON.stringify(updated));
+        memoryCache[tableKey] = { prefs: updated as TablePreferences, timestamp: Date.now() };
 
         return true;
     } catch (error) {

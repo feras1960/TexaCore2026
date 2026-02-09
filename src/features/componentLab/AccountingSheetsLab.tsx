@@ -34,6 +34,8 @@ import {
     Building2,
     Receipt,
     FileEdit,
+    ArrowUpRight,
+    ArrowDownRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
@@ -56,10 +58,13 @@ import FundTransferDialog from '@/features/accounting/components/FundTransferDia
 import CurrencyExchangeDialog from '@/features/accounting/components/CurrencyExchangeDialog';
 import { AddFundDialog } from '@/features/accounting/components/AddFundDialog';
 import { AddCostCenterDialog } from '@/features/accounting/components/AddCostCenterDialog';
+import { DevLabNav } from './DevLabNav';
 // Import the NEW Unified Component
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified';
 // Import UniversalDetailSheet (used in Chart of Accounts)
 import { UniversalDetailSheet } from '@/components/sheets';
+// Import NEW Unified Trade Sheet
+import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 
 // Mock account data for testing
 const MOCK_ACCOUNT = {
@@ -252,6 +257,161 @@ const COMPONENTS_REGISTRY: ComponentInfo[] = [
         tabs: ['Overview', 'Ledger', 'Activity'],
         features: ['مكون واحد لكل الأنواع', 'تكوين مرن', 'RTL كامل', 'أرقام إنجليزية/عربية'],
         issues: [],
+    },
+    // === UNIFIED ACCOUNTING ENTRY (Phase 1) ===
+    {
+        id: 'unified-journal-create',
+        name: 'UnifiedAccountingSheet (Journal Create)',
+        nameAr: '📝 الشيت الموحد - إنشاء قيد',
+        description: 'Unified journal entry creation via AccountingEntryTab + NexaDataTable',
+        descriptionAr: 'إنشاء قيد محاسبي جديد عبر المكون الموحد مع NexaDataTable',
+        path: 'src/features/accounting/components/unified/tabs/JournalFormTab.tsx',
+        linesOfCode: 400,
+        sizeKB: 15,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: FileEdit,
+        tabs: ['Entry (NexaDataTable)'],
+        features: ['NexaDataTable مع وضع Excel', 'قيد يومية / سند قبض / سند صرف', 'موازنة تلقائية', 'RTL كامل', 'أعمدة ديناميكية'],
+        issues: [],
+    },
+    {
+        id: 'unified-receipt-create',
+        name: 'UnifiedAccountingSheet (Receipt Create)',
+        nameAr: '📥 الشيت الموحد - سند قبض',
+        description: 'Unified receipt voucher creation',
+        descriptionAr: 'إنشاء سند قبض عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/JournalFormTab.tsx',
+        linesOfCode: 400,
+        sizeKB: 15,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: ArrowRight,
+        tabs: ['Receipt Form'],
+        features: ['NexaDataTable وضع المبلغ الواحد', 'حساب الصندوق الرئيسي', 'موازنة تلقائية'],
+        issues: [],
+    },
+    {
+        id: 'unified-transfer-create',
+        name: 'UnifiedAccountingSheet (Transfer Create)',
+        nameAr: '💸 الشيت الموحد - تحويل',
+        description: 'Unified fund transfer creation',
+        descriptionAr: 'إنشاء تحويل بين الصناديق عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/FundTransferTab.tsx',
+        linesOfCode: 200,
+        sizeKB: 8,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: ArrowRightLeft,
+        tabs: ['Transfer Form'],
+        features: ['اختيار ذكي للحسابات', 'تحويل بين الصناديق', 'واجهة بسيطة'],
+        issues: [],
+    },
+    {
+        id: 'unified-exchange-create',
+        name: 'UnifiedAccountingSheet (Exchange Create)',
+        nameAr: '💱 الشيت الموحد - صرف عملات',
+        description: 'Unified currency exchange creation',
+        descriptionAr: 'إنشاء عملية صرف عملات عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/CurrencyExchangeTab.tsx',
+        linesOfCode: 250,
+        sizeKB: 10,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: RefreshCw,
+        tabs: ['Exchange Form'],
+        features: ['تحويل عملات', 'سعر صرف تلقائي', 'واجهة بصرية جميلة'],
+        issues: [],
+    },
+    {
+        id: 'unified-cash-create',
+        name: 'UnifiedAccountingSheet (Cash Journal Create)',
+        nameAr: '💰 الشيت الموحد - يومية صندوق',
+        description: 'Unified cash journal creation',
+        descriptionAr: 'إنشاء قيد يومية صندوق عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/JournalFormTab.tsx',
+        linesOfCode: 800,
+        sizeKB: 35,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: Wallet,
+        tabs: ['Cash Journal Form'],
+        features: ['NexaDataTable مع وضع Excel', 'حفظ تلقائي للمسودات', 'اختصارات لوحة المفاتيح'],
+        issues: [],
+    },
+    {
+        id: 'unified-payment-create',
+        name: 'UnifiedAccountingSheet (Payment Create)',
+        nameAr: '📤 الشيت الموحد - سند صرف',
+        description: 'Unified payment voucher creation',
+        descriptionAr: 'إنشاء سند صرف عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/JournalFormTab.tsx',
+        linesOfCode: 800,
+        sizeKB: 35,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: ArrowUpRight,
+        tabs: ['Payment Form'],
+        features: ['NexaDataTable وضع المبلغ الواحد', 'موازنة تلقائية', 'اختصارات لوحة المفاتيح'],
+        issues: [],
+    },
+    {
+        id: 'unified-debit-note',
+        name: 'UnifiedAccountingSheet (Debit Note)',
+        nameAr: '📜 الشيت الموحد - إشعار مدين',
+        description: 'Unified debit note creation',
+        descriptionAr: 'إنشاء إشعار مدين عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/JournalVoucherTab.tsx',
+        linesOfCode: 400,
+        sizeKB: 15,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: FileText,
+        tabs: ['Debit Note Form'],
+        features: ['NexaDataTable', 'RTL كامل', 'أعمدة ديناميكية'],
+        issues: [],
+    },
+    {
+        id: 'unified-credit-note',
+        name: 'UnifiedAccountingSheet (Credit Note)',
+        nameAr: '📜 الشيت الموحد - إشعار دائن',
+        description: 'Unified credit note creation',
+        descriptionAr: 'إنشاء إشعار دائن عبر المكون الموحد',
+        path: 'src/features/accounting/components/unified/tabs/JournalVoucherTab.tsx',
+        linesOfCode: 400,
+        sizeKB: 15,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: FileText,
+        tabs: ['Credit Note Form'],
+        features: ['NexaDataTable', 'RTL كامل', 'أعمدة ديناميكية'],
+        issues: [],
+    },
+    // === NEW UNIFIED TRADE SHEET ===
+    {
+        id: 'unified-trade-sheet',
+        name: 'UnifiedTradeSheet (Purchase/Sales)',
+        nameAr: '📦 شيت التجارة الموحد (بيع/شراء)',
+        description: 'New unified sheet for Orders, Invoices, Shipments',
+        descriptionAr: 'الشيت الموحد الجديد لجميع العمليات التجارية والنقل',
+        path: 'src/features/trade/components/UnifiedTradeSheet.tsx',
+        linesOfCode: 50,
+        sizeKB: 2,
+        category: 'sheet',
+        status: 'new',
+        recommendation: 'keep',
+        icon: Receipt,
+        tabs: ['Main Info', 'Shipping', 'Attachments', 'Workflow'],
+        features: ['Purchases', 'Sales', 'Imports', 'Landed Cost'],
+        issues: ['تحت الإنشاء'],
     },
     // === UNIVERSAL DETAIL SHEET (Used in Chart of Accounts) ===
     {
@@ -572,6 +732,9 @@ export default function AccountingSheetsLab() {
                     </div>
                 </div>
 
+                {/* ─── Lab Sub-Navigation ─── */}
+                <DevLabNav currentLabId="sheets-lab" />
+
                 {/* Info Banner */}
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                     <div className="flex items-start gap-3">
@@ -800,6 +963,16 @@ export default function AccountingSheetsLab() {
                 />
             )}
 
+            {/* UnifiedTradeSheet */}
+            {selectedComponent === 'unified-trade-sheet' && (
+                <UnifiedTradeSheet
+                    open={true}
+                    onOpenChange={(open) => !open && setSelectedComponent(null)}
+                    mode="purchase"
+                    type="order"
+                />
+            )}
+
             {/* TransactionDetailsSheet */}
             {selectedComponent === 'transaction-details-sheet' && (
                 <TransactionDetailsSheet
@@ -887,6 +1060,94 @@ export default function AccountingSheetsLab() {
                     docType="account"
                     mode="view"
                     data={MOCK_ACCOUNT}
+                />
+            )}
+
+            {/* 📝 Unified Journal Entry Create */}
+            {selectedComponent === 'unified-journal-create' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="journal"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 📥 Unified Receipt Create */}
+            {selectedComponent === 'unified-receipt-create' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="receipt"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 💸 Unified Transfer Create */}
+            {selectedComponent === 'unified-transfer-create' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="transfer"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 💱 Unified Exchange Create */}
+            {selectedComponent === 'unified-exchange-create' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="exchange"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 💰 Unified Cash Journal Create */}
+            {selectedComponent === 'unified-cash-create' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="cash"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 📤 Unified Payment Create */}
+            {selectedComponent === 'unified-payment-create' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="payment"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 📜 Unified Debit Note Create */}
+            {selectedComponent === 'unified-debit-note' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="debit_note"
+                    mode="create"
+                    data={null}
+                />
+            )}
+
+            {/* 📜 Unified Credit Note Create */}
+            {selectedComponent === 'unified-credit-note' && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setSelectedComponent(null)}
+                    docType="credit_note"
+                    mode="create"
+                    data={null}
                 />
             )}
 
