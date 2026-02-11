@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -14,11 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { 
+import {
   ArrowLeft,
-  ArrowUpDown, 
-  ArrowUp, 
-  ArrowDown, 
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Filter,
   Download,
   Printer,
@@ -51,7 +51,7 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
   const navigate = useNavigate();
   const { t, direction } = useLanguage();
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
-  
+
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
 
@@ -61,15 +61,15 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
     name: id === '2' ? 'Bank Al-Bilad' : 'Main Cash Fund',
     type: id === '2' ? 'bank' : 'cash',
     balance: 40500,
-    currency: 'SAR',
+    currency: '',
     accountNumber: id === '2' ? 'SA45 1234 5678 9012' : '-'
   };
 
   const handleSort = (key: string) => {
     setSortConfig((current) => {
       if (current?.key === key) {
-        return current.direction === 'asc' 
-          ? { key, direction: 'desc' } 
+        return current.direction === 'asc'
+          ? { key, direction: 'desc' }
           : null;
       }
       return { key, direction: 'asc' };
@@ -90,7 +90,7 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
     Object.keys(filters).forEach((key) => {
       const value = filters[key].toLowerCase();
       if (value) {
-        data = data.filter((item) => 
+        data = data.filter((item) =>
           String((item as any)[key]).toLowerCase().includes(value)
         );
       }
@@ -117,7 +117,7 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
 
   const renderHeader = (label: string, key: string, options?: string[]) => (
     <div className="flex items-center gap-2">
-      <span 
+      <span
         className="cursor-pointer hover:text-erp-navy flex items-center gap-1"
         onClick={() => handleSort(key)}
       >
@@ -138,8 +138,8 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
           <div className="space-y-2">
             <h4 className="font-medium text-xs text-gray-500 mb-1">Filter by {label}</h4>
             {options ? (
-              <Select 
-                value={filters[key] || "all"} 
+              <Select
+                value={filters[key] || "all"}
                 onValueChange={(value) => handleFilter(key, value === "all" ? "" : value)}
               >
                 <SelectTrigger className="h-8 text-sm">
@@ -153,8 +153,8 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
                 </SelectContent>
               </Select>
             ) : (
-              <Input 
-                placeholder={`Search ${label}...`} 
+              <Input
+                placeholder={`Search ${label}...`}
                 value={filters[key] || ''}
                 onChange={(e) => handleFilter(key, e.target.value)}
                 className="h-8 text-sm"
@@ -217,8 +217,8 @@ export default function FundDetails({ fundId: propFundId }: FundDetailsProps) {
             <TableBody>
               {filteredAndSortedData.length > 0 ? (
                 filteredAndSortedData.map((trx) => (
-                  <TableRow 
-                    key={trx.id} 
+                  <TableRow
+                    key={trx.id}
                     className="hover:bg-gray-100 border-b border-gray-200 cursor-pointer transition-colors"
                     onClick={() => handleRowClick(trx)}
                   >

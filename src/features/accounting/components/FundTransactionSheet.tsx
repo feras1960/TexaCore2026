@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +12,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Wallet, 
-  Landmark, 
-  ArrowDownRight, 
+import {
+  Wallet,
+  Landmark,
+  ArrowDownRight,
   ArrowUpRight,
   ArrowRightLeft,
   Search,
@@ -41,6 +41,11 @@ import {
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, startOfWeek, endOfWeek } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
+import { useCompany } from '@/hooks/useCompany';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
+import { accountLedgerService, LedgerEntry } from '@/services/accountLedgerService';
+import { Loader2 } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -88,67 +93,61 @@ interface FilterState {
   minAmount: string;
   maxAmount: string;
   currency: string;
-}
+};
 
-// Currency configuration
+// Currency display info - will be extended from DB in future
 const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: string; en: string } }> = {
   SAR: { symbol: 'ر.س', flag: '🇸🇦', name: { ar: 'ريال سعودي', en: 'Saudi Riyal' } },
   USD: { symbol: '$', flag: '🇺🇸', name: { ar: 'دولار أمريكي', en: 'US Dollar' } },
   EUR: { symbol: '€', flag: '🇪🇺', name: { ar: 'يورو', en: 'Euro' } },
   GBP: { symbol: '£', flag: '🇬🇧', name: { ar: 'جنيه إسترليني', en: 'British Pound' } },
-  AED: { symbol: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } }
+  AED: { symbol: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } },
+  UAH: { symbol: '₴', flag: '🇺🇦', name: { ar: 'هريفنيا أوكرانية', en: 'Ukrainian Hryvnia' } },
+  TRY: { symbol: '₺', flag: '🇹🇷', name: { ar: 'ليرة تركية', en: 'Turkish Lira' } },
 };
 
-// Mock transactions data with currency
-const mockTransactions: Transaction[] = [
-  { id: 'TRX-001', date: '2024-03-25', description: 'تحصيل من عميل - شركة التقنية', type: 'deposit', amount: 15000, balance: 55420, status: 'completed', reference: 'REC-2024-125', createdBy: 'أحمد محمد', contraAccount: '1200 - المدينون', origin: 'manual', currency: 'SAR' },
-  { id: 'TRX-002', date: '2024-03-25', description: 'دفع مورد - مؤسسة الفجر', type: 'withdrawal', amount: 8500, balance: 40420, status: 'completed', reference: 'PAY-2024-089', createdBy: 'سارة علي', contraAccount: '2010 - الدائنون', origin: 'purchases', currency: 'SAR' },
-  { id: 'TRX-003', date: '2024-03-24', description: 'تحويل من البنك الرئيسي', type: 'transfer_in', amount: 20000, balance: 48920, status: 'completed', reference: 'TRF-2024-045', createdBy: 'النظام', contraAccount: 'بنك البلاد', origin: 'transfer', currency: 'SAR' },
-  { id: 'TRX-004', date: '2024-03-24', description: 'مصروفات إدارية', type: 'withdrawal', amount: 1200, balance: 28920, status: 'completed', reference: 'EXP-2024-234', createdBy: 'أحمد محمد', contraAccount: '5010 - مصروفات إدارية', origin: 'manual', currency: 'SAR' },
-  { id: 'TRX-005', date: '2024-03-23', description: 'إيداع مبيعات نقدية', type: 'deposit', amount: 7500, balance: 30120, status: 'completed', reference: 'INV-2024-892', createdBy: 'خالد عمر', contraAccount: '4010 - إيرادات المبيعات', origin: 'sales', currency: 'SAR' },
-  { id: 'TRX-006', date: '2024-03-23', description: 'تحويل إلى صندوق النثرية', type: 'transfer_out', amount: 2000, balance: 22620, status: 'completed', reference: 'TRF-2024-044', createdBy: 'سارة علي', contraAccount: 'صندوق النثرية', origin: 'transfer', currency: 'SAR' },
-  { id: 'TRX-007', date: '2024-03-22', description: 'دفع فواتير كهرباء', type: 'withdrawal', amount: 850, balance: 24620, status: 'pending', reference: 'PAY-2024-088', createdBy: 'أحمد محمد', contraAccount: '5030 - مصروفات خدمات', origin: 'manual', currency: 'SAR' },
-  { id: 'TRX-008', date: '2024-03-22', description: 'تحصيل شيك', type: 'deposit', amount: 12000, balance: 25470, status: 'pending', reference: 'REC-2024-124', createdBy: 'خالد عمر', contraAccount: '1200 - المدينون', origin: 'sales', currency: 'SAR' },
-  { id: 'TRX-009', date: '2024-03-21', description: 'رواتب الموظفين', type: 'withdrawal', amount: 45000, balance: 13470, status: 'completed', reference: 'SAL-2024-003', createdBy: 'النظام', contraAccount: '5100 - الرواتب', origin: 'payroll', currency: 'SAR' },
-  { id: 'TRX-010', date: '2024-03-20', description: 'رصيد افتتاحي', type: 'deposit', amount: 58470, balance: 58470, status: 'completed', reference: 'OPN-2024-001', createdBy: 'المدير', contraAccount: '3010 - رأس المال', origin: 'system', currency: 'SAR' },
-  { id: 'TRX-011', date: '2024-03-25', description: 'Payment received from client', type: 'deposit', amount: 2500, balance: 5000, status: 'completed', reference: 'REC-2024-126', createdBy: 'Ahmed', contraAccount: '1200 - Receivables', origin: 'sales', currency: 'USD' },
-  { id: 'TRX-012', date: '2024-03-24', description: 'تصريف USD إلى SAR', type: 'exchange', amount: 1000, balance: 2500, status: 'completed', reference: 'EXC-2024-001', createdBy: 'أحمد محمد', contraAccount: 'SAR', origin: 'exchange', currency: 'USD' },
-  { id: 'TRX-013', date: '2024-03-24', description: 'تصريف USD إلى SAR', type: 'exchange', amount: 3750, balance: 44170, status: 'completed', reference: 'EXC-2024-001', createdBy: 'أحمد محمد', contraAccount: 'USD', origin: 'exchange', currency: 'SAR' },
-  { id: 'TRX-014', date: '2024-03-23', description: 'Euro deposit', type: 'deposit', amount: 1800, balance: 1800, status: 'completed', reference: 'REC-2024-127', createdBy: 'Sarah', contraAccount: '1200 - Receivables', origin: 'manual', currency: 'EUR' },
-];
+// Helper: map ledger entry to Transaction
+function mapLedgerToTransaction(entry: LedgerEntry, baseCurrency: string): Transaction {
+  const isDebit = (entry.debit || 0) > 0;
+  let type: Transaction['type'] = 'deposit';
+  if (isDebit) type = 'withdrawal'; // debit on fund = money going out
+  // Check if it's a transfer based on reference type
+  const ref = (entry.referenceType || '').toLowerCase();
+  if (ref === 'transfer') type = isDebit ? 'transfer_out' : 'transfer_in';
+  if (ref === 'exchange') type = 'exchange';
 
-// Exchange rates to SAR (base currency)
-const exchangeRatesToSAR: Record<string, number> = {
-  SAR: 1,
-  USD: 3.75,
-  EUR: 4.09,
-  GBP: 4.74,
-  AED: 1.02
-};
+  return {
+    id: entry.id,
+    date: entry.date,
+    description: entry.description || '',
+    type,
+    amount: isDebit ? entry.debit : entry.credit,
+    balance: entry.balance || 0,
+    status: entry.status === 'posted' ? 'completed' : entry.status === 'cancelled' ? 'cancelled' : 'pending',
+    reference: entry.entryNumber || entry.reference || '',
+    createdBy: '',
+    contraAccount: entry.partyName || '',
+    origin: ref || 'manual',
+    currency: entry.currency || baseCurrency,
+  };
+}
 
-// Get exchange rate between any two currencies
-const getExchangeRate = (from: string, to: string): number => {
-  if (from === to) return 1;
-  const fromToSAR = exchangeRatesToSAR[from] || 1;
-  const toToSAR = exchangeRatesToSAR[to] || 1;
-  return fromToSAR / toToSAR;
-};
-
-// Convert amount from one currency to another
-const convertCurrency = (amount: number, from: string, to: string): number => {
-  return amount * getExchangeRate(from, to);
-};
-
-export default function FundTransactionSheet({ 
-  open, 
-  onOpenChange, 
+export default function FundTransactionSheet({
+  open,
+  onOpenChange,
   fund,
-  selectedCurrency 
+  selectedCurrency
 }: FundTransactionSheetProps) {
   const { language, direction } = useLanguage();
+  const { companyId } = useCompany();
+  const { currencyCode: baseCurrency } = useCompanyCurrency();
+  const { lookupRate } = useExchangeRateLookup();
+
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [displayCurrency, setDisplayCurrency] = useState<string>(selectedCurrency || 'all');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     transactionType: 'all',
@@ -159,8 +158,48 @@ export default function FundTransactionSheet({
     datePreset: 'all',
     minAmount: '',
     maxAmount: '',
-    currency: 'all' // Show all transactions regardless of currency
+    currency: 'all'
   });
+
+  // Convert amount using dynamic exchange rates
+  const convertCurrency = useCallback((amount: number, from: string, to: string): number => {
+    if (from === to) return amount;
+    const rate = lookupRate(from, to);
+    return amount * rate;
+  }, [lookupRate]);
+
+  // Fetch real transactions when the sheet opens
+  useEffect(() => {
+    if (!open || !fund || !companyId) return;
+
+    const fetchTransactions = async () => {
+      // Fund.id is typically the account_id in the chart_of_accounts
+      const accountId = String(fund.id);
+      if (!accountId) return;
+
+      setIsLoading(true);
+      try {
+        const result = await accountLedgerService.getLedger({
+          accountId,
+          companyId,
+          dateFrom: filters.dateRange?.from ? format(filters.dateRange.from, 'yyyy-MM-dd') : undefined,
+          dateTo: filters.dateRange?.to ? format(filters.dateRange.to, 'yyyy-MM-dd') : undefined,
+          status: filters.status !== 'all' ? filters.status as 'posted' | 'draft' : undefined,
+          currency: filters.currency !== 'all' ? filters.currency : undefined,
+        });
+
+        const mapped = result.entries.map(entry => mapLedgerToTransaction(entry, baseCurrency));
+        setTransactions(mapped);
+      } catch (err) {
+        console.error('Failed to load fund transactions:', err);
+        setTransactions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTransactions();
+  }, [open, fund?.id, companyId, baseCurrency, filters.dateRange, filters.status, filters.currency]);
 
   // Update display currency when selectedCurrency prop changes
   React.useEffect(() => {
@@ -264,18 +303,18 @@ export default function FundTransactionSheet({
     });
   };
 
-  const hasActiveFilters = filters.search || filters.transactionType !== 'all' || filters.status !== 'all' || 
+  const hasActiveFilters = filters.search || filters.transactionType !== 'all' || filters.status !== 'all' ||
     filters.origin !== 'all' || filters.reference || filters.dateRange || filters.minAmount || filters.maxAmount ||
     (filters.currency !== 'all' && !selectedCurrency);
 
   // Get available currencies in transactions
   const availableCurrencies = useMemo(() => {
-    const currencies = new Set(mockTransactions.map(t => t.currency));
+    const currencies = new Set(transactions.map(t => t.currency));
     return Array.from(currencies);
-  }, []);
+  }, [transactions]);
 
   const filteredTransactions = useMemo(() => {
-    let data = [...mockTransactions];
+    let data = [...transactions];
 
     // Filter by currency first
     if (filters.currency && filters.currency !== 'all') {
@@ -284,7 +323,7 @@ export default function FundTransactionSheet({
 
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      data = data.filter((item) => 
+      data = data.filter((item) =>
         item.description.toLowerCase().includes(searchLower) ||
         item.reference.toLowerCase().includes(searchLower) ||
         item.createdBy.toLowerCase().includes(searchLower)
@@ -304,7 +343,7 @@ export default function FundTransactionSheet({
     }
 
     if (filters.reference) {
-      data = data.filter((item) => 
+      data = data.filter((item) =>
         item.reference.toLowerCase().includes(filters.reference.toLowerCase())
       );
     }
@@ -365,8 +404,8 @@ export default function FundTransactionSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[50vw] max-w-none sm:max-w-[85vw] md:max-w-[70vw] lg:max-w-[50vw] p-0 overflow-hidden"
         dir={direction}
       >
@@ -463,8 +502,8 @@ export default function FundTransactionSheet({
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2">
                     <div className={`p-1.5 ${fund.todayChange >= 0 ? 'bg-green-100' : 'bg-red-100'} rounded-lg`}>
-                      {fund.todayChange >= 0 
-                        ? <TrendingUp className="w-4 h-4 text-green-600" /> 
+                      {fund.todayChange >= 0
+                        ? <TrendingUp className="w-4 h-4 text-green-600" />
                         : <TrendingDown className="w-4 h-4 text-red-600" />
                       }
                     </div>
@@ -494,15 +533,15 @@ export default function FundTransactionSheet({
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400`} />
-                <Input 
-                  placeholder={language === 'ar' ? 'بحث في المعاملات...' : 'Search transactions...'} 
+                <Input
+                  placeholder={language === 'ar' ? 'بحث في المعاملات...' : 'Search transactions...'}
                   className={`${direction === 'rtl' ? 'pr-9' : 'pl-9'} bg-white`}
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                 />
               </div>
-              <Button 
-                variant={showFilters ? "default" : "outline"} 
+              <Button
+                variant={showFilters ? "default" : "outline"}
                 className={`gap-2 ${showFilters ? 'bg-erp-navy' : ''}`}
                 onClick={() => setShowFilters(!showFilters)}
               >
@@ -608,7 +647,7 @@ export default function FundTransactionSheet({
                     <label className="text-xs font-medium text-gray-600">
                       {language === 'ar' ? 'المرجع' : 'Reference'}
                     </label>
-                    <Input 
+                    <Input
                       placeholder="REC-2024-..."
                       value={filters.reference}
                       onChange={(e) => setFilters(prev => ({ ...prev, reference: e.target.value }))}
@@ -621,7 +660,7 @@ export default function FundTransactionSheet({
                     <label className="text-xs font-medium text-gray-600">
                       {language === 'ar' ? 'الحد الأدنى للمبلغ' : 'Min Amount'}
                     </label>
-                    <Input 
+                    <Input
                       type="number"
                       placeholder="0"
                       value={filters.minAmount}
@@ -635,7 +674,7 @@ export default function FundTransactionSheet({
                     <label className="text-xs font-medium text-gray-600">
                       {language === 'ar' ? 'الحد الأقصى للمبلغ' : 'Max Amount'}
                     </label>
-                    <Input 
+                    <Input
                       type="number"
                       placeholder="999999"
                       value={filters.maxAmount}
@@ -687,9 +726,9 @@ export default function FundTransactionSheet({
             {/* Results Count */}
             <div className="flex items-center justify-between text-sm">
               <p className="text-gray-500">
-                {language === 'ar' 
-                  ? `عرض ${filteredTransactions.length} من ${mockTransactions.length} معاملة`
-                  : `Showing ${filteredTransactions.length} of ${mockTransactions.length} transactions`
+                {language === 'ar'
+                  ? `عرض ${filteredTransactions.length} من ${transactions.length} معاملة`
+                  : `Showing ${filteredTransactions.length} of ${transactions.length} transactions`
                 }
               </p>
               <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -704,8 +743,8 @@ export default function FundTransactionSheet({
             {/* Tab Navigation */}
             <div className="flex-none border-b bg-white px-4">
               <TabsList className="h-10 bg-transparent gap-0 p-0">
-                <TabsTrigger 
-                  value="list" 
+                <TabsTrigger
+                  value="list"
                   className="relative h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-erp-teal data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 gap-2"
                   onClick={() => setSelectedTransaction(null)}
                 >
@@ -716,16 +755,16 @@ export default function FundTransactionSheet({
                   </Badge>
                 </TabsTrigger>
                 {selectedTransaction && (
-                  <TabsTrigger 
-                    value="details" 
+                  <TabsTrigger
+                    value="details"
                     className="relative h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-erp-teal data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 gap-2"
                   >
                     <Eye className="w-4 h-4" />
                     {language === 'ar' ? 'تفاصيل القيد' : 'Details'}
                     <span className="text-[10px] text-gray-400 font-mono">{selectedTransaction.reference}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-5 w-5 ml-1 hover:bg-red-100 hover:text-red-600"
                       onClick={(e) => { e.stopPropagation(); setSelectedTransaction(null); }}
                     >
@@ -739,87 +778,86 @@ export default function FundTransactionSheet({
             {/* Tab Content */}
             <TabsContent value="list" className="flex-1 m-0 data-[state=inactive]:hidden overflow-hidden">
               <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-              <Table>
-                <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
-                  <TableRow>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'المرجع' : 'Reference'}</TableHead>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'الوصف' : 'Description'}</TableHead>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'النوع' : 'Type'}</TableHead>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'العملة' : 'Currency'}</TableHead>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
-                    {displayCurrency !== 'all' && <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'محوّل' : 'Converted'}</TableHead>}
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'الرصيد' : 'Balance'}</TableHead>
-                    <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransactions.length > 0 ? (
-                    filteredTransactions.map((trx) => {
-                      const convertedAmount = displayCurrency !== 'all' && trx.currency !== displayCurrency
-                        ? convertCurrency(trx.amount, trx.currency, displayCurrency)
-                        : null;
-                      const isPositive = trx.type === 'deposit' || trx.type === 'transfer_in' || (trx.type === 'exchange' && trx.contraAccount !== trx.currency);
-                      
-                      return (
-                        <TableRow 
-                          key={trx.id} 
-                          className="cursor-pointer hover:bg-blue-50 transition-colors"
-                          onClick={() => setSelectedTransaction(trx)}
-                        >
-                          <TableCell className="text-gray-500 text-sm">{trx.date}</TableCell>
-                          <TableCell className="font-mono text-xs text-gray-700">{trx.reference}</TableCell>
-                          <TableCell className="font-medium text-erp-navy text-sm max-w-[200px] truncate">{trx.description}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-xs ${getTypeBadgeColor(trx.type)}`}>
-                              <span className="mr-1">{getTypeIcon(trx.type)}</span>
-                              {getTypeLabel(trx.type)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs gap-1">
-                              <span>{currencyInfo[trx.currency]?.flag}</span>
-                              <span className="font-mono">{trx.currency}</span>
-                            </Badge>
-                          </TableCell>
-                          <TableCell className={`font-mono font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                            {isPositive ? '+' : '-'}{trx.amount.toLocaleString()}
-                          </TableCell>
-                          {displayCurrency !== 'all' && (
-                            <TableCell className="font-mono text-xs text-amber-600">
-                              {convertedAmount ? `≈${convertedAmount.toLocaleString(undefined, {maximumFractionDigits: 0})} ${displayCurrency}` : '-'}
-                            </TableCell>
-                          )}
-                          <TableCell className="font-mono text-sm text-gray-700">{trx.balance.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className={`text-xs ${
-                              trx.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                              trx.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {statusTypes.find(s => s.value === trx.status)?.label}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
+                <Table>
+                  <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
                     <TableRow>
-                      <TableCell colSpan={displayCurrency !== 'all' ? 9 : 8} className="text-center py-12 text-gray-500">
-                        <div className="flex flex-col items-center gap-2">
-                          <FileText className="w-12 h-12 text-gray-300" />
-                          <p>{language === 'ar' ? 'لا توجد معاملات مطابقة' : 'No matching transactions'}</p>
-                          {hasActiveFilters && (
-                            <Button variant="link" size="sm" onClick={resetFilters} className="text-erp-teal">
-                              {language === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'التاريخ' : 'Date'}</TableHead>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'المرجع' : 'Reference'}</TableHead>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'الوصف' : 'Description'}</TableHead>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'النوع' : 'Type'}</TableHead>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'العملة' : 'Currency'}</TableHead>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'المبلغ' : 'Amount'}</TableHead>
+                      {displayCurrency !== 'all' && <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'محوّل' : 'Converted'}</TableHead>}
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'الرصيد' : 'Balance'}</TableHead>
+                      <TableHead className="text-gray-500 text-xs">{language === 'ar' ? 'الحالة' : 'Status'}</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.length > 0 ? (
+                      filteredTransactions.map((trx) => {
+                        const convertedAmount = displayCurrency !== 'all' && trx.currency !== displayCurrency
+                          ? convertCurrency(trx.amount, trx.currency, displayCurrency)
+                          : null;
+                        const isPositive = trx.type === 'deposit' || trx.type === 'transfer_in' || (trx.type === 'exchange' && trx.contraAccount !== trx.currency);
+
+                        return (
+                          <TableRow
+                            key={trx.id}
+                            className="cursor-pointer hover:bg-blue-50 transition-colors"
+                            onClick={() => setSelectedTransaction(trx)}
+                          >
+                            <TableCell className="text-gray-500 text-sm">{trx.date}</TableCell>
+                            <TableCell className="font-mono text-xs text-gray-700">{trx.reference}</TableCell>
+                            <TableCell className="font-medium text-erp-navy text-sm max-w-[200px] truncate">{trx.description}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-xs ${getTypeBadgeColor(trx.type)}`}>
+                                <span className="mr-1">{getTypeIcon(trx.type)}</span>
+                                {getTypeLabel(trx.type)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs gap-1">
+                                <span>{currencyInfo[trx.currency]?.flag}</span>
+                                <span className="font-mono">{trx.currency}</span>
+                              </Badge>
+                            </TableCell>
+                            <TableCell className={`font-mono font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                              {isPositive ? '+' : '-'}{trx.amount.toLocaleString()}
+                            </TableCell>
+                            {displayCurrency !== 'all' && (
+                              <TableCell className="font-mono text-xs text-amber-600">
+                                {convertedAmount ? `≈${convertedAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${displayCurrency}` : '-'}
+                              </TableCell>
+                            )}
+                            <TableCell className="font-mono text-sm text-gray-700">{trx.balance.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className={`text-xs ${trx.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                trx.status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                {statusTypes.find(s => s.value === trx.status)?.label}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={displayCurrency !== 'all' ? 9 : 8} className="text-center py-12 text-gray-500">
+                          <div className="flex flex-col items-center gap-2">
+                            <FileText className="w-12 h-12 text-gray-300" />
+                            <p>{language === 'ar' ? 'لا توجد معاملات مطابقة' : 'No matching transactions'}</p>
+                            {hasActiveFilters && (
+                              <Button variant="link" size="sm" onClick={resetFilters} className="text-erp-teal">
+                                {language === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             </TabsContent>
 
@@ -862,13 +900,12 @@ export default function FundTransactionSheet({
                   {/* Detail Content */}
                   <div className="flex-1 overflow-auto p-6 space-y-6 bg-gray-50">
                     {/* Amount Card */}
-                    <Card className={`${
-                      selectedTransaction.type === 'deposit' || selectedTransaction.type === 'transfer_in' 
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-                        : selectedTransaction.type === 'exchange'
+                    <Card className={`${selectedTransaction.type === 'deposit' || selectedTransaction.type === 'transfer_in'
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                      : selectedTransaction.type === 'exchange'
                         ? 'bg-gradient-to-r from-amber-500 to-orange-500'
                         : 'bg-gradient-to-r from-red-500 to-rose-500'
-                    } text-white border-none shadow-lg`}>
+                      } text-white border-none shadow-lg`}>
                       <CardContent className="p-6 text-center">
                         <p className="text-white/80 text-sm mb-2">{language === 'ar' ? 'المبلغ' : 'Amount'}</p>
                         <p className="text-4xl font-bold font-mono">
@@ -883,7 +920,7 @@ export default function FundTransactionSheet({
                           <div className="mt-4 pt-4 border-t border-white/20">
                             <p className="text-white/70 text-xs">{language === 'ar' ? 'القيمة بالعملة المختارة' : 'Value in selected currency'}</p>
                             <p className="text-xl font-mono mt-1">
-                              ≈ {convertCurrency(selectedTransaction.amount, selectedTransaction.currency, displayCurrency).toLocaleString(undefined, {maximumFractionDigits: 2})} {displayCurrency}
+                              ≈ {convertCurrency(selectedTransaction.amount, selectedTransaction.currency, displayCurrency).toLocaleString(undefined, { maximumFractionDigits: 2 })} {displayCurrency}
                             </p>
                           </div>
                         )}
@@ -901,11 +938,10 @@ export default function FundTransactionSheet({
                       <Card>
                         <CardContent className="p-4">
                           <p className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'الحالة' : 'Status'}</p>
-                          <Badge variant="secondary" className={`text-sm ${
-                            selectedTransaction.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                          <Badge variant="secondary" className={`text-sm ${selectedTransaction.status === 'completed' ? 'bg-green-100 text-green-800' :
                             selectedTransaction.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
+                              'bg-red-100 text-red-800'
+                            }`}>
                             {statusTypes.find(s => s.value === selectedTransaction.status)?.label}
                           </Badge>
                         </CardContent>
@@ -966,12 +1002,12 @@ export default function FundTransactionSheet({
                             <div>
                               <p className="text-xs text-gray-500">{language === 'ar' ? 'العملة المحولة' : 'Converted to'}</p>
                               <p className="font-mono font-bold text-lg text-amber-700">
-                                {convertCurrency(selectedTransaction.amount, selectedTransaction.currency, displayCurrency).toLocaleString(undefined, {maximumFractionDigits: 2})} {displayCurrency}
+                                {convertCurrency(selectedTransaction.amount, selectedTransaction.currency, displayCurrency).toLocaleString(undefined, { maximumFractionDigits: 2 })} {displayCurrency}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500">{language === 'ar' ? 'سعر الصرف' : 'Exchange Rate'}</p>
-                              <p className="font-mono">1 {selectedTransaction.currency} = {getExchangeRate(selectedTransaction.currency, displayCurrency).toFixed(4)} {displayCurrency}</p>
+                              <p className="font-mono">1 {selectedTransaction.currency} = {lookupRate(selectedTransaction.currency, displayCurrency).toFixed(4)} {displayCurrency}</p>
                             </div>
                           </div>
                         </CardContent>

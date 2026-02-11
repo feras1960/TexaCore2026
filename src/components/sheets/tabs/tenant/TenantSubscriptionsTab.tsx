@@ -50,12 +50,12 @@ const BILLING_CYCLE_LABELS: Record<string, { ar: string; en: string }> = {
 };
 
 // Subscription Card Component
-function SubscriptionCard({ 
-  subscription, 
-  language, 
-  onClick 
-}: { 
-  subscription: Subscription; 
+function SubscriptionCard({
+  subscription,
+  language,
+  onClick
+}: {
+  subscription: Subscription;
   language: string;
   onClick?: () => void;
 }) {
@@ -76,7 +76,7 @@ function SubscriptionCard({
   }, [subscription.end_date]);
 
   return (
-    <div 
+    <div
       className={cn(
         'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-erp-teal/50 transition-colors',
         onClick && 'cursor-pointer'
@@ -139,12 +139,12 @@ function SubscriptionCard({
       {daysRemaining !== null && daysRemaining <= 30 && daysRemaining > 0 && (
         <div className={cn(
           'mt-3 p-2 rounded text-xs flex items-center gap-2',
-          daysRemaining <= 7 
+          daysRemaining <= 7
             ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
             : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
         )}>
           <AlertTriangle className="w-4 h-4" />
-          {isArabic 
+          {isArabic
             ? `متبقي ${daysRemaining} يوم على انتهاء الاشتراك`
             : `${daysRemaining} days remaining`
           }
@@ -179,7 +179,7 @@ export function TenantSubscriptionsTab({ data, docType: _docType, language, t: _
       start_date: data.subscription_start || data.created_at,
       end_date: data.subscription_end,
       amount: data.subscription_amount || 0,
-      currency: data.currency || 'SAR',
+      currency: data.currency || '-',
       billing_cycle: data.billing_cycle || 'monthly',
       auto_renew: data.auto_renew,
     }];

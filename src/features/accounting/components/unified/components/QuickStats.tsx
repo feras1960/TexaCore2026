@@ -46,7 +46,7 @@ interface QuickStatsProps {
 export function QuickStats({
     stats,
     data,
-    currency = 'SAR',
+    currency = '',
     useArabicNumerals = false,
     compact = false,
     columns = 4,
@@ -205,7 +205,7 @@ interface BalanceDisplayProps {
 export function BalanceDisplay({
     balance,
     label,
-    currency = 'SAR',
+    currency = '',
     useArabicNumerals = false,
     showTrend = false,
     previousBalance,

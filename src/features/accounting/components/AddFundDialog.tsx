@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
+import { useCompanyCurrencies } from '@/hooks/useCompanyCurrencies';
 
 interface AddFundDialogProps {
   open: boolean;
@@ -14,7 +15,7 @@ interface AddFundDialogProps {
 
 export function AddFundDialog({ open, onOpenChange }: AddFundDialogProps) {
   const { t, direction } = useLanguage();
-  const { baseCurrency } = useAccountingSettings();
+  const { baseCurrency, supportedCurrencies } = useAccountingSettings();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,14 +42,14 @@ export function AddFundDialog({ open, onOpenChange }: AddFundDialogProps) {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="currency">{t('currency') || 'Currency'}</Label>
-            <Select defaultValue={baseCurrency || "SAR"}>
+            <Select defaultValue={baseCurrency || ''}>
               <SelectTrigger>
                 <SelectValue placeholder={t('selectCurrency') || 'Select Currency'} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="SAR">SAR</SelectItem>
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="EUR">EUR</SelectItem>
+                {supportedCurrencies.map((code: string) => (
+                  <SelectItem key={code} value={code}>{code}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

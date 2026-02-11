@@ -126,7 +126,7 @@ export function SmartAccountSelector({
             <PopoverContent className="w-[300px] p-0" align="start">
                 <Command shouldFilter={false}>
                     <CommandInput
-                        placeholder={t('ledger.searchPlaceholder')}
+                        placeholder={t('ledger.search_placeholder')}
                         value={inputValue}
                         onValueChange={setInputValue}
                     />

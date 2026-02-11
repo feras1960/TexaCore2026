@@ -1,14 +1,25 @@
 /**
- * Accounting Module Main Page
- * Main page with tabs for all accounting features
- * With beautiful loading transitions
+ * ════════════════════════════════════════════════════════════════
+ * 📊 Accounting Module Main Page
+ * ════════════════════════════════════════════════════════════════
+ * 
+ * ⚡ PERFORMANCE PATTERN: "Keep All Mounted"
+ * 
+ * Instead of lazy loading and unmounting tabs on switch, we:
+ * 1. Render ALL tab content once on mount
+ * 2. Use CSS (display: none) to hide inactive tabs
+ * 3. Result: INSTANT tab switching with ZERO flicker or reload
+ * 
+ * This matches the Warehouse module's smooth experience.
+ * React Query cache works perfectly because components stay mounted.
+ * 
+ * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, Suspense, lazy } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import SectionLoader from '@/components/common/SectionLoader';
 import {
   LayoutDashboard,
   BookOpen,
@@ -22,30 +33,33 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-// Lazy load components for better performance
-const ChartOfAccounts = lazy(() => import('./ChartOfAccounts/ChartOfAccounts'));
-const JournalEntries = lazy(() => import('./JournalEntries'));
-const GeneralLedgerPage = lazy(() => import('./GeneralLedgerPage'));
-const FundsManagement = lazy(() => import('./FundsManagement'));
-const AccountingDashboard = lazy(() => import('./AccountingDashboard'));
-const AccountingReports = lazy(() => import('./AccountingReports'));
-const Parties = lazy(() => import('./Parties'));
-const AccountingSettings = lazy(() => import('./AccountingSettings'));
+// Direct imports (no lazy loading) for instant switching
+import ChartOfAccounts from './ChartOfAccounts/ChartOfAccounts';
+import JournalEntries from './JournalEntries';
+import GeneralLedgerPage from './GeneralLedgerPage';
+import FundsManagement from './FundsManagement';
+import AccountingDashboard from './AccountingDashboard';
+import AccountingReports from './AccountingReports';
+import Parties from './Parties';
+import AccountingSettings from './AccountingSettings';
+import BudgetPage from './BudgetPage';
+import RecurringEntriesPage from './RecurringEntriesPage';
 
-const BudgetPage = lazy(() => import('./BudgetPage'));
-const RecurringEntriesPage = lazy(() => import('./RecurringEntriesPage'));
-
-// Loading component for Suspense
-const TabContentLoader = () => (
-  <SectionLoader variant="dashboard" showTabs={false} />
-);
+// Tab configuration type
+interface TabConfig {
+  id: string;
+  labelKey: string;
+  icon: React.ComponentType<{ className?: string }>;
+  component: React.ComponentType;
+}
 
 export default function Accounting() {
   const { t: _t } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Determine active tab from route
-  const getActiveTab = () => {
+  const getActiveTab = useCallback(() => {
     const path = location.pathname;
     if (path.startsWith('/accounting')) {
       if (path.includes('/chart-of-accounts')) return 'chart-of-accounts';
@@ -53,7 +67,6 @@ export default function Accounting() {
       if (path.includes('/general-ledger')) return 'general-ledger';
       if (path.includes('/funds')) return 'funds';
       if (path.includes('/parties')) return 'parties';
-
       if (path.includes('/budget')) return 'budget';
       if (path.includes('/recurring')) return 'recurring';
       if (path.includes('/settings')) return 'settings';
@@ -61,119 +74,136 @@ export default function Accounting() {
       return 'dashboard';
     }
     return 'dashboard';
-  };
+  }, [location.pathname]);
 
-  const [activeTab, setActiveTab] = useState(getActiveTab());
+  const [activeTab, setActiveTab] = useState(getActiveTab);
 
   // Update active tab when location changes
   useEffect(() => {
     setActiveTab(getActiveTab());
-  }, [location.pathname]);
+  }, [getActiveTab]);
 
-  // Tabs ordered according to old project structure
-  const tabs = [
+  // Tab configuration - memoized to prevent re-renders
+  const tabs: TabConfig[] = useMemo(() => [
     {
       id: 'dashboard',
       labelKey: 'accounting.dashboardLabel',
       icon: LayoutDashboard,
+      component: AccountingDashboard,
     },
     {
       id: 'chart-of-accounts',
       labelKey: 'accounting.chartOfAccounts',
       icon: BookOpen,
+      component: ChartOfAccounts,
     },
     {
       id: 'journal-entries',
       labelKey: 'accounting.journalEntries',
       icon: Calculator,
+      component: JournalEntries,
     },
     {
       id: 'general-ledger',
       labelKey: 'accounting.generalLedger',
       icon: BookMarked,
+      component: GeneralLedgerPage,
     },
     {
       id: 'funds',
       labelKey: 'accounting.funds',
       icon: Wallet,
+      component: FundsManagement,
     },
     {
       id: 'parties',
       labelKey: 'parties.title',
       icon: Users,
+      component: Parties,
     },
-
     {
       id: 'budget',
       labelKey: 'accounting.budget',
       icon: PieChart,
+      component: BudgetPage,
     },
     {
       id: 'recurring',
       labelKey: 'accounting.recurring',
       icon: RefreshCw,
+      component: RecurringEntriesPage,
     },
     {
       id: 'settings',
       labelKey: 'accounting.settings',
       icon: Settings,
+      component: AccountingSettings,
     },
     {
       id: 'reports',
       labelKey: 'accounting.reports',
       icon: FileText,
+      component: AccountingReports,
     },
-  ];
+  ], []);
 
-  const handleTabChange = (tabId: string) => {
+  // Handle tab change - update state AND URL
+  const handleTabChange = useCallback((tabId: string) => {
     if (tabId !== activeTab) {
       setActiveTab(tabId);
+      // Navigate to the correct URL so refresh preserves state
+      const path = tabId === 'dashboard' ? '/accounting' : `/accounting/${tabId}`;
+      navigate(path, { replace: true });
     }
-  };
+  }, [activeTab, navigate]);
 
-  // Render content based on active tab
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <AccountingDashboard />;
-      case 'chart-of-accounts':
-        return <ChartOfAccounts />;
-      case 'journal-entries':
-        return <JournalEntries />;
-      case 'general-ledger':
-        return <GeneralLedgerPage />;
-      case 'funds':
-        return <FundsManagement />;
-      case 'parties':
-        return <Parties />;
-
-      case 'budget':
-        return <BudgetPage />;
-      case 'recurring':
-        return <RecurringEntriesPage />;
-      case 'settings':
-        return <AccountingSettings />;
-      case 'reports':
-        return <AccountingReports />;
-      default:
-        return <AccountingDashboard />;
-    }
-  };
+  // Tabs data for MainTabsBar (without component property)
+  const tabsForBar = useMemo(() =>
+    tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })),
+    [tabs]
+  );
 
   return (
     <div className="space-y-6">
       {/* Tabs */}
       <MainTabsBar
-        tabs={tabs}
+        tabs={tabsForBar}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         variant="underline"
       />
 
-      {/* Content - بدون animations */}
-      <Suspense fallback={<TabContentLoader />}>
-        {renderContent()}
-      </Suspense>
+      {/* 
+        ⚡ PERFORMANCE: Keep All Mounted Pattern
+        
+        All tab panels are rendered once and kept in DOM.
+        We use CSS to control visibility instead of conditional rendering.
+        This eliminates the flicker caused by mounting/unmounting
+        and preserves React Query cache across tab switches.
+      */}
+      <div className="relative">
+        {tabs.map((tab) => {
+          const TabComponent = tab.component;
+          const isActive = activeTab === tab.id;
+
+          return (
+            <div
+              key={tab.id}
+              role="tabpanel"
+              aria-labelledby={`tab-${tab.id}`}
+              aria-hidden={!isActive}
+              className={isActive ? 'block' : 'hidden'}
+              // Performance: prevent any re-renders when hidden
+              style={{
+                contain: isActive ? 'none' : 'strict',
+                contentVisibility: isActive ? 'visible' : 'hidden',
+              }}
+            >
+              <TabComponent />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -55,6 +56,7 @@ import { currencies, costCenters } from '../data/accountingData';
 import { supabase } from '@/lib/supabase';
 import type { Account } from '@/services/accountsService';
 import { getModifierKeyLabel } from '@/hooks/useLanguageShortcuts';
+import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 
 interface Invoice {
   id: string;
@@ -137,6 +139,9 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
   const modifierKey = getModifierKeyLabel('ctrl');
   const { companyId } = useCompany();
   const { accounts, loading: accountsLoading } = useAccounts({ companyId: companyId || undefined, autoFetch: !!companyId });
+  const { baseCurrency } = useAccountingSettings();
+  const { lookupRate } = useExchangeRateLookup();
+  const defaultCurrency = baseCurrency || '';
   const [date, setDate] = useState<Date>(new Date());
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [reference, setReference] = useState('');
@@ -250,7 +255,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       credit: '' as const,
       accountId: '',
       description: '',
-      currency: 'SAR',
+      currency: defaultCurrency,
       exchangeRate: 1,
       costCenter: ''
     }));
@@ -261,7 +266,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       setReference('');
     }
     setDescription('');
-  }, []);
+  }, [defaultCurrency]);
 
   const addRow = () => {
     setRows([
@@ -272,7 +277,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
         credit: '',
         accountId: '',
         description: '',
-        currency: 'SAR',
+        currency: defaultCurrency,
         exchangeRate: 1,
         costCenter: ''
       }
@@ -412,7 +417,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
       credit: '',
       accountId: account.id,
       description: '',
-      currency: 'SAR',
+      currency: '',
       exchangeRate: 1,
       costCenter: ''
     };
@@ -566,7 +571,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
               credit: '',
               accountId: '',
               description: '',
-              currency: 'SAR',
+              currency: defaultCurrency,
               exchangeRate: 1,
               costCenter: ''
             };
@@ -1188,16 +1193,11 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                           onValueChange={(val) => {
                             updateRow(row.id, 'currency', val);
                             // Auto-update exchange rate when currency changes
-                            if (val === 'SAR') {
+                            if (val === defaultCurrency) {
                               updateRow(row.id, 'exchangeRate', 1);
                             } else {
-                              const defaultRates: Record<string, number> = {
-                                'USD': 3.75,
-                                'EUR': 4.10,
-                                'GBP': 4.75,
-                                'AED': 1.02,
-                              };
-                              updateRow(row.id, 'exchangeRate', defaultRates[val] || 1);
+                              const rate = lookupRate(val, defaultCurrency);
+                              updateRow(row.id, 'exchangeRate', rate);
                             }
                           }}
                         >
@@ -1206,7 +1206,7 @@ export default function CashJournalForm({ isActive, onDirtyChange, onSave, onCan
                             onKeyDown={(e) => handleKeyDown(e, index, 'currency')}
                             className="h-8 border-0 shadow-none rounded-none focus:ring-2 focus:ring-inset focus:ring-blue-500 w-full bg-transparent text-[11px] font-medium"
                           >
-                            <SelectValue placeholder="SAR" />
+                            <SelectValue placeholder={defaultCurrency} />
                           </SelectTrigger>
                           <SelectContent>
                             {currencies.map(c => (

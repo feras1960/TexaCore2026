@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +39,7 @@ interface MaterialPricingTabProps {
 
 export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPricingTabProps) {
     const { language } = useLanguage();
+    const { currencyCode: companyCurrency, currencySymbol } = useCompanyCurrency(language as 'ar' | 'en');
     const isReadOnly = mode === 'view';
 
     const handleChange = (field: string, value: any) => {
@@ -78,7 +80,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                             {language === 'ar' ? 'عملة التسعير' : 'Pricing Currency'}
                         </Label>
                         <Select
-                            value={data?.currency || 'USD'}
+                            value={data?.currency || companyCurrency || ''}
                             onValueChange={(value) => handleChange('currency', value)}
                             disabled={isReadOnly}
                         >
@@ -127,7 +129,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     className="ps-8"
                                 />
                                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                    {currencyOptions.find(c => c.value === (data?.currency || 'USD'))?.symbol || '$'}
+                                    {currencyOptions.find(c => c.value === (data?.currency || companyCurrency || ''))?.symbol || currencySymbol || ''}
                                 </span>
                             </div>
                         </div>
@@ -149,7 +151,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     className="ps-8"
                                 />
                                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                    {currencyOptions.find(c => c.value === (data?.currency || 'USD'))?.symbol || '$'}
+                                    {currencyOptions.find(c => c.value === (data?.currency || companyCurrency || ''))?.symbol || currencySymbol || ''}
                                 </span>
                             </div>
                         </div>
@@ -186,7 +188,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     className="ps-8"
                                 />
                                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                    {currencyOptions.find(c => c.value === (data?.currency || 'USD'))?.symbol || '$'}
+                                    {currencyOptions.find(c => c.value === (data?.currency || companyCurrency || ''))?.symbol || currencySymbol || ''}
                                 </span>
                             </div>
                         </div>
@@ -210,7 +212,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     className="ps-8"
                                 />
                                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                    {currencyOptions.find(c => c.value === (data?.currency || 'USD'))?.symbol || '$'}
+                                    {currencyOptions.find(c => c.value === (data?.currency || companyCurrency || ''))?.symbol || currencySymbol || ''}
                                 </span>
                             </div>
                         </div>
@@ -234,7 +236,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     className="ps-8"
                                 />
                                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                    {currencyOptions.find(c => c.value === (data?.currency || 'USD'))?.symbol || '$'}
+                                    {currencyOptions.find(c => c.value === (data?.currency || companyCurrency || ''))?.symbol || currencySymbol || ''}
                                 </span>
                             </div>
                         </div>
@@ -317,7 +319,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     className="ps-8"
                                 />
                                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                    {currencyOptions.find(c => c.value === (data?.currency || 'USD'))?.symbol || '$'}
+                                    {currencyOptions.find(c => c.value === (data?.currency || companyCurrency || ''))?.symbol || currencySymbol || ''}
                                 </span>
                             </div>
                             <p className="text-xs text-gray-500">

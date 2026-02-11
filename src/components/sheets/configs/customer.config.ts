@@ -50,7 +50,7 @@ export const customerConfig: SheetConfig = {
   balance: {
     value: (data) => data.balance || data.current_balance || 0,
     label: 'fields.receivables',
-    currency: 'SAR',
+    currency: undefined,
     showSign: true,
   },
 

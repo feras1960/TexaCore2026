@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Printer, Calendar, Eye } from 'lucide-react';
@@ -7,6 +8,7 @@ import { ReportPreviewDialog, ReportData } from '@/components/shared/ReportPrevi
 
 export default function IncomeStatement() {
   const { t, language } = useLanguage();
+  const { currencyCode: cc } = useCompanyCurrency();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   // Report data for preview
@@ -17,34 +19,34 @@ export default function IncomeStatement() {
     company: language === 'ar' ? 'شركة النظام المتكامل' : 'ERP Company',
     type: 'table',
     summaryItems: [
-      { label: language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue', value: 'SAR 175,000', type: 'positive' },
-      { label: language === 'ar' ? 'تكلفة المبيعات' : 'COGS', value: 'SAR 75,000', type: 'negative' },
-      { label: language === 'ar' ? 'مجمل الربح' : 'Gross Profit', value: 'SAR 100,000', type: 'positive' },
-      { label: language === 'ar' ? 'صافي الدخل' : 'Net Income', value: 'SAR 35,000', type: 'positive' },
+      { label: language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue', value: `${cc} 175,000`, type: 'positive' },
+      { label: language === 'ar' ? 'تكلفة المبيعات' : 'COGS', value: `${cc} 75,000`, type: 'negative' },
+      { label: language === 'ar' ? 'مجمل الربح' : 'Gross Profit', value: `${cc} 100,000`, type: 'positive' },
+      { label: language === 'ar' ? 'صافي الدخل' : 'Net Income', value: `${cc} 35,000`, type: 'positive' },
     ],
     headers: [
       language === 'ar' ? 'البند' : 'Item',
       language === 'ar' ? 'المبلغ' : 'Amount',
     ],
     rows: [
-      [language === 'ar' ? 'إيرادات المبيعات' : 'Sales Revenue', 'SAR 150,000'],
-      [language === 'ar' ? 'إيرادات الخدمات' : 'Service Revenue', 'SAR 25,000'],
-      [language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue', 'SAR 175,000'],
+      [language === 'ar' ? 'إيرادات المبيعات' : 'Sales Revenue', `${cc} 150,000`],
+      [language === 'ar' ? 'إيرادات الخدمات' : 'Service Revenue', `${cc} 25,000`],
+      [language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue', `${cc} 175,000`],
       ['', ''],
-      [language === 'ar' ? 'مخزون أول المدة' : 'Opening Inventory', 'SAR 20,000'],
-      [language === 'ar' ? 'المشتريات' : 'Purchases', 'SAR 80,000'],
-      [language === 'ar' ? 'مخزون آخر المدة' : 'Closing Inventory', '(SAR 25,000)'],
-      [language === 'ar' ? 'تكلفة البضاعة المباعة' : 'Total COGS', 'SAR 75,000'],
+      [language === 'ar' ? 'مخزون أول المدة' : 'Opening Inventory', `${cc} 20,000`],
+      [language === 'ar' ? 'المشتريات' : 'Purchases', `${cc} 80,000`],
+      [language === 'ar' ? 'مخزون آخر المدة' : 'Closing Inventory', `(${cc} 25,000)`],
+      [language === 'ar' ? 'تكلفة البضاعة المباعة' : 'Total COGS', `${cc} 75,000`],
       ['', ''],
-      [language === 'ar' ? 'مجمل الربح' : 'Gross Profit', 'SAR 100,000'],
+      [language === 'ar' ? 'مجمل الربح' : 'Gross Profit', `${cc} 100,000`],
       ['', ''],
-      [language === 'ar' ? 'الرواتب والأجور' : 'Salaries & Wages', 'SAR 45,000'],
-      [language === 'ar' ? 'الإيجارات' : 'Rent', 'SAR 15,000'],
-      [language === 'ar' ? 'المرافق' : 'Utilities', 'SAR 5,000'],
-      [language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses', 'SAR 65,000'],
+      [language === 'ar' ? 'الرواتب والأجور' : 'Salaries & Wages', `${cc} 45,000`],
+      [language === 'ar' ? 'الإيجارات' : 'Rent', `${cc} 15,000`],
+      [language === 'ar' ? 'المرافق' : 'Utilities', `${cc} 5,000`],
+      [language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses', `${cc} 65,000`],
     ],
     totals: [
-      { label: language === 'ar' ? 'صافي الدخل' : 'Net Income', value: 'SAR 35,000', highlight: true },
+      { label: language === 'ar' ? 'صافي الدخل' : 'Net Income', value: `${cc} 35,000`, highlight: true },
     ],
   };
 
@@ -65,8 +67,8 @@ export default function IncomeStatement() {
             <Download className="w-4 h-4 mr-2" />
             {t('export') || 'Export'}
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             className="gap-2 text-erp-teal border-erp-teal/30 hover:bg-erp-teal/10"
             onClick={() => setReportDialogOpen(true)}

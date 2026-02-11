@@ -44,7 +44,7 @@ export function useViewCurrency(): UseViewCurrencyReturn {
                     options = data.supported_currencies;
                 } else {
                     // Fallback to commonly used ones + default
-                    options = Array.from(new Set([data?.base_currency || 'SAR', 'USD', 'EUR', 'SAR']));
+                    options = data?.base_currency ? [data.base_currency] : [];
                 }
                 setCurrencyOptions(options);
 
@@ -112,7 +112,7 @@ export function useViewCurrency(): UseViewCurrencyReturn {
     const formatAmount = useCallback((amount: number, fromCurrencyCode?: string) => {
         if (amount === undefined || amount === null) return '-';
 
-        const currencyToDisplay = selectedCurrency !== 'all' ? selectedCurrency : (fromCurrencyCode || company?.default_currency || 'SAR');
+        const currencyToDisplay = selectedCurrency !== 'all' ? selectedCurrency : (fromCurrencyCode || company?.default_currency || '');
         const finalAmount = selectedCurrency !== 'all' && fromCurrencyCode
             ? convertAmount(amount, fromCurrencyCode)
             : amount;

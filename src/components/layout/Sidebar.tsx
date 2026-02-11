@@ -11,8 +11,7 @@ import Logo from '@/components/common/Logo';
 import {
   Package,
   Lock,
-  TrendingUp,
-  Loader2
+  TrendingUp
 } from 'lucide-react';
 import {
   Tooltip,
@@ -39,7 +38,18 @@ export function Sidebar({ className }: SidebarProps) {
   } = useRBAC();
 
   // 🛡️ SECURITY: فلترة الموديولات حسب الصلاحيات والأدوار
+  // 🚀 PERFORMANCE: عرض جميع الموديولات فوراً أثناء التحميل (optimistic rendering)
+  // بعد اكتمال التحميل، يتم تطبيق الفلترة الفعلية
   const filteredModules = STATIC_MODULES.filter(module => {
+    // أثناء التحميل، نعرض كل الموديولات المفعلة (optimistic)
+    if (rbacLoading) {
+      // فقط نخفي الموديولات التي تتطلب super admin إذا كان المستخدم ليس super admin
+      if (module.requires_super_admin && !isSuperAdmin) {
+        return false;
+      }
+      return true;
+    }
+
     // 1. إذا كان الموديول يتطلب Super Admin (مدير المنصة)، نتحقق من الصلاحية
     if (module.requires_super_admin && !isSuperAdmin && !isPlatformAdmin()) {
       return false;
@@ -63,19 +73,6 @@ export function Sidebar({ className }: SidebarProps) {
 
     return true;
   });
-
-  // عرض مؤشر تحميل أثناء جلب الصلاحيات
-  if (rbacLoading) {
-    return (
-      <aside className={cn(
-        "w-20 lg:w-64 shrink-0 bg-white dark:bg-gray-900 h-full py-6 px-3 lg:px-4 hidden md:flex flex-col items-center justify-center",
-        direction === 'rtl' ? "border-l border-gray-200 dark:border-gray-800" : "border-r border-gray-200 dark:border-gray-800",
-        className
-      )}>
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-      </aside>
-    );
-  }
 
   return (
     <TooltipProvider delayDuration={100}>

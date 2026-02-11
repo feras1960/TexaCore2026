@@ -235,7 +235,7 @@ export const recurringEntriesService = {
     // Validate lines balance
     const totalDebit = input.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
     const totalCredit = input.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
-    
+
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
       throw new Error('القيد غير متوازن! يجب أن يكون إجمالي المدين يساوي إجمالي الدائن');
     }
@@ -258,7 +258,7 @@ export const recurringEntriesService = {
         next_execution_date: input.start_date,
         max_executions: input.max_executions || null,
         total_amount: input.total_amount,
-        currency: input.currency || 'SAR',
+        currency: input.currency || '',
         auto_post: input.auto_post || false,
         notify_on_creation: input.notify_on_creation ?? true,
         category: input.category || 'other',
@@ -367,7 +367,7 @@ export const recurringEntriesService = {
       // Validate balance
       const totalDebit = updates.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
       const totalCredit = updates.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
-      
+
       if (Math.abs(totalDebit - totalCredit) > 0.01) {
         throw new Error('القيد غير متوازن!');
       }
@@ -604,7 +604,7 @@ export const recurringEntriesService = {
       .eq('company_id', companyId);
 
     const today = new Date().toISOString().split('T')[0];
-    
+
     const totalTemplates = templates?.length || 0;
     const activeTemplates = templates?.filter(t => t.is_active).length || 0;
     const pendingExecutions = templates?.filter(

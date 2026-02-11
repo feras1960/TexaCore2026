@@ -206,8 +206,8 @@ export default function WhiteLabel() {
             {t('saas.whiteLabelDetails.title')}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
-            {language === 'ar' 
-              ? 'إدارة الوكلاء الذين لديهم نظام White Label' 
+            {language === 'ar'
+              ? 'إدارة الوكلاء الذين لديهم نظام White Label'
               : 'Manage agents with White Label system'}
           </p>
         </div>
@@ -330,15 +330,15 @@ export default function WhiteLabel() {
                 <TableHead>{language === 'ar' ? 'العلامة التجارية' : 'Brand'}</TableHead>
                 <TableHead className="text-center">{language === 'ar' ? 'العملاء' : 'Tenants'}</TableHead>
                 <TableHead className="text-center">{language === 'ar' ? 'العمولة' : 'Commission'}</TableHead>
-                <TableHead>{t('common.status')}</TableHead>
+                <TableHead>{t('common.status._')}</TableHead>
                 <TableHead>{language === 'ar' ? 'الدفع' : 'Payment'}</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAgents.map((agent) => (
-                <TableRow 
-                  key={agent.id} 
+                <TableRow
+                  key={agent.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
                   onClick={() => {
                     setSelectedAgent(agent);
@@ -347,7 +347,7 @@ export default function WhiteLabel() {
                 >
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div 
+                      <div
                         className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs"
                         style={{ backgroundColor: agent.primary_color }}
                       >
@@ -362,9 +362,9 @@ export default function WhiteLabel() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Globe className="w-4 h-4 text-gray-400" />
-                      <a 
-                        href={`https://${agent.domain}`} 
-                        target="_blank" 
+                      <a
+                        href={`https://${agent.domain}`}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline flex items-center gap-1"
                         onClick={(e) => e.stopPropagation()}
@@ -376,7 +376,7 @@ export default function WhiteLabel() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div 
+                      <div
                         className="w-4 h-4 rounded border"
                         style={{ backgroundColor: agent.primary_color }}
                       />

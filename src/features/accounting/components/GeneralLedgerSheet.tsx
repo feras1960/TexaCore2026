@@ -31,9 +31,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, Filter, Search, X, Book, Download, Printer } from 'lucide-react';
-import { flatAccounts, currencies, costCenters } from '../data/accountingData';
+import { flatAccounts, costCenters } from '../data/accountingData';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subYears } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useCompanyCurrencies } from '@/hooks/useCompanyCurrencies';
+import { SmartCurrencySelector } from './shared/CurrencySelector';
 
 interface GeneralLedgerSheetProps {
   open: boolean;
@@ -58,6 +60,7 @@ interface GLEntry {
 
 export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedgerSheetProps) {
   const { t, language, direction } = useLanguage();
+  const { baseCurrency } = useCompanyCurrencies();
 
   // Filters State
   const [filters, setFilters] = useState({
@@ -66,7 +69,7 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
     accountId: '',
     dateFrom: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     dateTo: format(new Date(), 'yyyy-MM-dd'),
-    currency: 'SAR',
+    currency: '',
     costCenter: '',
     project: '',
     voucherNo: '',
@@ -78,7 +81,7 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
     // Generate some deterministic mock data
     const entries: GLEntry[] = [];
     let balance = 0;
-    
+
     // Simulate fetching data
     const types = ['Invoice', 'Payment', 'Receipt', 'Journal', 'Expense'];
     const count = 25;
@@ -88,7 +91,7 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
       const amount = Math.floor(Math.random() * 10000) + 100;
       const debit = isDebit ? amount : 0;
       const credit = !isDebit ? amount : 0;
-      
+
       balance += (debit - credit);
 
       entries.push({
@@ -185,31 +188,31 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
               </div>
             </div>
             <div className="flex gap-2">
-               <Button variant="outline" size="sm">
-                 <Printer className="w-4 h-4" />
-               </Button>
-               <Button variant="outline" size="sm">
-                 <Download className="w-4 h-4" />
-               </Button>
+              <Button variant="outline" size="sm">
+                <Printer className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm">
+                <Download className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
           {/* Filters Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50/50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
-            
+
             {/* Row 1 */}
             <div className="space-y-1">
               <Label className="text-[10px] text-gray-500">{t('company')}</Label>
-              <Input 
-                value={filters.company} 
-                onChange={(e) => setFilters({...filters, company: e.target.value})}
+              <Input
+                value={filters.company}
+                onChange={(e) => setFilters({ ...filters, company: e.target.value })}
                 className="h-7 text-xs bg-white"
                 dir={direction}
               />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] text-gray-500">{t('financeBook')}</Label>
-              <Select value={filters.financeBook} onValueChange={(v) => setFilters({...filters, financeBook: v})}>
+              <Select value={filters.financeBook} onValueChange={(v) => setFilters({ ...filters, financeBook: v })}>
                 <SelectTrigger className="h-7 text-xs bg-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -221,97 +224,92 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
             </div>
             <div className="space-y-1 col-span-2">
               <Label className="text-[10px] text-gray-500">{t('accounting.account.code')}</Label>
-              <Select value={filters.accountId} onValueChange={(v) => setFilters({...filters, accountId: v})}>
-                 <SelectTrigger className="h-7 text-xs bg-white">
-                   <SelectValue placeholder={t('accounting.searchPlaceholder')} />
-                 </SelectTrigger>
-                 <SelectContent>
-                   {flatAccounts.map(acc => (
-                     <SelectItem key={acc.id} value={acc.id}>
-                       {acc.code} - {language === 'ar' ? acc.nameAr : acc.name}
-                     </SelectItem>
-                   ))}
-                 </SelectContent>
+              <Select value={filters.accountId} onValueChange={(v) => setFilters({ ...filters, accountId: v })}>
+                <SelectTrigger className="h-7 text-xs bg-white">
+                  <SelectValue placeholder={t('accounting.searchPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {flatAccounts.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.code} - {language === 'ar' ? acc.nameAr : acc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
 
             {/* Row 2 */}
             <div className="space-y-1">
-               <Label className="text-[10px] text-gray-500">{t('fromDate')}</Label>
-               <Input 
-                 type="date" 
-                 value={filters.dateFrom} 
-                 onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
-                 className="h-7 text-xs bg-white font-mono"
-               />
+              <Label className="text-[10px] text-gray-500">{t('fromDate')}</Label>
+              <Input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                className="h-7 text-xs bg-white font-mono"
+              />
             </div>
             <div className="space-y-1">
-               <Label className="text-[10px] text-gray-500">{t('toDate')}</Label>
-               <Input 
-                 type="date" 
-                 value={filters.dateTo} 
-                 onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
-                 className="h-7 text-xs bg-white font-mono"
-               />
+              <Label className="text-[10px] text-gray-500">{t('toDate')}</Label>
+              <Input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                className="h-7 text-xs bg-white font-mono"
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] text-gray-500">{t('accounting.account.currency')}</Label>
-              <Select value={filters.currency} onValueChange={(v) => setFilters({...filters, currency: v})}>
-                <SelectTrigger className="h-7 text-xs bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                   {currencies.map(c => (
-                     <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
-                   ))}
-                </SelectContent>
-              </Select>
+              <SmartCurrencySelector
+                value={filters.currency || baseCurrency}
+                onValueChange={(v) => setFilters({ ...filters, currency: v })}
+                showAllOption={true}
+              />
             </div>
             <div className="space-y-1">
-               <Label className="text-[10px] text-gray-500">{t('accounting.costCenters')}</Label>
-               <Select value={filters.costCenter} onValueChange={(v) => setFilters({...filters, costCenter: v})}>
-                 <SelectTrigger className="h-7 text-xs bg-white">
-                   <SelectValue placeholder="All" />
-                 </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all">All</SelectItem>
-                   {costCenters.map(cc => (
-                     <SelectItem key={cc.id} value={cc.id}>{language === 'ar' ? cc.nameAr : cc.name}</SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+              <Label className="text-[10px] text-gray-500">{t('accounting.costCenters')}</Label>
+              <Select value={filters.costCenter} onValueChange={(v) => setFilters({ ...filters, costCenter: v })}>
+                <SelectTrigger className="h-7 text-xs bg-white">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {costCenters.map(cc => (
+                    <SelectItem key={cc.id} value={cc.id}>{language === 'ar' ? cc.nameAr : cc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Row 3 - Collapsible or Extra */}
             <div className="space-y-1">
               <Label className="text-[10px] text-gray-500">{t('project')}</Label>
-              <Input 
+              <Input
                 placeholder={t('optional') || 'Optional'}
-                value={filters.project} 
-                onChange={(e) => setFilters({...filters, project: e.target.value})}
+                value={filters.project}
+                onChange={(e) => setFilters({ ...filters, project: e.target.value })}
                 className="h-7 text-xs bg-white"
                 dir={direction}
               />
             </div>
-             <div className="space-y-1">
+            <div className="space-y-1">
               <Label className="text-[10px] text-gray-500">{t('voucherNo')}</Label>
-              <Input 
+              <Input
                 placeholder="e.g. JV-1001"
-                value={filters.voucherNo} 
-                onChange={(e) => setFilters({...filters, voucherNo: e.target.value})}
+                value={filters.voucherNo}
+                onChange={(e) => setFilters({ ...filters, voucherNo: e.target.value })}
                 className="h-7 text-xs bg-white"
                 dir={direction}
               />
             </div>
-             <div className="space-y-1 flex items-center pt-5 gap-2 col-span-2">
-               <Checkbox 
-                 id="showCancelled" 
-                 checked={filters.showCancelled} 
-                 onCheckedChange={(c) => setFilters({...filters, showCancelled: c as boolean})}
-               />
-               <Label htmlFor="showCancelled" className="text-xs font-normal cursor-pointer">
-                 {t('showCancelled')}
-               </Label>
+            <div className="space-y-1 flex items-center pt-5 gap-2 col-span-2">
+              <Checkbox
+                id="showCancelled"
+                checked={filters.showCancelled}
+                onCheckedChange={(c) => setFilters({ ...filters, showCancelled: c as boolean })}
+              />
+              <Label htmlFor="showCancelled" className="text-xs font-normal cursor-pointer">
+                {t('showCancelled')}
+              </Label>
             </div>
           </div>
 
@@ -342,64 +340,64 @@ export default function GeneralLedgerSheet({ open, onOpenChange }: GeneralLedger
         {/* Results Table */}
         <div className="flex-1 bg-white dark:bg-gray-900 relative overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto scrollbar-thin h-full" style={{ maxHeight: '400px' }}>
-          <Table className="border-collapse w-full" dir={direction}>
-            <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
-              <TableRow className="h-8">
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.entry.date')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('voucherType')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('voucherNo')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{t('accounting.account.code')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('party')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.costCenters')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.entry.debit')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.entry.credit')}</TableHead>
-                <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.account.balance')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.map((entry) => (
-                <TableRow 
-                  key={entry.id} 
-                  className={cn(
-                    "hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8",
-                    entry.status === 'cancelled' && "opacity-50 line-through bg-gray-50"
-                  )}
-                >
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{entry.date}</TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] text-center">{entry.voucherType}</TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center text-blue-600 hover:underline cursor-pointer">{entry.voucherNo}</TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-medium truncate max-w-[200px]">{entry.account}</TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate">{entry.party}</TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate">{entry.costCenter}</TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-gray-600">
-                    {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
+            <Table className="border-collapse w-full" dir={direction}>
+              <TableHeader className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 shadow-sm">
+                <TableRow className="h-8">
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.entry.date')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('voucherType')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('voucherNo')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy w-[200px]">{t('accounting.account.code')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('party')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.costCenters')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.entry.debit')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.entry.credit')}</TableHead>
+                  <TableHead className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold text-erp-navy">{t('accounting.account.balance')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((entry) => (
+                  <TableRow
+                    key={entry.id}
+                    className={cn(
+                      "hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors h-8",
+                      entry.status === 'cancelled' && "opacity-50 line-through bg-gray-50"
+                    )}
+                  >
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center whitespace-nowrap">{entry.date}</TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] text-center">{entry.voucherType}</TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-center text-blue-600 hover:underline cursor-pointer">{entry.voucherNo}</TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-medium truncate max-w-[200px]">{entry.account}</TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate">{entry.party}</TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] truncate">{entry.costCenter}</TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-gray-600">
+                      {entry.debit > 0 ? entry.debit.toLocaleString() : '-'}
+                    </TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-gray-600">
+                      {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
+                    </TableCell>
+                    <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold text-erp-navy">
+                      {entry.balance.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+              <TableFooter className="bg-gray-100 dark:bg-gray-800 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
+                <TableRow className="h-9 border-t-2 border-erp-navy">
+                  <TableCell colSpan={6} className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
+                    {t('totals')}
                   </TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end text-gray-600">
-                    {entry.credit > 0 ? entry.credit.toLocaleString() : '-'}
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white">
+                    {totals.debit.toLocaleString()}
                   </TableCell>
-                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-[11px] font-mono text-end font-bold text-erp-navy">
-                    {entry.balance.toLocaleString()}
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white">
+                    {totals.credit.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
+                    {(totals.debit - totals.credit).toLocaleString()}
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter className="bg-gray-100 dark:bg-gray-800 sticky bottom-0 z-10 shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
-               <TableRow className="h-9 border-t-2 border-erp-navy">
-                 <TableCell colSpan={6} className="border border-gray-300 dark:border-gray-700 p-1 px-4 text-xs font-bold text-right bg-gray-100">
-                   {t('totals')}
-                 </TableCell>
-                 <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white">
-                   {totals.debit.toLocaleString()}
-                 </TableCell>
-                 <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-white">
-                   {totals.credit.toLocaleString()}
-                 </TableCell>
-                 <TableCell className="border border-gray-300 dark:border-gray-700 p-1 px-2 text-xs font-bold font-mono text-end bg-erp-navy text-white">
-                   {(totals.debit - totals.credit).toLocaleString()}
-                 </TableCell>
-               </TableRow>
-            </TableFooter>
-          </Table>
+              </TableFooter>
+            </Table>
           </div>
         </div>
       </SheetContent>

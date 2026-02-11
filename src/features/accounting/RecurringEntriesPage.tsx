@@ -71,6 +71,9 @@ interface PendingApproval {
     created_at: string;
 }
 
+// Module-level flag: persists across component remounts (unlike ref/state)
+let _historyTableExists: boolean | null = null;
+
 export default function RecurringEntriesPage() {
     const { t, language, direction } = useLanguage();
     const { toast } = useToast();
@@ -98,60 +101,79 @@ export default function RecurringEntriesPage() {
         setLoading(true);
         try {
             // Load recurring entries
-            const { data: entriesData } = await supabase
+            const { data: entriesData, error: entriesError } = await supabase
                 .from('recurring_entries')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            if (entriesData) setEntries(entriesData);
-
-            // Load pending approvals
-            const { data: pendingData } = await supabase
-                .from('recurring_entry_history')
-                .select(`
-                    id,
-                    recurring_entry_id,
-                    scheduled_date,
-                    created_at,
-                    recurring_entries (
-                        name_ar,
-                        name_en,
-                        total_amount,
-                        currency
-                    )
-                `)
-                .eq('status', 'pending')
-                .order('scheduled_date');
-
-            if (pendingData) {
-                setPendingApprovals(pendingData.map(p => ({
-                    id: p.id,
-                    recurring_entry_id: p.recurring_entry_id,
-                    entry_name: language === 'ar'
-                        ? (p.recurring_entries as any)?.name_ar
-                        : (p.recurring_entries as any)?.name_en,
-                    scheduled_date: p.scheduled_date,
-                    total_amount: (p.recurring_entries as any)?.total_amount || 0,
-                    currency: (p.recurring_entries as any)?.currency || 'SAR',
-                    created_at: p.created_at,
-                })));
+            if (entriesError) {
+                // Table doesn't exist yet - skip all related queries
+                console.warn('recurring_entries table not available:', entriesError.message);
+                return;
             }
 
-            // Load recent history
-            const { data: historyData } = await supabase
-                .from('recurring_entry_history')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
+            if (entriesData) setEntries(entriesData);
 
-            if (historyData) setHistory(historyData);
+            // Skip recurring_entry_history queries if we already know the table doesn't exist
+            if (_historyTableExists === false) {
+                // Already checked - table doesn't exist, skip silently
+            } else {
+                // First time - check availability with lightweight query
+                if (_historyTableExists === null) {
+                    const { error: historyTableCheck } = await supabase
+                        .from('recurring_entry_history')
+                        .select('id')
+                        .limit(0);
+                    _historyTableExists = !historyTableCheck;
+                }
+
+                if (_historyTableExists) {
+                    // Load pending approvals
+                    const { data: pendingData } = await supabase
+                        .from('recurring_entry_history')
+                        .select(`
+                            id,
+                            recurring_entry_id,
+                            scheduled_date,
+                            created_at,
+                            recurring_entries (
+                                name_ar,
+                                name_en,
+                                total_amount,
+                                currency
+                            )
+                        `)
+                        .eq('status', 'pending')
+                        .order('scheduled_date');
+
+                    if (pendingData) {
+                        setPendingApprovals(pendingData.map(p => ({
+                            id: p.id,
+                            recurring_entry_id: p.recurring_entry_id,
+                            entry_name: language === 'ar'
+                                ? (p.recurring_entries as any)?.name_ar
+                                : (p.recurring_entries as any)?.name_en,
+                            scheduled_date: p.scheduled_date,
+                            total_amount: (p.recurring_entries as any)?.total_amount || 0,
+                            currency: (p.recurring_entries as any)?.currency || '',
+                            created_at: p.created_at,
+                        })));
+                    }
+
+                    // Load recent history
+                    const { data: historyData } = await supabase
+                        .from('recurring_entry_history')
+                        .select('*')
+                        .order('created_at', { ascending: false })
+                        .limit(50);
+
+                    if (historyData) setHistory(historyData);
+                }
+            }
         } catch (error) {
-            console.error('Error loading data:', error);
-            toast({
-                title: t('recurringEntries.messages.error'),
-                description: t('recurringEntries.messages.loadError'),
-                variant: 'destructive',
-            });
+            // Silently handle - tables may not exist yet
+            // Don't show toast since Keep All Mounted loads this even when tab isn't visible
+            console.warn('Recurring entries tables not available:', error);
         } finally {
             setLoading(false);
         }
@@ -185,7 +207,7 @@ export default function RecurringEntriesPage() {
         return t(`recurringEntries.frequency_${freq}`) || freq;
     };
 
-    const formatCurrency = (amount: number, currency = 'SAR') => {
+    const formatCurrency = (amount: number, currency = '') => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency,
@@ -319,7 +341,7 @@ export default function RecurringEntriesPage() {
             cell: (row) => formatDate(row.next_run_date)
         },
         {
-            header: t('recurringEntries.status'),
+            header: t('recurringEntries.status._'),
             cell: (row) => <StatusBadge status={row.status} />
         },
         {
@@ -360,7 +382,7 @@ export default function RecurringEntriesPage() {
             cell: (row) => row.execution_date ? formatDate(row.execution_date) : '-'
         },
         {
-            header: t('recurringEntries.status'),
+            header: t('recurringEntries.status._'),
             cell: (row) => <StatusBadge status={row.status} />
         },
         {
@@ -454,7 +476,7 @@ export default function RecurringEntriesPage() {
                         actions={
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder={t('recurringEntries.status')} />
+                                    <SelectValue placeholder={t('recurringEntries.status._')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">{t('recurringEntries.all')}</SelectItem>

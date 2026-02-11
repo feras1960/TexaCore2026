@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useCompanyCurrencies } from '@/hooks/useCompanyCurrencies';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  ArrowDownRight, 
-  Calendar as CalendarIcon, 
-  User, 
+import {
+  ArrowDownRight,
+  Calendar as CalendarIcon,
+  User,
   Wallet,
   FileText,
   Printer,
@@ -33,7 +35,8 @@ const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: s
   AED: { symbol: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } }
 };
 
-const availableCurrencies = ['SAR', 'USD', 'EUR', 'GBP', 'AED'];
+// Fallback static list — used only if company currencies are not loaded yet
+const DEFAULT_CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'SAR'];
 
 interface QuickReceiptDialogProps {
   open: boolean;
@@ -42,18 +45,21 @@ interface QuickReceiptDialogProps {
   funds: Array<{ id: number; name: string; type: string; balance: number; currency?: string }>;
 }
 
-export default function QuickReceiptDialog({ 
-  open, 
-  onOpenChange, 
+export default function QuickReceiptDialog({
+  open,
+  onOpenChange,
   selectedFundId,
-  funds 
+  funds
 }: QuickReceiptDialogProps) {
   const { language, direction } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
+  const { supportedCurrencies } = useCompanyCurrencies();
+  const availableCurrencies = supportedCurrencies.length > 0 ? supportedCurrencies : DEFAULT_CURRENCIES;
   const [date, setDate] = useState<Date>(new Date());
   const [formData, setFormData] = useState({
     fundId: selectedFundId?.toString() || '',
     amount: '',
-    currency: 'SAR',
+    currency: '',
     receiptType: 'customer',
     customerId: '',
     reference: `REC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
@@ -99,8 +105,8 @@ export default function QuickReceiptDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[50vw] max-w-none sm:max-w-[85vw] md:max-w-[70vw] lg:max-w-[50vw] p-0 overflow-hidden"
         dir={direction}
       >
@@ -130,8 +136,8 @@ export default function QuickReceiptDialog({
             {/* Fund Selection with Balance */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'الصندوق/البنك' : 'Fund/Bank'}</Label>
-              <Select 
-                value={formData.fundId} 
+              <Select
+                value={formData.fundId}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, fundId: v }))}
               >
                 <SelectTrigger className="bg-white">
@@ -143,7 +149,7 @@ export default function QuickReceiptDialog({
                       <span className="flex items-center gap-2">
                         <Wallet className={`w-4 h-4 ${fund.type === 'bank' ? 'text-blue-600' : 'text-green-600'}`} />
                         {fund.name}
-                        <span className="text-gray-400 font-mono text-xs">({fund.balance.toLocaleString()} SAR)</span>
+                        <span className="text-gray-400 font-mono text-xs">({fund.balance.toLocaleString()} {companyCurrency})</span>
                       </span>
                     </SelectItem>
                   ))}
@@ -156,7 +162,7 @@ export default function QuickReceiptDialog({
                       {language === 'ar' ? 'الرصيد الحالي' : 'Current Balance'}
                     </span>
                     <span className="font-mono font-bold text-green-700">
-                      {selectedFund.balance.toLocaleString()} SAR
+                      {selectedFund.balance.toLocaleString()} {companyCurrency}
                     </span>
                   </CardContent>
                 </Card>
@@ -167,7 +173,7 @@ export default function QuickReceiptDialog({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{language === 'ar' ? 'المبلغ' : 'Amount'}</Label>
-                <Input 
+                <Input
                   type="number"
                   placeholder="0.00"
                   value={formData.amount}
@@ -178,8 +184,8 @@ export default function QuickReceiptDialog({
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{language === 'ar' ? 'العملة' : 'Currency'}</Label>
-                <Select 
-                  value={formData.currency} 
+                <Select
+                  value={formData.currency}
                   onValueChange={(v) => setFormData(prev => ({ ...prev, currency: v }))}
                 >
                   <SelectTrigger className="bg-white">
@@ -245,8 +251,8 @@ export default function QuickReceiptDialog({
                   <User className="w-4 h-4" />
                   {language === 'ar' ? 'العميل' : 'Customer'}
                 </Label>
-                <Select 
-                  value={formData.customerId} 
+                <Select
+                  value={formData.customerId}
                   onValueChange={(v) => setFormData(prev => ({ ...prev, customerId: v }))}
                 >
                   <SelectTrigger className="bg-white">
@@ -267,7 +273,7 @@ export default function QuickReceiptDialog({
                 <FileText className="w-4 h-4" />
                 {language === 'ar' ? 'البيان' : 'Description'}
               </Label>
-              <Textarea 
+              <Textarea
                 placeholder={language === 'ar' ? 'وصف المقبوضات...' : 'Receipt description...'}
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -279,8 +285,8 @@ export default function QuickReceiptDialog({
             {/* Contra Account */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'الحساب المقابل' : 'Contra Account'}</Label>
-              <Select 
-                value={formData.contraAccount} 
+              <Select
+                value={formData.contraAccount}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, contraAccount: v }))}
               >
                 <SelectTrigger className="bg-white">
@@ -299,8 +305,8 @@ export default function QuickReceiptDialog({
               <Label className="text-sm font-medium text-gray-500">
                 {language === 'ar' ? 'مركز التكلفة (اختياري)' : 'Cost Center (Optional)'}
               </Label>
-              <Select 
-                value={formData.costCenter} 
+              <Select
+                value={formData.costCenter}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, costCenter: v }))}
               >
                 <SelectTrigger className="bg-white">
@@ -317,8 +323,8 @@ export default function QuickReceiptDialog({
             {/* Options */}
             <div className="space-y-3 pt-4 border-t">
               <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="createEntry" 
+                <Checkbox
+                  id="createEntry"
                   checked={formData.createEntry}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, createEntry: checked as boolean }))}
                 />
@@ -327,8 +333,8 @@ export default function QuickReceiptDialog({
                 </Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="printAfterSave" 
+                <Checkbox
+                  id="printAfterSave"
                   checked={formData.printAfterSave}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, printAfterSave: checked as boolean }))}
                 />

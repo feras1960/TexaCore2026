@@ -10,17 +10,22 @@ export function cn(...inputs: ClassValue[]) {
  * This ensures consistency across all languages including Arabic
  */
 export function formatCurrency(
-  amount: number, 
-  currency: string = 'SAR', 
+  amount: number,
+  currency: string = '',
   _locale: string = 'en-US'
 ): string {
   // Always use en-US locale for English numerals
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Fallback if currency code is invalid
+    return `${amount.toFixed(2)} ${currency}`;
+  }
 }
 
 /**
@@ -60,7 +65,7 @@ export function formatDate(date: Date | string, locale: string = 'en-US'): strin
   const d = typeof date === 'string' ? new Date(date) : date;
   // For Arabic, we use ar-u-nu-latn to force Latin (English) numerals
   const effectiveLocale = locale === 'ar-SA' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
-  
+
   return new Intl.DateTimeFormat(effectiveLocale, {
     year: 'numeric',
     month: 'long',
@@ -75,7 +80,7 @@ export function formatShortDate(date: Date | string, locale: string = 'en-US'): 
   const d = typeof date === 'string' ? new Date(date) : date;
   // For Arabic, we use ar-u-nu-latn to force Latin (English) numerals
   const effectiveLocale = locale === 'ar-SA' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
-  
+
   return new Intl.DateTimeFormat(effectiveLocale, {
     year: 'numeric',
     month: '2-digit',
@@ -102,7 +107,7 @@ export function formatTime(date: Date | string, locale: string = 'en-US'): strin
 export function formatDateTime(date: Date | string, locale: string = 'en-US'): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const effectiveLocale = locale === 'ar-SA' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
-  
+
   return new Intl.DateTimeFormat(effectiveLocale, {
     year: 'numeric',
     month: 'short',
@@ -122,7 +127,7 @@ export function numberToArabicWords(num: number): string {
   const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة'];
   const tens = ['', 'عشرة', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
   const hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
-  
+
   if (num === 0) return 'صفر';
   if (num < 10) return ones[num];
   if (num < 100) {
@@ -137,7 +142,7 @@ export function numberToArabicWords(num: number): string {
     if (remainder === 0) return hundreds[hundred];
     return `${hundreds[hundred]} و${numberToArabicWords(remainder)}`;
   }
-  
+
   // For larger numbers, just return the formatted number
   return formatNumber(num);
 }
@@ -149,7 +154,7 @@ export function numberToEnglishWords(num: number): string {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
   const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  
+
   if (num === 0) return 'Zero';
   if (num < 10) return ones[num];
   if (num < 20) return teens[num - 10];
@@ -161,11 +166,11 @@ export function numberToEnglishWords(num: number): string {
   if (num < 1000) {
     const hundred = Math.floor(num / 100);
     const remainder = num % 100;
-    return remainder === 0 
-      ? `${ones[hundred]} Hundred` 
+    return remainder === 0
+      ? `${ones[hundred]} Hundred`
       : `${ones[hundred]} Hundred ${numberToEnglishWords(remainder)}`;
   }
-  
+
   // For larger numbers, just return the formatted number
   return formatNumber(num);
 }
@@ -174,8 +179,8 @@ export function numberToEnglishWords(num: number): string {
  * Format amount with currency symbol (always English numerals)
  */
 export function formatAmountWithSymbol(
-  amount: number, 
-  currencySymbol: string = 'ر.س'
+  amount: number,
+  currencySymbol: string = '$'
 ): string {
   return `${formatNumber(amount)} ${currencySymbol}`;
 }

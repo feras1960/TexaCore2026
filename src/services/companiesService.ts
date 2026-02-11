@@ -163,6 +163,25 @@ export const companiesService = {
   },
 
   /**
+   * Update an existing company
+   */
+  async update(id: string, updates: Partial<Company>): Promise<Company> {
+    const { data, error } = await supabase
+      .from('companies')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating company:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  /**
    * Create a new company
    */
   async create(company: Partial<Company>): Promise<Company> {

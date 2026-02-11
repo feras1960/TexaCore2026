@@ -42,7 +42,20 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className, var
     const config = getStatusConfig(status);
     const badgeVariant = variant || config.variant;
     // Fallback to custom label or translated status or raw status
-    const label = customLabel || t(`recurringEntries.status.${status}`) || t(`common.${status}`) || status;
+    const resolveLabel = (statusCode: string): string => {
+        if (customLabel) return customLabel;
+        // Try recurringEntries.status.X first
+        const reKey = `recurringEntries.status.${statusCode}`;
+        const reVal = t(reKey);
+        if (reVal !== reKey) return reVal;
+        // Try common.status.X
+        const csKey = `common.status.${statusCode}`;
+        const csVal = t(csKey);
+        if (csVal !== csKey) return csVal;
+        // Fallback to config label or raw status
+        return config.label !== `common.status.${statusCode}` ? config.label : statusCode;
+    };
+    const label = resolveLabel(status);
 
     return (
         <Badge variant={badgeVariant} className={className}>

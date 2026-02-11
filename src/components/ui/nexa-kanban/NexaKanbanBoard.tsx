@@ -70,7 +70,7 @@ export function NexaKanbanBoard({
     onDragEnd: externalOnDragEnd,
     isLoading = false,
     direction = 'ltr',
-    currency = 'SAR',
+    currency = '',
     getItemValue,
     emptyText,
     className = '',

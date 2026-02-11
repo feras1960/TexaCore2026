@@ -12,10 +12,10 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { warehouseService } from '@/services/warehouseService';
+import { useInventory } from '../hooks/useWarehouseQueries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,37 +39,10 @@ export default function InventoryPage() {
     const { t, language, direction } = useLanguage();
     const { companyId } = useAuth();
 
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<any>(null);
-    const [movements, setMovements] = useState<any[]>([]);
-    const [warehouseCapacity, setWarehouseCapacity] = useState<any[]>([]);
+    // ⚡ React Query: cached data, instant tab switching
+    const { stats, movements, warehouseCapacity, loading, refetch: refetchInventory } = useInventory();
+
     const [activeTab, setActiveTab] = useState('overview');
-
-    // Load inventory data
-    const loadInventory = useCallback(async () => {
-        if (!companyId) return;
-
-        setLoading(true);
-        try {
-            const [statsData, movementsData, capacityData] = await Promise.all([
-                warehouseService.getDashboardStats(companyId),
-                warehouseService.getInventoryMovements(companyId, 10),
-                warehouseService.getWarehouseCapacity(companyId)
-            ]);
-
-            setStats(statsData);
-            setMovements(movementsData);
-            setWarehouseCapacity(capacityData);
-        } catch (err) {
-            console.error('Error loading inventory:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [companyId]);
-
-    useEffect(() => {
-        loadInventory();
-    }, [loadInventory]);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500" dir={direction}>
@@ -88,7 +61,7 @@ export default function InventoryPage() {
                         variant="outline"
                         size="sm"
                         className="h-9 gap-2"
-                        onClick={loadInventory}
+                        onClick={refetchInventory}
                         disabled={loading}
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -240,8 +213,8 @@ export default function InventoryPage() {
                                         <div key={mov.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800 rounded-md">
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${mov.movement_type === 'in' ? 'bg-green-100 text-green-600' :
-                                                        mov.movement_type === 'out' ? 'bg-red-100 text-red-600' :
-                                                            'bg-blue-100 text-blue-600'
+                                                    mov.movement_type === 'out' ? 'bg-red-100 text-red-600' :
+                                                        'bg-blue-100 text-blue-600'
                                                     }`}>
                                                     {mov.movement_type === 'in' ? <TrendingUp className="w-4 h-4" /> :
                                                         mov.movement_type === 'out' ? <TrendingDown className="w-4 h-4" /> :

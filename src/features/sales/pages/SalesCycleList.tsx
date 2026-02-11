@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     Calendar,
     ShoppingCart,
-    MoreHorizontal,
     Flag,
     CheckCircle,
     Plus,
@@ -15,12 +14,13 @@ import {
     LayoutGrid,
     List
 } from 'lucide-react';
-import { NexaDataTable } from '@/components/ui/nexa-data-table';
-import { NexaKanbanBoard } from '@/components/ui/nexa-kanban/NexaKanbanBoard'; // Import new board
+import { NexaKanbanBoard } from '@/components/ui/nexa-kanban/NexaKanbanBoard';
+import { NexaSalesTable } from '@/features/sales/components/NexaSalesTable';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -38,7 +38,9 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
+import { validateTradeDocument } from '@/features/trade/utils/validateTradeDocument';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
+import { useCompanyCurrencies } from '@/hooks/useCompanyCurrencies';
 
 // Define Types
 type CycleType = 'quotation' | 'order' | 'delivery' | 'invoice' | 'return' | 'reservation';
@@ -58,12 +60,36 @@ interface SalesDocument {
     // Specifics
     reservation_type?: 'stock' | 'transit';
     source_ref?: string; // Shipment/Order ref
+    // Raw data from Supabase (including notes with items JSON)
+    _rawData?: any;
 }
 
 export default function SalesCycleList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
+    const { baseCurrency, supportedCurrencies } = useCompanyCurrencies();
     const isRTL = direction === 'rtl';
+    const queryClient = useQueryClient();
+
+    // 🔄 Realtime: auto-update when any user changes sales documents
+    useRealtimeInvalidation({
+        table: 'sales_orders',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['sales_cycle_full']],
+    });
+    useRealtimeInvalidation({
+        table: 'quotations',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['sales_cycle_full']],
+    });
+    useRealtimeInvalidation({
+        table: 'sales_invoices',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['sales_cycle_full']],
+    });
 
     // State
     const [activeTab, setActiveTab] = useState<string>('all');
@@ -73,6 +99,16 @@ export default function SalesCycleList() {
     const [selectedDoc, setSelectedDoc] = useState<SalesDocument | null>(null);
     const [docMode, setDocMode] = useState<'view' | 'create' | 'edit'>('view');
     const [newDocType, setNewDocType] = useState<CycleType>('order');
+
+    // Currency selection with persistence
+    const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
+        try { return localStorage.getItem('sales_cycle_currency') || ''; } catch { return ''; }
+    });
+    const activeCurrency = selectedCurrency || baseCurrency;
+    const handleCurrencyChange = useCallback((cur: string) => {
+        setSelectedCurrency(cur);
+        try { localStorage.setItem('sales_cycle_currency', cur); } catch { }
+    }, []);
 
     // Date Filter State
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -141,7 +177,7 @@ export default function SalesCycleList() {
             const toISO = dateRange?.to ? endOfDay(dateRange.to).toISOString() : null;
 
             // Generic Helper
-            const fetchTable = async (table: string, type: CycleType, dateCol: string, numCol: string, amountCol?: string, extraProps: any = {}) => {
+            const fetchTable = async (table: string, type: CycleType, dateCol: string, numCol: string, amountCol?: string, extraProps: (item: any) => any = () => ({})) => {
                 let q = supabase
                     .from(table)
                     .select('*')
@@ -166,10 +202,11 @@ export default function SalesCycleList() {
                     status: item.status || 'draft',
                     total_amount: amountCol ? (item[amountCol] || 0) : 0,
                     customer_id: item.customer_id,
-                    customer_name: item.customer_name, // Some tables might store name directly
-                    currency: item.currency || 'SAR',
+                    customer_name: item.customer_name,
+                    currency: item.currency || activeCurrency,
                     created_at: item.created_at,
                     original_table: table,
+                    _rawData: item, // Preserve raw data including notes JSON
                     ...extraProps(item)
                 }));
             };
@@ -229,6 +266,21 @@ export default function SalesCycleList() {
         })) as (SalesDocument & { customer_name_display: string })[];
     }, [documents, customersMap]);
 
+    // ─── Parse notes JSON to extract cart items ───
+    const parseDocumentItems = useCallback((doc: SalesDocument): any[] => {
+        try {
+            const raw = doc._rawData;
+            if (!raw?.notes) return [];
+            const parsed = typeof raw.notes === 'string' ? JSON.parse(raw.notes) : raw.notes;
+            if (parsed?._source === 'cart' && Array.isArray(parsed.items)) {
+                return parsed.items;
+            }
+            return [];
+        } catch {
+            return [];
+        }
+    }, []);
+
     const handleRowClick = (row: SalesDocument) => {
         setSelectedDoc(row);
         setDocMode('view');
@@ -241,6 +293,263 @@ export default function SalesCycleList() {
         setDocMode('create');
         setIsSheetOpen(true);
     };
+
+    // ─── Table map for reverse-lookup (CycleType → Supabase table config) ───
+    const TABLE_MAP_REVERSE: Record<CycleType, {
+        table: string;
+        dateCol: string;
+        numCol: string;
+        totalCol?: string;
+    }> = {
+        quotation: { table: 'quotations', dateCol: 'quotation_date', numCol: 'quotation_number', totalCol: 'total_amount' },
+        order: { table: 'sales_orders', dateCol: 'order_date', numCol: 'order_number', totalCol: 'total_amount' },
+        delivery: { table: 'sales_deliveries', dateCol: 'delivery_date', numCol: 'delivery_number' },
+        invoice: { table: 'sales_invoices', dateCol: 'invoice_date', numCol: 'invoice_number', totalCol: 'total_amount' },
+        return: { table: 'sales_returns', dateCol: 'return_date', numCol: 'return_number', totalCol: 'total_amount' },
+        reservation: { table: 'transit_reservations', dateCol: 'reservation_date', numCol: 'reservation_number' },
+    };
+
+    // ─── Save document to Supabase (on explicit Save button click) ───
+    const handleDocumentSave = useCallback(async (docData: any) => {
+        if (!selectedDoc?.id || !selectedDoc?.type) {
+            toast.error(isRTL ? 'لا يمكن الحفظ — المستند غير محدد' : 'Cannot save — document not identified');
+            return;
+        }
+
+        // ─── Validation ───
+        const validation = validateTradeDocument({
+            data: docData,
+            mode: 'sales',
+            action: 'save',
+            creditLimit: docData._creditLimit,
+            balance: docData._balance,
+            isCreditExceeded: docData._isCreditExceeded,
+        });
+
+        if (!validation.isValid) {
+            validation.errors.forEach(err => {
+                toast.error(isRTL ? err.messageAr : err.messageEn);
+            });
+            return;
+        }
+
+        // Show warnings as info toasts (non-blocking)
+        validation.warnings.forEach(warn => {
+            toast.warning(isRTL ? warn.messageAr : warn.messageEn);
+        });
+
+        const originalType = selectedDoc.type;
+        const newType = (docData.subType || docData.type || originalType) as CycleType;
+        const isTypeChanged = newType !== originalType && TABLE_MAP_REVERSE[newType];
+
+        const targetConfig = TABLE_MAP_REVERSE[isTypeChanged ? newType : originalType];
+        if (!targetConfig) {
+            toast.error(isRTL ? 'نوع مستند غير مدعوم' : 'Unsupported document type');
+            return;
+        }
+
+        try {
+            // Build the update/insert payload
+            const payload: Record<string, any> = {
+                // Keep existing status unless explicitly changed, or set to 'saved' on first save
+                status: docData.status || selectedDoc.status || 'saved',
+            };
+
+            // Customer
+            if (docData.customer_id) {
+                payload.customer_id = docData.customer_id;
+            }
+            if (docData.customer_name) {
+                payload.customer_name = docData.customer_name;
+            }
+
+            // Warehouse (single)
+            if (docData.warehouse_id) {
+                payload.warehouse_id = docData.warehouse_id;
+            }
+
+            // Total amount
+            if (targetConfig.totalCol && docData.total_amount != null) {
+                payload[targetConfig.totalCol] = docData.total_amount;
+            }
+
+            // Currency
+            if (docData.currency) {
+                payload.currency = docData.currency;
+            }
+
+            // Date
+            if (docData.date) {
+                payload[targetConfig.dateCol] = new Date(docData.date).toISOString().split('T')[0];
+            }
+
+            // Reference number
+            if (docData.reference_number) {
+                payload.reference_number = docData.reference_number;
+            }
+
+            // ─── New Trade Fields ───
+            // Salesperson
+            if (docData.salesperson_id !== undefined) {
+                payload.salesperson_id = docData.salesperson_id || null;
+            }
+
+            // Due date
+            if (docData.due_date) {
+                payload.due_date = new Date(docData.due_date).toISOString().split('T')[0];
+            }
+
+            // Exchange rate
+            if (docData.exchange_rate != null) {
+                payload.exchange_rate = Number(docData.exchange_rate) || 1;
+            }
+
+            // Payment terms days
+            if (docData.payment_terms_days != null) {
+                payload.payment_terms_days = Number(docData.payment_terms_days) || 0;
+            }
+
+            // Document-level discount
+            if (docData.discount_percent != null) {
+                payload.discount_percent = Number(docData.discount_percent) || 0;
+            }
+
+            // Price list tracking
+            if (docData.price_list_id !== undefined) {
+                payload.price_list_id = docData.price_list_id || null;
+            }
+
+            // Re-serialize items back into notes JSON (with currency, exchange_rate, user_notes)
+            const notesPayload: Record<string, any> = {
+                _source: 'cart',
+            };
+
+            if (docData.items && docData.items.length > 0) {
+                notesPayload.items = docData.items.map((item: any) => ({
+                    material_id: item.material_id,
+                    material_code: item.material_code,
+                    material_name_ar: item.material_name_ar,
+                    material_name_en: item.material_name_en,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    unit_price: item.unit_price,
+                    subtotal: item.subtotal,
+                    total: item.total,
+                    discount_percent: item.discount_percent,
+                    discount_amount: item.discount_amount,
+                    currency: item.currency,
+                    exchange_rate: item.exchange_rate,
+                    warehouse_id: item.warehouse_id,
+                    warehouse_name_ar: item.warehouse_name_ar,
+                    warehouse_name_en: item.warehouse_name_en,
+                    preferred_rolls: item.preferred_rolls,
+                }));
+            }
+
+            // Attach user-facing notes inside the JSON
+            if (docData.user_notes != null) {
+                notesPayload.user_notes = docData.user_notes;
+            }
+
+            payload.notes = JSON.stringify(notesPayload);
+
+            if (isTypeChanged) {
+                // ═══ TYPE CONVERSION: Move document to new table ═══
+                // 1. Copy company_id + tenant_id + created_by from raw data (required for RLS)
+                payload.company_id = selectedDoc._rawData?.company_id || companyId;
+                payload.tenant_id = selectedDoc._rawData?.tenant_id;
+                payload.created_by = selectedDoc._rawData?.created_by;
+
+                // If tenant_id/created_by not in raw data, fetch from user metadata
+                if (!payload.tenant_id || !payload.created_by) {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!payload.tenant_id) payload.tenant_id = user?.user_metadata?.tenant_id;
+                    if (!payload.created_by) payload.created_by = user?.id;
+                }
+
+                // 2. Generate the document number for the target table
+                const NUM_PREFIX: Record<CycleType, string> = {
+                    quotation: 'QTN',
+                    order: 'SO',
+                    delivery: 'DN',
+                    invoice: 'INV',
+                    return: 'RET',
+                    reservation: 'RSV',
+                };
+                const prefix = NUM_PREFIX[newType] || 'DOC';
+                const randomSuffix = crypto.randomUUID().substring(0, 8).toUpperCase();
+                payload[targetConfig.numCol] = `${prefix}-${randomSuffix}`;
+
+                // Remove the old table's number column if present (prevent unknown column error)
+                const oldConfig = TABLE_MAP_REVERSE[originalType];
+                if (oldConfig && oldConfig.numCol !== targetConfig.numCol) {
+                    delete payload[oldConfig.numCol];
+                }
+                // Also remove old date column if different
+                if (oldConfig && oldConfig.dateCol !== targetConfig.dateCol) {
+                    delete payload[oldConfig.dateCol];
+                }
+
+                // 3. Insert into new table
+                const { data: newRecord, error: insertErr } = await supabase
+                    .from(targetConfig.table)
+                    .insert(payload)
+                    .select('id')
+                    .single();
+
+                if (insertErr) throw insertErr;
+
+                // 4. Delete from old table
+                const oldTableConfig = TABLE_MAP_REVERSE[originalType];
+                if (oldTableConfig) {
+                    const { error: delErr } = await supabase
+                        .from(oldTableConfig.table)
+                        .delete()
+                        .eq('id', selectedDoc.id);
+
+                    if (delErr) {
+                        console.warn('Failed to remove old record:', delErr.message);
+                        // Not critical — the new record was already created
+                    }
+                }
+
+                toast.success(
+                    isRTL
+                        ? `تم تحويل المستند إلى ${newType === 'order' ? 'طلب' : newType === 'invoice' ? 'فاتورة' : newType} بنجاح ✅`
+                        : `Document converted to ${newType} successfully ✅`
+                );
+            } else {
+                // ═══ SAME TYPE: Just update in place ═══
+                const { error } = await supabase
+                    .from(targetConfig.table)
+                    .update(payload)
+                    .eq('id', selectedDoc.id);
+
+                if (error) throw error;
+
+                toast.success(isRTL ? 'تم حفظ المستند بنجاح ✅' : 'Document saved successfully ✅');
+            }
+
+            // Refresh the list
+            queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+
+            setIsSheetOpen(false);
+            setSelectedDoc(null);
+        } catch (err: any) {
+            console.error('Save error:', err);
+            toast.error(isRTL ? `خطأ في الحفظ: ${err.message}` : `Save error: ${err.message}`);
+        }
+    }, [selectedDoc, isRTL, queryClient, companyId]);
+
+    // ─── Auto-save as draft when closing the sheet ───
+    const handleSheetClose = useCallback(async (open: boolean) => {
+        if (!open && selectedDoc?.id && docMode !== 'create') {
+            // Keep status as-is (draft remains draft, saved remains saved)
+            // No need to auto-save on close for existing documents
+        }
+        setIsSheetOpen(open);
+        if (!open) setSelectedDoc(null);
+    }, [selectedDoc, docMode]);
 
     // Helper to map CycleType to DocType for the Sheet
     const getSheetDocType = (type: CycleType): DocType => {
@@ -255,93 +564,6 @@ export default function SalesCycleList() {
         }
     }
 
-    // Columns Configuration
-    const columns = [
-        {
-            header: isRTL ? 'رقم المستند' : 'Document #',
-            accessorKey: 'document_number',
-            cell: ({ row }: any) => (
-                <span
-                    className="font-bold font-mono text-erp-primary cursor-pointer hover:underline"
-                    onClick={() => handleRowClick(row.original)}
-                >
-                    {row.original.document_number || '-'}
-                </span>
-            )
-        },
-        {
-            header: isRTL ? 'النوع' : 'Type',
-            accessorKey: 'type',
-            cell: ({ row }: any) => {
-                const type = row.original.type;
-                let colorClass = 'bg-gray-100 text-gray-800';
-
-                switch (type) {
-                    case 'quotation': colorClass = 'bg-purple-100/50 text-purple-700 border-purple-200'; break;
-                    case 'order': colorClass = 'bg-blue-100/50 text-blue-700 border-blue-200'; break;
-                    case 'delivery': colorClass = 'bg-orange-100/50 text-orange-700 border-orange-200'; break;
-                    case 'invoice': colorClass = 'bg-indigo-100/50 text-indigo-700 border-indigo-200'; break;
-                    case 'return': colorClass = 'bg-rose-100/50 text-rose-700 border-rose-200'; break;
-                    case 'reservation': colorClass = 'bg-cyan-100/50 text-cyan-700 border-cyan-200'; break;
-                }
-
-                return (
-                    <Badge variant="outline" className={`capitalize ${colorClass} font-medium px-2 py-0.5`}>
-                        {t(`sales.types.${type}`) || type}
-                    </Badge>
-                );
-            }
-        },
-        {
-            header: isRTL ? 'التاريخ' : 'Date',
-            accessorKey: 'date',
-            enableSorting: true,
-            cell: ({ row }: any) => <span className="text-gray-600 font-mono text-xs">{new Date(row.original.date || row.original.created_at).toLocaleDateString()}</span>
-        },
-        {
-            header: isRTL ? 'العميل' : 'Customer',
-            accessorKey: 'customer_id',
-            cell: ({ row }: any) => <span className="font-medium">{row.original.customer_name_display}</span>
-        },
-        {
-            header: isRTL ? 'الإجمالي' : 'Total',
-            accessorKey: 'total_amount',
-            cell: ({ row }: any) => (
-                <span className="font-mono font-bold tracking-tight">
-                    {Number(row.original.total_amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || 'SAR'}</span>
-                </span>
-            )
-        },
-        {
-            header: isRTL ? 'الحالة' : 'Status',
-            accessorKey: 'status',
-            cell: ({ row }: any) => (
-                <div className="flex items-center gap-1.5">
-                    <div className={`w-2 h-2 rounded-full ${['approved', 'confirmed', 'posted', 'delivered'].includes(row.original.status) ? 'bg-green-500' : 'bg-gray-400'}`} />
-                    <span className="capitalize text-sm text-gray-600">{row.original.status}</span>
-                </div>
-            )
-        },
-        {
-            id: 'actions',
-            cell: ({ row }: any) => (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>{isRTL ? 'إجراءات' : 'Actions'}</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleRowClick(row.original)}>
-                            {isRTL ? 'عرض التفاصيل' : 'View Details'}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )
-        }
-    ];
 
 
     // Kanban column definitions (matching existing sub-tabs exactly)
@@ -543,17 +765,33 @@ export default function SalesCycleList() {
                         className="w-full sm:w-[260px]"
                         align={isRTL ? "end" : "start"}
                     />
+
+                    {/* Currency Selector */}
+                    {supportedCurrencies.length > 1 && (
+                        <div className="flex bg-muted/50 p-1 rounded-lg border border-gray-200/50">
+                            {supportedCurrencies.map(cur => (
+                                <Button key={cur} variant="ghost" size="sm"
+                                    className={`h-8 px-2.5 text-xs font-medium transition-all ${activeCurrency === cur
+                                        ? 'bg-white shadow-sm text-erp-navy dark:bg-gray-800 dark:text-white font-bold'
+                                        : 'text-gray-400 hover:text-gray-600'
+                                        }`}
+                                    onClick={() => handleCurrencyChange(cur)}
+                                >
+                                    {cur}
+                                </Button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* ─── Content Area ─── */}
                 {viewMode === 'list' ? (
-                    <div className="flex-1 min-h-0 border rounded-lg bg-white shadow-sm overflow-hidden">
-                        <NexaDataTable
+                    <div className="flex-1 min-h-0 border rounded-xl bg-white dark:bg-gray-950 shadow-sm overflow-hidden">
+                        <NexaSalesTable
                             data={enrichedDocuments}
-                            columns={columns}
-                            enableSearch={true}
-                            searchPlaceholder={isRTL ? 'بحث برقم المستند...' : 'Search document #...'}
+                            isLoading={isLoading}
                             pageSize={15}
+                            onRowClick={handleRowClick}
                         />
                     </div>
                 ) : (
@@ -566,7 +804,7 @@ export default function SalesCycleList() {
                             columns={kanbanColumns}
                             items={kanbanItems}
                             direction={direction}
-                            currency="SAR"
+                            currency={activeCurrency}
                             isLoading={isLoading}
                             emptyText={isRTL ? 'لا توجد مستندات' : 'No documents'}
                             getItemValue={(content) => Number(content.total_amount || 0)}
@@ -605,7 +843,7 @@ export default function SalesCycleList() {
                                         </span>
                                         <span className="font-mono text-sm font-bold text-erp-navy">
                                             {Number(doc.total_amount || 0).toLocaleString()}{' '}
-                                            <span className="text-[10px] text-gray-400">{doc.currency || 'SAR'}</span>
+                                            <span className="text-[10px] text-gray-400">{doc.currency || activeCurrency}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -625,13 +863,19 @@ export default function SalesCycleList() {
                 {isSheetOpen && (
                     <UnifiedTradeSheet
                         open={isSheetOpen}
-                        onOpenChange={(open) => {
-                            setIsSheetOpen(open);
-                            if (!open) setSelectedDoc(null);
-                        }}
+                        onOpenChange={handleSheetClose}
                         mode="sales"
                         type={(docMode === 'create' ? newDocType : selectedDoc?.type) as any}
-                        initialData={docMode === 'create' ? { type: newDocType, status: 'draft', currency: 'SAR', date: new Date().toISOString() } : selectedDoc}
+                        initialData={docMode === 'create'
+                            ? { type: newDocType, status: 'draft', currency: activeCurrency, date: new Date().toISOString() }
+                            : selectedDoc ? {
+                                ...selectedDoc,
+                                ...selectedDoc._rawData,
+                                items: parseDocumentItems(selectedDoc),
+                                type: selectedDoc.type,
+                            } : selectedDoc
+                        }
+                        onSave={selectedDoc?.id ? handleDocumentSave : undefined}
                     />
                 )}
             </div>

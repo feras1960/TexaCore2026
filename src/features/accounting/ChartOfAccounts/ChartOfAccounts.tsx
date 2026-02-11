@@ -182,7 +182,7 @@ export function ChartOfAccounts() {
       account.is_group ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'),
       account.is_active ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive'),
       (account.current_balance ?? 0).toString(),
-      account.currency_code || 'SAR',
+      account.currency_code || '',
     ]);
 
     return [headers, ...rows].map(row => row.join(',')).join('\n');

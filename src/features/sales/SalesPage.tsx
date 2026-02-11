@@ -24,9 +24,9 @@ const CustomersList = lazy(() => import('./pages/CustomersList'));
 const SalesCycleList = lazy(() => import('./pages/SalesCycleList'));
 const SalesInvoicesList = lazy(() => import('./pages/SalesInvoicesList'));
 const SalesPaymentsList = lazy(() => import('./pages/SalesPaymentsList'));
-// Reports and Settings can be lazy loaded or placeholders if not yet created as files
+// Reports and Settings
 const SalesReports = lazy(() => import('./pages/SalesReportsPage'));
-const SalesSettings = () => <div className="p-8 text-center text-muted-foreground">Settings Coming Soon</div>;
+const SalesSettings = lazy(() => import('./pages/SalesWorkflowSettings'));
 
 
 // Loading component

@@ -30,6 +30,8 @@ import {
     Package,
     ShoppingCart,
     Truck,
+    Search,
+    LayoutList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TabConfig, SheetMode } from '../types';
@@ -59,6 +61,8 @@ const tabIconMap: Record<string, any> = {
     Package,
     ShoppingCart,
     Truck,
+    Search,
+    LayoutList,
 };
 
 interface SheetTabsProps {

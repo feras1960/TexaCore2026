@@ -72,19 +72,19 @@ export default function Parties() {
             `)
         .eq('company_id', companyId);
 
-      // Map Data
+      // Map Data - name is computed at render-time, not fetch-time
       if (custData) {
         setCustomers(custData.map((c: any) => ({
           ...c,
           type: 'customer',
-          name: language === 'ar' ? c.name_ar : c.name_en || c.name_ar,
+          name: c.name_ar || c.name_en,
         })));
       }
       if (suppData) {
         setSuppliers(suppData.map((s: any) => ({
           ...s,
           type: 'supplier',
-          name: language === 'ar' ? s.name_ar : s.name_en || s.name_ar,
+          name: s.name_ar || s.name_en,
         })));
       }
 
@@ -97,7 +97,7 @@ export default function Parties() {
 
   useEffect(() => {
     fetchParties();
-  }, [companyId, language]);
+  }, [companyId]);
 
   const handlePartyClick = (party: Party) => {
     setSelectedParty(party);
@@ -146,9 +146,9 @@ export default function Parties() {
       key: 'name',
       title: 'table.name',
       sortable: true,
-      render: (val, item) => (
+      render: (_val, item) => (
         <div>
-          <p className="font-medium">{val}</p>
+          <p className="font-medium">{language === 'ar' ? item.name_ar : (item.name_en || item.name_ar)}</p>
           {item.account && (
             <p className="text-[10px] text-gray-400 font-mono">
               {item.account.account_code} - {language === 'ar' ? item.account.name_ar : item.account.name_en}

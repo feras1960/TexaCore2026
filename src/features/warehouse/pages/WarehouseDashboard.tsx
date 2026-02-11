@@ -14,10 +14,10 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { warehouseService } from '@/services/warehouseService';
+import { useWarehouseDashboard } from '../hooks/useWarehouseQueries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -101,54 +101,19 @@ export default function WarehouseDashboard() {
     const { t, language, direction } = useLanguage();
     const { companyId } = useAuth();
 
-    // State for real data
-    const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
-    const [pendingTransfers, setPendingTransfers] = useState<PendingTransfer[]>([]);
-    const [warehouseCapacity, setWarehouseCapacity] = useState<WarehouseCapacity[]>([]);
-    const [recentActivity, setRecentActivity] = useState<InventoryMovement[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // ⚡ React Query: all dashboard data cached & managed
+    const {
+        stats,
+        lowStockItems,
+        warehouseCapacity,
+        recentActivity,
+        loading,
+        error,
+        refetch: refetchDashboard,
+    } = useWarehouseDashboard();
 
-    // Load all dashboard data
-    const loadDashboard = useCallback(async () => {
-        if (!companyId) return;
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            // Load all data in parallel with graceful error handling
-            const [statsData, lowStockData, capacityData, movementsData] = await Promise.all([
-                warehouseService.getDashboardStats(companyId).catch(() => ({
-                    totalWarehouses: 0,
-                    totalMaterials: 0,
-                    totalRolls: 0,
-                    activeReservations: 0,
-                    pendingDeliveries: 0,
-                    lowStockItems: 0
-                })),
-                warehouseService.getLowStockItems(companyId, 5).catch(() => []),
-                warehouseService.getWarehouseCapacity(companyId).catch(() => []),
-                warehouseService.getInventoryMovements(companyId, { limit: 5 }).catch(() => [])
-            ]);
-
-            setStats(statsData);
-            setLowStockItems(lowStockData);
-            setPendingTransfers([]); // Pending transfers not implemented yet
-            setWarehouseCapacity(capacityData);
-            setRecentActivity(movementsData);
-        } catch (err) {
-            console.error('Error loading dashboard:', err);
-            setError(t('errors.network.loadFailed') || 'Failed to load dashboard data');
-        } finally {
-            setLoading(false);
-        }
-    }, [companyId, t]);
-
-    useEffect(() => {
-        loadDashboard();
-    }, [loadDashboard]);
+    // Pending transfers placeholder (not implemented yet in service)
+    const pendingTransfers: PendingTransfer[] = [];
 
     // Loading skeleton
     const StatSkeleton = () => (
@@ -187,7 +152,7 @@ export default function WarehouseDashboard() {
                         variant="outline"
                         size="sm"
                         className="h-9 gap-2"
-                        onClick={loadDashboard}
+                        onClick={refetchDashboard}
                         disabled={loading}
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -248,7 +213,7 @@ export default function WarehouseDashboard() {
             {error && (
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="text-red-600 dark:text-red-400">{error}</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={loadDashboard}>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={refetchDashboard}>
                         {language === 'ar' ? 'إعادة المحاولة' : 'Retry'}
                     </Button>
                 </div>

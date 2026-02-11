@@ -54,12 +54,12 @@ const METHOD_LABELS: Record<string, { ar: string; en: string; icon: any }> = {
 };
 
 // Withdrawal Card Component
-function WithdrawalCard({ 
-  withdrawal, 
-  language, 
-  onClick 
-}: { 
-  withdrawal: Withdrawal; 
+function WithdrawalCard({
+  withdrawal,
+  language,
+  onClick
+}: {
+  withdrawal: Withdrawal;
   language: string;
   onClick?: () => void;
 }) {
@@ -70,7 +70,7 @@ function WithdrawalCard({
   const MethodIcon = methodInfo.icon;
 
   return (
-    <div 
+    <div
       className={cn(
         'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-erp-teal/50 transition-colors',
         onClick && 'cursor-pointer'
@@ -82,13 +82,13 @@ function WithdrawalCard({
         <div className="flex items-center gap-3">
           <div className={cn(
             'w-10 h-10 rounded-lg flex items-center justify-center',
-            withdrawal.status === 'completed' 
+            withdrawal.status === 'completed'
               ? 'bg-green-100 dark:bg-green-900/30'
               : 'bg-gray-100 dark:bg-gray-900/30'
           )}>
             <ArrowUpRight className={cn(
               'w-5 h-5',
-              withdrawal.status === 'completed' 
+              withdrawal.status === 'completed'
                 ? 'text-green-600 dark:text-green-400'
                 : 'text-gray-600 dark:text-gray-400'
             )} />
@@ -109,7 +109,7 @@ function WithdrawalCard({
             </div>
           </div>
         </div>
-        
+
         {/* Amount */}
         <div className="text-end">
           <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">
@@ -206,14 +206,14 @@ export function AgentWithdrawalsTab({ data, docType: _docType, language, t: _t, 
               </div>
               <div className="text-2xl font-bold font-mono mt-1">
                 {availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                <span className="text-sm font-normal ms-1">{data.currency || 'SAR'}</span>
+                <span className="text-sm font-normal ms-1">{data.currency || '-'}</span>
               </div>
             </div>
             <Wallet className="w-10 h-10 text-white/30" />
           </div>
           {stats.pendingAmount > 0 && (
             <div className="mt-3 pt-3 border-t border-white/20 text-xs text-white/70">
-              {isArabic ? 'قيد المعالجة:' : 'Processing:'} {stats.pendingAmount.toLocaleString()} {data.currency || 'SAR'}
+              {isArabic ? 'قيد المعالجة:' : 'Processing:'} {stats.pendingAmount.toLocaleString()} {data.currency || '-'}
             </div>
           )}
         </div>

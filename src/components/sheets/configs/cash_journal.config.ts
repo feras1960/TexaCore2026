@@ -67,7 +67,7 @@ export const cashJournalConfig: SheetConfig = {
         },
         label: 'vouchers.totalAmount',
         labelAr: 'المبلغ الإجمالي',
-        currency: 'SAR',
+        currency: undefined,
         showSign: false,
     },
 
@@ -147,7 +147,7 @@ export const cashJournalConfig: SheetConfig = {
             label: 'fields.totalDebit',
             labelAr: 'إجمالي المدين',
             type: 'currency',
-            currency: 'SAR',
+            currency: undefined,
             icon: DollarSign,
         },
         {
@@ -155,7 +155,7 @@ export const cashJournalConfig: SheetConfig = {
             label: 'fields.totalCredit',
             labelAr: 'إجمالي الدائن',
             type: 'currency',
-            currency: 'SAR',
+            currency: undefined,
             icon: DollarSign,
         },
         {

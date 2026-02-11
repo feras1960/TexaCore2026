@@ -163,7 +163,7 @@ export default function PurchaseInvoicesList() {
             accessorKey: 'total_amount',
             cell: ({ row }: any) => (
                 <span className="font-mono font-bold tracking-tight">
-                    {Number(row.original.total_amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || 'SAR'}</span>
+                    {Number(row.original.total_amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || ''}</span>
                 </span>
             )
         },
@@ -249,7 +249,7 @@ export default function PurchaseInvoicesList() {
                     }}
                     mode="purchase"
                     type="invoice"
-                    initialData={docMode === 'create' ? { type: 'invoice', status: 'draft', currency: 'SAR', date: new Date().toISOString() } : selectedDoc}
+                    initialData={docMode === 'create' ? { type: 'invoice', status: 'draft', currency: '', date: new Date().toISOString() } : selectedDoc}
                 />
             )}
         </div>

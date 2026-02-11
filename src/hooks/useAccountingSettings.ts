@@ -69,15 +69,15 @@ export function useAccountingSettings() {
         // Helper properties for cleaner access
         vatRate: settings?.vat_rate ?? 15,
         isVatEnabled: settings?.vat_enabled ?? false,
-        baseCurrency: settings?.base_currency || 'SAR',
+        baseCurrency: settings?.base_currency || '',
         dateFormat: settings?.date_format || 'DD/MM/YYYY',
         autoPost: settings?.auto_post_entries ?? false,
         requireApproval: settings?.require_approval ?? true,
         entryPrefix: settings?.journal_entry_prefix || 'JE',
-        defaultSalesCurrency: settings?.default_sales_currency || 'SAR',
-        defaultPurchaseCurrency: settings?.default_purchase_currency || 'SAR',
-        defaultIntlPurchaseCurrency: settings?.default_international_purchase_currency || 'USD',
-        supportedCurrencies: settings?.supported_currencies || ['SAR'],
+        defaultSalesCurrency: settings?.default_sales_currency || settings?.base_currency || '',
+        defaultPurchaseCurrency: settings?.default_purchase_currency || settings?.base_currency || '',
+        defaultIntlPurchaseCurrency: settings?.default_international_purchase_currency || '',
+        supportedCurrencies: settings?.supported_currencies || (settings?.base_currency ? [settings.base_currency] : []),
         defaultReceivableAccountId: settings?.default_receivable_account_id,
         defaultPayableAccountId: settings?.default_payable_account_id
     };

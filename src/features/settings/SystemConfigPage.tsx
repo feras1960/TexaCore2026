@@ -1,62 +1,168 @@
 /**
- * SystemConfigPage - صفحة إعدادات النظام
- * System Configuration Page
+ * ════════════════════════════════════════════════════════════════
+ * ⚙️ SystemConfigPage - مركز الإعدادات الموحد
+ * ════════════════════════════════════════════════════════════════
+ * 
+ * Unified System Settings Hub that consolidates:
+ * - Company Profile (بيانات المنشأة)
+ * - Tax System (الضرائب والأنظمة)
+ * - Accounting Settings (المحاسبة)
+ * - Warehouse Settings (المستودعات)
+ * - Sales Settings (المبيعات)
+ * - Purchases Settings (المشتريات)
+ * - Roles & Permissions (الأدوار والصلاحيات)
+ * - Users Management (إدارة المستخدمين)
+ * - Visibility Rules (قواعد الإخفاء)
+ * - Modules Management (الموديولات)
+ * 
+ * ⚡ PERFORMANCE: Uses "Keep All Mounted" pattern
+ * Same pattern as Accounting, Warehouse, and Sales modules.
+ * 
+ * 📐 UI: Uses MainTabsBar with "underline" variant
+ * Same tab pattern as all other modules for visual consistency.
  * 
  * @module features/settings
- * @description Main settings page with tabs for roles, users, and permissions management
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Loader2 } from 'lucide-react';
 import {
     Settings, Shield, Users, Building2,
-    Key, Eye, Layers, Wallet, Warehouse
+    Eye, Layers, Wallet, Globe,
+    Calculator, Package, ShoppingCart, ShoppingBag,
+    Link2,
+    type LucideIcon
 } from 'lucide-react';
 
-// Import tab components
+// ─── Tab Components ─────────────────────────────────────────────────────
+// Direct imports (no lazy loading) for instant switching
+
+// New unified tabs
+import CompanyProfileTab from './components/CompanyProfileTab';
+import TaxSystemTab from './components/TaxSystemTab';
+
+// Permission/admin tabs
 import RolesManagementTab from './components/RolesManagementTab';
 import UsersManagementTab from './components/UsersManagementTab';
 import VisibilityRulesTab from './components/VisibilityRulesTab';
-// Import resource permissions from accounting (will be unified here)
 import UserPermissionsTab from '@/features/accounting/components/UserPermissionsTab';
 
-// Tab configuration
-const CONFIG_TABS = [
+// Module settings (imported from their original locations)
+import AccountingSettings from '@/features/accounting/AccountingSettings';
+import WarehouseSettingsPage from '@/features/warehouse/pages/WarehouseSettingsPage';
+import SalesWorkflowSettings from '@/features/sales/pages/SalesWorkflowSettings';
+import IntegrationsTab from './components/IntegrationsTab';
+
+// ─── Tab Configuration ──────────────────────────────────────────────────
+
+interface ConfigTab {
+    id: string;
+    labelKey: string;
+    labelAr: string;
+    labelEn: string;
+    icon: LucideIcon;
+    component: React.ComponentType;
+    requiresRole: string[];
+}
+
+const CONFIG_TABS: ConfigTab[] = [
+    // ─ Company & Tax ─────────────────────────────
+    {
+        id: 'company',
+        labelKey: 'settings.tabs.company',
+        labelAr: 'بيانات المنشأة',
+        labelEn: 'Company Profile',
+        icon: Building2,
+        component: CompanyProfileTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    {
+        id: 'tax',
+        labelKey: 'settings.tabs.tax',
+        labelAr: 'الضرائب والأنظمة',
+        labelEn: 'Tax System',
+        icon: Globe,
+        component: TaxSystemTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    // ─ Module Settings ───────────────────────────
+    {
+        id: 'accounting',
+        labelKey: 'settings.tabs.accounting',
+        labelAr: 'المحاسبة',
+        labelEn: 'Accounting',
+        icon: Calculator,
+        component: AccountingSettings,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    {
+        id: 'warehouse',
+        labelKey: 'settings.tabs.warehouse',
+        labelAr: 'المستودعات',
+        labelEn: 'Warehouse',
+        icon: Package,
+        component: WarehouseSettingsPage,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin', 'branch_manager'],
+    },
+    {
+        id: 'sales',
+        labelKey: 'settings.tabs.sales',
+        labelAr: 'المبيعات',
+        labelEn: 'Sales',
+        icon: ShoppingCart,
+        component: SalesWorkflowSettings,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    {
+        id: 'integrations',
+        labelKey: 'settings.tabs.integrations',
+        labelAr: 'التكاملات',
+        labelEn: 'Integrations',
+        icon: Link2,
+        component: IntegrationsTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    // ─ Admin & Permissions ───────────────────────
     {
         id: 'roles',
         labelKey: 'settings.tabs.roles',
         labelAr: 'إدارة الأدوار',
-        labelEn: 'Roles Management',
+        labelEn: 'Roles',
         icon: Shield,
+        component: RolesManagementTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     {
         id: 'users',
         labelKey: 'settings.tabs.users',
-        labelAr: 'إدارة المستخدمين',
-        labelEn: 'Users Management',
+        labelAr: 'المستخدمين',
+        labelEn: 'Users',
         icon: Users,
+        component: UsersManagementTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     {
         id: 'resources',
         labelKey: 'settings.tabs.resources',
         labelAr: 'صلاحيات الموارد',
-        labelEn: 'Resource Permissions',
+        labelEn: 'Resources',
         icon: Wallet,
+        component: UserPermissionsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     {
         id: 'visibility',
         labelKey: 'settings.tabs.visibility',
         labelAr: 'قواعد الإخفاء',
-        labelEn: 'Visibility Rules',
+        labelEn: 'Visibility',
         icon: Eye,
+        component: VisibilityRulesTab,
         requiresRole: ['super_admin', 'tenant_owner'],
     },
     {
@@ -66,51 +172,102 @@ const CONFIG_TABS = [
         labelEn: 'Modules',
         icon: Layers,
         requiresRole: ['super_admin', 'tenant_owner'],
+        component: () => (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-tajawal flex items-center gap-2">
+                        <Layers className="w-5 h-5 text-erp-teal" />
+                        إدارة الموديولات
+                    </CardTitle>
+                    <CardDescription className="font-tajawal">
+                        تفعيل وإلغاء تفعيل الموديولات
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-gray-500 dark:text-gray-400 font-tajawal text-center py-8">
+                        قريباً...
+                    </p>
+                </CardContent>
+            </Card>
+        ),
     },
 ];
 
-export default function SystemConfigPage() {
-    const { t, language, direction } = useLanguage();
-    const { hasAnyRole, loading: rbacLoading } = useRBAC();
-    const [activeTab, setActiveTab] = useState('roles');
+// ─── Main Component ─────────────────────────────────────────────────────
 
-    // Filter tabs based on user role - show all tabs while loading
-    const visibleTabs = useMemo(() => {
-        if (rbacLoading) {
-            // Show all tabs while loading
-            return CONFIG_TABS;
+export default function SystemConfigPage() {
+    const { language, direction } = useLanguage();
+    const { hasAnyRole, loading: rbacLoading } = useRBAC();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const isAr = language === 'ar';
+
+    // ─── Active tab from URL ────────────────────────────────────
+    const getActiveTab = useCallback(() => {
+        const path = location.pathname;
+        if (path.startsWith('/system-config')) {
+            // Match /system-config/company, /system-config/tax, etc.
+            const segment = path.replace('/system-config', '').replace(/^\//, '');
+            if (segment && CONFIG_TABS.some(t => t.id === segment)) {
+                return segment;
+            }
         }
-        // Filter based on roles after loading
+        return 'company'; // default tab
+    }, [location.pathname]);
+
+    const [activeTab, setActiveTab] = useState(getActiveTab);
+
+    // Sync tab with URL changes
+    useEffect(() => {
+        setActiveTab(getActiveTab());
+    }, [getActiveTab]);
+
+    // ─── Filter tabs by role ─────────────────────────────────────
+    const visibleTabs = useMemo(() => {
+        if (rbacLoading) return CONFIG_TABS;
         const filtered = CONFIG_TABS.filter(tab => hasAnyRole(tab.requiresRole));
-        // Fallback: if no tabs visible (user has access to the page), show roles tab
-        return filtered.length > 0 ? filtered : CONFIG_TABS.slice(0, 1);
+        return filtered.length > 0 ? filtered : CONFIG_TABS.slice(0, 2);
     }, [rbacLoading, hasAnyRole]);
 
-    // Get tab label based on language
-    const getTabLabel = (tab: typeof CONFIG_TABS[0]) => {
-        return language === 'ar' ? tab.labelAr : tab.labelEn;
-    };
+    // MainTabsBar needs only { id, labelKey, icon }
+    const tabsForBar = useMemo(() =>
+        visibleTabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })),
+        [visibleTabs]
+    );
+
+    // ─── Handle tab switch ───────────────────────────────────────
+    const handleTabChange = useCallback((tabId: string) => {
+        if (tabId !== activeTab) {
+            setActiveTab(tabId);
+            const path = tabId === 'company'
+                ? '/system-config'
+                : `/system-config/${tabId}`;
+            navigate(path, { replace: true });
+        }
+    }, [activeTab, navigate]);
+
+    // ─── Render ──────────────────────────────────────────────────
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="p-6 space-y-6"
+            className="space-y-6"
         >
-            {/* Page Header */}
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-erp-navy to-erp-teal flex items-center justify-center">
+            {/* ── Page Header ───────────────────────────────────── */}
+            <div className="flex items-center gap-4 px-1">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-erp-navy to-erp-teal flex items-center justify-center shadow-lg">
                     <Settings className="w-6 h-6 text-white" />
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-tajawal">
-                        {language === 'ar' ? 'إعدادات النظام' : 'System Settings'}
+                        {isAr ? 'إعدادات النظام' : 'System Settings'}
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                        {language === 'ar'
-                            ? 'إدارة الأدوار والمستخدمين والصلاحيات'
-                            : 'Manage roles, users, and permissions'}
+                        {isAr
+                            ? 'بيانات المنشأة، الضرائب، المحاسبة، المستودعات، والصلاحيات'
+                            : 'Company profile, taxes, accounting, warehouse, and permissions'}
                     </p>
                 </div>
                 {rbacLoading && (
@@ -118,83 +275,42 @@ export default function SystemConfigPage() {
                 )}
             </div>
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} dir={direction}>
-                <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 gap-2 h-auto p-2 bg-gray-100 dark:bg-gray-800 rounded-xl">
-                    {visibleTabs.map((tab) => {
-                        const Icon = tab.icon;
-                        return (
-                            <TabsTrigger
-                                key={tab.id}
-                                value={tab.id}
-                                className="flex items-center gap-2 py-3 px-4 font-tajawal data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-md rounded-lg transition-all"
-                            >
-                                <Icon className="w-4 h-4" />
-                                <span className="hidden sm:inline">{getTabLabel(tab)}</span>
-                            </TabsTrigger>
-                        );
-                    })}
-                </TabsList>
+            {/* ── Tabs Bar (MainTabsBar — underline variant) ───── */}
+            <MainTabsBar
+                tabs={tabsForBar}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                variant="underline"
+            />
 
-                {/* Roles Tab */}
-                <TabsContent value="roles" className="mt-6">
-                    <RolesManagementTab />
-                </TabsContent>
+            {/* 
+              ⚡ PERFORMANCE: Keep All Mounted Pattern
+              All tab panels are rendered once and kept in DOM.
+              CSS visibility controls which panel is shown.
+              This matches Accounting, Warehouse, Sales modules.
+            */}
+            <div className="relative">
+                {visibleTabs.map((tab) => {
+                    const TabComponent = tab.component;
+                    const isActive = activeTab === tab.id;
 
-                {/* Users Tab */}
-                <TabsContent value="users" className="mt-6">
-                    <UsersManagementTab />
-                </TabsContent>
-
-                {/* Resource Permissions Tab */}
-                <TabsContent value="resources" className="mt-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-tajawal flex items-center gap-2">
-                                <Wallet className="w-5 h-5 text-erp-teal" />
-                                {language === 'ar' ? 'صلاحيات الموارد' : 'Resource Permissions'}
-                            </CardTitle>
-                            <CardDescription className="font-tajawal">
-                                {language === 'ar'
-                                    ? 'تحديد صلاحيات المستخدمين على الصناديق والمستودعات والفروع'
-                                    : 'Define user permissions on funds, warehouses, and branches'}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <UserPermissionsTab />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Visibility Rules Tab */}
-                <TabsContent value="visibility" className="mt-6">
-                    <VisibilityRulesTab />
-                </TabsContent>
-
-                {/* Modules Tab */}
-                <TabsContent value="modules" className="mt-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-tajawal flex items-center gap-2">
-                                <Layers className="w-5 h-5 text-erp-teal" />
-                                {language === 'ar' ? 'إدارة الموديولات' : 'Modules Management'}
-                            </CardTitle>
-                            <CardDescription className="font-tajawal">
-                                {language === 'ar'
-                                    ? 'تفعيل وإلغاء تفعيل الموديولات للأدوار المختلفة'
-                                    : 'Enable and disable modules for different roles'}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-gray-500 dark:text-gray-400 font-tajawal text-center py-8">
-                                {language === 'ar' ? 'قريباً...' : 'Coming soon...'}
-                            </p>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                    return (
+                        <div
+                            key={tab.id}
+                            role="tabpanel"
+                            aria-labelledby={`tab-${tab.id}`}
+                            aria-hidden={!isActive}
+                            className={isActive ? 'block' : 'hidden'}
+                            style={{
+                                contain: isActive ? 'none' : 'strict',
+                                contentVisibility: isActive ? 'visible' : 'hidden',
+                            }}
+                        >
+                            <TabComponent />
+                        </div>
+                    );
+                })}
+            </div>
         </motion.div>
     );
 }
-
-

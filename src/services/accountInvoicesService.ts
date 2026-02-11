@@ -13,49 +13,49 @@ export interface AccountInvoice {
   tenant_id: string;
   company_id: string;
   branch_id?: string;
-  
+
   invoice_number: string;
   invoice_date: string;
   due_date?: string;
-  
+
   invoice_type: 'receivable' | 'payable' | 'internal';
-  
+
   account_id?: string;
-  
+
   party_type?: 'customer' | 'supplier' | 'employee' | 'other';
   party_id?: string;
   party_name?: string;
-  
+
   currency: string;
   exchange_rate: number;
-  
+
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
   paid_amount: number;
-  
+
   debit_amount: number;
   credit_amount: number;
-  
+
   status: 'draft' | 'confirmed' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
   payment_status: 'unpaid' | 'partial' | 'paid';
-  
+
   journal_entry_id?: string;
   is_posted: boolean;
   posted_at?: string;
   posted_by?: string;
-  
+
   description?: string;
   notes?: string;
   internal_notes?: string;
-  
+
   attachment_url?: string;
-  
+
   cancelled_at?: string;
   cancelled_by?: string;
   cancel_reason?: string;
-  
+
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -118,7 +118,7 @@ const mapInvoice = (record: any): AccountInvoice => ({
   is_posted: record.is_posted ?? false,
   status: record.status ?? 'draft',
   payment_status: record.payment_status ?? 'unpaid',
-  currency: record.currency ?? 'USD',
+  currency: record.currency ?? '',
 });
 
 // ========== SERVICE ==========
@@ -315,7 +315,7 @@ export const accountInvoicesService = {
       party_type: input.party_type || null,
       party_id: input.party_id || null,
       party_name: input.party_name || null,
-      currency: input.currency || 'USD',
+      currency: input.currency || '',
       exchange_rate: input.exchange_rate || 1,
       subtotal: input.subtotal || input.total_amount,
       discount_amount: input.discount_amount || 0,

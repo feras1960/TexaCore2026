@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +13,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  ArrowRightLeft, 
-  Calendar as CalendarIcon, 
+import {
+  ArrowRightLeft,
+  Calendar as CalendarIcon,
   Wallet,
   ArrowRight,
   AlertTriangle,
@@ -31,13 +32,14 @@ interface FundTransferDialogProps {
   funds: Array<{ id: number; name: string; type: string; balance: number }>;
 }
 
-export default function FundTransferDialog({ 
-  open, 
-  onOpenChange, 
+export default function FundTransferDialog({
+  open,
+  onOpenChange,
   selectedFundId,
-  funds 
+  funds
 }: FundTransferDialogProps) {
   const { language, direction } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [date, setDate] = useState<Date>(new Date());
   const [formData, setFormData] = useState({
     fromFundId: selectedFundId?.toString() || '',
@@ -62,13 +64,13 @@ export default function FundTransferDialog({
     onOpenChange(false);
   };
 
-  const FundIcon = ({ type }: { type: string }) => 
+  const FundIcon = ({ type }: { type: string }) =>
     type === 'bank' ? <Landmark className="w-4 h-4" /> : <Wallet className="w-4 h-4" />;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[50vw] max-w-none sm:max-w-[85vw] md:max-w-[70vw] lg:max-w-[50vw] p-0 overflow-hidden"
         dir={direction}
       >
@@ -103,8 +105,8 @@ export default function FundTransferDialog({
                   <Label className="text-xs text-gray-500 mb-2 block">
                     {language === 'ar' ? 'من' : 'From'}
                   </Label>
-                  <Select 
-                    value={formData.fromFundId} 
+                  <Select
+                    value={formData.fromFundId}
                     onValueChange={(v) => setFormData(prev => ({ ...prev, fromFundId: v }))}
                   >
                     <SelectTrigger className="bg-white">
@@ -155,8 +157,8 @@ export default function FundTransferDialog({
                   <Label className="text-xs text-gray-500 mb-2 block">
                     {language === 'ar' ? 'إلى' : 'To'}
                   </Label>
-                  <Select 
-                    value={formData.toFundId} 
+                  <Select
+                    value={formData.toFundId}
                     onValueChange={(v) => setFormData(prev => ({ ...prev, toFundId: v }))}
                   >
                     <SelectTrigger className="bg-white">
@@ -210,14 +212,14 @@ export default function FundTransferDialog({
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{language === 'ar' ? 'مبلغ التحويل' : 'Transfer Amount'}</Label>
                 <div className="relative">
-                  <Input 
+                  <Input
                     type="number"
                     placeholder="0.00"
                     value={formData.amount}
                     onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                     className={`pl-16 font-mono text-lg font-bold ${isOverBalance ? 'border-red-500 focus:ring-red-500' : ''}`}
                   />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">SAR</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{companyCurrency}</span>
                 </div>
               </div>
 
@@ -245,8 +247,8 @@ export default function FundTransferDialog({
             {/* Commission */}
             <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="hasCommission" 
+                <Checkbox
+                  id="hasCommission"
                   checked={formData.hasCommission}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasCommission: checked as boolean, commissionAmount: '' }))}
                 />
@@ -254,19 +256,19 @@ export default function FundTransferDialog({
                   {language === 'ar' ? 'هناك عمولة تحويل' : 'Transfer has commission/fee'}
                 </Label>
               </div>
-              
+
               {formData.hasCommission && (
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">{language === 'ar' ? 'مبلغ العمولة' : 'Commission Amount'}</Label>
                   <div className="relative">
-                    <Input 
+                    <Input
                       type="number"
                       placeholder="0.00"
                       value={formData.commissionAmount}
                       onChange={(e) => setFormData(prev => ({ ...prev, commissionAmount: e.target.value }))}
                       className="pl-16 font-mono"
                     />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">SAR</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{companyCurrency}</span>
                   </div>
                 </div>
               )}
@@ -277,7 +279,7 @@ export default function FundTransferDialog({
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  {language === 'ar' 
+                  {language === 'ar'
                     ? `المبلغ الإجمالي (${totalDeduction.toLocaleString()}) أكبر من الرصيد المتاح (${fromFund?.balance.toLocaleString()})!`
                     : `Total amount (${totalDeduction.toLocaleString()}) exceeds available balance (${fromFund?.balance.toLocaleString()})!`
                   }
@@ -288,7 +290,7 @@ export default function FundTransferDialog({
             {/* Description */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'البيان' : 'Description'}</Label>
-              <Textarea 
+              <Textarea
                 placeholder={language === 'ar' ? 'وصف التحويل...' : 'Transfer description...'}
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -307,17 +309,17 @@ export default function FundTransferDialog({
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-purple-700">{language === 'ar' ? 'مبلغ التحويل' : 'Transfer Amount'}</span>
-                      <span className="font-mono font-bold text-purple-900">{amount.toLocaleString()} SAR</span>
+                      <span className="font-mono font-bold text-purple-900">{amount.toLocaleString()} {companyCurrency}</span>
                     </div>
                     {commission > 0 && (
                       <div className="flex justify-between">
                         <span className="text-purple-700">{language === 'ar' ? 'العمولة' : 'Commission'}</span>
-                        <span className="font-mono text-purple-900">{commission.toLocaleString()} SAR</span>
+                        <span className="font-mono text-purple-900">{commission.toLocaleString()} {companyCurrency}</span>
                       </div>
                     )}
                     <div className="flex justify-between pt-2 border-t border-purple-200">
                       <span className="text-purple-700 font-bold">{language === 'ar' ? 'إجمالي الخصم' : 'Total Deduction'}</span>
-                      <span className="font-mono font-bold text-purple-900">{totalDeduction.toLocaleString()} SAR</span>
+                      <span className="font-mono font-bold text-purple-900">{totalDeduction.toLocaleString()} {companyCurrency}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -332,8 +334,8 @@ export default function FundTransferDialog({
                 <X className="w-4 h-4 mr-2" />
                 {language === 'ar' ? 'إلغاء' : 'Cancel'}
               </Button>
-              <Button 
-                className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto" 
+              <Button
+                className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto"
                 onClick={handleSubmit}
                 disabled={isOverBalance || isSameFund || !formData.fromFundId || !formData.toFundId || !amount}
               >

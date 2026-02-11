@@ -40,6 +40,8 @@ import {
     Eye,
     Share2,
     X,
+    Send,
+    ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SheetMode, ActionConfig } from '../types';
@@ -66,6 +68,8 @@ const actionIconMap: Record<string, any> = {
     CreditCard,
     Eye,
     Share2,
+    Send,
+    ShieldCheck,
 };
 
 interface EnhancedActionToolbarProps {
@@ -92,6 +96,11 @@ interface EnhancedActionToolbarProps {
     onModeChange?: (mode: SheetMode) => void;
     onCancelEdit?: () => void;
     hasChanges?: boolean;
+
+    /** Whether the confirm button should be shown (for trade documents) */
+    showConfirmAction?: boolean;
+    /** Confirmation status of the current document */
+    confirmationStatus?: string;
 }
 
 export function EnhancedActionToolbar({
@@ -112,12 +121,14 @@ export function EnhancedActionToolbar({
     docNumber,
     docId,
     amount,
-    currency = 'SAR',
+    currency = '',
 
     // Mode
     onModeChange,
     onCancelEdit,
     hasChanges = false,
+    showConfirmAction = false,
+    confirmationStatus,
 }: EnhancedActionToolbarProps) {
     const { t, direction } = useLanguage();
     const isRTL = direction === 'rtl';
@@ -179,6 +190,36 @@ export function EnhancedActionToolbar({
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
+            )}
+
+            {/* ✅ Confirm & Send — only for trade documents in view mode */}
+            {isViewMode && showConfirmAction && confirmationStatus !== 'confirmed' && (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                size="sm"
+                                onClick={() => onAction('confirm')}
+                                disabled={disabled || loading}
+                                className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                            >
+                                <ShieldCheck className="w-4 h-4" />
+                                <span>{t('actions.confirm') || 'تأكيد وإرسال'}</span>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{t('actions.confirmAndSend') || 'تأكيد المستند وإرساله للمستودع'}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )}
+
+            {/* Already Confirmed Badge */}
+            {isViewMode && showConfirmAction && confirmationStatus === 'confirmed' && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>{t('status.confirmed') || 'مُؤكد'}</span>
+                </div>
             )}
 
             {/* Edit / Save Button */}

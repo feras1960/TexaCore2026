@@ -18,7 +18,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,7 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { SheetMode, UnifiedDocType } from '../types';
+import { useViewCurrency } from '../../../hooks/useViewCurrency';
 import {
     FileText,
     Calendar as CalendarIcon,
@@ -129,7 +132,7 @@ const VOUCHER_TYPE_MAP: Record<string, {
 // ═══════════════════════════════════════
 // Helper: create empty row
 // ═══════════════════════════════════════
-const createEmptyRow = (): JournalLineRow => ({
+const createEmptyRow = (defaultCurrency: string = ''): JournalLineRow => ({
     id: crypto.randomUUID(),
     account_id: '',
     account_name: '',
@@ -138,7 +141,7 @@ const createEmptyRow = (): JournalLineRow => ({
     credit: 0,
     description: '',
     cost_center_id: '',
-    currency: 'SAR',
+    currency: defaultCurrency,
     exchange_rate: 1,
     link_type: 'none',
     invoice_id: '',
@@ -159,7 +162,10 @@ export function JournalFormTab({
 }: JournalFormTabProps) {
     const { t, language, direction } = useLanguage();
     const { companyId: hookCompanyId } = useCompany();
+    const { currencyCode: companyCurrency } = useCompanyCurrency();
+    const { currencyOptions } = useViewCurrency();
     const { autoPost } = useAccountingSettings();
+    const { lookupRate } = useExchangeRateLookup();
     const isRTL = direction === 'rtl' || language === 'ar';
     const isReadOnly = mode === 'view';
     const isCreate = mode === 'create';
@@ -300,8 +306,8 @@ export function JournalFormTab({
                 description: line.description || '',
                 cost_center_id: line.cost_center_id || '',
                 cost_center_name: line.cost_center?.name || '',
-                currency: 'SAR',
-                exchange_rate: 1,
+                currency: line.currency || companyCurrency,
+                exchange_rate: Number(line.exchange_rate) || 1,
             })) || [];
 
             setLines(loadedLines.length > 0 ? loadedLines : []);
@@ -547,7 +553,7 @@ export function JournalFormTab({
                 header: language === 'ar' ? 'العملة' : 'Curr',
                 size: 60,
                 cell: ({ row }) => {
-                    const curr = row.original.currency || 'SAR';
+                    const curr = row.original.currency || companyCurrency;
                     return <span className="font-mono text-xs font-medium">{curr}</span>;
                 },
             },
@@ -560,6 +566,22 @@ export function JournalFormTab({
                     return (
                         <span className={cn('font-mono text-xs', rate !== 1 && 'text-amber-600 font-medium')}>
                             {rate.toFixed(4)}
+                        </span>
+                    );
+                },
+            },
+            {
+                id: 'base_equivalent',
+                header: language === 'ar' ? `المعادل (${companyCurrency})` : `Equiv (${companyCurrency})`,
+                size: 100,
+                cell: ({ row }) => {
+                    const rate = row.original.exchange_rate ?? 1;
+                    const amount = row.original.debit || row.original.credit || 0;
+                    if (amount === 0 || rate === 1) return <span className="text-muted-foreground text-xs">—</span>;
+                    const equivalent = amount * rate;
+                    return (
+                        <span className="font-mono text-xs text-blue-600 font-medium">
+                            {equivalent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                     );
                 },
@@ -612,14 +634,9 @@ export function JournalFormTab({
             { key: 'description', type: 'text' as const, placeholder: language === 'ar' ? 'البيان...' : 'Description...' },
             { key: 'cost_center_id', type: 'text' as const, placeholder: language === 'ar' ? 'مركز التكلفة' : 'Cost Center' },
             {
-                key: 'currency', type: 'select' as const, options: [
-                    { value: 'SAR', label: 'SAR' },
-                    { value: 'USD', label: 'USD' },
-                    { value: 'EUR', label: 'EUR' },
-                    { value: 'GBP', label: 'GBP' },
-                    { value: 'AED', label: 'AED' },
-                    { value: 'UAH', label: 'UAH' },
-                ]
+                key: 'currency', type: 'select' as const, options: currencyOptions.map(c => (
+                    { value: c, label: c }
+                ))
             },
             { key: 'exchange_rate', type: 'number' as const, min: 0, placeholder: '1.0000' },
         );
@@ -629,20 +646,20 @@ export function JournalFormTab({
 
     // ─── Row factory for NexaDataTable ───
     const handleAddRow = useCallback(() => {
-        const newRow = createEmptyRow();
+        const newRow = createEmptyRow(companyCurrency);
         setLines(prev => [...prev, newRow]);
         return newRow;
-    }, []);
+    }, [companyCurrency]);
 
     const handleInsertRow = useCallback((index: number) => {
-        const newRow = createEmptyRow();
+        const newRow = createEmptyRow(companyCurrency);
         setLines(prev => {
             const copy = [...prev];
             copy.splice(index + 1, 0, newRow);
             return copy;
         });
         return newRow;
-    }, []);
+    }, [companyCurrency]);
 
     // ─── Save handler for NexaDataTable ───
     const handleNexaSave = useCallback(async (updatedData: JournalLineRow[]) => {
@@ -651,9 +668,21 @@ export function JournalFormTab({
     }, []);
 
     // ─── Data change handler (real-time cell edits) ───
+    // Detects currency changes and auto-fills exchange rate
     const handleDataChange = useCallback((updatedData: JournalLineRow[]) => {
-        setLines(updatedData);
-    }, []);
+        // Detect currency changes and auto-fill exchange rate
+        const enriched = updatedData.map((row, idx) => {
+            const oldRow = lines[idx];
+            // If currency changed and it's different from the old value
+            if (oldRow && row.currency && row.currency !== oldRow.currency) {
+                // Auto-lookup exchange rate
+                const rate = lookupRate(row.currency, companyCurrency);
+                return { ...row, exchange_rate: rate };
+            }
+            return row;
+        });
+        setLines(enriched);
+    }, [lines, lookupRate, companyCurrency]);
 
     // ─── Status helpers ───
     const getStatusColor = (s: string) => {

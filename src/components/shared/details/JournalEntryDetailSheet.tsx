@@ -109,22 +109,22 @@ interface JournalEntryDetailSheetProps {
 const getStatusConfig = (status: string) => {
   switch (status) {
     case 'posted':
-      return { 
-        icon: CheckCircle2, 
+      return {
+        icon: CheckCircle2,
         color: 'bg-green-100 text-green-700 border-green-200',
         labelAr: 'مرحّل',
         labelEn: 'Posted'
       };
     case 'cancelled':
-      return { 
-        icon: XCircle, 
+      return {
+        icon: XCircle,
         color: 'bg-red-100 text-red-700 border-red-200',
         labelAr: 'ملغي',
         labelEn: 'Cancelled'
       };
     default:
-      return { 
-        icon: Clock, 
+      return {
+        icon: Clock,
         color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
         labelAr: 'مسودة',
         labelEn: 'Draft'
@@ -240,7 +240,7 @@ export function JournalEntryDetailSheet({
                         {isArabic ? 'تأكيد الحذف' : 'Confirm Delete'}
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        {isArabic 
+                        {isArabic
                           ? `هل أنت متأكد من حذف القيد رقم ${entry.voucherNo}؟ لا يمكن التراجع عن هذا الإجراء.`
                           : `Are you sure you want to delete entry ${entry.voucherNo}? This action cannot be undone.`
                         }
@@ -459,7 +459,7 @@ export function JournalEntryDetailSheet({
                             {isArabic && line.costCenterAr ? line.costCenterAr : line.costCenter || '-'}
                           </TableCell>
                           <TableCell className="text-center border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-xs font-mono">
-                            {line.currency || 'SAR'}
+                            {line.currency || entry.currency || '-'}
                           </TableCell>
                           <TableCell className="text-center border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-xs font-mono">
                             {line.exchangeRate || '1.00'}

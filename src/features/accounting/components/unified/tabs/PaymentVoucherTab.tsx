@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
@@ -38,13 +40,13 @@ export interface PaymentVoucherTabProps {
     companyId?: string;
 }
 
-const createEmptyRow = (): JournalLineRow => ({
+const createEmptyRow = (defaultCurrency: string = ''): JournalLineRow => ({
     id: crypto.randomUUID(),
     account_id: '',
     debit: 0,
     credit: 0,
     description: '',
-    currency: 'SAR',
+    currency: defaultCurrency,
     exchange_rate: 1,
     link_type: 'none',
 });
@@ -55,6 +57,8 @@ export function PaymentVoucherTab({
     onChange,
 }: PaymentVoucherTabProps) {
     const { currencyOptions } = useViewCurrency();
+    const { currencyCode: companyCurrency } = useCompanyCurrency();
+    const { lookupRate } = useExchangeRateLookup();
     const currencyList = useMemo(() => currencyOptions.map(c => ({ value: c, label: c })), [currencyOptions]);
 
     const { t, language, direction } = useLanguage();
@@ -95,7 +99,7 @@ export function PaymentVoucherTab({
                     description: line.description || '',
                     cost_center_id: line.cost_center_id || '',
                     cost_center_name: line.cost_center?.name || '',
-                    currency: line.currency || 'SAR',
+                    currency: line.currency || companyCurrency,
                     exchange_rate: Number(line.exchange_rate) || 1,
                     link_type: line.link_type || 'none',
                     invoice_id: line.invoice_id || '',
@@ -137,14 +141,22 @@ export function PaymentVoucherTab({
     }, [lines, entryDate, reference, description, voucherNo, fundAccountId, isReadOnly]);
 
     const handleDataChange = useCallback((updatedData: JournalLineRow[]) => {
-        setLines(updatedData);
-    }, []);
+        const enriched = updatedData.map((row, idx) => {
+            const oldRow = lines[idx];
+            if (oldRow && row.currency && row.currency !== oldRow.currency) {
+                const rate = lookupRate(row.currency, companyCurrency);
+                return { ...row, exchange_rate: rate };
+            }
+            return row;
+        });
+        setLines(enriched);
+    }, [lines, lookupRate, companyCurrency]);
 
     const handleAddRow = useCallback(() => {
-        const newRow = createEmptyRow();
+        const newRow = createEmptyRow(companyCurrency);
         setLines(prev => [...prev, newRow]);
         return newRow;
-    }, []);
+    }, [companyCurrency]);
 
     const columns = useMemo((): ColumnDef<JournalLineRow>[] => {
         return [
@@ -194,13 +206,29 @@ export function PaymentVoucherTab({
                 accessorKey: 'currency',
                 header: t('accounting.columns.currency'),
                 size: 70,
-                cell: ({ row }) => <span className="font-mono text-xs">{row.original.currency || 'SAR'}</span>
+                cell: ({ row }) => <span className="font-mono text-xs">{row.original.currency || companyCurrency}</span>
             },
             {
                 accessorKey: 'exchange_rate',
                 header: t('accounting.columns.exchangeRate'),
                 size: 80,
                 cell: ({ row }) => <span className="font-mono text-xs">{row.original.exchange_rate?.toFixed(4)}</span>
+            },
+            {
+                id: 'base_equivalent',
+                header: language === 'ar' ? `المعادل (${companyCurrency})` : `Equiv (${companyCurrency})`,
+                size: 100,
+                cell: ({ row }) => {
+                    const rate = row.original.exchange_rate ?? 1;
+                    const amount = row.original.debit || 0;
+                    if (amount === 0 || rate === 1) return <span className="text-muted-foreground text-xs">—</span>;
+                    const equivalent = amount * rate;
+                    return (
+                        <span className="font-mono text-xs text-blue-600 font-medium">
+                            {equivalent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                    );
+                },
             },
             {
                 accessorKey: 'cost_center_id',
@@ -249,7 +277,7 @@ export function PaymentVoucherTab({
                 </Card>
                 <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm col-span-2">
                     <span className="font-bold text-xl text-red-600 font-mono">
-                        {totals.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-sm text-muted-foreground">SAR</span>
+                        {totals.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-sm text-muted-foreground">{companyCurrency}</span>
                     </span>
                     <span className="text-[10px] text-muted-foreground">{t('accounting.totalAmount')}</span>
                 </Card>

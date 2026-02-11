@@ -32,7 +32,7 @@ interface OverviewTabProps {
 export function OverviewTab({
     data,
     stats,
-    currency = 'SAR',
+    currency = '',
     useArabicNumerals = false,
 }: OverviewTabProps) {
     const { t, language, direction } = useLanguage();

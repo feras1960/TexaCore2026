@@ -12,10 +12,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  ArrowUpRight, 
-  Calendar as CalendarIcon, 
-  Building2, 
+import {
+  ArrowUpRight,
+  Calendar as CalendarIcon,
+  Building2,
   Wallet,
   FileText,
   Printer,
@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 
 // Currency configuration
 const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: string; en: string } }> = {
@@ -38,7 +39,7 @@ const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: s
   AED: { symbol: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } }
 };
 
-const availableCurrencies = ['SAR', 'USD', 'EUR', 'GBP', 'AED'];
+const availableCurrencies = Object.keys(currencyInfo);
 
 interface QuickPaymentDialogProps {
   open: boolean;
@@ -47,18 +48,19 @@ interface QuickPaymentDialogProps {
   funds: Array<{ id: number; name: string; type: string; balance: number; currency?: string }>;
 }
 
-export default function QuickPaymentDialog({ 
-  open, 
-  onOpenChange, 
+export default function QuickPaymentDialog({
+  open,
+  onOpenChange,
   selectedFundId,
-  funds 
+  funds
 }: QuickPaymentDialogProps) {
   const { language, direction } = useLanguage();
+  const { currencyCode: baseCurrency } = useCompanyCurrency();
   const [date, setDate] = useState<Date>(new Date());
   const [formData, setFormData] = useState({
     fundId: selectedFundId?.toString() || '',
     amount: '',
-    currency: 'SAR',
+    currency: baseCurrency || '',
     paymentType: 'supplier',
     supplierId: '',
     paymentMethod: 'cash',
@@ -115,8 +117,8 @@ export default function QuickPaymentDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[50vw] max-w-none sm:max-w-[85vw] md:max-w-[70vw] lg:max-w-[50vw] p-0 overflow-hidden"
         dir={direction}
       >
@@ -146,8 +148,8 @@ export default function QuickPaymentDialog({
             {/* Fund Selection with Balance */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'الصندوق/البنك' : 'Fund/Bank'}</Label>
-              <Select 
-                value={formData.fundId} 
+              <Select
+                value={formData.fundId}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, fundId: v }))}
               >
                 <SelectTrigger className="bg-white">
@@ -159,7 +161,7 @@ export default function QuickPaymentDialog({
                       <span className="flex items-center gap-2">
                         <Wallet className={`w-4 h-4 ${fund.type === 'bank' ? 'text-blue-600' : 'text-green-600'}`} />
                         {fund.name}
-                        <span className="text-gray-400 font-mono text-xs">({fund.balance.toLocaleString()} SAR)</span>
+                        <span className="text-gray-400 font-mono text-xs">({fund.balance.toLocaleString()} {fund.currency || baseCurrency || ''})</span>
                       </span>
                     </SelectItem>
                   ))}
@@ -172,7 +174,7 @@ export default function QuickPaymentDialog({
                       {language === 'ar' ? 'الرصيد المتاح' : 'Available Balance'}
                     </span>
                     <span className={`font-mono font-bold ${isOverBalance ? 'text-red-700' : 'text-blue-700'}`}>
-                      {selectedFund.balance.toLocaleString()} SAR
+                      {selectedFund.balance.toLocaleString()} {selectedFund.currency || baseCurrency || ''}
                     </span>
                   </CardContent>
                 </Card>
@@ -183,7 +185,7 @@ export default function QuickPaymentDialog({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{language === 'ar' ? 'المبلغ' : 'Amount'}</Label>
-                <Input 
+                <Input
                   type="number"
                   placeholder="0.00"
                   value={formData.amount}
@@ -202,8 +204,8 @@ export default function QuickPaymentDialog({
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{language === 'ar' ? 'العملة' : 'Currency'}</Label>
-                <Select 
-                  value={formData.currency} 
+                <Select
+                  value={formData.currency}
                   onValueChange={(v) => setFormData(prev => ({ ...prev, currency: v }))}
                 >
                   <SelectTrigger className="bg-white">
@@ -269,8 +271,8 @@ export default function QuickPaymentDialog({
                   <Building2 className="w-4 h-4" />
                   {language === 'ar' ? 'المورد' : 'Supplier'}
                 </Label>
-                <Select 
-                  value={formData.supplierId} 
+                <Select
+                  value={formData.supplierId}
                   onValueChange={(v) => setFormData(prev => ({ ...prev, supplierId: v }))}
                 >
                   <SelectTrigger className="bg-white">
@@ -314,7 +316,7 @@ export default function QuickPaymentDialog({
                 <FileText className="w-4 h-4" />
                 {language === 'ar' ? 'البيان' : 'Description'}
               </Label>
-              <Textarea 
+              <Textarea
                 placeholder={language === 'ar' ? 'وصف المدفوعات...' : 'Payment description...'}
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -326,8 +328,8 @@ export default function QuickPaymentDialog({
             {/* Contra Account */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'الحساب المقابل' : 'Contra Account'}</Label>
-              <Select 
-                value={formData.contraAccount} 
+              <Select
+                value={formData.contraAccount}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, contraAccount: v }))}
               >
                 <SelectTrigger className="bg-white">
@@ -346,8 +348,8 @@ export default function QuickPaymentDialog({
               <Label className="text-sm font-medium text-gray-500">
                 {language === 'ar' ? 'مركز التكلفة (اختياري)' : 'Cost Center (Optional)'}
               </Label>
-              <Select 
-                value={formData.costCenter} 
+              <Select
+                value={formData.costCenter}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, costCenter: v }))}
               >
                 <SelectTrigger className="bg-white">
@@ -364,8 +366,8 @@ export default function QuickPaymentDialog({
             {/* Options */}
             <div className="space-y-3 pt-4 border-t">
               <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="createEntry" 
+                <Checkbox
+                  id="createEntry"
                   checked={formData.createEntry}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, createEntry: checked as boolean }))}
                 />
@@ -374,8 +376,8 @@ export default function QuickPaymentDialog({
                 </Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox 
-                  id="printAfterSave" 
+                <Checkbox
+                  id="printAfterSave"
                   checked={formData.printAfterSave}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, printAfterSave: checked as boolean }))}
                 />
@@ -397,8 +399,8 @@ export default function QuickPaymentDialog({
                 <Save className="w-4 h-4 mr-2" />
                 {language === 'ar' ? 'حفظ كمسودة' : 'Save as Draft'}
               </Button>
-              <Button 
-                className="bg-red-600 hover:bg-red-700 w-full sm:w-auto" 
+              <Button
+                className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
                 onClick={() => handleSubmit(false)}
                 disabled={isOverBalance}
               >

@@ -74,7 +74,7 @@ export const defaultPlans: Omit<Plan, 'id' | 'created_at' | 'updated_at'>[] = [
     description_ar: 'مثالي للشركات الصغيرة',
     price_monthly: 500,
     price_yearly: 5000,
-    currency: 'SAR',
+    currency: 'USD',
     max_users: 5,
     max_companies: 1,
     max_storage_gb: 10,
@@ -93,7 +93,7 @@ export const defaultPlans: Omit<Plan, 'id' | 'created_at' | 'updated_at'>[] = [
     description_ar: 'للشركات النامية',
     price_monthly: 1500,
     price_yearly: 15000,
-    currency: 'SAR',
+    currency: 'USD',
     max_users: 25,
     max_companies: 3,
     max_storage_gb: 50,
@@ -112,7 +112,7 @@ export const defaultPlans: Omit<Plan, 'id' | 'created_at' | 'updated_at'>[] = [
     description_ar: 'للمؤسسات الكبيرة',
     price_monthly: 5000,
     price_yearly: 50000,
-    currency: 'SAR',
+    currency: 'USD',
     max_users: 100,
     max_companies: 10,
     max_storage_gb: 200,
@@ -154,7 +154,7 @@ class PlansService {
       description_ar: plan.description_ar,
       price_monthly: plan.price_monthly,
       price_yearly: plan.price_yearly,
-      currency: plan.currency || 'SAR',
+      currency: plan.currency || 'USD',
       max_users: plan.max_users,
       max_companies: plan.max_companies,
       max_storage_gb: plan.storage_gb,
@@ -177,7 +177,7 @@ class PlansService {
       .from('subscription_plans')
       .select('*')
       .eq('is_active', true)
-      .order('display_order', { ascending: true});
+      .order('display_order', { ascending: true });
 
     if (error) {
       if (error.code === '42P01') {
@@ -197,7 +197,7 @@ class PlansService {
       description_ar: plan.description_ar,
       price_monthly: plan.price_monthly,
       price_yearly: plan.price_yearly,
-      currency: plan.currency || 'SAR',
+      currency: plan.currency || 'USD',
       max_users: plan.max_users,
       max_companies: plan.max_companies,
       max_storage_gb: plan.storage_gb,
@@ -272,7 +272,7 @@ class PlansService {
       .from('saas_plans')
       .insert({
         ...input,
-        currency: input.currency || 'SAR',
+        currency: input.currency || 'USD',
         max_companies: input.max_companies || 1,
         max_storage_gb: input.max_storage_gb || 10,
         features: input.features || [],
@@ -339,7 +339,7 @@ class PlansService {
       description_ar: data.description_ar,
       price_monthly: data.price_monthly,
       price_yearly: data.price_yearly,
-      currency: data.currency || 'SAR',
+      currency: data.currency || 'USD',
       max_users: data.max_users,
       max_companies: data.max_companies,
       max_storage_gb: data.storage_gb,

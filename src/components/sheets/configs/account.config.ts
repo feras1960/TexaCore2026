@@ -33,13 +33,13 @@ import { NotesTab } from '../tabs/shared/NotesTab';
 
 export const accountConfig: SheetConfig = {
   docType: 'account',
-  
+
   // Header
   title: (data) => data.name || data.nameAr || data.name_ar || 'Account',
   subtitle: (data) => data.code,
   icon: Building2,
   iconBg: 'bg-gradient-to-br from-slate-700 to-slate-900',
-  
+
   // Status Badge
   badge: (data) => {
     const isActive = data.is_active !== false;
@@ -48,15 +48,15 @@ export const accountConfig: SheetConfig = {
       variant: isActive ? 'success' : 'default',
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data) => data.current_balance || data.balance || 0,
     label: 'fields.currentBalance',
-    currency: 'SAR',
+    currency: undefined,
     showSign: true,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -88,7 +88,7 @@ export const accountConfig: SheetConfig = {
       color: 'gray',
     },
   ],
-  
+
   // Info Fields for Overview
   infoFields: [
     {
@@ -116,7 +116,7 @@ export const accountConfig: SheetConfig = {
       key: 'currency',
       label: 'common.currency',
       type: 'text',
-      format: (_value, data) => data.currency || 'SAR',
+      format: (_value, data) => data.currency || '-',
     },
     {
       key: 'created_at',
@@ -130,7 +130,7 @@ export const accountConfig: SheetConfig = {
       colSpan: 2,
     },
   ],
-  
+
   // Tabs Configuration
   tabs: [
     {
@@ -194,7 +194,7 @@ export const accountConfig: SheetConfig = {
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -229,7 +229,7 @@ export const accountConfig: SheetConfig = {
       },
     },
   ],
-  
+
   // Quick Actions (in header)
   quickActions: [
     {
@@ -246,10 +246,10 @@ export const accountConfig: SheetConfig = {
       variant: 'ghost',
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     // Handle clicking on ledger entries, invoices, payments

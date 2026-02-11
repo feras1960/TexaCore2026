@@ -28,6 +28,7 @@ export type UnifiedDocType =
     | 'trade_reservation' // حجز (Stock/Transit)
     | 'trade_reservation' // حجز (Stock/Transit)
     | 'trade_container' // كونتينر / شحنة (Container/Shipment)
+    | 'contact'        // جهة اتصال CRM
     | 'debit_note'     // إشعار مدين
     | 'credit_note';   // إشعار دائن
 
@@ -99,6 +100,7 @@ export interface UnifiedAccountingSheetProps {
     options?: any;             // Additional options (e.g. dropdown lists)
     documentId?: string;       // For loading from API
     companyId?: string;        // For edit permission check
+    tradeMode?: 'sales' | 'purchase'; // Sales vs Purchase mode for smart tabs
 
     // Tabs
     defaultTab?: string;
@@ -124,6 +126,7 @@ export interface UnifiedAccountingSheetProps {
     // Customization
     customHeader?: React.ReactNode;
     customFooter?: React.ReactNode;
+    headerExtra?: React.ReactNode;    // Extra content rendered ABOVE the header
     hideActions?: boolean;
     hideTabs?: boolean;
 }

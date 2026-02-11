@@ -15,6 +15,7 @@ import {
     FileText,
     CreditCard,
     Container,
+    Settings,
 } from 'lucide-react';
 
 // Lazy load components
@@ -24,6 +25,7 @@ const PurchaseCycleList = lazy(() => import('./pages/PurchaseCycleList'));
 const PurchaseInvoicesList = lazy(() => import('./pages/PurchaseInvoicesList'));
 const PaymentsList = lazy(() => import('./pages/PaymentsList'));
 const ContainersList = lazy(() => import('./pages/ContainersList'));
+const PurchasesSettings = lazy(() => import('./pages/PurchasesWorkflowSettings'));
 
 // Loading component
 const TabContentLoader = () => (
@@ -44,6 +46,7 @@ export default function PurchasesPage() {
             if (path.includes('/invoices')) return 'invoices';
             if (path.includes('/payments')) return 'payments';
             if (path.includes('/containers')) return 'containers';
+            if (path.includes('/settings')) return 'settings';
             return 'dashboard';
         }
         return 'dashboard';
@@ -87,6 +90,11 @@ export default function PurchasesPage() {
             labelKey: 'purchases.containers',
             icon: Container,
         },
+        {
+            id: 'settings',
+            labelKey: 'purchases.settings',
+            icon: Settings,
+        },
     ];
 
     const handleTabChange = (tabId: string) => {
@@ -110,6 +118,8 @@ export default function PurchasesPage() {
                 return <PaymentsList />;
             case 'containers':
                 return <ContainersList />;
+            case 'settings':
+                return <PurchasesSettings />;
             default:
                 return <PurchasesDashboard />;
         }

@@ -55,7 +55,7 @@ const _getVoucherTypeColor = (_type: string): string => {
 
 export const journalEntryConfig: SheetConfig = {
   docType: 'journal_entry',
-  
+
   // Header
   title: (data) => data.voucherNo || data.entry_number || 'Journal Entry',
   subtitle: (data) => {
@@ -64,7 +64,7 @@ export const journalEntryConfig: SheetConfig = {
   },
   icon: FileText,
   iconBg: 'blue',
-  
+
   // Status Badge
   badge: (data: any) => {
     const info = getStatusInfo(data.status);
@@ -73,7 +73,7 @@ export const journalEntryConfig: SheetConfig = {
       variant: info.variant === 'destructive' ? 'error' : info.variant,
     } as { label: string; variant: 'default' | 'success' | 'outline' | 'error' | 'info' | 'warning' };
   },
-  
+
   // Balance Display - Total Amount
   balance: {
     value: (data) => {
@@ -81,10 +81,10 @@ export const journalEntryConfig: SheetConfig = {
       return totalDebit;
     },
     label: 'common.total',
-    currency: 'SAR',
+    currency: undefined,
     showSign: false,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -119,7 +119,7 @@ export const journalEntryConfig: SheetConfig = {
       color: 'purple',
     },
   ],
-  
+
   // Info Fields for Overview
   infoFields: [
     {
@@ -171,7 +171,7 @@ export const journalEntryConfig: SheetConfig = {
       colSpan: 2,
     },
   ],
-  
+
   // Tabs Configuration
   tabs: [
     {
@@ -195,7 +195,7 @@ export const journalEntryConfig: SheetConfig = {
     },
   ],
   defaultTab: 'lines',
-  
+
   // Actions
   actions: [
     {
@@ -263,7 +263,7 @@ export const journalEntryConfig: SheetConfig = {
       },
     },
   ],
-  
+
   // Quick Actions (in header)
   quickActions: [
     {
@@ -280,10 +280,10 @@ export const journalEntryConfig: SheetConfig = {
       variant: 'ghost',
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     // When clicking on an account in the lines

@@ -50,7 +50,7 @@ export const supplierConfig: SheetConfig = {
   balance: {
     value: (data) => data.balance || data.current_balance || 0,
     label: 'fields.payables',
-    currency: 'SAR',
+    currency: undefined,
     showSign: true,
   },
 

@@ -21,6 +21,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -64,6 +65,20 @@ export default function PurchaseCycleList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
+
+    // 🔄 Realtime: auto-update when purchase documents change
+    useRealtimeInvalidation({
+        table: 'purchase_orders',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['purchase_cycle_full']],
+    });
+    useRealtimeInvalidation({
+        table: 'purchase_invoices',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['purchase_cycle_full']],
+    });
 
     // State
     const [activeTab, setActiveTab] = useState<string>('all');
@@ -163,7 +178,7 @@ export default function PurchaseCycleList() {
                     status: item.status || 'draft',
                     total_amount: amountCol ? (item[amountCol] || 0) : 0,
                     supplier_id: item.supplier_id,
-                    currency: item.currency || 'SAR',
+                    currency: item.currency || '',
                     created_at: item.created_at,
                     original_table: table,
                     receipt_type: item.receipt_type,
@@ -323,7 +338,7 @@ export default function PurchaseCycleList() {
             accessorKey: 'total_amount',
             cell: ({ row }: any) => (
                 <span className="font-mono font-bold tracking-tight">
-                    {Number(row.original.total_amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || 'SAR'}</span>
+                    {Number(row.original.total_amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || ''}</span>
                 </span>
             )
         },
@@ -595,7 +610,7 @@ export default function PurchaseCycleList() {
                             columns={kanbanColumns}
                             items={kanbanItems}
                             direction={direction}
-                            currency="SAR"
+                            currency=""
                             isLoading={isLoading}
                             emptyText={isRTL ? 'لا توجد مستندات' : 'No documents'}
                             getItemValue={(content) => Number(content.total_amount || 0)}
@@ -622,7 +637,7 @@ export default function PurchaseCycleList() {
                                         </span>
                                         <span className="font-mono text-sm font-bold text-erp-navy">
                                             {Number(doc.total_amount || 0).toLocaleString()}{' '}
-                                            <span className="text-[10px] text-gray-400">{doc.currency || 'SAR'}</span>
+                                            <span className="text-[10px] text-gray-400">{doc.currency || ''}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -651,7 +666,7 @@ export default function PurchaseCycleList() {
                     }}
                     mode="purchase"
                     type={(docMode === 'create' ? newDocType : (selectedDoc?.type)) as any}
-                    initialData={docMode === 'create' ? { type: newDocType, status: 'draft', currency: 'SAR', date: new Date().toISOString() } : selectedDoc}
+                    initialData={docMode === 'create' ? { type: newDocType, status: 'draft', currency: '', date: new Date().toISOString() } : selectedDoc}
                 />
             )}
         </div>

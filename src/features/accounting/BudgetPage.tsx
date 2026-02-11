@@ -102,12 +102,9 @@ export default function BudgetPage() {
             if (error) throw error;
             setBudgets(data || []);
         } catch (error) {
-            console.error('Error loading budgets:', error);
-            toast({
-                title: t('budgetPage.messages.error') || 'Error',
-                description: t('budgetPage.messages.loadError') || 'Failed to load budgets',
-                variant: 'destructive',
-            });
+            // Silently handle - table may not exist yet
+            // Don't show toast since Keep All Mounted loads this even when tab isn't visible
+            console.warn('Budget table not available:', error);
         } finally {
             setLoading(false);
         }
@@ -185,12 +182,17 @@ export default function BudgetPage() {
         return t(`budgetPage.types.${type}`) || type;
     };
 
-    const formatCurrency = (amount: number, currency = 'SAR') => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency,
-            minimumFractionDigits: 2,
-        }).format(amount);
+    const formatCurrency = (amount: number, currency = '') => {
+        const validCurrency = currency && currency.length === 3 ? currency : 'USD';
+        try {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: validCurrency,
+                minimumFractionDigits: 2,
+            }).format(amount);
+        } catch {
+            return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${validCurrency}`;
+        }
     };
 
     const handleViewDetails = (budget: Budget) => {
@@ -321,7 +323,7 @@ export default function BudgetPage() {
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-full md:w-48">
-                        <SelectValue placeholder={t('common.status')} />
+                        <SelectValue placeholder={t('common.status._')} />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">{t('common.all')}</SelectItem>

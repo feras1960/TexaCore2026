@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,7 @@ const RECONCILIATION_COLORS = [
 
 export default function CostCentersList() {
   const { t, language } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingCostCenter, setEditingCostCenter] = useState<any>(null);
@@ -273,7 +275,7 @@ export default function CostCentersList() {
                 <span className="text-[10px] text-gray-400 mr-1"> نشط</span>
               </div>
               <div className="px-2">
-                <span className="text-[10px] text-gray-400">SAR</span>
+                <span className="text-[10px] text-gray-400">{companyCurrency}</span>
               </div>
             </div>
           </div>

@@ -70,7 +70,7 @@ export function LedgerTab({
     entries = [],
     loading = false,
     error,
-    currency = 'SAR',
+    currency = '',
     useArabicNumerals = false,
     onEntryClick,
     onEntryOpen,
@@ -89,7 +89,7 @@ export function LedgerTab({
     const { supportedCurrencies } = useAccountingSettings();
 
     // Use provided currencies or fallback to company settings
-    const currencies = availableCurrencies || supportedCurrencies || ['SAR'];
+    const currencies = availableCurrencies || supportedCurrencies || [];
 
     // Local state for filters
     const [dateFrom, setDateFrom] = useState('');

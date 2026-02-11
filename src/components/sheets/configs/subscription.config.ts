@@ -41,13 +41,13 @@ import { PaymentsTab } from '../tabs/shared/PaymentsTab';
 
 export const subscriptionConfig: SheetConfig = {
   docType: 'subscription',
-  
+
   // Header
   title: (data) => data.subscription_code || data.id?.slice(0, 8).toUpperCase(),
   subtitle: (data) => data.tenant_name || data.tenant?.name,
   icon: CreditCard,
   iconBg: 'bg-gradient-to-br from-green-600 to-green-800',
-  
+
   // Status Badge
   badge: (data) => {
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' | 'info' }> = {
@@ -65,14 +65,14 @@ export const subscriptionConfig: SheetConfig = {
       variant: status.variant,
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data) => data.amount || data.price || 0,
     label: 'fields.subscriptionAmount',
-    currency: 'SAR',
+    currency: undefined,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -81,7 +81,7 @@ export const subscriptionConfig: SheetConfig = {
       icon: DollarSign,
       value: (data) => data.amount || data.price || 0,
       color: 'green',
-      format: (value) => `${value.toLocaleString()} SAR`,
+      format: (value, data) => `${value.toLocaleString()} ${data?.currency || ''}`,
     },
     {
       key: 'days_remaining',
@@ -111,46 +111,46 @@ export const subscriptionConfig: SheetConfig = {
       color: 'gray',
     },
   ],
-  
+
   // Info Fields
   infoFields: [
     // معلومات الاشتراك
-    { 
-      key: 'subscription_code', 
-      label: 'fields.subscriptionCode', 
-      type: 'text' 
+    {
+      key: 'subscription_code',
+      label: 'fields.subscriptionCode',
+      type: 'text'
     },
-    { 
-      key: 'tenant_name', 
-      label: 'fields.subscriber', 
+    {
+      key: 'tenant_name',
+      label: 'fields.subscriber',
       type: 'link',
       icon: Building2,
       link: (_value, data) => data.tenant_id ? { docType: 'tenant' as DocType, id: data.tenant_id } : null,
     },
-    { 
-      key: 'plan_name', 
-      label: 'fields.plan', 
+    {
+      key: 'plan_name',
+      label: 'fields.plan',
       type: 'link',
       icon: Package,
       link: (_value, data) => data.plan_id ? { docType: 'plan' as DocType, id: data.plan_id } : null,
     },
-    
+
     // الفترة
-    { 
-      key: 'start_date', 
-      label: 'fields.startDate', 
+    {
+      key: 'start_date',
+      label: 'fields.startDate',
       type: 'date',
       icon: Calendar,
     },
-    { 
-      key: 'end_date', 
-      label: 'fields.endDate', 
+    {
+      key: 'end_date',
+      label: 'fields.endDate',
       type: 'date',
       icon: Calendar,
     },
-    { 
-      key: 'billing_cycle', 
-      label: 'fields.billingCycle', 
+    {
+      key: 'billing_cycle',
+      label: 'fields.billingCycle',
       type: 'badge',
       icon: RefreshCw,
       badge: (value) => ({
@@ -158,34 +158,34 @@ export const subscriptionConfig: SheetConfig = {
         variant: 'default',
       }),
     },
-    
+
     // التسعير
-    { 
-      key: 'amount', 
-      label: 'fields.amount', 
+    {
+      key: 'amount',
+      label: 'fields.amount',
       type: 'currency',
       icon: DollarSign,
-      currency: 'SAR',
+      currency: undefined,
     },
-    { 
-      key: 'discount_percent', 
-      label: 'fields.discount', 
+    {
+      key: 'discount_percent',
+      label: 'fields.discount',
       type: 'percentage',
       icon: Percent,
       hidden: (data) => !data.discount_percent,
     },
-    { 
-      key: 'coupon_code', 
-      label: 'fields.coupon', 
+    {
+      key: 'coupon_code',
+      label: 'fields.coupon',
       type: 'link',
       link: (_value, data) => data.coupon_id ? { docType: 'coupon' as DocType, id: data.coupon_id } : null,
       hidden: (data) => !data.coupon_code,
     },
-    
+
     // التجديد التلقائي
-    { 
-      key: 'auto_renew', 
-      label: 'fields.autoRenew', 
+    {
+      key: 'auto_renew',
+      label: 'fields.autoRenew',
       type: 'badge',
       icon: RefreshCw,
       badge: (_value, data) => ({
@@ -193,85 +193,85 @@ export const subscriptionConfig: SheetConfig = {
         variant: data.auto_renew ? 'success' : 'default',
       }),
     },
-    { 
-      key: 'next_billing_date', 
-      label: 'fields.nextBilling', 
+    {
+      key: 'next_billing_date',
+      label: 'fields.nextBilling',
       type: 'date',
       icon: CalendarCheck,
       hidden: (data) => !data.auto_renew,
     },
-    
+
     // معلومات إضافية
-    { 
-      key: 'created_at', 
-      label: 'fields.created', 
-      type: 'date', 
-      icon: Calendar 
+    {
+      key: 'created_at',
+      label: 'fields.created',
+      type: 'date',
+      icon: Calendar
     },
-    { 
-      key: 'cancelled_at', 
-      label: 'fields.cancelledAt', 
+    {
+      key: 'cancelled_at',
+      label: 'fields.cancelledAt',
       type: 'date',
       hidden: (data) => !data.cancelled_at,
     },
-    { 
-      key: 'cancellation_reason', 
-      label: 'fields.cancellationReason', 
+    {
+      key: 'cancellation_reason',
+      label: 'fields.cancellationReason',
       type: 'text',
       hidden: (data) => !data.cancellation_reason,
     },
   ],
-  
+
   // Tabs
   tabs: [
-    { 
-      id: 'overview', 
-      label: 'tabs.overview', 
-      icon: Eye, 
+    {
+      id: 'overview',
+      label: 'tabs.overview',
+      icon: Eye,
       component: OverviewTab,
     },
-    { 
-      id: 'plan_details', 
-      label: 'tabs.planDetails', 
-      icon: Package, 
+    {
+      id: 'plan_details',
+      label: 'tabs.planDetails',
+      icon: Package,
       component: OverviewTab, // سيتم استبداله
     },
-    { 
-      id: 'billing', 
-      label: 'tabs.billing', 
-      icon: Receipt, 
+    {
+      id: 'billing',
+      label: 'tabs.billing',
+      icon: Receipt,
       component: OverviewTab, // سيتم استبداله
     },
-    { 
-      id: 'payments', 
-      label: 'tabs.payments', 
-      icon: DollarSign, 
+    {
+      id: 'payments',
+      label: 'tabs.payments',
+      icon: DollarSign,
       component: PaymentsTab,
       badge: (data) => data.payments?.length || 0,
     },
-    { 
-      id: 'invoices', 
-      label: 'tabs.invoices', 
-      icon: FileText, 
+    {
+      id: 'invoices',
+      label: 'tabs.invoices',
+      icon: FileText,
       component: OverviewTab, // سيتم استبداله
       badge: (data) => data.invoices?.length || 0,
     },
-    { 
-      id: 'renewals', 
-      label: 'tabs.renewals', 
-      icon: RefreshCw, 
+    {
+      id: 'renewals',
+      label: 'tabs.renewals',
+      icon: RefreshCw,
       component: OverviewTab, // سيتم استبداله
       badge: (data) => data.renewals?.length || 0,
     },
-    { 
-      id: 'activity', 
-      label: 'tabs.activity', 
-      icon: Activity, 
+    {
+      id: 'activity',
+      label: 'tabs.activity',
+      icon: Activity,
       component: ActivityTab,
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -279,7 +279,7 @@ export const subscriptionConfig: SheetConfig = {
       label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'upgrade',
@@ -287,7 +287,7 @@ export const subscriptionConfig: SheetConfig = {
       icon: ArrowUpCircle,
       variant: 'default',
       show: (data) => data.status === 'active',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'renew',
@@ -295,7 +295,7 @@ export const subscriptionConfig: SheetConfig = {
       icon: RefreshCw,
       variant: 'success',
       show: (data) => ['active', 'expired', 'past_due'].includes(data.status),
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'pause',
@@ -307,7 +307,7 @@ export const subscriptionConfig: SheetConfig = {
         title: 'dialogs.confirmPause',
         description: 'dialogs.pauseSubscriptionWarning',
       },
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'resume',
@@ -315,7 +315,7 @@ export const subscriptionConfig: SheetConfig = {
       icon: PlayCircle,
       variant: 'success',
       show: (data) => data.status === 'paused',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'cancel',
@@ -328,13 +328,13 @@ export const subscriptionConfig: SheetConfig = {
         description: 'dialogs.cancelSubscriptionWarning',
         confirmLabel: 'actions.cancelSubscription',
       },
-      onClick: () => {},
+      onClick: () => { },
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'tenant') {

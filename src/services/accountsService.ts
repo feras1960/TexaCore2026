@@ -315,7 +315,7 @@ export const accountsService = {
       is_group: input.is_group || false,
       is_detail: !input.is_group,
       level: input.level || 1,
-      currency: input.currency || 'SAR',
+      currency: input.currency || null,
       description: input.description || null,
       is_active: true,
       opening_balance: 0,

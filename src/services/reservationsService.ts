@@ -13,57 +13,57 @@ export interface Reservation {
   tenant_id: string;
   company_id: string;
   branch_id?: string;
-  
+
   reservation_number: string;
   reservation_date: string;
-  
+
   reservation_type: 'general' | 'product' | 'service' | 'room' | 'equipment' | 'advance_payment';
-  
+
   account_id?: string;
-  
+
   party_type?: 'customer' | 'supplier' | 'employee' | 'other';
   party_id?: string;
   party_name?: string;
   customer_id?: string;
-  
+
   contact_phone?: string;
   contact_email?: string;
-  
+
   start_date?: string;
   end_date?: string;
   start_time?: string;
   end_time?: string;
-  
+
   currency: string;
   exchange_rate: number;
-  
+
   estimated_amount: number;
   deposit_amount: number;
   deposit_paid: number;
   final_amount: number;
-  
+
   debit_amount: number;
   credit_amount: number;
-  
+
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
-  
+
   invoice_id?: string;
   converted_to_invoice: boolean;
   converted_at?: string;
-  
+
   journal_entry_id?: string;
   is_posted: boolean;
-  
+
   description?: string;
   notes?: string;
   internal_notes?: string;
-  
+
   metadata?: any;
-  
+
   cancelled_at?: string;
   cancelled_by?: string;
   cancel_reason?: string;
-  
+
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -131,7 +131,7 @@ const mapReservation = (record: any): Reservation => ({
   converted_to_invoice: record.converted_to_invoice ?? false,
   status: record.status ?? 'pending',
   reservation_type: record.reservation_type ?? 'general',
-  currency: record.currency ?? 'USD',
+  currency: record.currency ?? '',
   metadata: record.metadata ?? {},
 });
 
@@ -331,7 +331,7 @@ export const reservationsService = {
       end_date: input.end_date || null,
       start_time: input.start_time || null,
       end_time: input.end_time || null,
-      currency: input.currency || 'USD',
+      currency: input.currency || '',
       exchange_rate: 1,
       estimated_amount: input.estimated_amount || 0,
       deposit_amount: input.deposit_amount || 0,

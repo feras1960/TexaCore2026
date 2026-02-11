@@ -9,11 +9,11 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { warehouseService } from '@/services/warehouseService';
-import { supabase } from '@/lib/supabase';
+import { useWarehouses, useDefaultBranch } from '../hooks/useWarehouseQueries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,12 +93,12 @@ export default function WarehouseListPage() {
     const { t, language, isRTL } = useLanguage();
     const { companyId, tenantId } = useAuth();
 
-    // State
-    const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    // ⚡ React Query: cached data, instant tab switching
+    const { warehouses, loading, error, refetch: refetchWarehouses, invalidate } = useWarehouses();
+    const { defaultBranchId } = useDefaultBranch();
+
+    // Local UI state
     const [searchTerm, setSearchTerm] = useState('');
-    const [defaultBranchId, setDefaultBranchId] = useState<string | null>(null);
 
     // Sheet state
     const [formOpen, setFormOpen] = useState(false);
@@ -111,77 +111,6 @@ export default function WarehouseListPage() {
 
     // Active sub-tab
     const [activeTab, setActiveTab] = useState('warehouses');
-
-
-
-    // Load warehouses
-    const loadWarehouses = async () => {
-        if (!companyId) return;
-
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await warehouseService.getAll(companyId);
-            setWarehouses(data || []);
-        } catch (err) {
-            console.error('Error loading warehouses:', err);
-            setError(t('errors.network.loadFailed'));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Load default branch ID for warehouse creation
-    // Load or create default branch ID
-    const loadDefaultBranchId = async () => {
-        if (!companyId || !tenantId) return;
-
-        try {
-            // First try to find existing branch
-            const { data, error } = await supabase
-                .from('branches')
-                .select('id')
-                .eq('company_id', companyId)
-                .limit(1)
-                .maybeSingle();
-
-            if (data?.id) {
-                setDefaultBranchId(data.id);
-                return;
-            }
-
-            // If no branch found, create a default one
-            console.log('No branch found, creating default main branch...');
-
-            const { data: newBranch, error: createError } = await supabase
-                .from('branches')
-                .insert({
-                    tenant_id: tenantId,
-                    company_id: companyId,
-                    name: 'الفرع الرئيسي',
-                    code: 'MAIN-001', // Added required code field
-                    is_main: true,
-                    is_active: true
-                })
-                .select('id')
-                .single();
-
-            if (newBranch?.id) {
-                setDefaultBranchId(newBranch.id);
-                console.log('Created default branch:', newBranch.id);
-            } else if (createError) {
-                console.error('Error creating default branch:', createError);
-            }
-
-        } catch (err) {
-            console.error('Error loading/creating default branch:', err);
-        }
-    };
-
-    useEffect(() => {
-        loadWarehouses();
-        loadDefaultBranchId();
-    }, [companyId]);
 
     // Filter states
     const [cityFilter, setCityFilter] = useState<string>('all');
@@ -277,23 +206,18 @@ export default function WarehouseListPage() {
             Object.keys(coreData).forEach(key => (coreData as any)[key] === undefined && delete (coreData as any)[key]);
 
             if (sheetMode === 'create') {
-                if (!defaultBranchId) {
-                    await loadDefaultBranchId(); // Try to load again
-                    // If still no branch, we might error or just create w/o branch?
-                }
-
                 await warehouseService.create({
                     tenant_id: tenantId,
                     company_id: companyId,
-                    branch_id: defaultBranchId || undefined, // Optional if backend allows
+                    branch_id: defaultBranchId || undefined,
                     ...coreData
                 } as any);
             } else if (selectedWarehouse) {
                 await warehouseService.update(selectedWarehouse.id, coreData);
             }
 
-            // setFormOpen(false); // Do not close, Sheet handles view mode switch
-            await loadWarehouses();
+            // ⚡ Invalidate cache → triggers background refetch
+            invalidate();
         } catch (error: any) {
             console.error('Save error:', error);
             throw new Error(error.message || t('errors.network.saveFailed'));
@@ -307,10 +231,10 @@ export default function WarehouseListPage() {
             await warehouseService.delete(warehouseToDelete.id);
             setDeleteDialogOpen(false);
             setWarehouseToDelete(null);
-            loadWarehouses();
+            // ⚡ Invalidate cache → triggers background refetch
+            invalidate();
         } catch (err) {
             console.error('Error deleting warehouse:', err);
-            setError(t('errors.network.deleteFailed'));
         }
     };
 
@@ -360,7 +284,7 @@ export default function WarehouseListPage() {
             render: (_, row) => row.capacity ? row.capacity.toLocaleString() : '-'
         },
         {
-            title: 'common.status',
+            title: 'common.status._',
             key: 'is_active',
             align: 'center',
             width: '100px',
@@ -479,7 +403,7 @@ export default function WarehouseListPage() {
                                         </Select>
 
                                         {/* Refresh Button */}
-                                        <Button variant="outline" size="icon" onClick={loadWarehouses} disabled={loading} title={t('common.refresh')}>
+                                        <Button variant="outline" size="icon" onClick={() => refetchWarehouses()} disabled={loading} title={t('common.refresh')}>
                                             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                         </Button>
                                     </div>

@@ -106,6 +106,7 @@ import { flatAccounts, currencies } from '../data/accountingData';
 import { useAccountLedger, useAccountStats, useAccountPayments, useRecentActivity } from '@/hooks/useAccountLedger';
 import { accountsService } from '@/services/accountsService';
 import type { LedgerEntry, AccountStats, PaymentEntry } from '@/services/accountLedgerService';
+import { useCompanyCurrency, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
 
 // Main Tab Types
 type MainTabType = 'overview' | 'ledger' | 'invoices' | 'payments' | 'reservations' | 'ai-analysis' | 'events';
@@ -195,6 +196,7 @@ export default function AccountDetailsSheet({
     }
   };
   const { t, direction, language } = useLanguage();
+  const { currencyCode: companyCurrency, currencySymbol } = useCompanyCurrency();
 
   // Main Tab State
   const [mainTab, setMainTab] = useState<MainTabType>('overview');
@@ -219,7 +221,7 @@ export default function AccountDetailsSheet({
   const [filters, setFilters] = useState({
     dateFrom: format(subDays(new Date(), 365), 'yyyy-MM-dd'),
     dateTo: format(new Date(), 'yyyy-MM-dd'),
-    currency: 'SAR',
+    currency: '',
     showCancelled: false,
   });
 
@@ -464,7 +466,7 @@ export default function AccountDetailsSheet({
                       currentBalance >= 0 ? "text-green-600" : "text-red-600"
                     )}>
                       {currentBalance.toLocaleString()}
-                      <span className="text-xs mr-1 opacity-70">{language === 'ar' ? 'ر.س' : 'SAR'}</span>
+                      <span className="text-xs mr-1 opacity-70">{account?.currency ? getCurrencySymbol(account.currency) : currencySymbol}</span>
                     </p>
                   </div>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpenEditTab}>
@@ -789,7 +791,7 @@ function OverviewTab({
               </div>
               <div className="flex justify-between text-sm py-1 border-b border-dashed">
                 <span className="text-gray-500">{language === 'ar' ? 'العملة' : 'Currency'}</span>
-                <span>SAR - ريال سعودي</span>
+                <span>{account?.currency || companyCurrency || ''}</span>
               </div>
               <div className="flex justify-between text-sm py-1">
                 <span className="text-gray-500">{language === 'ar' ? 'المجموعة' : 'Group'}</span>
@@ -1973,7 +1975,7 @@ function AIAnalysisTab({ account, language, t, ledgerEntries, totalDebit, totalC
       title: language === 'ar' ? 'توقع الرصيد' : 'Balance Prediction',
       description: language === 'ar'
         ? 'بناءً على النمط الحالي، يُتوقع أن يصل الرصيد إلى 75,000 ر.س بنهاية الشهر'
-        : 'Based on current pattern, balance is expected to reach 75,000 SAR by end of month',
+        : `Based on current pattern, balance is expected to reach 75,000 ${companyCurrency || ''} by end of month`,
       icon: Sparkles,
       color: 'text-purple-600 bg-purple-100',
     },
@@ -2350,7 +2352,7 @@ function InvoiceDetailTab({ data, language, t }: any) {
     customer: data?.customer || 'شركة الأمل للتجارة',
     customerPhone: '+966 50 123 4567',
     customerEmail: 'info@alamal.com',
-    currency: 'SAR',
+    currency: account?.currency || companyCurrency || '',
     items: [
       { id: 1, name: 'منتج A - قطع غيار', quantity: 10, price: 500, tax: 15 },
       { id: 2, name: 'خدمة صيانة دورية', quantity: 1, price: 3500, tax: 15 },
@@ -2657,7 +2659,7 @@ function JournalDetailTab({ data, language, t }: any) {
     number: data?.reference || 'JV-001',
     date: data?.date || '2024-01-01',
     description: data?.description || 'رصيد افتتاحي',
-    currency: 'SAR',
+    currency: account?.currency || companyCurrency || '',
     entries: [
       { id: 1, account: '1101', accountName: 'نقدية بالصندوق', debit: data?.debit || 50000, credit: 0 },
       { id: 2, account: '3001', accountName: 'رأس المال', debit: 0, credit: data?.debit || 50000 },
@@ -3079,7 +3081,7 @@ function EditAccountTab({ account, language, t, direction, onSaveSuccess }: any)
     status: account?.is_active ? 'active' : 'inactive',
     description: account?.description || '',
     parentAccount: account?.parent_id || account?.parent || '',
-    currency: account?.currency || 'SAR',
+    currency: account?.currency || '',
 
     // Bank Info
     is_bank_account: account?.is_bank_account || false,

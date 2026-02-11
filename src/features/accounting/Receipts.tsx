@@ -1,24 +1,25 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Download, 
-  FileText, 
+import {
+  Search,
+  Plus,
+  Filter,
+  Download,
+  FileText,
   MoreHorizontal,
   Calendar as CalendarIcon,
   ArrowUpDown,
@@ -45,7 +46,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -99,17 +100,18 @@ interface FilterState {
 type TabType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchange';
 
 export default function Receipts() {
-  const { t, language, direction } = useLanguage();
+  const { t, direction, language } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [selectedEntryForDetails, setSelectedEntryForDetails] = useState<any>(null);
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
   const [defaultTab, setDefaultTab] = useState<TabType>('receipt');
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Reconciliation
   const [selectedReconciliationColor, setSelectedReconciliationColor] = useState<string>('green');
   const [markedEntries, setMarkedEntries] = useState<Record<string, string>>({});
   const [showColorPicker, setShowColorPicker] = useState(false);
-  
+
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
@@ -225,18 +227,18 @@ export default function Receipts() {
     });
   };
 
-  const hasActiveFilters = filters.search || filters.status !== 'all' || 
+  const hasActiveFilters = filters.search || filters.status !== 'all' ||
     filters.origin !== 'all' || filters.entryNumber || filters.reference || filters.dateRange;
 
   // Mock Data with enhanced entry types and lines
   const entries = [
-    { 
-      id: 'JV-2024-001', 
-      date: '2024-03-20', 
-      reference: 'REF-001', 
-      description: 'Office Rent Payment', 
-      amount: 5000, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-001',
+      date: '2024-03-20',
+      reference: 'REF-001',
+      description: 'Office Rent Payment',
+      amount: 5000,
+      status: 'posted',
       createdBy: 'Ahmed Mohamed',
       type: 'expense',
       origin: 'manual',
@@ -245,13 +247,13 @@ export default function Receipts() {
         { id: 2, account: '1010 - الصندوق', description: 'سداد نقدي', debit: 0, credit: 5000, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-002', 
-      date: '2024-03-19', 
-      reference: 'INV-001', 
-      description: 'فاتورة مبيعات - لابتوب HP', 
-      amount: 12500, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-002',
+      date: '2024-03-19',
+      reference: 'INV-001',
+      description: 'فاتورة مبيعات - لابتوب HP',
+      amount: 12500,
+      status: 'posted',
       createdBy: 'Sarah Ali',
       type: 'sales',
       origin: 'sales',
@@ -261,13 +263,13 @@ export default function Receipts() {
         { id: 3, account: '2210 - ضريبة القيمة المضافة', description: 'ضريبة 15%', debit: 0, credit: 1630.43, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-003', 
-      date: '2024-03-18', 
-      reference: 'EXP-042', 
-      description: 'Office Supplies', 
-      amount: 450, 
-      status: 'draft', 
+    {
+      id: 'JV-2024-003',
+      date: '2024-03-18',
+      reference: 'EXP-042',
+      description: 'Office Supplies',
+      amount: 450,
+      status: 'draft',
       createdBy: 'Ahmed Mohamed',
       type: 'expense',
       origin: 'manual',
@@ -276,13 +278,13 @@ export default function Receipts() {
         { id: 2, account: '1010 - الصندوق', description: 'دفع نقدي', debit: 0, credit: 450, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-004', 
-      date: '2024-03-18', 
-      reference: 'INV-002', 
-      description: 'خدمات استشارية', 
-      amount: 3000, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-004',
+      date: '2024-03-18',
+      reference: 'INV-002',
+      description: 'خدمات استشارية',
+      amount: 3000,
+      status: 'posted',
       createdBy: 'Khaled Omar',
       type: 'receipt',
       origin: 'sales',
@@ -292,13 +294,13 @@ export default function Receipts() {
         { id: 3, account: '2210 - ضريبة القيمة المضافة', description: 'ضريبة 15%', debit: 0, credit: 391.30, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-005', 
-      date: '2024-03-17', 
-      reference: 'BILL-103', 
-      description: 'فاتورة انترنت', 
-      amount: 120, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-005',
+      date: '2024-03-17',
+      reference: 'BILL-103',
+      description: 'فاتورة انترنت',
+      amount: 120,
+      status: 'posted',
       createdBy: 'Sarah Ali',
       type: 'payment',
       origin: 'purchases',
@@ -307,13 +309,13 @@ export default function Receipts() {
         { id: 2, account: '2010 - الدائنون', description: 'مستحق STC', debit: 0, credit: 120, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-006', 
-      date: '2024-03-16', 
-      reference: 'SALARY-03', 
-      description: 'رواتب مارس', 
-      amount: 45000, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-006',
+      date: '2024-03-16',
+      reference: 'SALARY-03',
+      description: 'رواتب مارس',
+      amount: 45000,
+      status: 'posted',
       createdBy: 'System',
       type: 'payroll',
       origin: 'payroll',
@@ -322,13 +324,13 @@ export default function Receipts() {
         { id: 2, account: '1010 - الصندوق', description: 'صرف الرواتب', debit: 0, credit: 45000, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-007', 
-      date: '2024-03-15', 
-      reference: 'DEP-001', 
-      description: 'إهلاك الأصول الثابتة', 
-      amount: 1200, 
-      status: 'draft', 
+    {
+      id: 'JV-2024-007',
+      date: '2024-03-15',
+      reference: 'DEP-001',
+      description: 'إهلاك الأصول الثابتة',
+      amount: 1200,
+      status: 'draft',
       createdBy: 'System',
       type: 'adjustment',
       origin: 'system',
@@ -337,13 +339,13 @@ export default function Receipts() {
         { id: 2, account: '1520 - مجمع الإهلاك', description: 'مجمع إهلاك الأصول', debit: 0, credit: 1200, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-008', 
-      date: '2024-03-14', 
-      reference: 'CASH-001', 
-      description: 'تحصيل نقدي من العميل', 
-      amount: 8500, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-008',
+      date: '2024-03-14',
+      reference: 'CASH-001',
+      description: 'تحصيل نقدي من العميل',
+      amount: 8500,
+      status: 'posted',
       createdBy: 'Ahmed Mohamed',
       type: 'cash',
       origin: 'manual',
@@ -352,13 +354,13 @@ export default function Receipts() {
         { id: 2, account: '1200 - المدينون', description: 'تسوية ذمة عميل', debit: 0, credit: 8500, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-009', 
-      date: '2024-03-13', 
-      reference: 'PO-055', 
-      description: 'شراء بضاعة', 
-      amount: 25000, 
-      status: 'posted', 
+    {
+      id: 'JV-2024-009',
+      date: '2024-03-13',
+      reference: 'PO-055',
+      description: 'شراء بضاعة',
+      amount: 25000,
+      status: 'posted',
       createdBy: 'Khaled Omar',
       type: 'purchase',
       origin: 'purchases',
@@ -367,13 +369,13 @@ export default function Receipts() {
         { id: 2, account: '2010 - الدائنون', description: 'مستحق للمورد', debit: 0, credit: 25000, product: null },
       ]
     },
-    { 
-      id: 'JV-2024-010', 
-      date: '2024-03-12', 
-      reference: 'MIX-001', 
-      description: 'قيد تسوية مختلف', 
-      amount: 3500, 
-      status: 'pending', 
+    {
+      id: 'JV-2024-010',
+      date: '2024-03-12',
+      reference: 'MIX-001',
+      description: 'قيد تسوية مختلف',
+      amount: 3500,
+      status: 'pending',
       createdBy: 'Sarah Ali',
       type: 'mixed',
       origin: 'manual',
@@ -388,8 +390,8 @@ export default function Receipts() {
   const handleSort = (key: string) => {
     setSortConfig((current) => {
       if (current?.key === key) {
-        return current.direction === 'asc' 
-          ? { key, direction: 'desc' } 
+        return current.direction === 'asc'
+          ? { key, direction: 'desc' }
           : null;
       }
       return { key, direction: 'asc' };
@@ -403,7 +405,7 @@ export default function Receipts() {
     // Apply Search Filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      data = data.filter((item) => 
+      data = data.filter((item) =>
         item.id.toLowerCase().includes(searchLower) ||
         item.description.toLowerCase().includes(searchLower) ||
         item.reference.toLowerCase().includes(searchLower) ||
@@ -423,14 +425,14 @@ export default function Receipts() {
 
     // Apply Entry Number Filter
     if (filters.entryNumber) {
-      data = data.filter((item) => 
+      data = data.filter((item) =>
         item.id.toLowerCase().includes(filters.entryNumber.toLowerCase())
       );
     }
 
     // Apply Reference Filter
     if (filters.reference) {
-      data = data.filter((item) => 
+      data = data.filter((item) =>
         item.reference.toLowerCase().includes(filters.reference.toLowerCase())
       );
     }
@@ -512,7 +514,7 @@ export default function Receipts() {
   };
 
   const renderSortableHeader = (label: string, key: string) => (
-    <span 
+    <span
       className="cursor-pointer hover:text-erp-navy flex items-center gap-1"
       onClick={() => handleSort(key)}
     >
@@ -531,7 +533,7 @@ export default function Receipts() {
       // Calculate total debit and credit from entry lines
       const entryDebit = entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.amount;
       const entryCredit = entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.amount;
-      
+
       return {
         totalDebit: acc.totalDebit + entryDebit,
         totalCredit: acc.totalCredit + entryCredit,
@@ -596,7 +598,7 @@ export default function Receipts() {
           <span className="font-mono font-bold text-base text-amber-600">{totals.draftCount}</span>
         </div>
 
-        <span className="text-[10px] text-gray-400 mr-auto">SAR</span>
+        <span className="text-[10px] text-gray-400 mr-auto">{companyCurrency}</span>
 
         {/* Export */}
         <Button variant="ghost" size="sm" className="gap-1.5">
@@ -612,16 +614,16 @@ export default function Receipts() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
               <Search className={`absolute ${direction === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400`} />
-              <Input 
-                placeholder={language === 'ar' ? 'بحث في القيود...' : 'Search entries...'} 
+              <Input
+                placeholder={language === 'ar' ? 'بحث في القيود...' : 'Search entries...'}
                 className={`${direction === 'rtl' ? 'pr-9' : 'pl-9'} h-9 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700`}
                 value={filters.search}
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               />
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Button 
-                variant={showFilters ? "default" : "outline"} 
+              <Button
+                variant={showFilters ? "default" : "outline"}
                 size="sm"
                 className={`gap-1.5 ${showFilters ? 'bg-erp-navy' : ''}`}
                 onClick={() => setShowFilters(!showFilters)}
@@ -639,13 +641,13 @@ export default function Receipts() {
                   <RotateCcw className="w-3 h-3" />
                 </Button>
               )}
-              
+
               {/* Reconciliation Colors */}
               <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5 h-9 px-2.5">
                     <Palette className="w-3.5 h-3.5" />
-                    <div 
+                    <div
                       className="w-3.5 h-3.5 rounded-full border"
                       style={{ backgroundColor: RECONCILIATION_COLORS.find(c => c.id === selectedReconciliationColor)?.color }}
                     />
@@ -662,8 +664,8 @@ export default function Receipts() {
                         }}
                         className={cn(
                           "w-6 h-6 rounded-full border-2 transition-all hover:scale-110",
-                          selectedReconciliationColor === color.id 
-                            ? "ring-2 ring-offset-2 ring-erp-navy scale-110" 
+                          selectedReconciliationColor === color.id
+                            ? "ring-2 ring-offset-2 ring-erp-navy scale-110"
                             : "border-gray-300"
                         )}
                         style={{ backgroundColor: color.color }}
@@ -728,7 +730,7 @@ export default function Receipts() {
                 </Select>
 
                 {/* Entry Number */}
-                <Input 
+                <Input
                   placeholder={language === 'ar' ? 'رقم القيد' : 'Entry #'}
                   value={filters.entryNumber}
                   onChange={(e) => setFilters(prev => ({ ...prev, entryNumber: e.target.value }))}
@@ -736,7 +738,7 @@ export default function Receipts() {
                 />
 
                 {/* Reference */}
-                <Input 
+                <Input
                   placeholder={language === 'ar' ? 'المرجع' : 'Reference'}
                   value={filters.reference}
                   onChange={(e) => setFilters(prev => ({ ...prev, reference: e.target.value }))}
@@ -818,90 +820,90 @@ export default function Receipts() {
 
         {/* Table - Same style as GeneralLedgerPage */}
         <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '400px' }}>
-        <Table className="border-collapse w-full">
-          <TableHeader className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-10">
-            <TableRow className="h-12 border-b-2 border-slate-300 dark:border-slate-600">
-              <TableHead className="w-[40px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">✓</TableHead>
-              <TableHead className="w-[100px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'مدين' : 'Debit'}</TableHead>
-              <TableHead className="w-[100px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'دائن' : 'Credit'}</TableHead>
-              <TableHead className="w-[80px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'المرجع' : 'Ref'}</TableHead>
-              <TableHead className="min-w-[180px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{renderSortableHeader(t('description'), 'description')}</TableHead>
-              <TableHead className="w-[60px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 text-center">{language === 'ar' ? 'النوع' : 'Type'}</TableHead>
-              <TableHead className="w-[100px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{renderSortableHeader(language === 'ar' ? 'رقم القيد' : 'Entry #', 'id')}</TableHead>
-              <TableHead className="w-[90px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 text-center">{renderSortableHeader(t('date'), 'date')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAndSortedData.length > 0 ? (
-              filteredAndSortedData.map((entry, index) => {
-                // Calculate debit/credit from lines
-                const entryDebit = entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.amount;
-                const entryCredit = entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.amount;
-                
-                return (
-                  <TableRow 
-                    key={entry.id}
-                    onClick={() => handleViewDetails(entry)}
-                    className={cn(
-                      "h-12 hover:bg-blue-50/80 dark:hover:bg-slate-800 cursor-pointer transition-all duration-150",
-                      index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/60 dark:bg-slate-800/50",
-                      getReconciliationBg(entry.id)
-                    )}
-                  >
-                    <TableCell className="text-center border border-slate-200 dark:border-slate-700 px-3 py-2.5">
-                      <Checkbox
-                        checked={!!markedEntries[entry.id]}
-                        onCheckedChange={() => toggleReconciliationMark(entry.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={cn(
-                          "w-4 h-4",
-                          markedEntries[entry.id] && "border-2"
-                        )}
-                        style={{
-                          borderColor: markedEntries[entry.id] 
-                            ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color 
-                            : undefined,
-                          backgroundColor: markedEntries[entry.id] 
-                            ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color 
-                            : undefined,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell className={`text-center text-sm font-mono border border-slate-200 dark:border-slate-700 px-3 py-2.5 ${entryDebit > 0 ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
-                      {entryDebit > 0 ? entryDebit.toLocaleString() : '-'}
-                    </TableCell>
-                    <TableCell className={`text-center text-sm font-mono border border-slate-200 dark:border-slate-700 px-3 py-2.5 ${entryCredit > 0 ? "text-rose-600 font-semibold" : "text-slate-400"}`}>
-                      {entryCredit > 0 ? entryCredit.toLocaleString() : '-'}
-                    </TableCell>
-                    <TableCell className="text-sm font-mono text-slate-500 border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.reference}</TableCell>
-                    <TableCell className="truncate max-w-[180px] text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-4 py-2.5" title={entry.description}>{entry.description}</TableCell>
-                    <TableCell className="border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-center">
-                      <Badge className={`text-xs font-medium px-2.5 py-1 ${getEntryTypeBadgeColor(entry.type)}`}>
-                        {getEntryTypeLabel(entry.type)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm font-mono text-blue-600 border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.id}</TableCell>
-                    <TableCell className="text-sm font-mono text-center border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.date}</TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-slate-500">
-                  <div className="flex flex-col items-center gap-2">
-                    <FileText className="w-10 h-10 text-slate-300" />
-                    <p className="text-sm">{language === 'ar' ? 'لا توجد مقبوضات مطابقة' : 'No matching receipts'}</p>
-                    {hasActiveFilters && (
-                      <Button variant="link" size="sm" onClick={resetFilters} className="text-erp-teal">
-                        {language === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
+          <Table className="border-collapse w-full">
+            <TableHeader className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-10">
+              <TableRow className="h-12 border-b-2 border-slate-300 dark:border-slate-600">
+                <TableHead className="w-[40px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">✓</TableHead>
+                <TableHead className="w-[100px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'مدين' : 'Debit'}</TableHead>
+                <TableHead className="w-[100px] text-center border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'دائن' : 'Credit'}</TableHead>
+                <TableHead className="w-[80px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{language === 'ar' ? 'المرجع' : 'Ref'}</TableHead>
+                <TableHead className="min-w-[180px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{renderSortableHeader(t('description'), 'description')}</TableHead>
+                <TableHead className="w-[60px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 text-center">{language === 'ar' ? 'النوع' : 'Type'}</TableHead>
+                <TableHead className="w-[100px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{renderSortableHeader(language === 'ar' ? 'رقم القيد' : 'Entry #', 'id')}</TableHead>
+                <TableHead className="w-[90px] border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 text-center">{renderSortableHeader(t('date'), 'date')}</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSortedData.length > 0 ? (
+                filteredAndSortedData.map((entry, index) => {
+                  // Calculate debit/credit from lines
+                  const entryDebit = entry.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || entry.amount;
+                  const entryCredit = entry.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || entry.amount;
+
+                  return (
+                    <TableRow
+                      key={entry.id}
+                      onClick={() => handleViewDetails(entry)}
+                      className={cn(
+                        "h-12 hover:bg-blue-50/80 dark:hover:bg-slate-800 cursor-pointer transition-all duration-150",
+                        index % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/60 dark:bg-slate-800/50",
+                        getReconciliationBg(entry.id)
+                      )}
+                    >
+                      <TableCell className="text-center border border-slate-200 dark:border-slate-700 px-3 py-2.5">
+                        <Checkbox
+                          checked={!!markedEntries[entry.id]}
+                          onCheckedChange={() => toggleReconciliationMark(entry.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={cn(
+                            "w-4 h-4",
+                            markedEntries[entry.id] && "border-2"
+                          )}
+                          style={{
+                            borderColor: markedEntries[entry.id]
+                              ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color
+                              : undefined,
+                            backgroundColor: markedEntries[entry.id]
+                              ? RECONCILIATION_COLORS.find(c => c.id === markedEntries[entry.id])?.color
+                              : undefined,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell className={`text-center text-sm font-mono border border-slate-200 dark:border-slate-700 px-3 py-2.5 ${entryDebit > 0 ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                        {entryDebit > 0 ? entryDebit.toLocaleString() : '-'}
+                      </TableCell>
+                      <TableCell className={`text-center text-sm font-mono border border-slate-200 dark:border-slate-700 px-3 py-2.5 ${entryCredit > 0 ? "text-rose-600 font-semibold" : "text-slate-400"}`}>
+                        {entryCredit > 0 ? entryCredit.toLocaleString() : '-'}
+                      </TableCell>
+                      <TableCell className="text-sm font-mono text-slate-500 border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.reference}</TableCell>
+                      <TableCell className="truncate max-w-[180px] text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-4 py-2.5" title={entry.description}>{entry.description}</TableCell>
+                      <TableCell className="border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-center">
+                        <Badge className={`text-xs font-medium px-2.5 py-1 ${getEntryTypeBadgeColor(entry.type)}`}>
+                          {getEntryTypeLabel(entry.type)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm font-mono text-blue-600 border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.id}</TableCell>
+                      <TableCell className="text-sm font-mono text-center border border-slate-200 dark:border-slate-700 px-3 py-2.5">{entry.date}</TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <FileText className="w-10 h-10 text-slate-300" />
+                      <p className="text-sm">{language === 'ar' ? 'لا توجد مقبوضات مطابقة' : 'No matching receipts'}</p>
+                      {hasActiveFilters && (
+                        <Button variant="link" size="sm" onClick={resetFilters} className="text-erp-teal">
+                          {language === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
 
         {/* Fixed Footer with Totals - Aligned to columns */}
@@ -919,7 +921,7 @@ export default function Receipts() {
             <div className="border-l border-gray-600 px-2"></div>
             <div className="border-l border-gray-600 px-3">
               <span className="text-xs text-gray-400">
-                {language === 'ar' 
+                {language === 'ar'
                   ? `${totals.postedCount} مرحّل • ${totals.draftCount} مسودة • ${totals.pendingCount} معلّق`
                   : `${totals.postedCount} posted • ${totals.draftCount} draft • ${totals.pendingCount} pending`
                 }
@@ -939,17 +941,17 @@ export default function Receipts() {
         </div>
       </div>
 
-      <NewJournalEntrySheet 
-        open={isNewEntryOpen} 
-        onOpenChange={setIsNewEntryOpen} 
+      <NewJournalEntrySheet
+        open={isNewEntryOpen}
+        onOpenChange={setIsNewEntryOpen}
         defaultTab={defaultTab}
       />
 
       {/* Journal Entry Details Sheet */}
       {selectedEntryForDetails && (
         <Sheet open={!!selectedEntryForDetails} onOpenChange={(open) => !open && setSelectedEntryForDetails(null)}>
-          <SheetContent 
-            side={direction === 'rtl' ? 'left' : 'right'} 
+          <SheetContent
+            side={direction === 'rtl' ? 'left' : 'right'}
             className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[60vw] max-w-none p-0 overflow-y-auto"
             dir={direction}
           >

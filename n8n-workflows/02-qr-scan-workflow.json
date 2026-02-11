@@ -1,5 +1,5 @@
 {
-    "name": "TexaCore — Advanced Advanced Features Workflow",
+    "name": "TexaCore — QR Scan Processing Workflow (REST API)",
     "nodes": [
         {
             "parameters": {
@@ -30,7 +30,7 @@
                     "conditions": [
                         {
                             "id": "has-scan-data",
-                            "leftValue": "={{ $json.body.new.qr_code_id }}",
+                            "leftValue": "={{ $json.body.qr_code || $json.body.new?.qr_code_id }}",
                             "rightValue": "",
                             "operator": {
                                 "type": "string",
@@ -53,39 +53,158 @@
         },
         {
             "parameters": {
-                "operation": "executeQuery",
-                "query": "SELECT * FROM qr_codes WHERE id = $1",
-                "additionalFields": {
-                    "queryParams": "={{ $json.body.new.qr_code_id }}"
-                }
+                "method": "GET",
+                "url": "=https://wzkklenfsaepegymfxfz.supabase.co/rest/v1/qr_codes?code=eq.{{ $json.body.qr_code || $json.body.new?.code }}&select=*",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "sb_publishable_rxiau7DKoVelPDOs6vh7Xg_S7yxJQoN"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer sb_publishable_rxiau7DKoVelPDOs6vh7Xg_S7yxJQoN"
+                        },
+                        {
+                            "name": "Accept",
+                            "value": "application/vnd.pgrst.object+json"
+                        }
+                    ]
+                },
+                "options": {}
             },
-            "id": "postgres-get-qr",
-            "name": "🐘 Get QR Details",
-            "type": "n8n-nodes-base.postgres",
-            "typeVersion": 2.4,
+            "id": "rest-get-qr",
+            "name": "🗄️ Get QR Details (REST)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
             "position": [
                 680,
                 300
-            ],
-            "credentials": {
-                "postgres": "postgres-creds"
-            }
+            ]
         },
         {
             "parameters": {
-                "message": "=🔔 *New QR Scan Detected*\n━━━━━━━━━━━━━━━━━\n📦 *Type:* {{ $json.entity_type }}\n🔢 *Code:* {{ $json.code }}\n🔄 *Status:* {{ $json.current_status }}\n━━━━━━━━━━━━━━━━━\n📍 *Action:* Scan Logged",
-                "chatId": "866145826"
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "qr-found",
+                            "leftValue": "={{ $json.id }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "isNotEmpty"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "check-qr-exists",
+            "name": "🔍 QR Found?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                900,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "msg-scan",
+                            "name": "message",
+                            "value": "=📱 *مسح QR Code جديد*\n━━━━━━━━━━━━━━━━━\n🏷️ *الكود:* {{ $('🗄️ Get QR Details (REST)').first().json.code }}\n📦 *النوع:* {{ $('🗄️ Get QR Details (REST)').first().json.entity_type }}\n🔄 *الحالة:* {{ $('🗄️ Get QR Details (REST)').first().json.current_status }}\n━━━━━━━━━━━━━━━━━\n⏰ {{ new Date().toLocaleString('ar-SA') }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "format-scan-msg",
+            "name": "📝 Format Scan Message",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                1120,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "chatId": "866145826",
+                "text": "={{ $json.message }}",
+                "additionalFields": {
+                    "parse_mode": "Markdown"
+                }
             },
             "id": "telegram-notify-scan",
             "name": "📨 Notify Manager",
             "type": "n8n-nodes-base.telegram",
             "typeVersion": 1.2,
             "position": [
-                900,
-                300
+                1340,
+                200
             ],
             "credentials": {
-                "telegramApi": "telegram-creds"
+                "telegramApi": {
+                    "id": "TELEGRAM_CREDENTIAL_ID",
+                    "name": "TexaCore Telegram Bot"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "msg-not-found",
+                            "name": "message",
+                            "value": "=⚠️ *QR Code غير موجود*\n━━━━━━━━━━━━━━━━━\n🔍 تم محاولة مسح كود غير مسجّل في النظام\n━━━━━━━━━━━━━━━━━\n⏰ {{ new Date().toLocaleString('ar-SA') }}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "format-not-found",
+            "name": "❌ Not Found Message",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                1120,
+                440
+            ]
+        },
+        {
+            "parameters": {
+                "chatId": "866145826",
+                "text": "={{ $json.message }}",
+                "additionalFields": {
+                    "parse_mode": "Markdown"
+                }
+            },
+            "id": "telegram-not-found",
+            "name": "📨 Notify Not Found",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [
+                1340,
+                440
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "TELEGRAM_CREDENTIAL_ID",
+                    "name": "TexaCore Telegram Bot"
+                }
             }
         }
     ],
@@ -105,14 +224,43 @@
             "main": [
                 [
                     {
-                        "node": "🐘 Get QR Details",
+                        "node": "🗄️ Get QR Details (REST)",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "🐘 Get QR Details": {
+        "🗄️ Get QR Details (REST)": {
+            "main": [
+                [
+                    {
+                        "node": "🔍 QR Found?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "🔍 QR Found?": {
+            "main": [
+                [
+                    {
+                        "node": "📝 Format Scan Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "❌ Not Found Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "📝 Format Scan Message": {
             "main": [
                 [
                     {
@@ -122,6 +270,28 @@
                     }
                 ]
             ]
+        },
+        "❌ Not Found Message": {
+            "main": [
+                [
+                    {
+                        "node": "📨 Notify Not Found",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         }
-    }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "tags": [
+        {
+            "name": "TexaCore ERP"
+        },
+        {
+            "name": "QR Codes"
+        }
+    ]
 }

@@ -13,9 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { 
-  RefreshCw, 
-  Calendar as CalendarIcon, 
+import {
+  RefreshCw,
+  Calendar as CalendarIcon,
   Wallet,
   ArrowRight,
   AlertTriangle,
@@ -71,12 +71,12 @@ const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: s
   AED: { symbol: 'د.إ', flag: '🇦🇪', name: { ar: 'درهم إماراتي', en: 'UAE Dirham' } }
 };
 
-export default function CurrencyExchangeDialog({ 
-  open, 
-  onOpenChange, 
+export default function CurrencyExchangeDialog({
+  open,
+  onOpenChange,
   fund,
   initialFromCurrency = 'USD',
-  initialToCurrency = 'SAR'
+  initialToCurrency = ''
 }: CurrencyExchangeDialogProps) {
   const { language, direction } = useLanguage();
   const [date, setDate] = useState<Date>(new Date());
@@ -94,10 +94,10 @@ export default function CurrencyExchangeDialog({
     if (open && fund) {
       const availableCurrencies = fund.balances.filter(b => b.balance > 0).map(b => b.currency);
       setFormData({
-        fromCurrency: initialFromCurrency && availableCurrencies.includes(initialFromCurrency) 
-          ? initialFromCurrency 
-          : availableCurrencies[0] || 'USD',
-        toCurrency: initialToCurrency || 'SAR',
+        fromCurrency: initialFromCurrency && availableCurrencies.includes(initialFromCurrency)
+          ? initialFromCurrency
+          : availableCurrencies[0] || '',
+        toCurrency: initialToCurrency || fund?.defaultCurrency || '',
         amount: '',
         customRate: '',
         description: ''
@@ -108,14 +108,14 @@ export default function CurrencyExchangeDialog({
 
   const fromBalance = fund?.balances.find(b => b.currency === formData.fromCurrency);
   const toBalance = fund?.balances.find(b => b.currency === formData.toCurrency);
-  
+
   const amount = parseFloat(formData.amount) || 0;
   const marketRate = exchangeRates[formData.fromCurrency]?.[formData.toCurrency] || 1;
-  const effectiveRate = rateType === 'custom' && formData.customRate 
-    ? parseFloat(formData.customRate) 
+  const effectiveRate = rateType === 'custom' && formData.customRate
+    ? parseFloat(formData.customRate)
     : marketRate;
   const resultAmount = amount * effectiveRate;
-  
+
   const isOverBalance = fromBalance && amount > fromBalance.balance;
   const isSameCurrency = formData.fromCurrency === formData.toCurrency;
 
@@ -138,8 +138,8 @@ export default function CurrencyExchangeDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[50vw] max-w-none sm:max-w-[85vw] md:max-w-[70vw] lg:max-w-[50vw] p-0 overflow-hidden"
         dir={direction}
       >
@@ -171,13 +171,12 @@ export default function CurrencyExchangeDialog({
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {fund.balances.filter(b => b.balance > 0).map(balance => (
-                    <div 
-                      key={balance.currency} 
-                      className={`p-2 rounded-lg border ${
-                        balance.currency === formData.fromCurrency 
-                          ? 'bg-amber-50 border-amber-300' 
-                          : 'bg-white border-gray-200'
-                      }`}
+                    <div
+                      key={balance.currency}
+                      className={`p-2 rounded-lg border ${balance.currency === formData.fromCurrency
+                        ? 'bg-amber-50 border-amber-300'
+                        : 'bg-white border-gray-200'
+                        }`}
                     >
                       <div className="flex items-center gap-1.5">
                         <span className="text-lg">{currencyInfo[balance.currency]?.flag}</span>
@@ -198,8 +197,8 @@ export default function CurrencyExchangeDialog({
                   <Label className="text-xs text-gray-500 mb-2 block">
                     {language === 'ar' ? 'من' : 'From'}
                   </Label>
-                  <Select 
-                    value={formData.fromCurrency} 
+                  <Select
+                    value={formData.fromCurrency}
                     onValueChange={(v) => setFormData(prev => ({ ...prev, fromCurrency: v }))}
                   >
                     <SelectTrigger className="bg-white mb-2">
@@ -219,7 +218,7 @@ export default function CurrencyExchangeDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  
+
                   {fromBalance && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500">{language === 'ar' ? 'الرصيد' : 'Balance'}</span>
@@ -232,9 +231,9 @@ export default function CurrencyExchangeDialog({
               </Card>
 
               {/* Swap Button */}
-              <Button 
-                variant="outline" 
-                size="icon" 
+              <Button
+                variant="outline"
+                size="icon"
                 className="rounded-full flex-none"
                 onClick={handleSwapCurrencies}
               >
@@ -247,8 +246,8 @@ export default function CurrencyExchangeDialog({
                   <Label className="text-xs text-gray-500 mb-2 block">
                     {language === 'ar' ? 'إلى' : 'To'}
                   </Label>
-                  <Select 
-                    value={formData.toCurrency} 
+                  <Select
+                    value={formData.toCurrency}
                     onValueChange={(v) => setFormData(prev => ({ ...prev, toCurrency: v }))}
                   >
                     <SelectTrigger className="bg-white mb-2">
@@ -268,7 +267,7 @@ export default function CurrencyExchangeDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  
+
                   {toBalance ? (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500">{language === 'ar' ? 'الرصيد' : 'Balance'}</span>
@@ -302,7 +301,7 @@ export default function CurrencyExchangeDialog({
                   {language === 'ar' ? 'المبلغ المراد تصريفه' : 'Amount to Exchange'}
                 </Label>
                 <div className="relative">
-                  <Input 
+                  <Input
                     type="number"
                     placeholder="0.00"
                     value={formData.amount}
@@ -361,7 +360,7 @@ export default function CurrencyExchangeDialog({
                       </Label>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <RadioGroupItem value="custom" id="custom" />
@@ -372,7 +371,7 @@ export default function CurrencyExchangeDialog({
                     {rateType === 'custom' && (
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-500">1 {formData.fromCurrency} =</span>
-                        <Input 
+                        <Input
                           type="number"
                           placeholder={marketRate.toFixed(4)}
                           value={formData.customRate}
@@ -437,9 +436,9 @@ export default function CurrencyExchangeDialog({
             {/* Description */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'البيان' : 'Description'}</Label>
-              <Textarea 
-                placeholder={language === 'ar' 
-                  ? `تصريف ${formData.fromCurrency} إلى ${formData.toCurrency}` 
+              <Textarea
+                placeholder={language === 'ar'
+                  ? `تصريف ${formData.fromCurrency} إلى ${formData.toCurrency}`
                   : `Exchange ${formData.fromCurrency} to ${formData.toCurrency}`
                 }
                 value={formData.description}
@@ -457,8 +456,8 @@ export default function CurrencyExchangeDialog({
                 <X className="w-4 h-4 mr-2" />
                 {language === 'ar' ? 'إلغاء' : 'Cancel'}
               </Button>
-              <Button 
-                className="bg-amber-600 hover:bg-amber-700 w-full sm:w-auto" 
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 w-full sm:w-auto"
                 onClick={handleSubmit}
                 disabled={isOverBalance || isSameCurrency || !amount}
               >

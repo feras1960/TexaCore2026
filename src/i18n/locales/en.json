@@ -19,20 +19,45 @@
     "closingBalance": "Closing Balance"
   },
   "trade": {
+    "quotation": {
+      "title": "Quotation",
+      "subtitle": "Manage quotations for customers"
+    },
+    "reservation": {
+      "title": "Goods Reservation",
+      "subtitle": "Reserve goods in transit or in warehouse"
+    },
     "order": {
       "title": "Purchase Order",
       "subtitle": "Manage purchase orders and suppliers"
+    },
+    "sales_order": {
+      "title": "Sales Order",
+      "subtitle": "Manage sales orders"
     },
     "invoice": {
       "title": "Sales Invoice",
       "subtitle": "Manage sales invoices"
     },
+    "delivery_note": {
+      "title": "Delivery Note",
+      "subtitle": "Goods delivery notes"
+    },
+    "sales_return": {
+      "title": "Sales Return",
+      "subtitle": "Manage sales returns"
+    },
     "tabs": {
       "details": "Items & Details",
+      "materials": "Material Browser",
+      "payment": "Payments & Journal",
       "attachments": "Attachments",
-      "shipping": "Shipping & Containers",
+      "shipping": "Delivery & Shipping",
       "expenses": "Expenses",
-      "activity": "Activity"
+      "activity": "Activity",
+      "nexaAgent": "NexaAgent 🤖",
+      "supplierInfo": "Supplier",
+      "warehouseReceiving": "Receiving"
     },
     "total": "Total",
     "shipping": {
@@ -43,9 +68,16 @@
     "expenses": {
       "title": "Shipment Expenses",
       "total": "Total Expenses"
-    }
+    },
+    "document_notes": "Document Notes",
+    "document_notes_placeholder": "Add notes to this document...",
+    "item_currency": "Item Currency",
+    "exchange_rate": "Exchange Rate",
+    "converted_to": "Converted to",
+    "type_converted": "Document type converted successfully"
   },
   "appName": "TexaCore",
+  "currencySettingsDesc": "Configure supported currencies and default module currencies",
   "_status_extended": "Moved to main status section",
   "_tabs_extended": {
     "addNote": "Add Note",
@@ -981,6 +1013,53 @@
   "cashAndEquivalents": "Cash and Equivalents",
   "cashFund": "Cash Fund",
   "cashOnHand": "Cash on Hand",
+  "cart": {
+    "title": "Material Cart",
+    "empty": "Cart is empty",
+    "emptyDesc": "Add materials from the inventory page to start creating a quotation",
+    "addItem": "Add to Cart",
+    "addFullRoll": "Add Full Roll",
+    "addQuantity": "Add Quantity",
+    "quantity": "Quantity",
+    "unitPrice": "Unit Price",
+    "subtotal": "Subtotal",
+    "totalAmount": "Total Amount",
+    "totalItems": "Total Items",
+    "selectCustomer": "Select Customer",
+    "noCustomer": "No Customer (Optional)",
+    "saveDraft": "Save as Draft Quotation",
+    "clearCart": "Clear Cart",
+    "clearCartConfirm": "Clear the cart? All items will be removed.",
+    "draftSaved": "Draft saved successfully",
+    "draftNumber": "Quotation Number",
+    "goToQuotation": "Go to Quotation",
+    "continueShopping": "Continue Browsing",
+    "removeItem": "Remove Item",
+    "editItem": "Edit Item",
+    "fromWarehouse": "From Warehouse",
+    "rollNumber": "Roll Number",
+    "freeQuantity": "Free Quantity",
+    "maxAvailable": "Max Available",
+    "exceedsAvailable": "Quantity exceeds available stock",
+    "notes": "Notes",
+    "material": "Material",
+    "warehouse": "Warehouse",
+    "price": "Price",
+    "total": "Total",
+    "actions": "Actions",
+    "itemAdded": "Item added to cart",
+    "itemRemoved": "Item removed from cart",
+    "widget": {
+      "items": "items",
+      "view": "View",
+      "clear": "Clear"
+    },
+    "errors": {
+      "saveFailed": "Failed to save draft",
+      "loadFailed": "Failed to load draft",
+      "quantityExceeded": "Requested quantity exceeds available stock"
+    }
+  },
   "category": "Category",
   "clickSearchToLoad": "Click search to load",
   "clickToViewDetails": "Click to view details",
@@ -1005,7 +1084,22 @@
     "status": {
       "_": "Status",
       "active": "Active",
-      "inactive": "Inactive"
+      "inactive": "Inactive",
+      "draft": "Draft",
+      "closed": "Closed",
+      "approved": "Approved",
+      "completed": "Completed",
+      "posted": "Posted",
+      "pending": "Pending",
+      "pending_approval": "Pending Approval",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "void": "Void",
+      "failed": "Failed",
+      "archived": "Archived",
+      "saved": "Saved",
+      "confirmed": "Confirmed",
+      "delivered": "Delivered"
     },
     "suspend": "Suspend",
     "address": "Address",
@@ -1084,6 +1178,8 @@
     "loading": "Loading...",
     "next": "Next",
     "notes": "Notes",
+    "nameAr": "Name (Arabic)",
+    "nameEn": "Name (English)",
     "number": "Number",
     "ok": "OK",
     "optional": "Optional",
@@ -1372,12 +1468,26 @@
   "critical": "Critical",
   "crm": {
     "activities": "Activities",
+    "activity": "Activity",
+    "addContact": "Add Contact",
     "campaigns": "Campaigns",
+    "communications": "Communications",
+    "contactName": "Contact Name",
     "contacts": "Contacts",
+    "contactsSubtitle": "Manage leads and contacts",
+    "convertToCustomer": "Convert to Customer",
+    "dashboard": "Dashboard",
+    "interactions": "Interactions",
+    "lastActivity": "Last Activity",
     "leads": "Leads",
     "module": "Customer Relationship Management",
     "opportunities": "Opportunities",
-    "pipeline": "Sales Pipeline"
+    "pipeline": "Sales Pipeline",
+    "priority": "Priority",
+    "settings": "Settings",
+    "source": "Source",
+    "stage": "Stage",
+    "tasks": "Tasks"
   },
   "currencies": {
     "AED": "UAE Dirham",
@@ -1851,7 +1961,19 @@
     "templates": "Templates",
     "history": "History",
     "search": "Search...",
-    "status": "Status",
+    "status": {
+      "_": "Status",
+      "active": "Active",
+      "paused": "Paused",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "executed": "Executed",
+      "failed": "Failed",
+      "draft": "Draft"
+    },
     "all": "All",
     "name": "Name",
     "frequency": "Frequency",
@@ -1907,8 +2029,33 @@
   "general": "General",
   "good": "Good",
   "grossProfit": "Gross Profit",
+  "favorites": {
+    "title": "Favorites",
+    "addToFavorites": "Add to Favorites",
+    "removeFromFavorites": "Remove from Favorites",
+    "manageFavorites": "Manage Favorites",
+    "empty": "No favorite materials",
+    "season": "Season",
+    "seasons": {
+      "all_year": "All Year",
+      "spring": "Spring",
+      "summer": "Summer",
+      "autumn": "Autumn",
+      "winter": "Winter"
+    },
+    "categories": {
+      "most_requested": "Most Requested",
+      "vip_customers": "VIP Customers",
+      "clearance": "Clearance",
+      "custom": "Custom"
+    },
+    "usageCount": "Usage Count",
+    "lastUsed": "Last Used"
+  },
   "header": {
+    "cart": "Material Cart",
     "darkMode": "Dark Mode",
+    "favorites": "Favorites",
     "language": "Language",
     "lightMode": "Light Mode",
     "notifications": "Notifications",
@@ -2155,7 +2302,8 @@
     "unsavedChangesDesc": "You have unsaved changes. Are you sure you want to close this form? All data will be lost.",
     "updateError": "Failed to update",
     "updateSuccess": "Updated successfully",
-    "selectSupplierFirst": "Please select a supplier first"
+    "selectSupplierFirst": "Please select a supplier first",
+    "featureComingSoon": "This feature is coming soon"
   },
   "minQty": "Min Quantity",
   "mockData": {
@@ -2298,6 +2446,30 @@
       "contents": "Container Contents",
       "expenses": "Shipment Expenses"
     },
+    "order": {
+      "title": "Purchase Order",
+      "subtitle": "Manage purchase orders for suppliers"
+    },
+    "invoice": {
+      "title": "Purchase Invoice",
+      "subtitle": "Manage purchase invoices"
+    },
+    "quotation": {
+      "title": "Supplier Quotation",
+      "subtitle": "Quotations from suppliers"
+    },
+    "request": {
+      "title": "Purchase Request",
+      "subtitle": "Internal purchase request"
+    },
+    "receipt": {
+      "title": "Goods Receipt",
+      "subtitle": "Receive goods from supplier"
+    },
+    "return": {
+      "title": "Purchase Return",
+      "subtitle": "Return goods to suppliers"
+    },
     "module": "Purchases",
     "title": "Purchases",
     "dashboard": "Dashboard",
@@ -2313,7 +2485,8 @@
     "purchaseReceipt": "Purchase Receipt",
     "purchaseRequest": "Purchase Request",
     "purchaseReturn": "Purchase Return",
-    "supplier": "Supplier"
+    "supplier": "Supplier",
+    "settings": "Settings"
   },
   "qrCode": {
     "copied": "Link copied",
@@ -2671,7 +2844,32 @@
     "salesReturn": "Sales Return",
     "settings": "Settings",
     "tax": "Tax",
-    "vat": "VAT"
+    "vat": "VAT",
+    "types": {
+      "quotation": "Quotation",
+      "order": "Sales Order",
+      "delivery": "Delivery Note",
+      "invoice": "Invoice",
+      "return": "Return",
+      "reservation": "Reservation"
+    },
+    "table": {
+      "documentNumber": "Document #",
+      "type": "Type",
+      "date": "Date",
+      "customer": "Customer",
+      "total": "Total",
+      "status": "Status",
+      "searchPlaceholder": "Search by document # or customer...",
+      "noDocuments": "No documents found",
+      "adjustFilters": "Try adjusting your filters",
+      "unknownCustomer": "Unknown Customer",
+      "viewDetails": "View Details",
+      "edit": "Edit",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "of": "of"
+    }
   },
   "salesRevenue": "Sales Revenue",
   "save": "Save",
@@ -2991,7 +3189,11 @@
     "status": "Status",
     "toggleColumns": "Toggle columns",
     "totals": "Totals",
-    "markerHint": "Click sequence number to toggle mark"
+    "markerHint": "Click sequence number to toggle mark",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "contactPerson": "Contact Person"
   },
   "tabs": {
     "accountStatement": "Account Statement",
@@ -3418,7 +3620,9 @@
         "avgPrice": "Avg Price",
         "rollsCount": "Rolls Count"
       }
-    }
+    },
+    "details": "Warehouse Details",
+    "manageWarehouse": "Manage warehouse data and contents"
   },
   "shipments": {
     "title": "Shipment Management",
@@ -3467,5 +3671,21 @@
     "reefer": "Reefer",
     "open": "Open Top",
     "flat": "Flat Rack"
+  },
+  "settings": {
+    "tabs": {
+      "company": "Company Profile",
+      "tax": "Tax System",
+      "accounting": "Accounting",
+      "warehouse": "Warehouse",
+      "sales": "Sales",
+      "purchases": "Purchases",
+      "integrations": "Integrations",
+      "roles": "Roles",
+      "users": "Users",
+      "resources": "Resources",
+      "visibility": "Visibility",
+      "modules": "Modules"
+    }
   }
 }

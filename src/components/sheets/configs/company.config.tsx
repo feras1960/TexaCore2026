@@ -167,7 +167,7 @@ export const companyConfig: BaseSheetConfig = {
                         < div className="grid grid-cols-3 gap-3" >
                             <div className="p-3 bg-muted/10 rounded border text-center" >
                                 <span className="text-xs text-muted-foreground block mb-1" > {t('common.currency')} </span>
-                                < Badge variant="outline" > {data.default_currency || 'SAR'} </Badge>
+                                < Badge variant="outline" > {data.default_currency || '-'} </Badge>
                             </div>
                             < div className="p-3 bg-muted/10 rounded border text-center" >
                                 <span className="text-xs text-muted-foreground block mb-1" > {t('common.language')} </span>

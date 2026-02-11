@@ -1,74 +1,409 @@
-import React, { useState } from 'react';
+/**
+ * 🧾 TradeMainTab — Unified Trade Details Tab
+ *
+ * Always uses the modern CartItemsView component for all document types.
+ * Parses items from data.items or from notes JSON (cart → document save).
+ *
+ * ✅ Fetches real customers and warehouses from Supabase
+ * ✅ Document-level notes/memo field
+ * ✅ Per-item currency & exchange rate support
+ * ✅ Constitution: Law 2 (services), Law 1 (translations)
+ */
+
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { TradeHeader } from '@/features/trade/components/forms/TradeHeader';
-import { TradeItemsGrid } from '@/features/trade/components/grids/TradeItemsGrid';
+import { CartItemsView, type InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
 import { TradeDocument } from '@/features/trade/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Truck, Package } from 'lucide-react';
-
 import { ContainerInvoiceSelector } from '@/features/trade/components/ContainerInvoiceSelector';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useCompany } from '@/hooks/useCompany';
+import { useCustomerPricing } from '@/hooks/useCustomerPricing';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    StickyNote, AlertTriangle, CreditCard, Percent,
+    CalendarClock, Tag, Loader2, ShieldAlert, CheckCircle2
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TradeMainTabProps {
     data: any;
     mode: 'view' | 'edit' | 'create';
     onChange: (updates: any) => void;
+    tradeMode?: 'sales' | 'purchase';
 }
 
 export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     data,
     mode,
-    onChange
+    onChange,
+    tradeMode: tradeModeFromProp,
 }) => {
-    const { isRTL, t } = useLanguage();
+    const { isRTL, t, language } = useLanguage();
+    const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
+    const { companyId } = useCompany();
+    const { lookupRate } = useExchangeRateLookup();
+
+    // Determine specific trade mode — prop takes priority, then fallback
+    const tradeMode = tradeModeFromProp || (data.type?.includes('purchase') ? 'purchase' : 'sales');
+
+    // ─── Smart pricing hook ───
+    const currentPartyId = data.party_id || data.customer_id || '';
+    const customerPricing = useCustomerPricing(
+        tradeMode === 'sales' ? currentPartyId : null,
+        companyId
+    );
+
+    // ─── Auto-fill currency & due_date when customer changes ───
+    const prevPartyRef = useRef<string>('');
+    useEffect(() => {
+        if (!currentPartyId || currentPartyId === prevPartyRef.current) return;
+        if (tradeMode !== 'sales' || customerPricing.isLoading) return;
+
+        prevPartyRef.current = currentPartyId;
+
+        // Auto-fill currency from customer profile
+        if (customerPricing.currency && !data.currency) {
+            onChange({ currency: customerPricing.currency });
+        }
+
+        // Auto-fill due date from payment terms
+        if (customerPricing.paymentTermsDays > 0 && !data.due_date) {
+            onChange({ due_date: customerPricing.dueDate });
+        }
+
+        // Sync pricing metadata into data for save handler
+        onChange({
+            _creditLimit: customerPricing.creditLimit,
+            _balance: customerPricing.balance,
+            _isCreditExceeded: customerPricing.isCreditExceeded,
+            payment_terms_days: customerPricing.paymentTermsDays,
+            discount_percent: customerPricing.discountPercent,
+            price_list_id: customerPricing.priceListId,
+        });
+    }, [currentPartyId, customerPricing.isLoading, customerPricing.currency, customerPricing.dueDate, customerPricing.paymentTermsDays, tradeMode]);
+
+    // Extract user-facing notes (separate from items JSON in notes field)
+    const userNotes = useMemo(() => {
+        // If we have a dedicated user_notes field, use it
+        if (data.user_notes != null) return data.user_notes;
+        // Try parsing notes - if it's cart JSON, don't show it as user notes
+        if (data.notes) {
+            try {
+                const parsed = typeof data.notes === 'string' ? JSON.parse(data.notes) : data.notes;
+                if (parsed?._source === 'cart') {
+                    // It's cart serialized data — extract user_notes from inside if present
+                    return parsed.user_notes || '';
+                }
+            } catch { /* Not JSON, it's plain text notes */ }
+            // If notes is not JSON, treat it as user notes
+            if (typeof data.notes === 'string') {
+                try { JSON.parse(data.notes); return ''; } catch { return data.notes; }
+            }
+        }
+        return '';
+    }, [data.notes, data.user_notes]);
+
+    // ─── Parse items: from data.items directly, OR from notes JSON ───
+    const resolvedItems = useMemo(() => {
+        // Priority 1: direct items array
+        if (data.items && data.items.length > 0) return data.items;
+
+        // Priority 2: items serialized in notes JSON (cart → document save)
+        if (data.notes) {
+            try {
+                const parsed = typeof data.notes === 'string' ? JSON.parse(data.notes) : data.notes;
+                if (parsed?._source === 'cart' && Array.isArray(parsed.items) && parsed.items.length > 0) {
+                    return parsed.items;
+                }
+            } catch { /* invalid JSON — ignore */ }
+        }
+
+        return [];
+    }, [data.items, data.notes]);
 
     // Convert data to TradeDocument format if needed
     const tradeData: Partial<TradeDocument> = {
         ...data,
-        items: data.items || [],
+        items: resolvedItems,
         party_id: data.party_id || data.supplier_id || data.customer_id,
-        // Map other fields as necessary
     };
 
-    const handleHeaderChange = (field: keyof TradeDocument, value: any) => {
+    const handleHeaderChange = (field: string, value: any) => {
         onChange({ [field]: value });
     };
 
-    const handleItemsChange = (items: any[]) => {
-        onChange({ items });
-    };
-
-    // Determine specific trade mode from doc type
-    const tradeMode = data.type?.includes('purchase') || data.docType === 'trade_order' ? 'purchase' : 'sales';
     const isContainer = data.docType === 'trade_container' || data.subType === 'container';
+
+    // ─── Fetch real customers from Supabase ───
+    const { data: customersList = [] } = useQuery({
+        queryKey: ['trade_customers', companyId, tradeMode],
+        queryFn: async () => {
+            if (!companyId) return [];
+            const table = tradeMode === 'purchase' ? 'suppliers' : 'customers';
+            const { data: rows, error } = await supabase
+                .from(table)
+                .select('id, name_ar, name_en')
+                .eq('company_id', companyId)
+                .order(language === 'ar' ? 'name_ar' : 'name_en');
+            if (error) {
+                console.warn(`Failed to fetch ${table}:`, error.message);
+                return [];
+            }
+            return (rows || []).map((r: any) => ({
+                id: r.id,
+                name: language === 'ar' ? (r.name_ar || r.name_en || '') : (r.name_en || r.name_ar || ''),
+            }));
+        },
+        enabled: !!companyId,
+        staleTime: 60000,
+    });
+
+    // ─── Fetch real warehouses from Supabase ───
+    const { data: warehousesList = [] } = useQuery({
+        queryKey: ['trade_warehouses', companyId],
+        queryFn: async () => {
+            if (!companyId) return [];
+            const { data: rows, error } = await supabase
+                .from('warehouses')
+                .select('id, name_ar, name_en')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .order(language === 'ar' ? 'name_ar' : 'name_en');
+            if (error) {
+                console.warn('Failed to fetch warehouses:', error.message);
+                return [];
+            }
+            return (rows || []).map((r: any) => ({
+                id: r.id,
+                name: language === 'ar' ? (r.name_ar || r.name_en || '') : (r.name_en || r.name_ar || ''),
+            }));
+        },
+        enabled: !!companyId,
+        staleTime: 60000,
+    });
+
+    // ─── Fetch salespersons from user_profiles (for sales mode) ───
+    const { data: salespersonsList = [] } = useQuery({
+        queryKey: ['trade_salespersons', companyId],
+        queryFn: async () => {
+            if (!companyId) return [];
+            const { data: rows, error } = await supabase
+                .from('user_profiles')
+                .select('id, full_name, role')
+                .eq('company_id', companyId)
+                .order('full_name');
+            if (error) {
+                console.warn('Failed to fetch salespersons:', error.message);
+                return [];
+            }
+            return (rows || []).map((r: any) => ({
+                id: r.id,
+                name: r.full_name || r.id,
+            }));
+        },
+        enabled: !!companyId && tradeMode === 'sales',
+        staleTime: 120000,
+    });
+
+    // ─── Map ALL items to InvoiceLineItem format ───
+    const lineItems: InvoiceLineItem[] = useMemo(() => {
+        return resolvedItems.map((item: any) => ({
+            id: item.id || crypto.randomUUID(),
+            material_id: item.material_id || item.product_id || '',
+            material_code: item.material_code || item.item_code || '',
+            material_name_ar: item.material_name_ar || item.item_name || item.name_ar || '',
+            material_name_en: item.material_name_en || item.item_name_en || item.name_en || '',
+            quantity: Number(item.quantity || 0),
+            unit: item.unit || 'meter',
+            unit_price: Number(item.unit_price || 0),
+            discount_percent: Number(item.discount_percent || 0),
+            discount_amount: Number(item.discount_amount || 0),
+            tax_rate: Number(item.tax_rate || 0),
+            tax_amount: Number(item.tax_amount || 0),
+            subtotal: Number(item.subtotal || (item.quantity * item.unit_price) || 0),
+            total: Number(item.total || item.subtotal || (item.quantity * item.unit_price) || 0),
+            currency: item.currency || data.currency || companyCurrency || 'SAR',
+            exchange_rate: Number(item.exchange_rate || 1),
+            warehouse_id: item.warehouse_id || '',
+            warehouse_name_ar: item.warehouse_name_ar || '',
+            warehouse_name_en: item.warehouse_name_en || '',
+            available_stock: item.available_stock,
+            preferred_rolls: item.preferred_rolls || [],
+            notes: item.notes,
+        }));
+    }, [resolvedItems, data.currency, companyCurrency]);
+
+    // ─── Handle items update ───
+    const handleItemsChange = useCallback((updatedItems: InvoiceLineItem[]) => {
+        const total = updatedItems.reduce((s, i) => s + (i.total || i.subtotal || 0), 0);
+        onChange({
+            items: updatedItems,
+            total_amount: total,
+            grand_total: total,
+        });
+    }, [onChange]);
 
     // Handle container invoice selection
     const handleInvoiceSelection = (ids: string[]) => {
-        // Store selected invoice IDs in data
         onChange({
             invoice_ids: ids,
-            // Also update items for compatibility if needed, though we might not need to
             items: ids.map(id => ({ id, type: 'invoice_link' }))
         });
     };
 
+    // ─── Handle currency change with auto exchange rate ───
+    const handleCurrencyChange = useCallback((currency: string) => {
+        const rate = lookupRate(currency, companyCurrency);
+        onChange({
+            currency,
+            exchange_rate: rate,
+        });
+    }, [lookupRate, companyCurrency, onChange]);
+
     return (
-        <div className="space-y-6" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="space-y-4" dir={isRTL ? "rtl" : "ltr"}>
             {/* 1. Header Portion */}
             <TradeHeader
                 data={tradeData}
                 mode={tradeMode}
                 type={data.subType || 'order'}
                 onChange={handleHeaderChange}
-                partyList={[
-                    { id: 'p1', name: 'Al-Amal Textiles' },
-                    { id: 'p2', name: 'Golden Threads' }
-                ]}
-                warehouseList={[
-                    { id: 'wh1', name: 'Main Warehouse' }
-                ]}
+                partyList={customersList}
+                warehouseList={warehousesList}
+                salespersonList={salespersonsList}
+                baseCurrency={companyCurrency}
+                onCurrencyChange={handleCurrencyChange}
             />
 
-            {/* 2. Items Grid or Invoice Selector */}
+            {/* 1.5 Customer Pricing Info Bar — only for Sales with selected customer */}
+            {tradeMode === 'sales' && currentPartyId && (
+                <div className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs flex-wrap",
+                    customerPricing.isCreditExceeded
+                        ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+                        : "bg-blue-50/60 border-blue-200/60 dark:bg-blue-950/20 dark:border-blue-800/40"
+                )}>
+                    {customerPricing.isLoading ? (
+                        <span className="flex items-center gap-1.5 text-gray-400">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            {isRTL ? 'جارِ تحميل بيانات العميل...' : 'Loading customer data...'}
+                        </span>
+                    ) : (
+                        <>
+                            {/* Price List Badge */}
+                            {customerPricing.priceListName && (
+                                <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge variant="outline" className="gap-1 text-[10px] bg-white/80 dark:bg-gray-800">
+                                                <Tag className="w-2.5 h-2.5 text-purple-500" />
+                                                {customerPricing.priceListName}
+                                            </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                            {isRTL ? `مصدر: ${customerPricing.priceListSource === 'customer' ? 'العميل مباشرة' : customerPricing.priceListSource === 'group' ? 'مجموعة العميل' : 'القائمة الافتراضية'}` : `Source: ${customerPricing.priceListSource}`}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
+
+                            {/* Discount */}
+                            {customerPricing.discountPercent > 0 && (
+                                <Badge variant="outline" className="gap-1 text-[10px] bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800">
+                                    <Percent className="w-2.5 h-2.5" />
+                                    {customerPricing.discountPercent}%
+                                    <span className="text-[9px] opacity-70">
+                                        ({isRTL ? (customerPricing.discountSource === 'customer' ? 'عميل' : 'مجموعة') : customerPricing.discountSource})
+                                    </span>
+                                </Badge>
+                            )}
+
+                            {/* Credit Status */}
+                            {customerPricing.creditLimit > 0 && (
+                                <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge variant="outline" className={cn(
+                                                "gap-1 text-[10px]",
+                                                customerPricing.isCreditExceeded
+                                                    ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950/50 dark:text-red-300 dark:border-red-700"
+                                                    : "bg-white/80 dark:bg-gray-800"
+                                            )}>
+                                                {customerPricing.isCreditExceeded
+                                                    ? <ShieldAlert className="w-2.5 h-2.5 text-red-500" />
+                                                    : <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
+                                                }
+                                                <CreditCard className="w-2.5 h-2.5" />
+                                                {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(customerPricing.availableCredit)}
+                                                <span className="text-[9px] opacity-60">/ {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(customerPricing.creditLimit)}</span>
+                                            </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                            <div className="text-xs space-y-1">
+                                                <div>{isRTL ? 'حد الائتمان:' : 'Credit Limit:'} {customerPricing.creditLimit.toLocaleString()}</div>
+                                                <div>{isRTL ? 'الرصيد الحالي:' : 'Balance:'} {customerPricing.balance.toLocaleString()}</div>
+                                                <div className={customerPricing.isCreditExceeded ? 'text-red-400 font-bold' : 'text-green-400'}>
+                                                    {isRTL ? 'المتاح:' : 'Available:'} {customerPricing.availableCredit.toLocaleString()}
+                                                </div>
+                                            </div>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
+
+                            {/* Payment Terms */}
+                            {customerPricing.paymentTermsDays > 0 && (
+                                <Badge variant="outline" className="gap-1 text-[10px] bg-white/80 dark:bg-gray-800">
+                                    <CalendarClock className="w-2.5 h-2.5 text-orange-500" />
+                                    {customerPricing.paymentTermsDays} {isRTL ? 'يوم' : 'days'}
+                                </Badge>
+                            )}
+
+                            {/* Credit exceeded warning */}
+                            {customerPricing.isCreditExceeded && (
+                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-medium ms-auto">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    {isRTL ? 'تجاوز حد الائتمان!' : 'Credit limit exceeded!'}
+                                </span>
+                            )}
+
+                            {/* Group name */}
+                            {customerPricing.groupName && (
+                                <span className="text-[10px] text-gray-400 ms-auto">
+                                    {customerPricing.groupName}
+                                </span>
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* 2. Document Notes / Memo */}
+            <Card className="border-none shadow-sm bg-gray-50/50 dark:bg-gray-900/50">
+                <CardContent className="p-4">
+                    <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1.5 mb-2">
+                        <StickyNote className="w-3.5 h-3.5" />
+                        {isRTL ? 'ملاحظات القيد' : 'Document Notes'}
+                    </Label>
+                    <Textarea
+                        value={userNotes}
+                        onChange={(e) => onChange({ user_notes: e.target.value })}
+                        placeholder={isRTL ? 'أضف ملاحظات على المستند...' : 'Add notes to this document...'}
+                        className="min-h-[60px] max-h-[120px] bg-white dark:bg-gray-800 text-sm resize-y"
+                        readOnly={mode === 'view'}
+                    />
+                </CardContent>
+            </Card>
+
+            {/* 3. Items Grid — Always uses CartItemsView (modern component) */}
             <div className="mt-4">
                 {isContainer ? (
                     <ContainerInvoiceSelector
@@ -78,33 +413,18 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                         readOnly={mode === 'view'}
                     />
                 ) : (
-                    <TradeItemsGrid
-                        items={tradeData.items || []}
+                    <CartItemsView
+                        items={lineItems}
                         onItemsChange={handleItemsChange}
-                        mode={tradeMode}
                         readOnly={mode === 'view'}
+                        currency={data.currency || companyCurrency || 'SAR'}
+                        companyCurrency={companyCurrency || 'SAR'}
+                        showDiscount={true}
+                        showTax={false}
+                        customerId={currentPartyId || undefined}
+                        priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
                     />
                 )}
-            </div>
-
-            {/* Totals Section */}
-            <div className="mt-6 flex justify-end">
-                <div className="w-full max-w-sm bg-white p-4 rounded-lg border shadow-sm space-y-3">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">{isRTL ? 'المجموع الفرعي' : 'Subtotal'}</span>
-                        <span className="font-mono font-bold">
-                            {(tradeData.items?.reduce((s, i) => s + (i.unit_price * i.quantity), 0) || 0).toFixed(2)}
-                        </span>
-                    </div>
-                    {/* Placeholder for Taxes / Discounts if needed */}
-
-                    <div className="pt-3 border-t flex justify-between items-center">
-                        <span className="font-bold text-lg">{t('trade.total') || 'Total'}</span>
-                        <span className="font-mono text-2xl font-bold text-erp-Navy">
-                            {(tradeData.items?.reduce((s, i) => s + (i.total || 0), 0) || 0).toFixed(2)}
-                        </span>
-                    </div>
-                </div>
             </div>
         </div>
     );

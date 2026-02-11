@@ -50,13 +50,13 @@ import { PaymentsTab } from '../tabs/shared/PaymentsTab';
 
 export const planConfig: SheetConfig = {
   docType: 'plan',
-  
+
   // Header
   title: (data) => data.name_ar || data.name,
   subtitle: (data) => data.code?.toUpperCase(),
   icon: Package,
   iconBg: 'bg-gradient-to-br from-indigo-600 to-indigo-800',
-  
+
   // Status Badge
   badge: (data) => {
     if (data.is_popular) {
@@ -76,7 +76,7 @@ export const planConfig: SheetConfig = {
       variant: status.variant,
     };
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -85,7 +85,7 @@ export const planConfig: SheetConfig = {
       icon: DollarSign,
       value: (data) => data.price_monthly || 0,
       color: 'green',
-      format: (value, data) => `${value.toLocaleString()} ${data?.currency || 'SAR'}`,
+      format: (value, data) => `${value.toLocaleString()} ${data?.currency || ''}`,
     },
     {
       key: 'subscribers_count',
@@ -110,156 +110,156 @@ export const planConfig: SheetConfig = {
       color: 'gray',
     },
   ],
-  
+
   // Info Fields - المعلومات الأساسية
   infoFields: [
     // معلومات الباقة
-    { 
-      key: 'code', 
-      label: 'plans.planCode', 
-      type: 'text' 
+    {
+      key: 'code',
+      label: 'plans.planCode',
+      type: 'text'
     },
-    { 
-      key: 'description', 
-      label: 'common.description', 
+    {
+      key: 'description',
+      label: 'common.description',
       type: 'text',
       format: (value, data) => data.description_ar || value || '-',
     },
-    
+
     // التسعير
-    { 
-      key: 'price_monthly', 
-      label: 'plans.monthlyPrice', 
+    {
+      key: 'price_monthly',
+      label: 'plans.monthlyPrice',
       type: 'currency',
       icon: DollarSign,
-      currency: 'SAR',
+      currency: undefined,
     },
-    { 
-      key: 'price_yearly', 
-      label: 'plans.yearlyPrice', 
+    {
+      key: 'price_yearly',
+      label: 'plans.yearlyPrice',
       type: 'currency',
       icon: DollarSign,
-      currency: 'SAR',
+      currency: undefined,
     },
-    { 
-      key: 'currency', 
-      label: 'common.currency', 
+    {
+      key: 'currency',
+      label: 'common.currency',
       type: 'badge',
       icon: Globe,
     },
-    
+
     // الحدود
-    { 
-      key: 'max_users', 
-      label: 'plans.maxUsers', 
+    {
+      key: 'max_users',
+      label: 'plans.maxUsers',
       type: 'number',
       icon: Users,
     },
-    { 
-      key: 'max_companies', 
-      label: 'plans.maxCompanies', 
+    {
+      key: 'max_companies',
+      label: 'plans.maxCompanies',
       type: 'number',
       icon: Building2,
     },
-    { 
-      key: 'max_storage_gb', 
-      label: 'plans.maxStorage', 
+    {
+      key: 'max_storage_gb',
+      label: 'plans.maxStorage',
       type: 'text',
       icon: HardDrive,
       format: (value) => `${value || 0} GB`,
     },
-    
+
     // معلومات إضافية
-    { 
-      key: 'trial_days', 
-      label: 'plans.trialDays', 
+    {
+      key: 'trial_days',
+      label: 'plans.trialDays',
       type: 'number',
       icon: Clock,
     },
-    { 
-      key: 'is_active', 
-      label: 'common.status', 
+    {
+      key: 'is_active',
+      label: 'common.status',
       type: 'badge',
       badge: (value) => ({
         label: value ? 'common.active' : 'common.inactive',
         variant: value ? 'success' : 'default',
       }),
     },
-    { 
-      key: 'is_popular', 
-      label: 'plans.popular', 
+    {
+      key: 'is_popular',
+      label: 'plans.popular',
       type: 'badge',
       icon: Star,
       badge: (value) => value ? { label: 'plans.mostPopular', variant: 'info' } : null,
     },
-    { 
-      key: 'sort_order', 
-      label: 'plans.sortOrder', 
-      type: 'number' 
+    {
+      key: 'sort_order',
+      label: 'plans.sortOrder',
+      type: 'number'
     },
-    { 
-      key: 'created_at', 
-      label: 'common.created', 
-      type: 'date', 
-      icon: Calendar 
+    {
+      key: 'created_at',
+      label: 'common.created',
+      type: 'date',
+      icon: Calendar
     },
-    { 
-      key: 'updated_at', 
-      label: 'common.updated', 
-      type: 'date' 
+    {
+      key: 'updated_at',
+      label: 'common.updated',
+      type: 'date'
     },
   ],
-  
+
   // Tabs - التبويبات
   tabs: [
-    { 
-      id: 'overview', 
-      label: 'tabs.overview', 
-      icon: Eye, 
+    {
+      id: 'overview',
+      label: 'tabs.overview',
+      icon: Eye,
       component: OverviewTab,
     },
-    { 
-      id: 'modules', 
-      label: 'tabs.modules', 
-      icon: Boxes, 
+    {
+      id: 'modules',
+      label: 'tabs.modules',
+      icon: Boxes,
       component: OverviewTab, // سيتم استبداله بـ PlanModulesTab
       badge: (data) => data.modules?.length || 0,
     },
-    { 
-      id: 'limits', 
-      label: 'tabs.limitsFeatures', 
-      icon: Settings, 
+    {
+      id: 'limits',
+      label: 'tabs.limitsFeatures',
+      icon: Settings,
       component: OverviewTab, // سيتم استبداله بـ PlanLimitsTab
       badge: (data) => data.features?.length || 0,
     },
-    { 
-      id: 'subscribers', 
-      label: 'tabs.subscribers', 
-      icon: Users, 
+    {
+      id: 'subscribers',
+      label: 'tabs.subscribers',
+      icon: Users,
       component: OverviewTab, // سيتم استبداله بـ PlanSubscribersTab
       badge: (data) => data.subscribers_count || data.subscribers?.length || 0,
     },
-    { 
-      id: 'payments', 
-      label: 'tabs.payments', 
-      icon: DollarSign, 
+    {
+      id: 'payments',
+      label: 'tabs.payments',
+      icon: DollarSign,
       component: PaymentsTab,
     },
-    { 
-      id: 'analytics', 
-      label: 'tabs.analytics', 
-      icon: BarChart3, 
+    {
+      id: 'analytics',
+      label: 'tabs.analytics',
+      icon: BarChart3,
       component: OverviewTab, // سيتم استبداله بـ PlanAnalyticsTab
     },
-    { 
-      id: 'activity', 
-      label: 'tabs.activity', 
-      icon: Activity, 
+    {
+      id: 'activity',
+      label: 'tabs.activity',
+      icon: Activity,
       component: ActivityTab,
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions - الإجراءات
   actions: [
     {
@@ -363,10 +363,10 @@ export const planConfig: SheetConfig = {
       },
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'tenant') {

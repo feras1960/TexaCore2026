@@ -13,11 +13,13 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfDay } from 'date-fns';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 
 export default function SalesPaymentsList() {
     const { t, language, direction } = useLanguage();
     const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
+    const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
 
     // State
     const [activeTab, setActiveTab] = useState('all');
@@ -117,11 +119,30 @@ export default function SalesPaymentsList() {
         {
             accessorKey: 'amount',
             header: t('table.amount') || 'Amount',
-            cell: (info: any) => (
-                <span className="font-mono font-bold text-green-600">
-                    {info.getValue().toLocaleString('en-US', { style: 'currency', currency: info.row.original.currency || 'SAR' })}
-                </span>
-            )
+            cell: (info: any) => {
+                const curr = info.row.original.currency || companyCurrency || 'USD';
+                const amount = Number(info.getValue() || 0);
+                return (
+                    <span className="font-mono font-bold text-green-600">
+                        {amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className="text-xs text-muted-foreground ml-1">{curr}</span>
+                    </span>
+                );
+            }
+        },
+        {
+            accessorKey: 'currency',
+            header: language === 'ar' ? 'العملة' : 'Currency',
+            size: 70,
+            cell: (info: any) => {
+                const curr = info.getValue() || companyCurrency;
+                const isDifferent = curr && companyCurrency && curr !== companyCurrency;
+                return (
+                    <span className={`font-mono text-xs font-medium ${isDifferent ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                        {curr}
+                    </span>
+                );
+            }
         },
         {
             accessorKey: 'payment_method',
@@ -147,7 +168,7 @@ export default function SalesPaymentsList() {
                 );
             }
         }
-    ], [t, language, isRTL]);
+    ], [t, language, isRTL, companyCurrency]);
 
     // Handlers
     const handleRowClick = (row: any) => {

@@ -82,7 +82,7 @@ export function getCurrencySymbol(currency: string): string {
  */
 export function formatCurrency(
     value: number | string | undefined | null,
-    currency: string = 'SAR',
+    currency: string = '',
     useArabicNumerals: boolean = false,
     showSymbol: boolean = true
 ): string {

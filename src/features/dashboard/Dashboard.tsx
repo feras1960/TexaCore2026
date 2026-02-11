@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,14 +18,24 @@ import { cn, formatCurrency, formatNumber } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
 
 export default function Dashboard() {
   const { t, direction, language } = useLanguage();
   const { user, isSuperAdmin } = useAuth();
 
+  const { currencyCode: companyCurrency, loading: currencyLoading } = useCompanyCurrency(language as 'ar' | 'en');
+
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedCurrency, setSelectedCurrency] = useState('SAR');
+  const [selectedCurrency, setSelectedCurrency] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
+
+  // Set from company DB once loaded
+  useEffect(() => {
+    if (companyCurrency && !selectedCurrency) {
+      setSelectedCurrency(companyCurrency);
+    }
+  }, [companyCurrency]);
 
 
   const handleRefresh = () => {
@@ -98,9 +108,19 @@ export default function Dashboard() {
               <SelectValue placeholder={t('filters.selectCurrency')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="SAR">{t('currencies.SAR')}</SelectItem>
-              <SelectItem value="USD">{t('currencies.USD')}</SelectItem>
-              <SelectItem value="EUR">{t('currencies.EUR')}</SelectItem>
+              {/* Show company base currency first, then others */}
+              {Object.entries(CURRENCY_META)
+                .sort(([a], [b]) => {
+                  if (a === companyCurrency) return -1;
+                  if (b === companyCurrency) return 1;
+                  return 0;
+                })
+                .slice(0, 6) // Show top 6 currencies
+                .map(([code, meta]) => (
+                  <SelectItem key={code} value={code}>
+                    {meta.flag} {language === 'ar' ? meta.nameAr : meta.nameEn} ({code})
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
 

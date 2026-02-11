@@ -68,7 +68,7 @@ export const transferConfig: SheetConfig = {
         },
         label: 'vouchers.transferAmount',
         labelAr: 'مبلغ التحويل',
-        currency: 'SAR',
+        currency: undefined,
         showSign: false,
     },
 

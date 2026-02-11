@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,9 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  ArrowRightLeft, 
-  Calendar as CalendarIcon, 
+import {
+  ArrowRightLeft,
+  Calendar as CalendarIcon,
   Wallet,
   ArrowRight,
   AlertTriangle,
@@ -33,13 +34,14 @@ interface FundTransferContentProps {
   onCancel?: () => void;
 }
 
-export default function FundTransferContent({ 
+export default function FundTransferContent({
   isActive,
   funds,
   onSave,
   onCancel
 }: FundTransferContentProps) {
   const { language, direction } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [date, setDate] = useState<Date>(new Date());
   const [formData, setFormData] = useState({
     fromFundId: '',
@@ -64,7 +66,7 @@ export default function FundTransferContent({
     onSave?.();
   };
 
-  const FundIcon = ({ type }: { type: string }) => 
+  const FundIcon = ({ type }: { type: string }) =>
     type === 'bank' ? <Landmark className="w-4 h-4" /> : <Wallet className="w-4 h-4" />;
 
   const formatNumber = (num: number) => num.toLocaleString('en-US');
@@ -83,8 +85,8 @@ export default function FundTransferContent({
                 <Label className="text-xs text-gray-500 mb-2 block">
                   {language === 'ar' ? 'من' : 'From'}
                 </Label>
-                <Select 
-                  value={formData.fromFundId} 
+                <Select
+                  value={formData.fromFundId}
                   onValueChange={(v) => setFormData(prev => ({ ...prev, fromFundId: v }))}
                 >
                   <SelectTrigger className="bg-white h-10">
@@ -135,8 +137,8 @@ export default function FundTransferContent({
                 <Label className="text-xs text-gray-500 mb-2 block">
                   {language === 'ar' ? 'إلى' : 'To'}
                 </Label>
-                <Select 
-                  value={formData.toFundId} 
+                <Select
+                  value={formData.toFundId}
                   onValueChange={(v) => setFormData(prev => ({ ...prev, toFundId: v }))}
                 >
                   <SelectTrigger className="bg-white h-10">
@@ -190,7 +192,7 @@ export default function FundTransferContent({
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'مبلغ التحويل' : 'Transfer Amount'}</Label>
               <div className="relative">
-                <Input 
+                <Input
                   type="number"
                   placeholder="0.00"
                   value={formData.amount}
@@ -201,7 +203,7 @@ export default function FundTransferContent({
                   )}
                   dir="ltr"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">SAR</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{companyCurrency}</span>
               </div>
             </div>
 
@@ -230,7 +232,7 @@ export default function FundTransferContent({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">{language === 'ar' ? 'المرجع' : 'Reference'}</Label>
-              <Input 
+              <Input
                 value={formData.reference}
                 onChange={(e) => setFormData(prev => ({ ...prev, reference: e.target.value }))}
                 className="font-mono h-10"
@@ -242,8 +244,8 @@ export default function FundTransferContent({
           {/* Commission */}
           <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-2">
-              <Checkbox 
-                id="hasCommission" 
+              <Checkbox
+                id="hasCommission"
                 checked={formData.hasCommission}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasCommission: checked as boolean, commissionAmount: '' }))}
               />
@@ -251,12 +253,12 @@ export default function FundTransferContent({
                 {language === 'ar' ? 'هناك عمولة تحويل' : 'Transfer has commission/fee'}
               </Label>
             </div>
-            
+
             {formData.hasCommission && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{language === 'ar' ? 'مبلغ العمولة' : 'Commission Amount'}</Label>
                 <div className="relative">
-                  <Input 
+                  <Input
                     type="number"
                     placeholder="0.00"
                     value={formData.commissionAmount}
@@ -264,7 +266,7 @@ export default function FundTransferContent({
                     className="pl-16 font-mono h-10"
                     dir="ltr"
                   />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">SAR</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{companyCurrency}</span>
                 </div>
               </div>
             )}
@@ -275,7 +277,7 @@ export default function FundTransferContent({
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {language === 'ar' 
+                {language === 'ar'
                   ? `المبلغ الإجمالي (${formatNumber(totalDeduction)}) أكبر من الرصيد المتاح (${formatNumber(fromFund?.balance || 0)})!`
                   : `Total amount (${formatNumber(totalDeduction)}) exceeds available balance (${formatNumber(fromFund?.balance || 0)})!`
                 }
@@ -286,7 +288,7 @@ export default function FundTransferContent({
           {/* Description */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">{language === 'ar' ? 'البيان' : 'Description'}</Label>
-            <Textarea 
+            <Textarea
               placeholder={language === 'ar' ? 'وصف التحويل...' : 'Transfer description...'}
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -305,17 +307,17 @@ export default function FundTransferContent({
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-cyan-700">{language === 'ar' ? 'مبلغ التحويل' : 'Transfer Amount'}</span>
-                    <span className="font-mono font-bold text-cyan-900" dir="ltr">{formatNumber(amount)} SAR</span>
+                    <span className="font-mono font-bold text-cyan-900" dir="ltr">{formatNumber(amount)} {companyCurrency}</span>
                   </div>
                   {commission > 0 && (
                     <div className="flex justify-between">
                       <span className="text-cyan-700">{language === 'ar' ? 'العمولة' : 'Commission'}</span>
-                      <span className="font-mono text-cyan-900" dir="ltr">{formatNumber(commission)} SAR</span>
+                      <span className="font-mono text-cyan-900" dir="ltr">{formatNumber(commission)} {companyCurrency}</span>
                     </div>
                   )}
                   <div className="flex justify-between pt-2 border-t border-cyan-200">
                     <span className="text-cyan-700 font-bold">{language === 'ar' ? 'إجمالي الخصم' : 'Total Deduction'}</span>
-                    <span className="font-mono font-bold text-cyan-900" dir="ltr">{formatNumber(totalDeduction)} SAR</span>
+                    <span className="font-mono font-bold text-cyan-900" dir="ltr">{formatNumber(totalDeduction)} {companyCurrency}</span>
                   </div>
                 </div>
               </CardContent>
@@ -331,8 +333,8 @@ export default function FundTransferContent({
             <X className="w-4 h-4 mr-2" />
             {language === 'ar' ? 'إلغاء' : 'Cancel'}
           </Button>
-          <Button 
-            className="bg-cyan-600 hover:bg-cyan-700" 
+          <Button
+            className="bg-cyan-600 hover:bg-cyan-700"
             onClick={handleSubmit}
             disabled={isOverBalance || isSameFund || !formData.fromFundId || !formData.toFundId || !amount}
           >

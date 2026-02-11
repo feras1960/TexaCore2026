@@ -164,13 +164,13 @@ export default function GeneralLedgerPage() {
   const columns: Column<LedgerEntry>[] = useMemo(() => [
     {
       key: 'date',
-      title: t('common.date') || 'Date',
+      title: 'common.date',
       width: '100px',
       render: (val) => <span className="font-mono text-xs">{format(new Date(val), 'yyyy-MM-dd')}</span>
     },
     {
       key: 'description',
-      title: t('common.description') || 'Description',
+      title: 'common.description',
       render: (_, row) => (
         <div className="flex flex-col">
           <span className="font-medium text-sm text-gray-700 dark:text-gray-300">{row.description}</span>
@@ -184,45 +184,45 @@ export default function GeneralLedgerPage() {
     },
     {
       key: 'entryNumber',
-      title: t('ledger.filters.voucher_no') || 'Voucher No',
+      title: 'ledger.filters.voucher_no',
       width: '100px',
       render: (val) => <span className="font-mono text-xs text-blue-600 hover:underline cursor-pointer">{val}</span>
     },
     {
       key: 'type',
-      title: t('common.type') || 'Type',
+      title: 'common.type',
       width: '100px',
       render: (_, row) => <BadgeVariant type={row.type} />
     },
     {
-      key: 'currency', // New Currency Column
-      title: t('common.currency') || 'Currency',
+      key: 'currency',
+      title: 'common.currency',
       width: '80px',
       align: 'center',
       render: (val) => <span className="text-xs font-mono text-gray-500">{val}</span>
     },
     {
       key: 'debit',
-      title: t('common.debit') || 'Debit',
+      title: 'common.debit',
       width: '120px',
       align: 'end',
       render: (val) => val > 0 ? val.toLocaleString() : '-'
     },
     {
       key: 'credit',
-      title: t('common.credit') || 'Credit',
+      title: 'common.credit',
       width: '120px',
       align: 'end',
       render: (val) => val > 0 ? val.toLocaleString() : '-'
     },
     {
       key: 'balance',
-      title: t('accounting.account.balance') || 'Balance',
+      title: 'accounting.account.balance',
       width: '120px',
       align: 'end',
       render: (val) => <span className="font-semibold dir-ltr">{val.toLocaleString()}</span>
     }
-  ], [t, language]);
+  ], [language]);
 
   return (
     <div className="space-y-6 print:space-y-2">

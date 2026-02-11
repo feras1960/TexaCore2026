@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,6 +19,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
     onChange
 }) => {
     const { t, isRTL } = useLanguage();
+    const { currencyCode: companyCurrency } = useCompanyCurrency();
     const isEditable = mode === 'create' || mode === 'edit';
     const expenses = data.expenses || [];
 
@@ -38,7 +40,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
             type: 'other',
             description: '',
             amount: 0,
-            currency: 'USD'
+            currency: companyCurrency || 'USD'
         };
         onChange({ expenses: [...expenses, newExpense] });
     };
@@ -171,7 +173,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                             {t('trade.expenses.total') || (isRTL ? 'إجمالي المصاريف:' : 'Expenses Total:')}
                         </span>
                         <span className="font-bold text-lg font-mono text-erp-navy">
-                            {totalExpenses.toLocaleString()} USD
+                            {totalExpenses.toLocaleString()} {companyCurrency}
                         </span>
                     </div>
                 </div>

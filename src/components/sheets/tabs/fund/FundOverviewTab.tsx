@@ -38,24 +38,24 @@ const currencyInfo: Record<string, { symbol: string; flag: string; name: { ar: s
 
 export function FundOverviewTab({ data, language, onAction: _onAction }: FundOverviewTabProps) {
   const isRTL = language === 'ar';
-  
+
   // Get balances (support both formats)
   const balances = data.balances || [
     {
-      currency: data.currency || data.defaultCurrency || 'SAR',
+      currency: data.currency || data.defaultCurrency || '',
       balance: data.balance || data.current_balance || 0,
       totalDeposits: data.totalDeposits || data.total_deposits || 0,
       totalWithdrawals: data.totalWithdrawals || data.total_withdrawals || 0,
       todayChange: data.todayChange || data.today_change || 0,
     }
   ];
-  
+
   const _mainBalance = balances[0];
   const totalBalance = balances.reduce((sum: number, b: any) => sum + (b.balance || 0), 0);
   const totalDeposits = balances.reduce((sum: number, b: any) => sum + (b.totalDeposits || 0), 0);
   const totalWithdrawals = balances.reduce((sum: number, b: any) => sum + (b.totalWithdrawals || 0), 0);
   const todayChange = balances.reduce((sum: number, b: any) => sum + (b.todayChange || 0), 0);
-  
+
   const isCash = data.type === 'cash';
 
   return (
@@ -126,7 +126,7 @@ export function FundOverviewTab({ data, language, onAction: _onAction }: FundOve
         {/* Today's Change */}
         <Card className={cn(
           "border",
-          todayChange >= 0 
+          todayChange >= 0
             ? "bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10 border-green-200 dark:border-green-800"
             : "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-800/10 border-red-200 dark:border-red-800"
         )}>
@@ -173,7 +173,7 @@ export function FundOverviewTab({ data, language, onAction: _onAction }: FundOve
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {balances.map((bal: any, index: number) => (
-                <div 
+                <div
                   key={bal.currency || index}
                   className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                 >
@@ -255,7 +255,7 @@ export function FundOverviewTab({ data, language, onAction: _onAction }: FundOve
                 <div className="flex items-center gap-1">
                   <span>{currencyInfo[data.defaultCurrency || data.currency]?.flag}</span>
                   <span className="font-medium text-gray-800 dark:text-gray-200">
-                    {data.defaultCurrency || data.currency || 'SAR'}
+                    {data.defaultCurrency || data.currency || '-'}
                   </span>
                 </div>
               </div>
@@ -299,8 +299,8 @@ export function FundOverviewTab({ data, language, onAction: _onAction }: FundOve
                 <span className="text-gray-500">{isRTL ? 'الإيداعات' : 'Deposits'}</span>
                 <span className="font-mono text-emerald-600">+{totalDeposits.toLocaleString()}</span>
               </div>
-              <Progress 
-                value={totalDeposits > 0 ? (totalDeposits / (totalDeposits + totalWithdrawals)) * 100 : 50} 
+              <Progress
+                value={totalDeposits > 0 ? (totalDeposits / (totalDeposits + totalWithdrawals)) * 100 : 50}
                 className="h-2 bg-gray-200"
               />
             </div>
@@ -310,8 +310,8 @@ export function FundOverviewTab({ data, language, onAction: _onAction }: FundOve
                 <span className="text-gray-500">{isRTL ? 'السحوبات' : 'Withdrawals'}</span>
                 <span className="font-mono text-rose-600">-{totalWithdrawals.toLocaleString()}</span>
               </div>
-              <Progress 
-                value={totalWithdrawals > 0 ? (totalWithdrawals / (totalDeposits + totalWithdrawals)) * 100 : 50} 
+              <Progress
+                value={totalWithdrawals > 0 ? (totalWithdrawals / (totalDeposits + totalWithdrawals)) * 100 : 50}
                 className="h-2 bg-gray-200 [&>div]:bg-rose-500"
               />
             </div>

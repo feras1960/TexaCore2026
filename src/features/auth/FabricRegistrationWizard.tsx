@@ -127,7 +127,7 @@ export default function FabricRegistrationWizard() {
                 p_company_name: formData.companyName,
                 p_phone: fullPhone,
                 p_business_type: 'fabric',
-                p_currency: formData.mainCurrency || 'USD',
+                p_currency: formData.mainCurrency || '',
                 p_country_code: formData.country,
                 p_plan_code: 'starter',
                 p_chart_template: formData.chartTemplate,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
@@ -39,13 +40,13 @@ export interface JournalVoucherTabProps {
     docType?: string;
 }
 
-const createEmptyRow = (): JournalLineRow => ({
+const createEmptyRow = (defaultCurrency: string = ''): JournalLineRow => ({
     id: crypto.randomUUID(),
     account_id: '',
     debit: 0,
     credit: 0,
     description: '',
-    currency: 'SAR',
+    currency: defaultCurrency,
     exchange_rate: 1,
 });
 
@@ -57,6 +58,7 @@ export function JournalVoucherTab({
     docType = 'journal',
 }: JournalVoucherTabProps) {
     const { currencyOptions } = useViewCurrency();
+    const { currencyCode: companyCurrency } = useCompanyCurrency();
     const currencyList = useMemo(() => currencyOptions.map(c => ({ value: c, label: c })), [currencyOptions]);
 
     const { t, language, direction } = useLanguage();
@@ -99,7 +101,7 @@ export function JournalVoucherTab({
                     description: line.description || '',
                     cost_center_id: line.cost_center_id || '',
                     cost_center_name: line.cost_center?.name || '',
-                    currency: line.currency || 'SAR',
+                    currency: line.currency || companyCurrency,
                     exchange_rate: Number(line.exchange_rate) || 1,
                 })) || [];
 
@@ -152,10 +154,10 @@ export function JournalVoucherTab({
     }, []);
 
     const handleAddRow = useCallback(() => {
-        const newRow = createEmptyRow();
+        const newRow = createEmptyRow(companyCurrency);
         setLines(prev => [...prev, newRow]);
         return newRow;
-    }, []);
+    }, [companyCurrency]);
 
     // Columns Definition
     const columns = useMemo((): ColumnDef<JournalLineRow>[] => {
@@ -211,7 +213,7 @@ export function JournalVoucherTab({
                 accessorKey: 'currency',
                 header: t('accounting.columns.currency'),
                 size: 60,
-                cell: ({ row }) => <span className="font-mono text-xs">{row.original.currency || 'SAR'}</span>
+                cell: ({ row }) => <span className="font-mono text-xs">{row.original.currency || companyCurrency}</span>
             },
             {
                 accessorKey: 'exchange_rate',

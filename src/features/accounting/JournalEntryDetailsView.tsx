@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 // Commented out temporarily - these components may need to be created or imported from elsewhere
 // import { AccountDetails } from './AccountDetails';
 // import DocumentDetailsView from './DocumentDetailsView';
@@ -54,6 +55,7 @@ interface JournalEntryDetailsViewProps {
 // Product Details View Component (embedded in drill-down)
 function ProductDetailsView({ product, onClose }: { product: any; onClose: () => void }) {
   const { t, language, direction } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
 
   // Mock warehouse stock data
   const warehouseStock = [
@@ -132,7 +134,7 @@ function ProductDetailsView({ product, onClose }: { product: any; onClose: () =>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">{t('unitPrice') || 'سعر الوحدة'}</p>
-                      <p className="text-xl font-bold text-erp-navy">{product.price?.toLocaleString() || '0'} SAR</p>
+                      <p className="text-xl font-bold text-erp-navy">{product.price?.toLocaleString() || '0'} {companyCurrency}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -182,7 +184,7 @@ function ProductDetailsView({ product, onClose }: { product: any; onClose: () =>
                 <Separator />
                 <div className="flex justify-between">
                   <span className="text-gray-500">{t('costPrice') || 'سعر التكلفة'}</span>
-                  <span className="font-mono font-medium">{(product.cost || product.price * 0.7)?.toLocaleString()} SAR</span>
+                  <span className="font-mono font-medium">{(product.cost || product.price * 0.7)?.toLocaleString()} {companyCurrency}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between">
@@ -220,10 +222,10 @@ function ProductDetailsView({ product, onClose }: { product: any; onClose: () =>
                       <TableCell className="text-center font-mono text-gray-500">{warehouse.maxQty}</TableCell>
                       <TableCell className="text-center">
                         <Badge className={`${warehouse.status === 'good'
-                            ? 'bg-green-100 text-green-700'
-                            : warehouse.status === 'low'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-red-100 text-red-700'
+                          ? 'bg-green-100 text-green-700'
+                          : warehouse.status === 'low'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-red-100 text-red-700'
                           }`}>
                           {warehouse.status === 'good' ? (t('good') || 'جيد') : warehouse.status === 'low' ? (t('low') || 'منخفض') : (t('critical') || 'حرج')}
                         </Badge>
@@ -286,6 +288,7 @@ function ProductDetailsView({ product, onClose }: { product: any; onClose: () =>
 // Account Quick View Component (embedded in drill-down)
 function AccountQuickView({ account, onClose, onFullView }: { account: any; onClose: () => void; onFullView: () => void }) {
   const { t, language, direction } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
 
   // Mock ledger data
   const ledgerEntries = [
@@ -416,12 +419,12 @@ function AccountQuickView({ account, onClose, onFullView }: { account: any; onCl
                 <Separator />
                 <div className="flex justify-between">
                   <span className="text-gray-500">{t('currency') || 'العملة'}</span>
-                  <span className="font-medium">SAR</span>
+                  <span className="font-medium">{account?.currency || companyCurrency || ''}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between">
                   <span className="text-gray-500">{t('currentBalance') || 'الرصيد الحالي'}</span>
-                  <span className="font-mono font-bold text-erp-navy">{currentBalance.toLocaleString()} SAR</span>
+                  <span className="font-mono font-bold text-erp-navy">{currentBalance.toLocaleString()} {account?.currency || companyCurrency || ''}</span>
                 </div>
               </CardContent>
             </Card>
@@ -533,8 +536,8 @@ export default function JournalEntryDetailsView({ entry }: JournalEntryDetailsVi
               <p className="text-gray-500 text-sm mt-1">{t('journalEntryDetails') || 'Journal Entry Details'}</p>
             </div>
             <Badge variant="outline" className={`px-3 py-1 ${entry.status === 'posted'
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-amber-50 text-amber-700 border-amber-200'
+              ? 'bg-green-50 text-green-700 border-green-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}>
               {t(entry.status) || entry.status}
             </Badge>

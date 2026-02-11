@@ -4,40 +4,51 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { QuickAddButton } from './QuickAddButton';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { CartProvider } from '@/contexts/CartContext';
+import { CartDrawer } from '@/components/cart/CartDrawer';
+import { CartFloatingWidget } from '@/components/cart/CartFloatingWidget';
 
 export default function MainLayout() {
   const { direction } = useLanguage();
 
   return (
-    <div className="h-screen bg-erp-cream dark:bg-gray-950 font-tajawal flex overflow-hidden" dir={direction}>
-      {/* Sidebar */}
-      <Sidebar className="shrink-0" />
+    <CartProvider>
+      <div className="h-screen bg-erp-cream dark:bg-gray-950 font-tajawal flex overflow-hidden" dir={direction}>
+        {/* Sidebar */}
+        <Sidebar className="shrink-0" />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        {/* Header */}
-        <Header />
-        
-        {/* Main Content */}
-        <motion.main 
-          className="flex-1 p-4 lg:p-6 overflow-y-auto"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <motion.div 
-            className="max-w-[1400px] mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-h-screen min-w-0">
+          {/* Header */}
+          <Header />
+
+          {/* Main Content */}
+          <motion.main
+            className="flex-1 p-4 lg:p-6 overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
           >
-            <Outlet />
-          </motion.div>
-        </motion.main>
+            <motion.div
+              className="max-w-[1400px] mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <Outlet />
+            </motion.div>
+          </motion.main>
+        </div>
+
+        {/* Floating Quick Add Button */}
+        <QuickAddButton />
+
+        {/* Cart Floating Widget */}
+        <CartFloatingWidget />
       </div>
 
-      {/* Floating Quick Add Button */}
-      <QuickAddButton />
-    </div>
+      {/* Cart Drawer (outside layout div for proper layering) */}
+      <CartDrawer />
+    </CartProvider>
   );
 }

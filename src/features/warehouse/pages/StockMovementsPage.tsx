@@ -11,10 +11,10 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { warehouseService } from '@/services/warehouseService';
+import { useStockMovements } from '../hooks/useWarehouseQueries';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,10 +63,6 @@ export default function StockMovementsPage() {
     const { t, language, isRTL } = useLanguage();
     const { companyId } = useAuth();
     const [activeSubTab, setActiveSubTab] = useState('movements');
-    const [movements, setMovements] = useState<any[]>([]);
-    const [pendingReceipts, setPendingReceipts] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     // Filters
@@ -77,39 +73,19 @@ export default function StockMovementsPage() {
         dateTo: ''
     });
 
-    // Load data from database
-    useEffect(() => {
-        if (companyId) {
-            loadData();
-        }
-    }, [companyId]);
-
-    const loadData = async () => {
-        if (!companyId) return;
-
-        setLoading(true);
-        setError(null);
-        try {
-            // Load inventory movements from warehouseService
-            const movementsData = await warehouseService.getInventoryMovements(companyId, {
-                warehouseId: filters.warehouse !== 'all' ? filters.warehouse : undefined,
-                movementType: filters.movementType !== 'all' ? filters.movementType : undefined,
-                dateFrom: filters.dateFrom || undefined,
-                dateTo: filters.dateTo || undefined,
-                limit: 100
-            });
-            setMovements(movementsData);
-
-            // Load pending receipts
-            const receiptsData = await warehouseService.getPendingReceipts(companyId);
-            setPendingReceipts(receiptsData);
-        } catch (err) {
-            console.error('Error loading movements:', err);
-            setError(t('errors.network.loadFailed') || 'فشل تحميل البيانات');
-        } finally {
-            setLoading(false);
-        }
-    };
+    // ⚡ React Query: cached data, instant tab switching
+    const {
+        movements,
+        pendingReceipts,
+        loading,
+        error,
+        refetch: refetchMovements,
+    } = useStockMovements({
+        warehouse: filters.warehouse,
+        movementType: filters.movementType,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+    });
 
     // Filter movements locally
     const filteredMovements = useMemo(() => {
@@ -232,7 +208,7 @@ export default function StockMovementsPage() {
                                 </div>
 
                                 {/* Refresh */}
-                                <Button variant="outline" onClick={loadData} disabled={loading}>
+                                <Button variant="outline" onClick={() => refetchMovements()} disabled={loading}>
                                     {loading ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (

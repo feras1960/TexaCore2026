@@ -4,6 +4,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Button } from '@/components/ui/button';
 import { FileText, Plus, Calendar, LayoutGrid, List } from 'lucide-react';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
@@ -16,11 +17,21 @@ import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 
 export default function SalesInvoicesList() {
     const { t, language, direction } = useLanguage();
     const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
+    const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
+
+    // 🔄 Realtime: auto-update when sales_invoices change
+    useRealtimeInvalidation({
+        table: 'sales_invoices',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['sales_invoices']],
+    });
 
     // State
     const [activeTab, setActiveTab] = useState('all');
@@ -140,11 +151,30 @@ export default function SalesInvoicesList() {
         {
             accessorKey: 'total_amount',
             header: t('table.amount') || 'Amount',
-            cell: (info: any) => (
-                <span className="font-mono font-bold text-gray-800">
-                    {info.getValue().toLocaleString('en-US', { style: 'currency', currency: info.row.original.currency || 'SAR' })}
-                </span>
-            )
+            cell: (info: any) => {
+                const curr = info.row.original.currency || companyCurrency || 'USD';
+                const amount = Number(info.getValue() || 0);
+                return (
+                    <span className="font-mono font-bold text-gray-800">
+                        {amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className="text-xs text-muted-foreground ml-1">{curr}</span>
+                    </span>
+                );
+            }
+        },
+        {
+            accessorKey: 'currency',
+            header: language === 'ar' ? 'العملة' : 'Currency',
+            size: 70,
+            cell: (info: any) => {
+                const curr = info.getValue() || companyCurrency;
+                const isDifferent = curr && companyCurrency && curr !== companyCurrency;
+                return (
+                    <span className={`font-mono text-xs font-medium ${isDifferent ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                        {curr}
+                    </span>
+                );
+            }
         },
         {
             accessorKey: 'status',
@@ -166,7 +196,7 @@ export default function SalesInvoicesList() {
                 );
             }
         }
-    ], [t, language, isRTL]);
+    ], [t, language, isRTL, companyCurrency]);
 
     // ─── Kanban Configuration ───
     const kanbanColumns: KanbanColumnDef[] = useMemo(() => [
@@ -339,7 +369,7 @@ export default function SalesInvoicesList() {
                             columns={kanbanColumns}
                             items={kanbanItems}
                             direction={direction}
-                            currency="SAR"
+                            currency={companyCurrency || ''}
                             isLoading={isLoading}
                             emptyText={isRTL ? 'لا توجد فواتير' : 'No invoices'}
                             getItemValue={(content) => Number(content.total_amount || 0)}
@@ -368,7 +398,7 @@ export default function SalesInvoicesList() {
                                         </span>
                                         <span className="font-mono text-sm font-bold text-erp-navy">
                                             {Number(doc.total_amount || 0).toLocaleString()}{' '}
-                                            <span className="text-[10px] text-gray-400">{doc.currency || 'SAR'}</span>
+                                            <span className="text-[10px] text-gray-400">{doc.currency || companyCurrency || ''}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -396,7 +426,7 @@ export default function SalesInvoicesList() {
                     }}
                     mode="sales"
                     type="invoice"
-                    initialData={sheetMode === 'create' ? { status: 'draft', currency: 'SAR', date: new Date().toISOString() } : selectedInvoice}
+                    initialData={sheetMode === 'create' ? { status: 'draft', currency: companyCurrency || '', date: new Date().toISOString() } : selectedInvoice}
                 />
             )}
         </div>

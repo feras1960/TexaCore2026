@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,6 +101,7 @@ export default function JournalEntryForm({
   const { t, language, direction } = useLanguage();
   const modifierKey = getModifierKeyLabel('ctrl');
   const { companyId } = useCompany();
+  const { currencyCode: baseCurrency } = useCompanyCurrency();
   const { autoPost } = useAccountingSettings();
 
   // Refs
@@ -110,7 +112,7 @@ export default function JournalEntryForm({
   const [reference, setReference] = useState('');
   const [description, setDescription] = useState('');
   const [rows, setRows] = useState<JournalEntryRow[]>([
-    { id: Date.now(), debit: '', credit: '', accountId: '', description: '', currency: 'SAR', exchangeRate: 1, costCenter: '' }
+    { id: Date.now(), debit: '', credit: '', accountId: '', description: '', currency: baseCurrency || '', exchangeRate: 1, costCenter: '' }
   ]);
   const [isSaving, setIsSaving] = useState(false);
   const [voucherNo, setVoucherNo] = useState('');
@@ -167,7 +169,7 @@ export default function JournalEntryForm({
         debit: line.debit || '',
         credit: line.credit || '',
         description: line.description || '',
-        currency: 'SAR',
+        currency: line.currency || baseCurrency || '',
         exchangeRate: 1,
         costCenter: line.cost_center_id?.id || line.cost_center_id || '',
         accountName: line.account?.name_ar || line.account?.name_en,
@@ -190,7 +192,7 @@ export default function JournalEntryForm({
           credit: '',
           accountId: '',
           description: '',
-          currency: 'SAR',
+          currency: baseCurrency || '',
           exchangeRate: 1,
           costCenter: ''
         }));
@@ -225,7 +227,7 @@ export default function JournalEntryForm({
       credit: '',
       accountId: '',
       description: '',
-      currency: 'SAR',
+      currency: baseCurrency || '',
       exchangeRate: 1,
       costCenter: ''
     }));
@@ -281,7 +283,7 @@ export default function JournalEntryForm({
         id: Date.now(), // Temporary ID
         accountId: headerAccountId,
         description: description || (voucherType === 'receipt' ? 'Receipt Voucher' : 'Payment Voucher'),
-        currency: 'SAR',
+        currency: baseCurrency || '',
         exchangeRate: 1,
         costCenter: '',
         debit: voucherType === 'receipt' ? gridTotal : 0, // Receipt: Box is Debit

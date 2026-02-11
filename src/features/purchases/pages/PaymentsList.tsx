@@ -146,7 +146,7 @@ export default function PaymentsList() {
             accessorKey: 'amount',
             cell: ({ row }: any) => (
                 <span className="font-mono font-bold tracking-tight text-red-600">
-                    {Number(row.original.amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || 'SAR'}</span>
+                    {Number(row.original.amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || ''}</span>
                 </span>
             )
         },
@@ -243,7 +243,7 @@ export default function PaymentsList() {
                     initialData={docMode === 'create' ? {
                         type: 'payment',
                         status: 'draft',
-                        currency: 'SAR',
+                        currency: '',
                         date: new Date().toISOString(),
                         amount: 0
                     } : selectedDoc}

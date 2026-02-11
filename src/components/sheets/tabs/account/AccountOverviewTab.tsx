@@ -6,10 +6,10 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  BarChart3, 
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  BarChart3,
   Calendar,
   DollarSign,
   Info,
@@ -25,7 +25,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
   const currentBalance = data.current_balance || data.balance || (totalDebit - totalCredit);
   const transactionCount = data.transaction_count || data.transactionCount || 0;
   const lastActivityDate = data.last_activity || data.lastActivity || '-';
-  
+
   // Credit limit calculation
   const creditLimit = data.credit_limit || 100000;
   const usedCredit = Math.abs(currentBalance < 0 ? currentBalance : 0);
@@ -56,7 +56,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
               {totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <ArrowDownRight className="w-4 h-4 text-red-500" />
@@ -66,7 +66,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
               {totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <BarChart3 className="w-4 h-4 text-gray-500" />
@@ -76,7 +76,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
               {transactionCount}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
               <Calendar className="w-4 h-4 text-gray-500" />
@@ -97,7 +97,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
                 {language === 'ar' ? 'استخدام الائتمان' : 'Credit Usage'}
               </h3>
               <span className="text-sm text-gray-500">
-                {language === 'ar' ? 'الحد الائتماني' : 'Credit Limit'}: {creditLimit.toLocaleString()} {t('currencies.SAR')}
+                {language === 'ar' ? 'الحد الائتماني' : 'Credit Limit'}: {creditLimit.toLocaleString()} {data.currency || ''}
               </span>
             </div>
             <Progress value={creditUsagePercent} className="h-3" />
@@ -129,7 +129,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-500">{language === 'ar' ? 'العملة' : 'Currency'}</span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">{data.currency || 'SAR'}</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{data.currency || '-'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-500">{language === 'ar' ? 'المجموعة' : 'Group'}</span>
@@ -140,7 +140,7 @@ export function AccountOverviewTab({ data, language, t }: TabComponentProps) {
               <div className="flex justify-between">
                 <span className="text-sm text-gray-500">{language === 'ar' ? 'الحالة' : 'Status'}</span>
                 <Badge variant={data.is_active !== false ? 'default' : 'secondary'} className="text-xs">
-                  {data.is_active !== false 
+                  {data.is_active !== false
                     ? (language === 'ar' ? 'نشط' : 'Active')
                     : (language === 'ar' ? 'غير نشط' : 'Inactive')
                   }

@@ -1136,6 +1136,118 @@ export const creditNoteConfig: DocumentConfig = {
     stats: [],
 };
 
+// ═══════════════════════════════════════════════════════════════
+// CRM Contact Configuration - تكوين جهات الاتصال
+// ═══════════════════════════════════════════════════════════════
+export const contactConfig: DocumentConfig = {
+    type: 'contact',
+    titleKey: 'crm.contacts',
+    subtitleKey: 'crm.contactsSubtitle',
+    icon: 'Users',
+    iconColor: 'bg-indigo-600',
+    defaultTab: 'contactOverview',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['display_name', 'organization', 'lifecycle_stage', 'source'],
+    tabs: [
+        {
+            id: 'contactOverview',
+            labelKey: 'crm.overview',
+            icon: 'LayoutDashboard',
+            component: 'ContactOverviewTab',
+        },
+        {
+            id: 'contactInteractions',
+            labelKey: 'crm.interactions',
+            icon: 'MessageSquare',
+            component: 'ContactInteractionsTab',
+            showInModes: ['view', 'edit'],
+        },
+        {
+            id: 'contactCalls',
+            labelKey: 'crm.calls',
+            icon: 'Phone',
+            component: 'ContactCallsTab',
+            showInModes: ['view', 'edit'],
+        },
+        {
+            id: 'contactNotes',
+            labelKey: 'crm.notes',
+            icon: 'StickyNote',
+            component: 'ContactNotesTab',
+        },
+        {
+            id: 'activity',
+            labelKey: 'crm.activity',
+            icon: 'Clock',
+            component: 'ActivityTab',
+            showInModes: ['view'],
+        },
+    ],
+    actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'edit',
+            labelKey: 'actions.edit',
+            icon: 'Edit',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+        {
+            id: 'convertToCustomer',
+            labelKey: 'crm.convertToCustomer',
+            icon: 'UserCheck',
+            variant: 'default',
+            showInModes: ['view'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
+            showInModes: ['view'],
+        },
+    ],
+    stats: [
+        {
+            id: 'interactions',
+            labelKey: 'crm.interactions',
+            valueKey: 'interaction_count',
+            icon: 'MessageSquare',
+            format: 'number',
+        },
+        {
+            id: 'calls',
+            labelKey: 'crm.calls',
+            valueKey: 'total_calls',
+            icon: 'Phone',
+            format: 'number',
+        },
+        {
+            id: 'score',
+            labelKey: 'crm.leadScore',
+            valueKey: 'lead_score',
+            icon: 'Star',
+            format: 'number',
+            colorClass: 'text-amber-600',
+        },
+    ],
+};
+
 import {
     tradeOrderConfig,
     tradeInvoiceConfig,
@@ -1145,10 +1257,11 @@ import {
     tradeDeliveryConfig,
     tradeReservationConfig,
     tradeRequestConfig,
-    tradeContainerConfig
+    tradeContainerConfig,
+    getTradeDocConfig,
 } from './tradeConfigs';
 
-// Export all configs in a map
+// Export all configs in a map (sales/default)
 export const documentConfigs: Record<string, DocumentConfig> = {
     account: accountConfig,
     fund: fundConfig,
@@ -1163,6 +1276,7 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     warehouse: warehouseConfig,
     material: materialConfig,
     materialGroup: materialGroupConfig,
+    contact: contactConfig,
     debit_note: debitNoteConfig,
     credit_note: creditNoteConfig,
     trade_order: tradeOrderConfig,
@@ -1176,7 +1290,13 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     trade_container: tradeContainerConfig,
 };
 
-// Get config by type
-export function getDocumentConfig(type: string): DocumentConfig {
+// Get config by type — with optional tradeMode for smart tab selection
+export function getDocumentConfig(type: string, tradeMode?: 'sales' | 'purchase'): DocumentConfig {
+    // For trade documents, use mode-aware config
+    if (type.startsWith('trade_') && tradeMode) {
+        const tradeConfig = getTradeDocConfig(type, tradeMode);
+        if (tradeConfig) return tradeConfig;
+    }
     return documentConfigs[type] || accountConfig;
 }
+

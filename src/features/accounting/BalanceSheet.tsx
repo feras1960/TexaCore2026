@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Printer, Calendar, Eye } from 'lucide-react';
@@ -7,6 +8,7 @@ import { ReportPreviewDialog, ReportData } from '@/components/shared/ReportPrevi
 
 export default function BalanceSheet() {
   const { t, language } = useLanguage();
+  const { currencyCode: cc } = useCompanyCurrency();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   // Report data for preview
@@ -17,9 +19,9 @@ export default function BalanceSheet() {
     company: language === 'ar' ? 'شركة النظام المتكامل' : 'ERP Company',
     type: 'table',
     summaryItems: [
-      { label: language === 'ar' ? 'إجمالي الأصول' : 'Total Assets', value: 'SAR 190,000' },
-      { label: language === 'ar' ? 'إجمالي الالتزامات' : 'Total Liabilities', value: 'SAR 55,000', type: 'negative' },
-      { label: language === 'ar' ? 'حقوق الملكية' : 'Total Equity', value: 'SAR 135,000', type: 'positive' },
+      { label: language === 'ar' ? 'إجمالي الأصول' : 'Total Assets', value: `${cc} 190,000` },
+      { label: language === 'ar' ? 'إجمالي الالتزامات' : 'Total Liabilities', value: `${cc} 55,000`, type: 'negative' },
+      { label: language === 'ar' ? 'حقوق الملكية' : 'Total Equity', value: `${cc} 135,000`, type: 'positive' },
     ],
     headers: [
       language === 'ar' ? 'البند' : 'Item',
@@ -27,29 +29,29 @@ export default function BalanceSheet() {
     ],
     rows: [
       [language === 'ar' ? '=== الأصول ===' : '=== ASSETS ===', ''],
-      [language === 'ar' ? 'النقد والنقد المعادل' : 'Cash & Equivalents', 'SAR 50,000'],
-      [language === 'ar' ? 'الذمم المدينة' : 'Accounts Receivable', 'SAR 30,000'],
-      [language === 'ar' ? 'المخزون' : 'Inventory', 'SAR 25,000'],
-      [language === 'ar' ? 'إجمالي الأصول المتداولة' : 'Total Current Assets', 'SAR 105,000'],
+      [language === 'ar' ? 'النقد والنقد المعادل' : 'Cash & Equivalents', `${cc} 50,000`],
+      [language === 'ar' ? 'الذمم المدينة' : 'Accounts Receivable', `${cc} 30,000`],
+      [language === 'ar' ? 'المخزون' : 'Inventory', `${cc} 25,000`],
+      [language === 'ar' ? 'إجمالي الأصول المتداولة' : 'Total Current Assets', `${cc} 105,000`],
       ['', ''],
-      [language === 'ar' ? 'المعدات' : 'Equipment', 'SAR 80,000'],
-      [language === 'ar' ? 'الأثاث' : 'Furniture', 'SAR 20,000'],
-      [language === 'ar' ? 'مجمع الإهلاك' : 'Accumulated Depreciation', '(SAR 15,000)'],
-      [language === 'ar' ? 'إجمالي الأصول الثابتة' : 'Total Fixed Assets', 'SAR 85,000'],
+      [language === 'ar' ? 'المعدات' : 'Equipment', `${cc} 80,000`],
+      [language === 'ar' ? 'الأثاث' : 'Furniture', `${cc} 20,000`],
+      [language === 'ar' ? 'مجمع الإهلاك' : 'Accumulated Depreciation', `(${cc} 15,000)`],
+      [language === 'ar' ? 'إجمالي الأصول الثابتة' : 'Total Fixed Assets', `${cc} 85,000`],
       ['', ''],
       [language === 'ar' ? '=== الالتزامات ===' : '=== LIABILITIES ===', ''],
-      [language === 'ar' ? 'الذمم الدائنة' : 'Accounts Payable', 'SAR 45,000'],
-      [language === 'ar' ? 'قروض قصيرة الأجل' : 'Short-term Loans', 'SAR 10,000'],
-      [language === 'ar' ? 'إجمالي الالتزامات' : 'Total Liabilities', 'SAR 55,000'],
+      [language === 'ar' ? 'الذمم الدائنة' : 'Accounts Payable', `${cc} 45,000`],
+      [language === 'ar' ? 'قروض قصيرة الأجل' : 'Short-term Loans', `${cc} 10,000`],
+      [language === 'ar' ? 'إجمالي الالتزامات' : 'Total Liabilities', `${cc} 55,000`],
       ['', ''],
       [language === 'ar' ? '=== حقوق الملكية ===' : '=== EQUITY ===', ''],
-      [language === 'ar' ? 'رأس المال' : 'Capital', 'SAR 100,000'],
-      [language === 'ar' ? 'الأرباح المحتجزة' : 'Retained Earnings', 'SAR 35,000'],
-      [language === 'ar' ? 'إجمالي حقوق الملكية' : 'Total Equity', 'SAR 135,000'],
+      [language === 'ar' ? 'رأس المال' : 'Capital', `${cc} 100,000`],
+      [language === 'ar' ? 'الأرباح المحتجزة' : 'Retained Earnings', `${cc} 35,000`],
+      [language === 'ar' ? 'إجمالي حقوق الملكية' : 'Total Equity', `${cc} 135,000`],
     ],
     totals: [
-      { label: language === 'ar' ? 'إجمالي الأصول' : 'Total Assets', value: 'SAR 190,000', highlight: false },
-      { label: language === 'ar' ? 'إجمالي الالتزامات وحقوق الملكية' : 'Total Liabilities & Equity', value: 'SAR 190,000', highlight: true },
+      { label: language === 'ar' ? 'إجمالي الأصول' : 'Total Assets', value: `${cc} 190,000`, highlight: false },
+      { label: language === 'ar' ? 'إجمالي الالتزامات وحقوق الملكية' : 'Total Liabilities & Equity', value: `${cc} 190,000`, highlight: true },
     ],
   };
 
@@ -70,8 +72,8 @@ export default function BalanceSheet() {
             <Download className="w-4 h-4 mr-2" />
             {t('export') || 'Export'}
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             className="gap-2 text-erp-teal border-erp-teal/30 hover:bg-erp-teal/10"
             onClick={() => setReportDialogOpen(true)}
@@ -87,7 +89,7 @@ export default function BalanceSheet() {
         <Card className="h-full">
           <CardContent className="p-6 space-y-6">
             <h4 className="font-bold text-xl mb-4 text-erp-navy border-b pb-2">{t('assets') || 'Assets'}</h4>
-            
+
             <div>
               <h5 className="font-bold text-gray-600 mb-2">{t('currentAssets') || 'Current Assets'}</h5>
               <div className="space-y-2 pl-4">
@@ -143,7 +145,7 @@ export default function BalanceSheet() {
         <Card className="h-full">
           <CardContent className="p-6 space-y-6">
             <h4 className="font-bold text-xl mb-4 text-erp-navy border-b pb-2">{t('liabilitiesAndEquity') || 'Liabilities & Equity'}</h4>
-            
+
             <div>
               <h5 className="font-bold text-gray-600 mb-2">{t('liabilities') || 'Liabilities'}</h5>
               <div className="space-y-2 pl-4">

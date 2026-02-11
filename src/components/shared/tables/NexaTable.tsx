@@ -272,7 +272,7 @@ export function NexaTable<T extends Record<string, any>>({
                   style={{ width: column.width }}
                 >
                   <div className={cn("flex items-center gap-2", column.align === 'end' && "justify-end", column.align === 'center' && "justify-center")}>
-                    <span className="truncate">{t(column.title)}</span>
+                    <span className="truncate">{column.title.includes('.') ? t(column.title) : column.title}</span>
                     {column.sortable && (
                       <div
                         onClick={() => handleSort(String(column.key))}

@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,6 +72,7 @@ export function CurrencyExchangeTab({
 }: CurrencyExchangeTabProps) {
     const { t, language, direction } = useLanguage();
     const { companyId: hookCompanyId } = useCompany();
+    const { currencyCode: companyCurrency } = useCompanyCurrency();
     const isRTL = direction === 'rtl' || language === 'ar';
     const isReadOnly = mode === 'view';
     const isCreate = mode === 'create';
@@ -78,7 +80,7 @@ export function CurrencyExchangeTab({
 
     // ─── Form State ───
     const [exchangeDate, setExchangeDate] = useState<Date>(new Date());
-    const [fromCurrency, setFromCurrency] = useState('SAR');
+    const [fromCurrency, setFromCurrency] = useState(companyCurrency || '');
     const [toCurrency, setToCurrency] = useState('USD');
     const [fromAmount, setFromAmount] = useState<number>(0);
     const [exchangeRate, setExchangeRate] = useState<number>(0);
@@ -98,8 +100,8 @@ export function CurrencyExchangeTab({
     useEffect(() => {
         if (data && !isCreate) {
             setExchangeDate(data.entry_date ? new Date(data.entry_date) : new Date());
-            setFromCurrency(data.from_currency || 'SAR');
-            setToCurrency(data.to_currency || 'USD');
+            setFromCurrency(data.from_currency || companyCurrency || '');
+            setToCurrency(data.to_currency || '');
             setFromAmount(Number(data.from_amount) || 0);
             setExchangeRate(Number(data.exchange_rate) || 0);
             setFundAccountId(data.fund_account_id || '');

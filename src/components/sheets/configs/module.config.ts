@@ -60,13 +60,13 @@ const _MODULE_ICONS: Record<string, any> = {
 
 export const moduleConfig: SheetConfig = {
   docType: 'module',
-  
+
   // Header
   title: (data) => data.name_ar || data.name,
   subtitle: (data) => data.code?.toUpperCase(),
   icon: Boxes,
   iconBg: 'bg-gradient-to-br from-cyan-600 to-cyan-800',
-  
+
   // Status Badge
   badge: (data) => {
     if (data.is_core) {
@@ -87,7 +87,7 @@ export const moduleConfig: SheetConfig = {
       variant: status.variant,
     };
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -117,40 +117,40 @@ export const moduleConfig: SheetConfig = {
       icon: Tag,
       value: (data) => data.addon_price || 0,
       color: 'gray',
-      format: (value) => value > 0 ? `${Number(value).toLocaleString()} SAR` : '-',
+      format: (value) => value > 0 ? `${Number(value).toLocaleString()}` : '-',
     },
   ],
-  
+
   // Info Fields
   infoFields: [
     // معلومات الوحدة
-    { 
-      key: 'code', 
-      label: 'fields.moduleCode', 
+    {
+      key: 'code',
+      label: 'fields.moduleCode',
       type: 'text',
       icon: Code,
     },
-    { 
-      key: 'name', 
-      label: 'fields.nameEn', 
-      type: 'text' 
+    {
+      key: 'name',
+      label: 'fields.nameEn',
+      type: 'text'
     },
-    { 
-      key: 'name_ar', 
-      label: 'fields.nameAr', 
-      type: 'text' 
+    {
+      key: 'name_ar',
+      label: 'fields.nameAr',
+      type: 'text'
     },
-    { 
-      key: 'description', 
-      label: 'fields.description', 
+    {
+      key: 'description',
+      label: 'fields.description',
       type: 'text',
       format: (value, data) => data.description_ar || value || '-',
     },
-    
+
     // التصنيف
-    { 
-      key: 'category', 
-      label: 'fields.category', 
+    {
+      key: 'category',
+      label: 'fields.category',
       type: 'badge',
       icon: Layers,
       badge: (value) => ({
@@ -158,32 +158,32 @@ export const moduleConfig: SheetConfig = {
         variant: 'default',
       }),
     },
-    { 
-      key: 'is_core', 
-      label: 'fields.coreModule', 
+    {
+      key: 'is_core',
+      label: 'fields.coreModule',
       type: 'badge',
       icon: Shield,
       badge: (value) => value ? { label: 'moduleTypes.coreDescription', variant: 'info' } : null,
     },
-    { 
-      key: 'is_addon', 
-      label: 'fields.addon', 
+    {
+      key: 'is_addon',
+      label: 'fields.addon',
       type: 'badge',
       icon: Puzzle,
       badge: (value) => value ? { label: 'moduleTypes.addonDescription', variant: 'warning' } : null,
     },
-    
+
     // التسعير (للإضافات)
-    { 
-      key: 'addon_price', 
-      label: 'fields.addonPrice', 
+    {
+      key: 'addon_price',
+      label: 'fields.addonPrice',
       type: 'currency',
       icon: Tag,
       hidden: (data) => !data.is_addon,
     },
-    { 
-      key: 'addon_billing_cycle', 
-      label: 'fields.billingCycle', 
+    {
+      key: 'addon_billing_cycle',
+      label: 'fields.billingCycle',
       type: 'badge',
       hidden: (data) => !data.is_addon,
       badge: (value) => ({
@@ -191,11 +191,11 @@ export const moduleConfig: SheetConfig = {
         variant: 'default',
       }),
     },
-    
+
     // التكامل
-    { 
-      key: 'dependencies', 
-      label: 'fields.dependencies', 
+    {
+      key: 'dependencies',
+      label: 'fields.dependencies',
       type: 'text',
       icon: Link2,
       format: (value) => {
@@ -204,18 +204,18 @@ export const moduleConfig: SheetConfig = {
         return value;
       },
     },
-    { 
-      key: 'api_endpoint', 
-      label: 'fields.apiEndpoint', 
+    {
+      key: 'api_endpoint',
+      label: 'fields.apiEndpoint',
       type: 'text',
       icon: Code,
       hidden: (data) => !data.api_endpoint,
     },
-    
+
     // حالة الوحدة
-    { 
-      key: 'status', 
-      label: 'common.status', 
+    {
+      key: 'status',
+      label: 'common.status',
       type: 'badge',
       badge: (value) => {
         const map: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' }> = {
@@ -227,87 +227,87 @@ export const moduleConfig: SheetConfig = {
         return map[value] || map['inactive'];
       },
     },
-    { 
-      key: 'version', 
-      label: 'fields.version', 
-      type: 'text' 
+    {
+      key: 'version',
+      label: 'fields.version',
+      type: 'text'
     },
-    { 
-      key: 'release_date', 
-      label: 'fields.releaseDate', 
-      type: 'date', 
-      icon: Calendar 
+    {
+      key: 'release_date',
+      label: 'fields.releaseDate',
+      type: 'date',
+      icon: Calendar
     },
-    
+
     // معلومات إضافية
-    { 
-      key: 'sort_order', 
-      label: 'fields.sortOrder', 
-      type: 'number' 
+    {
+      key: 'sort_order',
+      label: 'fields.sortOrder',
+      type: 'number'
     },
-    { 
-      key: 'created_at', 
-      label: 'fields.created', 
-      type: 'date', 
-      icon: Calendar 
+    {
+      key: 'created_at',
+      label: 'fields.created',
+      type: 'date',
+      icon: Calendar
     },
-    { 
-      key: 'updated_at', 
-      label: 'fields.updated', 
-      type: 'date' 
+    {
+      key: 'updated_at',
+      label: 'fields.updated',
+      type: 'date'
     },
   ],
-  
+
   // Tabs
   tabs: [
-    { 
-      id: 'overview', 
-      label: 'tabs.overview', 
-      icon: Eye, 
+    {
+      id: 'overview',
+      label: 'tabs.overview',
+      icon: Eye,
       component: OverviewTab,
     },
-    { 
-      id: 'features', 
-      label: 'tabs.features', 
-      icon: Star, 
+    {
+      id: 'features',
+      label: 'tabs.features',
+      icon: Star,
       component: OverviewTab, // سيتم استبداله بـ ModuleFeaturesTab
       badge: (data) => data.features?.length || 0,
     },
-    { 
-      id: 'plans', 
-      label: 'tabs.plans', 
-      icon: Package, 
+    {
+      id: 'plans',
+      label: 'tabs.plans',
+      icon: Package,
       component: OverviewTab, // سيتم استبداله
       badge: (data) => data.plans_count || data.included_in_plans?.length || 0,
     },
-    { 
-      id: 'subscribers', 
-      label: 'tabs.users', 
-      icon: Users, 
+    {
+      id: 'subscribers',
+      label: 'tabs.users',
+      icon: Users,
       component: OverviewTab, // سيتم استبداله
       badge: (data) => data.subscribers_count || 0,
     },
-    { 
-      id: 'integration', 
-      label: 'tabs.integration', 
-      icon: Link2, 
+    {
+      id: 'integration',
+      label: 'tabs.integration',
+      icon: Link2,
       component: OverviewTab, // سيتم استبداله
     },
-    { 
-      id: 'analytics', 
-      label: 'tabs.analytics', 
-      icon: BarChart3, 
+    {
+      id: 'analytics',
+      label: 'tabs.analytics',
+      icon: BarChart3,
       component: OverviewTab, // سيتم استبداله
     },
-    { 
-      id: 'activity', 
-      label: 'tabs.activity', 
-      icon: Activity, 
+    {
+      id: 'activity',
+      label: 'tabs.activity',
+      icon: Activity,
       component: ActivityTab,
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -315,14 +315,14 @@ export const moduleConfig: SheetConfig = {
       label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'configure',
       label: 'actions.configure',
       icon: Settings,
       variant: 'outline',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'deactivate',
@@ -334,7 +334,7 @@ export const moduleConfig: SheetConfig = {
         title: 'dialogs.confirmDeactivation',
         description: 'dialogs.deactivateModuleWarning',
       },
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'activate',
@@ -342,13 +342,13 @@ export const moduleConfig: SheetConfig = {
       icon: Unlock,
       variant: 'success',
       show: (data) => data.status !== 'active',
-      onClick: () => {},
+      onClick: () => { },
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'tenant') {

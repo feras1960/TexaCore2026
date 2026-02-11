@@ -72,7 +72,7 @@ export const exchangeConfig: SheetConfig = {
         },
         label: 'vouchers.exchangeAmount',
         labelAr: 'مبلغ الصرافة',
-        currency: 'SAR',
+        currency: undefined,
         showSign: false,
     },
 
@@ -85,7 +85,7 @@ export const exchangeConfig: SheetConfig = {
             icon: DollarSign,
             value: (data) => data.sourceAmount || 0,
             color: 'red',
-            format: (value, data) => `${value.toLocaleString()} ${data.sourceCurrency || 'SAR'}`,
+            format: (value, data) => `${value.toLocaleString()} ${data.sourceCurrency || ''}`,
         },
         {
             key: 'target_amount',
@@ -94,7 +94,7 @@ export const exchangeConfig: SheetConfig = {
             icon: DollarSign,
             value: (data) => data.targetAmount || 0,
             color: 'green',
-            format: (value, data) => `${value.toLocaleString()} ${data.targetCurrency || 'SAR'}`,
+            format: (value, data) => `${value.toLocaleString()} ${data.targetCurrency || ''}`,
         },
         {
             key: 'exchange_rate',
@@ -112,7 +112,7 @@ export const exchangeConfig: SheetConfig = {
             icon: TrendingDown,
             value: (data) => data.exchangeDifference || 0,
             color: 'blue',
-            format: (value) => `${value >= 0 ? '+' : ''}${value.toLocaleString()} SAR`,
+            format: (value) => `${value >= 0 ? '+' : ''}${value.toLocaleString()}`,
         },
     ],
 
@@ -152,7 +152,7 @@ export const exchangeConfig: SheetConfig = {
             labelAr: 'المبلغ المصدر',
             type: 'currency',
             icon: DollarSign,
-            format: (value, data) => `${value.toLocaleString()} ${data.sourceCurrency || 'SAR'}`,
+            format: (value, data) => `${value.toLocaleString()} ${data.sourceCurrency || ''}`,
         },
         {
             key: 'targetAmount',
@@ -160,7 +160,7 @@ export const exchangeConfig: SheetConfig = {
             labelAr: 'المبلغ الهدف',
             type: 'currency',
             icon: DollarSign,
-            format: (value, data) => `${value.toLocaleString()} ${data.targetCurrency || 'SAR'}`,
+            format: (value, data) => `${value.toLocaleString()} ${data.targetCurrency || ''}`,
         },
         {
             key: 'exchangeRate',
@@ -175,9 +175,9 @@ export const exchangeConfig: SheetConfig = {
             label: 'fields.exchangeDifference',
             labelAr: 'فرق العملة',
             type: 'currency',
-            currency: 'SAR',
+            currency: undefined,
             icon: TrendingDown,
-            format: (value) => `${value >= 0 ? '+' : ''}${value.toLocaleString()} SAR`,
+            format: (value) => `${value >= 0 ? '+' : ''}${value.toLocaleString()}`,
         },
         {
             key: 'reference',

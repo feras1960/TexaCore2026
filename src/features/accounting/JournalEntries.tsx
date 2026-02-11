@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/lib/supabase';
+import { useJournalEntries } from './hooks/useAccountingQueries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -96,10 +97,7 @@ export default function JournalEntries() {
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
   const [defaultTab, setDefaultTab] = useState<TabType>('journal');
   const [showFilters, setShowFilters] = useState(false);
-  const [entries, setEntries] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refetching
 
   // Edit mode state
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
@@ -217,119 +215,72 @@ export default function JournalEntries() {
     }
   };
 
-  useEffect(() => {
-    const fetchEntries = async () => {
-      if (!companyId) return;
+  // ⚡ React Query: cached data + Realtime from other users
+  const journalFilters = useMemo(() => ({
+    status: filters.status,
+    entryType: filters.entryType,
+    entryNumber: filters.entryNumber,
+    reference: filters.reference,
+    dateFrom: filters.dateRange?.from ? format(filters.dateRange.from, 'yyyy-MM-dd') : undefined,
+    dateTo: filters.dateRange?.to ? format(filters.dateRange.to, 'yyyy-MM-dd') : undefined,
+  }), [filters.status, filters.entryType, filters.entryNumber, filters.reference, filters.dateRange]);
 
-      setLoading(true);
-      try {
-        let query = supabase
-          .from('journal_entries')
-          .select(`
-            *,
-            lines:journal_entry_lines(
-              id,
-              account_id,
-              description,
-              debit,
-              credit,
-              account:chart_of_accounts(
-                id,
-                account_code,
-                name_ar,
-                name_en
-              )
-            )
-          `)
-          .eq('company_id', companyId)
-          .order('entry_date', { ascending: false });
+  const { entries: rawEntries, loading, refetch: refetchEntries, invalidate: invalidateEntries } = useJournalEntries(journalFilters);
 
-        // Apply filters
-        if (filters.status !== 'all') {
-          query = query.eq('status', filters.status);
-        }
+  // Transform raw entries to display format
+  const entries = useMemo(() => {
+    return (rawEntries || []).map((entry: any) => {
+      const linesDebit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.debit || 0), 0);
+      const linesCredit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.credit || 0), 0);
 
-        if (filters.entryType !== 'all') {
-          query = query.eq('entry_type', filters.entryType);
-        }
+      return {
+        id: entry.id,
+        voucherNo: entry.entry_number || entry.id,
+        date: entry.entry_date,
+        reference: entry.reference || '',
+        description: entry.description || '',
+        totalDebit: Number(entry.total_debit) || linesDebit || 0,
+        totalCredit: Number(entry.total_credit) || linesCredit || 0,
+        costCenter: entry.cost_center_id || null,
+        status: entry.status,
+        createdBy: entry.created_by || '',
+        type: entry.entry_type || 'manual',
+        origin: 'manual',
+        marker_color: entry.marker_color || null,
+        lines: (entry.lines || []).map((line: any) => ({
+          id: line.id,
+          account_id: line.account_id,
+          account: line.account
+            ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
+            : '-',
+          account_code: line.account?.account_code || '',
+          account_name: language === 'ar' ? line.account?.name_ar : line.account?.name_en || '',
+          description: line.description || '',
+          debit: Number(line.debit || 0),
+          credit: Number(line.credit || 0),
+          product: null,
+        })),
+      };
+    });
+  }, [rawEntries, language]);
 
-        if (filters.entryNumber) {
-          query = query.ilike('entry_number', `%${filters.entryNumber}%`);
-        }
-
-        if (filters.reference) {
-          query = query.ilike('reference', `%${filters.reference}%`);
-        }
-
-        if (filters.dateRange?.from) {
-          query = query.gte('entry_date', format(filters.dateRange.from, 'yyyy-MM-dd'));
-          if (filters.dateRange.to) {
-            query = query.lte('entry_date', format(filters.dateRange.to, 'yyyy-MM-dd'));
-          }
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.error('Error fetching journal entries:', error);
-          setEntries([]);
-        } else {
-          // Transform data to match the expected format
-          const transformedEntries = (data || []).map((entry: any) => {
-            // Calculate totals from lines if not stored on entry
-            const linesDebit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.debit || 0), 0);
-            const linesCredit = (entry.lines || []).reduce((sum: number, line: any) => sum + Number(line.credit || 0), 0);
-
-            return {
-              id: entry.id,
-              voucherNo: entry.entry_number || entry.id,
-              date: entry.entry_date,
-              reference: entry.reference || '',
-              description: entry.description || '',
-              totalDebit: Number(entry.total_debit) || linesDebit || 0,
-              totalCredit: Number(entry.total_credit) || linesCredit || 0,
-              costCenter: entry.cost_center_id || null,
-              status: entry.status,
-              createdBy: entry.created_by || '',
-              type: entry.entry_type || 'manual',
-              origin: 'manual',
-              marker_color: entry.marker_color || null,
-              lines: (entry.lines || []).map((line: any) => ({
-                id: line.id,
-                account_id: line.account_id,
-                account: line.account
-                  ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
-                  : '-',
-                account_code: line.account?.account_code || '',
-                account_name: language === 'ar' ? line.account?.name_ar : line.account?.name_en || '',
-                description: line.description || '',
-                debit: Number(line.debit || 0),
-                credit: Number(line.credit || 0),
-                product: null,
-              })),
-            };
-          });
-          setEntries(transformedEntries);
-
-          // Initialize markedEntries from database marker_color
-          const markers: Record<string, MarkerColorId> = {};
-          transformedEntries.forEach((entry: any) => {
-            if (entry.marker_color) {
-              markers[entry.id] = entry.marker_color;
-            }
-          });
-          setMarkedEntries(markers);
-        }
-      } catch (error) {
-        console.error('Error fetching journal entries:', error);
-        setEntries([]);
-      } finally {
-        setLoading(false);
+  // Initialize markedEntries from database marker_color
+  const initialMarkers = useMemo(() => {
+    const markers: Record<string, MarkerColorId> = {};
+    entries.forEach((entry: any) => {
+      if (entry.marker_color) {
+        markers[entry.id] = entry.marker_color;
       }
-    };
+    });
+    return markers;
+  }, [entries]);
 
-    fetchEntries();
-  }, [companyId, filters.status, filters.entryType, filters.dateRange, filters.entryNumber, filters.reference, refreshTrigger, language]);
+  // Sync markers when entries change
+  useEffect(() => {
+    if (Object.keys(initialMarkers).length > 0) {
+      setMarkedEntries(prev => ({ ...prev, ...initialMarkers }));
+    }
+  }, [initialMarkers]);
 
   const handleSort = (key: string) => {
     setSortConfig((current) => {
@@ -353,7 +304,7 @@ export default function JournalEntries() {
         item.voucherNo.toString().toLowerCase().includes(searchLower) ||
         item.reference.toLowerCase().includes(searchLower) ||
         item.description.toLowerCase().includes(searchLower) ||
-        item.amount.toString().includes(searchLower)
+        item.totalDebit.toString().includes(searchLower)
       );
     }
 
@@ -804,7 +755,7 @@ export default function JournalEntries() {
         editMode={isEditMode}
         entryId={editEntryId}
         onUpdate={() => {
-          setRefreshTrigger(prev => prev + 1);
+          invalidateEntries();
         }}
       />
 
@@ -823,11 +774,8 @@ export default function JournalEntries() {
           onClose={() => setShowImportWizard(false)}
           onComplete={() => {
             setShowImportWizard(false);
-            // Refresh entries
-            if (companyId) {
-              setLoading(true);
-              // Will trigger re-fetch via useEffect
-            }
+            // Refresh entries via React Query invalidation
+            invalidateEntries();
           }}
         />
       )}

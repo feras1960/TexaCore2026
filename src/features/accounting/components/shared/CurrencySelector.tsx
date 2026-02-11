@@ -25,7 +25,7 @@ export function CurrencySelector({
     const companyCurrencies = useCompanyCurrencies();
 
     // Determine which currencies to show
-    const currencies = options || (useCompanyCurrenciesHook ? companyCurrencies.supportedCurrencies : ['USD', 'EUR', 'SAR']);
+    const currencies = options || (useCompanyCurrenciesHook ? companyCurrencies.supportedCurrencies : ['USD', 'EUR']);
     const isLoading = useCompanyCurrenciesHook && companyCurrencies.loading;
 
     // Get currency label

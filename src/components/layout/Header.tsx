@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Bell, Search, Moon, Sun, Globe, Keyboard } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -24,18 +24,20 @@ import { useAuth } from '@/hooks/useAuth';
 import { formatShortcut, formatShortcutRange, useLanguageShortcuts } from '@/hooks/useLanguageShortcuts';
 import { cn } from '@/lib/utils';
 import { SupportedLanguage, getLanguageConfig } from '@/i18n/config';
+import { useCart } from '@/contexts/CartContext';
 
 export function Header() {
   const navigate = useNavigate();
   const { t, language, setLanguage, direction, supportedLanguages } = useLanguage();
   const { resolvedTheme, setTheme } = useTheme();
   const { user, logout } = useAuth();
-  
+
   // Enable keyboard shortcuts for language switching
   useLanguageShortcuts({ menuTriggerId: 'language-menu-trigger' });
-  
+
   // Get current language config for display
   const currentLangConfig = getLanguageConfig(language);
+  const { computed, actions: cartActions } = useCart();
 
   const handleLogout = async () => {
     await logout();
@@ -44,7 +46,7 @@ export function Header() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <motion.header 
+      <motion.header
         className={cn(
           "h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 lg:px-6 flex items-center justify-between gap-4",
         )}
@@ -77,10 +79,10 @@ export function Header() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button 
+                  <Button
                     id="language-menu-trigger"
-                    variant="ghost" 
-                    size="icon" 
+                    variant="ghost"
+                    size="icon"
                     className="h-10 w-10 relative"
                   >
                     <Globe className="h-5 w-5 text-gray-500" />
@@ -110,7 +112,7 @@ export function Header() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {supportedLanguages.map((lang, index) => (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   key={lang.code}
                   onClick={() => setLanguage(lang.code as SupportedLanguage)}
                   className={cn(
@@ -138,9 +140,9 @@ export function Header() {
           {/* Theme Toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-10 w-10"
                 onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
               >
@@ -153,6 +155,28 @@ export function Header() {
             </TooltipTrigger>
             <TooltipContent side="bottom">
               {resolvedTheme === 'dark' ? t('header.lightMode') : t('header.darkMode')}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Cart */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 relative"
+                onClick={cartActions.openDrawer}
+              >
+                <ShoppingCart className="h-5 w-5 text-gray-500" />
+                {computed.total_items > 0 && (
+                  <span className="absolute -top-0.5 -end-0.5 h-5 w-5 bg-emerald-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {computed.total_items > 9 ? '9+' : computed.total_items}
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {t('header.cart')}
             </TooltipContent>
           </Tooltip>
 
@@ -197,7 +221,7 @@ export function Header() {
               <DropdownMenuItem>{t('auth.profile')}</DropdownMenuItem>
               <DropdownMenuItem>{t('navigation.settings')}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="text-erp-error cursor-pointer"
                 onClick={handleLogout}
               >

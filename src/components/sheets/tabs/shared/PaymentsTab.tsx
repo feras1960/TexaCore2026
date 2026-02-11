@@ -97,7 +97,7 @@ export function PaymentsTab({ data, docType: _docType, language, t, onRowClick, 
       render: (value) => (
         <span className={cn(
           'px-2 py-1 rounded-md text-xs font-medium',
-          value === 'receipt' 
+          value === 'receipt'
             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
             : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
         )}>
@@ -120,7 +120,7 @@ export function PaymentsTab({ data, docType: _docType, language, t, onRowClick, 
     },
     {
       key: 'status',
-      title: t('common.status'),
+      title: t('common.status._'),
       width: '100px',
       type: 'status',
     },
@@ -144,24 +144,24 @@ export function PaymentsTab({ data, docType: _docType, language, t, onRowClick, 
 
   // Stats configuration
   const stats: LedgerStats = {
-    label1: { 
+    label1: {
       title: t('accounting.payments.count'),
-      value: payments.length 
+      value: payments.length
     },
-    label2: { 
+    label2: {
       title: t('accounting.payments.net'),
-      value: netAmount, 
-      color: netAmount >= 0 ? 'green' : 'red' 
+      value: netAmount,
+      color: netAmount >= 0 ? 'green' : 'red'
     },
-    label3: { 
+    label3: {
       title: t('accounting.payments.totalPayments'),
-      value: totals.totalPayments, 
-      color: 'red' 
+      value: totals.totalPayments,
+      color: 'red'
     },
-    label4: { 
+    label4: {
       title: t('accounting.payments.totalReceipts'),
-      value: totals.totalReceipts, 
-      color: 'green' 
+      value: totals.totalReceipts,
+      color: 'green'
     },
   };
 

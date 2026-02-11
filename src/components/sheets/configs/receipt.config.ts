@@ -70,7 +70,7 @@ export const receiptConfig: SheetConfig = {
         },
         label: 'vouchers.receiptAmount',
         labelAr: 'مبلغ القبض',
-        currency: 'SAR',
+        currency: undefined,
         showSign: false,
     },
 

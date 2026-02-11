@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -28,7 +29,7 @@ import { MainDocumentTabs } from './components/MainDocumentTabs';
 // Import tabs
 import { OverviewTab } from './tabs/OverviewTab';
 import { LedgerTab } from './tabs/LedgerTab';
-import { ActivityTab, generateMockActivityEvents } from './tabs/ActivityTab';
+import { ActivityTab } from './tabs/ActivityTab';
 // Warehouse Tabs
 import { WarehouseOverviewTab } from './tabs/WarehouseOverviewTab';
 import { WarehouseItemsTab } from './tabs/WarehouseItemsTab';
@@ -52,9 +53,25 @@ import {
 } from './tabs';
 import { TradeMainTab } from './tabs/TradeMainTab';
 import { TradeShippingTab } from './tabs/TradeShippingTab';
+import { MaterialBrowserTab } from '@/features/trade/components/tabs/MaterialBrowserTab';
+import { PaymentReceiptTab } from '@/features/trade/components/tabs/PaymentReceiptTab';
+import { CustomerShippingTab } from '@/features/trade/components/tabs/CustomerShippingTab';
+import { NexaAgentTab } from '@/features/trade/components/tabs/NexaAgentTab';
+import { SupplierInfoTab } from '@/features/trade/components/tabs/SupplierInfoTab';
+import { PurchaseExpensesTab } from '@/features/trade/components/tabs/PurchaseExpensesTab';
+import { DocumentAttachmentsTab } from '@/features/trade/components/tabs/DocumentAttachmentsTab';
 import { ContainerExpensesTab } from './tabs/ContainerExpensesTab';
+// Confirmation Workflow
+import { ConfirmationDialog } from '@/features/trade/components/ConfirmationDialog';
+import { confirmationService, type ValidationResult, type WorkflowSettings, type DocType as ConfDocType } from '@/services/confirmationService';
+import { supabase } from '@/lib/supabase';
 // Accounting Entry Tabs (Phase 1 - Unified)
 import { AccountingEntryTab } from './tabs/AccountingEntryTab';
+// CRM Contact Tabs
+import { ContactOverviewTab } from './tabs/ContactOverviewTab';
+import { ContactInteractionsTab } from './tabs/ContactInteractionsTab';
+import { ContactCallsTab } from './tabs/ContactCallsTab';
+import { ContactNotesTab } from './tabs/ContactNotesTab';
 
 // Import configs
 import { getDocumentConfig } from './configs/documentConfigs';
@@ -93,6 +110,7 @@ export function UnifiedAccountingSheet({
     options,
     documentId,
     companyId,
+    tradeMode,
     defaultTab,
     allowedTabs,
     hiddenTabs,
@@ -111,6 +129,7 @@ export function UnifiedAccountingSheet({
     onAdjustmentRequired,
     customHeader,
     customFooter,
+    headerExtra,
     hideActions = false,
     hideTabs = false,
     // Navigation props
@@ -128,8 +147,12 @@ export function UnifiedAccountingSheet({
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
 
+    // ═══ Company ID — fallback to useCompany() if not provided as prop ═══
+    const { companyId: hookCompanyId } = useCompany();
+    const resolvedCompanyId = companyId || hookCompanyId;
+
     // Get document config
-    const config = useMemo(() => getDocumentConfig(docType), [docType]);
+    const config = useMemo(() => getDocumentConfig(docType, tradeMode), [docType, tradeMode]);
 
     // State
     const [mode, setMode] = useState<SheetMode>(initialMode);
@@ -137,6 +160,18 @@ export function UnifiedAccountingSheet({
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState(defaultTab || config.defaultTab);
     const [hasChanges, setHasChanges] = useState(false);
+
+    // ═══ Confirmation Workflow State ═══
+    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+    const [confirmValidation, setConfirmValidation] = useState<ValidationResult | null>(null);
+    const [confirmSettings, setConfirmSettings] = useState<WorkflowSettings | null>(null);
+    const [confirmNeedsApproval, setConfirmNeedsApproval] = useState(false);
+
+    // Is this a trade document type?
+    const isTradeDocType = useMemo(() =>
+        ['trade_order', 'trade_invoice', 'trade_quotation', 'trade_reservation', 'trade_delivery', 'trade_request'].includes(docType),
+        [docType]
+    );
 
     // Multi-document state
     const [openDocs, setOpenDocs] = useState<OpenDocument[]>(() => {
@@ -210,7 +245,7 @@ export function UnifiedAccountingSheet({
         const { journalEntriesService } = await import('@/services/journalEntriesService');
 
         // Get company ID from the data or from component context
-        const saveCompanyId = saveData.company_id || companyId;
+        const saveCompanyId = saveData.company_id || resolvedCompanyId;
         if (!saveCompanyId) {
             toast.error(t('errors.companyRequired') || 'يجب تحديد الشركة');
             return;
@@ -385,6 +420,9 @@ export function UnifiedAccountingSheet({
                         setTimeout(() => {
                             setData({ type: docType });
                         }, 50);
+                    } else if (mode === 'create' && isTradeDocType) {
+                        // Trade documents: switch to view mode to allow Confirm action
+                        handleModeChange('view');
                     } else if (mode === 'create') {
                         onClose();
                     } else {
@@ -417,7 +455,45 @@ export function UnifiedAccountingSheet({
                     break;
 
                 case 'duplicate':
-                    onDuplicate?.();
+                    if (onDuplicate) {
+                        onDuplicate?.();
+                    } else if (isTradeDocType && data) {
+                        // ═══ Built-in Trade Document Duplication ═══
+                        // Copy: customer, items, prices, currency, warehouse
+                        // Reset: id, status, dates, confirmation, document_number
+                        const duplicatedData = {
+                            ...data,
+                            id: undefined,
+                            document_number: undefined,
+                            order_number: undefined,
+                            invoice_number: undefined,
+                            quotation_number: undefined,
+                            delivery_number: undefined,
+                            return_number: undefined,
+                            reservation_number: undefined,
+                            status: 'draft',
+                            confirmation_status: undefined,
+                            confirmed_at: undefined,
+                            confirmed_by: undefined,
+                            delivery_note_id: undefined,
+                            approval_status: undefined,
+                            date: new Date().toISOString(),
+                            created_at: undefined,
+                            updated_at: undefined,
+                            type: data.type || data.subType,
+                            subType: data.subType || data.type,
+                        };
+                        setData(duplicatedData);
+                        handleModeChange('create');
+                        setHasChanges(true);
+                        toast.success(
+                            language === 'ar'
+                                ? '📋 تم نسخ المستند — عدّل ثم احفظ'
+                                : '📋 Document duplicated — edit and save'
+                        );
+                    } else {
+                        toast.info(t('messages.featureComingSoon') || 'قريباً');
+                    }
                     break;
 
                 case 'print':
@@ -428,10 +504,75 @@ export function UnifiedAccountingSheet({
                     onRefresh?.();
                     break;
 
+                case 'convertToCustomer':
+                    // CRM: Convert contact to customer — handled by parent via onSave with special flag
+                    if (data?.id) {
+                        const confirmed = window.confirm(
+                            language === 'ar' ? 'هل تريد تحويل جهة الاتصال إلى عميل؟' : 'Convert this contact to a customer?'
+                        );
+                        if (confirmed) {
+                            try {
+                                const { contactsService } = await import('@/services/contactsService');
+                                const result = await contactsService.convertToCustomer(data.id);
+                                if (result.success) {
+                                    toast.success(language === 'ar' ? 'تم التحويل بنجاح' : 'Converted successfully');
+                                    onRefresh?.();
+                                } else {
+                                    toast.error(result.message);
+                                }
+                            } catch (err: any) {
+                                toast.error(err.message);
+                            }
+                        }
+                    }
+                    break;
+
                 case 'export':
                     // TODO: Implement export
                     toast.info(t('messages.featureComingSoon') || 'قريباً');
                     break;
+
+                case 'confirm': {
+                    // ═══ Confirmation Workflow ═══
+                    if (!resolvedCompanyId) {
+                        toast.error(language === 'ar' ? 'حدد الشركة أولاً' : 'Select company first');
+                        break;
+                    }
+                    setLoading(true);
+                    try {
+                        // 1. Get workflow settings
+                        const settings = await confirmationService.getWorkflowSettings(resolvedCompanyId);
+                        setConfirmSettings(settings);
+
+                        // 2. Map docType to confirmation docType
+                        const confDocType: ConfDocType =
+                            docType === 'trade_order' ? 'sales_order' :
+                                docType === 'trade_invoice' ? 'sales_invoice' :
+                                    docType === 'trade_quotation' ? 'quotation' :
+                                        docType === 'trade_reservation' ? 'reservation' : 'sales_order';
+
+                        // 3. Check if approval is needed
+                        const needsApproval = confirmationService.isApprovalRequired(confDocType, settings, data);
+                        setConfirmNeedsApproval(needsApproval);
+
+                        // 4. Run validation
+                        const validation = await confirmationService.validateForConfirmation(
+                            confDocType,
+                            documentId || data?.id || '',
+                            data,
+                            settings
+                        );
+                        setConfirmValidation(validation);
+
+                        // 5. Open dialog
+                        setConfirmDialogOpen(true);
+                    } catch (err: any) {
+                        toast.error(err.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                    break;
+                }
 
                 case 'cancel':
                     // In create mode, cancel closes the sheet
@@ -454,7 +595,7 @@ export function UnifiedAccountingSheet({
         } finally {
             setLoading(false);
         }
-    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, handleAccountingSave, isAccountingDocType, mode, t]);
+    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, handleAccountingSave, isAccountingDocType, mode, t, resolvedCompanyId]);
 
     // Filter tabs based on props
     const visibleTabs = useMemo(() => {
@@ -501,10 +642,7 @@ export function UnifiedAccountingSheet({
         return entries;
     }, [data]);
 
-    // Get mock activity events
-    const mockActivityEvents = useMemo(() => {
-        return generateMockActivityEvents(documentId || 'new');
-    }, [documentId]);
+    // Activity events are now fetched from audit_logs inside ActivityTab
 
     // Render tab content
     const renderTabContent = (tabId: string) => {
@@ -525,7 +663,7 @@ export function UnifiedAccountingSheet({
                             onSaveComplete={() => {
                                 console.log('Entry saved successfully');
                             }}
-                            companyId={companyId}
+                            companyId={resolvedCompanyId}
                         />
                     );
                 }
@@ -564,7 +702,7 @@ export function UnifiedAccountingSheet({
                     <OverviewTab
                         data={data}
                         stats={config.stats}
-                        currency={data?.currency || 'SAR'}
+                        currency={data?.currency || ''}
                         useArabicNumerals={useArabicNumerals}
                     />
                 );
@@ -586,7 +724,7 @@ export function UnifiedAccountingSheet({
 
             case 'inventory':
                 if (docType === 'material') {
-                    return <MaterialInventoryTab data={data} />;
+                    return <MaterialInventoryTab data={data} onClose={onClose} />;
                 }
                 break;
 
@@ -625,7 +763,7 @@ export function UnifiedAccountingSheet({
                     <LedgerTab
                         entries={mockLedgerEntries}
                         loading={loading}
-                        currency={data?.currency || 'SAR'}
+                        currency={data?.currency || ''}
                         useArabicNumerals={useArabicNumerals}
                         openingBalance={data?.opening_balance || 0}
                         closingBalance={data?.current_balance || data?.balance || 0}
@@ -658,14 +796,38 @@ export function UnifiedAccountingSheet({
                     />
                 );
 
-            case 'activity':
+            case 'activity': {
+                // Resolve entity type for audit log queries
+                const resolveEntityType = () => {
+                    if (tradeMode === 'purchase') {
+                        switch (docType) {
+                            case 'trade_order': return 'purchase_orders';
+                            case 'trade_invoice': return 'purchase_invoices';
+                            case 'trade_quotation': return 'purchase_quotations';
+                            case 'trade_request': return 'purchase_requests';
+                            case 'trade_receipt': return 'purchase_receipts';
+                            case 'trade_return': return 'purchase_returns';
+                            case 'trade_container': return 'shipments';
+                            default: return undefined;
+                        }
+                    }
+                    switch (docType) {
+                        case 'trade_order': return 'sales_orders';
+                        case 'trade_invoice': return 'sales_invoices';
+                        case 'trade_quotation': return 'quotations';
+                        case 'trade_delivery': return 'sales_deliveries';
+                        case 'trade_return': return 'sales_returns';
+                        default: return undefined;
+                    }
+                };
                 return (
                     <ActivityTab
-                        events={mockActivityEvents}
-                        loading={loading}
+                        documentId={documentId || data?.id}
+                        entityType={resolveEntityType()}
                         useArabicNumerals={useArabicNumerals}
                     />
                 );
+            }
 
             // === New Material Tabs ===
             case 'rolls':
@@ -772,6 +934,7 @@ export function UnifiedAccountingSheet({
                     <TradeMainTab
                         data={data}
                         mode={mode as any}
+                        tradeMode={tradeMode}
                         onChange={(updates: any) => {
                             setData((prev: any) => ({ ...prev, ...updates }));
                             setHasChanges(true);
@@ -779,9 +942,26 @@ export function UnifiedAccountingSheet({
                     />
                 );
 
-            case 'shipping':
+            case 'material_browser':
                 return (
-                    <TradeShippingTab
+                    <MaterialBrowserTab
+                        items={data?.items || []}
+                        onAddItem={(newItem: any) => {
+                            const currentItems = data?.items || [];
+                            setData((prev: any) => ({
+                                ...prev,
+                                items: [...currentItems, newItem],
+                            }));
+                            setHasChanges(true);
+                        }}
+                        currency={data?.currency || 'SAR'}
+                        readOnly={mode === 'view'}
+                    />
+                );
+
+            case 'payment_receipt':
+                return (
+                    <PaymentReceiptTab
                         data={data}
                         mode={mode}
                         onChange={(updates: any) => {
@@ -790,6 +970,34 @@ export function UnifiedAccountingSheet({
                         }}
                     />
                 );
+
+            case 'shipping': {
+                // Trade documents → CustomerShippingTab (customer delivery)
+                // Containers → TradeShippingTab (maritime shipping)
+                const isContainer = docType === 'trade_container';
+                if (isContainer) {
+                    return (
+                        <TradeShippingTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                return (
+                    <CustomerShippingTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+            }
 
             case 'expenses':
                 return (
@@ -803,7 +1011,101 @@ export function UnifiedAccountingSheet({
                     />
                 );
 
-            // TODO: Add more tab content renderers
+            // ═══ NexaAgent Tab ═══
+            case 'nexa_agent':
+                return (
+                    <NexaAgentTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
+            // ═══ Purchase-specific Tabs ═══
+            case 'supplier_info':
+                return (
+                    <SupplierInfoTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
+            case 'purchase_expenses':
+                return (
+                    <PurchaseExpensesTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
+            // ═══ CRM Contact Tabs ═══
+            case 'contactOverview':
+                if (docType === 'contact') {
+                    return (
+                        <ContactOverviewTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            case 'contactInteractions':
+                if (docType === 'contact') {
+                    return (
+                        <ContactInteractionsTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
+            case 'contactCalls':
+                if (docType === 'contact') {
+                    return (
+                        <ContactCallsTab
+                            data={data}
+                            mode={mode}
+                        />
+                    );
+                }
+                break;
+
+            case 'contactNotes':
+                if (docType === 'contact') {
+                    return (
+                        <ContactNotesTab
+                            data={data}
+                            mode={mode}
+                            onChange={(updates: any) => {
+                                setData((prev: any) => ({ ...prev, ...updates }));
+                                setHasChanges(true);
+                            }}
+                        />
+                    );
+                }
+                break;
+
             default:
                 return (
                     <div className="flex items-center justify-center h-64 text-gray-500">
@@ -814,220 +1116,316 @@ export function UnifiedAccountingSheet({
     };
 
     return (
-        <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <SheetContent
-                className={cn(
-                    docType === 'materialGroup'
-                        ? "!w-[38vw] !max-w-[38vw] p-0 flex flex-col h-full"
-                        : "!w-[60vw] !max-w-[60vw] p-0 flex flex-col h-full",
-                    "bg-gray-50 dark:bg-gray-900"
-                )}
-                side={isRTL ? 'left' : 'right'}
-            >
-                <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
-                    {/* Accessibility requirements */}
-                    <UiSheetHeader className="sr-only">
-                        <SheetTitle>{t(config.titleKey)}</SheetTitle>
-                        <SheetDescription>
-                            {language === 'ar' ? 'نموذج عرض وتعديل البيانات' : 'Data view and edit form'}
-                        </SheetDescription>
-                    </UiSheetHeader>
-
-                    {/* Loading Overlay */}
-                    {loading && (
-                        <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 z-50 flex items-center justify-center">
-                            <Loader2 className="w-8 h-8 animate-spin text-erp-primary" />
-                        </div>
+        <>
+            <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+                <SheetContent
+                    className={cn(
+                        docType === 'materialGroup'
+                            ? "!w-[38vw] !max-w-[38vw] p-0 flex flex-col h-full"
+                            : "!w-[60vw] !max-w-[60vw] p-0 flex flex-col h-full",
+                        "bg-gray-50 dark:bg-gray-900"
                     )}
+                    side={isRTL ? 'left' : 'right'}
+                >
+                    <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
+                        {/* Accessibility requirements */}
+                        <UiSheetHeader className="sr-only">
+                            <SheetTitle>{t(config.titleKey)}</SheetTitle>
+                            <SheetDescription>
+                                {language === 'ar' ? 'نموذج عرض وتعديل البيانات' : 'Data view and edit form'}
+                            </SheetDescription>
+                        </UiSheetHeader>
 
-                    {/* Combined Header + Action Toolbar */}
-                    {customHeader || (
-                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b">
-                            {/* Top Row: Icon, Title, Code, Status, and Actions */}
-                            <div className="flex items-center justify-between gap-4">
-                                {/* Left: Icon + Title + Code + Status */}
-                                <div className="flex items-center gap-3">
-                                    {/* Document Icon */}
-                                    <div className="w-12 h-12 rounded-xl bg-erp-primary/10 flex items-center justify-center shrink-0">
-                                        <span className="text-xl">
-                                            {data?.type === 'cash' ? '💵' : data?.type === 'bank' ? '🏦' :
-                                                docType === 'account' ? '📋' : docType === 'journal' ? '📝' :
-                                                    docType === 'receipt' ? '🧾' : docType === 'payment' ? '💳' : '📄'}
-                                        </span>
-                                    </div>
-
-                                    {/* Title + Code + Status */}
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-2">
-                                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                {language === 'ar' ? (data?.nameAr || data?.name_ar || data?.name) : (data?.name_en || data?.name) || t(config.titleKey)}
-                                            </h2>
-
-                                            {/* Status Badges inline */}
-                                            {data?.status && (
-                                                <span className={cn(
-                                                    "px-2 py-0.5 rounded text-xs font-medium",
-                                                    data.status === 'posted' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
-                                                        data.status === 'draft' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" :
-                                                            "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                                                )}>
-                                                    {data.status === 'posted' ? (t('status.posted') || 'Posted') :
-                                                        data.status === 'draft' ? (t('status.draft') || 'Draft') :
-                                                            data.status}
-                                                </span>
-                                            )}
-                                            {data?.is_active !== undefined && (
-                                                <span className={cn(
-                                                    "px-2 py-0.5 rounded text-xs font-medium",
-                                                    data.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                                                )}>
-                                                    {data.is_active ? (t('status.active') || 'Active') : (t('status.inactive') || 'Inactive')}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Code + Balance in second line */}
-                                        <div className="flex items-center gap-3 mt-0.5">
-                                            {(data?.code || data?.entry_number) && (
-                                                <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
-                                                    #{data?.code || data?.entry_number}
-                                                </span>
-                                            )}
-
-                                            {/* Balance inline with code */}
-                                            {data && (data.current_balance !== undefined || data.balance !== undefined) && (
-                                                <span className="text-lg font-bold font-mono text-erp-primary">
-                                                    {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                                        .format(data.current_balance ?? data.balance ?? 0)}
-                                                    <span className="text-sm ms-1 text-gray-500 font-normal">
-                                                        {t(`currencies.${(data.currency || 'SAR').toUpperCase()}`) || data.currency || 'SAR'}
-                                                    </span>
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right: Action Toolbar */}
-                                {!hideActions && (
-                                    <EnhancedActionToolbar
-                                        mode={mode}
-                                        status={data?.status}
-                                        onAction={handleAction}
-                                        loading={loading}
-                                        // Navigation
-                                        onNavigatePrev={onNavigatePrev}
-                                        onNavigateNext={onNavigateNext}
-                                        hasPrev={hasPrev}
-                                        hasNext={hasNext}
-                                        // QR
-                                        docType={docType}
-                                        docNumber={data?.code || data?.entry_number || data?.id || ''}
-                                        docId={data?.id || documentId || ''}
-                                        amount={data?.current_balance ?? data?.balance ?? data?.total}
-                                        currency={data?.currency || 'SAR'}
-                                        // Mode
-                                        onModeChange={handleModeChange}
-                                        onCancelEdit={() => {
-                                            setData(initialData);
-                                            setHasChanges(false);
-                                        }}
-                                        hasChanges={hasChanges}
-                                    />
-                                )}
-
-                                {/* Close Button */}
-                                <button
-                                    onClick={onClose}
-                                    className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
-                                >
-                                    <span className="text-lg text-gray-600 dark:text-gray-300">✕</span>
-                                </button>
+                        {/* Loading Overlay */}
+                        {loading && (
+                            <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 z-50 flex items-center justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-erp-primary" />
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Main Document Tabs */}
-                    {openDocs.length > 0 && (
-                        <MainDocumentTabs
-                            documents={openDocs}
-                            activeId={activeDocId}
-                            onTabChange={(id) => {
-                                setActiveDocId(id);
-                                const doc = openDocs.find(d => d.id === id);
-                                if (doc) {
-                                    setData(doc.data);
-                                }
-                                onActiveDocumentChange?.(id);
-                            }}
-                            onTabClose={(id) => {
-                                setOpenDocs(prev => prev.filter(d => d.id !== id));
-                                // Switch to previous tab if active one was closed
-                                if (id === activeDocId && openDocs.length > 1) {
-                                    const remaining = openDocs.filter(d => d.id !== id);
-                                    setActiveDocId(remaining[remaining.length - 1].id);
-                                    setData(remaining[remaining.length - 1].data);
-                                }
-                                onCloseDocument?.(id);
-                            }}
-                        />
-                    )}
+                        {/* Extra header slot (e.g. document type selector) */}
+                        {headerExtra}
 
-                    {/* Content Area */}
-                    <div className="flex-1 flex flex-col overflow-hidden min-h-0" ref={contentRef}>
-                        {hideTabs ? (
-                            // Single content without tabs
-                            <ScrollArea className="flex-1 p-4">
-                                {renderTabContent(activeTab)}
-                            </ScrollArea>
-                        ) : (
-                            // Tabs layout - SheetTabs is flex-col h-full with fixed header
-                            <SheetTabs
-                                tabs={visibleTabs}
-                                activeTab={activeTab}
-                                onTabChange={setActiveTab}
-                                mode={mode}
-                                variant="default"
-                            >
-                                {/* Ledger tab needs special handling for sticky footer */}
-                                {activeTab === 'ledger' ? (
-                                    <div className="flex-1 flex flex-col overflow-hidden p-4">
-                                        {visibleTabs.map((tab) => (
-                                            <TabsContent
-                                                key={tab.id}
-                                                value={tab.id}
-                                                className="m-0 outline-none flex-1 flex flex-col min-h-0"
-                                            >
-                                                {activeTab === tab.id && renderTabContent(tab.id)}
-                                            </TabsContent>
-                                        ))}
+                        {/* Combined Header + Action Toolbar — Compact */}
+                        {customHeader || (
+                            <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b">
+                                {/* Single Row: Icon, Title, Code, Status, Actions, Close */}
+                                <div className="flex items-center justify-between gap-3">
+                                    {/* Left: Icon + Title + Code + Status */}
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        {/* Document Icon — Compact */}
+                                        <div className="w-9 h-9 rounded-lg bg-erp-primary/10 flex items-center justify-center shrink-0">
+                                            <span className="text-base">
+                                                {data?.type === 'cash' ? '💵' : data?.type === 'bank' ? '🏦' :
+                                                    docType === 'account' ? '📋' : docType === 'journal' ? '📝' :
+                                                        docType === 'receipt' ? '🧾' : docType === 'payment' ? '💳' : '📄'}
+                                            </span>
+                                        </div>
+
+                                        {/* Title + Code + Status — single row */}
+                                        <div className="flex flex-col min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h2 className="text-base font-bold text-gray-900 dark:text-white truncate">
+                                                    {language === 'ar' ? (data?.nameAr || data?.name_ar || data?.name) : (data?.name_en || data?.name) || t(config.titleKey)}
+                                                </h2>
+
+                                                {/* Status Badges inline */}
+                                                {data?.status && (
+                                                    <span className={cn(
+                                                        "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
+                                                        data.status === 'posted' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
+                                                            data.status === 'draft' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" :
+                                                                data.status === 'saved' ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
+                                                                    "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                                                    )}>
+                                                        {data.status === 'posted' ? (t('status.posted') || 'Posted') :
+                                                            data.status === 'draft' ? (t('status.draft') || 'Draft') :
+                                                                data.status === 'saved' ? (t('status.saved') || 'Saved') :
+                                                                    data.status}
+                                                    </span>
+                                                )}
+                                                {data?.is_active !== undefined && (
+                                                    <span className={cn(
+                                                        "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
+                                                        data.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                                    )}>
+                                                        {data.is_active ? (t('status.active') || 'Active') : (t('status.inactive') || 'Inactive')}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Code + Balance in compact second line */}
+                                            <div className="flex items-center gap-2">
+                                                {(data?.code || data?.entry_number) && (
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                                        #{data?.code || data?.entry_number}
+                                                    </span>
+                                                )}
+
+                                                {/* Balance inline with code */}
+                                                {data && (data.current_balance !== undefined || data.balance !== undefined) && (
+                                                    <span className="text-sm font-bold font-mono text-erp-primary">
+                                                        {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                            .format(data.current_balance ?? data.balance ?? 0)}
+                                                        <span className="text-xs ms-1 text-gray-500 font-normal">
+                                                            {t(`currencies.${(data.currency || '').toUpperCase()}`) || data.currency || ''}
+                                                        </span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <ScrollArea className="flex-1 h-full">
-                                        <div className="p-4">
+
+                                    {/* Right: Action Toolbar */}
+                                    {!hideActions && (
+                                        <EnhancedActionToolbar
+                                            mode={mode}
+                                            status={data?.status}
+                                            onAction={handleAction}
+                                            loading={loading}
+                                            // Navigation
+                                            onNavigatePrev={onNavigatePrev}
+                                            onNavigateNext={onNavigateNext}
+                                            hasPrev={hasPrev}
+                                            hasNext={hasNext}
+                                            // QR
+                                            docType={docType}
+                                            docNumber={data?.code || data?.entry_number || data?.id || ''}
+                                            docId={data?.id || documentId || ''}
+                                            amount={data?.current_balance ?? data?.balance ?? data?.total}
+                                            currency={data?.currency || ''}
+                                            // Mode
+                                            onModeChange={handleModeChange}
+                                            onCancelEdit={() => {
+                                                setData(initialData);
+                                                setHasChanges(false);
+                                            }}
+                                            hasChanges={hasChanges}
+                                            // Confirmation
+                                            showConfirmAction={isTradeDocType}
+                                            confirmationStatus={data?.confirmation_status}
+                                        />
+                                    )}
+
+                                    {/* Close Button — Compact */}
+                                    <button
+                                        onClick={onClose}
+                                        className="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0"
+                                    >
+                                        <span className="text-sm text-gray-600 dark:text-gray-300">✕</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Main Document Tabs */}
+                        {openDocs.length > 0 && (
+                            <MainDocumentTabs
+                                documents={openDocs}
+                                activeId={activeDocId}
+                                onTabChange={(id) => {
+                                    setActiveDocId(id);
+                                    const doc = openDocs.find(d => d.id === id);
+                                    if (doc) {
+                                        setData(doc.data);
+                                    }
+                                    onActiveDocumentChange?.(id);
+                                }}
+                                onTabClose={(id) => {
+                                    setOpenDocs(prev => prev.filter(d => d.id !== id));
+                                    // Switch to previous tab if active one was closed
+                                    if (id === activeDocId && openDocs.length > 1) {
+                                        const remaining = openDocs.filter(d => d.id !== id);
+                                        setActiveDocId(remaining[remaining.length - 1].id);
+                                        setData(remaining[remaining.length - 1].data);
+                                    }
+                                    onCloseDocument?.(id);
+                                }}
+                            />
+                        )}
+
+                        {/* Content Area */}
+                        <div className="flex-1 flex flex-col overflow-hidden min-h-0" ref={contentRef}>
+                            {hideTabs ? (
+                                // Single content without tabs
+                                <ScrollArea className="flex-1 p-4">
+                                    {renderTabContent(activeTab)}
+                                </ScrollArea>
+                            ) : (
+                                // Tabs layout - SheetTabs is flex-col h-full with fixed header
+                                <SheetTabs
+                                    tabs={visibleTabs}
+                                    activeTab={activeTab}
+                                    onTabChange={setActiveTab}
+                                    mode={mode}
+                                    variant="default"
+                                >
+                                    {/* Ledger tab needs special handling for sticky footer */}
+                                    {activeTab === 'ledger' ? (
+                                        <div className="flex-1 flex flex-col overflow-hidden p-4">
                                             {visibleTabs.map((tab) => (
                                                 <TabsContent
                                                     key={tab.id}
                                                     value={tab.id}
-                                                    className="m-0 outline-none"
+                                                    className="m-0 outline-none flex-1 flex flex-col min-h-0"
                                                 >
                                                     {activeTab === tab.id && renderTabContent(tab.id)}
                                                 </TabsContent>
                                             ))}
                                         </div>
-                                    </ScrollArea>
-                                )}
-                            </SheetTabs>
-                        )}
-                    </div>
+                                    ) : (
+                                        <ScrollArea className="flex-1 h-full">
+                                            <div className="p-4">
+                                                {visibleTabs.map((tab) => (
+                                                    <TabsContent
+                                                        key={tab.id}
+                                                        value={tab.id}
+                                                        className="m-0 outline-none"
+                                                    >
+                                                        {activeTab === tab.id && renderTabContent(tab.id)}
+                                                    </TabsContent>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    )}
+                                </SheetTabs>
+                            )}
+                        </div>
 
-                    {/* Custom Footer */}
-                    {customFooter}
-                </div>
-            </SheetContent>
-        </Sheet>
+                        {/* Custom Footer */}
+                        {customFooter}
+                    </div>
+                </SheetContent>
+            </Sheet>
+
+            {/* ═══ Confirmation Dialog ═══ */}
+            <ConfirmationDialog
+                isOpen={confirmDialogOpen}
+                onClose={() => setConfirmDialogOpen(false)}
+                onConfirm={async () => {
+                    if (!resolvedCompanyId) return;
+
+                    const confDocType: ConfDocType =
+                        docType === 'trade_order' ? 'sales_order' :
+                            docType === 'trade_invoice' ? 'sales_invoice' :
+                                docType === 'trade_quotation' ? 'quotation' :
+                                    docType === 'trade_reservation' ? 'reservation' : 'sales_order';
+
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+
+                    const result = await confirmationService.confirmDocument(
+                        confDocType,
+                        documentId || data?.id || '',
+                        data,
+                        data?.tenant_id || '',
+                        resolvedCompanyId,
+                        user.id,
+                        confirmSettings!
+                    );
+
+                    if (result.success) {
+                        toast.success(language === 'ar' ? result.message_ar : result.message_en);
+                        setData((prev: any) => ({
+                            ...prev,
+                            confirmation_status: 'confirmed',
+                            status: 'confirmed',
+                        }));
+                        setConfirmDialogOpen(false);
+                        onRefresh?.();
+                    } else {
+                        toast.error(language === 'ar' ? result.message_ar : result.message_en);
+                    }
+                }}
+                onRequestApproval={async () => {
+                    if (!resolvedCompanyId) return;
+
+                    const confDocType: ConfDocType =
+                        docType === 'trade_order' ? 'sales_order' :
+                            docType === 'trade_invoice' ? 'sales_invoice' :
+                                docType === 'trade_quotation' ? 'quotation' :
+                                    docType === 'trade_reservation' ? 'reservation' : 'sales_order';
+
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+
+                    const result = await confirmationService.requestApproval(
+                        confDocType,
+                        documentId || data?.id || '',
+                        data?.order_number || data?.invoice_number || '',
+                        data?.total_amount || data?.grand_total || 0,
+                        data?.currency || 'USD',
+                        data?.tenant_id || '',
+                        resolvedCompanyId,
+                        user.id
+                    );
+
+                    if (result.success) {
+                        toast.success(result.message);
+                        setData((prev: any) => ({
+                            ...prev,
+                            approval_status: 'pending',
+                            confirmation_status: 'pending_approval',
+                        }));
+                        setConfirmDialogOpen(false);
+                    } else {
+                        toast.error(result.message);
+                    }
+                }}
+                docType={
+                    docType === 'trade_order' ? 'sales_order' :
+                        docType === 'trade_invoice' ? 'sales_invoice' :
+                            docType === 'trade_quotation' ? 'quotation' :
+                                docType === 'trade_reservation' ? 'reservation' : 'sales_order'
+                }
+                docData={data}
+                validation={confirmValidation}
+                settings={confirmSettings}
+                loading={loading}
+                needsApproval={confirmNeedsApproval}
+            />
+        </>
     );
 }
 
 export default UnifiedAccountingSheet;
-

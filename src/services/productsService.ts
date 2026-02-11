@@ -124,7 +124,7 @@ export const productsService = {
         base_uom: input.base_uom || 'PCS',
         cost_price: input.cost_price || 0,
         selling_price: input.selling_price || 0,
-        currency_code: input.currency_code || 'SAR',
+        currency_code: input.currency_code || '',
         track_serial: false,
         track_batch: false,
         track_expiry: false,

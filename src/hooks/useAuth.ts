@@ -61,8 +61,14 @@ export function useAuth() {
       if (!mounted || abortController.signal.aborted) return;
 
       try {
-        // First, try to get session from storage
-        const { session: storedSession, error: sessionError } = await getSession();
+        // 🚀 PERFORMANCE: Run session + user verification in parallel instead of sequential
+        const [sessionResult, userResult] = await Promise.all([
+          getSession(),
+          getCurrentUser(),
+        ]);
+
+        const { session: storedSession, error: sessionError } = sessionResult;
+        const { user: currentUser, error: userError } = userResult;
 
         // Skip if unmounted during async operation
         if (!mounted || abortController.signal.aborted) return;
@@ -71,12 +77,6 @@ export function useAuth() {
         if (sessionError && !isConnectionError(sessionError) && sessionError.message !== 'Auth session missing!') {
           console.error('Session error:', sessionError);
         }
-
-        // Also verify the user is still valid
-        const { user: currentUser, error: userError } = await getCurrentUser();
-
-        // Skip if unmounted during async operation
-        if (!mounted || abortController.signal.aborted) return;
 
         // Only log user errors if user is expected but missing (not just no user logged in or connection error)
         if (userError && !isConnectionError(userError) && storedSession && userError.message !== 'Auth session missing!') {

@@ -191,7 +191,7 @@ export function SheetHeader({
                             "text-2xl font-bold font-mono",
                             mainValue >= 0 ? "text-erp-navy dark:text-white" : "text-red-600"
                         )}>
-                            {formatCurrency(mainValue, data?.currency || 'SAR', useArabicNumerals)}
+                            {formatCurrency(mainValue, data?.currency || '', useArabicNumerals)}
                         </p>
                     </div>
                 )}
@@ -205,7 +205,7 @@ export function SheetHeader({
                                 id: data.id || data.code || getCode(),
                                 number: getCode(),
                                 total: mainValue || 0,
-                                currency: data.currency || 'SAR',
+                                currency: data.currency || '',
                                 date: data.created_at || new Date().toISOString(),
                             }}
                             size={56}

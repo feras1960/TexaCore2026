@@ -31,13 +31,13 @@ import { PaymentsTab } from '../tabs/shared/PaymentsTab';
 
 export const invoiceConfig: SheetConfig = {
   docType: 'invoice',
-  
+
   // Header
   title: (data) => data.invoice_no || data.invoiceNo || data.reference,
   subtitle: (data) => data.party_name || data.partyName || data.customer_name,
   icon: Receipt,
   iconBg: 'bg-gradient-to-br from-green-600 to-green-800',
-  
+
   // Status Badge
   badge: (data) => {
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' | 'info' }> = {
@@ -53,19 +53,19 @@ export const invoiceConfig: SheetConfig = {
     return {
       label: status.label,
       variant: status.variant,
-      icon: status.variant === 'success' ? CheckCircle : 
-            status.variant === 'error' ? AlertTriangle : Clock,
+      icon: status.variant === 'success' ? CheckCircle :
+        status.variant === 'error' ? AlertTriangle : Clock,
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data: any) => data.balance || (data.grand_total || data.grandTotal || 0) - (data.paid_amount || data.paidAmount || 0),
     label: 'fields.balanceDue',
-    currency: 'SAR',
+    currency: undefined,
     showSign: false,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -100,13 +100,13 @@ export const invoiceConfig: SheetConfig = {
       color: 'gray',
     },
   ],
-  
+
   // Info Fields
   infoFields: [
     { key: 'invoice_no', label: 'fields.invoiceNo', type: 'text' },
-    { 
-      key: 'invoice_type', 
-      label: 'fields.type', 
+    {
+      key: 'invoice_type',
+      label: 'fields.type',
       type: 'badge',
       badge: (value) => {
         const types: Record<string, { label: string; variant: 'success' | 'info' | 'warning' | 'default' }> = {
@@ -120,9 +120,9 @@ export const invoiceConfig: SheetConfig = {
     },
     { key: 'date', label: 'fields.date', type: 'date', icon: Calendar },
     { key: 'due_date', label: 'fields.dueDate', type: 'date', icon: Clock },
-    { 
-      key: 'party_name', 
-      label: 'fields.customer', 
+    {
+      key: 'party_name',
+      label: 'fields.customer',
       type: 'link',
       icon: Building2,
       link: (_value: any, data: any) => data.party_id ? { docType: (data.party_type === 'supplier' ? 'supplier' : 'customer') as DocType, id: data.party_id } : null,
@@ -134,21 +134,21 @@ export const invoiceConfig: SheetConfig = {
     { key: 'currency', label: 'common.currency', type: 'text' },
     { key: 'created_at', label: 'fields.created', type: 'date' },
   ],
-  
+
   // Tabs
   tabs: [
     { id: 'overview', label: 'tabs.overview', icon: Eye, component: OverviewTab },
-    { 
-      id: 'payments', 
-      label: 'tabs.payments', 
-      icon: CreditCard, 
+    {
+      id: 'payments',
+      label: 'tabs.payments',
+      icon: CreditCard,
       component: PaymentsTab,
       badge: (data) => data.payments?.length || 0,
     },
     { id: 'activity', label: 'tabs.activity', icon: Activity, component: ActivityTab },
   ],
   defaultTab: 'overview',
-  
+
   // Quick Actions (shown in header)
   quickActions: [
     {
@@ -163,10 +163,10 @@ export const invoiceConfig: SheetConfig = {
       label: 'actions.download',
       icon: Download,
       variant: 'ghost',
-      onClick: () => {},
+      onClick: () => { },
     },
   ],
-  
+
   // Actions
   actions: [
     {
@@ -175,7 +175,7 @@ export const invoiceConfig: SheetConfig = {
       icon: Edit,
       variant: 'outline',
       show: (data) => data.status === 'draft',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'submit',
@@ -183,7 +183,7 @@ export const invoiceConfig: SheetConfig = {
       icon: CheckCircle,
       variant: 'success',
       show: (data) => data.status === 'draft',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'cancel',
@@ -195,7 +195,7 @@ export const invoiceConfig: SheetConfig = {
         title: 'dialogs.confirmCancel',
         description: 'dialogs.cancelInvoiceWarning',
       },
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'delete',
@@ -207,13 +207,13 @@ export const invoiceConfig: SheetConfig = {
         title: 'dialogs.confirmDelete',
         description: 'dialogs.deleteInvoiceWarning',
       },
-      onClick: () => {},
+      onClick: () => { },
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'payment') {

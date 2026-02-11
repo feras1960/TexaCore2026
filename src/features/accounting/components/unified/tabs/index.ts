@@ -49,3 +49,10 @@ export { ReceiptVoucherTab } from './ReceiptVoucherTab';
 export { PaymentVoucherTab } from './PaymentVoucherTab';
 export { FundTransferTab } from './FundTransferTab';
 export { CurrencyExchangeTab } from './CurrencyExchangeTab';
+
+// CRM Contact Tabs
+export { ContactOverviewTab } from './ContactOverviewTab';
+export { ContactInteractionsTab } from './ContactInteractionsTab';
+export { ContactCallsTab } from './ContactCallsTab';
+export { ContactNotesTab } from './ContactNotesTab';
+

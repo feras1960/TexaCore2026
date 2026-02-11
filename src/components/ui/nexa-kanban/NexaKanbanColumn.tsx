@@ -22,7 +22,7 @@ export function NexaKanbanColumn({
     items,
     itemCount,
     totalValue,
-    currency = 'SAR',
+    currency = '',
     renderCard,
     direction = 'ltr',
     emptyText,

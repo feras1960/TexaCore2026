@@ -105,59 +105,56 @@ export function useRBAC(): UseRBACReturn {
         try {
             setLoading(true);
 
-            // Load data with error handling for each call
-            let allRoles: Role[] = [];
-            let userRoleAssignments: any[] = [];
-            let permissions: Record<string, Permission[]> = {};
-            let resources: Record<ResourceType, UserResourceAccess[]> = {
-                branch: [],
-                warehouse: [],
-                cash_account: [],
-                bank_account: [],
-                cost_center: [],
-            };
-            let modules: string[] = ['dashboard'];
+            // ═══════════════════════════════════════════════════════════════
+            // 🚀 PERFORMANCE: Run ALL queries in parallel instead of sequential
+            // Previously: 5 sequential calls (~5s) → Now: parallel (~1s)
+            // ═══════════════════════════════════════════════════════════════
 
-            // Try to load roles (non-critical, fallback to empty)
-            try {
-                allRoles = await rbacService.getRoles();
-            } catch (e) {
-                console.warn('Could not load roles:', e);
-            }
+            const [
+                allRolesResult,
+                userRoleAssignmentsResult,
+                permissionsResult,
+                resourcesResult,
+                modulesResult
+            ] = await Promise.all([
+                // 1. Load all roles (non-critical)
+                rbacService.getRoles().catch(e => {
+                    console.warn('Could not load roles:', e);
+                    return [] as Role[];
+                }),
+                // 2. Load user role assignments
+                rbacService.getUserRoles(user.id).catch(e => {
+                    console.warn('Could not load user roles:', e);
+                    return [] as any[];
+                }),
+                // 3. Load effective permissions
+                rbacService.getUserEffectivePermissions(user.id).catch(e => {
+                    console.warn('Could not load permissions:', e);
+                    return {} as Record<string, Permission[]>;
+                }),
+                // 4. Load accessible resources
+                rbacService.getUserAccessibleResources(user.id).catch(e => {
+                    console.warn('Could not load resources:', e);
+                    return {
+                        branch: [],
+                        warehouse: [],
+                        cash_account: [],
+                        bank_account: [],
+                        cost_center: [],
+                    } as Record<ResourceType, UserResourceAccess[]>;
+                }),
+                // 5. Load visible modules
+                rbacService.getUserVisibleModules(user.id).catch(e => {
+                    console.warn('Could not load modules:', e);
+                    return ['dashboard'] as string[];
+                }),
+            ]);
 
-            // Try to load user role assignments
-            try {
-                userRoleAssignments = await rbacService.getUserRoles(user.id);
-            } catch (e) {
-                console.warn('Could not load user roles:', e);
-            }
-
-            // Try to load permissions
-            try {
-                permissions = await rbacService.getUserEffectivePermissions(user.id);
-            } catch (e) {
-                console.warn('Could not load permissions:', e);
-            }
-
-            // Try to load resources
-            try {
-                resources = await rbacService.getUserAccessibleResources(user.id);
-            } catch (e) {
-                console.warn('Could not load resources:', e);
-            }
-
-            // Try to load modules
-            try {
-                modules = await rbacService.getUserVisibleModules(user.id);
-            } catch (e) {
-                console.warn('Could not load modules:', e);
-            }
-
-            setRoles(allRoles);
-            setUserRoles(userRoleAssignments.map(ur => ur.role).filter(Boolean) as Role[]);
-            setUserPermissions(permissions);
-            setUserResources(resources);
-            setVisibleModules(modules.length > 0 ? modules : ['dashboard']);
+            setRoles(allRolesResult);
+            setUserRoles(userRoleAssignmentsResult.map(ur => ur.role).filter(Boolean) as Role[]);
+            setUserPermissions(permissionsResult);
+            setUserResources(resourcesResult);
+            setVisibleModules(modulesResult.length > 0 ? modulesResult : ['dashboard']);
 
         } catch (error) {
             console.error('Failed to load RBAC permissions:', error);

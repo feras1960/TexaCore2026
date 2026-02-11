@@ -48,12 +48,12 @@ const STATUS_CONFIG: Record<string, { icon: any; color: string; labelAr: string;
 };
 
 // Tenant Card Component
-function TenantCard({ 
-  tenant, 
-  language, 
-  onClick 
-}: { 
-  tenant: Tenant; 
+function TenantCard({
+  tenant,
+  language,
+  onClick
+}: {
+  tenant: Tenant;
   language: string;
   onClick?: () => void;
 }) {
@@ -62,7 +62,7 @@ function TenantCard({
   const StatusIcon = statusConfig.icon;
 
   return (
-    <div 
+    <div
       className={cn(
         'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-erp-teal/50 transition-colors',
         onClick && 'cursor-pointer'
@@ -122,7 +122,7 @@ function TenantCard({
             {isArabic ? 'القيمة الشهرية' : 'Monthly Value'}
           </span>
           <span className="font-mono font-medium text-green-600 dark:text-green-400">
-            {tenant.monthly_value.toLocaleString()} {tenant.currency || 'SAR'}
+            {tenant.monthly_value.toLocaleString()} {tenant.currency || '-'}
           </span>
         </div>
       )}
@@ -149,7 +149,7 @@ export function AgentTenantsTab({ data, docType: _docType, language, t: _t, onRo
   const filteredTenants = useMemo(() => {
     if (!searchQuery) return tenants;
     const query = searchQuery.toLowerCase();
-    return tenants.filter(t => 
+    return tenants.filter(t =>
       t.name.toLowerCase().includes(query) ||
       t.code.toLowerCase().includes(query) ||
       t.email?.toLowerCase().includes(query)
@@ -251,7 +251,7 @@ export function AgentTenantsTab({ data, docType: _docType, language, t: _t, onRo
         {filteredTenants.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            {searchQuery 
+            {searchQuery
               ? (isArabic ? 'لا توجد نتائج' : 'No results found')
               : (isArabic ? 'لا يوجد مشتركون' : 'No tenants')
             }

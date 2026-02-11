@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -18,13 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Printer, 
-  Download, 
-  Share2, 
-  Edit, 
-  Save, 
-  X, 
+import {
+  Printer,
+  Download,
+  Share2,
+  Edit,
+  Save,
+  X,
   FileText,
   Calendar,
   Hash,
@@ -65,13 +66,14 @@ interface TransactionDetailsSheetProps {
   onSave?: (transaction: Transaction) => void;
 }
 
-export default function TransactionDetailsSheet({ 
-  open, 
-  onOpenChange, 
+export default function TransactionDetailsSheet({
+  open,
+  onOpenChange,
   transaction,
-  onSave 
+  onSave
 }: TransactionDetailsSheetProps) {
   const { t, direction, language } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [isEditing, setIsEditing] = useState(false);
   const [editedTransaction, setEditedTransaction] = useState<Transaction | null>(null);
 
@@ -114,8 +116,8 @@ export default function TransactionDetailsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        side={direction === 'rtl' ? 'left' : 'right'} 
+      <SheetContent
+        side={direction === 'rtl' ? 'left' : 'right'}
         className="w-full sm:w-[85vw] md:w-[70vw] lg:w-[50vw] max-w-none sm:max-w-[85vw] md:max-w-[70vw] lg:max-w-[50vw] p-0 flex flex-col"
         dir={direction}
       >
@@ -124,7 +126,7 @@ export default function TransactionDetailsSheet({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${isPayment ? 'bg-red-100 dark:bg-red-900/20' : 'bg-green-100 dark:bg-green-900/20'}`}>
-                {isPayment 
+                {isPayment
                   ? <ArrowUpRight className="w-5 h-5 text-red-600 dark:text-red-400" />
                   : <ArrowDownRight className="w-5 h-5 text-green-600 dark:text-green-400" />
                 }
@@ -137,12 +139,11 @@ export default function TransactionDetailsSheet({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge 
-                className={`${
-                  transaction.status === 'posted' 
-                    ? 'bg-green-100 text-green-800 hover:bg-green-100' 
+              <Badge
+                className={`${transaction.status === 'posted'
+                    ? 'bg-green-100 text-green-800 hover:bg-green-100'
                     : 'bg-amber-100 text-amber-800 hover:bg-amber-100'
-                }`}
+                  }`}
               >
                 {transaction.status === 'posted' ? (
                   <CheckCircle className="w-3 h-3 ml-1" />
@@ -164,7 +165,7 @@ export default function TransactionDetailsSheet({
             </p>
             <p className={`text-4xl font-bold font-mono text-center ${isPayment ? 'text-red-600' : 'text-green-600'}`}>
               {isPayment ? '-' : '+'}{transaction.amount.toLocaleString()}
-              <span className="text-lg text-gray-400 mr-2">SAR</span>
+              <span className="text-lg text-gray-400 mr-2">{companyCurrency}</span>
             </p>
           </div>
 
@@ -177,7 +178,7 @@ export default function TransactionDetailsSheet({
                 {language === 'ar' ? 'المرجع' : 'Reference'}
               </label>
               {isEditing ? (
-                <Input 
+                <Input
                   value={editedTransaction.id}
                   onChange={(e) => handleChange('id', e.target.value)}
                   className="h-9"
@@ -195,7 +196,7 @@ export default function TransactionDetailsSheet({
                 {language === 'ar' ? 'التاريخ' : 'Date'}
               </label>
               {isEditing ? (
-                <Input 
+                <Input
                   type="date"
                   value={editedTransaction.date}
                   onChange={(e) => handleChange('date', e.target.value)}
@@ -257,7 +258,7 @@ export default function TransactionDetailsSheet({
               {language === 'ar' ? 'الوصف' : 'Description'}
             </label>
             {isEditing ? (
-              <Textarea 
+              <Textarea
                 value={editedTransaction.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 rows={2}
@@ -277,56 +278,56 @@ export default function TransactionDetailsSheet({
             </h4>
             <div className="border rounded-lg overflow-hidden">
               <div className="overflow-x-auto overflow-y-auto scrollbar-thin" style={{ maxHeight: '300px' }}>
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
-                  <tr>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">
-                      {language === 'ar' ? 'الحساب' : 'Account'}
-                    </th>
-                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300 w-24">
-                      {language === 'ar' ? 'مدين' : 'Debit'}
-                    </th>
-                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300 w-24">
-                      {language === 'ar' ? 'دائن' : 'Credit'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {journalLines.map((line, idx) => (
-                    <tr key={idx} className="border-t border-gray-200 dark:border-gray-700">
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-gray-400">{line.account}</span>
-                          <span className="text-gray-800 dark:text-gray-200">{line.accountName}</span>
-                        </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">
+                        {language === 'ar' ? 'الحساب' : 'Account'}
+                      </th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300 w-24">
+                        {language === 'ar' ? 'مدين' : 'Debit'}
+                      </th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300 w-24">
+                        {language === 'ar' ? 'دائن' : 'Credit'}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {journalLines.map((line, idx) => (
+                      <tr key={idx} className="border-t border-gray-200 dark:border-gray-700">
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-gray-400">{line.account}</span>
+                            <span className="text-gray-800 dark:text-gray-200">{line.accountName}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono">
+                          {line.debit > 0 ? (
+                            <span className="text-green-600">{line.debit.toLocaleString()}</span>
+                          ) : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono">
+                          {line.credit > 0 ? (
+                            <span className="text-red-600">{line.credit.toLocaleString()}</span>
+                          ) : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 dark:bg-gray-800 font-bold">
+                    <tr>
+                      <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
+                        {language === 'ar' ? 'الإجمالي' : 'Total'}
                       </td>
-                      <td className="px-3 py-2 text-center font-mono">
-                        {line.debit > 0 ? (
-                          <span className="text-green-600">{line.debit.toLocaleString()}</span>
-                        ) : '-'}
+                      <td className="px-3 py-2 text-center font-mono text-green-600">
+                        {journalLines.reduce((sum, l) => sum + l.debit, 0).toLocaleString()}
                       </td>
-                      <td className="px-3 py-2 text-center font-mono">
-                        {line.credit > 0 ? (
-                          <span className="text-red-600">{line.credit.toLocaleString()}</span>
-                        ) : '-'}
+                      <td className="px-3 py-2 text-center font-mono text-red-600">
+                        {journalLines.reduce((sum, l) => sum + l.credit, 0).toLocaleString()}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50 dark:bg-gray-800 font-bold">
-                  <tr>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
-                      {language === 'ar' ? 'الإجمالي' : 'Total'}
-                    </td>
-                    <td className="px-3 py-2 text-center font-mono text-green-600">
-                      {journalLines.reduce((sum, l) => sum + l.debit, 0).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-center font-mono text-red-600">
-                      {journalLines.reduce((sum, l) => sum + l.credit, 0).toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
               </div>
             </div>
           </div>
@@ -337,7 +338,7 @@ export default function TransactionDetailsSheet({
               {language === 'ar' ? 'ملاحظات' : 'Notes'}
             </label>
             {isEditing ? (
-              <Textarea 
+              <Textarea
                 value={editedTransaction.notes || ''}
                 onChange={(e) => handleChange('notes', e.target.value)}
                 rows={3}

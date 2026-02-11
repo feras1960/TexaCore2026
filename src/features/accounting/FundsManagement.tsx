@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Wallet, Building2, TrendingUp, RefreshCw } from "lucide-react";
-import { accountsService, Account } from '@/services/accountsService';
+import { Account } from '@/services/accountsService';
 import { useCompany } from '@/hooks/useCompany';
+import { useFunds } from './hooks/useAccountingQueries';
 import { AddFundDialog } from './components/AddFundDialog';
 import { FundStatementSheet } from './components/FundStatementSheet';
 
@@ -22,37 +23,16 @@ export default function FundsManagement() {
   const isRTL = direction === 'rtl';
 
   // State
-  const [funds, setFunds] = useState<Account[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<'all' | 'cash' | 'bank'>('all');
   const { selectedCurrency, setSelectedCurrency, currencyOptions, formatAmount } = useViewCurrency();
+
+  // ⚡ React Query: cached data + Realtime from other users
+  const { funds, loading: isLoading, refetch: refetchFunds, invalidate: invalidateFunds } = useFunds();
 
   // Dialogs
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedFund, setSelectedFund] = useState<Account | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
-
-  // Fetch Data
-  const fetchFunds = React.useCallback(async () => {
-    if (!currentCompany?.id) return;
-    try {
-      setIsLoading(true);
-      const allAccounts = await accountsService.getAll(currentCompany.id);
-      // Filter for Cash and Bank accounts
-      const treasuryAccounts = allAccounts.filter(acc =>
-        acc.is_cash_account || acc.is_bank_account || acc.account_type_code === 'CASH' || acc.account_type_code === 'BANK'
-      );
-      setFunds(treasuryAccounts);
-    } catch (error) {
-      console.error('Error fetching funds:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentCompany?.id]);
-
-  useEffect(() => {
-    fetchFunds();
-  }, [fetchFunds]);
 
   // Calculations for Stats Cards
   const stats = useMemo(() => {
@@ -75,14 +55,14 @@ export default function FundsManagement() {
 
   const columns: Column<Account>[] = useMemo(() => [
     {
-      title: t('accounting.accountCode'),
+      title: 'accounting.accountCode',
       key: 'code',
       align: 'start',
       width: '150px'
     },
     {
-      title: t('accounting.accountName'),
-      key: 'name', // Virtual key
+      title: 'accounting.accountName',
+      key: 'name',
       align: 'start',
       render: (_, row) => (
         <span className="font-medium text-erp-navy dark:text-erp-blue">
@@ -91,7 +71,7 @@ export default function FundsManagement() {
       )
     },
     {
-      title: t('accounting.type'),
+      title: 'accounting.type',
       key: 'type',
       align: 'center',
       render: (_, row) => {
@@ -101,13 +81,13 @@ export default function FundsManagement() {
       }
     },
     {
-      title: t('accounting.currency'),
+      title: 'accounting.currency',
       key: 'currency',
       align: 'center',
       render: (_, row) => row.currency || '-'
     },
     {
-      title: t('accounting.balance'),
+      title: 'accounting.balance',
       key: 'balance',
       align: 'end',
       render: (_, row) => {
@@ -189,7 +169,7 @@ export default function FundsManagement() {
                 <SelectItem value="bank">{t('accounting.bank')}</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={fetchFunds} title={t('common.refresh')}>
+            <Button variant="outline" size="icon" onClick={() => refetchFunds()} title={t('common.refresh')}>
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
@@ -223,7 +203,7 @@ export default function FundsManagement() {
         open={isAddDialogOpen}
         onOpenChange={(open) => {
           setIsAddDialogOpen(open);
-          if (!open) fetchFunds(); // Refresh on close
+          if (!open) invalidateFunds(); // Refresh on close
         }}
       />
 

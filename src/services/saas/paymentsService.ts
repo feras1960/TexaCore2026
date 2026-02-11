@@ -151,7 +151,7 @@ class PaymentsService {
       .from('saas_payments')
       .insert({
         ...input,
-        currency: input.currency || 'SAR',
+        currency: input.currency || 'USD',
         status: 'pending',
         invoice_number: input.invoice_number || `PAY-${Date.now()}`,
       })
@@ -254,7 +254,7 @@ class PaymentsService {
     failedCount: number;
   }> {
     const payments = await this.getAll();
-    
+
     return {
       totalRevenue: payments
         .filter(p => p.status === 'completed')

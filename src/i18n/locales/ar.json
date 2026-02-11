@@ -19,20 +19,45 @@
     "closingBalance": "الرصيد الختامي"
   },
   "trade": {
+    "quotation": {
+      "title": "عرض سعر",
+      "subtitle": "إدارة عروض الأسعار للعملاء"
+    },
+    "reservation": {
+      "title": "حجز بضائع",
+      "subtitle": "حجز بضائع بالطريق أو بالمستودع"
+    },
     "order": {
       "title": "أمر شراء / توريد",
       "subtitle": "إدارة أوامر الشراء والموردين"
+    },
+    "sales_order": {
+      "title": "أمر بيع",
+      "subtitle": "إدارة أوامر البيع"
     },
     "invoice": {
       "title": "فاتورة مبيعات",
       "subtitle": "إدارة فواتير المبيعات للعملاء"
     },
+    "delivery_note": {
+      "title": "إذن تسليم",
+      "subtitle": "أذونات تسليم البضائع"
+    },
+    "sales_return": {
+      "title": "مرتجع مبيعات",
+      "subtitle": "إدارة مرتجعات المبيعات"
+    },
     "tabs": {
       "details": "الأصناف والتفاصيل",
+      "materials": "متصفح المواد",
+      "payment": "الدفعات والقيد",
       "attachments": "المرفقات",
-      "shipping": "الشحن والكونتينرات",
+      "shipping": "التوصيل والشحن",
       "expenses": "المصاريف والتكاليف",
-      "activity": "السجل والنشاط"
+      "activity": "السجل والنشاط",
+      "nexaAgent": "وكيل نيكسا 🤖",
+      "supplierInfo": "المورد",
+      "warehouseReceiving": "الاستلام"
     },
     "total": "الإجمالي",
     "shipping": {
@@ -43,9 +68,16 @@
     "expenses": {
       "title": "مصاريف الشحنة",
       "total": "إجمالي المصاريف"
-    }
+    },
+    "document_notes": "ملاحظات القيد",
+    "document_notes_placeholder": "أضف ملاحظات على المستند...",
+    "item_currency": "عملة المادة",
+    "exchange_rate": "سعر التصريف",
+    "converted_to": "تم التحويل إلى",
+    "type_converted": "تم تحويل نوع المستند بنجاح"
   },
   "appName": "تيكسا كور",
+  "currencySettingsDesc": "حدد العملات المدعومة والعملات الافتراضية لكل نظام",
   "_status_extended": "تم النقل إلى قسم الحالة الرئيسي",
   "_tabs_extended": {
     "addNote": "إضافة ملاحظة",
@@ -999,6 +1031,53 @@
   "cashAndEquivalents": "النقدية وما يعادلها",
   "cashFund": "صندوق نقدي",
   "cashOnHand": "النقدية في الصندوق",
+  "cart": {
+    "title": "سلة المواد",
+    "empty": "السلة فارغة",
+    "emptyDesc": "أضف مواد من صفحة المخزون لبدء إنشاء عرض سعر",
+    "addItem": "إضافة للسلة",
+    "addFullRoll": "إضافة رولون كامل",
+    "addQuantity": "إضافة كمية",
+    "quantity": "الكمية",
+    "unitPrice": "سعر الوحدة",
+    "subtotal": "الإجمالي الفرعي",
+    "totalAmount": "المبلغ الإجمالي",
+    "totalItems": "إجمالي البنود",
+    "selectCustomer": "اختيار العميل",
+    "noCustomer": "بدون عميل (اختياري)",
+    "saveDraft": "حفظ كمسودة عرض سعر",
+    "clearCart": "إفراغ السلة",
+    "clearCartConfirm": "هل تريد إفراغ السلة؟ سيتم حذف جميع البنود.",
+    "draftSaved": "تم حفظ المسودة بنجاح",
+    "draftNumber": "رقم العرض",
+    "goToQuotation": "الذهاب لعرض السعر",
+    "continueShopping": "متابعة التصفح",
+    "removeItem": "إزالة البند",
+    "editItem": "تعديل البند",
+    "fromWarehouse": "من المستودع",
+    "rollNumber": "رقم الرولون",
+    "freeQuantity": "كمية حرة",
+    "maxAvailable": "الحد الأقصى المتاح",
+    "exceedsAvailable": "الكمية تتجاوز المتاح",
+    "notes": "ملاحظات",
+    "material": "المادة",
+    "warehouse": "المستودع",
+    "price": "السعر",
+    "total": "الإجمالي",
+    "actions": "الإجراءات",
+    "itemAdded": "تمت إضافة البند للسلة",
+    "itemRemoved": "تم حذف البند من السلة",
+    "widget": {
+      "items": "بنود",
+      "view": "عرض",
+      "clear": "مسح"
+    },
+    "errors": {
+      "saveFailed": "فشل في حفظ المسودة",
+      "loadFailed": "فشل في تحميل المسودة",
+      "quantityExceeded": "الكمية المطلوبة تتجاوز المخزون المتاح"
+    }
+  },
   "category": "الفئة",
   "clickSearchToLoad": "اضغط للبحث والتحميل",
   "clickToViewDetails": "اضغط لعرض التفاصيل",
@@ -1036,7 +1115,22 @@
     "status": {
       "_": "الحالة",
       "active": "نشط",
-      "inactive": "غير نشط"
+      "inactive": "غير نشط",
+      "draft": "مسودة",
+      "closed": "مغلق",
+      "approved": "موافق عليه",
+      "completed": "مكتمل",
+      "posted": "مرحّل",
+      "pending": "معلّق",
+      "pending_approval": "بانتظار الموافقة",
+      "rejected": "مرفوض",
+      "cancelled": "ملغى",
+      "void": "لاغٍ",
+      "failed": "فاشل",
+      "archived": "مؤرشف",
+      "saved": "محفوظ",
+      "confirmed": "مؤكد",
+      "delivered": "تم التسليم"
     },
     "suspend": "تعليق",
     "address": "العنوان",
@@ -1112,6 +1206,8 @@
     "googleSheets": "جداول غوغل",
     "invoiceNumber": "رقم الفاتورة",
     "name": "الاسم",
+    "nameAr": "الاسم (عربي)",
+    "nameEn": "الاسم (إنجليزي)",
     "wizard": {
       "title": "إعداد حسابك",
       "subtitle": "أكمل بياناتك لتبدأ العمل",
@@ -1454,12 +1550,26 @@
   "critical": "حرج",
   "crm": {
     "activities": "الأنشطة",
+    "activity": "النشاط",
+    "addContact": "إضافة جهة اتصال",
     "campaigns": "الحملات",
+    "communications": "الاتصالات",
+    "contactName": "اسم جهة الاتصال",
     "contacts": "جهات الاتصال",
+    "contactsSubtitle": "إدارة العملاء المحتملين وجهات الاتصال",
+    "convertToCustomer": "تحويل إلى عميل",
+    "dashboard": "لوحة التحكم",
+    "interactions": "التفاعلات",
+    "lastActivity": "آخر نشاط",
     "leads": "العملاء المحتملين",
     "module": "إدارة علاقات العملاء",
     "opportunities": "الفرص",
-    "pipeline": "مسار المبيعات"
+    "pipeline": "مسار المبيعات",
+    "priority": "الأولوية",
+    "settings": "الإعدادات",
+    "source": "المصدر",
+    "stage": "المرحلة",
+    "tasks": "المهام"
   },
   "currencies": {
     "AED": "درهم إماراتي",
@@ -1940,7 +2050,19 @@
     "templates": "القوالب",
     "history": "السجل",
     "search": "بحث...",
-    "status": "الحالة",
+    "status": {
+      "_": "الحالة",
+      "active": "نشط",
+      "paused": "متوقف",
+      "completed": "مكتمل",
+      "cancelled": "ملغي",
+      "pending": "معلق",
+      "approved": "موافق",
+      "rejected": "مرفوض",
+      "executed": "منفذ",
+      "failed": "فشل",
+      "draft": "مسودة"
+    },
     "all": "الكل",
     "name": "الاسم",
     "frequency": "التكرار",
@@ -1996,8 +2118,33 @@
   "general": "عام",
   "good": "جيد",
   "grossProfit": "إجمالي الربح",
+  "favorites": {
+    "title": "المفضلة",
+    "addToFavorites": "إضافة للمفضلة",
+    "removeFromFavorites": "إزالة من المفضلة",
+    "manageFavorites": "إدارة المفضلة",
+    "empty": "لا توجد مواد مفضلة",
+    "season": "الموسم",
+    "seasons": {
+      "all_year": "طوال العام",
+      "spring": "الربيع",
+      "summer": "الصيف",
+      "autumn": "الخريف",
+      "winter": "الشتاء"
+    },
+    "categories": {
+      "most_requested": "الأكثر طلباً",
+      "vip_customers": "عملاء VIP",
+      "clearance": "تصفية",
+      "custom": "مخصص"
+    },
+    "usageCount": "مرات الاستخدام",
+    "lastUsed": "آخر استخدام"
+  },
   "header": {
+    "cart": "سلة المواد",
     "darkMode": "الوضع الداكن",
+    "favorites": "المفضلة",
     "language": "اللغة",
     "lightMode": "الوضع الفاتح",
     "notifications": "الإشعارات",
@@ -2244,7 +2391,8 @@
     "unsavedChangesDesc": "لديك تغييرات غير محفوظة. هل أنت متأكد من إغلاق هذا النموذج؟ سيتم فقدان جميع البيانات.",
     "updateError": "فشل التحديث",
     "updateSuccess": "تم التحديث بنجاح",
-    "selectSupplierFirst": "الرجاء اختيار المورد أولاً"
+    "selectSupplierFirst": "الرجاء اختيار المورد أولاً",
+    "featureComingSoon": "هذه الميزة قادمة قريباً"
   },
   "modes": {
     "view": "عرض",
@@ -2399,6 +2547,30 @@
       "contents": "محتويات الكونتينر",
       "expenses": "مصاريف الشحنة"
     },
+    "order": {
+      "title": "أمر شراء",
+      "subtitle": "إدارة أوامر الشراء للموردين"
+    },
+    "invoice": {
+      "title": "فاتورة شراء",
+      "subtitle": "إدارة فواتير المشتريات"
+    },
+    "quotation": {
+      "title": "عرض سعر مورد",
+      "subtitle": "عروض الأسعار من الموردين"
+    },
+    "request": {
+      "title": "طلب شراء",
+      "subtitle": "طلب شراء داخلي"
+    },
+    "receipt": {
+      "title": "استلام بضاعة",
+      "subtitle": "إذن استلام البضاعة من المورد"
+    },
+    "return": {
+      "title": "مرتجع شراء",
+      "subtitle": "مرتجعات المشتريات للموردين"
+    },
     "module": "المشتريات",
     "title": "المشتريات",
     "dashboard": "لوحة المشتريات",
@@ -2414,7 +2586,8 @@
     "purchaseReceipt": "إذن استلام",
     "purchaseRequest": "طلب شراء",
     "purchaseReturn": "مرتجع مشتريات",
-    "supplier": "المورد"
+    "supplier": "المورد",
+    "settings": "الإعدادات"
   },
   "qrCode": {
     "copied": "تم نسخ الرابط",
@@ -2774,6 +2947,31 @@
     "settings": "الإعدادات",
     "tax": "الضريبة",
     "vat": "ضريبة القيمة المضافة",
+    "types": {
+      "quotation": "عرض سعر",
+      "order": "أمر بيع",
+      "delivery": "إذن تسليم",
+      "invoice": "فاتورة",
+      "return": "مرتجع",
+      "reservation": "حجز"
+    },
+    "table": {
+      "documentNumber": "رقم المستند",
+      "type": "النوع",
+      "date": "التاريخ",
+      "customer": "العميل",
+      "total": "الإجمالي",
+      "status": "الحالة",
+      "searchPlaceholder": "بحث برقم المستند أو اسم العميل...",
+      "noDocuments": "لا توجد مستندات",
+      "adjustFilters": "جرب تغيير الفلتر أو البحث",
+      "unknownCustomer": "عميل غير محدد",
+      "viewDetails": "عرض التفاصيل",
+      "edit": "تعديل",
+      "duplicate": "نسخ",
+      "delete": "حذف",
+      "of": "من"
+    },
     "reportsPage": {
       "title": "تقارير المبيعات",
       "subtitle": "لوحة تحليل أداء المبيعات والمؤشرات الرئيسية",
@@ -3154,7 +3352,11 @@
     "status": "الحالة",
     "toggleColumns": "إظهار/إخفاء الأعمدة",
     "totals": "المجاميع",
-    "markerHint": "اضغط على الرقم التسلسلي لتعليم/إزالة التعليم"
+    "markerHint": "اضغط على الرقم التسلسلي لتعليم/إزالة التعليم",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "address": "العنوان",
+    "contactPerson": "جهة الاتصال"
   },
   "tabs": {
     "accountStatement": "كشف الحساب",
@@ -3872,7 +4074,9 @@
         "distributed": "موزعة",
         "cancelled": "ملغي"
       }
-    }
+    },
+    "details": "تفاصيل المستودع",
+    "manageWarehouse": "إدارة بيانات ومحتويات المستودع"
   },
   "shipments": {
     "title": "إدارة الشحنات",
@@ -3921,5 +4125,21 @@
     "reefer": "مبرد",
     "open": "مفتوح",
     "flat": "مسطح"
+  },
+  "settings": {
+    "tabs": {
+      "company": "بيانات المنشأة",
+      "tax": "الضرائب والأنظمة",
+      "accounting": "المحاسبة",
+      "warehouse": "المستودعات",
+      "sales": "المبيعات",
+      "purchases": "المشتريات",
+      "integrations": "التكاملات",
+      "roles": "إدارة الأدوار",
+      "users": "المستخدمين",
+      "resources": "صلاحيات الموارد",
+      "visibility": "قواعد الإخفاء",
+      "modules": "الموديولات"
+    }
   }
 }

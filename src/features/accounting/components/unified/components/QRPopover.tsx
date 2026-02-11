@@ -31,7 +31,7 @@ export function QRPopover({
     docNumber,
     docId,
     amount,
-    currency = 'SAR',
+    currency = '',
     className,
 }: QRPopoverProps) {
     const { t } = useLanguage();

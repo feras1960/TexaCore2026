@@ -77,7 +77,7 @@ export function AddAccountSheet({
     parent_id: parentAccount?.id,
     level: parentAccount ? parentAccount.level + 1 : 1,
     is_group: false,
-    currency: 'SAR',
+    currency: '',
     description: '',
   });
 
@@ -119,7 +119,7 @@ export function AddAccountSheet({
         parent_id: editingAccount.parent_id || undefined,
         level: editingAccount.level,
         is_group: editingAccount.is_group,
-        currency: editingAccount.currency || 'SAR',
+        currency: editingAccount.currency || '',
         description: editingAccount.description || '',
       });
     } else {
@@ -135,7 +135,7 @@ export function AddAccountSheet({
         parent_id: parentAccount?.id,
         level: parentAccount ? parentAccount.level + 1 : 1,
         is_group: isGroupMode || false,
-        currency: 'SAR',
+        currency: '',
         description: '',
       });
     }

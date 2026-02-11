@@ -3,9 +3,11 @@
 -- 
 -- This creates a trigger + function that sends events to n8n
 -- whenever journal entries are created or updated.
+--
+-- ✅ v2.0 — Enhanced with tenant_id in payload for isolation
 -- ════════════════════════════════════════════════════════════════
 
--- Step 1: Create the webhook function
+-- Step 1: Create the webhook function (Enhanced)
 CREATE OR REPLACE FUNCTION notify_n8n_webhook()
 RETURNS trigger AS $$
 DECLARE
@@ -17,12 +19,16 @@ BEGIN
   -- When on server: https://your-n8n-domain.com/webhook/texacore-erp-events
   webhook_url := 'http://localhost:5678/webhook/texacore-erp-events';
   
-  -- Build the payload
+  -- Build the payload with tenant isolation data
   payload := jsonb_build_object(
     'type', TG_OP,
     'table', TG_TABLE_NAME,
     'schema', TG_TABLE_SCHEMA,
     'timestamp', now()::text,
+    'tenant_id', CASE 
+      WHEN TG_OP = 'DELETE' THEN OLD.tenant_id::text
+      ELSE NEW.tenant_id::text
+    END,
     'record', CASE 
       WHEN TG_OP = 'DELETE' THEN row_to_json(OLD)::jsonb
       ELSE row_to_json(NEW)::jsonb
@@ -35,14 +41,19 @@ BEGIN
 
   -- Send HTTP request to n8n (using pg_net extension)
   -- Note: pg_net must be enabled in Supabase Dashboard → Database → Extensions
-  PERFORM net.http_post(
-    url := webhook_url,
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'X-Webhook-Secret', 'texacore-n8n-secret-2026'
-    ),
-    body := payload
-  );
+  BEGIN
+    PERFORM net.http_post(
+      url := webhook_url,
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'X-Webhook-Secret', 'texacore-n8n-secret-2026'
+      ),
+      body := payload
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Don't fail the transaction if webhook fails
+    RAISE WARNING 'n8n webhook failed: %', SQLERRM;
+  END;
 
   RETURN COALESCE(NEW, OLD);
 END;
@@ -82,4 +93,7 @@ CREATE TRIGGER trg_journal_entries_n8n
 --
 -- 3. Alternative: Use Supabase Dashboard → Database → Webhooks
 --    to create webhooks without SQL (GUI method)
+--
+-- 4. The EXCEPTION block ensures that if n8n is down,
+--    the database transaction still succeeds (no data loss)
 -- ════════════════════════════════════════════════════════════════

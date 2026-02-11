@@ -214,7 +214,7 @@ const JournalEntryGrid = forwardRef<JournalEntryGridRef, JournalEntryGridProps>(
                                         <span className="text-xs text-center block">{row.currency}</span>
                                     ) : (
                                         <Select
-                                            value={row.currency || 'SAR'}
+                                            value={row.currency || ''}
                                             onValueChange={(val) => updateRow(index, 'currency', val)}
                                         >
                                             <SelectTrigger className="h-8 border-transparent hover:border-input bg-transparent px-1 min-w-[60px]">

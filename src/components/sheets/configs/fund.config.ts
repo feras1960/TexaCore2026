@@ -29,7 +29,7 @@ import { ActivityTab } from '../tabs/shared/ActivityTab';
 
 export const fundConfig: SheetConfig = {
   docType: 'fund',
-  
+
   // Header
   title: (data) => data.name || 'Fund',
   subtitle: (data) => {
@@ -41,7 +41,7 @@ export const fundConfig: SheetConfig = {
   },
   icon: Wallet,
   iconBg: 'bg-gradient-to-br from-emerald-600 to-teal-700',
-  
+
   // Status Badge
   badge: (data) => {
     const isCash = data.type === 'cash';
@@ -50,7 +50,7 @@ export const fundConfig: SheetConfig = {
       variant: isCash ? 'success' : 'default',
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data) => {
@@ -60,10 +60,10 @@ export const fundConfig: SheetConfig = {
       return data.balance || data.current_balance || 0;
     },
     label: 'common.balance',
-    currency: 'SAR',
+    currency: undefined,
     showSign: true,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -115,7 +115,7 @@ export const fundConfig: SheetConfig = {
       color: 'purple',
     },
   ],
-  
+
   // Info Fields for Overview
   infoFields: [
     {
@@ -152,7 +152,7 @@ export const fundConfig: SheetConfig = {
       type: 'text',
     },
   ],
-  
+
   // Tabs Configuration
   tabs: [
     {
@@ -176,7 +176,7 @@ export const fundConfig: SheetConfig = {
     },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -236,7 +236,7 @@ export const fundConfig: SheetConfig = {
       },
     },
   ],
-  
+
   // Quick Actions (in header)
   quickActions: [
     {
@@ -252,10 +252,10 @@ export const fundConfig: SheetConfig = {
       variant: 'ghost',
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'journal_entry' || row.voucherNo || row.voucher_no) {

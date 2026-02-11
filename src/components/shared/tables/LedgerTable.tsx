@@ -17,9 +17,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  ChevronDown,
+  ChevronUp,
   Search,
   RefreshCw,
   Download,
@@ -72,23 +72,23 @@ export interface LedgerColumn<T> {
   align?: 'start' | 'center' | 'end';
   sortable?: boolean;
   filterable?: boolean;
-  
+
   // نوع العمود
   type?: 'text' | 'number' | 'currency' | 'date' | 'status' | 'reference' | 'checkbox';
-  
+
   // للأرقام المالية
   colorize?: boolean;
   showZeroAs?: '-' | '0' | '0.00' | '';
-  
+
   // للحالة
   statusConfig?: Record<string, { label: string; color: string }>;
-  
+
   // للمرجع
   clickable?: boolean;
-  
+
   // الفوتر
   footer?: 'sum' | 'average' | 'count' | ((data: T[]) => React.ReactNode);
-  
+
   // التخصيص
   render?: (value: any, row: T, index: number) => React.ReactNode;
 }
@@ -125,24 +125,24 @@ export interface LedgerTableProps<T> {
   columns: LedgerColumn<T>[];
   loading?: boolean;
   error?: string | null;
-  
+
   // الفلاتر
   showFilters?: boolean;
   filters?: LedgerFilters;
   onFiltersChange?: (filters: LedgerFilters) => void;
   showQuickFilters?: boolean;
   customQuickFilters?: QuickFilter[];
-  
+
   // الإحصائيات
   showStats?: boolean;
   stats?: LedgerStats;
-  
+
   // التحديد
   selectable?: boolean;
   selectedRows?: string[];
   onSelectionChange?: (ids: string[]) => void;
   rowKey?: keyof T;
-  
+
   // الأحداث
   onRowClick?: (row: T, index: number) => void;
   onReferenceClick?: (row: T) => void;
@@ -150,7 +150,7 @@ export interface LedgerTableProps<T> {
   onExport?: (format: 'excel' | 'pdf' | 'csv') => void;
   onPrint?: () => void;
   onFullscreen?: () => void;
-  
+
   // التخصيص
   variant?: 'default' | 'ledger' | 'payments' | 'invoices' | 'reservations';
   compactMode?: boolean;
@@ -162,24 +162,24 @@ export interface LedgerTableProps<T> {
   emptyMessage?: string;
   emptyIcon?: React.ReactNode;
   className?: string;
-  
+
   // العملات
   currencies?: { value: string; label: string }[];
   defaultCurrency?: string;
-  
+
   // الحالات
   statuses?: { value: string; label: string }[];
-  
+
   // ميزة الماركر (مطابقة الدفاتر)
   enableMarker?: boolean;
   onMarkerChange?: (rowIds: string[], color: MarkerColorId) => void;
-  
+
   // التفقيط
   showAmountInWords?: boolean;
-  
+
   // الفلاتر الذكية
   enableSmartFilters?: boolean;
-  
+
   // شرح المدين/الدائن
   showDebitCreditHelp?: boolean;
 }
@@ -276,11 +276,10 @@ export function LedgerTable<T extends Record<string, any>>({
   emptyIcon,
   className,
   currencies = [
-    { value: 'SAR', label: 'ريال سعودي - SAR' },
     { value: 'USD', label: 'دولار أمريكي - USD' },
     { value: 'EUR', label: 'يورو - EUR' },
   ],
-  defaultCurrency = 'SAR',
+  defaultCurrency = 'USD',
   statuses = [
     { value: 'all', label: 'common.all' },
     { value: 'posted', label: 'common.posted' },
@@ -301,7 +300,7 @@ export function LedgerTable<T extends Record<string, any>>({
     }
     return label;
   }, [t]);
-  
+
   // Internal state
   const [internalFilters, setInternalFilters] = useState<LedgerFilters>({
     dateFrom: format(startOfYear(new Date()), 'yyyy-MM-dd'),
@@ -315,12 +314,12 @@ export function LedgerTable<T extends Record<string, any>>({
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [activeMarkerColor, setActiveMarkerColor] = useState<MarkerColorId>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-  
+
   // Use external or internal state
   const filters = externalFilters || internalFilters;
   const selectedRows = externalSelectedRows || internalSelectedRows;
   const quickFilters = customQuickFilters || defaultQuickFilters;
-  
+
   // Handlers
   const handleFiltersChange = useCallback((newFilters: Partial<LedgerFilters>) => {
     const updated = { ...filters, ...newFilters };
@@ -331,13 +330,13 @@ export function LedgerTable<T extends Record<string, any>>({
     }
     setActiveQuickFilter(null);
   }, [filters, onFiltersChange]);
-  
+
   const handleQuickFilter = useCallback((filter: QuickFilter) => {
     const range = filter.getDateRange();
     handleFiltersChange({ dateFrom: range.from, dateTo: range.to });
     setActiveQuickFilter(filter.id);
   }, [handleFiltersChange]);
-  
+
   const handleSelectionChange = useCallback((ids: string[]) => {
     if (onSelectionChange) {
       onSelectionChange(ids);
@@ -345,7 +344,7 @@ export function LedgerTable<T extends Record<string, any>>({
       setInternalSelectedRows(ids);
     }
   }, [onSelectionChange]);
-  
+
   const handleSelectAll = useCallback(() => {
     if (selectedRows.length === data.length) {
       handleSelectionChange([]);
@@ -353,7 +352,7 @@ export function LedgerTable<T extends Record<string, any>>({
       handleSelectionChange(data.map(row => String(row[rowKey])));
     }
   }, [selectedRows, data, rowKey, handleSelectionChange]);
-  
+
   const handleSelectRow = useCallback((rowId: string) => {
     if (selectedRows.includes(rowId)) {
       handleSelectionChange(selectedRows.filter(id => id !== rowId));
@@ -361,18 +360,18 @@ export function LedgerTable<T extends Record<string, any>>({
       handleSelectionChange([...selectedRows, rowId]);
     }
   }, [selectedRows, handleSelectionChange]);
-  
+
   const handleSort = useCallback((key: string) => {
     setSortConfig(prev => {
       if (prev?.key === key) {
-        return prev.direction === 'asc' 
-          ? { key, direction: 'desc' } 
+        return prev.direction === 'asc'
+          ? { key, direction: 'desc' }
           : null;
       }
       return { key, direction: 'asc' };
     });
   }, []);
-  
+
   // معالج تطبيق الماركر
   const handleApplyMarker = useCallback(() => {
     if (selectedRows.length === 0) return;
@@ -380,7 +379,7 @@ export function LedgerTable<T extends Record<string, any>>({
       onMarkerChange(selectedRows, activeMarkerColor);
     }
   }, [selectedRows, activeMarkerColor, onMarkerChange]);
-  
+
   // معالج فلتر العمود
   const handleColumnFilter = useCallback((columnKey: string, value: string) => {
     setColumnFilters(prev => ({
@@ -388,7 +387,7 @@ export function LedgerTable<T extends Record<string, any>>({
       [columnKey]: value === 'all' ? '' : value
     }));
   }, []);
-  
+
   // استخراج القيم الفريدة لعمود معين
   const getUniqueColumnValues = useCallback((columnKey: string): string[] => {
     const values = new Set<string>();
@@ -400,11 +399,11 @@ export function LedgerTable<T extends Record<string, any>>({
     });
     return Array.from(values).sort();
   }, [data]);
-  
+
   // Filter and sort data
   const filteredData = useMemo(() => {
     let result = [...data];
-    
+
     // Search filter
     if (filters.search) {
       const query = filters.search.toLowerCase();
@@ -415,7 +414,7 @@ export function LedgerTable<T extends Record<string, any>>({
         });
       });
     }
-    
+
     // Column filters (الفلاتر الذكية)
     Object.entries(columnFilters).forEach(([key, value]) => {
       if (value) {
@@ -425,7 +424,7 @@ export function LedgerTable<T extends Record<string, any>>({
         });
       }
     });
-    
+
     // Sort
     if (sortConfig) {
       result.sort((a, b) => {
@@ -436,17 +435,17 @@ export function LedgerTable<T extends Record<string, any>>({
         return 0;
       });
     }
-    
+
     return result;
   }, [data, filters.search, sortConfig, columns, columnFilters]);
-  
+
   // ======== دوال التصدير والطباعة ========
-  
+
   // تصدير CSV
   const handleExportCSV = useCallback(() => {
     const BOM = '\uFEFF'; // For Arabic support
     const headers = columns.map(col => resolveLabel(col.title)).join(',');
-    const rows = filteredData.map(row => 
+    const rows = filteredData.map(row =>
       columns.map(col => {
         const val = row[col.key as keyof T];
         const strVal = String(val ?? '').replace(/"/g, '""');
@@ -454,7 +453,7 @@ export function LedgerTable<T extends Record<string, any>>({
       }).join(',')
     );
     const csv = BOM + headers + '\n' + rows.join('\n');
-    
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -465,20 +464,20 @@ export function LedgerTable<T extends Record<string, any>>({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }, [filteredData, columns, resolveLabel]);
-  
+
   // تصدير Excel
   const handleExportExcel = useCallback(() => {
     // Convert to TSV for Excel
     const BOM = '\uFEFF';
     const headers = columns.map(col => resolveLabel(col.title)).join('\t');
-    const rows = filteredData.map(row => 
+    const rows = filteredData.map(row =>
       columns.map(col => {
         const val = row[col.key as keyof T];
         return String(val ?? '').replace(/\t/g, ' ');
       }).join('\t')
     );
     const tsv = BOM + headers + '\n' + rows.join('\n');
-    
+
     const blob = new Blob([tsv], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -489,18 +488,18 @@ export function LedgerTable<T extends Record<string, any>>({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }, [filteredData, columns, resolveLabel]);
-  
+
   // فتح في Google Sheets
   const handleOpenGoogleSheets = useCallback(() => {
     const headers = columns.map(col => resolveLabel(col.title));
-    const rows = filteredData.map(row => 
+    const rows = filteredData.map(row =>
       columns.map(col => String(row[col.key as keyof T] ?? ''))
     );
     const allData = [headers, ...rows];
-    
+
     // Encode data for Google Sheets URL
     const csvContent = allData.map(row => row.join(',')).join('\n');
-    
+
     // Copy to clipboard for pasting
     navigator.clipboard.writeText(csvContent).then(() => {
       // Open new Google Sheet
@@ -514,17 +513,17 @@ export function LedgerTable<T extends Record<string, any>>({
       window.open('https://sheets.new', '_blank');
     });
   }, [filteredData, columns, resolveLabel, t]);
-  
+
   // طباعة مع التنسيق والألوان
   const handlePrint = useCallback(() => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    
+
     // Generate marker colors CSS
-    const markerColorStyles = MARKER_COLORS.map(m => 
+    const markerColorStyles = MARKER_COLORS.map(m =>
       `.marker-${m.id} { background-color: ${m.bgLight}; border-${direction === 'rtl' ? 'right' : 'left'}: 4px solid ${m.color}; }`
     ).join('\n');
-    
+
     const html = `
 <!DOCTYPE html>
 <html dir="${direction}">
@@ -697,21 +696,21 @@ export function LedgerTable<T extends Record<string, any>>({
     </thead>
     <tbody>
       ${filteredData.map((row, idx) => {
-        const markerColor = (row as any).marker_color;
-        const markerClass = markerColor ? `marker-${markerColor}` : '';
-        return `
+      const markerColor = (row as any).marker_color;
+      const markerClass = markerColor ? `marker-${markerColor}` : '';
+      return `
         <tr class="${markerClass}">
           <td style="text-align: center; color: #9ca3af;">${idx + 1}</td>
           ${columns.map(col => {
-            const val = row[col.key as keyof T];
-            const isNumber = col.type === 'number' || col.type === 'currency';
-            const numVal = isNumber ? parseFloat(String(val)) : null;
-            const colorClass = numVal !== null ? (numVal > 0 ? 'positive' : numVal < 0 ? 'negative' : '') : '';
-            const displayVal = isNumber && numVal !== null 
-              ? numVal.toLocaleString('en-US', { minimumFractionDigits: 2 })
-              : String(val ?? '');
-            return `<td class="${isNumber ? 'number' : ''} ${colorClass}">${displayVal}</td>`;
-          }).join('')}
+        const val = row[col.key as keyof T];
+        const isNumber = col.type === 'number' || col.type === 'currency';
+        const numVal = isNumber ? parseFloat(String(val)) : null;
+        const colorClass = numVal !== null ? (numVal > 0 ? 'positive' : numVal < 0 ? 'negative' : '') : '';
+        const displayVal = isNumber && numVal !== null
+          ? numVal.toLocaleString('en-US', { minimumFractionDigits: 2 })
+          : String(val ?? '');
+        return `<td class="${isNumber ? 'number' : ''} ${colorClass}">${displayVal}</td>`;
+      }).join('')}
         </tr>
       `}).join('')}
     </tbody>
@@ -719,18 +718,18 @@ export function LedgerTable<T extends Record<string, any>>({
       <tr>
         <td></td>
         ${columns.map(col => {
-          if (col.footer === 'sum') {
-            const sum = filteredData.reduce((acc, row) => {
-              const val = row[col.key as keyof T];
-              return acc + (parseFloat(String(val)) || 0);
-            }, 0);
-            return `<td class="number">${sum.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>`;
-          }
-          if (col.footer === 'count') {
-            return `<td class="number">${filteredData.length}</td>`;
-          }
-          return '<td></td>';
-        }).join('')}
+        if (col.footer === 'sum') {
+          const sum = filteredData.reduce((acc, row) => {
+            const val = row[col.key as keyof T];
+            return acc + (parseFloat(String(val)) || 0);
+          }, 0);
+          return `<td class="number">${sum.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>`;
+        }
+        if (col.footer === 'count') {
+          return `<td class="number">${filteredData.length}</td>`;
+        }
+        return '<td></td>';
+      }).join('')}
       </tr>
     </tfoot>
   </table>
@@ -747,20 +746,20 @@ export function LedgerTable<T extends Record<string, any>>({
 </body>
 </html>
     `;
-    
+
     printWindow.document.write(html);
     printWindow.document.close();
   }, [filteredData, columns, stats, resolveLabel, direction, t]);
-  
+
   // Calculate footer
   const calculateFooter = useCallback((column: LedgerColumn<T>) => {
     if (!column.footer) return null;
-    
+
     const values = filteredData.map(row => {
       const val = row[column.key as keyof T];
       return typeof val === 'number' ? val : parseFloat(val) || 0;
     });
-    
+
     if (column.footer === 'sum') {
       return values.reduce((a, b) => a + b, 0);
     }
@@ -775,16 +774,16 @@ export function LedgerTable<T extends Record<string, any>>({
     }
     return null;
   }, [filteredData]);
-  
+
   const hasFooter = columns.some(col => col.footer);
-  
+
   // Render cell value
   const renderCellValue = useCallback((column: LedgerColumn<T>, value: any, row: T, index: number) => {
     // Custom render
     if (column.render) {
       return column.render(value, row, index);
     }
-    
+
     // Type-based rendering
     switch (column.type) {
       case 'currency':
@@ -806,10 +805,10 @@ export function LedgerTable<T extends Record<string, any>>({
           );
         }
         return <span className="font-mono">{formatted}</span>;
-        
+
       case 'date':
         return <span className="font-mono text-xs">{value}</span>;
-        
+
       case 'status':
         const statusKey = String(value).toLowerCase();
         const statusConfig = column.statusConfig || defaultStatusColors;
@@ -819,7 +818,7 @@ export function LedgerTable<T extends Record<string, any>>({
             {resolveLabel(status.label || String(value))}
           </span>
         );
-        
+
       case 'reference':
         return (
           <button
@@ -832,12 +831,12 @@ export function LedgerTable<T extends Record<string, any>>({
             {value}
           </button>
         );
-        
+
       default:
         return String(value ?? '');
     }
   }, [resolveLabel, onReferenceClick]);
-  
+
   // Stat card color
   const getStatColor = (color?: 'green' | 'red' | 'blue' | 'gray') => {
     switch (color) {
@@ -847,7 +846,7 @@ export function LedgerTable<T extends Record<string, any>>({
       default: return 'text-gray-900 dark:text-white';
     }
   };
-  
+
   // Error state
   if (error) {
     return (
@@ -865,7 +864,7 @@ export function LedgerTable<T extends Record<string, any>>({
       </div>
     );
   }
-  
+
   return (
     <div className={cn('flex flex-col h-full', className)} dir={direction}>
       {/* Filters Bar */}
@@ -882,7 +881,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 className="h-8 w-36 text-sm"
               />
             </div>
-            
+
             {/* Date To */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">{t('common.to')}</span>
@@ -893,7 +892,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 className="h-8 w-36 text-sm"
               />
             </div>
-            
+
             {/* Currency */}
             <Select
               value={filters.currency || defaultCurrency}
@@ -908,7 +907,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 ))}
               </SelectContent>
             </Select>
-            
+
             {/* Status (optional based on variant) */}
             {(variant === 'ledger' || variant === 'payments' || variant === 'invoices') && (
               <Select
@@ -916,7 +915,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 onValueChange={(value) => handleFiltersChange({ status: value })}
               >
                 <SelectTrigger className="h-8 w-32 text-sm">
-                  <SelectValue placeholder={t('common.status')} />
+                  <SelectValue placeholder={t('common.status._')} />
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map(s => (
@@ -925,7 +924,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 </SelectContent>
               </Select>
             )}
-            
+
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -936,7 +935,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 className="ps-9 h-8 text-sm"
               />
             </div>
-            
+
             {/* Marker Palette - ميزة الماركر */}
             {enableMarker && (
               <div className="flex items-center gap-2 px-2 py-1 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -946,8 +945,8 @@ export function LedgerTable<T extends Record<string, any>>({
                   size="sm"
                 />
                 {selectedRows.length > 0 && activeMarkerColor && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     className="h-7 text-xs gap-1"
                     onClick={handleApplyMarker}
@@ -958,55 +957,55 @@ export function LedgerTable<T extends Record<string, any>>({
                 )}
               </div>
             )}
-            
+
             {/* Action Buttons */}
             <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               {/* Excel Export */}
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600"
                       onClick={handleExportExcel}
                     >
-                  <FileSpreadsheet className="w-4 h-4" />
-                </Button>
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs">
                     {t('table.exportExcel') || 'تصدير Excel'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              
+
               {/* CSV Export */}
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600"
                       onClick={handleExportCSV}
                     >
-                  <Download className="w-4 h-4" />
-                </Button>
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs">
                     {t('table.exportCSV') || 'تصدير CSV'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              
+
               {/* Google Sheets */}
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600"
                       onClick={handleOpenGoogleSheets}
                     >
                       <Table2 className="w-4 h-4" />
@@ -1017,42 +1016,42 @@ export function LedgerTable<T extends Record<string, any>>({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              
+
               <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
-              
+
               {/* Print */}
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-600" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-600"
                       onClick={handlePrint}
                     >
-                  <Printer className="w-4 h-4" />
-                </Button>
+                      <Printer className="w-4 h-4" />
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs">
                     {t('common.print') || 'طباعة'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              
+
               {/* Refresh */}
               {onRefresh && (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8" 
-                        onClick={onRefresh} 
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={onRefresh}
                         disabled={loading}
                       >
-                  <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-                </Button>
+                        <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
                       {t('common.refresh') || 'تحديث'}
@@ -1060,20 +1059,20 @@ export function LedgerTable<T extends Record<string, any>>({
                   </Tooltip>
                 </TooltipProvider>
               )}
-              
+
               {/* Fullscreen */}
               {onFullscreen && (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={onFullscreen}
                       >
-                  <Maximize2 className="w-4 h-4" />
-                </Button>
+                        <Maximize2 className="w-4 h-4" />
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
                       {t('common.fullscreen') || 'ملء الشاشة'}
@@ -1083,7 +1082,7 @@ export function LedgerTable<T extends Record<string, any>>({
               )}
             </div>
           </div>
-          
+
           {/* Quick Filters */}
           {showQuickFilters && (
             <div className="flex items-center gap-2 mt-2">
@@ -1105,7 +1104,7 @@ export function LedgerTable<T extends Record<string, any>>({
           )}
         </div>
       )}
-      
+
       {/* Stats Cards - White background with colored numbers */}
       {showStats && stats && (
         <div className="p-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -1116,7 +1115,7 @@ export function LedgerTable<T extends Record<string, any>>({
                 <div className="text-center p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg">
                   <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">{resolveLabel(stats.label1.title)}</div>
                   <div className={cn('text-2xl font-bold font-mono', getStatColor(stats.label1.color))}>
-                    {typeof stats.label1.value === 'number' 
+                    {typeof stats.label1.value === 'number'
                       ? stats.label1.value.toLocaleString('en-US', { minimumFractionDigits: 2 })
                       : stats.label1.value}
                   </div>
@@ -1125,7 +1124,7 @@ export function LedgerTable<T extends Record<string, any>>({
                   <div className="text-center p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg">
                     <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">{resolveLabel(stats.label2.title)}</div>
                     <div className={cn('text-2xl font-bold font-mono', getStatColor(stats.label2.color))}>
-                      {typeof stats.label2.value === 'number' 
+                      {typeof stats.label2.value === 'number'
                         ? stats.label2.value.toLocaleString('en-US', { minimumFractionDigits: 2 })
                         : stats.label2.value}
                     </div>
@@ -1135,7 +1134,7 @@ export function LedgerTable<T extends Record<string, any>>({
                   <div className="text-center p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg">
                     <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">{resolveLabel(stats.label3.title)}</div>
                     <div className={cn('text-2xl font-bold font-mono', getStatColor(stats.label3.color))}>
-                      {typeof stats.label3.value === 'number' 
+                      {typeof stats.label3.value === 'number'
                         ? stats.label3.value.toLocaleString('en-US', { minimumFractionDigits: 2 })
                         : stats.label3.value}
                     </div>
@@ -1145,7 +1144,7 @@ export function LedgerTable<T extends Record<string, any>>({
                   <div className="text-center p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg">
                     <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">{resolveLabel(stats.label4.title)}</div>
                     <div className={cn('text-2xl font-bold font-mono', getStatColor(stats.label4.color))}>
-                      {typeof stats.label4.value === 'number' 
+                      {typeof stats.label4.value === 'number'
                         ? stats.label4.value.toLocaleString('en-US', { minimumFractionDigits: 2 })
                         : stats.label4.value}
                     </div>
@@ -1175,7 +1174,7 @@ export function LedgerTable<T extends Record<string, any>>({
                     {(stats.totalDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                
+
                 {/* إجمالي الدائن */}
                 <div className="text-center p-4 bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <div className="flex items-center justify-center gap-1 text-sm text-red-600 dark:text-red-400 mb-2">
@@ -1197,11 +1196,11 @@ export function LedgerTable<T extends Record<string, any>>({
                     {(stats.totalCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                
+
                 {/* الرصيد */}
                 <div className={cn(
                   'text-center p-4 rounded-lg border',
-                  (stats.balance || 0) >= 0 
+                  (stats.balance || 0) >= 0
                     ? 'bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800'
                     : 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-orange-200 dark:border-orange-800'
                 )}>
@@ -1218,10 +1217,10 @@ export function LedgerTable<T extends Record<string, any>>({
                   {showAmountInWords && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">
                       {numberToWords(Math.abs(stats.balance || 0), language)}
-                </div>
+                    </div>
                   )}
                 </div>
-                
+
                 {/* العدد */}
                 <div className="text-center p-4 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-800/50 dark:to-slate-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
                   <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('common.count')}</div>
@@ -1234,7 +1233,7 @@ export function LedgerTable<T extends Record<string, any>>({
           </div>
         </div>
       )}
-      
+
       {/* Table */}
       <div className="flex-1 overflow-auto">
         {loading ? (
@@ -1252,7 +1251,7 @@ export function LedgerTable<T extends Record<string, any>>({
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">#</span>
                   </th>
                 )}
-                
+
                 {/* Checkbox Column */}
                 {selectable && (
                   <th className="w-12 px-3 py-3 text-center border-e border-gray-200 dark:border-gray-700">
@@ -1263,114 +1262,114 @@ export function LedgerTable<T extends Record<string, any>>({
                     />
                   </th>
                 )}
-                
+
                 {/* Column Headers */}
                 {columns.map((column, colIndex) => {
                   const columnKey = String(column.key);
                   const uniqueValues = enableSmartFilters && column.filterable ? getUniqueColumnValues(columnKey) : [];
                   const hasActiveFilter = columnFilters[columnKey] && columnFilters[columnKey] !== '';
-                  
+
                   return (
-                  <th
-                    key={columnKey}
-                    className={cn(
-                      'px-4 py-3.5 text-xs font-semibold uppercase tracking-wide',
-                      'text-gray-700 dark:text-gray-200', // Fixed: better contrast
-                      'hover:text-gray-900 dark:hover:text-white', // Fixed: visible on hover
-                      colIndex < columns.length - 1 && 'border-e border-gray-200 dark:border-gray-700',
-                      column.align === 'center' && 'text-center',
-                      column.align === 'end' && 'text-end',
-                    )}
-                    style={{ width: column.width }}
-                  >
-                    <div className={cn(
-                      'flex items-center gap-1.5',
-                      column.align === 'end' && 'justify-end',
-                      column.align === 'center' && 'justify-center'
-                    )}>
-                      {/* Help tooltip for debit/credit */}
-                      {showDebitCreditHelp && (column.key === 'debit' || column.key === 'credit') && (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-erp-teal cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs text-xs">
-                              {column.key === 'debit' 
-                                ? t('accounting.help.debit') || 'المدين: المبالغ المستحقة لنا (زيادة في الأصول أو نقص في الالتزامات)'
-                                : t('accounting.help.credit') || 'الدائن: المبالغ المستحقة علينا (نقص في الأصول أو زيادة في الالتزامات)'
-                              }
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                    <th
+                      key={columnKey}
+                      className={cn(
+                        'px-4 py-3.5 text-xs font-semibold uppercase tracking-wide',
+                        'text-gray-700 dark:text-gray-200', // Fixed: better contrast
+                        'hover:text-gray-900 dark:hover:text-white', // Fixed: visible on hover
+                        colIndex < columns.length - 1 && 'border-e border-gray-200 dark:border-gray-700',
+                        column.align === 'center' && 'text-center',
+                        column.align === 'end' && 'text-end',
                       )}
-                      
-                      <span className="font-semibold">{resolveLabel(column.title)}</span>
-                      
-                      {/* Sort button */}
-                      {column.sortable && (
-                        <button
-                          onClick={() => handleSort(columnKey)}
-                          className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                        >
-                          {sortConfig?.key === columnKey ? (
-                            sortConfig.direction === 'asc' ? (
-                              <ChevronUp className="w-4 h-4 text-erp-teal" />
+                      style={{ width: column.width }}
+                    >
+                      <div className={cn(
+                        'flex items-center gap-1.5',
+                        column.align === 'end' && 'justify-end',
+                        column.align === 'center' && 'justify-center'
+                      )}>
+                        {/* Help tooltip for debit/credit */}
+                        {showDebitCreditHelp && (column.key === 'debit' || column.key === 'credit') && (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-erp-teal cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                {column.key === 'debit'
+                                  ? t('accounting.help.debit') || 'المدين: المبالغ المستحقة لنا (زيادة في الأصول أو نقص في الالتزامات)'
+                                  : t('accounting.help.credit') || 'الدائن: المبالغ المستحقة علينا (نقص في الأصول أو زيادة في الالتزامات)'
+                                }
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
+                        <span className="font-semibold">{resolveLabel(column.title)}</span>
+
+                        {/* Sort button */}
+                        {column.sortable && (
+                          <button
+                            onClick={() => handleSort(columnKey)}
+                            className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                          >
+                            {sortConfig?.key === columnKey ? (
+                              sortConfig.direction === 'asc' ? (
+                                <ChevronUp className="w-4 h-4 text-erp-teal" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-erp-teal" />
+                              )
                             ) : (
-                              <ChevronDown className="w-4 h-4 text-erp-teal" />
-                            )
-                          ) : (
-                            <ChevronDown className="w-4 h-4 opacity-30" />
-                          )}
-                        </button>
-                      )}
-                      
-                      {/* Smart Filter Dropdown */}
-                      {enableSmartFilters && column.filterable && uniqueValues.length > 0 && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className={cn(
-                              'p-0.5 rounded transition-colors',
-                              hasActiveFilter 
-                                ? 'text-erp-teal bg-erp-teal/10' 
-                                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            )}>
-                              <Filter className="w-3.5 h-3.5" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-auto">
-                            <DropdownMenuLabel className="text-xs">
-                              {t('table.filter')} {resolveLabel(column.title)}
-                            </DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuRadioGroup 
-                              value={columnFilters[columnKey] || 'all'}
-                              onValueChange={(value) => handleColumnFilter(columnKey, value)}
-                            >
-                              <DropdownMenuRadioItem value="all" className="text-sm">
-                                {t('common.all')}
-                              </DropdownMenuRadioItem>
-                              {uniqueValues.slice(0, 20).map(val => (
-                                <DropdownMenuRadioItem key={val} value={val} className="text-sm">
-                                  {val}
+                              <ChevronDown className="w-4 h-4 opacity-30" />
+                            )}
+                          </button>
+                        )}
+
+                        {/* Smart Filter Dropdown */}
+                        {enableSmartFilters && column.filterable && uniqueValues.length > 0 && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className={cn(
+                                'p-0.5 rounded transition-colors',
+                                hasActiveFilter
+                                  ? 'text-erp-teal bg-erp-teal/10'
+                                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                              )}>
+                                <Filter className="w-3.5 h-3.5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-auto">
+                              <DropdownMenuLabel className="text-xs">
+                                {t('table.filter')} {resolveLabel(column.title)}
+                              </DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuRadioGroup
+                                value={columnFilters[columnKey] || 'all'}
+                                onValueChange={(value) => handleColumnFilter(columnKey, value)}
+                              >
+                                <DropdownMenuRadioItem value="all" className="text-sm">
+                                  {t('common.all')}
                                 </DropdownMenuRadioItem>
-                              ))}
-                            </DropdownMenuRadioGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  </th>
-                );
+                                {uniqueValues.slice(0, 20).map(val => (
+                                  <DropdownMenuRadioItem key={val} value={val} className="text-sm">
+                                    {val}
+                                  </DropdownMenuRadioItem>
+                                ))}
+                              </DropdownMenuRadioGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </th>
+                  );
                 })}
               </tr>
             </thead>
-            
+
             {/* Body */}
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td 
+                  <td
                     colSpan={columns.length + (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0)}
                     className="px-4 py-12 text-center text-gray-500 dark:text-gray-400"
                   >
@@ -1385,70 +1384,70 @@ export function LedgerTable<T extends Record<string, any>>({
                   const rowMarkerColor = (row as any).marker_color as MarkerColorId;
                   const markerBgColor = getMarkerBackgroundColor(rowMarkerColor);
                   const markerBorderColor = getMarkerColor(rowMarkerColor);
-                  
+
                   return (
-                  <tr
-                    key={String(row[rowKey]) || rowIndex}
-                    className={cn(
-                      'transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0 relative',
-                      !rowMarkerColor && rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : '',
-                      !rowMarkerColor && rowIndex % 2 !== 0 ? 'bg-gray-50/50 dark:bg-gray-800/30' : '',
-                      onRowClick && 'cursor-pointer hover:bg-erp-teal/5 dark:hover:bg-erp-teal/10',
-                      selectedRows.includes(String(row[rowKey])) && !rowMarkerColor && 'bg-erp-teal/10 dark:bg-erp-teal/20'
-                    )}
-                    style={markerBgColor ? { backgroundColor: markerBgColor } : undefined}
-                    onClick={() => onRowClick?.(row, rowIndex)}
-                  >
-                    {/* Marker Color Bar */}
-                    {rowMarkerColor && (
-                      <div 
-                        className="absolute start-0 top-0 bottom-0 w-1"
-                        style={{ backgroundColor: markerBorderColor }}
-                      />
-                    )}
-                    {/* Row Number */}
-                    {showRowNumbers && (
-                      <td className="w-12 px-3 py-3 text-center border-e border-gray-100 dark:border-gray-800">
-                        <span className="text-xs text-gray-400 font-mono">{rowIndex + 1}</span>
-                      </td>
-                    )}
-                    
-                    {/* Checkbox */}
-                    {selectable && (
-                      <td className="w-12 px-3 py-3 text-center border-e border-gray-100 dark:border-gray-800">
-                        <Checkbox
-                          checked={selectedRows.includes(String(row[rowKey]))}
-                          onCheckedChange={() => handleSelectRow(String(row[rowKey]))}
-                          onClick={(e) => e.stopPropagation()}
+                    <tr
+                      key={String(row[rowKey]) || rowIndex}
+                      className={cn(
+                        'transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0 relative',
+                        !rowMarkerColor && rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : '',
+                        !rowMarkerColor && rowIndex % 2 !== 0 ? 'bg-gray-50/50 dark:bg-gray-800/30' : '',
+                        onRowClick && 'cursor-pointer hover:bg-erp-teal/5 dark:hover:bg-erp-teal/10',
+                        selectedRows.includes(String(row[rowKey])) && !rowMarkerColor && 'bg-erp-teal/10 dark:bg-erp-teal/20'
+                      )}
+                      style={markerBgColor ? { backgroundColor: markerBgColor } : undefined}
+                      onClick={() => onRowClick?.(row, rowIndex)}
+                    >
+                      {/* Marker Color Bar */}
+                      {rowMarkerColor && (
+                        <div
+                          className="absolute start-0 top-0 bottom-0 w-1"
+                          style={{ backgroundColor: markerBorderColor }}
                         />
-                      </td>
-                    )}
-                    
-                    {/* Data Cells */}
-                    {columns.map((column, colIndex) => {
-                      const cellValue = row[column.key as keyof T];
-                      
-                      return (
-                        <td
-                          key={String(column.key)}
-                          className={cn(
-                            'px-4 py-3 text-sm',
-                            colIndex < columns.length - 1 && 'border-e border-gray-100 dark:border-gray-800',
-                            column.align === 'center' && 'text-center',
-                            column.align === 'end' && 'text-end',
-                            compactMode && 'py-2'
-                          )}
-                        >
-                          {renderCellValue(column, cellValue, row, rowIndex)}
+                      )}
+                      {/* Row Number */}
+                      {showRowNumbers && (
+                        <td className="w-12 px-3 py-3 text-center border-e border-gray-100 dark:border-gray-800">
+                          <span className="text-xs text-gray-400 font-mono">{rowIndex + 1}</span>
                         </td>
-                      );
-                    })}
-                  </tr>
-                );
+                      )}
+
+                      {/* Checkbox */}
+                      {selectable && (
+                        <td className="w-12 px-3 py-3 text-center border-e border-gray-100 dark:border-gray-800">
+                          <Checkbox
+                            checked={selectedRows.includes(String(row[rowKey]))}
+                            onCheckedChange={() => handleSelectRow(String(row[rowKey]))}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </td>
+                      )}
+
+                      {/* Data Cells */}
+                      {columns.map((column, colIndex) => {
+                        const cellValue = row[column.key as keyof T];
+
+                        return (
+                          <td
+                            key={String(column.key)}
+                            className={cn(
+                              'px-4 py-3 text-sm',
+                              colIndex < columns.length - 1 && 'border-e border-gray-100 dark:border-gray-800',
+                              column.align === 'center' && 'text-center',
+                              column.align === 'end' && 'text-end',
+                              compactMode && 'py-2'
+                            )}
+                          >
+                            {renderCellValue(column, cellValue, row, rowIndex)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
                 })
               )}
             </tbody>
-            
+
             {/* Footer - Light elegant gradient */}
             {hasFooter && showFooterTotals && filteredData.length > 0 && (
               <tfoot className={cn(stickyFooter && 'sticky bottom-0 z-20')}>
@@ -1459,12 +1458,12 @@ export function LedgerTable<T extends Record<string, any>>({
                       {filteredData.length}
                     </td>
                   )}
-                  
+
                   {/* Checkbox placeholder */}
                   {selectable && (
                     <td className="px-3 py-3.5 border-e border-gray-200 dark:border-gray-700" />
                   )}
-                  
+
                   {/* Footer cells */}
                   {columns.map((column, colIndex) => {
                     const footerValue = calculateFooter(column);
@@ -1488,7 +1487,7 @@ export function LedgerTable<T extends Record<string, any>>({
                             column.key === 'credit' && 'text-rose-600 dark:text-rose-400',
                             column.key === 'balance' && 'text-blue-600 dark:text-blue-400',
                           )}>
-                            {typeof footerValue === 'number' 
+                            {typeof footerValue === 'number'
                               ? footerValue.toLocaleString('en-US', { minimumFractionDigits: 0 })
                               : footerValue
                             }

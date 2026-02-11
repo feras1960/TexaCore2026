@@ -17,11 +17,11 @@ interface CompanyCurrencies {
 }
 
 // Default currencies as fallback
-const DEFAULT_CURRENCIES = ['USD', 'EUR', 'SAR'];
+const DEFAULT_CURRENCIES: string[] = [];
 
 export function useCompanyCurrencies(): CompanyCurrencies {
     const { companyId } = useCompany();
-    const [baseCurrency, setBaseCurrency] = useState<string>('USD');
+    const [baseCurrency, setBaseCurrency] = useState<string>('');
     const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(DEFAULT_CURRENCIES);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,11 +59,11 @@ export function useCompanyCurrencies(): CompanyCurrencies {
                 }
 
                 if (data) {
-                    setBaseCurrency(data.base_currency || 'USD');
+                    setBaseCurrency(data.base_currency || '');
                     // Ensure it's an array and has at least the base currency
                     const currencies = Array.isArray(data.supported_currencies)
                         ? data.supported_currencies
-                        : [data.base_currency || 'USD'];
+                        : data.base_currency ? [data.base_currency] : [];
 
                     // Make sure base currency is included
                     if (!currencies.includes(data.base_currency)) {

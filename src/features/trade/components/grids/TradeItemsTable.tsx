@@ -210,7 +210,7 @@ export const TradeItemsTable: React.FC<TradeItemsTableProps> = ({
                     showTotalsFooter={true}
                     showAmountInWords={true}
                     debitKey="total"
-                    currency={isRTL ? 'ر.س' : 'SAR'}
+                    currency={isRTL ? 'ر.س' : ''}
 
                     // Editing - Instant Mode
                     enableInstantEdit={!readOnly} // No Save/Cancel buttons

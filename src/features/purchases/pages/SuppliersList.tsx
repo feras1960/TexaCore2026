@@ -14,6 +14,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Button } from '@/components/ui/button';
 import { UniversalDetailSheet } from '@/components/sheets';
 import { toast } from 'sonner';
@@ -39,6 +40,14 @@ export default function SuppliersList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
+
+    // 🔄 Realtime: auto-update when suppliers change
+    useRealtimeInvalidation({
+        table: 'suppliers',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['suppliers_list'], ['suppliers_map']],
+    });
 
     // Sheet State
     const [isSheetOpen, setIsSheetOpen] = useState(false);

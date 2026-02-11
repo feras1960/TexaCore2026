@@ -6,10 +6,11 @@
  */
 
 import { MaterialTree } from '../components/MaterialTree';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { warehouseService } from '@/services/warehouseService';
+import { useMaterials, useMaterialGroups } from '../hooks/useWarehouseQueries';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,15 +80,19 @@ export default function MaterialsPage() {
 
     // State
     const [viewMode, setViewMode] = useState<ViewMode>('table');
-    const [materials, setMaterials] = useState<Material[]>([]);
-    const [groups, setGroups] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [showFilters, setShowFilters] = useState(false);
     const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined);
     const [collapseAll, setCollapseAll] = useState<boolean | undefined>(undefined);
+
+    // ⚡ React Query: cached data, instant tab switching
+    const { materials, loading, refetch: refetchMaterials, invalidate: invalidateMaterials } = useMaterials({
+        search: searchQuery || undefined,
+        categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
+    });
+    const { groups, refetch: refetchGroups, invalidate: invalidateGroups } = useMaterialGroups();
 
     // Sheet state
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -100,45 +105,6 @@ export default function MaterialsPage() {
     const [groupSheetOpen, setGroupSheetOpen] = useState(false);
     const [groupSheetMode, setGroupSheetMode] = useState<SheetMode>('create');
     const [selectedGroup, setSelectedGroup] = useState<any>(null);
-
-    // Load materials
-    const loadMaterials = async () => {
-        if (!companyId) return;
-
-        setLoading(true);
-        try {
-            const data = await warehouseService.getMaterials(companyId, {
-                search: searchQuery || undefined,
-                categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
-            });
-            const enhancedData = data.map((m: any) => ({
-                ...m,
-                parent_id: m.parent_id || m.group_id // Ensure hierarchy works if using groups as parents
-            }));
-            setMaterials(enhancedData);
-        } catch (err) {
-            console.error('Error loading materials:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Load groups
-    const loadGroups = async () => {
-        if (!companyId) return;
-        try {
-            const tenantId = user?.user_metadata?.tenant_id;
-            const data = await warehouseService.getGroups(companyId, tenantId);
-            setGroups(data);
-        } catch (err) {
-            console.error('Error loading groups:', err);
-        }
-    };
-
-    useEffect(() => {
-        loadMaterials();
-        loadGroups();
-    }, [companyId, searchQuery, categoryFilter]);
 
     // Handlers
     const handleAddClick = () => {
@@ -217,8 +183,8 @@ export default function MaterialsPage() {
                     const result = await warehouseService.updateGroup(selectedMaterial.id, groupData);
                     if (result.success) {
                         console.log('Group updated successfully');
-                        await loadGroups();
-                        await loadMaterials();
+                        invalidateGroups();
+                        invalidateMaterials();
                         setSheetOpen(false);
                     } else {
                         console.error('Failed to update group:', result.error);
@@ -227,7 +193,7 @@ export default function MaterialsPage() {
                     const result = await warehouseService.createGroup(groupData);
                     if (result.success) {
                         console.log('Group created successfully');
-                        await loadGroups();
+                        invalidateGroups();
                         setSheetOpen(false);
                     } else {
                         console.error('Failed to create group:', result.error);
@@ -264,7 +230,7 @@ export default function MaterialsPage() {
                 const result = await warehouseService.updateMaterial(selectedMaterial.id, materialData);
                 if (result.success) {
                     console.log('Material updated successfully');
-                    await loadMaterials();
+                    invalidateMaterials();
                     setSheetOpen(false);
                 } else {
                     console.error('Failed to update material:', result.error);
@@ -285,7 +251,7 @@ export default function MaterialsPage() {
                     const result = await warehouseService.createMaterials(materialsToCreate);
                     if (result.success) {
                         console.log(`Created ${materialsToCreate.length} material variants successfully`);
-                        await loadMaterials();
+                        invalidateMaterials();
                         setSheetOpen(false);
                     } else {
                         console.error('Failed to create material variants:', result.error);
@@ -294,7 +260,7 @@ export default function MaterialsPage() {
                     const result = await warehouseService.createMaterial(materialData);
                     if (result.success) {
                         console.log('Material created successfully');
-                        await loadMaterials();
+                        invalidateMaterials();
                         setSheetOpen(false);
                     } else {
                         console.error('Failed to create material:', result.error);
@@ -533,7 +499,7 @@ export default function MaterialsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outline" onClick={loadMaterials} disabled={loading}>
+                    <Button variant="outline" onClick={() => { refetchMaterials(); refetchGroups(); }} disabled={loading}>
                         <RefreshCw className={cn('w-4 h-4 me-2', loading && 'animate-spin')} />
                         {t('common.refresh')}
                     </Button>
@@ -773,7 +739,7 @@ export default function MaterialsPage() {
                             </p>
                         </div>
                         <div className="flex gap-2 justify-center pt-2">
-                            <Button variant="outline" onClick={loadMaterials}>
+                            <Button variant="outline" onClick={() => refetchMaterials()}>
                                 <RefreshCw className="w-4 h-4 me-2" />
                                 {t('common.refresh')}
                             </Button>
@@ -840,7 +806,7 @@ export default function MaterialsPage() {
                         const result = await warehouseService.deleteMaterial(selectedMaterial.id);
                         if (result.success) {
                             console.log('Material deleted successfully');
-                            await loadMaterials();
+                            invalidateMaterials();
                             setSheetOpen(false);
                         } else {
                             console.error('Failed to delete material:', result.error);
@@ -902,8 +868,8 @@ export default function MaterialsPage() {
 
                     if (result.success) {
                         setGroupSheetOpen(false);
-                        await loadGroups();
-                        await loadMaterials();
+                        invalidateGroups();
+                        invalidateMaterials();
                     } else {
                         throw new Error(result.error || 'Failed to save group');
                     }
@@ -913,8 +879,8 @@ export default function MaterialsPage() {
                         const result = await warehouseService.deleteGroup(selectedGroup.id);
                         if (result.success) {
                             setGroupSheetOpen(false);
-                            await loadGroups();
-                            await loadMaterials();
+                            invalidateGroups();
+                            invalidateMaterials();
                         }
                     }
                 }}

@@ -18,7 +18,8 @@ import {
   History,
   ScrollText,
   Pill,
-  Stethoscope
+  Stethoscope,
+  GitBranch,
 } from 'lucide-react';
 
 export interface StaticModule {
@@ -251,6 +252,16 @@ export const STATIC_MODULES: StaticModule[] = [
     name_en: 'Activity Log',
     icon: History,
     path: '/activity-log',
+    is_enabled: true,
+    requires_upgrade: false,
+    is_core: true
+  },
+  {
+    code: 'workflow_center',
+    name_ar: 'سير العمل',
+    name_en: 'Workflow Center',
+    icon: GitBranch,
+    path: '/workflows',
     is_enabled: true,
     requires_upgrade: false,
     is_core: true

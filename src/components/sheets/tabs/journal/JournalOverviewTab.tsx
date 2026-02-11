@@ -30,20 +30,20 @@ interface JournalOverviewTabProps {
 const getStatusConfig = (status: string) => {
   switch (status) {
     case 'posted':
-      return { 
-        icon: CheckCircle2, 
+      return {
+        icon: CheckCircle2,
         color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
         label: { ar: 'مرحّل', en: 'Posted' }
       };
     case 'cancelled':
-      return { 
-        icon: XCircle, 
+      return {
+        icon: XCircle,
         color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
         label: { ar: 'ملغي', en: 'Cancelled' }
       };
     default:
-      return { 
-        icon: Clock, 
+      return {
+        icon: Clock,
         color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
         label: { ar: 'مسودة', en: 'Draft' }
       };
@@ -69,13 +69,13 @@ const getVoucherTypeLabel = (type: string, lang: string) => {
 
 export function JournalOverviewTab({ data, language, onAction: _onAction }: JournalOverviewTabProps) {
   const isRTL = language === 'ar';
-  
+
   // Calculate totals
   const totalDebit = data.totalDebit || data.lines?.reduce((sum: number, line: any) => sum + (line.debit || 0), 0) || 0;
   const totalCredit = data.totalCredit || data.lines?.reduce((sum: number, line: any) => sum + (line.credit || 0), 0) || 0;
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
   const linesCount = data.lines?.length || 0;
-  
+
   const statusConfig = getStatusConfig(data.status);
   const StatusIcon = statusConfig.icon;
 
@@ -143,7 +143,7 @@ export function JournalOverviewTab({ data, language, onAction: _onAction }: Jour
         {/* Balance Status */}
         <Card className={cn(
           "border",
-          isBalanced 
+          isBalanced
             ? "bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10 border-green-200 dark:border-green-800"
             : "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-800/10 border-red-200 dark:border-red-800"
         )}>
@@ -170,8 +170,8 @@ export function JournalOverviewTab({ data, language, onAction: _onAction }: Jour
                   "text-sm font-bold",
                   isBalanced ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"
                 )}>
-                  {isBalanced 
-                    ? (isRTL ? 'متوازن' : 'Balanced') 
+                  {isBalanced
+                    ? (isRTL ? 'متوازن' : 'Balanced')
                     : (isRTL ? 'غير متوازن' : 'Unbalanced')}
                 </p>
               </div>
@@ -297,7 +297,7 @@ export function JournalOverviewTab({ data, language, onAction: _onAction }: Jour
             )}
 
             {/* Currency */}
-            {data.currency && data.currency !== 'SAR' && (
+            {data.currency && (
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-gray-400" />
                 <div>

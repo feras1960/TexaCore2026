@@ -14,9 +14,9 @@ import {
   Settings, Save, Building2, DollarSign, Calendar, FileText,
   Globe, Wallet, Hash, AlertTriangle, CheckCircle2, Loader2,
   ChevronRight, RefreshCw, Edit2, Lock, Info, AlertCircle,
-  Link2, Unlink, Users
+  Link2, Unlink
 } from 'lucide-react';
-import UserPermissionsTab from './components/UserPermissionsTab';
+// UserPermissionsTab removed — now in SystemConfigPage
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -121,7 +121,7 @@ export default function AccountingSettings() {
     supported_currencies: [], // Will be loaded from company settings
     default_sales_currency: '', // Will use base_currency from company
     default_purchase_currency: '', // Will use base_currency from company
-    default_international_purchase_currency: 'USD',
+    default_international_purchase_currency: '',
   });
 
   const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([]);
@@ -172,7 +172,7 @@ export default function AccountingSettings() {
         .single();
 
       if (companies) {
-        const companyBaseCurrency = companies.default_currency || 'USD';
+        const companyBaseCurrency = companies.default_currency || '';
 
         // Load settings
         const { data: settingsData } = await supabase
@@ -187,7 +187,7 @@ export default function AccountingSettings() {
             supported_currencies: settingsData.supported_currencies || [companyBaseCurrency],
             default_sales_currency: settingsData.default_sales_currency || companyBaseCurrency,
             default_purchase_currency: settingsData.default_purchase_currency || companyBaseCurrency,
-            default_international_purchase_currency: settingsData.default_international_purchase_currency || 'USD',
+            default_international_purchase_currency: settingsData.default_international_purchase_currency || '',
           });
         } else {
           setSettings(prev => ({ ...prev, company_id: companies.id, base_currency: companyBaseCurrency }));
@@ -248,12 +248,8 @@ export default function AccountingSettings() {
         }
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
-      toast({
-        title: language === 'ar' ? 'خطأ' : 'Error',
-        description: language === 'ar' ? 'حدث خطأ في تحميل الإعدادات' : 'Failed to load settings',
-        variant: 'destructive',
-      });
+      // Silently handle - Don't show toast since Keep All Mounted loads this even when tab isn't visible
+      console.warn('Settings load issue:', error);
     } finally {
       setLoading(false);
     }
@@ -338,32 +334,10 @@ export default function AccountingSettings() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10" dir={direction}>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo flex items-center gap-3">
-            <Settings className="w-7 h-7 text-erp-teal" />
-            {language === 'ar' ? 'إعدادات المحاسبة' : 'Accounting Settings'}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
-            {language === 'ar'
-              ? 'تكوين إعدادات قسم المحاسبة لشركتك'
-              : 'Configure accounting module settings for your company'}
-          </p>
-        </div>
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="gap-2 bg-erp-teal hover:bg-erp-teal/90"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {language === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
-        </Button>
-      </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
           <TabsTrigger value="general" className="gap-2">
             <Building2 className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ar' ? 'عام' : 'General'}</span>
@@ -387,10 +361,6 @@ export default function AccountingSettings() {
           <TabsTrigger value="editSettings" className="gap-2">
             <Edit2 className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ar' ? 'التعديلات' : 'Edit Rules'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="permissions" className="gap-2">
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'الصلاحيات' : 'Permissions'}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -442,41 +412,7 @@ export default function AccountingSettings() {
               </CardContent>
             </Card>
 
-            {/* Tax Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Globe className="w-5 h-5 text-erp-teal" />
-                  {language === 'ar' ? 'الضريبة' : 'Tax Settings'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'تفعيل ضريبة القيمة المضافة' : 'Enable VAT'}</Label>
-                    <p className="text-sm text-gray-500">
-                      {language === 'ar' ? 'احتساب الضريبة تلقائياً' : 'Auto-calculate VAT'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.vat_enabled}
-                    onCheckedChange={(v) => updateSetting('vat_enabled', v)}
-                  />
-                </div>
-                {settings.vat_enabled && (
-                  <div className="space-y-2">
-                    <Label>{language === 'ar' ? 'نسبة الضريبة %' : 'VAT Rate %'}</Label>
-                    <Input
-                      type="number"
-                      value={settings.vat_rate}
-                      onChange={(e) => updateSetting('vat_rate', parseFloat(e.target.value) || 0)}
-                      min={0}
-                      max={100}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Tax Settings removed — now in TaxSystemTab */}
 
             {/* Workflow Settings */}
             <Card className="lg:col-span-2">
@@ -725,139 +661,178 @@ export default function AccountingSettings() {
           </Card>
         </TabsContent>
 
-        {/* Default Accounts Tab */}
-        <TabsContent value="accounts" className="mt-6">
+        {/* Default Accounts Tab — Enhanced */}
+        <TabsContent value="accounts" className="mt-6 space-y-6">
+          {/* Status Summary */}
+          {(() => {
+            const accountFields = [
+              'default_cash_account_id', 'default_bank_account_id',
+              'default_revenue_account_id', 'default_expense_account_id',
+              'default_receivable_account_id', 'default_payable_account_id',
+            ] as const;
+            const configured = accountFields.filter(f => !!(settings as any)[f]).length;
+            const total = accountFields.length;
+            return (
+              <Alert className={configured === total ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}>
+                {configured === total
+                  ? <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                <AlertTitle className={configured === total ? 'text-green-800' : 'text-amber-800'}>
+                  {language === 'ar'
+                    ? `${configured} من ${total} حسابات مُعيّنة`
+                    : `${configured} of ${total} accounts configured`}
+                </AlertTitle>
+                <AlertDescription className={configured === total ? 'text-green-700' : 'text-amber-700'}>
+                  {language === 'ar'
+                    ? configured === total
+                      ? 'جميع الحسابات الافتراضية مُعيّنة ✓'
+                      : 'يُرجى تعيين الحسابات المتبقية لضمان سير العمليات المحاسبية'
+                    : configured === total
+                      ? 'All default accounts are configured ✓'
+                      : 'Please configure remaining accounts to ensure smooth accounting operations'}
+                </AlertDescription>
+              </Alert>
+            );
+          })()}
+
+          {/* Group 1: Financial Accounts */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Wallet className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'الحسابات الافتراضية' : 'Default Accounts'}
+                {language === 'ar' ? 'الحسابات المالية' : 'Financial Accounts'}
               </CardTitle>
               <CardDescription>
-                {language === 'ar'
-                  ? 'حدد الحسابات الافتراضية للعمليات المحاسبية'
-                  : 'Set default accounts for accounting operations'}
+                {language === 'ar' ? 'الصندوق والبنك والذمم' : 'Cash, bank, and receivables/payables'}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Cash Account */}
+              {/* Cash */}
               <div className="space-y-2">
-                <Label>{language === 'ar' ? 'حساب الصندوق الافتراضي' : 'Default Cash Account'}</Label>
-                <Select
-                  value={settings.default_cash_account_id || ''}
-                  onValueChange={(v) => updateSetting('default_cash_account_id', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} />
-                  </SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب الصندوق' : 'Cash Account'}</Label>
+                  {settings.default_cash_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_cash_account_id || ''} onValueChange={(v) => updateSetting('default_cash_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
                     {accounts.filter(a => a.account_code.startsWith('1')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
-                      </SelectItem>
+                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في سندات القبض والصرف النقدي' : 'Used for cash receipts and payments'}</p>
               </div>
 
-              {/* Bank Account */}
+              {/* Bank */}
               <div className="space-y-2">
-                <Label>{language === 'ar' ? 'حساب البنك الافتراضي' : 'Default Bank Account'}</Label>
-                <Select
-                  value={settings.default_bank_account_id || ''}
-                  onValueChange={(v) => updateSetting('default_bank_account_id', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} />
-                  </SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب البنك' : 'Bank Account'}</Label>
+                  {settings.default_bank_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_bank_account_id || ''} onValueChange={(v) => updateSetting('default_bank_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
                     {accounts.filter(a => a.account_code.startsWith('1')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
-                      </SelectItem>
+                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في التحويلات البنكية والإيداعات' : 'Used for bank transfers and deposits'}</p>
               </div>
 
-              {/* Revenue Account */}
+              {/* Receivable */}
               <div className="space-y-2">
-                <Label>{language === 'ar' ? 'حساب الإيرادات الافتراضي' : 'Default Revenue Account'}</Label>
-                <Select
-                  value={settings.default_revenue_account_id || ''}
-                  onValueChange={(v) => updateSetting('default_revenue_account_id', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('4')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Expense Account */}
-              <div className="space-y-2">
-                <Label>{language === 'ar' ? 'حساب المصروفات الافتراضي' : 'Default Expense Account'}</Label>
-                <Select
-                  value={settings.default_expense_account_id || ''}
-                  onValueChange={(v) => updateSetting('default_expense_account_id', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('5')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Receivable Account */}
-              <div className="space-y-2">
-                <Label>{language === 'ar' ? 'حساب الذمم المدينة' : 'Accounts Receivable'}</Label>
-                <Select
-                  value={settings.default_receivable_account_id || ''}
-                  onValueChange={(v) => updateSetting('default_receivable_account_id', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} />
-                  </SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'الذمم المدينة' : 'Accounts Receivable'}</Label>
+                  {settings.default_receivable_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_receivable_account_id || ''} onValueChange={(v) => updateSetting('default_receivable_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
                     {accounts.filter(a => a.account_code.startsWith('1')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
-                      </SelectItem>
+                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب العملاء - يُستخدم في فواتير المبيعات' : 'Customer account - used in sales invoices'}</p>
               </div>
 
-              {/* Payable Account */}
+              {/* Payable */}
               <div className="space-y-2">
-                <Label>{language === 'ar' ? 'حساب الذمم الدائنة' : 'Accounts Payable'}</Label>
-                <Select
-                  value={settings.default_payable_account_id || ''}
-                  onValueChange={(v) => updateSetting('default_payable_account_id', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} />
-                  </SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'الذمم الدائنة' : 'Accounts Payable'}</Label>
+                  {settings.default_payable_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_payable_account_id || ''} onValueChange={(v) => updateSetting('default_payable_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
                     {accounts.filter(a => a.account_code.startsWith('2')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
-                      </SelectItem>
+                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب الموردين - يُستخدم في فواتير المشتريات' : 'Vendor account - used in purchase invoices'}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Group 2: Operational Accounts */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="w-5 h-5 text-erp-teal" />
+                {language === 'ar' ? 'حسابات التشغيل' : 'Operational Accounts'}
+              </CardTitle>
+              <CardDescription>
+                {language === 'ar' ? 'الإيرادات والمصروفات والمشتريات' : 'Revenue, expenses, and purchases'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Revenue */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب الإيرادات' : 'Revenue Account'}</Label>
+                  {settings.default_revenue_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_revenue_account_id || ''} onValueChange={(v) => updateSetting('default_revenue_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter(a => a.account_code.startsWith('4')).map(a => (
+                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم تلقائياً في فواتير المبيعات' : 'Auto-used in sales invoices'}</p>
+              </div>
+
+              {/* Expense */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب المصروفات' : 'Expense Account'}</Label>
+                  {settings.default_expense_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_expense_account_id || ''} onValueChange={(v) => updateSetting('default_expense_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter(a => a.account_code.startsWith('5')).map(a => (
+                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في المصروفات العامة والتشغيلية' : 'Used for general and operational expenses'}</p>
               </div>
             </CardContent>
           </Card>
@@ -1335,40 +1310,19 @@ export default function AccountingSettings() {
           </Card>
         </TabsContent>
 
-        {/* Permissions Tab */}
-        <TabsContent value="permissions" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'إدارة الصلاحيات' : 'Permissions Management'}
-              </CardTitle>
-              <CardDescription>
-                {language === 'ar'
-                  ? 'تم نقل إدارة الصلاحيات إلى صفحة إعدادات النظام الموحدة'
-                  : 'Permissions management has been moved to the unified System Config page'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
-              <div className="p-4 rounded-full bg-erp-teal/10">
-                <Settings className="w-12 h-12 text-erp-teal" />
-              </div>
-              <p className="text-gray-500 dark:text-gray-400 text-center font-tajawal max-w-md">
-                {language === 'ar'
-                  ? 'يمكنك الآن إدارة الأدوار والمستخدمين والصلاحيات من صفحة واحدة موحدة. انتقل إلى إعدادات النظام للوصول إلى جميع خيارات الصلاحيات.'
-                  : 'You can now manage roles, users, and permissions from a single unified page. Navigate to System Config to access all permission options.'}
-              </p>
-              <Button
-                onClick={() => window.location.href = '/system-config?tab=resources'}
-                className="gap-2 bg-erp-teal hover:bg-erp-teal/90"
-              >
-                <Settings className="w-4 h-4" />
-                {language === 'ar' ? 'انتقل إلى إعدادات النظام' : 'Go to System Config'}
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {/* Permissions removed — now in SystemConfigPage tabs */}
+
+        {/* Save Button */}
+        <div className="flex justify-end pt-4">
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="gap-2 bg-erp-teal hover:bg-erp-teal/90"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {language === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+          </Button>
+        </div>
       </Tabs>
     </div>
   );

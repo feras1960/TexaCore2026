@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -94,6 +95,7 @@ type TabType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchan
 
 export default function CashJournal() {
   const { t, language, direction } = useLanguage();
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [selectedEntryForDetails, setSelectedEntryForDetails] = useState<any>(null);
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
   const [defaultTab, setDefaultTab] = useState<TabType>('cash');
@@ -621,7 +623,7 @@ export default function CashJournal() {
           <span className="font-mono font-bold text-base text-amber-600">{totals.draftCount}</span>
         </div>
 
-        <span className="text-[10px] text-gray-400 mr-auto">SAR</span>
+        <span className="text-[10px] text-gray-400 mr-auto">{companyCurrency}</span>
 
         {/* Export */}
         <Button variant="ghost" size="sm" className="gap-1.5">

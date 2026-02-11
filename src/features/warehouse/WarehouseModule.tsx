@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
@@ -59,6 +59,7 @@ interface TabConfig {
 export default function WarehouseModule() {
     const { t: _t } = useLanguage();
     const location = useLocation();
+    const navigate = useNavigate();
 
     // Determine active tab from route
     const getActiveTab = useCallback(() => {
@@ -155,12 +156,15 @@ export default function WarehouseModule() {
         },
     ], []);
 
-    // Handle tab change - just update state, no re-rendering of components
+    // Handle tab change - update state AND URL
     const handleTabChange = useCallback((tabId: string) => {
         if (tabId !== activeTab) {
             setActiveTab(tabId);
+            // Navigate to the correct URL so refresh preserves state
+            const path = tabId === 'dashboard' ? '/warehouse' : `/warehouse/${tabId}`;
+            navigate(path, { replace: true });
         }
-    }, [activeTab]);
+    }, [activeTab, navigate]);
 
     // Tabs data for MainTabsBar (without component property)
     const tabsForBar = useMemo(() =>

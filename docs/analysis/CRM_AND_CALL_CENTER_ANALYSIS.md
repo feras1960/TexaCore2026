@@ -68,9 +68,16 @@ src/features/crm/
 ```
 
 ## 4. Execution Plan
-1.  **Scaffold**: Create the directory structure and main `CRM.tsx`.
-2.  **Shells**: Create empty placeholder components for all tabs to ensure navigation works.
-3.  **Detailed Implementation** (Later Phases):
-    *   Implement `ContactsTable` using `NexaDataTable`.
+1.  ~~**Scaffold**: Create the directory structure and main `CRM.tsx`.~~ ✅
+2.  ~~**Shells**: Create empty placeholder components for all tabs to ensure navigation works.~~ ✅
+3.  **Detailed Implementation**:
+    *   ~~Implement `ContactsTable` using `NexaDataTable`.~~ ✅
+    *   ~~Implement `contactsService.ts` — Backend CRUD.~~ ✅
+    *   ~~Implement `UnifiedAccountingSheet` for Contact (docType: 'contact').~~ ✅
+    *   ~~Connect to Backend (Supabase) — RLS + Triggers + Functions.~~ ✅
     *   Implement `CallCenterDashboard` with mock data first.
-    *   Connect to Backend (Supabase).
+    *   Implement `PipelineBoard` (Kanban).
+    *   Implement `TasksTable`.
+
+> **📋 Detailed documentation**: See `docs/features/CRM_CONTACTS_MODULE.md`
+

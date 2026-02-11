@@ -7,6 +7,29 @@
 
 import { supabase } from '@/lib/supabase';
 
+// Module-level cache: tracks which tables/RPCs exist to avoid repeated 404/400 errors
+const _tableExistsCache: Record<string, boolean | null> = {};
+
+const checkTableExists = async (tableName: string): Promise<boolean> => {
+    if (_tableExistsCache[tableName] === false) return false;
+    if (_tableExistsCache[tableName] === true) return true;
+    // First check - do a lightweight query
+    const { error } = await supabase.from(tableName).select('id').limit(0);
+    _tableExistsCache[tableName] = !error;
+    return !error;
+};
+
+const checkRpcExists = async (rpcName: string, params: Record<string, any>): Promise<{ exists: boolean; data?: any }> => {
+    if (_tableExistsCache[`rpc:${rpcName}`] === false) return { exists: false };
+    const { data, error } = await supabase.rpc(rpcName, params);
+    if (error && (error.message.includes('Could not find the function') || error.code === '42883')) {
+        _tableExistsCache[`rpc:${rpcName}`] = false;
+        return { exists: false };
+    }
+    _tableExistsCache[`rpc:${rpcName}`] = true;
+    return { exists: true, data: error ? undefined : data };
+};
+
 // Types
 export interface Warehouse {
     id: string;
@@ -254,14 +277,26 @@ export const warehouseService = {
      * Get warehouse settings for a company
      */
     async getSettings(companyId: string): Promise<WarehouseSettings | null> {
-        const { data, error } = await supabase
-            .from('warehouse_settings')
-            .select('*')
-            .eq('company_id', companyId)
-            .single();
+        try {
+            const { data, error } = await supabase
+                .from('warehouse_settings')
+                .select('*')
+                .eq('company_id', companyId)
+                .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
+            if (error) {
+                // 406 = Not Acceptable (table may not exist), PGRST116 = no rows
+                if (error.code === 'PGRST116' || error.code === '42P01' || String(error.message).includes('406')) {
+                    return null;
+                }
+                console.warn('getSettings error:', error.message);
+                return null;
+            }
+            return data;
+        } catch (err) {
+            console.warn('getSettings exception:', err);
+            return null;
+        }
     },
 
     /**
@@ -642,8 +677,11 @@ export const warehouseService = {
 
             // Fetch statistics for these materials using our custom RPC
             const materialIds = data.map((m: any) => m.id);
-            const { data: stats } = await supabase
-                .rpc('get_material_inventory_stats_batch', { material_ids: materialIds });
+            let stats: any[] | null = null;
+            const rpcResult = await checkRpcExists('get_material_inventory_stats_batch', { material_ids: materialIds });
+            if (rpcResult.exists && rpcResult.data) {
+                stats = rpcResult.data;
+            }
 
             // Merge stats with materials
             // Default stats if none found
@@ -771,15 +809,17 @@ export const warehouseService = {
         customerId?: string;
         limit?: number;
     }): Promise<any[]> {
+        // Skip if table doesn't exist (prevents repeated 404s)
+        if (!(await checkTableExists('roll_reservations'))) return [];
+
         let query = supabase
-            .from('reservations')
+            .from('roll_reservations')
             .select(`
                 *,
-                roll:fabric_rolls(id, roll_number, material:materials(name_ar, name_en)),
                 customer:customers(id, name, phone)
             `)
             .eq('company_id', companyId)
-            .order('created_at', { ascending: false });
+            .order('reserved_at', { ascending: false });
 
         if (filters?.status) {
             query = query.eq('status', filters.status);
@@ -793,9 +833,6 @@ export const warehouseService = {
 
         const { data, error } = await query;
         if (error) {
-            if (error.code === '42P01' || error.message.includes('not find the table')) {
-                return [];
-            }
             console.warn('getReservations error:', error.message);
             return [];
         }
@@ -826,17 +863,17 @@ export const warehouseService = {
             .order('movement_date', { ascending: false });
 
         if (filters?.warehouseId) {
-            query = query.or(`warehouse_id.eq.${filters.warehouseId},from_warehouse_id.eq.${filters.warehouseId},to_warehouse_id.eq.${filters.warehouseId}`);
+            query = query.or(`from_warehouse_id.eq.${filters.warehouseId},to_warehouse_id.eq.${filters.warehouseId}`);
         }
         if (filters?.materialId) {
-            query = query.eq('material_id', filters.materialId);
+            // inventory_movements uses product_id, not material_id
+            query = query.eq('product_id', filters.materialId);
         }
         if (filters?.movementType) {
             query = query.eq('movement_type', filters.movementType);
         }
-        if (filters?.status) {
-            query = query.eq('status', filters.status);
-        }
+        // Note: inventory_movements table does NOT have a 'status' column
+        // Removed status filter to prevent 400 errors
         if (filters?.dateFrom) {
             query = query.gte('movement_date', filters.dateFrom);
         }
@@ -860,22 +897,30 @@ export const warehouseService = {
 
     /**
      * Get pending receipts (استلامات معلقة)
+     * Uses roll_movements table which tracks fabric roll transfers
      */
     async getPendingReceipts(companyId: string): Promise<any[]> {
-        const { data, error } = await supabase
-            .from('inventory_movements')
-            .select('*')
-            .eq('company_id', companyId)
-            .eq('movement_type', 'transfer')
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false });
+        // Skip if table doesn't exist (prevents repeated 404s)
+        if (!(await checkTableExists('roll_movements'))) return [];
 
-        if (error) {
-            if (error.code === '42P01' || error.code === '42703' || error.message.includes('does not exist')) return [];
-            console.warn('getPendingReceipts error:', error.message);
+        try {
+            const { data, error } = await supabase
+                .from('roll_movements')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('movement_type', 'transfer')
+                .order('movement_date', { ascending: false })
+                .limit(50);
+
+            if (error) {
+                console.warn('getPendingReceipts error:', error.message);
+                return [];
+            }
+            return data || [];
+        } catch (err) {
+            console.warn('getPendingReceipts exception:', err);
             return [];
         }
-        return data || [];
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -965,7 +1010,7 @@ export const warehouseService = {
             .from('sample_cuttings')
             .select('*')
             .eq('company_id', companyId)
-            .order('request_date', { ascending: false });
+            .order('created_at', { ascending: false });
 
         if (filters?.status) {
             query = query.eq('status', filters.status);
@@ -976,7 +1021,7 @@ export const warehouseService = {
 
         const { data, error } = await query;
         if (error) {
-            if (error.code === '42P01' || error.message.includes('not find the table')) return [];
+            if (error.code === '42P01' || error.code === '42703' || error.message.includes('not find the table') || error.message.includes('does not exist')) return [];
             console.warn('getSampleRequests error:', error.message);
             return [];
         }
@@ -989,7 +1034,6 @@ export const warehouseService = {
             .insert({
                 ...request,
                 request_number: `SMP-${Date.now()}`,
-                request_date: new Date().toISOString().split('T')[0],
                 status: 'pending'
             })
             .select()
@@ -1009,6 +1053,179 @@ export const warehouseService = {
 
         if (error) throw error;
         return data;
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MATERIAL STOCK BY WAREHOUSE (مخزون المادة حسب المستودعات)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Get material stock summary grouped by warehouse
+     * يرجع بيانات المخزون لمادة معينة مجمعة حسب المستودعات
+     * Aggregates from fabric_rolls table: roll count, total/available/reserved lengths
+     */
+    async getMaterialStockByWarehouse(companyId: string, materialId: string): Promise<{
+        warehouse_id: string;
+        warehouse_code: string;
+        warehouse_name_ar: string;
+        warehouse_name_en: string;
+        roll_count: number;
+        total_length: number;
+        available_length: number;
+        reserved_length: number;
+        last_updated: string | null;
+    }[]> {
+        try {
+            // Fetch all rolls for this material grouped with warehouse info
+            const { data: rolls, error } = await supabase
+                .from('fabric_rolls')
+                .select(`
+                    warehouse_id,
+                    current_length,
+                    reserved_length,
+                    available_length,
+                    status,
+                    updated_at,
+                    warehouse:warehouses(id, code, name_ar, name_en)
+                `)
+                .eq('company_id', companyId)
+                .eq('material_id', materialId)
+                .in('status', ['available', 'reserved', 'partial']);
+
+            if (error) {
+                if (error.code === '42P01' || error.message.includes('does not exist')) {
+                    return [];
+                }
+                console.warn('getMaterialStockByWarehouse error:', error.message);
+                return [];
+            }
+
+            if (!rolls || rolls.length === 0) return [];
+
+            // Aggregate by warehouse
+            const warehouseMap = new Map<string, {
+                warehouse_id: string;
+                warehouse_code: string;
+                warehouse_name_ar: string;
+                warehouse_name_en: string;
+                roll_count: number;
+                total_length: number;
+                available_length: number;
+                reserved_length: number;
+                last_updated: string | null;
+            }>();
+
+            for (const roll of rolls) {
+                const wh = roll.warehouse as any;
+                if (!wh) continue;
+
+                const whId = roll.warehouse_id;
+                const existing = warehouseMap.get(whId);
+
+                if (existing) {
+                    existing.roll_count += 1;
+                    existing.total_length += Number(roll.current_length) || 0;
+                    existing.available_length += Number(roll.available_length) || 0;
+                    existing.reserved_length += Number(roll.reserved_length) || 0;
+                    // Keep the most recent update date
+                    if (roll.updated_at && (!existing.last_updated || roll.updated_at > existing.last_updated)) {
+                        existing.last_updated = roll.updated_at;
+                    }
+                } else {
+                    warehouseMap.set(whId, {
+                        warehouse_id: whId,
+                        warehouse_code: wh.code || '',
+                        warehouse_name_ar: wh.name_ar || '',
+                        warehouse_name_en: wh.name_en || '',
+                        roll_count: 1,
+                        total_length: Number(roll.current_length) || 0,
+                        available_length: Number(roll.available_length) || 0,
+                        reserved_length: Number(roll.reserved_length) || 0,
+                        last_updated: roll.updated_at || null,
+                    });
+                }
+            }
+
+            return Array.from(warehouseMap.values());
+        } catch (error: any) {
+            console.error('getMaterialStockByWarehouse exception:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get individual roll details for a material (optionally filtered by warehouse)
+     * يرجع تفاصيل كل رولون لمادة معينة (مع فلتر اختياري حسب المستودع)
+     */
+    async getMaterialRollsDetail(companyId: string, materialId: string, warehouseId?: string): Promise<{
+        id: string;
+        roll_number: string;
+        warehouse_id: string;
+        warehouse_name_ar: string;
+        warehouse_name_en: string;
+        initial_length: number;
+        current_length: number;
+        reserved_length: number;
+        available_length: number;
+        status: string;
+        supplier_name?: string;
+        received_date?: string;
+        created_at: string;
+    }[]> {
+        try {
+            let query = supabase
+                .from('fabric_rolls')
+                .select(`
+                    id,
+                    roll_number,
+                    warehouse_id,
+                    original_length,
+                    current_length,
+                    reserved_length,
+                    available_length,
+                    status,
+                    cost_per_meter,
+                    created_at,
+                    warehouse:warehouses(name_ar, name_en)
+                `)
+                .eq('company_id', companyId)
+                .eq('material_id', materialId)
+                .in('status', ['available', 'reserved', 'partial'])
+                .order('roll_number', { ascending: true });
+
+            if (warehouseId) {
+                query = query.eq('warehouse_id', warehouseId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                if (error.code === '42P01' || error.message.includes('does not exist')) {
+                    return [];
+                }
+                console.warn('getMaterialRollsDetail error:', error.message);
+                return [];
+            }
+
+            return (data || []).map((roll: any) => ({
+                id: roll.id,
+                roll_number: roll.roll_number,
+                warehouse_id: roll.warehouse_id,
+                warehouse_name_ar: roll.warehouse?.name_ar || '',
+                warehouse_name_en: roll.warehouse?.name_en || '',
+                initial_length: Number(roll.original_length) || 0,
+                current_length: Number(roll.current_length) || 0,
+                reserved_length: Number(roll.reserved_length) || 0,
+                available_length: Number(roll.available_length) || 0,
+                status: roll.status,
+                supplier_name: undefined,
+                received_date: undefined,
+                created_at: roll.created_at,
+            }));
+        } catch (error: any) {
+            console.error('getMaterialRollsDetail exception:', error);
+            return [];
+        }
     },
 
     // ═══════════════════════════════════════════════════════════════

@@ -34,13 +34,13 @@ import { AgentWithdrawalsTab } from '../tabs/agent/AgentWithdrawalsTab';
 
 export const agentConfig: SheetConfig = {
   docType: 'agent',
-  
+
   // Header
   title: (data) => data.name,
   subtitle: (data) => data.email || data.code,
   icon: UserCog,
   iconBg: 'bg-gradient-to-br from-purple-600 to-purple-800',
-  
+
   // Status Badge
   badge: (data) => {
     const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' | 'info' }> = {
@@ -55,15 +55,15 @@ export const agentConfig: SheetConfig = {
       variant: status.variant,
     };
   },
-  
+
   // Balance Display
   balance: {
     value: (data) => data.current_balance || 0,
     label: 'fields.currentBalance',
-    currency: 'SAR',
+    currency: undefined,
     showSign: true,
   },
-  
+
   // Stats Cards
   stats: [
     {
@@ -98,15 +98,15 @@ export const agentConfig: SheetConfig = {
       format: (value) => value.toLocaleString(),
     },
   ],
-  
+
   // Info Fields
   infoFields: [
     { key: 'code', label: 'fields.agentCode', type: 'text' },
     { key: 'email', label: 'fields.email', type: 'email', icon: Mail },
     { key: 'phone', label: 'fields.phone', type: 'phone', icon: Phone },
-    { 
-      key: 'tier', 
-      label: 'fields.tier', 
+    {
+      key: 'tier',
+      label: 'fields.tier',
       type: 'badge',
       icon: Crown,
       badge: (value) => {
@@ -126,37 +126,37 @@ export const agentConfig: SheetConfig = {
     { key: 'commission_percent', label: 'fields.commissionPercent', type: 'percentage' },
     { key: 'currency', label: 'common.currency', type: 'text' },
     { key: 'created_at', label: 'fields.joined', type: 'date', icon: Calendar },
-    { 
-      key: 'has_white_label', 
-      label: 'fields.whiteLabel', 
+    {
+      key: 'has_white_label',
+      label: 'fields.whiteLabel',
       type: 'badge',
       icon: Globe,
       badge: (value) => value ? { label: 'status.enabled', variant: 'success' } : null,
     },
     { key: 'white_label_commission_percent', label: 'fields.wlCommission', type: 'percentage', hidden: (data) => !data.has_white_label },
   ],
-  
+
   // Tabs
   tabs: [
     { id: 'overview', label: 'tabs.overview', icon: Eye, component: OverviewTab },
-    { 
-      id: 'tenants', 
-      label: 'tabs.tenants', 
-      icon: Users, 
+    {
+      id: 'tenants',
+      label: 'tabs.tenants',
+      icon: Users,
       component: AgentTenantsTab,
       badge: (data) => data.tenants_count || data.tenants?.length || 0,
     },
-    { 
-      id: 'commissions', 
-      label: 'tabs.commissions', 
-      icon: DollarSign, 
+    {
+      id: 'commissions',
+      label: 'tabs.commissions',
+      icon: DollarSign,
       component: AgentCommissionsTab,
       badge: (data) => data.commissions?.length || 0,
     },
-    { 
-      id: 'withdrawals', 
-      label: 'tabs.withdrawals', 
-      icon: Wallet, 
+    {
+      id: 'withdrawals',
+      label: 'tabs.withdrawals',
+      icon: Wallet,
       component: AgentWithdrawalsTab,
       badge: (data) => data.withdrawals?.filter((w: any) => w.status === 'pending').length || 0,
     },
@@ -164,7 +164,7 @@ export const agentConfig: SheetConfig = {
     { id: 'activity', label: 'tabs.activity', icon: Activity, component: ActivityTab },
   ],
   defaultTab: 'overview',
-  
+
   // Actions
   actions: [
     {
@@ -172,7 +172,7 @@ export const agentConfig: SheetConfig = {
       label: 'actions.edit',
       icon: Edit,
       variant: 'outline',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'approve',
@@ -180,7 +180,7 @@ export const agentConfig: SheetConfig = {
       icon: Shield,
       variant: 'success',
       show: (data) => data.status === 'pending',
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'suspend',
@@ -192,7 +192,7 @@ export const agentConfig: SheetConfig = {
         title: 'dialogs.confirmSuspend',
         description: 'dialogs.suspendAgentWarning',
       },
-      onClick: () => {},
+      onClick: () => { },
     },
     {
       id: 'activate',
@@ -200,13 +200,13 @@ export const agentConfig: SheetConfig = {
       icon: CheckCircle,
       variant: 'success',
       show: (data) => data.status === 'suspended',
-      onClick: () => {},
+      onClick: () => { },
     },
   ],
-  
+
   // Sheet Settings
   width: 'lg',
-  
+
   // Nested Sheet Handler
   onRowClick: (row, rowDocType) => {
     if (rowDocType === 'tenant') {

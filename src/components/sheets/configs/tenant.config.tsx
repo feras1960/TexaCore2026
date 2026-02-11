@@ -81,7 +81,7 @@ export const tenantConfig: SheetConfig = {
       icon: DollarSign,
       value: (data) => data.monthly_revenue || data.subscription_amount || 0,
       color: 'green',
-      format: (value) => `${value.toLocaleString()} SAR`,
+      format: (value, data) => `${value.toLocaleString()} ${data?.default_currency || ''}`,
     },
     {
       key: 'days_remaining',

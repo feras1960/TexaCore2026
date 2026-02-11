@@ -85,7 +85,7 @@ export default function CRM() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="h-full flex flex-col gap-4">
             <MainTabsBar
                 tabs={tabs}
                 activeTab={activeTab}
