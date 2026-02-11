@@ -89,8 +89,12 @@ export const TradeService = {
             throw new Error(`Unknown document type: ${docType}`);
         }
 
+        // Auto-generate document number
+        const docNumber = await this.getNextReferenceNumber(docType);
+
         // 1. Prepare Header payload
         const headerPayload: Record<string, any> = {
+            [mapping.numberField]: docNumber,
             [mapping.partyField]: doc.party_id,
             warehouse_id: doc.warehouse_id,
             [mapping.dateField]: doc.date || new Date().toISOString(),
@@ -103,9 +107,19 @@ export const TradeService = {
             tax_amount: doc.tax_total || 0,
         };
 
+        // Purchase-specific fields
+        const extra = doc as any;
+        if (extra.supplier_invoice_number) headerPayload.supplier_invoice_number = extra.supplier_invoice_number;
+        if (extra.supplier_invoice_date) headerPayload.supplier_invoice_date = extra.supplier_invoice_date;
+        if (extra.payment_terms) headerPayload.payment_terms = extra.payment_terms;
+        if (extra.due_date) headerPayload.due_date = extra.due_date;
+        if (extra.supplier_notes) headerPayload.supplier_notes = extra.supplier_notes;
+        if (extra.expenses) headerPayload.expenses = extra.expenses;
+        if (extra.attachments) headerPayload.attachments = extra.attachments;
+
         // Add linked order ID for deliveries
-        if (docType === 'delivery' && doc._linkedOrderId) {
-            headerPayload.source_order_id = doc._linkedOrderId;
+        if (docType === 'delivery' && (doc as any)._linkedOrderId) {
+            headerPayload.source_order_id = (doc as any)._linkedOrderId;
         }
 
         const { data: header, error: headerError } = await supabase
@@ -284,19 +298,32 @@ export const TradeService = {
      */
     async updateTradeDocument(
         id: string,
-        updates: Partial<TradeDocument>,
+        updates: Partial<TradeDocument> & Record<string, any>,
         docType: string = 'invoice'
     ) {
         const mapping = DOC_TYPE_TABLE_MAP[docType];
         if (!mapping) throw new Error(`Unknown document type: ${docType}`);
 
+        // Build dynamic update payload — only include defined fields
+        const payload: Record<string, any> = {
+            updated_at: new Date().toISOString(),
+        };
+
+        if (updates.party_id !== undefined) payload[mapping.partyField] = updates.party_id;
+        if (updates.warehouse_id !== undefined) payload.warehouse_id = updates.warehouse_id;
+        if (updates.date !== undefined) payload[mapping.dateField] = updates.date;
+        if (updates.currency !== undefined) payload.currency = updates.currency;
+        if (updates.exchange_rate !== undefined) payload.exchange_rate = updates.exchange_rate;
+        if (updates.notes !== undefined) payload.notes = updates.notes;
+        if (updates.grand_total !== undefined || updates.subtotal !== undefined) {
+            payload[mapping.amountField] = updates.grand_total || updates.subtotal;
+        }
+        if (updates.subtotal !== undefined) payload.subtotal = updates.subtotal;
+        if (updates.tax_total !== undefined) payload.tax_amount = updates.tax_total;
+
         const { error } = await supabase
             .from(mapping.table)
-            .update({
-                [mapping.amountField]: updates.grand_total || updates.subtotal,
-                notes: updates.notes,
-                updated_at: new Date().toISOString()
-            })
+            .update(payload)
             .eq('id', id);
 
         if (error) throw error;
@@ -312,10 +339,11 @@ export const TradeService = {
             order: 'SO',
             delivery: 'DN',
             invoice: 'INV',
+            purchase_invoice: 'PI',
         };
         const prefix = prefixes[docType] || 'DOC';
         const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        return `${prefix}-${year}-${random}`;
+        const timestamp = Date.now().toString().slice(-6);
+        return `${prefix}-${year}-${timestamp}`;
     },
 };

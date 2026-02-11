@@ -59,11 +59,11 @@ const TAB: Record<string, TabConfig> = {
         icon: 'Building2',
         component: 'SupplierInfoTab',
     },
-    purchaseExpenses: {
-        id: 'purchase_expenses',
-        labelKey: 'trade.tabs.expenses',
+    purchasePayment: {
+        id: 'purchase_payment',
+        labelKey: 'trade.tabs.paymentAndExpenses',
         icon: 'Receipt',
-        component: 'PurchaseExpensesTab',
+        component: 'PurchasePaymentTab',
     },
     warehouseReceiving: {
         id: 'warehouse_receiving',
@@ -78,6 +78,12 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.shipping',
         icon: 'Anchor',
         component: 'TradeShippingTab',
+    },
+    shipmentItems: {
+        id: 'shipment_items',
+        labelKey: 'trade.tabs.shipmentItems',
+        icon: 'Package',
+        component: 'ShipmentItemsTab',
     },
     expenses: {
         id: 'expenses',
@@ -307,7 +313,7 @@ export const purchaseInvoiceConfig: DocumentConfig = {
         TAB.tradeDetails,
         TAB.materialBrowser,
         TAB.supplierInfo,
-        TAB.purchaseExpenses,
+        TAB.purchasePayment,
         TAB.attachments,
         TAB.activity,
     ],
@@ -432,6 +438,8 @@ export const tradeContainerConfig: DocumentConfig = {
             icon: 'FileText',
         },
         TAB.maritimeShipping,
+        TAB.shipmentItems,
+        TAB.purchasePayment,
         TAB.expenses,
         TAB.attachments,
         TAB.activity,

@@ -58,7 +58,8 @@ import { PaymentReceiptTab } from '@/features/trade/components/tabs/PaymentRecei
 import { CustomerShippingTab } from '@/features/trade/components/tabs/CustomerShippingTab';
 import { NexaAgentTab } from '@/features/trade/components/tabs/NexaAgentTab';
 import { SupplierInfoTab } from '@/features/trade/components/tabs/SupplierInfoTab';
-import { PurchaseExpensesTab } from '@/features/trade/components/tabs/PurchaseExpensesTab';
+import { PurchasePaymentTab } from '@/features/trade/components/tabs/PurchasePaymentTab';
+import { ShipmentItemsTab } from '@/features/trade/components/tabs/ShipmentItemsTab';
 import { DocumentAttachmentsTab } from '@/features/trade/components/tabs/DocumentAttachmentsTab';
 import { ContainerExpensesTab } from './tabs/ContainerExpensesTab';
 // Confirmation Workflow
@@ -319,6 +320,126 @@ export function UnifiedAccountingSheet({
         }
     }, [isAccountingDocType, docType, companyId, documentId, mode, t]);
 
+    // ═══ Built-in Trade Save Handler ═══
+    const handleTradeSave = useCallback(async (saveData: any) => {
+        if (!isTradeDocType || !saveData) return;
+
+        const { TradeService } = await import('@/features/trade/services/TradeService');
+
+        // Map unified docType + tradeMode → TradeService type key
+        const tradeTypeMap: Record<string, Record<string, string>> = {
+            sales: {
+                trade_invoice: 'invoice',
+                trade_order: 'order',
+                trade_quotation: 'quotation',
+                trade_delivery: 'delivery',
+                trade_reservation: 'reservation',
+            },
+            purchase: {
+                trade_invoice: 'purchase_invoice',
+                trade_order: 'purchase_invoice', // fallback — purchase orders go via invoice table for now
+                trade_quotation: 'purchase_invoice',
+                trade_request: 'purchase_invoice',
+            },
+        };
+
+        const modeKey = tradeMode || 'sales';
+        const serviceDocType = tradeTypeMap[modeKey]?.[docType] || 'invoice';
+
+        const docId = saveData.id || documentId;
+        const saveCompanyId = saveData.company_id || resolvedCompanyId;
+        if (!saveCompanyId) {
+            toast.error(t('errors.companyRequired') || 'يجب تحديد الشركة');
+            return;
+        }
+
+        // ─── Build document payload ───
+        const docPayload: Record<string, any> = {
+            party_id: saveData.party_id || saveData.customer_id || saveData.supplier_id,
+            warehouse_id: saveData.warehouse_id,
+            date: saveData.date || saveData.invoice_date || saveData.order_date || new Date().toISOString(),
+            currency: saveData.currency || '',
+            exchange_rate: saveData.exchange_rate || 1,
+            notes: saveData.notes,
+            subtotal: Number(saveData.subtotal || 0),
+            grand_total: Number(saveData.grand_total || saveData.total_amount || 0),
+            tax_total: Number(saveData.tax_amount || saveData.tax_total || 0),
+            items: saveData.items || [],
+        };
+
+        // ─── Purchase-specific fields ───
+        if (modeKey === 'purchase') {
+            docPayload.supplier_invoice_number = saveData.supplier_invoice_number;
+            docPayload.supplier_invoice_date = saveData.supplier_invoice_date;
+            docPayload.payment_terms = saveData.payment_terms;
+            docPayload.due_date = saveData.due_date;
+            docPayload.supplier_notes = saveData.supplier_notes;
+        }
+
+        // ─── Expenses & Attachments (included in payload for both create & update) ───
+        if (saveData.expenses) {
+            docPayload.expenses = saveData.expenses;
+            docPayload.expenses_total = saveData.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+        }
+        if (saveData.attachments) {
+            docPayload.attachments = saveData.attachments;
+        }
+
+        // ─── Create or Update ───
+        if (mode === 'create' || !docId) {
+            const result = await TradeService.createTradeDocument(docPayload, serviceDocType, docPayload.currency);
+            // Update local data with the created document (for subsequent saves/edits)
+            setData((prev: any) => ({ ...prev, ...result, id: result.id }));
+            // Switch to edit mode so further saves become updates
+            setMode('edit');
+        } else {
+            // ─── Update existing document ───
+            await TradeService.updateTradeDocument(docId, docPayload, serviceDocType);
+
+            // Also update extra fields directly (purchase-specific + JSONB)
+            const { supabase } = await import('@/lib/supabase');
+            const tableMapping: Record<string, string> = {
+                invoice: 'sales_invoices',
+                order: 'sales_orders',
+                quotation: 'quotations',
+                delivery: 'sales_deliveries',
+                reservation: 'transit_reservations',
+                purchase_invoice: 'purchase_invoices',
+            };
+            const tableName = tableMapping[serviceDocType];
+            if (tableName) {
+                const extraUpdates: Record<string, any> = {};
+
+                // Purchase-specific columns
+                if (modeKey === 'purchase') {
+                    if (saveData.supplier_invoice_number !== undefined) extraUpdates.supplier_invoice_number = saveData.supplier_invoice_number;
+                    if (saveData.supplier_invoice_date !== undefined) extraUpdates.supplier_invoice_date = saveData.supplier_invoice_date;
+                    if (saveData.payment_terms !== undefined) extraUpdates.payment_terms = saveData.payment_terms;
+                    if (saveData.due_date !== undefined) extraUpdates.due_date = saveData.due_date;
+                    if (saveData.supplier_notes !== undefined) extraUpdates.supplier_notes = saveData.supplier_notes;
+                }
+
+                // Expenses JSONB
+                if (saveData.expenses) {
+                    extraUpdates.expenses = saveData.expenses;
+                    extraUpdates.expenses_total = saveData.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+                }
+
+                // Attachments JSONB
+                if (saveData.attachments) {
+                    extraUpdates.attachments = saveData.attachments;
+                }
+
+                if (Object.keys(extraUpdates).length > 0) {
+                    await supabase
+                        .from(tableName)
+                        .update(extraUpdates)
+                        .eq('id', docId);
+                }
+            }
+        }
+    }, [isTradeDocType, docType, tradeMode, resolvedCompanyId, documentId, mode, t]);
+
     // Check edit permission for journal entries
     const checkEditPermission = useCallback(async (): Promise<boolean> => {
         // Only check for journal entries when edit flow is enabled
@@ -409,6 +530,8 @@ export function UnifiedAccountingSheet({
                         await onSave(data);
                     } else if (isAccountingDocType) {
                         await handleAccountingSave(data);
+                    } else if (isTradeDocType) {
+                        await handleTradeSave(data);
                     }
                     toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
                     setHasChanges(false);
@@ -595,7 +718,7 @@ export function UnifiedAccountingSheet({
         } finally {
             setLoading(false);
         }
-    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, handleAccountingSave, isAccountingDocType, mode, t, resolvedCompanyId]);
+    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, handleAccountingSave, handleTradeSave, isAccountingDocType, isTradeDocType, mode, t, resolvedCompanyId]);
 
     // Filter tabs based on props
     const visibleTabs = useMemo(() => {
@@ -999,6 +1122,19 @@ export function UnifiedAccountingSheet({
                 );
             }
 
+            // ═══ Shipment Items Tab ═══
+            case 'shipment_items':
+                return (
+                    <ShipmentItemsTab
+                        data={data}
+                        mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+
             case 'expenses':
                 return (
                     <ContainerExpensesTab
@@ -1037,11 +1173,25 @@ export function UnifiedAccountingSheet({
                     />
                 );
 
-            case 'purchase_expenses':
+            case 'purchase_payment':
                 return (
-                    <PurchaseExpensesTab
+                    <PurchasePaymentTab
                         data={data}
                         mode={mode}
+                        onChange={(updates: any) => {
+                            setData((prev: any) => ({ ...prev, ...updates }));
+                            setHasChanges(true);
+                        }}
+                    />
+                );
+            // ═══ Attachments Tab (PDF uploads) ═══
+            case 'attachments':
+                return (
+                    <DocumentAttachmentsTab
+                        data={data}
+                        mode={mode}
+                        docType={docType}
+                        tradeMode={tradeMode}
                         onChange={(updates: any) => {
                             setData((prev: any) => ({ ...prev, ...updates }));
                             setHasChanges(true);

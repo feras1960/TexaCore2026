@@ -57,7 +57,9 @@
       "activity": "Activity",
       "nexaAgent": "NexaAgent 🤖",
       "supplierInfo": "Supplier",
-      "warehouseReceiving": "Receiving"
+      "warehouseReceiving": "Receiving",
+      "paymentAndExpenses": "Payment & Expenses",
+      "shipmentItems": "Container Items"
     },
     "total": "Total",
     "shipping": {

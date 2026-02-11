@@ -57,7 +57,9 @@
       "activity": "السجل والنشاط",
       "nexaAgent": "وكيل نيكسا 🤖",
       "supplierInfo": "المورد",
-      "warehouseReceiving": "الاستلام"
+      "warehouseReceiving": "الاستلام",
+      "paymentAndExpenses": "الدفع والمصاريف",
+      "shipmentItems": "بنود البضائع"
     },
     "total": "الإجمالي",
     "shipping": {
