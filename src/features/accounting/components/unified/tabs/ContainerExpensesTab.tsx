@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
@@ -162,6 +163,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
     const { user, tenantId } = useAuth();
     const { currencyCode: companyCurrency } = useCompanyCurrency();
     const { columns: colPerms } = useTradePermissions({ tradeMode: 'purchase' });
+    const queryClient = useQueryClient();
 
     const isEditable = mode === 'create' || mode === 'edit';
     const containerId = data?.id;
@@ -1056,6 +1058,8 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
             setAllocationResult(result);
             setShowAllocation(true);
             toast.success(isRTL ? '✅ تم توزيع المصاريف وحفظها على البضائع' : '✅ Expenses distributed and saved to goods');
+            // تحديث بنود البضائع فوراً
+            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
         } catch (err: any) {
             console.error('Error distributing expenses:', err);
             toast.error(isRTL ? 'خطأ في توزيع التكاليف: ' + err.message : 'Distribution error: ' + err.message);
@@ -1077,6 +1081,8 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
             setAllocationResult(result);
             setShowAllocation(true);
             toast.success(isRTL ? 'تم تثبيت التكاليف بنجاح ✅' : 'Costs finalized successfully ✅');
+            // تحديث بنود البضائع فوراً
+            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
             // Notify parent to refresh container data
             onChange({ is_cost_finalized: true, _refresh: true });
         } catch (err: any) {
