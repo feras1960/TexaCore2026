@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle, SheetDes
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Loader2, Anchor, Ship, ExternalLink } from 'lucide-react';
+import { Loader2, Anchor, Ship, ExternalLink, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Import components
@@ -716,6 +716,43 @@ export function UnifiedAccountingSheet({
                                 >
                                     <ExternalLink className="w-3.5 h-3.5" />
                                     {language === 'ar' ? 'عرض الكونتينر' : 'View Container'}
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const confirmed = window.confirm(
+                                            language === 'ar'
+                                                ? `هل تريد فك ارتباط هذه الفاتورة من الكونتينر ${containerLockInfo.containerNumber}؟\nسيتم تحرير الفاتورة لإضافتها لكونتينر آخر.`
+                                                : `Unlink this invoice from container ${containerLockInfo.containerNumber}?\nThe invoice will be freed for reassignment.`
+                                        );
+                                        if (!confirmed) return;
+                                        try {
+                                            const { error } = await supabase
+                                                .from('purchase_transactions')
+                                                .update({ container_id: null, container_number: null, container_status: null })
+                                                .eq('id', data?.id || documentId);
+                                            if (error) throw error;
+                                            toast.success(
+                                                language === 'ar'
+                                                    ? '✅ تم فك ارتباط الفاتورة — يمكن إضافتها لكونتينر آخر'
+                                                    : '✅ Invoice unlinked — can be added to another container'
+                                            );
+                                            setData((prev: any) => ({ ...prev, container_id: null, container_number: null, container_status: null }));
+                                            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+                                            queryClient.invalidateQueries({ queryKey: ['available_invoices_for_container'] });
+                                            onRefresh?.();
+                                        } catch (err: any) {
+                                            toast.error(language === 'ar' ? 'خطأ: ' + err.message : 'Error: ' + err.message);
+                                        }
+                                    }}
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium shrink-0",
+                                        "bg-amber-100 hover:bg-amber-200 text-amber-700",
+                                        "dark:bg-amber-900/50 dark:hover:bg-amber-800/50 dark:text-amber-300",
+                                        "transition-colors border border-amber-200 dark:border-amber-700"
+                                    )}
+                                >
+                                    <Unlink className="w-3.5 h-3.5" />
+                                    {language === 'ar' ? 'فك الارتباط' : 'Unlink'}
                                 </button>
                             </div>
                         )}

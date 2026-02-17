@@ -71,6 +71,7 @@ import {
     Trash2,
     Lock,
     AlertTriangle,
+    Unlink,
 } from 'lucide-react';
 import { useTransitCart } from '../../hooks/useTransitCart';
 import { TransitCartDrawer } from '../TransitCartDrawer';
@@ -457,18 +458,52 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
 
             if (error) throw error;
 
-            // Unlink the invoice from this container
+            // Unlink the invoice from this container — clear ALL container fields
             await supabase
                 .from('purchase_transactions')
-                .update({ container_id: null })
+                .update({ container_id: null, container_number: null, container_status: null })
                 .eq('id', invoiceId);
 
             toast.success(isRTL ? `تم حذف بنود الفاتورة ${invoiceNo}` : `Invoice ${invoiceNo} items deleted`);
             queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
             queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
+            queryClient.invalidateQueries({ queryKey: ['available_invoices_for_container'] });
             queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
         } catch (err: any) {
             toast.error(isRTL ? 'خطأ في الحذف: ' + err.message : 'Delete error: ' + err.message);
+        }
+    };
+
+    // ── Unlink invoice from container (keep items in container, free the invoice) ──
+    const handleUnlinkInvoice = async (invoiceId: string, invoiceNo: string) => {
+        if (isContainerLocked) return;
+        const confirmed = window.confirm(
+            isRTL
+                ? `هل أنت متأكد من فك ارتباط الفاتورة ${invoiceNo} من هذا الكونتينر؟\nسيتم فك الارتباط فقط — البنود ستبقى في الكونتينر.`
+                : `Are you sure you want to unlink invoice ${invoiceNo} from this container?\nOnly the link will be removed — items will remain.`
+        );
+        if (!confirmed) return;
+
+        try {
+            // Clear all container fields from the invoice
+            const { error } = await supabase
+                .from('purchase_transactions')
+                .update({ container_id: null, container_number: null, container_status: null })
+                .eq('id', invoiceId);
+
+            if (error) throw error;
+
+            toast.success(
+                isRTL
+                    ? `✅ تم فك ارتباط الفاتورة ${invoiceNo} — يمكن إضافتها لكونتينر آخر`
+                    : `✅ Invoice ${invoiceNo} unlinked — can be added to another container`
+            );
+            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
+            queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
+            queryClient.invalidateQueries({ queryKey: ['available_invoices_for_container'] });
+            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+        } catch (err: any) {
+            toast.error(isRTL ? 'خطأ في فك الارتباط: ' + err.message : 'Unlink error: ' + err.message);
         }
     };
 
@@ -1134,18 +1169,34 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                                             </Badge>
                                         )}
                                         {type === 'invoice' && effectiveMode === 'edit' && !isContainerLocked && key !== 'none' && (
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteInvoiceItems(key, group.number || key);
-                                                }}
-                                                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                                title={isRTL ? 'حذف كل بنود الفاتورة' : 'Delete all invoice items'}
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
+                                            <div className="flex items-center gap-1">
+                                                {/* فك ارتباط الفاتورة */}
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleUnlinkInvoice(key, group.number || key);
+                                                    }}
+                                                    className="h-7 w-7 text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                                                    title={isRTL ? 'فك ارتباط الفاتورة من الكونتينر' : 'Unlink invoice from container'}
+                                                >
+                                                    <Unlink className="w-3.5 h-3.5" />
+                                                </Button>
+                                                {/* حذف كل بنود الفاتورة */}
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteInvoiceItems(key, group.number || key);
+                                                    }}
+                                                    className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                                    title={isRTL ? 'حذف كل بنود الفاتورة' : 'Delete all invoice items'}
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
