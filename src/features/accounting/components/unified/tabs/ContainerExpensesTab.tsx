@@ -386,10 +386,6 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
 
     // ── إضافة مصروف للقائمة المعلّقة (لا يحفظ في DB) ──
     const handleAddToPending = async () => {
-        if (!newActual.expense_account_id) {
-            toast.error(isRTL ? 'اختر حساب نوع المصروف' : 'Select expense type account');
-            return;
-        }
         if (!newActual.vendor_account_id) {
             toast.error(isRTL ? 'اختر حساب المورد / مقدم الخدمة (الدائن)' : 'Select vendor / service provider account (creditor)');
             return;
@@ -1605,52 +1601,49 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                     </span>
                                 </div>
 
-                                {/* حساب المصروف (مدين) + حساب المورد (دائن) */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-medium text-gray-500">
-                                            {isRTL ? 'حساب المصروف (مدين)' : 'Expense Account (Debit)'}
-                                            <span className="text-red-500 ms-0.5">*</span>
-                                        </label>
-                                        <SmartAccountSelector
-                                            value={newActual.expense_account_id}
-                                            onChange={(id, acc) => {
-                                                const expType = acc?.code?.startsWith('5810') ? 'shipping'
-                                                    : acc?.code?.startsWith('5820') ? 'customs'
-                                                        : acc?.code?.startsWith('5830') ? 'insurance'
-                                                            : 'other';
-                                                setNewActual(p => ({ ...p, expense_account_id: id, expense_type: expType }));
-                                            }}
-                                            companyId={companyId}
-                                            filterByCodePrefix="58"
-                                            placeholder={isRTL ? 'اختر حساب المصروف...' : 'Select expense account...'}
-                                            className="h-9 text-xs"
-                                        />
-                                        <p className="text-[9px] text-gray-400">
-                                            {isRTL
-                                                ? 'حسابات مصاريف المشتريات (58xx) — أي حساب تضيفه تحت هذه المجموعة يظهر هنا'
-                                                : 'Purchase expense accounts (58xx) — any account under this group appears here'}
-                                        </p>
+                                {/* نوع المصروف (وسوم) */}
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-medium text-gray-500">
+                                        {isRTL ? 'نوع المصروف' : 'Expense Type'}
+                                    </label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {EXPENSE_TYPES.map(t => (
+                                            <button
+                                                key={t.value}
+                                                type="button"
+                                                onClick={() => setNewActual(p => ({ ...p, expense_type: t.value }))}
+                                                className={cn(
+                                                    "px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all",
+                                                    newActual.expense_type === t.value
+                                                        ? "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-400 text-emerald-700 dark:text-emerald-300 shadow-sm"
+                                                        : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300"
+                                                )}
+                                            >
+                                                {t.icon} {isRTL ? t.labelAr : t.labelEn}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-medium text-gray-500">
-                                            {isRTL ? 'حساب المورد / مقدم الخدمة (دائن)' : 'Vendor Account (Credit)'}
-                                            <span className="text-red-500 ms-0.5">*</span>
-                                        </label>
-                                        <SmartAccountSelector
-                                            value={newActual.vendor_account_id}
-                                            onChange={(id) => setNewActual(p => ({ ...p, vendor_account_id: id }))}
-                                            companyId={companyId}
-                                            filterByCodePrefix="211"
-                                            placeholder={isRTL ? 'اختر حساب المورد...' : 'Select vendor account...'}
-                                            className="h-9 text-xs"
-                                        />
-                                        <p className="text-[9px] text-gray-400">
-                                            {isRTL
-                                                ? 'حسابات الموردين (211x) — عرّف مورديك في شجرة الحسابات تحت "دين الموردين"'
-                                                : 'Vendor accounts (211x) — define your vendors under "Accounts Payable"'}
-                                        </p>
-                                    </div>
+                                </div>
+
+                                {/* حساب المورد / مقدم الخدمة (دائن) */}
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-medium text-gray-500">
+                                        {isRTL ? 'حساب المورد / مقدم الخدمة (دائن)' : 'Vendor / Service Provider (Credit)'}
+                                        <span className="text-red-500 ms-0.5">*</span>
+                                    </label>
+                                    <SmartAccountSelector
+                                        value={newActual.vendor_account_id}
+                                        onChange={(id) => setNewActual(p => ({ ...p, vendor_account_id: id }))}
+                                        companyId={companyId}
+                                        filterByCodePrefix="211"
+                                        placeholder={isRTL ? 'اختر حساب المورد...' : 'Select vendor account...'}
+                                        className="h-9 text-xs"
+                                    />
+                                    <p className="text-[9px] text-gray-400">
+                                        {isRTL
+                                            ? 'المدين تلقائياً = حساب الكونتينر (بضاعة بالطريق) — عرّف مورديك تحت "دين الموردين"'
+                                            : 'Debit auto = Container transit account — define vendors under "Accounts Payable"'}
+                                    </p>
                                 </div>
 
                                 {/* الصف 2: المبلغ + العملة + سعر الصرف + الضريبة */}

@@ -274,6 +274,16 @@ export const journalEntriesService = {
       throw new Error('No tenant ID available');
     }
 
+    // حماية: القيود المولّدة من الكونتينر لا يُسمح بتعديلها من هنا
+    const { data: entryCheck } = await supabase
+      .from('journal_entries')
+      .select('reference_type')
+      .eq('id', id)
+      .single();
+    if (entryCheck?.reference_type === 'container') {
+      throw new Error('هذا القيد مولّد تلقائياً من الكونتينر — التعديل متاح فقط من صفحة الكونتينر');
+    }
+
     // If lines are being updated, recalculate totals
     if (updates.lines) {
       const totalDebit = updates.lines.reduce((sum, line) => sum + (line.debit || 0), 0);
@@ -350,6 +360,16 @@ export const journalEntriesService = {
     const tenantId = await getCurrentTenantIdAsync();
     if (!tenantId) throw new Error('No tenant ID available');
 
+    // حماية: القيود المولّدة من الكونتينر
+    const { data: entryCheck } = await supabase
+      .from('journal_entries')
+      .select('reference_type')
+      .eq('id', id)
+      .single();
+    if (entryCheck?.reference_type === 'container') {
+      throw new Error('هذا القيد مولّد تلقائياً من الكونتينر — إلغاء الترحيل متاح فقط من صفحة الكونتينر');
+    }
+
     const { error } = await supabase
       .from('journal_entries')
       .update({ status: 'draft', is_posted: false })
@@ -390,13 +410,18 @@ export const journalEntriesService = {
       throw new Error('No tenant ID available');
     }
 
-    // Check if entry is posted
+    // Check if entry is posted or container-generated
     const { data: entry } = await supabase
       .from('journal_entries')
-      .select('is_posted, status')
+      .select('is_posted, status, reference_type')
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .single();
+
+    // حماية: القيود المولّدة من الكونتينر لا تُحذف من هنا
+    if (entry?.reference_type === 'container') {
+      throw new Error('هذا القيد مولّد تلقائياً من الكونتينر — الحذف متاح فقط من صفحة الكونتينر');
+    }
 
     if (entry?.is_posted || entry?.status === 'posted') {
       throw new Error('لا يمكن حذف قيد مرحّل. يجب إلغاء الترحيل أولاً');
