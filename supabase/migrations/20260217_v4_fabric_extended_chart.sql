@@ -17,7 +17,7 @@ DECLARE
     v_cash_grp UUID; v_banks_grp UUID; v_ar_grp UUID;
     v_inv_grp UUID; v_fabric_inv_grp UUID;
     v_fixed_assets_id UUID;
-    v_liabilities_id UUID; v_current_liab_id UUID; v_ap_grp UUID; v_long_liab_id UUID;
+    v_liabilities_id UUID; v_current_liab_id UUID; v_ap_grp UUID; v_logistics_grp UUID; v_long_liab_id UUID;
     v_equity_id UUID;
     v_revenue_id UUID;
     v_expenses_id UUID; v_cogs_grp UUID; v_purchases_grp UUID; v_shipping_grp UUID;
@@ -121,6 +121,18 @@ BEGIN
     VALUES
         (v_tenant_id, p_company_id, '2111', 'موردين - أقمشة', 'Fabric Suppliers Payable', v_current_liability_type, v_ap_grp, true, true, true),
         (v_tenant_id, p_company_id, '2112', 'موردين - أخرى', 'Other Suppliers Payable', v_current_liability_type, v_ap_grp, true, true, true);
+
+    -- مقدمو خدمات الشحن (2113) مع مجموعات فرعية
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_payable)
+    VALUES (v_tenant_id, p_company_id, '2113', 'مقدمو خدمات الشحن والتوريد', 'Logistics Service Providers', v_current_liability_type, v_ap_grp, false, true, false)
+    RETURNING id INTO v_logistics_grp;
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_payable)
+    VALUES
+        (v_tenant_id, p_company_id, '21131', 'شركات الشحن البحري', 'Ocean Freight Companies', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21132', 'مكاتب التخليص الجمركي', 'Customs Clearance Offices', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21133', 'شركات النقل الداخلي', 'Inland Transport Companies', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21134', 'شركات التأمين', 'Insurance Companies', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21135', 'خدمات لوجستية أخرى', 'Other Logistics Services', v_current_liability_type, v_logistics_grp, false, true, true);
 
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
     VALUES
