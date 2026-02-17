@@ -128,11 +128,11 @@ BEGIN
     RETURNING id INTO v_logistics_grp;
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_payable)
     VALUES
-        (v_tenant_id, p_company_id, '21131', 'شركات الشحن البحري', 'Ocean Freight Companies', v_current_liability_type, v_logistics_grp, true, true, true),
-        (v_tenant_id, p_company_id, '21132', 'مكاتب التخليص الجمركي', 'Customs Clearance Offices', v_current_liability_type, v_logistics_grp, true, true, true),
-        (v_tenant_id, p_company_id, '21133', 'شركات النقل الداخلي', 'Inland Transport Companies', v_current_liability_type, v_logistics_grp, true, true, true),
-        (v_tenant_id, p_company_id, '21134', 'شركات التأمين', 'Insurance Companies', v_current_liability_type, v_logistics_grp, true, true, true),
-        (v_tenant_id, p_company_id, '21135', 'خدمات لوجستية أخرى', 'Other Logistics Services', v_current_liability_type, v_logistics_grp, true, true, true);
+        (v_tenant_id, p_company_id, '21131', 'شركات الشحن البحري', 'Ocean Freight Companies', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21132', 'مكاتب التخليص الجمركي', 'Customs Clearance Offices', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21133', 'شركات النقل الداخلي', 'Inland Transport Companies', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21134', 'شركات التأمين', 'Insurance Companies', v_current_liability_type, v_logistics_grp, false, true, true),
+        (v_tenant_id, p_company_id, '21135', 'خدمات لوجستية أخرى', 'Other Logistics Services', v_current_liability_type, v_logistics_grp, false, true, true);
 
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
     VALUES
