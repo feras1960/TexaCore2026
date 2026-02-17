@@ -1635,14 +1635,14 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                         value={newActual.vendor_account_id}
                                         onChange={(id) => setNewActual(p => ({ ...p, vendor_account_id: id }))}
                                         companyId={companyId}
-                                        filterByCodePrefix="211"
-                                        placeholder={isRTL ? 'اختر حساب المورد...' : 'Select vendor account...'}
+                                        filterByCodePrefix="2113"
+                                        placeholder={isRTL ? 'اختر مقدم الخدمة...' : 'Select service provider...'}
                                         className="h-9 text-xs"
                                     />
                                     <p className="text-[9px] text-gray-400">
                                         {isRTL
-                                            ? 'المدين تلقائياً = حساب الكونتينر (بضاعة بالطريق) — عرّف مورديك تحت "دين الموردين"'
-                                            : 'Debit auto = Container transit account — define vendors under "Accounts Payable"'}
+                                            ? 'مقدمو خدمات الشحن والتوريد (2113x) — شحن بحري، جمركة، نقل، تأمين'
+                                            : 'Logistics providers (2113x) — freight, customs, transport, insurance'}
                                     </p>
                                 </div>
 
