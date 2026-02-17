@@ -1636,6 +1636,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                         onChange={(id) => setNewActual(p => ({ ...p, vendor_account_id: id }))}
                                         companyId={companyId}
                                         filterByCodePrefix="2113"
+                                        showGroups
                                         placeholder={isRTL ? 'اختر مقدم الخدمة...' : 'Select service provider...'}
                                         className="h-9 text-xs"
                                     />
