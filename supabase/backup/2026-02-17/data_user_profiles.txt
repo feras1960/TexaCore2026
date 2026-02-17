@@ -1,0 +1,18 @@
+                  id                  |        email        |         full_name         |              tenant_id               |              company_id              |     role     |          created_at           
+--------------------------------------+---------------------+---------------------------+--------------------------------------+--------------------------------------+--------------+-------------------------------
+ 66f0da0f-c354-431d-bf18-f136f3e63e49 | fdsfef@fddsfdsf.com | يسبيسبيب                  |                                      |                                      | admin        | 2026-01-29 18:59:40.048553+00
+ 0e8a13e9-1cc7-4fb1-b780-8611493aeef7 | tesort@gmail.com    | اقمشة النخبة              |                                      |                                      | admin        | 2026-01-29 18:28:26.51162+00
+ 26123004-1141-479f-805d-6be97d2d23a0 | testcom@gmail.com   | testcom                   |                                      |                                      | admin        | 2026-01-29 16:45:37.055313+00
+ a0bdbe7b-eac5-449d-8ab9-8c2e928590a3 | test@texa.com       | مستخدم تجريبي - Test User | e3a8b7ef-6f27-43c1-bd3f-61d183a97a47 |                                      | admin        | 2026-01-25 23:29:24.60598+00
+ a9b0450f-5d57-45ec-91e5-9a621336f761 | testorrrr@gmail.com | tesssto                   |                                      |                                      | admin        | 2026-02-03 20:41:42.411667+00
+ 5dcc2c5b-58d7-4303-a19a-8e2aad8f166d | test@test.com       | تيكس برو                  |                                      |                                      | admin        | 2026-02-03 22:38:18.305639+00
+ a84afb14-7890-4153-ad5e-3f21aadea6d4 | testweb@gmail.com   | TESTWEB                   |                                      |                                      | admin        | 2026-01-26 10:05:12.624485+00
+ 85adc738-b893-4c84-8b80-156679b978c1 | feras1960@gmail.com | فراس                      | 681aa0e4-7692-4337-a3e8-2c127f80e573 | 1313232a-6ad3-4002-891c-a9a9e8849a93 | super_admin  | 2026-01-18 18:53:28.438867+00
+ 770f680d-f922-4c88-aa51-ffd7e7c934e6 | testoo@testo.com    | تيكستايل برو              | 52f90c9b-b802-45cd-8650-8aceadd9631d | 831afdb5-435f-44f4-b5c1-9e7e21bf7faf | admin        | 2026-02-03 22:44:24.255088+00
+ 5a6c0fef-e310-4702-ace1-55bf780c76eb | admin@texacore.com  | testpro                   | ec0d5381-5c79-4c3e-bd2c-3ef268c4c307 | 4da8a75b-5372-4b2d-929c-1cd157998659 | admin        | 2026-02-05 16:21:53.830873+00
+ cf157d61-f13c-4dc3-afb1-39b0e6cb228e | test@testo.com      | تيكسوبرو                  |                                      |                                      | admin        | 2026-02-03 23:00:13.118832+00
+ 68454a07-f4cb-4c58-ad28-b1ad49e8602a | testaco@test.com    | اقمشة النخبة كو           | fa855256-8555-43be-8acf-43160f285f0b | ffb6350e-474e-4293-8c7a-4e8236f9d0b2 | tenant_owner | 2026-02-05 17:00:25.817349+00
+ 371798c4-9311-489d-a581-bda3751d8f6f | testttto@testo.com  | hrlam                     | 85a62b42-83d3-435a-98f6-d23270640415 | 3698e295-bab9-4a8e-a69e-02abb90c0600 | tenant_owner | 2026-02-05 17:44:45.327006+00
+ 679bc940-2102-40dc-938a-2584c8aa9fa8 | teeee@gmail.com     | ثبثبيبيس                  | a9a8c540-b9fe-435c-ba82-33da997a6d6b | 208068f2-a83f-42f5-9b43-aca520aec1a5 | tenant_owner | 2026-02-05 18:13:16.219104+00
+(14 rows)
+
