@@ -2218,34 +2218,38 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                                                     </span>
                                                                 </div>
                                                                 <div className="bg-gray-50 dark:bg-gray-800 rounded p-2 space-y-1">
-                                                                    {/* سطور المدين — لكل مصروف */}
-                                                                    {batch.expenses.map(exp => (
-                                                                        <div key={`dr-${exp.id}`} className="flex items-center justify-between text-xs">
-                                                                            <span className="text-gray-500 truncate max-w-[200px]">
-                                                                                {exp._expenseAccountName || exp.description || (isRTL ? 'مصروف' : 'Expense')}
-                                                                            </span>
-                                                                            <span className="font-mono font-semibold text-red-600">
-                                                                                {isRTL ? 'مد' : 'Dr'} {((exp.amount_before_tax || 0) * (exp.exchange_rate || 1)).toLocaleString()}
-                                                                            </span>
-                                                                        </div>
-                                                                    ))}
-                                                                    {/* سطر الضريبة إن وجدت */}
+                                                                    {/* سطر المدين — حساب الكونتينر (بضاعة بالطريق) */}
+                                                                    <div className="flex items-center justify-between text-xs">
+                                                                        <span className="text-gray-600 dark:text-gray-300 font-medium truncate max-w-[200px]">
+                                                                            📦 {data?.container_number
+                                                                                ? (isRTL ? `كونتينر ${data.container_number}` : `Container ${data.container_number}`)
+                                                                                : (isRTL ? 'بضاعة بالطريق' : 'Goods in Transit')}
+                                                                        </span>
+                                                                        <span className="font-mono font-semibold text-red-600">
+                                                                            {isRTL ? 'مدين' : 'Dr'} {batch.totalAmount.toLocaleString()}
+                                                                        </span>
+                                                                    </div>
+                                                                    {/* سطر ضريبة مدخلات إن وجدت */}
                                                                     {batch.totalTax > 0 && (
                                                                         <div className="flex items-center justify-between text-xs">
                                                                             <span className="text-amber-600">{isRTL ? 'ضريبة مدخلات' : 'Input VAT'}</span>
                                                                             <span className="font-mono font-semibold text-red-600">
-                                                                                {isRTL ? 'مد' : 'Dr'} {batch.totalTax.toLocaleString()}
+                                                                                {isRTL ? 'مدين' : 'Dr'} {batch.totalTax.toLocaleString()}
                                                                             </span>
                                                                         </div>
                                                                     )}
                                                                     <Separator className="my-1" />
-                                                                    {/* سطر الدائن — الإجمالي */}
-                                                                    <div className="flex items-center justify-between text-xs">
-                                                                        <span className="text-gray-500">{isRTL ? 'حساب الدائنين' : 'Accounts Payable'}</span>
-                                                                        <span className="font-mono font-semibold text-green-600">
-                                                                            {isRTL ? 'دا' : 'Cr'} {batch.totalAmount.toLocaleString()}
-                                                                        </span>
-                                                                    </div>
+                                                                    {/* سطور الدائن — حساب كل مورد/مقدم خدمة */}
+                                                                    {batch.expenses.map(exp => (
+                                                                        <div key={`cr-${exp.id}`} className="flex items-center justify-between text-xs">
+                                                                            <span className="text-gray-500 truncate max-w-[200px]">
+                                                                                🏢 {exp._vendorAccountName || exp.vendor_name || (isRTL ? 'مورد' : 'Vendor')}
+                                                                            </span>
+                                                                            <span className="font-mono font-semibold text-green-600">
+                                                                                {isRTL ? 'دائن' : 'Cr'} {((exp.amount_before_tax || 0) * (exp.exchange_rate || 1) + (exp.tax_amount || 0) * (exp.exchange_rate || 1)).toLocaleString()}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         )}
