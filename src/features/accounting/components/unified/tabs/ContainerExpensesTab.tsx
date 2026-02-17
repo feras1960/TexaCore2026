@@ -36,7 +36,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { calculateLandedCost, saveEstimatedDistribution, finalizeLandedCost, deleteContainerExpense, createExpenseJournalEntry } from '@/services/containersService';
+import { calculateLandedCost, saveEstimatedDistribution, saveActualDistribution, finalizeLandedCost, deleteContainerExpense, createExpenseJournalEntry } from '@/services/containersService';
 import { SmartAccountSelector } from '@/features/accounting/components/shared/SmartAccountSelector';
 import { journalEntriesService } from '@/services/journalEntriesService';
 
@@ -1053,11 +1053,21 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
         if (!containerId) return;
         setCalculating(true);
         try {
-            // حساب التوزيع + حفظ في قاعدة البيانات
+            // توزيع المصاريف التقديرية → provisional_unit_cost
             const result = await saveEstimatedDistribution(containerId);
+
+            // توزيع المصاريف الفعلية → final_unit_cost
+            await saveActualDistribution(containerId);
+
             setAllocationResult(result);
             setShowAllocation(true);
-            toast.success(isRTL ? '✅ تم توزيع المصاريف وحفظها على البضائع' : '✅ Expenses distributed and saved to goods');
+
+            const estTotal = result.totalEstimatedExpenses || 0;
+            const actTotal = result.totalActualExpenses || 0;
+            toast.success(isRTL
+                ? `✅ تم التوزيع — تقديري: ${estTotal.toLocaleString()} | فعلي: ${actTotal.toLocaleString()}`
+                : `✅ Distributed — Estimated: ${estTotal.toLocaleString()} | Actual: ${actTotal.toLocaleString()}`
+            );
             // تحديث بنود البضائع فوراً
             queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
         } catch (err: any) {
@@ -2501,10 +2511,12 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                                     {fmtNum(allocationResult.totalGoodsValue || 0)}
                                                 </TableCell>
                                                 <TableCell className="text-center font-mono text-xs font-bold text-amber-600">
-                                                    +{fmtNum(allocationResult.totalExpenses || 0)}
+                                                    <div>+{fmtNum(allocationResult.totalEstimatedExpenses || 0)}</div>
+                                                    <div className="text-[9px] text-gray-400">{isRTL ? 'تقديري' : 'Est.'}</div>
                                                 </TableCell>
                                                 <TableCell className="text-center font-mono text-xs font-bold text-emerald-700">
-                                                    {fmtNum(allocationResult.totalLandedCost || 0)}
+                                                    <div>+{fmtNum(allocationResult.totalActualExpenses || 0)}</div>
+                                                    <div className="text-[9px] text-gray-400">{isRTL ? 'فعلي' : 'Actual'}</div>
                                                 </TableCell>
                                             </TableRow>
                                         </TableFooter>

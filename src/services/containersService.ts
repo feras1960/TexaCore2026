@@ -699,35 +699,54 @@ export async function calculateLandedCost(containerId: string) {
     .select('*')
     .eq('container_id', containerId);
 
+  // فصل المصاريف: تقديرية (غير مرحّلة) vs فعلية (مرحّلة بقيد)
+  const estimatedExpenses = (expenses || []).filter((exp: any) => !exp.is_posted);
+  const actualExpenses = (expenses || []).filter((exp: any) => exp.is_posted);
+
   // حساب إجمالي قيمة البضاعة
   const totalGoodsValue = (items || []).reduce((sum: number, item: any) => {
     return sum + ((item.unit_cost || 0) * (item.expected_quantity || 0));
   }, 0);
 
-  // حساب إجمالي المصاريف
-  const totalExpenses = (expenses || []).reduce((sum: number, exp: any) => {
-    return sum + (exp.actual_amount || exp.expected_amount || exp.amount || 0);
+  // حساب إجمالي المصاريف التقديرية
+  const totalEstimatedExpenses = estimatedExpenses.reduce((sum: number, exp: any) => {
+    return sum + (exp.expected_amount || exp.amount || 0);
   }, 0);
 
-  // توزيع المصاريف على البنود حسب الطريقة المحددة
+  // حساب إجمالي المصاريف الفعلية
+  const totalActualExpenses = actualExpenses.reduce((sum: number, exp: any) => {
+    return sum + (exp.amount || 0);
+  }, 0);
+
+  // توزيع حسب الطريقة المحددة
   const allocationMethod = container.cost_allocation_method || 'by_value';
-  const allocatedItems = allocateCostsToItems(items || [], totalExpenses, allocationMethod, totalGoodsValue);
+
+  // التوزيع التقديري
+  const estimatedAllocatedItems = allocateCostsToItems(items || [], totalEstimatedExpenses, allocationMethod, totalGoodsValue);
+
+  // التوزيع الفعلي
+  const actualAllocatedItems = allocateCostsToItems(items || [], totalActualExpenses, allocationMethod, totalGoodsValue);
 
   // حساب Landed Cost الإجمالي
+  const totalExpenses = totalEstimatedExpenses + totalActualExpenses;
   const totalLandedCost = totalGoodsValue + totalExpenses;
 
   return {
     totalGoodsValue,
     totalExpenses,
+    totalEstimatedExpenses,
+    totalActualExpenses,
     totalLandedCost,
-    allocatedItems,
+    allocatedItems: estimatedAllocatedItems, // backward compat
+    estimatedAllocatedItems,
+    actualAllocatedItems,
     allocationMethod,
   };
 }
 
 /**
  * حفظ توزيع المصاريف التقديرية على البنود (provisional)
- * يحسب التوزيع ويحفظ في container_items:
+ * يوزع المصاريف التقديرية فقط (غير المرحّلة) ويحفظ في:
  * - provisional_unit_cost
  * - allocated_costs
  * - total_provisional_cost
@@ -735,8 +754,8 @@ export async function calculateLandedCost(containerId: string) {
 export async function saveEstimatedDistribution(containerId: string) {
   const result = await calculateLandedCost(containerId);
 
-  // حفظ التوزيع في كل بند
-  for (const item of result.allocatedItems) {
+  // حفظ التوزيع التقديري في كل بند
+  for (const item of result.estimatedAllocatedItems) {
     const totalProvisionalCost = item.finalUnitCost * (item.expected_quantity || 0);
     await updateContainerItem(item.id, {
       provisional_unit_cost: item.finalUnitCost,
@@ -745,7 +764,26 @@ export async function saveEstimatedDistribution(containerId: string) {
     });
   }
 
-  // إجماليات الكونتينر تتحدث تلقائياً عبر updateContainerTotals
+  return result;
+}
+
+/**
+ * حفظ توزيع المصاريف الفعلية على البنود
+ * يوزع المصاريف الفعلية فقط (المرحّلة بقيد) ويحفظ في:
+ * - final_unit_cost
+ * - total_final_cost
+ */
+export async function saveActualDistribution(containerId: string) {
+  const result = await calculateLandedCost(containerId);
+
+  // حفظ التوزيع الفعلي في كل بند
+  for (const item of result.actualAllocatedItems) {
+    const totalFinalCost = item.finalUnitCost * (item.expected_quantity || 0);
+    await updateContainerItem(item.id, {
+      final_unit_cost: item.finalUnitCost,
+      total_final_cost: totalFinalCost,
+    });
+  }
 
   return result;
 }
@@ -1171,6 +1209,7 @@ export default {
   // Landed Cost
   calculateLandedCost,
   saveEstimatedDistribution,
+  saveActualDistribution,
   finalizeLandedCost,
   updateContainerTotals,
 };
