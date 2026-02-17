@@ -311,11 +311,7 @@ export async function getContainerById(containerId: string) {
     .from('containers')
     .select(`
       *,
-      items:container_items(
-        *,
-        material:fabric_materials(id, name_ar, name_en, code),
-        color:fabric_colors(id, name, name_en, hex_code)
-      ),
+      items:container_items(*),
       expenses:container_expenses(*),
       reservations:container_reservations(
         *,
@@ -435,11 +431,7 @@ export async function deleteContainer(containerId: string) {
 export async function getContainerItems(containerId: string) {
   const { data, error } = await supabase
     .from('container_items')
-    .select(`
-      *,
-      material:fabric_materials(id, name_ar, name_en, code),
-      color:fabric_colors(id, name, name_en, hex_code)
-    `)
+    .select('*')
     .eq('container_id', containerId)
     .order('created_at', { ascending: true });
 
@@ -698,7 +690,7 @@ export async function calculateLandedCost(containerId: string) {
   // جلب البنود مباشرة
   const { data: items = [] } = await supabase
     .from('container_items')
-    .select('*, material:fabric_materials(id, name_ar, name_en, code), color:fabric_colors(id, name, name_en, hex_code)')
+    .select('*')
     .eq('container_id', containerId);
 
   // جلب المصاريف مباشرة
