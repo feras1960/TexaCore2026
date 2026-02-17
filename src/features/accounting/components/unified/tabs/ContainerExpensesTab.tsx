@@ -1595,8 +1595,8 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                     </span>
                                 </div>
 
-                                {/* الصف 1: النوع + حساب المورد/المصروف (حساب واحد فقط) */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {/* الصف 1: النوع + حساب المصروف (مدين) + حساب المورد (دائن) */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <div className="space-y-1">
                                         <label className="text-[11px] font-medium text-gray-500">
                                             {isRTL ? 'نوع المصروف' : 'Expense Type'}
@@ -1616,20 +1616,38 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[11px] font-medium text-gray-500">
-                                            {isRTL ? 'حساب المورد / المصروف' : 'Vendor / Expense Account'}
+                                            {isRTL ? 'حساب المصروف (مدين)' : 'Expense Account (Debit)'}
                                             <span className="text-red-500 ms-0.5">*</span>
                                         </label>
                                         <SmartAccountSelector
                                             value={newActual.expense_account_id}
                                             onChange={(id) => setNewActual(p => ({ ...p, expense_account_id: id }))}
                                             companyId={companyId}
-                                            placeholder={isRTL ? 'ابحث واختر الحساب...' : 'Search & select account...'}
+                                            placeholder={isRTL ? 'حساب المصروف...' : 'Expense account...'}
                                             className="h-9 text-xs"
                                         />
                                         <p className="text-[9px] text-gray-400">
                                             {isRTL
-                                                ? 'اختر المورد المعرّف في الشجرة المحاسبية (مثال: مايرسك، مكتب الجمركة)'
-                                                : 'Select vendor defined in Chart of Accounts (e.g. Maersk, Customs Office)'}
+                                                ? 'مثال: مصاريف الشحن، مصاريف جمركية'
+                                                : 'e.g. Shipping Expenses, Customs Expenses'}
+                                        </p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-medium text-gray-500">
+                                            {isRTL ? 'حساب المورد / مقدم الخدمة (دائن)' : 'Vendor Account (Credit)'}
+                                            <span className="text-red-500 ms-0.5">*</span>
+                                        </label>
+                                        <SmartAccountSelector
+                                            value={newActual.vendor_account_id}
+                                            onChange={(id) => setNewActual(p => ({ ...p, vendor_account_id: id }))}
+                                            companyId={companyId}
+                                            placeholder={isRTL ? 'حساب المورد...' : 'Vendor account...'}
+                                            className="h-9 text-xs"
+                                        />
+                                        <p className="text-[9px] text-gray-400">
+                                            {isRTL
+                                                ? 'مثال: مايرسك، مكتب الجمركة، شركة الشحن'
+                                                : 'e.g. Maersk, Customs Office, Shipping Company'}
                                         </p>
                                     </div>
                                 </div>
