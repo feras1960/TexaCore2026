@@ -1595,25 +1595,8 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                     </span>
                                 </div>
 
-                                {/* الصف 1: النوع + حساب المصروف (مدين) + حساب المورد (دائن) */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-medium text-gray-500">
-                                            {isRTL ? 'نوع المصروف' : 'Expense Type'}
-                                        </label>
-                                        <Select value={newActual.expense_type} onValueChange={(v) => setNewActual(p => ({ ...p, expense_type: v }))}>
-                                            <SelectTrigger className="h-9 text-xs">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {EXPENSE_TYPES.map(t => (
-                                                    <SelectItem key={t.value} value={t.value} className="text-xs">
-                                                        {t.icon} {isRTL ? t.labelAr : t.labelEn}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                {/* حساب المصروف (مدين) + حساب المورد (دائن) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <label className="text-[11px] font-medium text-gray-500">
                                             {isRTL ? 'حساب المصروف (مدين)' : 'Expense Account (Debit)'}
@@ -1621,15 +1604,22 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                         </label>
                                         <SmartAccountSelector
                                             value={newActual.expense_account_id}
-                                            onChange={(id) => setNewActual(p => ({ ...p, expense_account_id: id }))}
+                                            onChange={(id, acc) => {
+                                                const expType = acc?.code?.startsWith('5810') ? 'shipping'
+                                                    : acc?.code?.startsWith('5820') ? 'customs'
+                                                        : acc?.code?.startsWith('5830') ? 'insurance'
+                                                            : 'other';
+                                                setNewActual(p => ({ ...p, expense_account_id: id, expense_type: expType }));
+                                            }}
                                             companyId={companyId}
-                                            placeholder={isRTL ? 'حساب المصروف...' : 'Expense account...'}
+                                            filterByCodePrefix="58"
+                                            placeholder={isRTL ? 'اختر حساب المصروف...' : 'Select expense account...'}
                                             className="h-9 text-xs"
                                         />
                                         <p className="text-[9px] text-gray-400">
                                             {isRTL
-                                                ? 'مثال: مصاريف الشحن، مصاريف جمركية'
-                                                : 'e.g. Shipping Expenses, Customs Expenses'}
+                                                ? 'حسابات مصاريف المشتريات (58xx) — أي حساب تضيفه تحت هذه المجموعة يظهر هنا'
+                                                : 'Purchase expense accounts (58xx) — any account under this group appears here'}
                                         </p>
                                     </div>
                                     <div className="space-y-1">
@@ -1641,13 +1631,14 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                             value={newActual.vendor_account_id}
                                             onChange={(id) => setNewActual(p => ({ ...p, vendor_account_id: id }))}
                                             companyId={companyId}
-                                            placeholder={isRTL ? 'حساب المورد...' : 'Vendor account...'}
+                                            filterByCodePrefix="211"
+                                            placeholder={isRTL ? 'اختر حساب المورد...' : 'Select vendor account...'}
                                             className="h-9 text-xs"
                                         />
                                         <p className="text-[9px] text-gray-400">
                                             {isRTL
-                                                ? 'مثال: مايرسك، مكتب الجمركة، شركة الشحن'
-                                                : 'e.g. Maersk, Customs Office, Shipping Company'}
+                                                ? 'حسابات الموردين (211x) — عرّف مورديك في شجرة الحسابات تحت "دين الموردين"'
+                                                : 'Vendor accounts (211x) — define your vendors under "Accounts Payable"'}
                                         </p>
                                     </div>
                                 </div>

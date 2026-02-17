@@ -21,6 +21,8 @@ interface SmartAccountSelectorProps {
     disabled?: boolean;
     /** إظهار المجموعات أيضاً — افتراضياً false = حسابات تفصيلية فقط */
     showGroups?: boolean;
+    /** فلترة بالكود — مثال: '58' لإظهار حسابات 58xx فقط، أو ['58','211'] لعدة أكواد */
+    filterByCodePrefix?: string | string[];
 }
 
 export function SmartAccountSelector({
@@ -32,6 +34,7 @@ export function SmartAccountSelector({
     error,
     disabled,
     showGroups = false,
+    filterByCodePrefix,
 }: SmartAccountSelectorProps) {
     const { t, language } = useLanguage();
     const [open, setOpen] = useState(false);
@@ -92,12 +95,20 @@ export function SmartAccountSelector({
         return `${acc.code} - ${name}`;
     };
 
-    // فلترة الحسابات: حذف المجموعات + بحث
+    // فلترة الحسابات: حذف المجموعات + بحث + فلترة بالكود
     const filteredAccounts = React.useMemo(() => {
         // أولاً: إخفاء المجموعات (is_group = true) إلا إذا طُلب showGroups
         let filtered = showGroups ? accounts : accounts.filter(acc => !acc.is_group);
 
-        // ثانياً: فلترة بالبحث
+        // ثانياً: فلترة بالكود (prefix)
+        if (filterByCodePrefix) {
+            const prefixes = Array.isArray(filterByCodePrefix) ? filterByCodePrefix : [filterByCodePrefix];
+            filtered = filtered.filter(acc =>
+                acc.code && prefixes.some(p => acc.code.startsWith(p))
+            );
+        }
+
+        // ثالثاً: فلترة بالبحث
         if (inputValue.trim()) {
             const lower = inputValue.toLowerCase().trim();
             filtered = filtered.filter(acc =>
@@ -108,7 +119,7 @@ export function SmartAccountSelector({
         }
 
         return filtered.slice(0, 60); // حد أقصى 60 نتيجة
-    }, [accounts, inputValue, showGroups]);
+    }, [accounts, inputValue, showGroups, filterByCodePrefix]);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
