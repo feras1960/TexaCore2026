@@ -321,14 +321,10 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                 return;
             }
 
-            // Fetch invoice items with material & color details
+            // Fetch invoice items (all needed data is directly in the table)
             const { data: invoiceItems, error: itemsError } = await supabase
                 .from('purchase_transaction_items')
-                .select(`
-                    *,
-                    material:fabric_materials(id, name_ar, name_en, code),
-                    color:fabric_colors(id, name, name_en)
-                `)
+                .select('*')
                 .eq('transaction_id', invoiceId);
 
             if (itemsError) throw itemsError;
@@ -345,17 +341,8 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                 : sup?.name_en || sup?.name_ar || '';
 
             // Map invoice items to container_items (denormalized for performance)
-            // Supports both: materials WITH colors and materials WITHOUT colors
             const containerItems = invoiceItems.map((item: any) => {
-                const mat = Array.isArray(item.material) ? item.material[0] : item.material;
-                const clr = Array.isArray(item.color) ? item.color[0] : item.color;
-                const hasColor = !!(item.color_id && (item.color_name || clr?.name || clr?.name_en));
-
-                // Build description: prefer explicit description, then material name
-                const materialName = isRTL
-                    ? (mat?.name_ar || mat?.name_en || '')
-                    : (mat?.name_en || mat?.name_ar || '');
-                const itemDescription = item.description || item.description_ar || materialName || '';
+                const itemDescription = item.description || item.description_ar || '';
 
                 return {
                     tenant_id: tenantId,
@@ -368,8 +355,8 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                     product_id: item.product_id || null,
                     color_id: item.color_id || null,
                     item_description: itemDescription,
-                    material_code: item.item_code || mat?.code || '',
-                    color_name: hasColor ? (item.color_name || clr?.name || clr?.name_en || '') : null,
+                    material_code: item.item_code || '',
+                    color_name: item.color_name || null,
                     expected_quantity: Number(item.quantity) || 0,
                     expected_rolls: item.rolls_count || null,
                     unit_cost: Number(item.unit_price) || 0,
@@ -395,7 +382,11 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
             // Link the invoice directly to this container
             await supabase
                 .from('purchase_transactions')
-                .update({ container_id: containerId })
+                .update({
+                    container_id: containerId,
+                    container_number: data?.container_number || null,
+                    container_status: data?.status || 'draft'
+                })
                 .eq('id', invoiceId);
 
             // Refresh items list + available invoices + purchase cycle
