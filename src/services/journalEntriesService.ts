@@ -43,6 +43,8 @@ export interface CreateJournalEntryInput {
   entry_type?: string;
   entry_date: string;
   description: string;
+  reference_type?: string;
+  reference_id?: string;
   lines: {
     account_id: string;
     debit: number;
@@ -176,12 +178,9 @@ export const journalEntriesService = {
       throw new Error('القيد غير متوازن! يجب أن يكون إجمالي المدين يساوي إجمالي الدائن');
     }
 
-    // Generate entry number
-    const entryNumber = await supabase.rpc('generate_sequence_number', {
-      p_tenant_id: tenantId,
-      p_company_id: input.company_id,
-      p_sequence_type: 'journal_entry',
-    });
+    // Generate entry number — use timestamp-based unique ID
+    // (RPC generate_sequence_number may return colliding numbers)
+    const entryNumber = `JE-${Date.now()}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 
     // Create entry
     const { data: entry, error: entryError } = await supabase
@@ -190,10 +189,12 @@ export const journalEntriesService = {
         tenant_id: tenantId,
         company_id: input.company_id,
         branch_id: input.branch_id || null,
-        entry_number: entryNumber.data || `JE-${Date.now()}`,
+        entry_number: entryNumber,
         entry_date: input.entry_date,
         entry_type: input.entry_type || 'manual',
         description: input.description,
+        reference_type: input.reference_type || null,
+        reference_id: input.reference_id || null,
         total_debit: totalDebit,
         total_credit: totalCredit,
         status: 'draft',
@@ -205,6 +206,10 @@ export const journalEntriesService = {
     if (entryError) {
       console.error('Error creating journal entry:', entryError);
       throw entryError;
+    }
+
+    if (!entry) {
+      throw new Error('Failed to create journal entry after multiple attempts');
     }
 
     // Create lines

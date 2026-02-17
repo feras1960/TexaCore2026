@@ -15,7 +15,7 @@
 import { supabase } from '@/lib/supabase';
 
 // ═══ Types ═══
-export type DocType = 'quotation' | 'sales_order' | 'sales_invoice' | 'reservation';
+export type DocType = 'quotation' | 'sales_order' | 'sales_invoice' | 'reservation' | 'purchase_order' | 'purchase_invoice';
 export type ConfirmationStatus = 'draft' | 'pending_approval' | 'approved' | 'confirmed' | 'cancelled';
 export type ApprovalStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
@@ -62,8 +62,10 @@ export interface ConfirmationResult {
 const TABLE_MAP: Record<DocType, string> = {
     quotation: 'quotations',
     sales_order: 'sales_orders',
-    sales_invoice: 'sales_invoices',
+    sales_invoice: 'sales_transactions',
     reservation: 'sales_orders', // reservations stored in sales_orders with type
+    purchase_order: 'purchase_orders',
+    purchase_invoice: 'purchase_transactions',
 };
 
 // ═══ Default settings ═══
@@ -162,16 +164,19 @@ class ConfirmationService {
         });
         if (!hasItems) blockers.push('no_items');
 
-        // 2. Check: Document has customer
-        const hasCustomer = !!(docData.customer_id || docData.customer_name);
+        // 2. Check: Document has customer/supplier
+        const isPurchase = docType === 'purchase_order' || docType === 'purchase_invoice';
+        const hasParty = isPurchase
+            ? !!(docData.supplier_id || docData.supplier_name)
+            : !!(docData.customer_id || docData.customer_name);
         checks.push({
             id: 'has_customer',
-            label_ar: 'العميل محدد',
-            label_en: 'Customer is specified',
-            passed: hasCustomer,
+            label_ar: isPurchase ? 'المورد محدد' : 'العميل محدد',
+            label_en: isPurchase ? 'Supplier is specified' : 'Customer is specified',
+            passed: hasParty,
             required: true,
         });
-        if (!hasCustomer) blockers.push('no_customer');
+        if (!hasParty) blockers.push('no_customer');
 
         // 3. Check: Not already confirmed
         const notConfirmed = docData.confirmation_status !== 'confirmed';
@@ -447,13 +452,14 @@ class ConfirmationService {
             const now = new Date().toISOString();
 
             // 1. Update document status to confirmed
+            const isTransaction = table.includes('_transactions');
             const { error: updateError } = await supabase
                 .from(table)
                 .update({
                     confirmation_status: 'confirmed',
-                    confirmed_at: now,
-                    confirmed_by: userId,
-                    status: 'confirmed',
+                    // confirmed_at and confirmed_by columns do not exist in the schema
+                    updated_at: now,
+                    ...(isTransaction ? { stage: 'confirmed' } : { status: 'confirmed' }),
                 })
                 .eq('id', docId);
 
@@ -736,6 +742,8 @@ class ConfirmationService {
             sales_order: { ar: 'أمر البيع', en: 'Sales Order' },
             sales_invoice: { ar: 'الفاتورة', en: 'Sales Invoice' },
             reservation: { ar: 'الحجز', en: 'Reservation' },
+            purchase_order: { ar: 'أمر الشراء', en: 'Purchase Order' },
+            purchase_invoice: { ar: 'فاتورة الشراء', en: 'Purchase Invoice' },
         };
         return labels[docType]?.[lang] || docType;
     }
@@ -757,6 +765,14 @@ class ConfirmationService {
             reservation: {
                 ar: 'تم تأكيد الحجز وإرساله لأمين المستودع 📦',
                 en: 'Reservation confirmed and sent to warehouse 📦',
+            },
+            purchase_order: {
+                ar: 'تم تأكيد أمر الشراء ✅',
+                en: 'Purchase order confirmed ✅',
+            },
+            purchase_invoice: {
+                ar: 'تم تأكيد فاتورة الشراء ✅',
+                en: 'Purchase invoice confirmed ✅',
             },
         };
         return messages[docType]?.[lang] || (lang === 'ar' ? 'تم التأكيد' : 'Confirmed');

@@ -1,4 +1,4 @@
-import type { DocumentConfig, TabConfig, ActionConfig, StatConfig } from '../types';
+import type { DocumentConfig, TabConfig, ActionConfig, StatConfig, StageActionConfig } from '../types';
 
 // ═══════════════════════════════════════════════════════════════
 // Tab Definitions — تعريفات التبويبات
@@ -53,6 +53,12 @@ const TAB: Record<string, TabConfig> = {
     },
 
     // ── خاص بالمشتريات ──
+    purchaseMaterialBrowser: {
+        id: 'purchase_material_browser',
+        labelKey: 'trade.tabs.materials',
+        icon: 'Search',
+        component: 'PurchaseMaterialBrowserTab',
+    },
     supplierInfo: {
         id: 'supplier_info',
         labelKey: 'trade.tabs.supplierInfo',
@@ -70,6 +76,26 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.warehouseReceiving',
         icon: 'Warehouse',
         component: 'WarehouseReceivingTab',
+    },
+    receiptSummary: {
+        id: 'receipt_summary',
+        labelKey: 'trade.tabs.receiptSummary',
+        icon: 'ClipboardCheck',
+        component: 'ReceiptSummaryTab',
+    },
+    // ── المورد والمالية (مدمج) ──
+    supplierFinance: {
+        id: 'supplier_finance',
+        labelKey: 'trade.tabs.supplierFinance',
+        icon: 'Building2',
+        component: 'SupplierFinanceTab',
+    },
+    // ── معاينة القيد المحاسبي ──
+    journalPreview: {
+        id: 'journal_preview',
+        labelKey: 'trade.tabs.journalPreview',
+        icon: 'BookOpen',
+        component: 'StageJournalPreview',
     },
 
     // ── خاص بالحاويات ──
@@ -92,6 +118,182 @@ const TAB: Record<string, TabConfig> = {
         component: 'ContainerExpensesTab',
     },
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Stage-Aware Tab Variants — تبويبات حسب المرحلة
+// ═══════════════════════════════════════════════════════════════
+
+const STAGE_TAB: Record<string, TabConfig> = {
+    // ── تبويب سجل المراحل (ظاهر دائماً) ──
+    stageHistory: {
+        id: 'stage_history',
+        labelKey: 'trade.tabs.stageHistory',
+        icon: 'GitBranch',
+        component: 'TransactionStageHistory',
+    },
+    // ── أصناف (stage-aware) ──
+    tradeDetailsStaged: {
+        ...TAB.tradeDetails,
+        editableInStages: ['draft', 'quotation'],
+    },
+    // ── مواد (stage-aware) ──
+    materialBrowserStaged: {
+        ...TAB.materialBrowser,
+        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['draft', 'quotation'],
+    },
+    purchaseMaterialBrowserStaged: {
+        ...TAB.purchaseMaterialBrowser,
+        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['draft', 'quotation'],
+    },
+    // ── مورد (stage-aware) ──
+    supplierInfoStaged: {
+        ...TAB.supplierInfo,
+        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['draft', 'quotation'],
+    },
+    // ── سداد مشتريات (stage-aware) ──
+    purchasePaymentStaged: {
+        ...TAB.purchasePayment,
+        visibleInStages: ['confirmed', 'partially_received', 'received', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['invoice', 'partial_paid'],
+    },
+    // ── استلام (stage-aware) ──
+    warehouseReceivingStaged: {
+        ...TAB.warehouseReceiving,
+        visibleInStages: ['approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['receipt'],
+    },
+    // ── شحن مبيعات (stage-aware) ──
+    customerShippingStaged: {
+        ...TAB.customerShipping,
+        visibleInStages: ['order', 'confirmed', 'delivery', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['order', 'delivery'],
+    },
+    // ── سداد مبيعات (stage-aware) ──
+    paymentReceiptStaged: {
+        ...TAB.paymentReceipt,
+        visibleInStages: ['confirmed', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['invoice', 'partial_paid'],
+    },
+    // ── المورد والمالية المدمج (stage-aware) ──
+    supplierFinanceStaged: {
+        ...TAB.supplierFinance,
+        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['quotation', 'order'],
+    },
+    // ── القيد المحاسبي (stage-aware) ──
+    journalPreviewStaged: {
+        ...TAB.journalPreview,
+        visibleInStages: ['confirmed', 'partially_received', 'received', 'invoice', 'posted', 'partial_paid', 'paid'],
+    },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Stage Actions — أزرار كل مرحلة
+// ═══════════════════════════════════════════════════════════════
+
+const PURCHASE_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
+    draft: [
+        { id: 'to_quotation', labelAr: 'تأكيد كعرض سعر', labelEn: 'Confirm as Quotation', icon: '📋', targetStage: 'quotation', variant: 'default' },
+        { id: 'to_order', labelAr: 'تحويل لأمر شراء', labelEn: 'Convert to Order', icon: '📦', targetStage: 'order', variant: 'outline' },
+        { id: 'to_invoice_direct', labelAr: 'فاتورة مباشرة', labelEn: 'Direct Invoice', icon: '📄', targetStage: 'invoice', variant: 'outline' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    quotation: [
+        { id: 'to_order', labelAr: 'تحويل لأمر شراء', labelEn: 'Convert to Purchase Order', icon: '📦', targetStage: 'order', variant: 'default' },
+        { id: 'to_invoice', labelAr: 'تحويل لفاتورة', labelEn: 'Convert to Invoice', icon: '📄', targetStage: 'invoice', variant: 'outline' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    order: [
+        { id: 'approve', labelAr: 'اعتماد الأمر', labelEn: 'Approve Order', icon: '✅', targetStage: 'approved', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تريد اعتماد هذا الأمر؟', confirmMessageEn: 'Approve this purchase order?' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    approved: [
+        { id: 'to_receipt', labelAr: 'تسجيل استلام', labelEn: 'Record Receipt', icon: '📦', targetStage: 'receipt', variant: 'default' },
+        { id: 'to_invoice', labelAr: 'فاتورة بدون استلام', labelEn: 'Invoice without Receipt', icon: '📄', targetStage: 'invoice', variant: 'outline' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    receipt: [
+        { id: 'to_invoice', labelAr: 'إنشاء فاتورة', labelEn: 'Create Invoice', icon: '📄', targetStage: 'invoice', variant: 'default' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    // ═══ مرحلة التأكيد — بعد save_confirm ═══
+    confirmed: [
+        { id: 'post', labelAr: 'ترحيل (بدون استلام)', labelEn: 'Post (without receipt)', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'لم يتم استلام البضاعة بعد. سيتم الترحيل بقيم الفاتورة. متابعة؟', confirmMessageEn: 'Goods not received yet. Will post using invoice amounts. Continue?' },
+        { id: 'unconfirm', labelAr: 'إلغاء التأكيد', labelEn: 'Unconfirm', icon: '↩️', targetStage: 'draft', variant: 'outline', requiresConfirm: true, confirmMessageAr: 'إعادة الفاتورة لحالة المسودة؟', confirmMessageEn: 'Return invoice to draft?' },
+    ],
+    // ═══ استلام جزئي — تم استلام جزء من البضاعة ═══
+    partially_received: [
+        { id: 'post', labelAr: 'ترحيل (بالكميات المستلمة)', labelEn: 'Post (received quantities)', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم الترحيل بالكميات المستلمة فعلياً. متابعة؟', confirmMessageEn: 'Will post using actual received quantities. Continue?' },
+    ],
+    // ═══ استلام كامل — تم استلام كل البضاعة ═══
+    received: [
+        { id: 'post', labelAr: 'ترحيل', labelEn: 'Post', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء القيد المحاسبي بالكميات المستلمة. متابعة؟', confirmMessageEn: 'Journal entry will use received quantities. Continue?' },
+    ],
+    invoice: [
+        { id: 'post', labelAr: 'ترحيل', labelEn: 'Post', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء قيد محاسبي. هل تريد المتابعة؟', confirmMessageEn: 'A journal entry will be created. Continue?' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    posted: [
+        { id: 'pay', labelAr: 'تسجيل دفعة', labelEn: 'Record Payment', icon: '💰', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
+    ],
+    partial_paid: [
+        { id: 'pay_full', labelAr: 'دفع كامل', labelEn: 'Pay in Full', icon: '💰', targetStage: 'paid', variant: 'success' },
+        { id: 'pay_partial', labelAr: 'دفعة إضافية', labelEn: 'Additional Payment', icon: '💳', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
+    ],
+    paid: [],
+    cancelled: [
+        { id: 'reopen', labelAr: 'إعادة فتح', labelEn: 'Reopen', icon: '🔄', targetStage: 'draft', variant: 'outline', requiresConfirm: true, confirmMessageAr: 'إعادة فتح المعاملة كمسودة؟', confirmMessageEn: 'Reopen as draft?' },
+    ],
+};
+
+const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
+    draft: [
+        { id: 'to_quotation', labelAr: 'تأكيد كعرض سعر', labelEn: 'Confirm as Quotation', icon: '📋', targetStage: 'quotation', variant: 'default' },
+        { id: 'to_order', labelAr: 'تحويل لأمر بيع', labelEn: 'Convert to Sales Order', icon: '🛒', targetStage: 'order', variant: 'outline' },
+        { id: 'to_invoice_pos', labelAr: 'فاتورة مباشرة (POS)', labelEn: 'Direct Invoice (POS)', icon: '⚡', targetStage: 'invoice', variant: 'outline' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    quotation: [
+        { id: 'to_reservation', labelAr: 'حجز بضاعة', labelEn: 'Reserve Stock', icon: '📦', targetStage: 'reservation', variant: 'outline' },
+        { id: 'to_order', labelAr: 'تحويل لأمر بيع', labelEn: 'Convert to Sales Order', icon: '🛒', targetStage: 'order', variant: 'default' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    reservation: [
+        { id: 'to_order', labelAr: 'تأكيد كأمر بيع', labelEn: 'Confirm as Sales Order', icon: '🛒', targetStage: 'order', variant: 'default' },
+        { id: 'cancel', labelAr: 'إلغاء الحجز', labelEn: 'Cancel Reservation', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    order: [
+        { id: 'to_delivery', labelAr: 'تسليم البضاعة', labelEn: 'Deliver Goods', icon: '🚚', targetStage: 'delivery', variant: 'default' },
+        { id: 'to_invoice', labelAr: 'فوترة بدون تسليم', labelEn: 'Invoice without Delivery', icon: '📄', targetStage: 'invoice', variant: 'outline' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    delivery: [
+        { id: 'to_invoice', labelAr: 'إنشاء فاتورة', labelEn: 'Create Invoice', icon: '📄', targetStage: 'invoice', variant: 'default' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    invoice: [
+        { id: 'post', labelAr: 'ترحيل', labelEn: 'Post', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء قيد محاسبي. هل تريد المتابعة؟', confirmMessageEn: 'A journal entry will be created. Continue?' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    posted: [
+        { id: 'collect', labelAr: 'تحصيل دفعة', labelEn: 'Collect Payment', icon: '💰', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
+    ],
+    partial_paid: [
+        { id: 'collect_full', labelAr: 'تحصيل كامل', labelEn: 'Collect in Full', icon: '💰', targetStage: 'paid', variant: 'success' },
+        { id: 'collect_partial', labelAr: 'دفعة إضافية', labelEn: 'Additional Collection', icon: '💳', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
+    ],
+    paid: [],
+    cancelled: [
+        { id: 'reopen', labelAr: 'إعادة فتح', labelEn: 'Reopen', icon: '🔄', targetStage: 'draft', variant: 'outline', requiresConfirm: true, confirmMessageAr: 'إعادة فتح المعاملة كمسودة؟', confirmMessageEn: 'Reopen as draft?' },
+    ],
+};
+
+// Stage order constants
+const PURCHASE_STAGE_ORDER = ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'];
+const SALES_STAGE_ORDER = ['draft', 'quotation', 'reservation', 'order', 'delivery', 'invoice', 'posted', 'partial_paid', 'paid'];
 
 // ═══════════════════════════════════════════════════════════════
 // Common Action Definitions
@@ -171,6 +373,11 @@ export const tradeOrderConfig: DocumentConfig = {
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
+    // ═══ Stage Awareness ═══
+    stageOrder: SALES_STAGE_ORDER,
+    stageActions: SALES_STAGE_ACTIONS,
+    editableStages: ['draft', 'quotation'],
+    lockedStages: ['posted', 'partial_paid', 'paid', 'cancelled'],
 };
 
 // ── فاتورة بيع (Sales Invoice) ──
@@ -181,6 +388,16 @@ export const tradeInvoiceConfig: DocumentConfig = {
     titleKey: 'trade.invoice.title',
     icon: 'FileText',
     iconColor: 'bg-emerald-600',
+    // Stage-aware tabs (override parent)
+    tabs: [
+        STAGE_TAB.tradeDetailsStaged,
+        STAGE_TAB.materialBrowserStaged,
+        STAGE_TAB.paymentReceiptStaged,
+        STAGE_TAB.customerShippingStaged,
+        TAB.nexaAgent,
+        TAB.attachments,
+        STAGE_TAB.stageHistory,
+    ],
 };
 
 // ── عرض سعر (Sales Quotation) ──
@@ -288,7 +505,8 @@ export const purchaseOrderConfig: DocumentConfig = {
     headerFields: ['reference_number', 'supplier_name', 'date', 'status'],
     tabs: [
         TAB.tradeDetails,
-        TAB.materialBrowser,
+        TAB.purchaseMaterialBrowser,
+        TAB.receiptSummary,
         TAB.supplierInfo,
         TAB.customerShipping, // re-used as purchase shipping
         TAB.attachments,
@@ -296,6 +514,11 @@ export const purchaseOrderConfig: DocumentConfig = {
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
+    // ═══ Stage Awareness ═══
+    stageOrder: PURCHASE_STAGE_ORDER,
+    stageActions: PURCHASE_STAGE_ACTIONS,
+    editableStages: ['draft', 'quotation'],
+    lockedStages: ['posted', 'partial_paid', 'paid', 'cancelled'],
 };
 
 // ── فاتورة شراء (Purchase Invoice) ──
@@ -310,15 +533,21 @@ export const purchaseInvoiceConfig: DocumentConfig = {
     supportsModes: ['view', 'edit', 'create'],
     headerFields: ['reference_number', 'supplier_name', 'date', 'status'],
     tabs: [
-        TAB.tradeDetails,
-        TAB.materialBrowser,
-        TAB.supplierInfo,
-        TAB.purchasePayment,
+        STAGE_TAB.tradeDetailsStaged,
+        STAGE_TAB.purchaseMaterialBrowserStaged,
+        TAB.receiptSummary,
+        STAGE_TAB.supplierFinanceStaged,
+        STAGE_TAB.warehouseReceivingStaged,
         TAB.attachments,
-        TAB.activity,
+        STAGE_TAB.stageHistory,
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
+    // ═══ Stage Awareness ═══
+    stageOrder: PURCHASE_STAGE_ORDER,
+    stageActions: PURCHASE_STAGE_ACTIONS,
+    editableStages: ['draft', 'quotation', 'receipt', 'invoice', 'partial_paid'],
+    lockedStages: ['confirmed', 'partially_received', 'received', 'posted', 'paid', 'cancelled'],
 };
 
 // ── طلب شراء (Purchase Request) ──
@@ -334,7 +563,7 @@ export const purchaseRequestConfig: DocumentConfig = {
     headerFields: ['reference_number', 'date', 'status'],
     tabs: [
         TAB.tradeDetails,
-        TAB.materialBrowser,
+        TAB.purchaseMaterialBrowser,
         TAB.attachments,
         TAB.activity,
     ],
@@ -362,7 +591,7 @@ export const purchaseQuotationConfig: DocumentConfig = {
     headerFields: ['reference_number', 'supplier_name', 'date', 'status'],
     tabs: [
         TAB.tradeDetails,
-        TAB.materialBrowser,
+        TAB.purchaseMaterialBrowser,
         TAB.supplierInfo,
         TAB.attachments,
         TAB.activity,
@@ -383,7 +612,8 @@ export const purchaseReceiptConfig: DocumentConfig = {
     headerFields: ['reference_number', 'supplier_name', 'date', 'status'],
     tabs: [
         TAB.tradeDetails,
-        TAB.materialBrowser,
+        TAB.purchaseMaterialBrowser,
+        TAB.warehouseReceiving,
         TAB.attachments,
         TAB.activity,
     ],
@@ -420,6 +650,84 @@ export const purchaseReturnConfig: DocumentConfig = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// استلام مواد مخزنية (Goods Receipt — Warehouse Level)
+// ═══════════════════════════════════════════════════════════════
+export const goodsReceiptConfig: DocumentConfig = {
+    type: 'goods_receipt',
+    titleKey: 'warehouse.goodsReceipt.title',
+    subtitleKey: 'warehouse.goodsReceipt.subtitle',
+    icon: 'ArrowDownToLine',
+    iconColor: 'bg-emerald-600',
+    defaultTab: 'goods_receipt_items',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['reference_number', 'warehouse_name', 'date', 'status'],
+    tabs: [
+        {
+            id: 'goods_receipt_items',
+            labelKey: 'warehouse.goodsReceipt.tabs.items',
+            icon: 'ScanLine',
+            component: 'GoodsReceiptItemsTab',
+        },
+        {
+            id: 'receipt_summary',
+            labelKey: 'warehouse.goodsReceipt.tabs.summary',
+            icon: 'ClipboardCheck',
+            component: 'ReceiptSummaryTab',
+        },
+        TAB.attachments,
+        TAB.activity,
+    ],
+    actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'post',
+            labelKey: 'accounting.post',
+            icon: 'CheckCircle',
+            variant: 'default',
+            showInModes: ['view'],
+        },
+        {
+            id: 'print',
+            labelKey: 'actions.print',
+            icon: 'Printer',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+    ],
+    stats: [
+        {
+            id: 'rollsCount',
+            labelKey: 'warehouse.goodsReceipt.stats.rolls',
+            valueKey: 'rolls_count',
+            icon: 'Cylinder',
+            format: 'number',
+            colorClass: 'text-emerald-600',
+        },
+        {
+            id: 'totalLength',
+            labelKey: 'warehouse.goodsReceipt.stats.totalLength',
+            valueKey: 'total_length',
+            icon: 'Ruler',
+            format: 'number',
+            colorClass: 'text-blue-600',
+        },
+    ],
+};
+
+// ═══════════════════════════════════════════════════════════════
 // حاوية (Container/Shipment) — مشتريات فقط
 // ═══════════════════════════════════════════════════════════════
 export const tradeContainerConfig: DocumentConfig = {
@@ -434,12 +742,10 @@ export const tradeContainerConfig: DocumentConfig = {
     tabs: [
         {
             ...TAB.tradeDetails,
-            labelKey: 'purchases.container_details.contents',
+            labelKey: 'purchases.container_details.info',
             icon: 'FileText',
         },
-        TAB.maritimeShipping,
         TAB.shipmentItems,
-        TAB.purchasePayment,
         TAB.expenses,
         TAB.attachments,
         TAB.activity,

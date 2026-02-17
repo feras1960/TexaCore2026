@@ -21,7 +21,6 @@ import {
 // Lazy load components
 const PurchasesDashboard = lazy(() => import('./pages/PurchasesDashboard'));
 const SuppliersList = lazy(() => import('./pages/SuppliersList'));
-const PurchaseCycleList = lazy(() => import('./pages/PurchaseCycleList'));
 const PurchaseInvoicesList = lazy(() => import('./pages/PurchaseInvoicesList'));
 const PaymentsList = lazy(() => import('./pages/PaymentsList'));
 const ContainersList = lazy(() => import('./pages/ContainersList'));
@@ -76,11 +75,6 @@ export default function PurchasesPage() {
             icon: ShoppingCart,
         },
         {
-            id: 'invoices',
-            labelKey: 'purchases.invoices',
-            icon: FileText,
-        },
-        {
             id: 'payments',
             labelKey: 'purchases.payments',
             icon: CreditCard,
@@ -111,8 +105,6 @@ export default function PurchasesPage() {
             case 'suppliers':
                 return <SuppliersList />;
             case 'cycle':
-                return <PurchaseCycleList />;
-            case 'invoices':
                 return <PurchaseInvoicesList />;
             case 'payments':
                 return <PaymentsList />;

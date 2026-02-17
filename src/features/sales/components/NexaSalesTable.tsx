@@ -19,12 +19,13 @@ import { Button } from '@/components/ui/button';
 import {
     Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
     FileText, ShoppingCart, Truck, Package, RotateCcw, MoreHorizontal,
-    Calendar, User, Receipt, Eye, Pencil, Copy, Trash2
+    Calendar, User, Receipt, Eye, Pencil, Copy, Trash2, Send, ArrowLeftRight, Loader2
 } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -56,6 +57,11 @@ interface NexaSalesTableProps {
     onEdit?: (doc: SalesDocument) => void;
     onDuplicate?: (doc: SalesDocument) => void;
     onDelete?: (doc: SalesDocument) => void;
+    // ═══ Posting Actions ═══
+    onPostInvoice?: (doc: SalesDocument) => void;
+    onPostReturn?: (doc: SalesDocument) => void;
+    onConvertQuotation?: (doc: SalesDocument) => void;
+    isPosting?: boolean;
 }
 
 // ─── Type Config ───
@@ -143,6 +149,10 @@ export const NexaSalesTable: React.FC<NexaSalesTableProps> = ({
     onEdit,
     onDuplicate,
     onDelete,
+    onPostInvoice,
+    onPostReturn,
+    onConvertQuotation,
+    isPosting = false,
 }) => {
     const { t, language, direction } = useLanguage();
     const isAr = language === 'ar';
@@ -337,11 +347,16 @@ export const NexaSalesTable: React.FC<NexaSalesTableProps> = ({
                                                 <Button
                                                     variant="ghost"
                                                     className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    disabled={isPosting}
                                                 >
-                                                    <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                                                    {isPosting ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                                    ) : (
+                                                        <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                                                    )}
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align={isAr ? "start" : "end"} className="w-48">
+                                            <DropdownMenuContent align={isAr ? "start" : "end"} className="w-52">
                                                 <DropdownMenuItem onClick={() => onRowClick(doc)} className="gap-2 cursor-pointer">
                                                     <Eye className="w-4 h-4" />
                                                     {t('sales.table.viewDetails')}
@@ -352,6 +367,52 @@ export const NexaSalesTable: React.FC<NexaSalesTableProps> = ({
                                                         {t('sales.table.edit')}
                                                     </DropdownMenuItem>
                                                 )}
+
+                                                {/* ═══ Posting Actions ═══ */}
+                                                {(onPostInvoice || onPostReturn || onConvertQuotation) && (
+                                                    <DropdownMenuSeparator />
+                                                )}
+
+                                                {/* Post Invoice */}
+                                                {onPostInvoice && doc.type === 'invoice' && !['posted', 'cancelled'].includes(doc.status) && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => onPostInvoice(doc)}
+                                                        className="gap-2 cursor-pointer text-green-700 focus:text-green-800 focus:bg-green-50"
+                                                        disabled={isPosting}
+                                                    >
+                                                        <Send className="w-4 h-4" />
+                                                        {isAr ? 'ترحيل الفاتورة' : 'Post Invoice'}
+                                                    </DropdownMenuItem>
+                                                )}
+
+                                                {/* Post Return */}
+                                                {onPostReturn && doc.type === 'return' && !['posted', 'cancelled'].includes(doc.status) && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => onPostReturn(doc)}
+                                                        className="gap-2 cursor-pointer text-orange-700 focus:text-orange-800 focus:bg-orange-50"
+                                                        disabled={isPosting}
+                                                    >
+                                                        <RotateCcw className="w-4 h-4" />
+                                                        {isAr ? 'ترحيل المرتجع' : 'Post Return'}
+                                                    </DropdownMenuItem>
+                                                )}
+
+                                                {/* Convert Quotation → Order */}
+                                                {onConvertQuotation && doc.type === 'quotation' && !['converted', 'cancelled'].includes(doc.status) && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => onConvertQuotation(doc)}
+                                                        className="gap-2 cursor-pointer text-purple-700 focus:text-purple-800 focus:bg-purple-50"
+                                                        disabled={isPosting}
+                                                    >
+                                                        <ArrowLeftRight className="w-4 h-4" />
+                                                        {isAr ? 'تحويل إلى أمر بيع' : 'Convert to Order'}
+                                                    </DropdownMenuItem>
+                                                )}
+
+                                                {(onDuplicate || onDelete) && (
+                                                    <DropdownMenuSeparator />
+                                                )}
+
                                                 {onDuplicate && (
                                                     <DropdownMenuItem onClick={() => onDuplicate(doc)} className="gap-2 cursor-pointer">
                                                         <Copy className="w-4 h-4" />

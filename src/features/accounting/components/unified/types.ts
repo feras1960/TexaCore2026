@@ -30,6 +30,7 @@ export type UnifiedDocType =
     | 'trade_container' // كونتينر / شحنة (Container/Shipment)
     | 'contact'        // جهة اتصال CRM
     | 'debit_note'     // إشعار مدين
+    | 'goods_receipt'  // استلام مواد مخزنية (Material/Goods Receipt)
     | 'credit_note';   // إشعار دائن
 
 // Mode of the sheet
@@ -44,6 +45,10 @@ export interface TabConfig {
     showInModes?: SheetMode[];
     badge?: string;          // Optional badge (e.g., count)
     hidden?: boolean;
+    // ═══ Stage Awareness (NEW) ═══
+    visibleInStages?: string[];    // Show only in these stages (null/undefined = always visible)
+    editableInStages?: string[];   // Editable only in these stages
+    requiredInStages?: string[];   // Required in these stages (highlight if empty)
 }
 
 // Action definition
@@ -68,6 +73,21 @@ export interface StatConfig {
     colorClass?: string;
 }
 
+// Stage-specific action config (NEW)
+export interface StageActionConfig {
+    id: string;
+    labelAr: string;
+    labelEn: string;
+    icon: string;
+    targetStage: string;
+    variant: 'default' | 'success' | 'destructive' | 'outline' | 'warning';
+    requiresConfirm?: boolean;
+    requiresNotes?: boolean;
+    requiresReason?: boolean;
+    confirmMessageAr?: string;
+    confirmMessageEn?: string;
+}
+
 // Document config for each doc type
 export interface DocumentConfig {
     type: UnifiedDocType;
@@ -81,6 +101,11 @@ export interface DocumentConfig {
     defaultTab: string;
     supportsModes: SheetMode[];
     headerFields: string[];  // Fields to show in header
+    // ═══ Stage Awareness (NEW) ═══
+    stageOrder?: string[];                              // Stage sequence for timeline
+    stageActions?: Record<string, StageActionConfig[]>; // Actions per stage
+    editableStages?: string[];                          // Stages where editing is allowed
+    lockedStages?: string[];                            // Stages where everything is read-only
 }
 
 // Props for the unified sheet

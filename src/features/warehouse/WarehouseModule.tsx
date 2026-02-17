@@ -64,17 +64,25 @@ export default function WarehouseModule() {
     // Determine active tab from route
     const getActiveTab = useCallback(() => {
         const path = location.pathname;
-        if (path.startsWith('/warehouse') || path.startsWith('/inventory')) {
-            if (path.includes('/list') || path.includes('/warehouses')) return 'warehouses';
-            if (path.includes('/materials')) return 'materials';
-            if (path.includes('/rolls')) return 'rolls';
-            if (path.includes('/stock') || path.includes('/movements')) return 'inventory';
-            if (path.includes('/reservations')) return 'reservations';
-            if (path.includes('/delivery')) return 'delivery';
-            if (path.includes('/reports')) return 'reports';
-            if (path.includes('/settings')) return 'settings';
-            return 'dashboard';
-        }
+
+        // Dashboard check
+        if (path.endsWith('/warehouse') || path.endsWith('/warehouse/')) return 'dashboard';
+
+        // Precise matching first
+        if (path.includes('/stockMovements')) return 'stockMovements';
+        if (path.includes('/stockCount')) return 'stockCount';
+        if (path.includes('/inventory')) return 'inventory';
+
+        // Other tabs
+        if (path.includes('/list') || path.includes('/warehouses')) return 'warehouses';
+        if (path.includes('/materials')) return 'materials';
+        if (path.includes('/rolls')) return 'rolls'; // Alias for materials if needed
+        if (path.includes('/reservations')) return 'reservations';
+        if (path.includes('/delivery')) return 'delivery';
+        if (path.includes('/reports')) return 'reports';
+        if (path.includes('/settings')) return 'settings';
+        if (path.includes('/samples')) return 'samples';
+
         return 'dashboard';
     }, [location.pathname]);
 

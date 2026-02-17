@@ -11,10 +11,15 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
+import { MaterialReceiptDialog } from '../components/MaterialReceiptDialog';
 import { useStockMovements } from '../hooks/useWarehouseQueries';
+import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +47,9 @@ import {
     CheckCircle2,
     Clock,
     AlertCircle,
-    Loader2
+    Loader2,
+    Eye,
+    FileText,
 } from 'lucide-react';
 
 // Movement type colors
@@ -63,6 +70,82 @@ export default function StockMovementsPage() {
     const { t, language, isRTL } = useLanguage();
     const { companyId } = useAuth();
     const [activeSubTab, setActiveSubTab] = useState('movements');
+
+    // ═══ Receipt Dialog State ═══
+    const [receiptDialog, setReceiptDialog] = useState<{
+        open: boolean;
+        type: 'purchase_local' | 'container' | 'transfer' | 'return' | 'stock_count';
+        reference: string;
+    }>({
+        open: false,
+        type: 'purchase_local',
+        reference: ''
+    });
+
+    const handleConfirmReceipt = (receipt: any) => {
+        // Map pending receipt type to dialog type
+        let dialogType: any = 'purchase_local';
+        if (receipt.type === 'container') dialogType = 'container';
+        else if (receipt.type === 'transfer') dialogType = 'transfer';
+        else if (receipt.type === 'return') dialogType = 'return';
+
+        setReceiptDialog({
+            open: true,
+            type: dialogType,
+            reference: receipt.source_id
+        });
+    };
+
+    // ═══ View Source Document (Invoice/PO) ═══
+    const handleViewSourceDocument = useCallback(async (receipt: any) => {
+        try {
+            const sourceId = receipt.source_id || receipt.id;
+            const sourceType = receipt.source_type;
+
+            if (sourceType === 'invoice') {
+                const { data: invoice } = await supabase
+                    .from('purchase_transactions')
+                    .select('*')
+                    .eq('id', sourceId)
+                    .single();
+
+                if (invoice) {
+                    setLinkedInvoiceSheet({ open: true, invoiceData: invoice });
+                } else {
+                    toast.error(language === 'ar' ? 'لم يتم العثور على الفاتورة' : 'Invoice not found');
+                }
+            } else if (sourceType === 'order') {
+                const { data: order } = await supabase
+                    .from('purchase_orders')
+                    .select('*')
+                    .eq('id', sourceId)
+                    .single();
+
+                if (order) {
+                    setLinkedInvoiceSheet({ open: true, invoiceData: order });
+                } else {
+                    toast.error(language === 'ar' ? 'لم يتم العثور على أمر الشراء' : 'Purchase order not found');
+                }
+            }
+        } catch (err) {
+            console.error('Error viewing source document:', err);
+            toast.error(language === 'ar' ? 'خطأ في عرض المستند' : 'Error viewing document');
+        }
+    }, [language]);
+
+    // ═══ State for opening linked invoice from movement ═══
+    const [linkedInvoiceSheet, setLinkedInvoiceSheet] = useState<{
+        open: boolean;
+        invoiceData: any;
+    }>({ open: false, invoiceData: null });
+
+    // 🔄 Realtime: auto-update when inventory_movements change
+    useRealtimeInvalidation({
+        table: 'inventory_movements',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['warehouse', 'stock-movements']],
+    });
     const [searchQuery, setSearchQuery] = useState('');
 
     // Filters
@@ -140,8 +223,70 @@ export default function StockMovementsPage() {
         }
     };
 
+    // ═══ Open linked invoice from GRN movement ═══
+    const handleOpenLinkedInvoice = useCallback(async (movement: any) => {
+        try {
+            if (!movement.reference_id || movement.reference_type !== 'goods_receipt') {
+                toast.info(language === 'ar' ? 'لا توجد فاتورة مرتبطة' : 'No linked invoice found');
+                return;
+            }
+
+            // Find the receipt first
+            const { data: receipt } = await supabase
+                .from('purchase_receipts')
+                .select('id, invoice_id, order_id')
+                .eq('id', movement.reference_id)
+                .single();
+
+            if (!receipt) {
+                toast.error(language === 'ar' ? 'لم يتم العثور على إذن الاستلام' : 'Receipt not found');
+                return;
+            }
+
+            // Get the linked invoice
+            const invoiceId = receipt.invoice_id;
+            if (!invoiceId) {
+                // If receipt is linked to PO, find invoices for that PO
+                if (receipt.order_id) {
+                    const { data: invoices } = await supabase
+                        .from('purchase_transactions')
+                        .select('*')
+                        .eq('source_order_id', receipt.order_id)
+                        .limit(1);
+                    if (invoices?.length) {
+                        setLinkedInvoiceSheet({ open: true, invoiceData: invoices[0] });
+                        return;
+                    }
+                }
+                toast.info(language === 'ar' ? 'لا توجد فاتورة مرتبطة بالاستلام' : 'No invoice linked to this receipt');
+                return;
+            }
+
+            const { data: invoice } = await supabase
+                .from('purchase_transactions')
+                .select('*')
+                .eq('id', invoiceId)
+                .single();
+
+            if (invoice) {
+                setLinkedInvoiceSheet({ open: true, invoiceData: invoice });
+            } else {
+                toast.error(language === 'ar' ? 'لم يتم العثور على الفاتورة' : 'Invoice not found');
+            }
+        } catch (err: any) {
+            console.error('Failed to load linked invoice:', err);
+            toast.error(err.message);
+        }
+    }, [language]);
+
     return (
         <div className="space-y-6" dir={isRTL ? 'rtl' : 'ltr'}>
+            {/* ─── Action Bar ─── */}
+            <div className="flex items-center justify-between">
+                <div />
+                <MaterialReceiptDialog onComplete={() => refetchMovements()} />
+            </div>
+
             {/* Sub-tabs */}
             <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
                 <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -271,9 +416,14 @@ export default function StockMovementsPage() {
                                                     </Badge>
                                                 </td>
                                                 <td className="p-3 font-medium">
-                                                    {language === 'ar' ? (m.material_name_ar || m.material_name_en || '—') : (m.material_name_en || m.material_name_ar || '—')}
+                                                    {language === 'ar'
+                                                        ? (m.material_name_ar || m.material_name_en || m.notes?.split(' - ')?.[1]?.split(' from')?.[0] || '—')
+                                                        : (m.material_name_en || m.material_name_ar || m.notes?.split(' - ')?.[1]?.split(' from')?.[0] || '—')}
                                                     {m.roll_number && (
                                                         <div className="text-xs text-muted-foreground">{m.roll_number}</div>
+                                                    )}
+                                                    {m.reference_number?.startsWith('GRN-') && !m.material_name_ar && !m.material_name_en && (
+                                                        <div className="text-xs text-muted-foreground">{m.notes}</div>
                                                     )}
                                                 </td>
                                                 <td className="p-3 font-mono font-medium">{m.quantity || 0} {m.unit || 'م'}</td>
@@ -286,14 +436,38 @@ export default function StockMovementsPage() {
                                                     </div>
                                                 </td>
                                                 <td className="p-3">
-                                                    <span className="text-primary hover:underline cursor-pointer">
-                                                        {m.reference_number || m.id?.slice(0, 8)}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-primary hover:underline cursor-pointer">
+                                                            {m.reference_number || m.id?.slice(0, 8)}
+                                                        </span>
+                                                        {/* View linked invoice button for GRN movements */}
+                                                        {m.reference_type === 'goods_receipt' && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 px-2 gap-1 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/30"
+                                                                onClick={() => handleOpenLinkedInvoice(m)}
+                                                            >
+                                                                <Eye className="h-3.5 w-3.5" />
+                                                                <span className="hidden md:inline">
+                                                                    {language === 'ar' ? 'الفاتورة' : 'Invoice'}
+                                                                </span>
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-3">
-                                                    <Badge variant={m.status === 'completed' ? 'default' : 'secondary'}>
-                                                        {t(`warehouse.stockMovements.statuses.${m.status}`) || m.status}
-                                                    </Badge>
+                                                    {(() => {
+                                                        const status = m.status || 'completed';
+                                                        const statusKey = `warehouse.stockMovements.statuses.${status}`;
+                                                        const translated = t(statusKey);
+                                                        const label = translated !== statusKey ? translated : (status === 'completed' ? (isRTL ? 'مكتمل' : 'Completed') : status);
+                                                        return (
+                                                            <Badge variant={status === 'completed' ? 'default' : 'secondary'}>
+                                                                {label}
+                                                            </Badge>
+                                                        );
+                                                    })()}
                                                 </td>
                                             </tr>
                                         ))}
@@ -306,62 +480,207 @@ export default function StockMovementsPage() {
 
                 {/* Pending Receipts Tab */}
                 <TabsContent value="pending" className="mt-6 space-y-4">
-                    <div className="grid gap-4">
-                        {loading ? (
-                            <Card>
-                                <CardContent className="flex flex-col items-center justify-center py-12">
-                                    <Loader2 className="h-8 w-8 animate-spin mb-4" />
-                                    {t('common.loading')}
-                                </CardContent>
-                            </Card>
-                        ) : pendingReceipts.length === 0 ? (
-                            <Card>
-                                <CardContent className="flex flex-col items-center justify-center py-12">
-                                    <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
-                                    <p className="text-lg font-medium">
-                                        {t('warehouse.stockMovements.pendingReceipts')} - {t('common.noData')}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            pendingReceipts.map(receipt => (
-                                <Card key={receipt.id} className="hover:shadow-md transition-shadow">
-                                    <CardContent className="p-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                {getReceiptTypeIcon(receipt.type)}
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-semibold">{receipt.reference}</h4>
-                                                        <Badge variant={receipt.status === 'ready' ? 'default' : 'secondary'}>
-                                                            {t(`warehouse.stockMovements.statuses.${receipt.status}`) || receipt.status}
-                                                        </Badge>
-                                                    </div>
-                                                    <p className="text-sm text-muted-foreground">{receipt.description}</p>
-                                                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                                                        <span className="flex items-center gap-1">
-                                                            <Boxes className="h-3 w-3" />
-                                                            {receipt.items} {receipt.itemsUnit}
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <Clock className="h-3 w-3" />
-                                                            {formatDate(receipt.arrivalDate)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <Button>
-                                                <ArrowDownToLine className="h-4 w-4 me-2" />
-                                                {t('warehouse.stockMovements.confirmReceipt')}
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))
-                        )}
-                    </div>
+                    {loading ? (
+                        <Card>
+                            <CardContent className="flex flex-col items-center justify-center py-12">
+                                <Loader2 className="h-8 w-8 animate-spin mb-4" />
+                                {t('common.loading')}
+                            </CardContent>
+                        </Card>
+                    ) : pendingReceipts.length === 0 ? (
+                        <Card>
+                            <CardContent className="flex flex-col items-center justify-center py-12">
+                                <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
+                                <p className="text-lg font-medium">
+                                    {t('warehouse.stockMovements.pendingReceipts')} - {t('common.noData')}
+                                </p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <Card>
+                            <CardContent className="p-0">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b bg-muted/50">
+                                                <th className="py-3 px-4 text-start font-semibold">{isRTL ? 'رقم المستند' : 'Document #'}</th>
+                                                <th className="py-3 px-4 text-start font-semibold">{isRTL ? 'المورد' : 'Supplier'}</th>
+                                                <th className="py-3 px-4 text-start font-semibold">{isRTL ? 'المبلغ' : 'Amount'}</th>
+                                                <th className="py-3 px-4 text-start font-semibold">{isRTL ? 'التاريخ' : 'Date'}</th>
+                                                <th className="py-3 px-4 text-center font-semibold">{isRTL ? 'حالة المستند' : 'Doc Status'}</th>
+                                                <th className="py-3 px-4 text-center font-semibold">{isRTL ? 'حالة الاستلام' : 'Receipt Status'}</th>
+                                                <th className="py-3 px-4 text-center font-semibold">{isRTL ? 'الإجراءات' : 'Actions'}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {pendingReceipts.map(receipt => {
+                                                const receiptStatus = receipt.receipt_status || 'none';
+                                                const hasDraft = receiptStatus === 'draft';
+
+                                                // Receipt status badge
+                                                const getReceiptStatusBadge = () => {
+                                                    switch (receiptStatus) {
+                                                        case 'draft':
+                                                            return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-xs">
+                                                                {isRTL ? '📝 مسودة' : '📝 Draft'}
+                                                            </Badge>;
+                                                        case 'completed':
+                                                            return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs">
+                                                                {isRTL ? '✅ مكتمل' : '✅ Completed'}
+                                                            </Badge>;
+                                                        default:
+                                                            return <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-300 text-xs">
+                                                                {isRTL ? 'لم يبدأ' : 'Not Started'}
+                                                            </Badge>;
+                                                    }
+                                                };
+
+                                                // Document status badge
+                                                const getDocStatusBadge = () => {
+                                                    const status = receipt.invoice_status || receipt.status;
+                                                    switch (status) {
+                                                        case 'posted':
+                                                            return <Badge className="bg-blue-100 text-blue-800 border-blue-300 text-xs">{isRTL ? 'مرحّل' : 'Posted'}</Badge>;
+                                                        case 'partially_received':
+                                                            return <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs">{isRTL ? 'استلام جزئي' : 'Partial'}</Badge>;
+                                                        case 'confirmed':
+                                                            return <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">{isRTL ? 'مؤكد' : 'Confirmed'}</Badge>;
+                                                        default:
+                                                            return <Badge variant="outline" className="text-xs">{status}</Badge>;
+                                                    }
+                                                };
+
+                                                return (
+                                                    <tr key={receipt.id} className="hover:bg-muted/30 transition-colors">
+                                                        {/* Document Number */}
+                                                        <td className="py-3 px-4">
+                                                            <div className="flex items-center gap-2">
+                                                                {getReceiptTypeIcon(receipt.type)}
+                                                                <div>
+                                                                    <span className="font-semibold text-sm">{receipt.reference}</span>
+                                                                    {receipt.receipt_number && (
+                                                                        <p className="text-xs text-muted-foreground">
+                                                                            {isRTL ? 'إذن استلام:' : 'GRN:'} {receipt.receipt_number}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Supplier */}
+                                                        <td className="py-3 px-4">
+                                                            <span className="text-sm">{receipt.supplier_name || receipt.description}</span>
+                                                        </td>
+
+                                                        {/* Amount */}
+                                                        <td className="py-3 px-4">
+                                                            {receipt.total_amount ? (
+                                                                <span className="font-semibold text-sm">
+                                                                    {Number(receipt.total_amount).toLocaleString()} {receipt.currency || ''}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">—</span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Date */}
+                                                        <td className="py-3 px-4">
+                                                            <span className="text-sm text-muted-foreground">
+                                                                {formatDate(receipt.arrivalDate)}
+                                                            </span>
+                                                        </td>
+
+                                                        {/* Document Status */}
+                                                        <td className="py-3 px-4 text-center">
+                                                            {getDocStatusBadge()}
+                                                        </td>
+
+                                                        {/* Receipt Status */}
+                                                        <td className="py-3 px-4 text-center">
+                                                            {getReceiptStatusBadge()}
+                                                        </td>
+
+                                                        {/* Actions */}
+                                                        <td className="py-3 px-4">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                {/* View Invoice Button */}
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="text-xs gap-1"
+                                                                    onClick={() => handleViewSourceDocument(receipt)}
+                                                                >
+                                                                    <Eye className="h-3.5 w-3.5" />
+                                                                    {isRTL ? 'عرض' : 'View'}
+                                                                </Button>
+
+                                                                {/* Confirm / Continue / Received Button */}
+                                                                {receiptStatus === 'completed' ? (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="text-xs gap-1 text-green-600 border-green-300 cursor-default opacity-80"
+                                                                        disabled
+                                                                    >
+                                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                        {isRTL ? 'تم الاستلام' : 'Received'}
+                                                                    </Button>
+                                                                ) : (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className={`text-xs gap-1 ${hasDraft
+                                                                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                                                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                                            }`}
+                                                                        onClick={() => handleConfirmReceipt(receipt)}
+                                                                    >
+                                                                        <ArrowDownToLine className="h-3.5 w-3.5" />
+                                                                        {hasDraft
+                                                                            ? (isRTL ? 'متابعة' : 'Continue')
+                                                                            : (isRTL ? 'استلام' : 'Receive')
+                                                                        }
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </TabsContent>
             </Tabs>
+
+            {/* ═══ Material Receipt Dialog (Controlled) ═══ */}
+            {receiptDialog.open && (
+                <MaterialReceiptDialog
+                    isOpen={receiptDialog.open}
+                    onOpenChange={(open) => setReceiptDialog(prev => ({ ...prev, open }))}
+                    defaultBillType={receiptDialog.type}
+                    defaultReference={receiptDialog.reference}
+                    onComplete={() => {
+                        refetchMovements();
+                        setReceiptDialog(prev => ({ ...prev, open: false }));
+                    }}
+                />
+            )}
+
+            {/* ═══ Linked Invoice Sheet (Manager Override) ═══ */}
+            {linkedInvoiceSheet.open && linkedInvoiceSheet.invoiceData && (
+                <UnifiedTradeSheet
+                    open={linkedInvoiceSheet.open}
+                    onOpenChange={(open) => setLinkedInvoiceSheet(prev => ({ ...prev, open }))}
+                    mode="purchase"
+                    type="invoice"
+                    initialData={linkedInvoiceSheet.invoiceData}
+                    userRole="admin"
+                    onRefresh={() => refetchMovements()}
+                />
+            )}
         </div>
     );
 }

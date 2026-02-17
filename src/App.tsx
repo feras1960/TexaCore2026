@@ -33,7 +33,7 @@ const Healthcare = React.lazy(() => import('@/features/healthcare/Healthcare'));
 const Doctors = React.lazy(() => import('@/features/doctors/Doctors'));
 const Restaurant = React.lazy(() => import('@/features/restaurant/Restaurant'));
 const Gold = React.lazy(() => import('@/features/gold/Gold'));
-const Shipments = React.lazy(() => import('@/features/shipments/Shipments'));
+// const Shipments — REMOVED 2026-02-17: unified into containers module
 const WarehouseModule = React.lazy(() => import('@/features/warehouse/WarehouseModule'));
 const Purchases = React.lazy(() => import('@/features/purchases/PurchasesPage'));
 const SystemConfigPage = React.lazy(() => import('@/features/settings/SystemConfigPage'));
@@ -104,7 +104,7 @@ function AppRoutes() {
             <Route path="/doctors/*" element={<Doctors />} />
             <Route path="/restaurant/*" element={<Restaurant />} />
             <Route path="/gold/*" element={<Gold />} />
-            <Route path="/shipments/*" element={<Shipments />} />
+            {/* Shipments route removed 2026-02-17: unified into containers */}
 
             <Route path="/sales/*" element={<Sales />} />
             <Route path="/crm/*" element={<CRM />} />

@@ -39,6 +39,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import SectionLoader from '@/components/common/SectionLoader';
+import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 
 interface AddContainerSheetProps {
     open: boolean;
@@ -51,6 +52,7 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
     const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
     const queryClient = useQueryClient();
+    const { currencyCode: companyCurrency } = useCompanyCurrency();
 
     const [formData, setFormData] = useState({
         containerNumber: '',
@@ -88,13 +90,14 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
         queryFn: async () => {
             if (!formData.supplierId) return [];
             const { data } = await supabase
-                .from('purchase_invoices')
+                .from('purchase_transactions')
                 .select('*')
                 .eq('company_id', companyId)
                 .eq('supplier_id', formData.supplierId)
-                .eq('status', 'posted') // Only posted invoices
-                .is('shipment_id', null) // Not yet assigned to a shipment
-                .order('invoice_date', { ascending: false });
+                .eq('receipt_mode', 'international') // Only international purchases
+                .in('stage', ['posted', 'partial_paid', 'paid']) // Only posted invoices can be linked to containers
+                .is('container_id', null) // Not yet assigned to a container
+                .order('doc_date', { ascending: false });
             return data || [];
         },
         enabled: open && !!formData.supplierId
@@ -115,18 +118,23 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
 
     const createMutation = useMutation({
         mutationFn: async () => {
-            // 1. Create Shipment
-            const { data: shipment, error: shipmentError } = await supabase
-                .from('shipments')
+            const tenantId = (await supabase.from('companies').select('tenant_id').eq('id', companyId).single()).data?.tenant_id;
+
+            // 1. Create Container (the ONLY record — unified, no shipments needed)
+            const { data: container, error: containerError } = await supabase
+                .from('containers')
                 .insert({
+                    tenant_id: tenantId,
                     company_id: companyId,
-                    shipment_number: formData.shipmentNumber || `SHP-${Date.now().toString().slice(-6)}`,
                     container_number: formData.containerNumber,
+                    container_name: formData.containerNumber,
+                    shipment_number: formData.shipmentNumber || `SHP-${Date.now().toString().slice(-6)}`,
                     bill_of_lading: formData.billOfLading,
                     supplier_id: formData.supplierId || null,
                     origin_country: formData.originCountry,
                     port_of_loading: formData.portOfLoading,
                     port_of_discharge: formData.portOfDischarge,
+                    shipping_company: formData.shippingLine,
                     shipping_line: formData.shippingLine,
                     vessel_name: formData.vesselName,
                     etd: formData.etd || null,
@@ -134,24 +142,25 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                     container_size: formData.containerSize,
                     container_type: formData.containerType,
                     status: 'ordered',
-                    notes: formData.notes
+                    notes: formData.notes,
+                    goods_currency: companyCurrency || undefined,
                 })
                 .select()
                 .single();
 
-            if (shipmentError) throw shipmentError;
+            if (containerError) throw containerError;
 
-            // 2. Link Invoices
+            // 2. Link Invoices directly to the container (unified — no shipments)
             if (selectedInvoices.length > 0) {
                 const { error: invoiceError } = await supabase
-                    .from('purchase_invoices')
-                    .update({ shipment_id: shipment.id })
+                    .from('purchase_transactions')
+                    .update({ container_id: container.id })
                     .in('id', selectedInvoices);
 
                 if (invoiceError) throw invoiceError;
             }
 
-            return shipment;
+            return container;
         },
         onSuccess: () => {
             toast.success(isRTL ? 'تم إنشاء الكونتينر بنجاح' : 'Container created successfully');
@@ -342,8 +351,8 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                                                 onCheckedChange={() => toggleInvoice(inv.id)}
                                             />
                                             <div className="mx-3 flex-1 grid grid-cols-3 gap-2 text-sm">
-                                                <span className="font-mono font-medium text-indigo-600">{inv.invoice_number}</span>
-                                                <span className="text-gray-500">{new Date(inv.invoice_date).toLocaleDateString()}</span>
+                                                <span className="font-mono font-medium text-indigo-600">{inv.invoice_no}</span>
+                                                <span className="text-gray-500">{new Date(inv.doc_date).toLocaleDateString()}</span>
                                                 <span className="font-bold text-end">{Number(inv.total_amount).toLocaleString()} {inv.currency}</span>
                                             </div>
                                         </div>

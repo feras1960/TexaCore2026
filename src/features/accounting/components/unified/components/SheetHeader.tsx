@@ -201,12 +201,14 @@ export function SheetHeader({
                     <div className="shrink-0">
                         <QRCodeGenerator
                             data={{
-                                type: 'account' as QRDocType,
+                                type: (data.subType || 'account') as QRDocType,
                                 id: data.id || data.code || getCode(),
-                                number: getCode(),
+                                number: data.invoice_no || data.order_number || data.invoice_number || data.receipt_number || data.quotation_number || data.return_number || getCode(),
                                 total: mainValue || 0,
                                 currency: data.currency || '',
-                                date: data.created_at || new Date().toISOString(),
+                                date: data.date || data.created_at || new Date().toISOString(),
+                                company: data.company_name || undefined,
+                                vat: data.tax_number || undefined,
                             }}
                             size={56}
                             showLabel={false}

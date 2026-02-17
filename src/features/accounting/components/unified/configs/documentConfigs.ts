@@ -1258,6 +1258,7 @@ import {
     tradeReservationConfig,
     tradeRequestConfig,
     tradeContainerConfig,
+    goodsReceiptConfig,
     getTradeDocConfig,
 } from './tradeConfigs';
 
@@ -1288,6 +1289,7 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     trade_delivery: tradeDeliveryConfig,
     trade_reservation: tradeReservationConfig,
     trade_container: tradeContainerConfig,
+    goods_receipt: goodsReceiptConfig,
 };
 
 // Get config by type — with optional tradeMode for smart tab selection

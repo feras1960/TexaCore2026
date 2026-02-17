@@ -4,5 +4,7 @@
  */
 
 export { StatusBadge, StatusBadgeWithArrow } from './StatusBadge';
-// Note: StatusSelector and StatusManager were moved to _archived_deprecated
-// Use the StatusBadge component or statusService for status management
+export { StatusDropdown } from './StatusDropdown';
+// StatusSelector and StatusManager are in _archived_deprecated
+// Use StatusDropdown for interactive status changes
+// Use StatusBadge for read-only status display

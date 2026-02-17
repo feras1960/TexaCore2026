@@ -14,12 +14,13 @@ import {
   Settings, Save, Building2, DollarSign, Calendar, FileText,
   Globe, Wallet, Hash, AlertTriangle, CheckCircle2, Loader2,
   ChevronRight, RefreshCw, Edit2, Lock, Info, AlertCircle,
-  Link2, Unlink
+  Link2, Unlink, Percent, Receipt
 } from 'lucide-react';
 // UserPermissionsTab removed — now in SystemConfigPage
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 
 // Types
 interface CompanySettings {
@@ -39,6 +40,19 @@ interface CompanySettings {
   default_expense_account_id?: string;
   default_receivable_account_id?: string;
   default_payable_account_id?: string;
+  default_purchase_account_id?: string;
+  default_cogs_account_id?: string;
+  default_sales_account_id?: string;
+  default_tax_input_account_id?: string;
+  default_tax_output_account_id?: string;
+  default_inventory_account_id?: string;
+  // حسابات إضافية
+  default_fx_gain_account_id?: string;
+  default_fx_loss_account_id?: string;
+  default_freight_in_account_id?: string;
+  default_retained_earnings_account_id?: string;
+  default_customer_advance_account_id?: string;
+  default_supplier_advance_account_id?: string;
   journal_entry_prefix: string;
   reset_numbering_yearly: boolean;
   current_entry_number: number;
@@ -65,6 +79,13 @@ interface Account {
   account_code: string;
   name_ar: string;
   name_en: string;
+  classification?: string; // 'assets' | 'liabilities' | 'equity' | 'income' | 'expenses'
+  type_name_ar?: string;
+  type_name_en?: string;
+  is_cash_account?: boolean;
+  is_bank_account?: boolean;
+  is_receivable?: boolean;
+  is_payable?: boolean;
 }
 
 // Accounting Settings from companies.accounting_settings
@@ -99,6 +120,7 @@ export default function AccountingSettings() {
   const { t, language, direction } = useLanguage();
   const { toast } = useToast();
   const { session } = useAuth();
+  const { companyId, company, loading: companyLoading } = useCompany();
 
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(true);
@@ -129,6 +151,7 @@ export default function AccountingSettings() {
   // جلب العملات من قاعدة البيانات بدلاً من القائمة الثابتة
   const [currencies, setCurrencies] = useState<{ code: string; name: string; nameEn: string; symbol: string }[]>([]);
   const [currencySearch, setCurrencySearch] = useState('');
+  const [hasJournalEntries, setHasJournalEntries] = useState(false);
 
   // Edit & Fiscal Year Settings
   const [editSettings, setEditSettings] = useState<AccountingEditSettings>({
@@ -156,96 +179,112 @@ export default function AccountingSettings() {
     },
   });
 
-  // Load data
+  // Load data when company is ready
   useEffect(() => {
-    loadData();
-  }, []);
+    if (companyId && !companyLoading) {
+      loadData(companyId);
+    }
+  }, [companyId, companyLoading]);
 
-  const loadData = async () => {
+  const loadData = async (currentCompanyId: string) => {
     setLoading(true);
     try {
-      // Get company ID and default currency
-      const { data: companies } = await supabase
-        .from('companies')
-        .select('id, default_currency')
-        .limit(1)
+      const companyBaseCurrency = company?.default_currency || '';
+
+      // Load settings
+      const { data: settingsData } = await supabase
+        .from('company_accounting_settings')
+        .select('*')
+        .eq('company_id', currentCompanyId)
         .single();
 
-      if (companies) {
-        const companyBaseCurrency = companies.default_currency || '';
+      if (settingsData) {
+        setSettings({
+          ...settingsData,
+          supported_currencies: settingsData.supported_currencies || [companyBaseCurrency],
+          default_sales_currency: settingsData.default_sales_currency || companyBaseCurrency,
+          default_purchase_currency: settingsData.default_purchase_currency || companyBaseCurrency,
+          default_international_purchase_currency: settingsData.default_international_purchase_currency || '',
+        });
+      } else {
+        setSettings(prev => ({ ...prev, company_id: currentCompanyId, base_currency: companyBaseCurrency }));
+      }
 
-        // Load settings
-        const { data: settingsData } = await supabase
-          .from('company_accounting_settings')
-          .select('*')
-          .eq('company_id', companies.id)
-          .single();
+      // Load accounting_settings from companies table (for edit/fiscal year mode)
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('accounting_settings')
+        .eq('id', currentCompanyId)
+        .single();
 
-        if (settingsData) {
-          setSettings({
-            ...settingsData,
-            supported_currencies: settingsData.supported_currencies || [companyBaseCurrency],
-            default_sales_currency: settingsData.default_sales_currency || companyBaseCurrency,
-            default_purchase_currency: settingsData.default_purchase_currency || companyBaseCurrency,
-            default_international_purchase_currency: settingsData.default_international_purchase_currency || '',
-          });
-        } else {
-          setSettings(prev => ({ ...prev, company_id: companies.id, base_currency: companyBaseCurrency }));
-        }
+      if (companyData?.accounting_settings) {
+        setEditSettings(prev => ({
+          ...prev,
+          ...companyData.accounting_settings,
+        }));
+      }
 
-        // Load accounting_settings from companies table (for edit/fiscal year mode)
-        const { data: companyData } = await supabase
-          .from('companies')
-          .select('accounting_settings')
-          .eq('id', companies.id)
-          .single();
+      // Load fiscal years
+      const { data: yearsData } = await supabase
+        .from('fiscal_years')
+        .select('*')
+        .order('start_date', { ascending: false });
 
-        if (companyData?.accounting_settings) {
-          setEditSettings(prev => ({
-            ...prev,
-            ...companyData.accounting_settings,
-          }));
-        }
+      if (yearsData) setFiscalYears(yearsData);
 
-        // Load fiscal years
-        const { data: yearsData } = await supabase
-          .from('fiscal_years')
-          .select('*')
-          .order('start_date', { ascending: false });
+      // Check if journal entries exist (to lock currency changes)
+      const { count: entriesCount } = await supabase
+        .from('journal_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', currentCompanyId);
 
-        if (yearsData) setFiscalYears(yearsData);
+      setHasJournalEntries((entriesCount || 0) > 0);
 
-        // Load accounts for dropdowns
-        const { data: accountsData } = await supabase
-          .from('chart_of_accounts')
-          .select('id, account_code, name_ar, name_en')
-          .eq('is_detail', true)
-          .eq('is_active', true)
-          .order('account_code');
+      // Load accounts for dropdowns — filtered by company + classification
+      const { data: accountsData } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_code, name_ar, name_en, is_cash_account, is_bank_account, is_receivable, is_payable, account_types(classification, name_ar, name_en)')
+        .eq('company_id', currentCompanyId)
+        .eq('is_detail', true)
+        .eq('is_active', true)
+        .order('account_code');
 
-        if (accountsData) setAccounts(accountsData);
+      if (accountsData) {
+        setAccounts(accountsData.map((a: any) => ({
+          id: a.id,
+          account_code: a.account_code,
+          name_ar: a.name_ar,
+          name_en: a.name_en,
+          classification: a.account_types?.classification || '',
+          type_name_ar: a.account_types?.name_ar || '',
+          type_name_en: a.account_types?.name_en || '',
+          is_cash_account: a.is_cash_account || false,
+          is_bank_account: a.is_bank_account || false,
+          is_receivable: a.is_receivable || false,
+          is_payable: a.is_payable || false,
+        })));
+      }
 
-        // ✨ Load ALL currencies from database (remove duplicates)
-        const { data: currenciesData } = await supabase
-          .from('currencies')
-          .select('code, name, name_ar, symbol')
-          .order('code');
+      // ✨ Load ALL currencies from database (remove duplicates)
+      const { data: currenciesData } = await supabase
+        .from('currencies')
+        .select('code, name, name_ar, symbol')
+        .order('code');
 
-        if (currenciesData) {
-          // Remove duplicates using Map
-          const uniqueCurrencies = new Map();
-          currenciesData.forEach(c => {
-            if (!uniqueCurrencies.has(c.code)) {
-              uniqueCurrencies.set(c.code, {
-                code: c.code,
-                name: c.name_ar || c.name,
-                nameEn: c.name,
-                symbol: c.symbol
-              });
-            }
-          });
-          setCurrencies(Array.from(uniqueCurrencies.values()));
-        }
+      if (currenciesData) {
+        // Remove duplicates using Map
+        const uniqueCurrencies = new Map();
+        currenciesData.forEach(c => {
+          if (!uniqueCurrencies.has(c.code)) {
+            uniqueCurrencies.set(c.code, {
+              code: c.code,
+              name: c.name_ar || c.name,
+              nameEn: c.name,
+              symbol: c.symbol
+            });
+          }
+        });
+        setCurrencies(Array.from(uniqueCurrencies.values()));
       }
     } catch (error) {
       // Silently handle - Don't show toast since Keep All Mounted loads this even when tab isn't visible
@@ -301,6 +340,56 @@ export default function AccountingSettings() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  // ═══════════════════════════════════════════════════════════════
+  // Classification-based account helpers
+  // ═══════════════════════════════════════════════════════════════
+  const classificationLabels: Record<string, { ar: string; en: string }> = {
+    assets: { ar: '📂 الأصول', en: '📂 Assets' },
+    liabilities: { ar: '📂 الخصوم', en: '📂 Liabilities' },
+    equity: { ar: '📂 حقوق الملكية', en: '📂 Equity' },
+    income: { ar: '📂 الإيرادات', en: '📂 Revenue' },
+    expenses: { ar: '📂 المصاريف', en: '📂 Expenses' },
+  };
+
+  /** Filter accounts by classification(s) */
+  const getAccountsByClassification = (...classifications: string[]) => {
+    return accounts.filter(a => classifications.includes(a.classification || ''));
+  };
+
+  /** Render grouped account options for Select dropdown */
+  const renderGroupedOptions = (filteredAccounts: Account[]) => {
+    // Group by classification
+    const groups = new Map<string, Account[]>();
+    filteredAccounts.forEach(a => {
+      const cls = a.classification || 'other';
+      if (!groups.has(cls)) groups.set(cls, []);
+      groups.get(cls)!.push(a);
+    });
+
+    // If only one group, render without headers
+    if (groups.size <= 1) {
+      return filteredAccounts.map(a => (
+        <SelectItem key={a.id} value={a.id}>
+          {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
+        </SelectItem>
+      ));
+    }
+
+    // Multiple groups — render with headers
+    return Array.from(groups.entries()).map(([cls, accs]) => (
+      <React.Fragment key={cls}>
+        <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+          {classificationLabels[cls]?.[language === 'ar' ? 'ar' : 'en'] || cls}
+        </div>
+        {accs.map(a => (
+          <SelectItem key={a.id} value={a.id}>
+            {a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}
+          </SelectItem>
+        ))}
+      </React.Fragment>
+    ));
+  };
+
   const toggleSupportedCurrency = (code: string) => {
     const current = settings.supported_currencies || [];
     const isSupported = current.includes(code);
@@ -337,7 +426,7 @@ export default function AccountingSettings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
           <TabsTrigger value="general" className="gap-2">
             <Building2 className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ar' ? 'عام' : 'General'}</span>
@@ -345,6 +434,10 @@ export default function AccountingSettings() {
           <TabsTrigger value="currencies" className="gap-2">
             <Globe className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ar' ? 'العملات' : 'Currencies'}</span>
+          </TabsTrigger>
+          <TabsTrigger value="tax" className="gap-2">
+            <Percent className="w-4 h-4" />
+            <span className="hidden sm:inline">{language === 'ar' ? 'الضرائب' : 'Tax'}</span>
           </TabsTrigger>
           <TabsTrigger value="accounts" className="gap-2">
             <Wallet className="w-4 h-4" />
@@ -662,6 +755,174 @@ export default function AccountingSettings() {
         </TabsContent>
 
         {/* Default Accounts Tab — Enhanced */}
+        {/* ═══ Tax Settings Tab ═══ */}
+        <TabsContent value="tax" className="mt-6 space-y-6">
+          {/* Tax Enable/Disable Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Percent className="w-5 h-5 text-erp-teal" />
+                {language === 'ar' ? 'إعدادات ضريبة القيمة المضافة (VAT)' : 'VAT Settings'}
+              </CardTitle>
+              <CardDescription>
+                {language === 'ar'
+                  ? 'تفعيل وتهيئة الضريبة لتطبيقها تلقائياً على الفواتير'
+                  : 'Enable and configure tax to apply automatically on invoices'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                <div className="space-y-0.5">
+                  <Label className="text-base font-medium">
+                    {language === 'ar' ? 'تفعيل ضريبة القيمة المضافة' : 'Enable VAT'}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {language === 'ar'
+                      ? 'عند التفعيل، ستُحسب الضريبة تلقائياً على جميع الفواتير'
+                      : 'When enabled, VAT will be automatically calculated on all invoices'}
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.vat_enabled}
+                  onCheckedChange={(v) => updateSetting('vat_enabled', v)}
+                />
+              </div>
+
+              {/* VAT Rate */}
+              {settings.vat_enabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">
+                      {language === 'ar' ? 'نسبة الضريبة (%)' : 'VAT Rate (%)'}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={settings.vat_rate}
+                        onChange={(e) => updateSetting('vat_rate', parseFloat(e.target.value) || 0)}
+                        className="pe-10"
+                      />
+                      <span className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {language === 'ar'
+                        ? 'النسبة الافتراضية: السعودية 15%، الإمارات 5%'
+                        : 'Default rates: Saudi Arabia 15%, UAE 5%'}
+                    </p>
+                  </div>
+
+                  {/* Preview */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">
+                      {language === 'ar' ? 'معاينة حساب الضريبة' : 'Tax Calculation Preview'}
+                    </Label>
+                    <div className="p-4 bg-muted/40 rounded-lg border space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{language === 'ar' ? 'المبلغ قبل الضريبة:' : 'Amount before tax:'}</span>
+                        <span className="font-mono">1,000.00</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-amber-600">
+                        <span>{language === 'ar' ? `ضريبة (${settings.vat_rate}%):` : `VAT (${settings.vat_rate}%):`}</span>
+                        <span className="font-mono">{(1000 * settings.vat_rate / 100).toFixed(2)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between text-sm font-bold">
+                        <span>{language === 'ar' ? 'الإجمالي شامل الضريبة:' : 'Total incl. tax:'}</span>
+                        <span className="font-mono text-emerald-600">{(1000 + 1000 * settings.vat_rate / 100).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tax Accounts Card */}
+          {settings.vat_enabled && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Receipt className="w-5 h-5 text-erp-teal" />
+                  {language === 'ar' ? 'حسابات الضريبة' : 'Tax Accounts'}
+                </CardTitle>
+                <CardDescription>
+                  {language === 'ar'
+                    ? 'ربط حسابات الضريبة المستخدمة في القيود المحاسبية للفواتير'
+                    : 'Link tax accounts used in invoice journal entries'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Tax Input Account */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label>{language === 'ar' ? 'ضريبة المدخلات (المشتريات)' : 'Input VAT (Purchases)'}</Label>
+                    {settings.default_tax_input_account_id
+                      ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                      : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'مطلوب ❗' : 'Required ❗'}</Badge>}
+                  </div>
+                  <Select value={settings.default_tax_input_account_id || ''} onValueChange={(v) => updateSetting('default_tax_input_account_id', v)}>
+                    <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                    <SelectContent>
+                      {renderGroupedOptions(getAccountsByClassification('assets', 'liabilities'))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'ar'
+                      ? 'يُسجَّل كمدين عند شراء بضاعة — ضريبة قابلة للاسترداد'
+                      : 'Debited when purchasing goods — recoverable tax'}
+                  </p>
+                </div>
+
+                {/* Tax Output Account */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label>{language === 'ar' ? 'ضريبة المخرجات (المبيعات)' : 'Output VAT (Sales)'}</Label>
+                    {settings.default_tax_output_account_id
+                      ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                      : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'مطلوب ❗' : 'Required ❗'}</Badge>}
+                  </div>
+                  <Select value={settings.default_tax_output_account_id || ''} onValueChange={(v) => updateSetting('default_tax_output_account_id', v)}>
+                    <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                    <SelectContent>
+                      {renderGroupedOptions(getAccountsByClassification('liabilities'))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'ar'
+                      ? 'يُسجَّل كدائن عند بيع بضاعة — ضريبة مستحقة الدفع'
+                      : 'Credited when selling goods — tax payable'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tax Status Summary */}
+          <Alert className={settings.vat_enabled ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-gray-50'}>
+            {settings.vat_enabled
+              ? <CheckCircle2 className="h-4 w-4 text-green-600" />
+              : <Info className="h-4 w-4 text-gray-500" />}
+            <AlertTitle className={settings.vat_enabled ? 'text-green-800' : 'text-gray-700'}>
+              {settings.vat_enabled
+                ? (language === 'ar' ? `الضريبة مفعّلة بنسبة ${settings.vat_rate}%` : `VAT enabled at ${settings.vat_rate}%`)
+                : (language === 'ar' ? 'الضريبة غير مفعّلة' : 'VAT is disabled')}
+            </AlertTitle>
+            <AlertDescription className={settings.vat_enabled ? 'text-green-700' : 'text-gray-600'}>
+              {settings.vat_enabled
+                ? (language === 'ar'
+                  ? 'سيتم احتساب الضريبة تلقائياً عند إنشاء فواتير البيع والشراء وإدراجها في القيد المحاسبي'
+                  : 'Tax will be automatically calculated on sales and purchase invoices and included in journal entries')
+                : (language === 'ar'
+                  ? 'لن يتم احتساب أي ضريبة على الفواتير. يمكنك تفعيلها في أي وقت'
+                  : 'No tax will be calculated on invoices. You can enable it at any time')}
+            </AlertDescription>
+          </Alert>
+        </TabsContent>
+
         <TabsContent value="accounts" className="mt-6 space-y-6">
           {/* Status Summary */}
           {(() => {
@@ -669,6 +930,12 @@ export default function AccountingSettings() {
               'default_cash_account_id', 'default_bank_account_id',
               'default_revenue_account_id', 'default_expense_account_id',
               'default_receivable_account_id', 'default_payable_account_id',
+              'default_purchase_account_id',
+              'default_inventory_account_id',
+              'default_tax_input_account_id', 'default_tax_output_account_id',
+              'default_fx_gain_account_id', 'default_fx_loss_account_id',
+              'default_freight_in_account_id',
+              'default_retained_earnings_account_id',
             ] as const;
             const configured = accountFields.filter(f => !!(settings as any)[f]).length;
             const total = accountFields.length;
@@ -695,6 +962,117 @@ export default function AccountingSettings() {
             );
           })()}
 
+          {/* Group 0: Currency Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <DollarSign className="w-5 h-5 text-erp-teal" />
+                {language === 'ar' ? 'إعدادات العملات' : 'Currency Settings'}
+              </CardTitle>
+              <CardDescription>
+                {language === 'ar' ? 'العملة الرئيسية والعملة المحلية — تُقفل بعد أول حركة محاسبية' : 'Base and local currency — locked after first journal entry'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Base Currency */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'العملة الرئيسية' : 'Base Currency'}</Label>
+                  {hasJournalEntries && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex items-center gap-1"><Lock className="w-3 h-3" />{language === 'ar' ? 'مقفلة' : 'Locked'}</Badge>}
+                </div>
+                <Select
+                  value={settings.base_currency || ''}
+                  onValueChange={(v) => updateSetting('base_currency', v)}
+                  disabled={hasJournalEntries}
+                >
+                  <SelectTrigger className={hasJournalEntries ? 'opacity-70 cursor-not-allowed' : ''}>
+                    <SelectValue placeholder={language === 'ar' ? 'اختر العملة...' : 'Select currency...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map(c => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.symbol} {c.code} — {language === 'ar' ? c.name : c.nameEn}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">
+                  {hasJournalEntries
+                    ? (language === 'ar' ? '🔒 لا يمكن تغيير العملة الرئيسية بعد وجود قيود محاسبية' : '🔒 Cannot change base currency after journal entries exist')
+                    : (language === 'ar' ? 'عملة المحاسبة الأساسية — جميع التقارير تصدر بها' : 'Primary accounting currency — all reports are generated in this currency')}
+                </p>
+              </div>
+
+              {/* Default Sales Currency */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'عملة البيع الافتراضية' : 'Default Sales Currency'}</Label>
+                </div>
+                <Select
+                  value={settings.default_sales_currency || ''}
+                  onValueChange={(v) => updateSetting('default_sales_currency', v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === 'ar' ? 'اختر العملة...' : 'Select currency...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(settings.supported_currencies || []).map(code => {
+                      const cur = currencies.find(c => c.code === code);
+                      return (
+                        <SelectItem key={code} value={code}>
+                          {cur?.symbol || ''} {code} — {language === 'ar' ? (cur?.name || code) : (cur?.nameEn || code)}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'العملة المستخدمة افتراضياً في فواتير المبيعات' : 'Default currency for sales invoices'}</p>
+              </div>
+
+              {/* Default Purchase Currency */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'عملة الشراء الافتراضية' : 'Default Purchase Currency'}</Label>
+                </div>
+                <Select
+                  value={settings.default_purchase_currency || ''}
+                  onValueChange={(v) => updateSetting('default_purchase_currency', v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === 'ar' ? 'اختر العملة...' : 'Select currency...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(settings.supported_currencies || []).map(code => {
+                      const cur = currencies.find(c => c.code === code);
+                      return (
+                        <SelectItem key={code} value={code}>
+                          {cur?.symbol || ''} {code} — {language === 'ar' ? (cur?.name || code) : (cur?.nameEn || code)}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'العملة المستخدمة افتراضياً في فواتير المشتريات' : 'Default currency for purchase invoices'}</p>
+              </div>
+
+              {/* Supported Currencies Info */}
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'العملات المدعومة' : 'Supported Currencies'}</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(settings.supported_currencies || []).map(code => {
+                    const cur = currencies.find(c => c.code === code);
+                    return (
+                      <Badge key={code} variant="outline" className="text-sm">
+                        {cur?.symbol || ''} {code}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'العملات المفعّلة — يمكن إضافة المزيد من تبويب العملات' : 'Active currencies — add more from the Currencies tab'}</p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Group 1: Financial Accounts */}
           <Card>
             <CardHeader>
@@ -718,9 +1096,7 @@ export default function AccountingSettings() {
                 <Select value={settings.default_cash_account_id || ''} onValueChange={(v) => updateSetting('default_cash_account_id', v)}>
                   <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('1')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
-                    ))}
+                    {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في سندات القبض والصرف النقدي' : 'Used for cash receipts and payments'}</p>
@@ -737,9 +1113,7 @@ export default function AccountingSettings() {
                 <Select value={settings.default_bank_account_id || ''} onValueChange={(v) => updateSetting('default_bank_account_id', v)}>
                   <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('1')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
-                    ))}
+                    {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في التحويلات البنكية والإيداعات' : 'Used for bank transfers and deposits'}</p>
@@ -756,9 +1130,7 @@ export default function AccountingSettings() {
                 <Select value={settings.default_receivable_account_id || ''} onValueChange={(v) => updateSetting('default_receivable_account_id', v)}>
                   <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('1')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
-                    ))}
+                    {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب العملاء - يُستخدم في فواتير المبيعات' : 'Customer account - used in sales invoices'}</p>
@@ -775,9 +1147,7 @@ export default function AccountingSettings() {
                 <Select value={settings.default_payable_account_id || ''} onValueChange={(v) => updateSetting('default_payable_account_id', v)}>
                   <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('2')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
-                    ))}
+                    {renderGroupedOptions(getAccountsByClassification('liabilities'))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب الموردين - يُستخدم في فواتير المشتريات' : 'Vendor account - used in purchase invoices'}</p>
@@ -808,9 +1178,7 @@ export default function AccountingSettings() {
                 <Select value={settings.default_revenue_account_id || ''} onValueChange={(v) => updateSetting('default_revenue_account_id', v)}>
                   <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('4')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
-                    ))}
+                    {renderGroupedOptions(getAccountsByClassification('income'))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم تلقائياً في فواتير المبيعات' : 'Auto-used in sales invoices'}</p>
@@ -827,12 +1195,194 @@ export default function AccountingSettings() {
                 <Select value={settings.default_expense_account_id || ''} onValueChange={(v) => updateSetting('default_expense_account_id', v)}>
                   <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.account_code.startsWith('5')).map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.account_code} - {language === 'ar' ? a.name_ar : a.name_en}</SelectItem>
-                    ))}
+                    {renderGroupedOptions(getAccountsByClassification('expenses'))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في المصروفات العامة والتشغيلية' : 'Used for general and operational expenses'}</p>
+              </div>
+
+              {/* Purchases/COGS */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب المشتريات / تكلفة البضاعة' : 'Purchases / COGS'}</Label>
+                  {(settings as any).default_purchase_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'مطلوب ❗' : 'Required ❗'}</Badge>}
+                </div>
+                <Select value={(settings as any).default_purchase_account_id || ''} onValueChange={(v) => updateSetting('default_purchase_account_id' as any, v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('expenses'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'الجانب المدين في فواتير المشتريات — ضروري للترحيل' : 'Debit side for purchase invoices — required for posting'}</p>
+              </div>
+
+              {/* Tax Input Account */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'ضريبة القيمة المضافة — مدخلات' : 'VAT Input (Purchases)'}</Label>
+                  {settings.default_tax_input_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_tax_input_account_id || ''} onValueChange={(v) => updateSetting('default_tax_input_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('assets', 'liabilities'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'ضريبة المشتريات القابلة للاسترداد' : 'Recoverable VAT on purchases'}</p>
+              </div>
+
+              {/* Tax Output Account */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'ضريبة القيمة المضافة — مخرجات' : 'VAT Output (Sales)'}</Label>
+                  {settings.default_tax_output_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_tax_output_account_id || ''} onValueChange={(v) => updateSetting('default_tax_output_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('liabilities'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'ضريبة المبيعات المستحقة للدفع' : 'VAT payable on sales'}</p>
+              </div>
+
+              {/* Inventory Account */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب المخزون' : 'Inventory Account'}</Label>
+                  {settings.default_inventory_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_inventory_account_id || ''} onValueChange={(v) => updateSetting('default_inventory_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('assets'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب البضاعة / مخزون الأقمشة' : 'Goods / fabric inventory account'}</p>
+              </div>
+
+              {/* Freight In */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'مصاريف الشحن والنقل' : 'Freight In'}</Label>
+                  {settings.default_freight_in_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_freight_in_account_id || ''} onValueChange={(v) => updateSetting('default_freight_in_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('expenses'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'تكاليف الشحن على المشتريات والشحنات' : 'Shipping costs on purchases and shipments'}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Group 3: Advanced Accounts — FX, Retained Earnings, Advances */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Globe className="w-5 h-5 text-erp-teal" />
+                {language === 'ar' ? 'حسابات متقدمة' : 'Advanced Accounts'}
+              </CardTitle>
+              <CardDescription>
+                {language === 'ar' ? 'فروقات العملات، الأرباح المحتجزة، والسلف' : 'Currency differences, retained earnings, and advances'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* FX Gain */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? '💱 أرباح فروقات العملة' : '💱 FX Gains'}</Label>
+                  {settings.default_fx_gain_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_fx_gain_account_id || ''} onValueChange={(v) => updateSetting('default_fx_gain_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('income'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'أرباح ناتجة عن تحويل العملات بأسعار مختلفة' : 'Gains from currency conversion at different rates'}</p>
+              </div>
+
+              {/* FX Loss */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? '💱 خسائر فروقات العملة' : '💱 FX Losses'}</Label>
+                  {settings.default_fx_loss_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_fx_loss_account_id || ''} onValueChange={(v) => updateSetting('default_fx_loss_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('expenses'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'خسائر ناتجة عن تحويل العملات' : 'Losses from currency conversion'}</p>
+              </div>
+
+              {/* Retained Earnings */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? '📊 الأرباح المحتجزة' : '📊 Retained Earnings'}</Label>
+                  {settings.default_retained_earnings_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_retained_earnings_account_id || ''} onValueChange={(v) => updateSetting('default_retained_earnings_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('equity'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم عند إقفال السنة المالية — تُرحل إليه الأرباح' : 'Used for year-end closing — profits are transferred here'}</p>
+              </div>
+
+              {/* Customer Advance */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? '🧾 سلف العملاء' : '🧾 Customer Advances'}</Label>
+                  {settings.default_customer_advance_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_customer_advance_account_id || ''} onValueChange={(v) => updateSetting('default_customer_advance_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('liabilities'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'دفعات مقدمة من العملاء قبل التسليم' : 'Advance payments from customers before delivery'}</p>
+              </div>
+
+              {/* Supplier Advance */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? '🧾 سلف الموردين' : '🧾 Supplier Advances'}</Label>
+                  {settings.default_supplier_advance_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                </div>
+                <Select value={settings.default_supplier_advance_account_id || ''} onValueChange={(v) => updateSetting('default_supplier_advance_account_id', v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('assets'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'دفعات مقدمة للموردين قبل الاستلام' : 'Advance payments to suppliers before receipt'}</p>
               </div>
             </CardContent>
           </Card>

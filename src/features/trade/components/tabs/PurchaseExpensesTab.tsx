@@ -229,8 +229,8 @@ export const PurchaseExpensesTab: React.FC<PurchaseExpensesTabProps> = ({ data, 
             // Also update in DB directly if document is saved
             if (data?.id) {
                 const tableName = data?.type?.includes('purchase') || data?.supplier_id
-                    ? 'purchase_invoices'
-                    : 'sales_invoices';
+                    ? 'purchase_transactions'
+                    : 'sales_transactions';
 
                 await supabase
                     .from(tableName)

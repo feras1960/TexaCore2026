@@ -48,7 +48,7 @@ interface Roll {
     id: string;
     roll_number: string;
     barcode?: string;
-    original_length: number;
+    initial_length: number;
     current_length: number;
     width?: number;
     weight?: number;
@@ -313,7 +313,7 @@ export default function RollsPage() {
                                 <div className="flex items-center gap-2 text-sm mb-3">
                                     <Ruler className="w-4 h-4 text-muted-foreground" />
                                     <span className="font-mono">
-                                        {roll.current_length}m / {roll.original_length}m
+                                        {roll.current_length}m / {roll.initial_length}m
                                     </span>
                                     {roll.color && (
                                         <span className="text-muted-foreground">• {roll.color}</span>

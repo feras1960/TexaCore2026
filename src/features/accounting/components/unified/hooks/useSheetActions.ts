@@ -1,0 +1,1099 @@
+/**
+ * useSheetActions — Custom hook for all sheet action handlers
+ * 
+ * Extracted from UnifiedAccountingSheet to reduce file size.
+ * Contains: handleAccountingSave, handleTradeSave, handleAction, autoSave
+ */
+
+import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLanguage } from '@/app/providers/LanguageProvider';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { confirmationService, type WorkflowSettings, type DocType as ConfDocType } from '@/services/confirmationService';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import type { SheetMode } from '../types';
+
+// ═══ Recalculate totals from items (Single Source of Truth) ═══
+// ⚠️ CRITICAL: Never use item.total as fallback for subtotal
+//    because item.total = net + tax (includes tax!)
+export function recalcItemTotals(items: any[]) {
+    const subtotal = items.reduce((sum: number, item: any) => sum + Number(item.subtotal || (item.quantity * item.unit_price) || 0), 0);
+    const discount_amount = items.reduce((sum: number, item: any) => sum + Number(item.discount_amount || 0), 0);
+    const tax_amount = items.reduce((sum: number, item: any) => sum + Number(item.tax_amount || 0), 0);
+    const net = subtotal - discount_amount;
+    const grand_total = net + tax_amount;
+    return { subtotal, discount_amount, tax_amount, tax_total: tax_amount, grand_total, total_amount: grand_total };
+}
+
+// ═══ Map docType → ConfDocType ═══
+export function resolveConfDocType(docType: string, tradeMode?: string): ConfDocType {
+    const isPurchase = tradeMode === 'purchase';
+    switch (docType) {
+        case 'trade_order': return isPurchase ? 'purchase_order' : 'sales_order';
+        case 'trade_invoice': return isPurchase ? 'purchase_invoice' : 'sales_invoice';
+        case 'trade_quotation': return 'quotation';
+        case 'trade_reservation': return 'reservation';
+        default: return isPurchase ? 'purchase_order' : 'sales_order';
+    }
+}
+
+// ═══ Map docType to auto_post setting key ═══
+export function getAutoPostKey(dt: string): string {
+    const map: Record<string, string> = {
+        trade_invoice: 'auto_post_invoice',
+        trade_delivery: 'auto_post_delivery',
+        trade_receipt: 'auto_post_receipt',
+        trade_return: 'auto_post_return',
+    };
+    return map[dt] || '';
+}
+
+// ═══ Trade type maps (reused in multiple handlers) ═══
+const TRADE_TYPE_MAP: Record<string, Record<string, string>> = {
+    sales: {
+        trade_invoice: 'invoice',
+        trade_order: 'order',
+        trade_quotation: 'quotation',
+        trade_delivery: 'delivery',
+        trade_reservation: 'reservation',
+    },
+    purchase: {
+        trade_invoice: 'purchase_invoice',
+        trade_order: 'purchase_order',
+        trade_quotation: 'purchase_quotation',
+        trade_request: 'purchase_request',
+        trade_receipt: 'purchase_receipt',
+        trade_return: 'purchase_return',
+    },
+};
+
+const TRADE_TABLE_MAP: Record<string, Record<string, string>> = {
+    sales: {
+        trade_invoice: 'sales_transactions',
+        trade_order: 'sales_orders',
+        trade_quotation: 'quotations',
+        trade_delivery: 'sales_deliveries',
+        trade_reservation: 'transit_reservations',
+        trade_return: 'sales_returns',
+    },
+    purchase: {
+        trade_invoice: 'purchase_transactions',
+        trade_order: 'purchase_orders',
+        trade_quotation: 'purchase_quotations',
+        trade_request: 'purchase_requests',
+        trade_receipt: 'purchase_receipts',
+        trade_return: 'purchase_returns',
+    },
+};
+
+const TRADE_POST_MAP: Record<string, Record<string, string>> = {
+    sales: {
+        trade_invoice: 'sales_transactions',
+        trade_delivery: 'sales_deliveries',
+        trade_return: 'sales_returns',
+    },
+    purchase: {
+        trade_invoice: 'purchase_transactions',
+        trade_receipt: 'purchase_receipts',
+        trade_return: 'purchase_returns',
+    },
+};
+
+export interface UseSheetActionsParams {
+    docType: string;
+    tradeMode?: string;
+    mode: SheetMode;
+    data: any;
+    documentId?: string;
+    companyId?: string;
+    isTradeDocType: boolean;
+    isAccountingDocType: boolean;
+    isPostableDocType: boolean;
+    // Save handlers (from useAccountingSave / useTradeSave)
+    handleAccountingSave: (data: any) => Promise<void>;
+    handleTradeSave: (data: any) => Promise<any>;
+    // State setters
+    setData: (fn: any) => void;
+    setMode: (mode: SheetMode) => void;
+    setLoading: (v: boolean) => void;
+    setHasChanges: (v: boolean) => void;
+    handleModeChange: (mode: SheetMode) => void;
+    // Confirmation state setters
+    setConfirmDialogOpen: (v: boolean) => void;
+    setConfirmValidation: (v: any) => void;
+    setConfirmSettings: (v: any) => void;
+    setConfirmNeedsApproval: (v: boolean) => void;
+    // External callbacks
+    onSave?: (data: any) => Promise<void> | void;
+    onDelete?: () => Promise<void> | void;
+    onPost?: () => Promise<void> | void;
+    onUnpost?: () => Promise<void> | void;
+    onDuplicate?: () => void;
+    onPrint?: () => void;
+    onRefresh?: () => void;
+    onClose: () => void;
+    // Edit flow
+    enableEditFlow?: boolean;
+    onEditPermissionDenied?: (message: string, options?: any[]) => void;
+    onAdjustmentRequired?: (id: string) => void;
+    initialData: any;
+    hasChanges: boolean;
+}
+
+// ═══ Accounting Save Handler ═══
+export function useAccountingSave(
+    docType: string,
+    companyId: string | undefined,
+    documentId: string | undefined,
+    mode: SheetMode,
+    t: (key: string) => string,
+) {
+    const isAccountingDocType = ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType);
+
+    return useCallback(async (saveData: any) => {
+        if (!isAccountingDocType) return;
+        if (!saveData) {
+            toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ');
+            return;
+        }
+
+        const saveCompanyId = saveData.company_id || companyId;
+        if (!saveCompanyId) {
+            toast.error(t('accounting.errors.noCompany') || 'يجب تحديد الشركة');
+            return;
+        }
+
+        // Import service dynamically
+        const { journalEntriesService } = await import('@/services/journalEntriesService');
+
+        // Build entry lines
+        const entryType = docType === 'receipt' ? 'receipt' : docType === 'payment' ? 'payment' : 'journal';
+        let finalLines = [...(saveData.lines || [])];
+
+        // For receipt/payment: auto-add header balancing line
+        if (['receipt', 'payment'].includes(entryType) && saveData.header_account_id) {
+            const lineTotal = finalLines.reduce((sum: number, l: any) =>
+                sum + (Number(l.debit) || 0) + (Number(l.credit) || 0), 0);
+
+            if (lineTotal > 0) {
+                finalLines.push({
+                    account_id: saveData.header_account_id,
+                    description: saveData.description || (entryType === 'receipt' ? 'سند قبض' : 'سند صرف'),
+                    debit: entryType === 'receipt' ? lineTotal : 0,
+                    credit: entryType === 'payment' ? lineTotal : 0,
+                    cost_center_id: null,
+                });
+            }
+        }
+
+        // Validation
+        if (finalLines.length < 2) {
+            toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ', {
+                description: t('accounting.errors.minLinesRequired') || 'يجب إدخال بندين على الأقل',
+            });
+            return;
+        }
+
+        const totalDebit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.debit) || 0), 0);
+        const totalCredit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.credit) || 0), 0);
+
+        if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            toast.error(t('accounting.errors.notBalanced') || 'القيد غير متوازن!', {
+                description: `${t('accounting.debit') || 'مدين'}: ${totalDebit.toFixed(2)} ≠ ${t('accounting.credit') || 'دائن'}: ${totalCredit.toFixed(2)}`,
+            });
+            return;
+        }
+
+        // Build entry data
+        const entryInput = {
+            company_id: saveCompanyId,
+            entry_date: saveData.entry_date || new Date().toISOString().split('T')[0],
+            description: saveData.description || '',
+            entry_type: entryType,
+            lines: finalLines.map((line: any) => ({
+                account_id: line.account_id,
+                debit: Number(line.debit) || 0,
+                credit: Number(line.credit) || 0,
+                description: line.description || '',
+                cost_center_id: line.cost_center_id || null,
+            })),
+        };
+
+        // Create or Update
+        const entryId = saveData.id || documentId;
+        if (mode === 'edit' && entryId) {
+            await journalEntriesService.update(entryId, entryInput);
+        } else {
+            await journalEntriesService.create(entryInput);
+        }
+    }, [isAccountingDocType, docType, companyId, documentId, mode, t]);
+}
+
+// ═══ Trade Save Handler ═══
+export function useTradeSave(
+    docType: string,
+    tradeMode: string | undefined,
+    companyId: string | undefined,
+    documentId: string | undefined,
+    mode: SheetMode,
+    language: string,
+    setData: (fn: any) => void,
+    setMode: (mode: SheetMode) => void,
+) {
+    const queryClient = useQueryClient();
+    const isTradeDocType = ['trade_order', 'trade_invoice', 'trade_quotation', 'trade_reservation', 'trade_delivery', 'trade_request', 'trade_return', 'trade_receipt', 'trade_container'].includes(docType);
+
+    return useCallback(async (saveData: any) => {
+        if (!isTradeDocType || !saveData) throw new Error('Invalid save state');
+
+        const saveCompanyId = saveData.company_id || companyId;
+        if (!saveCompanyId) {
+            throw new Error(language === 'ar' ? 'يجب تحديد الشركة' : 'Company is required');
+        }
+
+        // ═══ Container-specific save path ═══
+        if (docType === 'trade_container') {
+            const { createContainer } = await import('@/services/containersService');
+
+            if (!saveData.container_number) {
+                throw new Error(language === 'ar' ? 'رقم الكونتينر مطلوب' : 'Container number is required');
+            }
+
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            let tenantId = authUser?.user_metadata?.tenant_id || authUser?.app_metadata?.tenant_id;
+
+            if (!tenantId && authUser?.id) {
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('tenant_id')
+                    .eq('id', authUser.id)
+                    .single();
+                tenantId = profile?.tenant_id;
+            }
+
+            if (!tenantId) {
+                throw new Error(language === 'ar' ? 'لم يتم العثور على معرف المستأجر' : 'Tenant ID not found');
+            }
+
+            const docId = saveData.id || documentId;
+
+            if (mode === 'create' || !docId) {
+                const containerPayload: Record<string, any> = {
+                    tenant_id: tenantId,
+                    company_id: saveCompanyId,
+                    container_number: saveData.container_number,
+                    container_name: saveData.container_name || null,
+                    bill_of_lading: saveData.bill_of_lading || null,
+                    origin_country: saveData.origin_country || null,
+                    origin_port: saveData.port_of_loading || saveData.origin_port || null,
+                    destination_port: saveData.port_of_discharge || saveData.destination_port || null,
+                    shipping_company: saveData.shipping_company || saveData.shipping_line || null,
+                    vessel_name: saveData.vessel_name || null,
+                    supplier_id: saveData.supplier_id || saveData.party_id || null,
+                    container_size: saveData.container_size || '40ft',
+                    container_type: saveData.container_type || 'dry',
+                    status: saveData.status || 'ordered',
+                    order_date: saveData.date || new Date().toISOString(),
+                    departure_date: saveData.etd || saveData.departure_date || null,
+                    expected_arrival_date: saveData.eta || saveData.expected_arrival_date || null,
+                    base_currency: saveData.base_currency || saveData.currency || 'USD',
+                    notes: saveData.notes || saveData.remarks || null,
+                    created_by: authUser?.id,
+                };
+
+                const result = await createContainer(containerPayload as any);
+                setData((prev: any) => ({ ...prev, ...result, id: result.id }));
+                setMode('edit');
+            } else {
+                const updates: Record<string, any> = {
+                    container_number: saveData.container_number,
+                    container_name: saveData.container_name || null,
+                    bill_of_lading: saveData.bill_of_lading || null,
+                    origin_country: saveData.origin_country || null,
+                    origin_port: saveData.port_of_loading || saveData.origin_port || null,
+                    destination_port: saveData.port_of_discharge || saveData.destination_port || null,
+                    shipping_company: saveData.shipping_company || saveData.shipping_line || null,
+                    vessel_name: saveData.vessel_name || null,
+                    supplier_id: saveData.supplier_id || saveData.party_id || null,
+                    container_size: saveData.container_size || '40ft',
+                    container_type: saveData.container_type || 'dry',
+                    status: saveData.status || 'ordered',
+                    departure_date: saveData.etd || saveData.departure_date || null,
+                    expected_arrival_date: saveData.eta || saveData.expected_arrival_date || null,
+                    notes: saveData.notes || saveData.remarks || null,
+                    updated_at: new Date().toISOString(),
+                };
+
+                const { error } = await supabase.from('containers').update(updates).eq('id', docId);
+                if (error) throw error;
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+            return;
+        }
+
+        // ═══ Standard trade document save path ═══
+        const { TradeService } = await import('@/features/trade/services/TradeService');
+
+        const modeKey = tradeMode || 'sales';
+        const serviceDocType = TRADE_TYPE_MAP[modeKey]?.[docType] || 'invoice';
+        const docId = saveData.id || documentId;
+
+        // Build document payload
+        const items = saveData.items || [];
+
+        // Validate: party_id is required for invoices/orders
+        const partyId = saveData.party_id || saveData.customer_id || saveData.supplier_id;
+        if ((docType === 'trade_invoice' || docType === 'trade_order') && !partyId) {
+            const errorMsg = language === 'ar' ? 'عذراً، يجب تحديد المورد/العميل قبل الحفظ' : 'Supplier/Customer is required';
+            toast.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        // Calculate totals from items (single source of truth)
+        const totals = recalcItemTotals(items);
+
+        const docPayload: Record<string, any> = {
+            company_id: saveCompanyId,
+            party_id: partyId,
+            warehouse_id: saveData.warehouse_id,
+            date: saveData.date || saveData.invoice_date || saveData.order_date || new Date().toISOString(),
+            currency: saveData.currency || '',
+            exchange_rate: saveData.exchange_rate || 1,
+            notes: saveData.notes,
+            ...totals,
+            items,
+        };
+
+        // Purchase-specific fields
+        if (modeKey === 'purchase') {
+            docPayload.supplier_invoice_number = saveData.supplier_invoice_number;
+            docPayload.supplier_invoice_date = saveData.supplier_invoice_date;
+            docPayload.payment_terms = saveData.payment_terms;
+            docPayload.due_date = saveData.due_date;
+            docPayload.supplier_notes = saveData.supplier_notes;
+            if (saveData.receipt_mode) docPayload.receipt_mode = saveData.receipt_mode;
+        }
+
+        // Expenses & Attachments
+        if (saveData.expenses) {
+            docPayload.expenses = saveData.expenses;
+            docPayload.expenses_total = saveData.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+        }
+        if (saveData.attachments) {
+            docPayload.attachments = saveData.attachments;
+        }
+
+        // Create or Update
+        if (mode === 'create' || !docId) {
+            const result = await TradeService.createTradeDocument(docPayload, serviceDocType, docPayload.currency);
+            setData((prev: any) => ({ ...prev, ...result, id: result.id }));
+            setMode('edit');
+            return result;
+        } else {
+            await TradeService.updateTradeDocument(docId, docPayload, serviceDocType);
+            return { id: docId };
+        }
+    }, [isTradeDocType, docType, tradeMode, companyId, documentId, mode, language, queryClient, setData, setMode]);
+}
+
+// ═══ Auto-Save Hook Wrapper ═══
+export function useTradeAutoSave(
+    isTradeDocType: boolean,
+    handleTradeSave: (data: any) => Promise<any>,
+    data: any,
+    currentDocId: string | null,
+    currentStage: string,
+    mode: SheetMode,
+) {
+    const autoSaveHandler = useCallback(async (saveData: any) => {
+        if (!isTradeDocType || !saveData) return;
+        try {
+            await handleTradeSave(saveData);
+        } catch (err) {
+            console.error('❌ [AutoSave] Failed:', err);
+            throw err;
+        }
+    }, [isTradeDocType, handleTradeSave]);
+
+    // Only auto-save drafts — confirmed/posted docs should not be auto-saved
+    const isNonDraftStage = currentStage && currentStage !== 'draft' && currentStage !== '';
+
+    return useAutoSave({
+        data: isTradeDocType ? data : null,
+        id: currentDocId,
+        stage: currentStage || 'draft',
+        onSave: autoSaveHandler,
+        delay: 5000,
+        disabled: !isTradeDocType || mode === 'view' || isNonDraftStage,
+    });
+}
+
+// ═══ Invalidate trade-related queries ═══
+function invalidateTradeQueries(queryClient: ReturnType<typeof useQueryClient>) {
+    queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+    queryClient.invalidateQueries({ queryKey: ['purchase_transactions_list'] });
+    queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+    queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+    // Also invalidate warehouse queries so pending receipts update
+    queryClient.invalidateQueries({ queryKey: ['warehouse', 'pending-receipts'] });
+    queryClient.invalidateQueries({ queryKey: ['warehouse', 'stock-movements'] });
+}
+
+// ═══ Main Action Handler Hook ═══
+export function useSheetActionHandler(params: UseSheetActionsParams) {
+    const { t, language } = useLanguage();
+    const queryClient = useQueryClient();
+
+    const {
+        docType, tradeMode, mode, data, documentId, companyId,
+        isTradeDocType, isAccountingDocType, isPostableDocType,
+        handleAccountingSave, handleTradeSave,
+        setData, setMode, setLoading, setHasChanges, handleModeChange,
+        setConfirmDialogOpen, setConfirmValidation, setConfirmSettings, setConfirmNeedsApproval,
+        onSave, onDelete, onPost, onUnpost, onDuplicate, onPrint, onRefresh, onClose,
+        enableEditFlow, onEditPermissionDenied, onAdjustmentRequired,
+        initialData, hasChanges,
+    } = params;
+
+    return useCallback(async (actionId: string) => {
+        try {
+            switch (actionId) {
+                case 'edit':
+                    // Guard: Received documents are read-only
+                    if (data?.status === 'received') {
+                        toast.warning(
+                            language === 'ar'
+                                ? '🔒 المستند مقفل — تم استلام البضائع. لا يمكن التعديل.'
+                                : '🔒 Document is locked — goods have been received. Cannot edit.',
+                        );
+                        return;
+                    }
+                    // Check edit permission for journal entries
+                    if (enableEditFlow && docType === 'journal' && documentId) {
+                        try {
+                            const { data: result, error } = await supabase
+                                .rpc('can_edit_journal_entry', { p_entry_id: documentId });
+                            if (error) {
+                                console.error('Edit permission check failed:', error);
+                            } else if (!result?.can_edit) {
+                                const options = result?.options?.map((opt: any) => ({
+                                    id: opt.id, label: opt.label,
+                                    recommended: opt.recommended, warning: opt.warning,
+                                    requires_permission: opt.requires_permission,
+                                }));
+                                onEditPermissionDenied?.(result?.message || 'لا يمكن التحرير', options);
+                                if (result?.mode === 'linked_closed_year') {
+                                    onAdjustmentRequired?.(documentId);
+                                }
+                                return;
+                            } else if (result?.auto_unpost && onUnpost) {
+                                toast.info(t('messages.unpostingEntry') || 'جاري إلغاء الترحيل للتعديل...');
+                                await onUnpost();
+                            }
+                        } catch { /* allow edit if check fails */ }
+                    }
+                    handleModeChange('edit');
+                    break;
+
+                case 'save_post':
+                case 'save': {
+                    // Check if entry has meaningful data
+                    if (isAccountingDocType) {
+                        const entryLines = data?.lines || [];
+                        const hasData = entryLines.some((line: any) =>
+                            line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0)
+                        );
+                        if (!hasData) {
+                            toast.warning(language === 'ar' ? 'لا يوجد بيانات للحفظ — أدخل بنوداً أولاً' : 'No data to save — add line items first');
+                            return;
+                        }
+                    }
+
+                    setLoading(true);
+                    let savedResult: any = null;
+
+                    if (onSave) {
+                        await onSave(data);
+                    } else if (isAccountingDocType) {
+                        await handleAccountingSave(data);
+                    } else if (isTradeDocType) {
+                        savedResult = await handleTradeSave(data);
+                    }
+                    toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
+                    setHasChanges(false);
+
+                    // Save & Post Logic
+                    let manualPostSuccess = false;
+                    if (actionId === 'save_post' && isTradeDocType && isPostableDocType) {
+                        try {
+                            const docId = savedResult?.id || data?.id || documentId;
+                            if (!docId) throw new Error('Document ID not found after save');
+
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (user) {
+                                const modeKey = tradeMode || 'sales';
+
+                                if (modeKey === 'purchase' && docType === 'trade_invoice') {
+                                    const { purchaseAccountingService } = await import('@/services/purchaseAccountingService');
+                                    await purchaseAccountingService.createPurchaseInvoiceJournalEntry(docId, user.id);
+                                    setData((prev: any) => ({ ...prev, status: 'posted', stage: 'posted', is_posted: true }));
+                                    toast.success(language === 'ar' ? '✅ تم الحفظ والترحيل بنجاح' : '✅ Saved & Posted successfully');
+                                    manualPostSuccess = true;
+                                } else {
+                                    const tableName = TRADE_POST_MAP[modeKey]?.[docType];
+                                    if (tableName) {
+                                        const isTransaction = tableName.includes('_transactions');
+                                        await supabase.from(tableName).update({
+                                            ...(isTransaction ? { stage: 'posted' } : { status: 'posted' }),
+                                            is_posted: true,
+                                            posted_at: new Date().toISOString()
+                                        }).eq('id', docId);
+                                        setData((prev: any) => ({ ...prev, status: 'posted', stage: 'posted', is_posted: true }));
+                                        toast.success(language === 'ar' ? '✅ تم الحفظ والترحيل' : '✅ Saved & Posted');
+                                        manualPostSuccess = true;
+                                    }
+                                }
+                                invalidateTradeQueries(queryClient);
+                            }
+                        } catch (err: any) {
+                            console.error('Save & Post failed:', err);
+                            toast.error(language === 'ar' ? `فشل الترحيل: ${err.message}` : `Post failed: ${err.message}`);
+                        }
+                    }
+
+                    // After-save mode transitions
+                    if (mode === 'create' && isAccountingDocType) {
+                        setData({});
+                        setTimeout(() => setData({ type: docType }), 50);
+                    } else if (mode === 'create' && isTradeDocType) {
+                        handleModeChange('view');
+                    } else if (mode === 'create') {
+                        onClose();
+                    } else {
+                        handleModeChange('view');
+                    }
+
+                    // Auto-Post Logic (skipped if manual post succeeded)
+                    if (!manualPostSuccess && isTradeDocType && isPostableDocType && companyId && data?.status !== 'posted') {
+                        try {
+                            const { data: settingsJson } = await supabase.rpc('get_workflow_settings', { p_company_id: companyId });
+                            const autoPostKey2 = getAutoPostKey(docType);
+                            const shouldAutoPost = autoPostKey2 && settingsJson?.[autoPostKey2] === true;
+
+                            if (shouldAutoPost) {
+                                const modeKey = tradeMode || 'sales';
+                                const tableName = TRADE_POST_MAP[modeKey]?.[docType];
+                                const docId = data?.id || documentId;
+                                if (tableName && docId) {
+                                    const isTransaction = tableName.includes('_transactions');
+                                    await supabase.from(tableName).update(isTransaction ? { stage: 'posted' } : { status: 'posted' }).eq('id', docId);
+                                    setData((prev: any) => ({ ...prev, status: 'posted' }));
+                                    invalidateTradeQueries(queryClient);
+                                    toast.success(language === 'ar' ? '✅ تم الترحيل تلقائياً' : '✅ Auto-posted successfully');
+                                }
+                            }
+                        } catch (autoPostErr) {
+                            console.warn('Auto-post check failed:', autoPostErr);
+                        }
+                    }
+                    break;
+                }
+
+                case 'delete':
+                    if (onDelete) {
+                        const confirmed = window.confirm(t('messages.confirmDelete') || 'هل أنت متأكد من الحذف؟');
+                        if (confirmed) {
+                            setLoading(true);
+                            await onDelete();
+                            toast.success(t('messages.deletedSuccessfully') || 'تم الحذف بنجاح');
+                            onClose();
+                        }
+                    } else if (isTradeDocType && (documentId || data?.id)) {
+                        const confirmed = window.confirm(
+                            language === 'ar'
+                                ? 'هل أنت متأكد من حذف هذا المستند؟ لا يمكن التراجع عن هذا الإجراء.'
+                                : 'Are you sure you want to delete this document? This action cannot be undone.'
+                        );
+                        if (confirmed) {
+                            setLoading(true);
+                            const modeKey = tradeMode || 'sales';
+                            const tableName = TRADE_TABLE_MAP[modeKey]?.[docType];
+                            const docId = documentId || data?.id;
+                            if (tableName && docId) {
+                                const { error } = await supabase.from(tableName).delete().eq('id', docId);
+                                if (error) throw error;
+                                invalidateTradeQueries(queryClient);
+                                queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+                                toast.success(language === 'ar' ? '🗑️ تم حذف المستند بنجاح' : '🗑️ Document deleted successfully');
+                                onClose();
+                            }
+                        }
+                    }
+                    break;
+
+                case 'save_confirm': {
+                    if (!isTradeDocType) break;
+                    const docId = data?.id || documentId;
+                    if (!docId) {
+                        toast.error(language === 'ar' ? 'يجب حفظ المستند أولاً' : 'Please save the document first');
+                        break;
+                    }
+                    setLoading(true);
+                    try {
+                        if (hasChanges && data) await handleTradeSave(data);
+                        const tableName = tradeMode === 'purchase' ? 'purchase_transactions' : 'sale_transactions';
+                        const { error } = await supabase
+                            .from(tableName)
+                            .update({ stage: 'confirmed', updated_at: new Date().toISOString() })
+                            .eq('id', docId);
+                        if (error) throw error;
+
+                        // ═══ Assign permanent sequential number at confirmation ═══
+                        const modeKey = tradeMode || 'purchase';
+                        const serviceDocType = TRADE_TYPE_MAP[modeKey]?.[docType] || 'purchase_invoice';
+                        const saveCompanyId = data?.company_id || companyId;
+                        let permanentNumber = '';
+                        try {
+                            const { TradeService } = await import('@/features/trade/services/TradeService');
+                            permanentNumber = await TradeService.assignPermanentNumber(docId, serviceDocType, saveCompanyId);
+                        } catch (numErr) {
+                            console.error('Failed to assign permanent number:', numErr);
+                            // Non-fatal — document is still confirmed, just keeps draft number
+                        }
+
+                        // Determine the correct number field based on document type
+                        const numberFieldMap: Record<string, string> = {
+                            purchase_invoice: 'invoice_no',
+                            invoice: 'invoice_no',
+                            purchase_order: 'order_number',
+                            order: 'order_number',
+                            purchase_quotation: 'quotation_number',
+                            quotation: 'quotation_number',
+                            purchase_receipt: 'receipt_number',
+                            purchase_return: 'return_number',
+                            sales_return: 'return_number',
+                        };
+                        const numberField = numberFieldMap[serviceDocType] || 'invoice_no';
+
+                        setData((prev: any) => prev ? {
+                            ...prev,
+                            stage: 'confirmed',
+                            ...(permanentNumber ? { [numberField]: permanentNumber } : {}),
+                        } : prev);
+                        setHasChanges(false);
+                        invalidateTradeQueries(queryClient);
+                        toast.success(
+                            language === 'ar'
+                                ? `✅ تم تأكيد الفاتورة بنجاح${permanentNumber ? ` — الرقم: ${permanentNumber}` : ''}`
+                                : `✅ Invoice confirmed${permanentNumber ? ` — Number: ${permanentNumber}` : ''}`,
+                        );
+                        onRefresh?.();
+                    } catch (err: any) {
+                        console.error('SaveConfirm failed:', err);
+                        toast.error(language === 'ar' ? 'فشل في تأكيد الفاتورة' : 'Failed to confirm invoice', { description: err?.message });
+                    } finally {
+                        setLoading(false);
+                    }
+                    break;
+                }
+
+                // ═══ إلغاء التأكيد — إعادة الفاتورة من confirmed إلى draft ═══
+                case 'unconfirm': {
+                    if (!isTradeDocType) break;
+                    const unconfDocId = data?.id || documentId;
+                    if (!unconfDocId) break;
+
+                    // Check current stage — only allow unconfirm from 'confirmed'
+                    const currentStage = data?.stage;
+                    if (currentStage !== 'confirmed') {
+                        toast.error(
+                            language === 'ar'
+                                ? 'لا يمكن إلغاء التأكيد — الحالة الحالية ليست "مؤكد"'
+                                : 'Cannot unconfirm — current stage is not "confirmed"',
+                        );
+                        break;
+                    }
+
+                    // Safety: check if any receipt exists for this invoice
+                    const { data: existingReceipts } = await supabase
+                        .from('purchase_receipts')
+                        .select('id')
+                        .eq('invoice_id', unconfDocId)
+                        .limit(1);
+
+                    if (existingReceipts && existingReceipts.length > 0) {
+                        toast.error(
+                            language === 'ar'
+                                ? 'لا يمكن إلغاء التأكيد — يوجد استلام بضاعة مرتبط بهذه الفاتورة'
+                                : 'Cannot unconfirm — a goods receipt is linked to this invoice',
+                        );
+                        break;
+                    }
+
+                    const confirmUnconfirm = window.confirm(
+                        language === 'ar'
+                            ? 'هل تريد إعادة الفاتورة لحالة المسودة؟'
+                            : 'Return this invoice to draft?',
+                    );
+
+                    if (confirmUnconfirm) {
+                        setLoading(true);
+                        try {
+                            const unconfTableName = tradeMode === 'purchase' ? 'purchase_transactions' : 'sale_transactions';
+                            // Revert to DRAFT number
+                            const draftNumber = `DRAFT-${Date.now().toString().slice(-6)}`;
+                            const unconfModeKey = tradeMode || 'purchase';
+                            const unconfServiceDocType = TRADE_TYPE_MAP[unconfModeKey]?.[docType] || 'purchase_invoice';
+                            const unconfNumberFieldMap: Record<string, string> = {
+                                purchase_invoice: 'invoice_no',
+                                invoice: 'invoice_no',
+                                purchase_order: 'order_number',
+                                order: 'order_number',
+                                purchase_quotation: 'quotation_number',
+                                quotation: 'quotation_number',
+                            };
+                            const unconfNumberField = unconfNumberFieldMap[unconfServiceDocType] || 'invoice_no';
+
+                            const { error: unconfError } = await supabase
+                                .from(unconfTableName)
+                                .update({
+                                    stage: 'draft',
+                                    [unconfNumberField]: draftNumber,
+                                    updated_at: new Date().toISOString(),
+                                })
+                                .eq('id', unconfDocId);
+                            if (unconfError) throw unconfError;
+
+                            setData((prev: any) => prev ? { ...prev, stage: 'draft', [unconfNumberField]: draftNumber } : prev);
+                            setHasChanges(false);
+                            invalidateTradeQueries(queryClient);
+                            toast.success(
+                                language === 'ar'
+                                    ? '✅ تم إعادة الفاتورة لحالة المسودة'
+                                    : '✅ Invoice returned to draft',
+                            );
+                            onRefresh?.();
+                        } catch (err: any) {
+                            console.error('Unconfirm failed:', err);
+                            toast.error(
+                                language === 'ar' ? 'فشل في إلغاء التأكيد' : 'Failed to unconfirm',
+                                { description: err?.message },
+                            );
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                    break;
+                }
+
+                case 'post':
+                    if (onPost) {
+                        setLoading(true);
+                        await onPost();
+                        toast.success(t('messages.postedSuccessfully') || 'تم الترحيل بنجاح');
+                        if (documentId) onRefresh?.();
+                    } else if (isTradeDocType && isPostableDocType && (documentId || data?.id)) {
+                        let needConfirmation = true;
+                        if (companyId) {
+                            try {
+                                const { data: settingsJson } = await supabase.rpc('get_workflow_settings', { p_company_id: companyId });
+                                needConfirmation = settingsJson?.require_post_confirmation !== false;
+                            } catch { /* use default */ }
+                        }
+
+                        let shouldPost = true;
+                        if (needConfirmation) {
+                            shouldPost = window.confirm(
+                                language === 'ar'
+                                    ? 'هل تريد ترحيل هذا المستند؟ سيتم تثبيته ولن يمكن تعديله بسهولة.'
+                                    : 'Post this document? It will be finalized and harder to edit.'
+                            );
+                        }
+
+                        if (shouldPost) {
+                            setLoading(true);
+                            // Validate before posting
+                            if ((docType === 'trade_invoice' || docType === 'trade_order')) {
+                                const partyId = data?.party_id || data?.customer_id || data?.supplier_id;
+                                if (!partyId) {
+                                    setLoading(false);
+                                    toast.error(language === 'ar' ? 'خطأ كارثي: لا يوجد مورد محدد للفاتورة!' : 'Critical Error: Missing Supplier');
+                                    return;
+                                }
+                            }
+
+                            const modeKey = tradeMode || 'sales';
+                            const tableName = TRADE_POST_MAP[modeKey]?.[docType];
+                            const docId = documentId || data?.id;
+                            if (tableName && docId) {
+                                // Smart Posting for Purchase Invoices
+                                if (modeKey === 'purchase' && docType === 'trade_invoice') {
+                                    try {
+                                        const { data: { user } } = await supabase.auth.getUser();
+                                        if (user) {
+                                            const currentStage = data?.stage || 'confirmed';
+                                            const { purchaseAccountingService } = await import('@/services/purchaseAccountingService');
+                                            const result = await purchaseAccountingService.createPurchaseInvoiceJournalEntry(
+                                                docId,
+                                                user.id,
+                                                { fromStage: currentStage }
+                                            );
+
+                                            // Show success with posting source info
+                                            const sourceLabel = result.postingSource === 'receipt'
+                                                ? (language === 'ar' ? '(بالكميات المستلمة)' : '(from received quantities)')
+                                                : (language === 'ar' ? '(بقيم الفاتورة)' : '(from invoice amounts)');
+
+                                            toast.success(
+                                                language === 'ar'
+                                                    ? `✅ تم الترحيل وإنشاء القيد المحاسبي ${sourceLabel}`
+                                                    : `✅ Posted & Journal Entry Created ${sourceLabel}`
+                                            );
+
+                                            // Show variance warnings if any
+                                            if (result.warnings.length > 0) {
+                                                for (const warning of result.warnings) {
+                                                    toast.warning(warning, { duration: 8000 });
+                                                }
+                                            }
+
+                                            // Alert about significant variances
+                                            if (result.hasSignificantVariance) {
+                                                toast.warning(
+                                                    language === 'ar'
+                                                        ? `⚠️ فروقات كبيرة: ${result.variances.filter(v => !v.auto_accepted).length} أصناف تحتاج مراجعة`
+                                                        : `⚠️ Significant variances: ${result.variances.filter(v => !v.auto_accepted).length} items need review`,
+                                                    { duration: 10000 }
+                                                );
+                                            }
+                                        }
+                                    } catch (jeError: any) {
+                                        console.error('Smart Posting failed:', jeError);
+                                        toast.error(
+                                            language === 'ar'
+                                                ? '❌ فشل الترحيل: ' + jeError.message
+                                                : '❌ Posting failed: ' + jeError.message
+                                        );
+                                        // Don't proceed — posting failed entirely
+                                        setLoading(false);
+                                        return;
+                                    }
+                                } else {
+                                    // Non-purchase docs: standard posting
+                                    const isTransaction = tableName.includes('_transactions');
+                                    const { error } = await supabase.from(tableName)
+                                        .update(isTransaction ? { stage: 'posted' } : { status: 'posted' })
+                                        .eq('id', docId);
+                                    if (error) throw error;
+                                }
+
+                                setData((prev: any) => ({ ...prev, stage: 'posted', status: 'posted', is_posted: true }));
+                                invalidateTradeQueries(queryClient);
+                                toast.success(language === 'ar' ? '✅ تم ترحيل المستند بنجاح' : '✅ Document posted successfully');
+                                onRefresh?.();
+                            }
+                        }
+                    }
+                    break;
+
+                case 'unpost':
+                    if (onUnpost) {
+                        setLoading(true);
+                        await onUnpost();
+                        toast.success(language === 'ar' ? 'تم إلغاء الترحيل' : 'Document unposted');
+                        onRefresh?.();
+                    } else if (isTradeDocType && isPostableDocType && (documentId || data?.id)) {
+                        const confirmUnpost = window.confirm(
+                            language === 'ar'
+                                ? 'هل تريد إلغاء ترحيل هذا المستند؟ سيعود لحالة المسودة وسيلغى القيد المحاسبي.'
+                                : 'Unpost this document? It will return to draft and the journal entry will be cancelled.'
+                        );
+                        if (confirmUnpost) {
+                            setLoading(true);
+                            const docId = documentId || data?.id;
+
+                            // Special handling for Purchase Invoices
+                            if (tradeMode === 'purchase' && docType === 'trade_invoice') {
+                                try {
+                                    const { purchaseAccountingService } = await import('@/services/purchaseAccountingService');
+                                    await purchaseAccountingService.cancelPurchaseInvoiceJournalEntry(docId);
+                                    setData((prev: any) => ({ ...prev, status: 'draft', confirmation_status: 'draft', is_posted: false }));
+                                    invalidateTradeQueries(queryClient);
+                                    queryClient.invalidateQueries({ queryKey: ['purchase_payment_history'] });
+                                    toast.success(language === 'ar' ? '✅ تم إلغاء الترحيل والقيد المحاسبي' : '✅ Unposted and JE cancelled');
+                                    onRefresh?.();
+                                } catch (err: any) {
+                                    console.error('Unpost error:', err);
+                                    toast.error(err.message || 'Error unposting');
+                                }
+                                setLoading(false);
+                                break;
+                            }
+
+                            // Standard unpost
+                            const modeKey = tradeMode || 'sales';
+                            const tableName = TRADE_POST_MAP[modeKey]?.[docType];
+                            if (tableName && docId) {
+                                const isTransaction = tableName.includes('_transactions');
+                                const { error } = await supabase.from(tableName)
+                                    .update(isTransaction ? { stage: 'draft', is_posted: false, posted_at: null } : { status: 'draft', is_posted: false, posted_at: null })
+                                    .eq('id', docId);
+                                if (error) throw error;
+                                setData((prev: any) => ({ ...prev, status: 'draft', is_posted: false }));
+                                invalidateTradeQueries(queryClient);
+                                toast.success(language === 'ar' ? '✅ تم إلغاء الترحيل' : '✅ Document unposted');
+                                onRefresh?.();
+                            }
+                        }
+                    }
+                    break;
+
+                case 'duplicate':
+                    if (onDuplicate) {
+                        onDuplicate();
+                    } else if (isTradeDocType && data) {
+                        const duplicatedData = {
+                            ...data,
+                            id: undefined, document_number: undefined,
+                            order_number: undefined, invoice_number: undefined,
+                            quotation_number: undefined, delivery_number: undefined,
+                            return_number: undefined, reservation_number: undefined,
+                            status: 'draft', confirmation_status: undefined,
+                            confirmed_at: undefined, confirmed_by: undefined,
+                            delivery_note_id: undefined, approval_status: undefined,
+                            date: new Date().toISOString(),
+                            created_at: undefined, updated_at: undefined,
+                            type: data.type || data.subType,
+                            subType: data.subType || data.type,
+                        };
+                        setData(duplicatedData);
+                        handleModeChange('create');
+                        setHasChanges(true);
+                        toast.success(language === 'ar' ? '📋 تم نسخ المستند — عدّل ثم احفظ' : '📋 Document duplicated — edit and save');
+                    } else {
+                        toast.info(t('messages.featureComingSoon') || 'قريباً');
+                    }
+                    break;
+
+                case 'print':
+                    onPrint?.();
+                    break;
+
+                case 'refresh':
+                    onRefresh?.();
+                    break;
+
+                case 'convertToCustomer':
+                    if (data?.id) {
+                        const confirmed = window.confirm(
+                            language === 'ar' ? 'هل تريد تحويل جهة الاتصال إلى عميل؟' : 'Convert this contact to a customer?'
+                        );
+                        if (confirmed) {
+                            try {
+                                const { contactsService } = await import('@/services/contactsService');
+                                const result = await contactsService.convertToCustomer(data.id);
+                                if (result.success) {
+                                    toast.success(language === 'ar' ? 'تم التحويل بنجاح' : 'Converted successfully');
+                                    onRefresh?.();
+                                } else {
+                                    toast.error(result.message);
+                                }
+                            } catch (err: any) {
+                                toast.error(err.message);
+                            }
+                        }
+                    }
+                    break;
+
+                case 'export':
+                    toast.info(t('messages.featureComingSoon') || 'قريباً');
+                    break;
+
+                case 'confirm': {
+                    if (!companyId) {
+                        toast.error(language === 'ar' ? 'حدد الشركة أولاً' : 'Select company first');
+                        break;
+                    }
+
+                    const confDocType = resolveConfDocType(docType, tradeMode);
+
+                    // Purchase: Direct confirmation
+                    if (tradeMode === 'purchase') {
+                        setLoading(true);
+                        try {
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (!user) {
+                                toast.error(language === 'ar' ? 'لم يتم التعرف على المستخدم' : 'User not found');
+                                break;
+                            }
+                            const purchaseSettings = await confirmationService.getWorkflowSettings(companyId);
+                            const result = await confirmationService.confirmDocument(
+                                confDocType, documentId || data?.id || '', data,
+                                data?.tenant_id || '', companyId, user.id, purchaseSettings
+                            );
+                            if (result.success) {
+                                toast.success(language === 'ar' ? result.message_ar : result.message_en);
+                                setData((prev: any) => ({ ...prev, confirmation_status: 'confirmed', status: 'confirmed' }));
+                                onRefresh?.();
+                            } else {
+                                toast.error(language === 'ar' ? result.message_ar : result.message_en);
+                            }
+                        } catch (err: any) {
+                            toast.error(err.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                        break;
+                    }
+
+                    // Sales: Show confirmation dialog
+                    setLoading(true);
+                    try {
+                        const salesSettings = await confirmationService.getWorkflowSettings(companyId);
+                        setConfirmSettings(salesSettings);
+                        const needsApproval = confirmationService.isApprovalRequired(confDocType, salesSettings, data);
+                        setConfirmNeedsApproval(needsApproval);
+                        const validation = await confirmationService.validateForConfirmation(
+                            confDocType, documentId || data?.id || '', data, salesSettings
+                        );
+                        setConfirmValidation(validation);
+                        setConfirmDialogOpen(true);
+                    } catch (err: any) {
+                        toast.error(err.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                    break;
+                }
+
+                case 'cancel':
+                    if (mode === 'create') {
+                        onClose();
+                    } else {
+                        setData(initialData);
+                        setHasChanges(false);
+                        handleModeChange('view');
+                    }
+                    break;
+
+                default:
+                    console.log('Unknown action:', actionId);
+            }
+        } catch (error: any) {
+            console.error('Action error:', error);
+            toast.error(error.message || t('messages.error') || 'حدث خطأ');
+        } finally {
+            setLoading(false);
+        }
+    }, [
+        data, onSave, onDelete, onPost, onUnpost, onDuplicate, onPrint, onRefresh, onClose,
+        documentId, handleModeChange, handleAccountingSave, handleTradeSave,
+        isAccountingDocType, isTradeDocType,
+        isPostableDocType, mode, t, companyId, language, tradeMode, docType, queryClient,
+        enableEditFlow, onEditPermissionDenied, onAdjustmentRequired,
+        initialData, hasChanges, setData, setMode, setLoading, setHasChanges,
+        setConfirmDialogOpen, setConfirmValidation, setConfirmSettings, setConfirmNeedsApproval,
+    ]);
+}

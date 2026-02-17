@@ -10,14 +10,31 @@ import {
     SelectValue
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { CalendarIcon, Users, Building, Hash, Layers, UserCircle2, Coins, ArrowRightLeft, CalendarClock } from 'lucide-react';
+import { CalendarIcon, Users, Building, Hash, Layers, UserCircle2, Coins, ArrowRightLeft, CalendarClock, Globe2, Truck, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { CURRENCY_META } from '@/hooks/useCompanyCurrency';
+
+/** Inline help tooltip component */
+const HelpTip: React.FC<{ ar: string; en: string; isAr: boolean }> = ({ ar: arText, en: enText, isAr }) => (
+    <TooltipProvider delayDuration={100}>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button type="button" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200/80 dark:bg-gray-700 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors ms-1" tabIndex={-1}>
+                    <HelpCircle className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+                <p>{isAr ? arText : enText}</p>
+            </TooltipContent>
+        </Tooltip>
+    </TooltipProvider>
+);
 
 interface TradeHeaderProps {
     data: any; // Flexible — handles both TradeDocument and raw Supabase data
@@ -31,6 +48,8 @@ interface TradeHeaderProps {
     baseCurrency?: string;
     /** Exchange rate lookup function */
     onCurrencyChange?: (currency: string, exchangeRate: number) => void;
+    /** Document view mode — when 'view', all fields are readonly */
+    viewMode?: 'view' | 'edit' | 'create';
 }
 
 export const TradeHeader: React.FC<TradeHeaderProps> = ({
@@ -42,7 +61,9 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
     salespersonList = [],
     baseCurrency = '',
     onCurrencyChange,
+    viewMode = 'edit',
 }) => {
+    const isReadOnly = viewMode === 'view';
     const { language, direction } = useLanguage();
     const isAr = language === 'ar';
     const isCreate = !data.id; // Check if creating new document
@@ -70,6 +91,36 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
             singleId: ids.size === 1 ? Array.from(ids)[0] : undefined,
         };
     }, [data.items]);
+
+    // ─── Smart currency resolution for receipt mode ───
+    const resolveInternationalCurrency = useMemo(() => {
+        const available = Object.keys(CURRENCY_META);
+        if (available.includes('USD')) return 'USD';
+        if (available.includes('EUR')) return 'EUR';
+        return baseCurrency || 'USD';
+    }, [baseCurrency]);
+
+    const handleReceiptModeChange = (newMode: 'direct' | 'international') => {
+        // Guard: prevent changing from international to direct if linked to a shipment
+        if (newMode === 'direct' && data.shipment_id) {
+            // Cannot switch to local if already linked to a container/shipment
+            return;
+        }
+
+        onChange('receipt_mode', newMode);
+
+        // Auto-set currency based on receipt mode
+        const targetCurrency = newMode === 'international'
+            ? resolveInternationalCurrency
+            : (baseCurrency || data.currency);
+
+        if (targetCurrency && targetCurrency !== data.currency) {
+            onChange('currency', targetCurrency);
+            if (onCurrencyChange) {
+                onCurrencyChange(targetCurrency, 1);
+            }
+        }
+    };
 
     const partyLabel = mode === 'purchase' ? (isAr ? 'المورد' : 'Supplier') : (isAr ? 'العميل' : 'Customer');
     const refLabel = isAr ? 'الرقم المرجعي' : 'Reference #';
@@ -105,8 +156,9 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                     <Select
                         value={currentPartyId}
                         onValueChange={handlePartyChange}
+                        disabled={isReadOnly}
                     >
-                        <SelectTrigger className="h-10 bg-white dark:bg-gray-800 text-start">
+                        <SelectTrigger className={cn("h-10 bg-white dark:bg-gray-800 text-start", isReadOnly && "opacity-70 cursor-default")}>
                             <SelectValue placeholder={isAr ? `اختر ${partyLabel}...` : `Select ${partyLabel}...`} />
                         </SelectTrigger>
                         <SelectContent align={isAr ? "end" : "start"}>
@@ -124,6 +176,13 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                     <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
                         <Building className="w-3.5 h-3.5" />
                         {warehouseLabel}
+                        {mode === 'purchase' && (
+                            <HelpTip
+                                isAr={isAr}
+                                ar="المستودع الذي ستُستلم فيه البضائع. في المشتريات المحلية، يُحدد أمين المستودع المسؤول عن الاستلام"
+                                en="The warehouse where goods will be received. For direct purchases, this determines which warehouse keeper handles the receipt"
+                            />
+                        )}
                     </Label>
                     {warehouseInfo.isMulti ? (
                         /* Multi-warehouse indicator */
@@ -137,8 +196,9 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                         <Select
                             value={currentWarehouseId}
                             onValueChange={(val) => onChange('warehouse_id', val)}
+                            disabled={isReadOnly}
                         >
-                            <SelectTrigger className="h-10 bg-white dark:bg-gray-800 text-start">
+                            <SelectTrigger className={cn("h-10 bg-white dark:bg-gray-800 text-start", isReadOnly && "opacity-70 cursor-default")}>
                                 <SelectValue placeholder={isAr ? 'اختر المستودع...' : 'Select Warehouse...'} />
                             </SelectTrigger>
                             <SelectContent align={isAr ? "end" : "start"}>
@@ -162,9 +222,11 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                         <PopoverTrigger asChild>
                             <Button
                                 variant={"outline"}
+                                disabled={isReadOnly}
                                 className={cn(
                                     "w-full h-10 justify-start text-left font-normal bg-white dark:bg-gray-800",
-                                    !data.date && "text-muted-foreground"
+                                    !data.date && "text-muted-foreground",
+                                    isReadOnly && "opacity-70 cursor-default"
                                 )}
                             >
                                 <CalendarIcon className={cn("mr-2 h-4 w-4", isAr && "ml-2 mr-0")} />
@@ -192,8 +254,9 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                         <Select
                             value={data.salesperson_id || ''}
                             onValueChange={(val) => onChange('salesperson_id', val)}
+                            disabled={isReadOnly}
                         >
-                            <SelectTrigger className="h-10 bg-white dark:bg-gray-800 text-start">
+                            <SelectTrigger className={cn("h-10 bg-white dark:bg-gray-800 text-start", isReadOnly && "opacity-70 cursor-default")}>
                                 <SelectValue placeholder={isAr ? 'اختر المندوب...' : 'Select Salesperson...'} />
                             </SelectTrigger>
                             <SelectContent align={isAr ? 'end' : 'start'}>
@@ -216,24 +279,30 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                     <Input
                         value={data.reference_number || ''}
                         onChange={(e) => onChange('reference_number', e.target.value)}
-                        className="h-10 font-mono bg-white dark:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+                        className={cn("h-10 font-mono bg-white dark:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400", isReadOnly && "opacity-70")}
                         placeholder={isCreate ? "AUTO-GEN" : ""}
-                        disabled={isCreate}
+                        disabled={isCreate || isReadOnly}
+                        readOnly={isReadOnly}
                         dir="ltr"
                     />
                 </div>
 
             </CardContent>
 
-            {/* ═══ Row 2: Currency + Exchange Rate + Due Date ═══ */}
+            {/* ═══ Row 2: Currency + Exchange Rate + Due Date + Receipt Mode (purchase only) ═══ */}
             <CardContent className="px-4 pb-4 pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div className={cn("grid grid-cols-1 gap-4 items-end", mode === 'purchase' ? 'md:grid-cols-4' : 'md:grid-cols-3')}>
 
                     {/* Currency Selector */}
                     <div className="space-y-2">
                         <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
                             <Coins className="w-3.5 h-3.5" />
                             {isAr ? 'العملة' : 'Currency'}
+                            <HelpTip
+                                isAr={isAr}
+                                ar="عملة الفاتورة. إذا كانت مختلفة عن العملة الأساسية للشركة، سيتم تفعيل سعر الصرف تلقائياً"
+                                en="Invoice currency. If different from company base currency, exchange rate will be enabled automatically"
+                            />
                         </Label>
                         <Select
                             value={data.currency || baseCurrency || ''}
@@ -244,6 +313,7 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                                     onCurrencyChange(val, 1);
                                 }
                             }}
+                            disabled={isReadOnly}
                         >
                             <SelectTrigger className="h-10 bg-white dark:bg-gray-800 text-start">
                                 <SelectValue placeholder={isAr ? 'اختر العملة...' : 'Select currency...'} />
@@ -268,6 +338,11 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                         <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
                             <ArrowRightLeft className="w-3.5 h-3.5" />
                             {isAr ? 'سعر الصرف' : 'Exchange Rate'}
+                            <HelpTip
+                                isAr={isAr}
+                                ar="سعر صرف عملة الفاتورة مقابل العملة الأساسية للشركة. يُستخدم لحساب المبالغ في التقارير المحاسبية"
+                                en="Exchange rate of invoice currency against company base currency. Used for accounting report calculations"
+                            />
                             {data.currency && baseCurrency && data.currency !== baseCurrency && (
                                 <span className="text-[9px] font-normal text-gray-400 ms-1">
                                     1 {data.currency} = ? {baseCurrency}
@@ -282,9 +357,10 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                             onChange={(e) => onChange('exchange_rate', parseFloat(e.target.value) || 1)}
                             className={cn(
                                 "h-10 font-mono bg-white dark:bg-gray-800",
-                                (!data.currency || data.currency === baseCurrency) && "opacity-50"
+                                (!data.currency || data.currency === baseCurrency || isReadOnly) && "opacity-50"
                             )}
-                            disabled={!data.currency || data.currency === baseCurrency}
+                            disabled={!data.currency || data.currency === baseCurrency || isReadOnly}
+                            readOnly={isReadOnly}
                             dir="ltr"
                         />
                     </div>
@@ -294,14 +370,21 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                         <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
                             <CalendarClock className="w-3.5 h-3.5" />
                             {isAr ? 'تاريخ الاستحقاق' : 'Due Date'}
+                            <HelpTip
+                                isAr={isAr}
+                                ar="تاريخ استحقاق الدفع. يُحسب تلقائياً من شروط الدفع إن وُجدت، أو يُحدد يدوياً"
+                                en="Payment due date. Automatically calculated from payment terms if set, or can be set manually"
+                            />
                         </Label>
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button
                                     variant={"outline"}
+                                    disabled={isReadOnly}
                                     className={cn(
                                         "w-full h-10 justify-start text-left font-normal bg-white dark:bg-gray-800",
-                                        !data.due_date && "text-muted-foreground"
+                                        !data.due_date && "text-muted-foreground",
+                                        isReadOnly && "opacity-70 cursor-default"
                                     )}
                                 >
                                     <CalendarClock className={cn("mr-2 h-4 w-4 text-orange-500", isAr && "ml-2 mr-0")} />
@@ -322,8 +405,58 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                         </Popover>
                     </div>
 
+                    {/* Receipt Mode Toggle (Purchase only) */}
+                    {mode === 'purchase' && (
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                                <Globe2 className="w-3.5 h-3.5" />
+                                {isAr ? 'نوع الشراء' : 'Purchase Type'}
+                                <HelpTip
+                                    isAr={isAr}
+                                    ar="محلي: مشتريات داخلية تظهر لأمين المستودع للاستلام المباشر. دولي: مشتريات خارجية تُضاف إلى كونتينر شحن وتُستلم عند وصوله"
+                                    en="Direct: Local purchases visible to warehouse keeper for immediate receipt. International: Imports added to shipping containers and received upon arrival"
+                                />
+                            </Label>
+                            <div className={cn(
+                                "h-10 flex items-center rounded-md border overflow-hidden",
+                                isReadOnly && "opacity-70"
+                            )}>
+                                <button
+                                    type="button"
+                                    disabled={isReadOnly || (data.receipt_mode === 'international' && data.shipment_id)}
+                                    onClick={() => handleReceiptModeChange('direct')}
+                                    className={cn(
+                                        "flex-1 h-full flex items-center justify-center gap-1.5 text-xs font-medium transition-all",
+                                        (data.receipt_mode || 'direct') === 'direct'
+                                            ? "bg-emerald-500 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-50",
+                                        (data.receipt_mode === 'international' && data.shipment_id) && "opacity-40 cursor-not-allowed"
+                                    )}
+                                    title={data.shipment_id ? (isAr ? 'مرتبطة بكونتينر - لا يمكن التبديل' : 'Linked to container - cannot switch') : ''}
+                                >
+                                    <Truck className="w-3.5 h-3.5" />
+                                    {isAr ? 'محلي' : 'Direct'}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isReadOnly}
+                                    onClick={() => handleReceiptModeChange('international')}
+                                    className={cn(
+                                        "flex-1 h-full flex items-center justify-center gap-1.5 text-xs font-medium transition-all",
+                                        data.receipt_mode === 'international'
+                                            ? "bg-blue-500 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-50"
+                                    )}
+                                >
+                                    <Globe2 className="w-3.5 h-3.5" />
+                                    {isAr ? 'دولي' : 'International'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                 </div>
             </CardContent>
-        </Card>
+        </Card >
     );
 };

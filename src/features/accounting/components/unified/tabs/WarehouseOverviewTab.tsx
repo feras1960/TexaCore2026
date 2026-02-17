@@ -2,7 +2,9 @@
  * Warehouse Overview Tab - تبويب نظرة عامة على المستودع
  */
 
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -17,10 +19,12 @@ import {
     Package,
     AlertTriangle,
     Database,
-    Shield
+    Shield,
+    GitBranch
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDate } from '../utils/formatters';
+import { branchesService, Branch } from '@/services/branchesService';
 
 interface WarehouseOverviewTabProps {
     data: any;
@@ -30,14 +34,27 @@ interface WarehouseOverviewTabProps {
 
 export function WarehouseOverviewTab({ data, mode = 'view', onChange }: WarehouseOverviewTabProps) {
     const { t, language } = useLanguage();
+    const { companyId } = useCompany();
     const isAr = language === 'ar';
     const isEditing = mode === 'edit' || mode === 'create';
+
+    // Load branches for selector
+    const [branches, setBranches] = useState<Branch[]>([]);
+    useEffect(() => {
+        if (companyId) {
+            branchesService.getBranches(companyId)
+                .then(setBranches)
+                .catch(() => setBranches([]));
+        }
+    }, [companyId]);
 
     if (!data && !isEditing) return null;
 
     const handleChange = (field: string, value: any) => {
         onChange?.({ [field]: value });
     };
+
+    const currentBranch = branches.find(b => b.id === data?.branch_id);
 
     return (
         <div className="space-y-6">
@@ -97,6 +114,48 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                     <Badge variant="outline">
                                         {t(`warehouse.types.${data?.warehouse_type}`) || data?.warehouse_type}
                                     </Badge>
+                                }
+                            />
+                        )}
+
+                        {/* Branch Selector */}
+                        {isEditing ? (
+                            <div className="space-y-1">
+                                <Label className="text-xs text-gray-500 flex items-center gap-1">
+                                    <GitBranch className="w-3 h-3" />
+                                    {isAr ? 'الفرع' : 'Branch'}
+                                </Label>
+                                <Select
+                                    value={data?.branch_id || '_none'}
+                                    onValueChange={(v) => handleChange('branch_id', v === '_none' ? null : v)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isAr ? 'اختر الفرع' : 'Select branch'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="_none">{isAr ? '— بدون فرع —' : '— No branch —'}</SelectItem>
+                                        {branches.map(b => (
+                                            <SelectItem key={b.id} value={b.id}>
+                                                {isAr ? b.name : (b.name_en || b.name)}
+                                                {b.is_main ? ` ⭐` : ''}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : (
+                            <InfoRow
+                                label={isAr ? 'الفرع' : 'Branch'}
+                                value={
+                                    currentBranch ? (
+                                        <Badge variant="outline" className="text-xs gap-1">
+                                            <GitBranch className="w-3 h-3" />
+                                            {isAr ? currentBranch.name : (currentBranch.name_en || currentBranch.name)}
+                                            {currentBranch.is_main && ' ⭐'}
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-gray-400">{isAr ? 'غير محدد' : 'Not assigned'}</span>
+                                    )
                                 }
                             />
                         )}

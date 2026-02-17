@@ -200,6 +200,7 @@ export default function WarehouseListPage() {
                 capacity: data.capacity,
                 allows_negative_stock: data.allows_negative_stock,
                 is_main: data.is_main,
+                branch_id: data.branch_id || null,
             };
 
             // Remove undefined
@@ -209,7 +210,6 @@ export default function WarehouseListPage() {
                 await warehouseService.create({
                     tenant_id: tenantId,
                     company_id: companyId,
-                    branch_id: defaultBranchId || undefined,
                     ...coreData
                 } as any);
             } else if (selectedWarehouse) {

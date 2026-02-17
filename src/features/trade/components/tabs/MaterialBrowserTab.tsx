@@ -21,17 +21,19 @@ import {
     type MaterialWarehouseStock,
     type MaterialRollDetail,
 } from '@/features/trade/hooks/useMaterialSearch';
+import { useBrowserFilterData } from '@/features/trade/hooks/useBrowserFilterData';
 import { QuantityPricingCard } from '@/features/trade/components/cards/QuantityPricingCard';
 import { AddToCartDialog, type RollOption } from '@/components/cart/AddToCartDialog';
 import type { CustomerPricingProfile, PriceListItem, ResolvedPrice } from '@/hooks/useCustomerPricing';
 import type { PreferredRoll } from '@/contexts/CartContext';
+import { useTaxDefaults, computeTaxAmount, resolveItemTaxRate } from '@/features/trade/hooks/useTaxDefaults';
+import { useCompany } from '@/hooks/useCompany';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -42,7 +44,6 @@ import {
     Warehouse,
     AlertTriangle,
     Loader2,
-    Filter,
     X,
     ChevronDown,
     ChevronUp,
@@ -52,6 +53,7 @@ import {
     RefreshCw,
     Check,
     ShoppingCart,
+    RotateCcw,
 } from 'lucide-react';
 import type { InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
 
@@ -106,13 +108,21 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const isRTL = direction === 'rtl';
     const t = (ar: string, en: string) => language === 'ar' ? ar : en;
 
+    // ─── Company & Tax Defaults ───
+    const { companyId } = useCompany();
+    const { data: taxDefaults } = useTaxDefaults(companyId);
+    const companyTaxRate = taxDefaults?.isEnabled ? taxDefaults.rate : 0;
+    const companyTaxEnabled = taxDefaults?.isEnabled ?? false;
+
     // ─── State ──────────────────────────────────────────────────
     const [searchText, setSearchText] = useState('');
     const [selectedGroup, setSelectedGroup] = useState<string>('all');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
+    const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
     const [inStockOnly, setInStockOnly] = useState(false);
+    const [belowMinStock, setBelowMinStock] = useState(false);
     const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
-    const [showFilters, setShowFilters] = useState(false);
 
     // Warehouse breakdown state
     const [warehouseStockCache, setWarehouseStockCache] = useState<Record<string, MaterialWarehouseStock[]>>({});
@@ -136,7 +146,13 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
             groupId: selectedGroup,
             category: selectedCategory,
             inStockOnly,
+            belowMinStock,
+            supplierId: selectedSupplier,
+            warehouseId: selectedWarehouse,
         });
+
+    // Filter dropdown data
+    const { suppliers, warehouses: warehousesList } = useBrowserFilterData();
 
     // Track which materials are already in cart (by material_id + warehouse_id)
     const cartItemKeys = useMemo(() => {
@@ -270,7 +286,13 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
 
         const discountAmount = (discount / 100) * item.quantity * item.unit_price;
         const subtotal = item.quantity * item.unit_price;
-        const total = subtotal - discountAmount;
+        const netAfterDiscount = subtotal - discountAmount;
+
+        // 🔑 القاعدة الذهبية: ضريبة المادة → ضريبة الشركة → 0%
+        // البحث عن tax_rate المادة من المواد المحملة
+        const materialData = materials.find(m => m.id === item.material_id);
+        const resolved = resolveItemTaxRate(materialData?.tax_rate, companyTaxRate, companyTaxEnabled);
+        const taxAmt = computeTaxAmount(netAfterDiscount, resolved.rate);
 
         const newItem: InvoiceLineItem = {
             id: generateLineItemId(),
@@ -284,9 +306,9 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
             discount_percent: discount,
             discount_amount: discountAmount,
             subtotal,
-            tax_rate: 0,
-            tax_amount: 0,
-            total,
+            tax_rate: resolved.rate,
+            tax_amount: taxAmt,
+            total: netAfterDiscount + taxAmt,
             currency: item.currency,
             warehouse_id: item.warehouse_id,
             warehouse_name_ar: item.warehouse_name_ar,
@@ -326,10 +348,25 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         setSearchText('');
         setSelectedGroup('all');
         setSelectedCategory('all');
+        setSelectedSupplier('all');
+        setSelectedWarehouse('all');
         setInStockOnly(false);
+        setBelowMinStock(false);
     }, []);
 
-    const hasActiveFilters = searchText || selectedGroup !== 'all' || selectedCategory !== 'all' || inStockOnly;
+    const hasActiveFilters = searchText || selectedGroup !== 'all' || selectedCategory !== 'all'
+        || selectedSupplier !== 'all' || selectedWarehouse !== 'all'
+        || inStockOnly || belowMinStock;
+
+    const activeFilterCount = [
+        selectedGroup !== 'all',
+        selectedCategory !== 'all',
+        selectedSupplier !== 'all',
+        selectedWarehouse !== 'all',
+        inStockOnly,
+        belowMinStock,
+        !!searchText,
+    ].filter(Boolean).length;
 
     // Roll status label
     const getRollStatusLabel = (status: string) => {
@@ -342,10 +379,10 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         return map[status] || map.available;
     };
 
-    // ─── Render ─────────────────────────────────────────────────
+    // ─── Render ─────────────────────────────────────────────
 
     return (
-        <div className="space-y-3" dir={direction}>
+        <div className="space-y-2" dir={direction}>
             {/* ═══ Search Bar ═══ */}
             <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -361,96 +398,155 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                     )}
                 </div>
 
-                <Button
-                    variant={showFilters ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="h-9 gap-1"
-                >
-                    <Filter className="w-3.5 h-3.5" />
-                    {showFilters ? t('إخفاء', 'Hide') : t('فلاتر', 'Filters')}
-                </Button>
-
-                {hasActiveFilters && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearFilters}
-                        className="h-9 text-red-500 hover:text-red-600"
-                    >
-                        <X className="w-3.5 h-3.5" />
-                    </Button>
-                )}
+                {/* Results count */}
+                <Badge variant="outline" className="text-xs h-9 px-3 flex items-center gap-1 shrink-0">
+                    <Package className="w-3 h-3" />
+                    {totalCount} {t('مادة', 'materials')}
+                </Badge>
             </div>
 
-            {/* ═══ Filters Panel ═══ */}
-            {showFilters && (
-                <Card className="bg-gray-50 dark:bg-gray-800/50 border-dashed">
-                    <CardContent className="p-3">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {/* Group filter */}
-                            <div>
-                                <Label className="text-xs text-gray-500 mb-1 block">
-                                    {t('المجموعة', 'Group')}
-                                </Label>
-                                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                                    <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">{t('الكل', 'All')}</SelectItem>
-                                        {groups.map((g: any) => (
-                                            <SelectItem key={g.id} value={g.id}>
-                                                {g.icon} {isRTL ? g.name_ar : (g.name_en || g.name_ar)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+            {/* ═══ Filters Panel — Always Visible ═══ */}
+            <Card className="bg-gray-50/80 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700">
+                <CardContent className="p-2.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                        {/* Group filter */}
+                        <div>
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('المجموعة', 'Group')}
+                            </Label>
+                            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedGroup !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">{t('كل المجموعات', 'All Groups')}</SelectItem>
+                                    {groups.map((g: any) => (
+                                        <SelectItem key={g.id} value={g.id}>
+                                            {g.icon} {isRTL ? g.name_ar : (g.name_en || g.name_ar)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                            {/* Category filter */}
-                            <div>
-                                <Label className="text-xs text-gray-500 mb-1 block">
-                                    {t('النوع', 'Category')}
-                                </Label>
-                                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                                    <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {CATEGORY_OPTIONS.map(opt => (
-                                            <SelectItem key={opt.value} value={opt.value}>
-                                                {isRTL ? opt.labelAr : opt.labelEn}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                        {/* Category filter */}
+                        <div>
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('النوع', 'Category')}
+                            </Label>
+                            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedCategory !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CATEGORY_OPTIONS.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                            {isRTL ? opt.labelAr : opt.labelEn}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                            {/* In stock toggle */}
-                            <div className="flex items-end gap-2 col-span-2 md:col-span-1">
-                                <div className="flex items-center gap-2">
-                                    <Switch
-                                        id="in-stock-only"
-                                        checked={inStockOnly}
-                                        onCheckedChange={setInStockOnly}
-                                    />
-                                    <Label htmlFor="in-stock-only" className="text-xs">
-                                        {t('متوفر فقط', 'In stock only')}
-                                    </Label>
-                                </div>
-                            </div>
+                        {/* Supplier filter */}
+                        <div>
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('المورد', 'Supplier')}
+                            </Label>
+                            <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedSupplier !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">{t('كل الموردين', 'All Suppliers')}</SelectItem>
+                                    {suppliers.map(s => (
+                                        <SelectItem key={s.id} value={s.id}>
+                                            {isRTL ? s.name_ar : (s.name_en || s.name_ar)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                            {/* Result count */}
-                            <div className="flex items-end">
-                                <Badge variant="outline" className="text-xs">
-                                    {totalCount} {t('مادة', 'materials')}
-                                </Badge>
+                        {/* Warehouse filter */}
+                        <div>
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('المستودع', 'Warehouse')}
+                            </Label>
+                            <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedWarehouse !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">{t('كل المستودعات', 'All Warehouses')}</SelectItem>
+                                    {warehousesList.map(w => (
+                                        <SelectItem key={w.id} value={w.id}>
+                                            <span className="flex items-center gap-1.5">
+                                                <Warehouse className="w-3 h-3 text-gray-400" />
+                                                {isRTL ? w.name_ar : (w.name_en || w.name_ar)}
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Quick Toggle Buttons */}
+                        <div className="flex flex-col gap-1">
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('فلاتر سريعة', 'Quick Filters')}
+                            </Label>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant={inStockOnly ? 'default' : 'outline'}
+                                    size="sm"
+                                    className={cn(
+                                        'h-7 text-[10px] px-2 gap-1',
+                                        inStockOnly && 'bg-green-600 hover:bg-green-700 text-white',
+                                    )}
+                                    onClick={() => setInStockOnly(!inStockOnly)}
+                                >
+                                    <Package className="w-3 h-3" />
+                                    {t('متوفر', 'In Stock')}
+                                </Button>
+
+                                <Button
+                                    variant={belowMinStock ? 'default' : 'outline'}
+                                    size="sm"
+                                    className={cn(
+                                        'h-7 text-[10px] px-2 gap-1',
+                                        belowMinStock && 'bg-red-600 hover:bg-red-700 text-white',
+                                    )}
+                                    onClick={() => setBelowMinStock(!belowMinStock)}
+                                >
+                                    <AlertTriangle className="w-3 h-3" />
+                                    {t('حد أدنى', 'Min Stock')}
+                                </Button>
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                    </div>
+
+                    {/* Active filters summary + Clear */}
+                    {hasActiveFilters && (
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-1.5">
+                                <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    {activeFilterCount} {t('فلتر نشط', 'active filters')}
+                                </Badge>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={clearFilters}
+                                className="h-6 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1 px-2"
+                            >
+                                <RotateCcw className="w-3 h-3" />
+                                {t('إزالة كل الفلاتر', 'Clear All Filters')}
+                            </Button>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* ═══ Results ═══ */}
             {isLoading ? (

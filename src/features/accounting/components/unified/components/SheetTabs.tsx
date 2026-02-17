@@ -32,6 +32,15 @@ import {
     Truck,
     Search,
     LayoutList,
+    ScanLine,
+    ArrowDownToLine,
+    Warehouse,
+    Bot,
+    Anchor,
+    Building2,
+    FolderTree,
+    FolderPlus,
+    CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TabConfig, SheetMode } from '../types';
@@ -63,6 +72,17 @@ const tabIconMap: Record<string, any> = {
     Truck,
     Search,
     LayoutList,
+    // Goods Receipt & Warehouse
+    ScanLine,
+    ArrowDownToLine,
+    Warehouse,
+    // Trade & CRM
+    Bot,
+    Anchor,
+    Building2,
+    FolderTree,
+    FolderPlus,
+    CheckCircle2,
 };
 
 interface SheetTabsProps {

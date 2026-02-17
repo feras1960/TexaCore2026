@@ -59,7 +59,10 @@
       "supplierInfo": "Supplier",
       "warehouseReceiving": "Receiving",
       "paymentAndExpenses": "Payment & Expenses",
-      "shipmentItems": "Container Items"
+      "shipmentItems": "Container Items",
+      "receiptSummary": "Receipt Summary",
+      "supplierFinance": "Supplier & Finance",
+      "stageHistory": "History"
     },
     "total": "Total",
     "shipping": {
@@ -2446,6 +2449,7 @@
       "title": "Containers Management",
       "subtitle": "Track and manage import shipments",
       "contents": "Container Contents",
+      "info": "Container Info",
       "expenses": "Shipment Expenses"
     },
     "order": {
@@ -3560,6 +3564,36 @@
       "samples": "Samples",
       "settings": "Settings"
     },
+    "stockMovements": {
+      "pendingReceipts": "Pending Receipts",
+      "allMovements": "All Movements",
+      "confirmReceipt": "Confirm Receipt",
+      "date": "Date",
+      "type": "Type",
+      "material": "Material",
+      "quantity": "Quantity",
+      "fromWarehouse": "From",
+      "toWarehouse": "To",
+      "reference": "Reference",
+      "status": "Status",
+      "noMovements": "No stock movements found",
+      "types": {
+        "receipt": "Receipt",
+        "sale": "Sale",
+        "transfer_in": "Transfer In",
+        "transfer_out": "Transfer Out",
+        "container": "Container",
+        "delivery": "Delivery",
+        "adjustment": "Adjustment"
+      },
+      "statuses": {
+        "ready": "Ready to Receive",
+        "shipped": "Shipped",
+        "completed": "Completed",
+        "pending": "Pending",
+        "cancelled": "Cancelled"
+      }
+    },
     "searchPlaceholder": "Search by name or code...",
     "addWarehouse": "Add Warehouse",
     "add": "Add Warehouse",
@@ -3624,7 +3658,54 @@
       }
     },
     "details": "Warehouse Details",
-    "manageWarehouse": "Manage warehouse data and contents"
+    "manageWarehouse": "Manage warehouse data and contents",
+    "goodsReceipt": {
+      "title": "Goods Receipt",
+      "subtitle": "Receive and register incoming materials",
+      "receiveButton": "Receive Materials",
+      "tabs": {
+        "items": "Receipt Items",
+        "summary": "Receipt Summary",
+        "details": "Details",
+        "attachments": "Attachments",
+        "activity": "Activity Log"
+      },
+      "stats": {
+        "rolls": "Rolls",
+        "totalLength": "Total Length",
+        "synced": "Synced",
+        "pending": "Pending"
+      },
+      "type": {
+        "label": "Type",
+        "purchase": "Purchase Invoice",
+        "purchase_local": "Local Purchase",
+        "container": "Container",
+        "transfer": "Transfer",
+        "return": "Return"
+      },
+      "warehouse": "Warehouse",
+      "selectWarehouse": "Select warehouse",
+      "autoSaveEnabled": "Auto-save enabled — each item saves instantly",
+      "scanBarcode": "Scan barcode or enter number...",
+      "manualEntry": "Or manual entry",
+      "material": "Material",
+      "selectMaterial": "Select material",
+      "color": "Color",
+      "length": "Length (m)",
+      "addItem": "Add",
+      "receivedItems": "Received Items",
+      "noItemsYet": "No items added yet",
+      "noItemsHint": "Select material, color, and length then press +",
+      "rollNumber": "Roll",
+      "syncStatus": {
+        "pending": "Syncing",
+        "synced": "Synced",
+        "error": "Sync failed"
+      },
+      "connected": "Connected",
+      "offline": "Offline"
+    }
   },
   "shipments": {
     "title": "Shipment Management",
@@ -3687,7 +3768,8 @@
       "users": "Users",
       "resources": "Resources",
       "visibility": "Visibility",
-      "modules": "Modules"
+      "modules": "Modules",
+      "branches": "Branches"
     }
   }
 }

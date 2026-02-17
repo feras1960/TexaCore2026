@@ -10,12 +10,14 @@
  * ✅ Constitution: Law 2 (services), Law 1 (translations)
  */
 
-import React, { useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { TradeHeader } from '@/features/trade/components/forms/TradeHeader';
 import { CartItemsView, type InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
 import { TradeDocument } from '@/features/trade/types';
 import { ContainerInvoiceSelector } from '@/features/trade/components/ContainerInvoiceSelector';
+import { ContainerMainTab } from './ContainerMainTab';
+import { ContainerInfoCard } from '@/features/trade/components/shared/ContainerInfoCard';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useCompany } from '@/hooks/useCompany';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
@@ -27,9 +29,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     StickyNote, AlertTriangle, CreditCard, Percent,
-    CalendarClock, Tag, Loader2, ShieldAlert, CheckCircle2
+    CalendarClock, Tag, Loader2, ShieldAlert, CheckCircle2,
+    ChevronDown, Building2, Calendar, DollarSign, Warehouse
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -140,7 +144,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         onChange({ [field]: value });
     };
 
-    const isContainer = data.docType === 'trade_container' || data.subType === 'container';
+    const isContainer = data.docType === 'trade_container' || data.subType === 'container' || data.type === 'trade_container';
 
     // ─── Fetch real customers from Supabase ───
     const { data: customersList = [] } = useQuery({
@@ -243,9 +247,21 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
 
     // ─── Handle items update ───
     const handleItemsChange = useCallback((updatedItems: InvoiceLineItem[]) => {
-        const total = updatedItems.reduce((s, i) => s + (i.total || i.subtotal || 0), 0);
+        // Subtotal = مجموع (كمية × سعر)
+        const subtotal = updatedItems.reduce((s, i) => s + Number(i.subtotal || (i.quantity * i.unit_price) || 0), 0);
+        // Discount = مجموع خصومات الأصناف
+        const discountAmount = updatedItems.reduce((s, i) => s + Number(i.discount_amount || 0), 0);
+        // Tax = مجموع ضرائب الأصناف (كل صنف يحمل ضريبته الخاصة)
+        const taxAmount = updatedItems.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
+        // Total = صافي + ضريبة
+        const net = subtotal - discountAmount;
+        const total = net + taxAmount;
+
         onChange({
             items: updatedItems,
+            subtotal: subtotal,
+            discount_amount: discountAmount,
+            tax_amount: taxAmount,
             total_amount: total,
             grand_total: total,
         });
@@ -268,140 +284,234 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         });
     }, [lookupRate, companyCurrency, onChange]);
 
-    return (
-        <div className="space-y-4" dir={isRTL ? "rtl" : "ltr"}>
-            {/* 1. Header Portion */}
-            <TradeHeader
-                data={tradeData}
-                mode={tradeMode}
-                type={data.subType || 'order'}
-                onChange={handleHeaderChange}
-                partyList={customersList}
-                warehouseList={warehousesList}
-                salespersonList={salespersonsList}
-                baseCurrency={companyCurrency}
-                onCurrencyChange={handleCurrencyChange}
+    // ─── Container gets its own dedicated tab ───
+    if (isContainer) {
+        return (
+            <ContainerMainTab
+                data={data}
+                mode={mode}
+                onChange={onChange}
+                tradeMode={tradeMode}
             />
+        );
+    }
 
-            {/* 1.5 Customer Pricing Info Bar — only for Sales with selected customer */}
-            {tradeMode === 'sales' && currentPartyId && (
-                <div className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs flex-wrap",
-                    customerPricing.isCreditExceeded
-                        ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
-                        : "bg-blue-50/60 border-blue-200/60 dark:bg-blue-950/20 dark:border-blue-800/40"
+    // ─── Collapsible header state ───
+    // Auto-open in create mode, collapsed in view/edit mode
+    const [headerOpen, setHeaderOpen] = useState(mode === 'create');
+
+    // Summary values for collapsed state
+    const partyName = data.party_name || data.supplier_name || data.customer_name || '';
+    const docDate = data.doc_date || data.date || '';
+    const docCurrency = data.currency || companyCurrency || '';
+    const docTotal = Number(data.total_amount || data.grand_total || 0);
+
+    return (
+        <div className="space-y-3" dir={isRTL ? "rtl" : "ltr"}>
+            {/* ═══ Collapsible Header Section ═══ */}
+            <Collapsible open={headerOpen} onOpenChange={setHeaderOpen}>
+                <Card className={cn(
+                    "shadow-sm overflow-hidden transition-all",
+                    "border-gray-200/80 dark:border-gray-700/60"
                 )}>
-                    {customerPricing.isLoading ? (
-                        <span className="flex items-center gap-1.5 text-gray-400">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            {isRTL ? 'جارِ تحميل بيانات العميل...' : 'Loading customer data...'}
-                        </span>
-                    ) : (
-                        <>
-                            {/* Price List Badge */}
-                            {customerPricing.priceListName && (
-                                <TooltipProvider delayDuration={200}>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Badge variant="outline" className="gap-1 text-[10px] bg-white/80 dark:bg-gray-800">
-                                                <Tag className="w-2.5 h-2.5 text-purple-500" />
-                                                {customerPricing.priceListName}
-                                            </Badge>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">
-                                            {isRTL ? `مصدر: ${customerPricing.priceListSource === 'customer' ? 'العميل مباشرة' : customerPricing.priceListSource === 'group' ? 'مجموعة العميل' : 'القائمة الافتراضية'}` : `Source: ${customerPricing.priceListSource}`}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
+                    {/* ─── Collapsed Summary Bar ─── */}
+                    <CollapsibleTrigger asChild>
+                        <button
+                            className={cn(
+                                "w-full px-4 py-2.5 flex items-center gap-3 cursor-pointer",
+                                "bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/60 dark:to-gray-800/40",
+                                "hover:brightness-95 transition-colors",
+                                isRTL && "flex-row-reverse"
+                            )}
+                        >
+                            <Building2 className="w-4 h-4 text-gray-500 shrink-0" />
+                            <span className={cn(
+                                "text-sm font-semibold text-gray-700 dark:text-gray-200",
+                                isRTL ? "text-right" : "text-left"
+                            )}>
+                                {isRTL ? 'بيانات المستند' : 'Document Details'}
+                            </span>
+
+                            {/* Summary badges — visible always for quick reference */}
+                            <div className={cn("flex items-center gap-1.5 ms-auto", isRTL && "flex-row-reverse")}>
+                                {partyName && (
+                                    <Badge variant="secondary" className="text-[10px] max-w-[140px] truncate">
+                                        {partyName}
+                                    </Badge>
+                                )}
+                                {docDate && (
+                                    <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
+                                        <Calendar className="w-2.5 h-2.5" />
+                                        {new Date(docDate).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
+                                    </Badge>
+                                )}
+                                {docCurrency && (
+                                    <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
+                                        <DollarSign className="w-2.5 h-2.5" />
+                                        {docCurrency}
+                                    </Badge>
+                                )}
+                                {docTotal > 0 && (
+                                    <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                        {docTotal.toLocaleString()} {docCurrency}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            <ChevronDown className={cn(
+                                "w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0",
+                                headerOpen && "rotate-180"
+                            )} />
+                        </button>
+                    </CollapsibleTrigger>
+
+                    {/* ─── Expanded Content ─── */}
+                    <CollapsibleContent>
+                        <div className="p-4 pt-2 space-y-4 border-t border-gray-100 dark:border-gray-800">
+                            {/* 1. Header Portion */}
+                            <TradeHeader
+                                data={tradeData}
+                                mode={tradeMode}
+                                type={data.subType || 'order'}
+                                onChange={handleHeaderChange}
+                                partyList={customersList}
+                                warehouseList={warehousesList}
+                                salespersonList={salespersonsList}
+                                baseCurrency={companyCurrency}
+                                onCurrencyChange={handleCurrencyChange}
+                                viewMode={mode}
+                            />
+
+                            {/* 1.5 Customer Pricing Info Bar — only for Sales with selected customer */}
+                            {tradeMode === 'sales' && currentPartyId && (
+                                <div className={cn(
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs flex-wrap",
+                                    customerPricing.isCreditExceeded
+                                        ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+                                        : "bg-blue-50/60 border-blue-200/60 dark:bg-blue-950/20 dark:border-blue-800/40"
+                                )}>
+                                    {customerPricing.isLoading ? (
+                                        <span className="flex items-center gap-1.5 text-gray-400">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            {isRTL ? 'جارِ تحميل بيانات العميل...' : 'Loading customer data...'}
+                                        </span>
+                                    ) : (
+                                        <>
+                                            {/* Price List Badge */}
+                                            {customerPricing.priceListName && (
+                                                <TooltipProvider delayDuration={200}>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Badge variant="outline" className="gap-1 text-[10px] bg-white/80 dark:bg-gray-800">
+                                                                <Tag className="w-2.5 h-2.5 text-purple-500" />
+                                                                {customerPricing.priceListName}
+                                                            </Badge>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="bottom">
+                                                            {isRTL ? `مصدر: ${customerPricing.priceListSource === 'customer' ? 'العميل مباشرة' : customerPricing.priceListSource === 'group' ? 'مجموعة العميل' : 'القائمة الافتراضية'}` : `Source: ${customerPricing.priceListSource}`}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+
+                                            {/* Discount */}
+                                            {customerPricing.discountPercent > 0 && (
+                                                <Badge variant="outline" className="gap-1 text-[10px] bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800">
+                                                    <Percent className="w-2.5 h-2.5" />
+                                                    {customerPricing.discountPercent}%
+                                                    <span className="text-[9px] opacity-70">
+                                                        ({isRTL ? (customerPricing.discountSource === 'customer' ? 'عميل' : 'مجموعة') : customerPricing.discountSource})
+                                                    </span>
+                                                </Badge>
+                                            )}
+
+                                            {/* Credit Status */}
+                                            {customerPricing.creditLimit > 0 && (
+                                                <TooltipProvider delayDuration={200}>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Badge variant="outline" className={cn(
+                                                                "gap-1 text-[10px]",
+                                                                customerPricing.isCreditExceeded
+                                                                    ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950/50 dark:text-red-300 dark:border-red-700"
+                                                                    : "bg-white/80 dark:bg-gray-800"
+                                                            )}>
+                                                                {customerPricing.isCreditExceeded
+                                                                    ? <ShieldAlert className="w-2.5 h-2.5 text-red-500" />
+                                                                    : <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
+                                                                }
+                                                                <CreditCard className="w-2.5 h-2.5" />
+                                                                {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(customerPricing.availableCredit)}
+                                                                <span className="text-[9px] opacity-60">/ {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(customerPricing.creditLimit)}</span>
+                                                            </Badge>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="bottom">
+                                                            <div className="text-xs space-y-1">
+                                                                <div>{isRTL ? 'حد الائتمان:' : 'Credit Limit:'} {customerPricing.creditLimit.toLocaleString()}</div>
+                                                                <div>{isRTL ? 'الرصيد الحالي:' : 'Balance:'} {customerPricing.balance.toLocaleString()}</div>
+                                                                <div className={customerPricing.isCreditExceeded ? 'text-red-400 font-bold' : 'text-green-400'}>
+                                                                    {isRTL ? 'المتاح:' : 'Available:'} {customerPricing.availableCredit.toLocaleString()}
+                                                                </div>
+                                                            </div>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+
+                                            {/* Payment Terms */}
+                                            {customerPricing.paymentTermsDays > 0 && (
+                                                <Badge variant="outline" className="gap-1 text-[10px] bg-white/80 dark:bg-gray-800">
+                                                    <CalendarClock className="w-2.5 h-2.5 text-orange-500" />
+                                                    {customerPricing.paymentTermsDays} {isRTL ? 'يوم' : 'days'}
+                                                </Badge>
+                                            )}
+
+                                            {/* Credit exceeded warning */}
+                                            {customerPricing.isCreditExceeded && (
+                                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-medium ms-auto">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    {isRTL ? 'تجاوز حد الائتمان!' : 'Credit limit exceeded!'}
+                                                </span>
+                                            )}
+
+                                            {/* Group name */}
+                                            {customerPricing.groupName && (
+                                                <span className="text-[10px] text-gray-400 ms-auto">
+                                                    {customerPricing.groupName}
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                             )}
 
-                            {/* Discount */}
-                            {customerPricing.discountPercent > 0 && (
-                                <Badge variant="outline" className="gap-1 text-[10px] bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800">
-                                    <Percent className="w-2.5 h-2.5" />
-                                    {customerPricing.discountPercent}%
-                                    <span className="text-[9px] opacity-70">
-                                        ({isRTL ? (customerPricing.discountSource === 'customer' ? 'عميل' : 'مجموعة') : customerPricing.discountSource})
-                                    </span>
-                                </Badge>
-                            )}
+                            {/* 2. Document Notes / Memo */}
+                            <div>
+                                <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1.5 mb-2">
+                                    <StickyNote className="w-3.5 h-3.5" />
+                                    {isRTL ? 'ملاحظات القيد' : 'Document Notes'}
+                                </Label>
+                                <Textarea
+                                    value={userNotes}
+                                    onChange={(e) => onChange({ user_notes: e.target.value })}
+                                    placeholder={isRTL ? 'أضف ملاحظات على المستند...' : 'Add notes to this document...'}
+                                    className="min-h-[50px] max-h-[100px] bg-white dark:bg-gray-800 text-sm resize-y"
+                                    readOnly={mode === 'view'}
+                                />
+                            </div>
+                        </div>
+                    </CollapsibleContent>
+                </Card>
+            </Collapsible>
 
-                            {/* Credit Status */}
-                            {customerPricing.creditLimit > 0 && (
-                                <TooltipProvider delayDuration={200}>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Badge variant="outline" className={cn(
-                                                "gap-1 text-[10px]",
-                                                customerPricing.isCreditExceeded
-                                                    ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950/50 dark:text-red-300 dark:border-red-700"
-                                                    : "bg-white/80 dark:bg-gray-800"
-                                            )}>
-                                                {customerPricing.isCreditExceeded
-                                                    ? <ShieldAlert className="w-2.5 h-2.5 text-red-500" />
-                                                    : <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
-                                                }
-                                                <CreditCard className="w-2.5 h-2.5" />
-                                                {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(customerPricing.availableCredit)}
-                                                <span className="text-[9px] opacity-60">/ {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(customerPricing.creditLimit)}</span>
-                                            </Badge>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">
-                                            <div className="text-xs space-y-1">
-                                                <div>{isRTL ? 'حد الائتمان:' : 'Credit Limit:'} {customerPricing.creditLimit.toLocaleString()}</div>
-                                                <div>{isRTL ? 'الرصيد الحالي:' : 'Balance:'} {customerPricing.balance.toLocaleString()}</div>
-                                                <div className={customerPricing.isCreditExceeded ? 'text-red-400 font-bold' : 'text-green-400'}>
-                                                    {isRTL ? 'المتاح:' : 'Available:'} {customerPricing.availableCredit.toLocaleString()}
-                                                </div>
-                                            </div>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            )}
-
-                            {/* Payment Terms */}
-                            {customerPricing.paymentTermsDays > 0 && (
-                                <Badge variant="outline" className="gap-1 text-[10px] bg-white/80 dark:bg-gray-800">
-                                    <CalendarClock className="w-2.5 h-2.5 text-orange-500" />
-                                    {customerPricing.paymentTermsDays} {isRTL ? 'يوم' : 'days'}
-                                </Badge>
-                            )}
-
-                            {/* Credit exceeded warning */}
-                            {customerPricing.isCreditExceeded && (
-                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-medium ms-auto">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    {isRTL ? 'تجاوز حد الائتمان!' : 'Credit limit exceeded!'}
-                                </span>
-                            )}
-
-                            {/* Group name */}
-                            {customerPricing.groupName && (
-                                <span className="text-[10px] text-gray-400 ms-auto">
-                                    {customerPricing.groupName}
-                                </span>
-                            )}
-                        </>
-                    )}
-                </div>
+            {/* ═══ Container Info Card — outside collapsible for visibility ═══ */}
+            {tradeMode === 'purchase' && (data.container_id || data.container_number) && (
+                <ContainerInfoCard
+                    containerId={data.container_id}
+                    containerNumber={data.container_number}
+                    containerStatus={data.container_status}
+                />
             )}
-
-            {/* 2. Document Notes / Memo */}
-            <Card className="border-none shadow-sm bg-gray-50/50 dark:bg-gray-900/50">
-                <CardContent className="p-4">
-                    <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1.5 mb-2">
-                        <StickyNote className="w-3.5 h-3.5" />
-                        {isRTL ? 'ملاحظات القيد' : 'Document Notes'}
-                    </Label>
-                    <Textarea
-                        value={userNotes}
-                        onChange={(e) => onChange({ user_notes: e.target.value })}
-                        placeholder={isRTL ? 'أضف ملاحظات على المستند...' : 'Add notes to this document...'}
-                        className="min-h-[60px] max-h-[120px] bg-white dark:bg-gray-800 text-sm resize-y"
-                        readOnly={mode === 'view'}
-                    />
-                </CardContent>
-            </Card>
 
             {/* 3. Items Grid — Always uses CartItemsView (modern component) */}
             <div className="mt-4">
@@ -420,7 +530,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                         currency={data.currency || companyCurrency || 'SAR'}
                         companyCurrency={companyCurrency || 'SAR'}
                         showDiscount={true}
-                        showTax={false}
+                        showTax={true}
                         customerId={currentPartyId || undefined}
                         priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
                     />

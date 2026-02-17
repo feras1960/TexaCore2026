@@ -18,6 +18,10 @@
     "openingBalance": "الرصيد الافتتاحي",
     "closingBalance": "الرصيد الختامي"
   },
+  "messages": {
+    "savedSuccessfully": "تم الحفظ بنجاح",
+    "successMessage": "العملية تمت بنجاح"
+  },
   "trade": {
     "quotation": {
       "title": "عرض سعر",
@@ -59,7 +63,10 @@
       "supplierInfo": "المورد",
       "warehouseReceiving": "الاستلام",
       "paymentAndExpenses": "الدفع والمصاريف",
-      "shipmentItems": "بنود البضائع"
+      "shipmentItems": "بنود البضائع",
+      "receiptSummary": "ملخص الاستلام",
+      "supplierFinance": "المورد والمالية",
+      "stageHistory": "السجل"
     },
     "total": "الإجمالي",
     "shipping": {
@@ -2547,6 +2554,7 @@
       "title": "إدارة الكونتينرات",
       "subtitle": "تتبع وإدارة شحنات الاستيراد",
       "contents": "محتويات الكونتينر",
+      "info": "معلومات الكونتينر",
       "expenses": "مصاريف الشحنة"
     },
     "order": {
@@ -3997,10 +4005,59 @@
       },
       "statuses": {
         "pending": "قيد الانتظار",
+        "ready": "جاهز للاستلام",
+        "shipped": "تم الشحن",
         "completed": "مكتمل",
         "cancelled": "ملغي",
         "partial": "جزئي"
       }
+    },
+    "goodsReceipt": {
+      "title": "استلام مواد",
+      "subtitle": "استلام وتسجيل المواد الواردة",
+      "receiveButton": "استلام مواد",
+      "tabs": {
+        "items": "بنود الاستلام",
+        "summary": "ملخص الاستلام",
+        "details": "التفاصيل",
+        "attachments": "المرفقات",
+        "activity": "سجل النشاط"
+      },
+      "stats": {
+        "rolls": "رولونات",
+        "totalLength": "الطول الإجمالي",
+        "synced": "متزامنة",
+        "pending": "قيد الانتظار"
+      },
+      "type": {
+        "label": "النوع",
+        "purchase": "فاتورة شراء",
+        "purchase_local": "فاتورة شراء داخلي",
+        "container": "كونتينر",
+        "transfer": "مناقلة",
+        "return": "مرتجع"
+      },
+      "warehouse": "المستودع",
+      "selectWarehouse": "اختر المستودع",
+      "autoSaveEnabled": "الحفظ التلقائي مفعل - كل بند يُحفظ فوراً",
+      "scanBarcode": "امسح الباركود أو أدخل الرقم...",
+      "manualEntry": "أو إدخال يدوي",
+      "material": "المادة",
+      "selectMaterial": "اختر المادة",
+      "color": "اللون",
+      "length": "الطول (م)",
+      "addItem": "إضافة",
+      "receivedItems": "البنود المستلمة",
+      "noItemsYet": "لم يتم إضافة أي بنود بعد",
+      "noItemsHint": "اختر المادة واللون والطول ثم اضغط +",
+      "rollNumber": "رولون",
+      "syncStatus": {
+        "pending": "قيد المزامنة",
+        "synced": "متزامن",
+        "error": "فشل المزامنة"
+      },
+      "connected": "متصل",
+      "offline": "غير متصل"
     },
     "stockCount": {
       "title": "الجرد المخزني",
@@ -4141,7 +4198,8 @@
       "users": "المستخدمين",
       "resources": "صلاحيات الموارد",
       "visibility": "قواعد الإخفاء",
-      "modules": "الموديولات"
+      "modules": "الموديولات",
+      "branches": "الفروع"
     }
   }
 }

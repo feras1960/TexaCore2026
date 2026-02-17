@@ -21,6 +21,8 @@ interface QRPopoverProps {
     docType: string;
     docNumber: string;
     docId: string;
+    /** Human-readable number to display (falls back to docNumber) */
+    displayNumber?: string;
     amount?: number;
     currency?: string;
     className?: string;
@@ -30,6 +32,7 @@ export function QRPopover({
     docType,
     docNumber,
     docId,
+    displayNumber,
     amount,
     currency = '',
     className,
@@ -116,13 +119,13 @@ export function QRPopover({
                         />
                     </div>
 
-                    {/* Doc Number */}
+                    {/* Doc Number — show human-readable, never UUID */}
                     <div className="text-center">
                         <p className="text-sm text-gray-500 mb-1">
                             {t('qrCode.scanWithMobile') || 'امسح بتطبيق الموبايل'}
                         </p>
                         <p className="text-lg font-bold font-mono text-erp-primary">
-                            {docNumber}
+                            {displayNumber || docNumber}
                         </p>
                     </div>
 

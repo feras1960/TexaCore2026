@@ -20,6 +20,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useAccountingDefaults, getAccountCode, getAccountName } from '@/hooks/useAccountingDefaults';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,7 @@ import {
     Receipt, BookOpen, ChevronDown, ChevronUp,
     CircleDollarSign, FileText, Truck, Shield,
     Package, AlertTriangle, DollarSign, Calculator,
-    Loader2
+    Loader2, PackageCheck, RefreshCw
 } from 'lucide-react';
 import {
     paymentScheduleService,
@@ -104,6 +105,9 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
     const isRTL = direction === 'rtl';
     const { companyId } = useCompany();
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
+    const { data: accountingDefaults } = useAccountingDefaults(companyId);
+    const acctCodes = accountingDefaults?.codes || {};
+    const acctSettings = accountingDefaults?.settings;
     const queryClient = useQueryClient();
     const readOnly = mode === 'view';
 
@@ -162,7 +166,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
             if (!docId) return [];
             const { data: vouchers, error } = await supabase
                 .from('payment_vouchers')
-                .select('id, voucher_number, voucher_date, amount, currency, payment_method, status, notes, treasury_account_id')
+                .select('id, voucher_number, voucher_date, amount, currency, payment_method, status, notes') // Removed treasury_account_id
                 .eq('purchase_invoice_id', docId)
                 .order('created_at', { ascending: false });
             if (error) { console.warn('Payment history error:', error); return []; }
@@ -171,26 +175,153 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
         enabled: !!docId,
     });
 
+    // ─── Receipt Status Query ────────────
+    // Search by invoice_id
+    const sourceOrderId = data?.source_order_id;
+    const { data: receiptInfo } = useQuery({
+        queryKey: ['invoice_receipt_status', docId, sourceOrderId],
+        queryFn: async () => {
+            if (!docId) return null;
+
+            // 1. Try direct match by invoice_id
+            const { data: directReceipts } = await supabase
+                .from('purchase_receipts')
+                .select('id, receipt_number, status, receipt_date') // Removed total_received_amount
+                .eq('invoice_id', docId) // Reverted to invoice_id
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (directReceipts?.length) return directReceipts[0];
+
+            // 2. Fallback: search by order_id (receipt linked to the source PO)
+            if (sourceOrderId) {
+                const { data: orderReceipts } = await supabase
+                    .from('purchase_receipts')
+                    .select('id, receipt_number, status, receipt_date') // Removed total_received_amount
+                    .eq('order_id', sourceOrderId)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+
+                if (orderReceipts?.length) return orderReceipts[0];
+            }
+
+            return null;
+        },
+        enabled: !!docId,
+        staleTime: 30000,
+    });
+
+    // ─── Live invoice status (independent of stale data prop) ─────
+    const { data: liveInvoiceStatus } = useQuery({
+        queryKey: ['invoice_live_status', docId],
+        queryFn: async () => {
+            if (!docId) return null;
+            const { data: inv } = await supabase
+                .from('purchase_transactions')
+                .select('stage, is_posted, journal_entry_id')
+                .eq('id', docId)
+                .single();
+            return inv;
+        },
+        enabled: !!docId,
+        staleTime: 5000,
+        refetchInterval: 10000, // Poll every 10s for status changes
+    });
+
+    // ─── Actual Journal Entry (from receipt or invoice) ────────────
+    const journalEntryId = liveInvoiceStatus?.journal_entry_id || data?.journal_entry_id;
+    const { data: actualJournalEntry } = useQuery({
+        queryKey: ['invoice_actual_journal', docId, receiptInfo?.id, data?.status, journalEntryId],
+        queryFn: async () => {
+            if (!docId) return null;
+
+            const selectFields = `
+                id, entry_number, entry_date, status, total_debit, total_credit, description,
+                journal_entry_lines (
+                    id, account_id, debit, credit, description,
+                    chart_of_accounts ( id, account_code, name_ar, name_en )
+                )
+            `;
+
+            // 0. Direct lookup by journal_entry_id stored on the invoice (fastest)
+            if (journalEntryId) {
+                console.log('[JE Query] Direct lookup by journalEntryId:', journalEntryId);
+                const { data: directEntry, error: directError } = await supabase
+                    .from('journal_entries')
+                    .select(selectFields)
+                    .eq('id', journalEntryId)
+                    .single();
+                console.log('[JE Query] Direct result:', directEntry, 'error:', directError);
+                if (directEntry) return directEntry;
+            }
+
+            console.log('[JE Query] Searching by reference_id:', docId, 'journalEntryId was:', journalEntryId);
+
+            // 1. Try receipt-linked journal entry first (most accurate)
+            if (receiptInfo?.id) {
+                const { data: receiptEntries } = await supabase
+                    .from('journal_entries')
+                    .select(selectFields)
+                    .eq('reference_id', receiptInfo.id)
+                    .eq('reference_type', 'goods_receipt')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                if (receiptEntries?.length) return receiptEntries[0];
+            }
+
+            // 2. Try invoice-linked journal entry by reference_type = 'purchase_invoice'
+            const { data: typedEntries, error: typedError } = await supabase
+                .from('journal_entries')
+                .select(selectFields)
+                .eq('reference_id', docId)
+                .eq('reference_type', 'purchase_invoice')
+                .order('created_at', { ascending: false })
+                .limit(1);
+            console.log('[JE Query] Step 2 (purchase_invoice):', typedEntries?.length, 'entries, error:', typedError);
+            if (typedEntries?.length) return typedEntries[0];
+
+            // 3. Fallback: any journal entry linked to this invoice
+            const { data: invoiceEntries, error: fallbackError } = await supabase
+                .from('journal_entries')
+                .select(selectFields)
+                .eq('reference_id', docId)
+                .order('created_at', { ascending: false })
+                .limit(1);
+            console.log('[JE Query] Step 3 (fallback):', invoiceEntries?.length, 'entries, error:', fallbackError);
+            if (invoiceEntries?.length) return invoiceEntries[0];
+
+            console.log('[JE Query] ❌ No journal entry found for docId:', docId);
+            return null;
+        },
+        enabled: !!docId,
+        staleTime: 5000,
+    });
+
+    const isReceived = !!receiptInfo && receiptInfo.status === 'completed';
+    const hasActualJournal = !!actualJournalEntry;
+    const isInvoicePosted = liveInvoiceStatus?.is_posted || liveInvoiceStatus?.stage === 'posted' || data?.stage === 'posted' || data?.status === 'posted' || hasActualJournal;
+    const journalStatus = actualJournalEntry?.status; // 'draft' | 'posted' | 'confirmed'
+
     // ─── Journal Preview ─────────────────
     const journalLines = useMemo<JournalPreviewLine[]>(() => {
         const lines: JournalPreviewLine[] = [];
 
         if (totalAmount > 0) {
             // Purchase invoice journal entry:
-            // Debit: Inventory / Purchases (مشتريات)
+            // Debit: Purchases (from settings)
             lines.push({
-                account_name: isRTL ? 'المشتريات / المخزون' : 'Purchases / Inventory',
-                account_code: '5100',
+                account_name: getAccountName(acctCodes, acctSettings?.default_purchase_account_id, isRTL, isRTL ? 'المشتريات / المخزون' : 'Purchases / Inventory'),
+                account_code: getAccountCode(acctCodes, acctSettings?.default_purchase_account_id, '—'),
                 debit: totalAmount,
                 credit: 0,
                 description: isRTL
                     ? `فاتورة شراء ${invoiceNumber} — ${supplierName || ''}`
                     : `Purchase Invoice ${invoiceNumber} — ${supplierName || ''}`,
             });
-            // Credit: Accounts Payable (ذمم دائنة — موردين)
+            // Credit: Accounts Payable (from settings)
             lines.push({
-                account_name: isRTL ? 'ذمم دائنة — موردين' : 'Accounts Payable',
-                account_code: '2100',
+                account_name: getAccountName(acctCodes, acctSettings?.default_payable_account_id, isRTL, isRTL ? 'ذمم دائنة — موردين' : 'Accounts Payable'),
+                account_code: getAccountCode(acctCodes, acctSettings?.default_payable_account_id, '—'),
                 debit: 0,
                 credit: totalAmount,
                 description: isRTL
@@ -205,14 +336,14 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
             const label = exp.description || (isRTL ? typeInfo?.labelAr : typeInfo?.labelEn) || '';
             lines.push({
                 account_name: isRTL ? `مصاريف ${typeInfo?.labelAr || 'أخرى'}` : `${typeInfo?.labelEn || 'Other'} Expense`,
-                account_code: exp.type === 'shipping' ? '5210' : exp.type === 'customs' ? '5220' : exp.type === 'insurance' ? '5230' : '5290',
+                account_code: getAccountCode(acctCodes, acctSettings?.default_freight_in_account_id, isRTL ? 'مصاريف' : 'Exp'),
                 debit: Number(exp.amount),
                 credit: 0,
                 description: label,
             });
             lines.push({
-                account_name: isRTL ? 'الصندوق / البنك' : 'Cash / Bank',
-                account_code: '1100',
+                account_name: getAccountName(acctCodes, acctSettings?.default_cash_account_id, isRTL, isRTL ? 'الصندوق / البنك' : 'Cash / Bank'),
+                account_code: getAccountCode(acctCodes, acctSettings?.default_cash_account_id, '—'),
                 debit: 0,
                 credit: Number(exp.amount),
                 description: isRTL ? `دفع ${label}` : `Payment: ${label}`,
@@ -222,8 +353,8 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
         if (paidAmount > 0) {
             // Payment journal
             lines.push({
-                account_name: isRTL ? 'ذمم دائنة — موردين' : 'Accounts Payable',
-                account_code: '2100',
+                account_name: getAccountName(acctCodes, acctSettings?.default_payable_account_id, isRTL, isRTL ? 'ذمم دائنة — موردين' : 'Accounts Payable'),
+                account_code: getAccountCode(acctCodes, acctSettings?.default_payable_account_id, '—'),
                 debit: paidAmount,
                 credit: 0,
                 description: isRTL
@@ -231,8 +362,8 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
                     : `Payment on Invoice ${invoiceNumber}`,
             });
             lines.push({
-                account_name: isRTL ? 'الصندوق / البنك' : 'Cash / Bank',
-                account_code: '1100',
+                account_name: getAccountName(acctCodes, acctSettings?.default_cash_account_id, isRTL, isRTL ? 'الصندوق / البنك' : 'Cash / Bank'),
+                account_code: getAccountCode(acctCodes, acctSettings?.default_cash_account_id, '—'),
                 debit: 0,
                 credit: paidAmount,
                 description: isRTL
@@ -242,7 +373,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
         }
 
         return lines;
-    }, [totalAmount, paidAmount, expenses, invoiceNumber, supplierName, isRTL]);
+    }, [totalAmount, paidAmount, expenses, invoiceNumber, supplierName, isRTL, acctCodes, acctSettings]);
 
     // ─── Direct Payment Voucher (to supplier) ────
     const directVoucherMutation = useMutation({
@@ -365,7 +496,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
             // Also update in DB directly
             if (docId) {
                 await supabase
-                    .from('purchase_invoices')
+                    .from('purchase_transactions')
                     .update({
                         expenses: updated,
                         expenses_total: updated.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0),
@@ -834,66 +965,168 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
                     onClick={() => setJournalExpanded(!journalExpanded)}
                     className="flex items-center justify-between w-full text-sm font-bold text-gray-800 dark:text-gray-200"
                 >
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2 flex-wrap">
                         <BookOpen className="w-4 h-4 text-amber-600" />
-                        {isRTL ? 'معاينة القيد المحاسبي' : 'Journal Entry Preview'}
+                        {isRTL ? 'القيد المحاسبي' : 'Journal Entry'}
+
+                        {/* ═══ State Badges ═══ */}
+                        {hasActualJournal ? (
+                            <>
+                                {/* Journal Entry Number */}
+                                <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 gap-1">
+                                    <RefreshCw className="w-3 h-3" />
+                                    {actualJournalEntry?.entry_number || ''}
+                                </Badge>
+
+                                {/* Posted Status */}
+                                {(journalStatus === 'posted' || journalStatus === 'confirmed') ? (
+                                    <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 gap-1 border border-emerald-300">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        {isRTL
+                                            ? (isReceived ? '✅ مرحّل ومستلم بالمستودع' : '✅ مرحّل')
+                                            : (isReceived ? '✅ Posted & Received' : '✅ Posted')
+                                        }
+                                    </Badge>
+                                ) : (
+                                    <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 gap-1 border border-amber-300">
+                                        <Clock className="w-3 h-3" />
+                                        {isRTL ? '⏳ قيد مُعلّق' : '⏳ Pending'}
+                                    </Badge>
+                                )}
+
+                                {/* Received in warehouse badge (separate) */}
+                                {isReceived && !(journalStatus === 'posted' || journalStatus === 'confirmed') && (
+                                    <Badge className="text-[10px] bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 gap-1">
+                                        <PackageCheck className="w-3 h-3" />
+                                        {isRTL ? '📦 مستلم بالمستودع' : '📦 Received'}
+                                    </Badge>
+                                )}
+                            </>
+                        ) : isInvoicePosted ? (
+                            /* Invoice is posted but journal entry not found yet — loading */
+                            <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 gap-1 animate-pulse">
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                                {isRTL ? 'جاري تحميل القيد...' : 'Loading entry...'}
+                            </Badge>
+                        ) : journalLines.length > 0 ? (
+                            <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 gap-1 border border-amber-300 dark:border-amber-600">
+                                <Clock className="w-3 h-3" />
+                                {isRTL ? '⏳ غير مرحّل — للعرض فقط' : '⏳ Not Posted — Preview Only'}
+                            </Badge>
+                        ) : null}
                     </span>
                     {journalExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
 
-                {journalExpanded && journalLines.length > 0 && (
+                {journalExpanded && (
                     <div className="mt-3">
-                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                            <table className="w-full text-xs">
-                                <thead className="bg-amber-50 dark:bg-amber-900/20">
-                                    <tr>
-                                        <th className="px-3 py-2 text-start">{isRTL ? 'الحساب' : 'Account'}</th>
-                                        <th className="px-3 py-2 text-start">{isRTL ? 'البيان' : 'Description'}</th>
-                                        <th className="px-3 py-2 text-end">{isRTL ? 'مدين' : 'Debit'}</th>
-                                        <th className="px-3 py-2 text-end">{isRTL ? 'دائن' : 'Credit'}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {journalLines.map((line, idx) => (
-                                        <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
-                                            <td className="px-3 py-2">
-                                                <span className="font-mono text-gray-500 me-1">{line.account_code}</span>
-                                                <span className="font-medium">{line.account_name}</span>
-                                            </td>
-                                            <td className="px-3 py-2 text-gray-500">{line.description}</td>
-                                            <td className="px-3 py-2 text-end font-mono font-medium text-red-600">
-                                                {line.debit > 0 ? fmt(line.debit) : ''}
-                                            </td>
-                                            <td className="px-3 py-2 text-end font-mono font-medium text-emerald-600">
-                                                {line.credit > 0 ? fmt(line.credit) : ''}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {/* Totals */}
-                                    <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-bold">
-                                        <td colSpan={2} className="px-3 py-2 text-end">{isRTL ? 'الإجمالي' : 'Total'}</td>
-                                        <td className="px-3 py-2 text-end font-mono text-red-600">
-                                            {fmt(journalLines.reduce((s, l) => s + l.debit, 0))}
-                                        </td>
-                                        <td className="px-3 py-2 text-end font-mono text-emerald-600">
-                                            {fmt(journalLines.reduce((s, l) => s + l.credit, 0))}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-2 text-center">
-                            {isRTL
-                                ? '⚠️ هذه معاينة تقريبية — القيد الفعلي يُنشأ عند تأكيد الدفع'
-                                : '⚠️ Preview only — actual entries created on payment confirmation'}
-                        </p>
+                        {/* Show ACTUAL journal entry if it exists */}
+                        {hasActualJournal && actualJournalEntry?.journal_entry_lines ? (
+                            <>
+                                <div className="rounded-lg border border-emerald-200 dark:border-emerald-700 overflow-hidden">
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-emerald-50 dark:bg-emerald-900/20">
+                                            <tr>
+                                                <th className="px-3 py-2 text-start">{isRTL ? 'الحساب' : 'Account'}</th>
+                                                <th className="px-3 py-2 text-start">{isRTL ? 'البيان' : 'Description'}</th>
+                                                <th className="px-3 py-2 text-end">{isRTL ? 'مدين' : 'Debit'}</th>
+                                                <th className="px-3 py-2 text-end">{isRTL ? 'دائن' : 'Credit'}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(actualJournalEntry.journal_entry_lines as any[]).map((line: any, idx: number) => {
+                                                const acct = line.chart_of_accounts;
+                                                return (
+                                                    <tr key={line.id || idx} className="border-t border-emerald-100 dark:border-emerald-800">
+                                                        <td className="px-3 py-2">
+                                                            <span className="font-mono text-gray-500 me-1">{acct?.account_code || ''}</span>
+                                                            <span className="font-medium">{isRTL ? (acct?.name_ar || '') : (acct?.name_en || acct?.name_ar || '')}</span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-gray-500">{line.description || ''}</td>
+                                                        <td className="px-3 py-2 text-end font-mono font-medium text-red-600">
+                                                            {Number(line.debit) > 0 ? fmt(Number(line.debit)) : ''}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-end font-mono font-medium text-emerald-600">
+                                                            {Number(line.credit) > 0 ? fmt(Number(line.credit)) : ''}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {/* Totals */}
+                                            <tr className="border-t-2 border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 font-bold">
+                                                <td colSpan={2} className="px-3 py-2 text-end">{isRTL ? 'الإجمالي' : 'Total'}</td>
+                                                <td className="px-3 py-2 text-end font-mono text-red-600">
+                                                    {fmt(Number(actualJournalEntry.total_debit || 0))}
+                                                </td>
+                                                <td className="px-3 py-2 text-end font-mono text-emerald-600">
+                                                    {fmt(Number(actualJournalEntry.total_credit || 0))}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-2 text-center font-medium">
+                                    {isRTL
+                                        ? `✅ قيد فعلي مؤكد — ${actualJournalEntry.entry_number} — بتاريخ ${actualJournalEntry.entry_date ? new Date(actualJournalEntry.entry_date).toLocaleDateString('ar-SA') : ''}`
+                                        : `✅ Confirmed journal entry — ${actualJournalEntry.entry_number} — ${actualJournalEntry.entry_date ? new Date(actualJournalEntry.entry_date).toLocaleDateString('en-US') : ''}`}
+                                </p>
+                            </>
+                        ) : journalLines.length > 0 ? (
+                            /* Fallback to preview if no actual journal */
+                            <>
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-amber-50 dark:bg-amber-900/20">
+                                            <tr>
+                                                <th className="px-3 py-2 text-start">{isRTL ? 'الحساب' : 'Account'}</th>
+                                                <th className="px-3 py-2 text-start">{isRTL ? 'البيان' : 'Description'}</th>
+                                                <th className="px-3 py-2 text-end">{isRTL ? 'مدين' : 'Debit'}</th>
+                                                <th className="px-3 py-2 text-end">{isRTL ? 'دائن' : 'Credit'}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {journalLines.map((line, idx) => (
+                                                <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
+                                                    <td className="px-3 py-2">
+                                                        <span className="font-mono text-gray-500 me-1">{line.account_code}</span>
+                                                        <span className="font-medium">{line.account_name}</span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-gray-500">{line.description}</td>
+                                                    <td className="px-3 py-2 text-end font-mono font-medium text-red-600">
+                                                        {line.debit > 0 ? fmt(line.debit) : ''}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-end font-mono font-medium text-emerald-600">
+                                                        {line.credit > 0 ? fmt(line.credit) : ''}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {/* Totals */}
+                                            <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-bold">
+                                                <td colSpan={2} className="px-3 py-2 text-end">{isRTL ? 'الإجمالي' : 'Total'}</td>
+                                                <td className="px-3 py-2 text-end font-mono text-red-600">
+                                                    {fmt(journalLines.reduce((s, l) => s + l.debit, 0))}
+                                                </td>
+                                                <td className="px-3 py-2 text-end font-mono text-emerald-600">
+                                                    {fmt(journalLines.reduce((s, l) => s + l.credit, 0))}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-400 text-center font-medium">
+                                        {isRTL
+                                            ? '⏳ هذا القيد غير مرحّل — يتحدّث تلقائياً عند تعديل الأصناف أو الكميات. القيد الفعلي يُنشأ عند الترحيل.'
+                                            : '⏳ This entry is NOT posted — it updates automatically when items or quantities change. The actual entry is created on posting.'}
+                                    </p>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-xs text-gray-400 text-center py-4 mt-2">
+                                {isRTL ? 'لا يوجد قيد — أدخل مبلغ الفاتورة أولاً' : 'No entry — enter invoice amount first'}
+                            </p>
+                        )}
                     </div>
-                )}
-
-                {journalExpanded && journalLines.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-4 mt-2">
-                        {isRTL ? 'لا يوجد قيد — أدخل مبلغ الفاتورة أولاً' : 'No entry — enter invoice amount first'}
-                    </p>
                 )}
             </div>
         </div>

@@ -354,6 +354,21 @@ export function useStockMovements(filters?: MovementFilters) {
         gcTime: GC_TIME,
     });
 
+    // 🔄 Realtime: Listen for new posted transactions to update pending receipts
+    useRealtimeInvalidation({
+        table: 'purchase_transactions',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['warehouse', 'pending-receipts', companyId]],
+    });
+
+    useRealtimeInvalidation({
+        table: 'purchase_orders',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['warehouse', 'pending-receipts', companyId]],
+    });
+
     return {
         movements: movementsQuery.data || [],
         pendingReceipts: pendingQuery.data || [],

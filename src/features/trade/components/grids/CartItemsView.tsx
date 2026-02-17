@@ -206,12 +206,15 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                 }
             }
 
-            // Recalculate
+            // Recalculate — use item's stored tax_rate (from material or company fallback)
             const discountAmount = (updated.discount_percent || 0) / 100 * updated.quantity * updated.unit_price;
             updated.discount_amount = discountAmount;
             updated.subtotal = updated.quantity * updated.unit_price;
-            updated.tax_amount = (updated.tax_rate || 0) / 100 * (updated.subtotal - discountAmount);
-            updated.total = updated.subtotal - discountAmount + (updated.tax_amount || 0);
+            const netAfterDiscount = updated.subtotal - discountAmount;
+            updated.tax_amount = (updated.tax_rate && updated.tax_rate > 0 && netAfterDiscount > 0)
+                ? Math.round(netAfterDiscount * (updated.tax_rate / 100) * 100) / 100
+                : 0;
+            updated.total = netAfterDiscount + updated.tax_amount;
             return updated;
         });
         onItemsChange(newItems);
@@ -319,7 +322,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                         />
                     )}
                     <SummaryMiniCard
-                        label={t('الإجمالي', 'Total')}
+                        label={grandTotals.tax > 0 ? t('الإجمالي شامل الضريبة', 'Total incl. Tax') : t('الإجمالي', 'Total')}
                         value={`${grandTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${currency}`}
                         icon={<Check className="w-4 h-4" />}
                         color="green"
@@ -570,10 +573,10 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                     {/* = */}
                                                     <span className="text-gray-300 text-xs text-center">=</span>
 
-                                                    {/* Total */}
+                                                    {/* Total (net after discount, before tax) */}
                                                     <div className="px-2 py-3 text-end">
                                                         <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                                                            {(item.total || item.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                            {((item.subtotal || 0) - (item.discount_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                                         </span>
                                                     </div>
 
@@ -746,19 +749,27 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                 </div>
                             )}
 
-                            {/* Tax line */}
+                            {/* Tax line — show rate % */}
                             {showTax && grandTotals.tax > 0 && (
                                 <div className="flex justify-between items-center text-sm">
-                                    <span className="text-blue-600">{t('الضريبة', 'Tax')}</span>
+                                    <span className="text-blue-600">
+                                        {t('ضريبة القيمة المضافة', 'VAT')}
+                                        {items[0]?.tax_rate ? ` (${items[0].tax_rate}%)` : ''}
+                                    </span>
                                     <span className="font-mono font-semibold text-blue-600">
                                         +{grandTotals.tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             )}
 
-                            {/* Grand Total */}
+                            {/* Grand Total — clarify tax-inclusive */}
                             <div className="pt-2 border-t border-emerald-200 dark:border-emerald-700 flex justify-between items-center">
-                                <span className="font-bold text-base">{t('الإجمالي النهائي', 'Grand Total')}</span>
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-base">{t('الإجمالي النهائي', 'Grand Total')}</span>
+                                    {grandTotals.tax > 0 && (
+                                        <span className="text-[10px] text-gray-400">{t('شامل الضريبة', 'Tax Inclusive')}</span>
+                                    )}
+                                </div>
                                 <span className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
                                     {grandTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                     <span className="text-sm text-emerald-500 ms-1">{currency}</span>

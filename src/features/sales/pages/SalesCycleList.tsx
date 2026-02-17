@@ -41,6 +41,7 @@ import { toast } from 'sonner';
 import { validateTradeDocument } from '@/features/trade/utils/validateTradeDocument';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
 import { useCompanyCurrencies } from '@/hooks/useCompanyCurrencies';
+import { usePosting } from '@/hooks/usePosting';
 
 // Define Types
 type CycleType = 'quotation' | 'order' | 'delivery' | 'invoice' | 'return' | 'reservation';
@@ -70,6 +71,12 @@ export default function SalesCycleList() {
     const { baseCurrency, supportedCurrencies } = useCompanyCurrencies();
     const isRTL = direction === 'rtl';
     const queryClient = useQueryClient();
+    const {
+        postSalesInvoice,
+        postSalesReturn,
+        convertQuotation,
+        isPosting
+    } = usePosting();
 
     // 🔄 Realtime: auto-update when any user changes sales documents
     useRealtimeInvalidation({
@@ -85,7 +92,7 @@ export default function SalesCycleList() {
         queryKeys: [['sales_cycle_full']],
     });
     useRealtimeInvalidation({
-        table: 'sales_invoices',
+        table: 'sales_transactions',
         companyId,
         filter: companyId ? `company_id=eq.${companyId}` : undefined,
         queryKeys: [['sales_cycle_full']],
@@ -199,7 +206,7 @@ export default function SalesCycleList() {
                     document_number: item[numCol] || item.id.substring(0, 8),
                     date: item[dateCol],
                     type: type,
-                    status: item.status || 'draft',
+                    status: item.stage || item.status || 'draft',
                     total_amount: amountCol ? (item[amountCol] || 0) : 0,
                     customer_id: item.customer_id,
                     customer_name: item.customer_name,
@@ -231,7 +238,7 @@ export default function SalesCycleList() {
 
             // 4. Invoices
             if (activeTab === 'all' || activeTab === 'invoice') {
-                fetchPromises.push(fetchTable('sales_invoices', 'invoice', 'invoice_date', 'invoice_number', 'total_amount'));
+                fetchPromises.push(fetchTable('sales_transactions', 'invoice', 'doc_date', 'invoice_no', 'total_amount'));
             }
 
             // 5. Returns
@@ -304,7 +311,7 @@ export default function SalesCycleList() {
         quotation: { table: 'quotations', dateCol: 'quotation_date', numCol: 'quotation_number', totalCol: 'total_amount' },
         order: { table: 'sales_orders', dateCol: 'order_date', numCol: 'order_number', totalCol: 'total_amount' },
         delivery: { table: 'sales_deliveries', dateCol: 'delivery_date', numCol: 'delivery_number' },
-        invoice: { table: 'sales_invoices', dateCol: 'invoice_date', numCol: 'invoice_number', totalCol: 'total_amount' },
+        invoice: { table: 'sales_transactions', dateCol: 'doc_date', numCol: 'invoice_no', totalCol: 'total_amount' },
         return: { table: 'sales_returns', dateCol: 'return_date', numCol: 'return_number', totalCol: 'total_amount' },
         reservation: { table: 'transit_reservations', dateCol: 'reservation_date', numCol: 'reservation_number' },
     };
@@ -349,10 +356,13 @@ export default function SalesCycleList() {
         }
 
         try {
-            // Build the update/insert payload
+            const targetTable = targetConfig.table;
+            const isTransaction = targetTable.includes('_transactions');
             const payload: Record<string, any> = {
-                // Keep existing status unless explicitly changed, or set to 'saved' on first save
-                status: docData.status || selectedDoc.status || 'saved',
+                // For transaction tables use 'stage', for others use 'status'
+                ...(isTransaction
+                    ? { stage: docData.status || selectedDoc.status || 'saved' }
+                    : { status: docData.status || selectedDoc.status || 'saved' }),
             };
 
             // Customer
@@ -792,6 +802,16 @@ export default function SalesCycleList() {
                             isLoading={isLoading}
                             pageSize={15}
                             onRowClick={handleRowClick}
+                            onPostInvoice={async (doc) => {
+                                await postSalesInvoice(doc.id);
+                            }}
+                            onPostReturn={async (doc) => {
+                                await postSalesReturn(doc.id);
+                            }}
+                            onConvertQuotation={async (doc) => {
+                                await convertQuotation(doc.id, 'sales');
+                            }}
+                            isPosting={isPosting}
                         />
                     </div>
                 ) : (
@@ -867,7 +887,7 @@ export default function SalesCycleList() {
                         mode="sales"
                         type={(docMode === 'create' ? newDocType : selectedDoc?.type) as any}
                         initialData={docMode === 'create'
-                            ? { type: newDocType, status: 'draft', currency: activeCurrency, date: new Date().toISOString() }
+                            ? { type: newDocType, status: 'draft', stage: 'draft', currency: activeCurrency, date: new Date().toISOString() }
                             : selectedDoc ? {
                                 ...selectedDoc,
                                 ...selectedDoc._rawData,

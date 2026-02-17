@@ -36,6 +36,7 @@ DECLARE
     v_receivables_id UUID;
     v_inventory_id UUID;
     v_prepaid_id UUID;
+    v_input_tax_id UUID;
     v_fixed_assets_id UUID;
     v_liabilities_id UUID;
     v_current_liabilities_id UUID;
@@ -54,6 +55,11 @@ DECLARE
     v_marketing_expenses_id UUID;
     v_financial_expenses_id UUID;
     v_taxes_expense_id UUID;
+    v_purchase_expenses_id UUID;
+    v_shipping_expenses_id UUID;
+    v_customs_expenses_id UUID;
+    v_marine_insurance_id UUID;
+    v_other_purchase_expenses_id UUID;
 BEGIN
     -- Get tenant_id from company
     SELECT tenant_id INTO v_tenant_id FROM companies WHERE id = p_company_id;
@@ -159,6 +165,13 @@ BEGIN
     VALUES 
         (v_tenant_id, p_company_id, '1151', 'إيجارات مدفوعة مقدماً', 'Prepaid Rent', 'Предоплаченная аренда', 'Передоплачена оренда', 'Chirie plătită în avans', 'Czynsz opłacony z góry', 'Peşin Ödenmiş Kira', 'Vorausbezahlte Miete', 'Affitti Anticipati', v_current_asset_type_id, v_prepaid_id, false, true, 4, '1000.1100.1150.1151', 'SAR', true),
         (v_tenant_id, p_company_id, '1152', 'تأمين مدفوع مقدماً', 'Prepaid Insurance', 'Предоплаченное страхование', 'Передоплачене страхування', 'Asigurare plătită în avans', 'Ubezpieczenie opłacone z góry', 'Peşin Ödenmiş Sigorta', 'Vorausbezahlte Versicherung', 'Assicurazioni Anticipate', v_current_asset_type_id, v_prepaid_id, false, true, 4, '1000.1100.1150.1152', 'SAR', true);
+    
+    -- 1.1.6 Input Tax / VAT Receivable (ضريبة المدخلات)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '1160', 
+        'ضريبة مدخلات (مسترده)', 'Input Tax (VAT Receivable)', 'НДС к возмещению', 'ПДВ до відшкодування', 'TVA deductibilă', 'VAT naliczony', 'İndirilecek KDV', 'Vorsteuer', 'IVA a Credito',
+        v_current_asset_type_id, v_current_assets_id, false, true, 3, '1000.1100.1160', 'SAR', true)
+    RETURNING id INTO v_input_tax_id;
     
     -- ───────────────────────────────────────────────────────────────
     -- 1.2 Fixed Assets (الأصول الثابتة)
@@ -428,6 +441,63 @@ BEGIN
     VALUES 
         (v_tenant_id, p_company_id, '5710', 'ضريبة الدخل', 'Income Tax Expense', 'Налог на прибыль', 'Податок на прибуток', 'Impozit pe venit', 'Podatek dochodowy', 'Gelir Vergisi Gideri', 'Körperschaftsteuer', 'IRES', v_expense_type_id, v_taxes_expense_id, false, true, 3, '5000.5700.5710', 'SAR', true),
         (v_tenant_id, p_company_id, '5720', 'ضرائب أخرى', 'Other Taxes', 'Прочие налоги', 'Інші податки', 'Alte taxe', 'Inne podatki', 'Diğer Vergiler', 'Sonstige Steuern', 'Altre Imposte', v_expense_type_id, v_taxes_expense_id, false, true, 3, '5000.5700.5720', 'SAR', true);
+    
+    -- ───────────────────────────────────────────────────────────────
+    -- 5.8 Purchase Expenses (مصاريف المشتريات)
+    -- ─── يُستخدم هذا القسم لتعريف مقدمي خدمات الشحن والجمارك ───
+    -- ─── المستخدم يضيف حسابات فرعية لكل مورد خدمات ───────────
+    -- ───────────────────────────────────────────────────────────────
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5800', 
+        'مصاريف المشتريات', 'Purchase Expenses', 'Расходы на закупки', 'Витрати на закупівлі', 'Cheltuieli de achiziție', 'Koszty zakupu', 'Satın Alma Giderleri', 'Beschaffungskosten', 'Spese di Acquisto',
+        v_expense_type_id, v_expenses_id, true, false, 2, '5000.5800', 'SAR', true)
+    RETURNING id INTO v_purchase_expenses_id;
+    
+    -- 5.8.1 Shipping Expenses (مصاريف الشحن)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5810', 
+        'مصاريف الشحن', 'Shipping Expenses', 'Расходы на доставку', 'Витрати на доставку', 'Cheltuieli de transport', 'Koszty wysyłki', 'Nakliye Giderleri', 'Versandkosten', 'Spese di Spedizione',
+        v_expense_type_id, v_purchase_expenses_id, true, false, 3, '5000.5800.5810', 'SAR', true)
+    RETURNING id INTO v_shipping_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5811', 'شحن بحري — عام', 'Ocean Freight — General', 'Морской фрахт — общий', 'Морський фрахт — загальний', 'Navlu maritim — general', 'Fracht morski — ogólny', 'Deniz Navlun — Genel', 'Seefracht — Allgemein', 'Trasporto Marittimo — Generale', v_expense_type_id, v_shipping_expenses_id, false, true, 4, '5000.5800.5810.5811', 'SAR', true),
+        (v_tenant_id, p_company_id, '5812', 'شحن جوي', 'Air Freight', 'Авиафрахт', 'Авіафрахт', 'Transport aerian', 'Fracht lotniczy', 'Hava Navlun', 'Luftfracht', 'Trasporto Aereo', v_expense_type_id, v_shipping_expenses_id, false, true, 4, '5000.5800.5810.5812', 'SAR', true),
+        (v_tenant_id, p_company_id, '5813', 'نقل بري داخلي', 'Inland Transport', 'Внутренний транспорт', 'Внутрішній транспорт', 'Transport intern', 'Transport krajowy', 'İç Nakliye', 'Inlandstransport', 'Trasporto Interno', v_expense_type_id, v_shipping_expenses_id, false, true, 4, '5000.5800.5810.5813', 'SAR', true);
+    
+    -- 5.8.2 Customs Expenses (مصاريف الجمركة)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5820', 
+        'مصاريف الجمركة', 'Customs Expenses', 'Таможенные расходы', 'Митні витрати', 'Cheltuieli vamale', 'Koszty celne', 'Gümrük Giderleri', 'Zollkosten', 'Spese Doganali',
+        v_expense_type_id, v_purchase_expenses_id, true, false, 3, '5000.5800.5820', 'SAR', true)
+    RETURNING id INTO v_customs_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5821', 'رسوم جمركية', 'Customs Duties', 'Таможенные пошлины', 'Митні збори', 'Taxe vamale', 'Cła', 'Gümrük Vergileri', 'Zölle', 'Dazi Doganali', v_expense_type_id, v_customs_expenses_id, false, true, 4, '5000.5800.5820.5821', 'SAR', true),
+        (v_tenant_id, p_company_id, '5822', 'أتعاب تخليص جمركي', 'Customs Clearance Fees', 'Услуги таможенного оформления', 'Послуги митного оформлення', 'Taxe de vămuire', 'Opłaty celne', 'Gümrük Müşavirliği', 'Zollabfertigungsgebühren', 'Spese di Sdoganamento', v_expense_type_id, v_customs_expenses_id, false, true, 4, '5000.5800.5820.5822', 'SAR', true),
+        (v_tenant_id, p_company_id, '5823', 'مصاريف فحص ومعاينة', 'Inspection Fees', 'Инспекционные расходы', 'Інспекційні витрати', 'Taxe de inspecție', 'Opłaty inspekcyjne', 'Muayene Ücretleri', 'Inspektionsgebühren', 'Spese di Ispezione', v_expense_type_id, v_customs_expenses_id, false, true, 4, '5000.5800.5820.5823', 'SAR', true);
+    
+    -- 5.8.3 Marine Insurance (تأمين بحري)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5830', 
+        'تأمين بحري وشحن', 'Marine & Cargo Insurance', 'Морское страхование', 'Морське страхування', 'Asigurare maritimă', 'Ubezpieczenie morskie', 'Deniz Sigortası', 'Transportversicherung', 'Assicurazione Marittima',
+        v_expense_type_id, v_purchase_expenses_id, false, true, 3, '5000.5800.5830', 'SAR', true)
+    RETURNING id INTO v_marine_insurance_id;
+    
+    -- 5.8.4 Other Purchase Expenses (مصاريف مشتريات أخرى)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES (v_tenant_id, p_company_id, '5840', 
+        'مصاريف مشتريات أخرى', 'Other Purchase Expenses', 'Прочие расходы на закупки', 'Інші витрати на закупівлі', 'Alte cheltuieli de achiziție', 'Inne koszty zakupu', 'Diğer Satın Alma Giderleri', 'Sonstige Beschaffungskosten', 'Altre Spese di Acquisto',
+        v_expense_type_id, v_purchase_expenses_id, true, false, 3, '5000.5800.5840', 'SAR', true)
+    RETURNING id INTO v_other_purchase_expenses_id;
+    
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_ro, name_pl, name_tr, name_de, name_it, account_type_id, parent_id, is_group, is_detail, level, full_code, currency, is_active)
+    VALUES 
+        (v_tenant_id, p_company_id, '5841', 'رسوم ميناء', 'Port Charges', 'Портовые сборы', 'Портові збори', 'Taxe portuare', 'Opłaty portowe', 'Liman Ücretleri', 'Hafengebühren', 'Diritti Portuali', v_expense_type_id, v_other_purchase_expenses_id, false, true, 4, '5000.5800.5840.5841', 'SAR', true),
+        (v_tenant_id, p_company_id, '5842', 'مصاريف تخزين', 'Storage Fees', 'Складские расходы', 'Складські витрати', 'Cheltuieli de depozitare', 'Koszty magazynowania', 'Depolama Ücretleri', 'Lagerkosten', 'Spese di Magazzinaggio', v_expense_type_id, v_other_purchase_expenses_id, false, true, 4, '5000.5800.5840.5842', 'SAR', true),
+        (v_tenant_id, p_company_id, '5843', 'مصاريف مشتريات متنوعة', 'Miscellaneous Purchase Exp.', 'Прочие расходы', 'Інші витрати', 'Cheltuieli diverse', 'Koszty różne', 'Çeşitli Alım Giderleri', 'Sonstige Kosten', 'Spese Varie di Acquisto', v_expense_type_id, v_other_purchase_expenses_id, false, true, 4, '5000.5800.5840.5843', 'SAR', true);
     
     RAISE NOTICE 'Standard chart of accounts (9 languages) created successfully for company %', p_company_id;
 END;

@@ -17,6 +17,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useAccountingDefaults, getAccountCode, getAccountName } from '@/hooks/useAccountingDefaults';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -98,6 +99,9 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
     const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
+    const { data: accountingDefaults } = useAccountingDefaults(companyId);
+    const acctCodes = accountingDefaults?.codes || {};
+    const acctSettings = accountingDefaults?.settings;
     const queryClient = useQueryClient();
 
     // ─── State ─────────────────────────────
@@ -166,8 +170,16 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
             currency: docCurrency,
             customerName,
             isRTL,
+            accountCodes: acctSettings ? {
+                receivableCode: getAccountCode(acctCodes, acctSettings.default_receivable_account_id),
+                receivableName: getAccountName(acctCodes, acctSettings.default_receivable_account_id, isRTL),
+                salesCode: getAccountCode(acctCodes, acctSettings.default_sales_account_id),
+                salesName: getAccountName(acctCodes, acctSettings.default_sales_account_id, isRTL),
+                cashCode: getAccountCode(acctCodes, acctSettings.default_cash_account_id),
+                cashName: getAccountName(acctCodes, acctSettings.default_cash_account_id, isRTL),
+            } : undefined,
         });
-    }, [totalAmount, paidAmount, docCurrency, customerName, isRTL]);
+    }, [totalAmount, paidAmount, docCurrency, customerName, isRTL, acctCodes, acctSettings]);
 
     // ─── Payment Requirement Toggle ───────
     useEffect(() => {

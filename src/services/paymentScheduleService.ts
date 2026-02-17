@@ -483,15 +483,32 @@ export const paymentScheduleService = {
         currency: string;
         customerName?: string;
         isRTL: boolean;
+        // Dynamic account codes from company_accounting_settings
+        accountCodes?: {
+            receivableCode?: string;
+            receivableName?: string;
+            salesCode?: string;
+            salesName?: string;
+            cashCode?: string;
+            cashName?: string;
+        };
     }): JournalPreviewLine[] {
-        const { totalAmount, paidAmount, currency, customerName, isRTL } = params;
+        const { totalAmount, paidAmount, currency, customerName, isRTL, accountCodes } = params;
         const lines: JournalPreviewLine[] = [];
+
+        // Use dynamic codes from settings, or generic label if not provided
+        const arCode = accountCodes?.receivableCode || '—';
+        const arName = accountCodes?.receivableName || (isRTL ? 'ذمم مدينة — عملاء' : 'Accounts Receivable');
+        const salesCode = accountCodes?.salesCode || '—';
+        const salesName = accountCodes?.salesName || (isRTL ? 'إيرادات المبيعات' : 'Sales Revenue');
+        const cashCode = accountCodes?.cashCode || '—';
+        const cashName = accountCodes?.cashName || (isRTL ? 'الصندوق / البنك' : 'Cash / Bank');
 
         if (totalAmount > 0) {
             // Debit: Accounts Receivable
             lines.push({
-                account_name: isRTL ? 'ذمم مدينة — عملاء' : 'Accounts Receivable',
-                account_code: '1200',
+                account_name: arName,
+                account_code: arCode,
                 debit: totalAmount,
                 credit: 0,
                 description: isRTL
@@ -500,8 +517,8 @@ export const paymentScheduleService = {
             });
             // Credit: Sales Revenue
             lines.push({
-                account_name: isRTL ? 'إيرادات المبيعات' : 'Sales Revenue',
-                account_code: '4100',
+                account_name: salesName,
+                account_code: salesCode,
                 debit: 0,
                 credit: totalAmount,
                 description: isRTL
@@ -513,8 +530,8 @@ export const paymentScheduleService = {
         if (paidAmount > 0) {
             // Debit: Cash/Bank
             lines.push({
-                account_name: isRTL ? 'الصندوق / البنك' : 'Cash / Bank',
-                account_code: '1100',
+                account_name: cashName,
+                account_code: cashCode,
                 debit: paidAmount,
                 credit: 0,
                 description: isRTL
@@ -523,8 +540,8 @@ export const paymentScheduleService = {
             });
             // Credit: Accounts Receivable
             lines.push({
-                account_name: isRTL ? 'ذمم مدينة — عملاء' : 'Accounts Receivable',
-                account_code: '1200',
+                account_name: arName,
+                account_code: arCode,
                 debit: 0,
                 credit: paidAmount,
                 description: isRTL

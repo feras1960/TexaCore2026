@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Ship, Plus, Filter, LayoutGrid, List, Anchor, PackageCheck, Truck, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 import { toast } from 'sonner';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
+import { ContainerStatusBadge, getStatusDef } from '@/features/trade/components/ContainerStatusStepper';
 
 export default function ContainersList() {
     const { t, direction } = useLanguage();
@@ -50,108 +51,54 @@ export default function ContainersList() {
         }, 500);
     }, []);
 
-    // Fetch Containers
+    // Fetch Containers — from `containers` table
     const { data: containers = [], isLoading } = useQuery({
         queryKey: ['containers_list', companyId, statusFilter, viewMode],
         queryFn: async () => {
             let query = supabase
-                .from('shipments')
-                .select(`
-                    *,
-                    supplier:suppliers(name_ar, name_en),
-                    invoices:purchase_invoices(count)
-                `)
-                .eq('company_id', companyId)
+                .from('containers')
+                .select('*')
+                .eq('company_id', companyId!)
                 .order('created_at', { ascending: false });
 
             // In kanban mode, always fetch all; in list mode, filter by tab
             if (viewMode === 'list' && statusFilter !== 'all') {
-                if (statusFilter === 'in_transit') query = query.in('status', ['shipped', 'at_port']);
-                else if (statusFilter === 'cleared') query = query.eq('status', 'cleared');
+                if (statusFilter === 'in_transit') query = query.in('status', ['in_transit', 'at_port']);
+                else if (statusFilter === 'cleared') query = query.eq('status', 'customs');
                 else if (statusFilter === 'received') query = query.eq('status', 'received');
             }
 
             const { data, error } = await query;
             if (error) throw error;
             return data || [];
-        }
-    });
-
-    // Create/Update Container Mutation
-    const saveContainerMutation = useMutation({
-        mutationFn: async (data: any) => {
-            const shipmentData = {
-                company_id: companyId,
-                shipment_number: data.shipment_number || `SHP-${Date.now().toString().slice(-6)}`,
-                container_number: data.container_number,
-                bill_of_lading: data.bill_of_lading,
-                supplier_id: data.party_id || data.supplier_id,
-                origin_country: data.origin_country,
-                port_of_loading: data.port_of_loading,
-                port_of_discharge: data.port_of_discharge,
-                shipping_line: data.shipping_line,
-                vessel_name: data.vessel_name,
-                etd: data.etd || null,
-                eta: data.eta || null,
-                container_size: data.container_size || '40ft',
-                container_type: data.container_type || 'dry',
-                status: data.status || 'ordered',
-                notes: data.notes
-            };
-
-            let shipmentId = data.id;
-
-            if (sheetMode === 'create') {
-                const { data: newShipment, error: createError } = await supabase
-                    .from('shipments')
-                    .insert(shipmentData)
-                    .select()
-                    .single();
-                if (createError) throw createError;
-                shipmentId = newShipment.id;
-            } else {
-                const { error: updateError } = await supabase
-                    .from('shipments')
-                    .update(shipmentData)
-                    .eq('id', shipmentId);
-                if (updateError) throw updateError;
-            }
-
-            // Link Invoices
-            const invoiceIds = data.invoice_ids as string[];
-            if (invoiceIds && invoiceIds.length > 0) {
-                const { error: invoiceError } = await supabase
-                    .from('purchase_invoices')
-                    .update({ shipment_id: shipmentId })
-                    .in('id', invoiceIds);
-                if (invoiceError) throw invoiceError;
-            }
-
-            return shipmentId;
         },
-        onSuccess: () => {
-            toast.success(isRTL ? 'تم حفظ الحاوية بنجاح' : 'Container saved successfully');
-            queryClient.invalidateQueries({ queryKey: ['containers_list'] });
-            setIsUnifiedSheetOpen(false);
-        },
-        onError: (error: any) => {
-            toast.error(error.message);
-        }
+        enabled: !!companyId,
     });
 
     const columns = [
+        {
+            accessorKey: 'shipment_number',
+            header: isRTL ? 'الرقم المرجعي' : 'Ref #',
+            cell: (info: any) => <span className="font-mono text-xs text-blue-600 font-semibold">{info.getValue() || '-'}</span>
+        },
         {
             accessorKey: 'container_number',
             header: t('fields.containerNumber') || 'Container #',
             cell: (info: any) => <span className="font-mono font-bold">{info.getValue()}</span>
         },
         {
-            accessorKey: 'supplier',
-            header: t('fields.supplier') || 'Supplier',
-            cell: (info: any) => {
-                const s = info.getValue();
-                return isRTL ? (s?.name_ar || s?.name_en) : (s?.name_en || s?.name_ar);
-            }
+            accessorKey: 'container_name',
+            header: isRTL ? 'اسم الكونتينر' : 'Name',
+            cell: (info: any) => (
+                <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[200px] block">
+                    {info.getValue() || '-'}
+                </span>
+            )
+        },
+        {
+            accessorKey: 'shipping_company',
+            header: isRTL ? 'شركة الشحن' : 'Shipping Co.',
+            cell: (info: any) => info.getValue() || '-'
         },
         {
             accessorKey: 'shipping_line',
@@ -254,12 +201,10 @@ export default function ContainersList() {
     const kanbanItems: KanbanItem[] = useMemo(() =>
         containers.map((c: any) => ({
             id: c.id,
-            columnId: c.status || 'ordered',
+            columnId: c.status || 'draft',
             content: {
                 ...c,
-                supplier_name: isRTL
-                    ? (c.supplier?.name_ar || c.supplier?.name_en || '-')
-                    : (c.supplier?.name_en || c.supplier?.name_ar || '-'),
+                supplier_name: c.shipping_company || c.supplier_name || '-',
             },
         }))
         , [containers, isRTL]);
@@ -372,16 +317,7 @@ export default function ContainersList() {
                                         <span className="font-mono text-xs font-bold text-gray-700 tracking-tight">
                                             {doc.container_number || '-'}
                                         </span>
-                                        <Badge
-                                            variant="outline"
-                                            className={`text-[10px] h-5 px-1.5 border capitalize ${doc.status === 'received' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                doc.status === 'cleared' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                    doc.status === 'at_port' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                        'bg-gray-50 text-gray-600 border-gray-200'
-                                                }`}
-                                        >
-                                            {doc.status}
-                                        </Badge>
+                                        <ContainerStatusBadge status={doc.status || 'draft'} />
                                     </div>
 
                                     {/* Supplier */}
@@ -426,17 +362,20 @@ export default function ContainersList() {
                 )}
             </div>
 
-            {/* Unified Sheet */}
+            {/* Unified Sheet — saving is handled internally via handleTradeSave → containers table */}
             {isUnifiedSheetOpen && (
                 <UnifiedTradeSheet
                     open={isUnifiedSheetOpen}
-                    onOpenChange={setIsUnifiedSheetOpen}
+                    onOpenChange={(open) => {
+                        setIsUnifiedSheetOpen(open);
+                        if (!open) {
+                            queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+                        }
+                    }}
                     mode="purchase"
                     type="container"
                     initialData={selectedContainer}
-                    onSave={async (data) => {
-                        await saveContainerMutation.mutateAsync(data);
-                    }}
+                    companyId={companyId}
                 />
             )}
         </div>

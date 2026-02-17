@@ -41,6 +41,34 @@ export interface MaterialSearchResult {
     /** Thumbnail image */
     swatch_url: string | null;
     images: any[];
+    /** Default supplier UUID (from fabric_materials) */
+    default_supplier_id: string | null;
+    /** Origin country */
+    origin_country: string | null;
+    /** Per-material tax rate (NULL = use company default, 0 = exempt) */
+    tax_rate: number | null;
+}
+
+/** Color variant for a material (from fabric_material_colors join) */
+export interface MaterialColorVariant {
+    /** fabric_material_colors row id */
+    id: string;
+    /** fabric_colors.id */
+    color_id: string;
+    /** Color code (e.g. 'RED-01') */
+    color_code: string;
+    color_name_ar: string;
+    color_name_en: string;
+    /** Hex color value (e.g. '#FF0000') */
+    hex_color: string;
+    /** Color family (e.g. 'warm', 'cold') */
+    color_family: string | null;
+    /** Override price for this color, null = use material price */
+    price_override: number | null;
+    /** Swatch image for this color variant */
+    image_url: string | null;
+    /** Is this variant currently available */
+    is_available: boolean;
 }
 
 /** Stock breakdown per warehouse for a material */
@@ -79,6 +107,12 @@ export interface MaterialSearchFilters {
     category?: string | null;
     status?: string;
     inStockOnly?: boolean;
+    /** Show only materials at or below min_stock */
+    belowMinStock?: boolean;
+    /** Filter by default supplier */
+    supplierId?: string | null;
+    /** Filter by warehouse (materials that have stock in this warehouse) */
+    warehouseId?: string | null;
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────
@@ -164,6 +198,30 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         staleTime: 2 * 60 * 1000, // 2 minutes
     });
 
+    // ─── Per-warehouse stock (for warehouse filter) ──────────────
+    const { data: warehouseStockMap } = useQuery({
+        queryKey: ['material_browser_wh_stock', companyId, filters.warehouseId, materialIds.join(',')],
+        queryFn: async () => {
+            if (!companyId || !filters.warehouseId || filters.warehouseId === 'all' || materialIds.length === 0) return null;
+            const result: Record<string, boolean> = {};
+            try {
+                const { data: rolls } = await supabase
+                    .from('fabric_rolls')
+                    .select('material_id')
+                    .eq('company_id', companyId)
+                    .eq('warehouse_id', filters.warehouseId)
+                    .in('material_id', materialIds)
+                    .in('status', ['available', 'reserved', 'partial']);
+                if (rolls) {
+                    for (const r of rolls) result[r.material_id] = true;
+                }
+            } catch { /* ignore */ }
+            return result;
+        },
+        enabled: !!companyId && !!filters.warehouseId && filters.warehouseId !== 'all' && materialIds.length > 0,
+        staleTime: 2 * 60 * 1000,
+    });
+
     // ─── Map to MaterialSearchResult format ─────────────────────
     const mappedMaterials = useMemo((): MaterialSearchResult[] => {
         if (!rawMaterials || rawMaterials.length === 0) return [];
@@ -177,6 +235,16 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                 // Category filter
                 if (filters.category && filters.category !== 'all' && m.category !== filters.category) {
                     return false;
+                }
+
+                // Supplier filter
+                if (filters.supplierId && filters.supplierId !== 'all') {
+                    if (m.default_supplier_id !== filters.supplierId) return false;
+                }
+
+                // Warehouse filter
+                if (filters.warehouseId && filters.warehouseId !== 'all' && warehouseStockMap) {
+                    if (!warehouseStockMap[m.id]) return false;
                 }
 
                 return true;
@@ -204,17 +272,24 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                     roll_count: stock?.roll_count ?? 0,
                     swatch_url: m.swatch_url || null,
                     images: m.images || [],
+                    default_supplier_id: m.default_supplier_id || null,
+                    origin_country: m.origin_country || null,
+                    tax_rate: m.tax_rate != null ? Number(m.tax_rate) : null,
                 };
             });
-    }, [rawMaterials, filters.status, filters.category, stockMap]);
+    }, [rawMaterials, filters.status, filters.category, filters.supplierId, filters.warehouseId, warehouseStockMap, stockMap]);
 
-    // ─── In stock filter ────────────────────────────────────────
+    // ─── In stock / below min stock filters ─────────────────────
     const filteredResults = useMemo(() => {
+        let result = mappedMaterials;
         if (filters.inStockOnly) {
-            return mappedMaterials.filter(m => m.stock_qty > 0);
+            result = result.filter(m => m.stock_qty > 0);
         }
-        return mappedMaterials;
-    }, [mappedMaterials, filters.inStockOnly]);
+        if (filters.belowMinStock) {
+            result = result.filter(m => m.min_stock > 0 && m.stock_qty <= m.min_stock);
+        }
+        return result;
+    }, [mappedMaterials, filters.inStockOnly, filters.belowMinStock]);
 
     // ─── Map groups ─────────────────────────────────────────────
     const mappedGroups = useMemo(() => {
@@ -250,6 +325,40 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         }
     }, [companyId]);
 
+    /** Fetch color variants for a material — queries fabric_colors directly */
+    const fetchMaterialColors = useCallback(async (materialId: string): Promise<MaterialColorVariant[]> => {
+        if (!companyId) return [];
+        try {
+            // fabric_material_colors join table doesn't exist, so fetch from fabric_colors directly
+            const { data, error } = await supabase
+                .from('fabric_colors')
+                .select('id, code, name, name_ar, name_en, hex_code, color_family, image_url, is_active')
+                .eq('is_active', true)
+                .order('sort_order', { ascending: true });
+
+            if (error || !data) {
+                console.warn('Color fetch error:', error?.message);
+                return [];
+            }
+
+            return data.map((row: any) => ({
+                id: row.id,
+                color_id: row.id,
+                color_code: row.code || '',
+                color_name_ar: row.name_ar || row.name || '',
+                color_name_en: row.name_en || row.name || '',
+                hex_color: row.hex_code || '#CCCCCC',
+                color_family: row.color_family || null,
+                price_override: null,
+                image_url: row.image_url || null,
+                is_available: row.is_active !== false,
+            }));
+        } catch (err) {
+            console.warn('Failed to fetch material colors:', err);
+            return [];
+        }
+    }, [companyId]);
+
     return {
         materials: filteredResults,
         groups: mappedGroups,
@@ -260,5 +369,7 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         // New: on-demand stock detail fetchers
         fetchWarehouseStock,
         fetchRollDetails,
+        // New: on-demand color fetcher
+        fetchMaterialColors,
     };
 }

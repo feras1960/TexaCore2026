@@ -42,11 +42,24 @@ import {
     X,
     Send,
     ShieldCheck,
+    Lock,
+    PackageCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SheetMode, ActionConfig } from '../types';
 import { NavigationArrows } from './NavigationArrows';
 import { QRPopover } from './QRPopover';
+import { useTradePermissions } from '@/hooks/useTradePermissions';
+
+// Document types that support posting (ترحيل)
+// Only documents with accounting/inventory impact should be postable
+const POSTABLE_DOC_TYPES = new Set([
+    'trade_invoice',   // فاتورة بيع/شراء
+    'trade_delivery',  // إذن تسليم
+    'trade_receipt',   // استلام بضاعة
+    'trade_return',    // مرتجع
+    'journal',         // قيد محاسبي
+]);
 
 // Icon mapping for actions
 const actionIconMap: Record<string, any> = {
@@ -75,6 +88,8 @@ const actionIconMap: Record<string, any> = {
 interface EnhancedActionToolbarProps {
     mode: SheetMode;
     status?: string;
+    /** Document stage (for transactions: draft, confirmed, posted, etc.) */
+    stage?: string;
     onAction: (actionId: string) => void;
     loading?: boolean;
     disabled?: boolean;
@@ -89,6 +104,8 @@ interface EnhancedActionToolbarProps {
     docType: string;
     docNumber: string;
     docId: string;
+    /** Human-readable number for QR display */
+    displayNumber?: string;
     amount?: number;
     currency?: string;
 
@@ -101,11 +118,15 @@ interface EnhancedActionToolbarProps {
     showConfirmAction?: boolean;
     /** Confirmation status of the current document */
     confirmationStatus?: string;
+
+    /** Trade mode for RBAC context */
+    tradeMode?: 'sales' | 'purchase';
 }
 
 export function EnhancedActionToolbar({
     mode,
     status,
+    stage,
     onAction,
     loading = false,
     disabled = false,
@@ -120,6 +141,7 @@ export function EnhancedActionToolbar({
     docType,
     docNumber,
     docId,
+    displayNumber,
     amount,
     currency = '',
 
@@ -129,12 +151,45 @@ export function EnhancedActionToolbar({
     hasChanges = false,
     showConfirmAction = false,
     confirmationStatus,
+    tradeMode,
 }: EnhancedActionToolbarProps) {
-    const { t, direction } = useLanguage();
+    const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
+    const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
     const isEditMode = mode === 'edit';
     const isCreateMode = mode === 'create';
     const isViewMode = mode === 'view';
+
+    // Only show post/unpost for postable document types
+    const isPostable = POSTABLE_DOC_TYPES.has(docType);
+
+    // ═══ Effective Status — unifies 'status' and 'stage' ═══
+    // Transactions use 'stage' (draft, confirmed, posted...)
+    // Other docs use 'status'
+    const effectiveStatus = stage || status || '';
+    const isDraft = effectiveStatus === 'draft' || effectiveStatus === '';
+    const isConfirmed = effectiveStatus === 'confirmed' || effectiveStatus === 'approved';
+    const isPosted = effectiveStatus === 'posted';
+    const isPartiallyReceived = effectiveStatus === 'partially_received';
+    const isFullyReceived = effectiveStatus === 'received';
+    const isReceivedOrPartial = isPartiallyReceived || isFullyReceived;
+
+    // ═══ Received Document Lock ═══
+    // Documents with status 'received' are read-only (goods already received)
+    const isReceivedDoc = isFullyReceived;
+
+    // Can post from confirmed / partially_received / received stages
+    const canPostFromStage = isConfirmed || isPartiallyReceived || isFullyReceived;
+
+    // RBAC permissions
+    const { actions: perms } = useTradePermissions({
+        tradeMode: tradeMode,
+        docType: docType,
+        docStatus: status,
+    });
+
+    // Manager override: admin can still edit received docs
+    const canEditReceived = perms.canEdit && isReceivedDoc;
 
     const handleEditSave = () => {
         if (isEditMode || isCreateMode) {
@@ -192,8 +247,61 @@ export function EnhancedActionToolbar({
                 </TooltipProvider>
             )}
 
-            {/* ✅ Confirm & Send — only for trade documents in view mode */}
-            {isViewMode && showConfirmAction && confirmationStatus !== 'confirmed' && (
+            {/* ✅ Save & Confirm — for draft invoices (step 1 of workflow) */}
+            {isViewMode && isPostable && isDraft && !isReceivedDoc && (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                size="sm"
+                                onClick={() => onAction('save_confirm')}
+                                disabled={disabled || loading}
+                                className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                            >
+                                <ShieldCheck className="w-4 h-4" />
+                                <span>{language === 'ar' ? 'حفظ وتأكيد' : 'Save & Confirm'}</span>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{tradeMode === 'purchase'
+                                ? (language === 'ar' ? 'تأكيد الفاتورة وإرسال إشعار لأمين المستودع للاستلام' : 'Confirm invoice and notify warehouse keeper for receipt')
+                                : (language === 'ar' ? 'تأكيد الفاتورة وإرسال إشعار لأمين المستودع لتجهيز الطلب' : 'Confirm invoice and notify warehouse keeper to prepare order')
+                            }</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )}
+
+            {/* ✅ Post Action — for confirmed / partially_received / received stages */}
+            {isViewMode && isPostable && canPostFromStage && !isPosted && (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                size="sm"
+                                onClick={() => onAction('post')}
+                                disabled={disabled || loading || !perms.canPost}
+                                className="gap-1.5 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white font-semibold shadow-md shadow-indigo-500/20"
+                            >
+                                <CheckCircle className="w-4 h-4" />
+                                <span>{isReceivedOrPartial
+                                    ? (language === 'ar' ? 'ترحيل (بالمستلم)' : 'Post (received)')
+                                    : (t('accounting.post') || 'ترحيل واعتماد')
+                                }</span>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{isReceivedOrPartial
+                                ? (language === 'ar' ? 'ترحيل القيد بالكميات المستلمة فعلياً' : 'Post using actual received quantities')
+                                : (t('accounting.postAndConfirm') || 'اعتماد المستند وترحيل القيد المالي')
+                            }</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )}
+
+            {/* ✅ Confirm & Send (for non-postable trade docs: orders, quotations) */}
+            {isViewMode && showConfirmAction && !isPostable && confirmationStatus !== 'confirmed' && (
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -214,71 +322,171 @@ export function EnhancedActionToolbar({
                 </TooltipProvider>
             )}
 
-            {/* Already Confirmed Badge */}
-            {isViewMode && showConfirmAction && confirmationStatus === 'confirmed' && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-                    <CheckCircle className="w-3.5 h-3.5" />
+            {/* Already Confirmed Badge (for confirmed docs waiting for post) */}
+            {isViewMode && isConfirmed && isPostable && !isReceivedOrPartial && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    <ShieldCheck className="w-3.5 h-3.5" />
                     <span>{t('status.confirmed') || 'مُؤكد'}</span>
                 </div>
             )}
 
-            {/* Edit / Save Button */}
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant={(isEditMode || isCreateMode) ? "default" : "ghost"}
-                            size="sm"
-                            onClick={handleEditSave}
-                            disabled={disabled || loading}
-                            className={cn(
-                                "gap-1.5",
-                                (isEditMode || isCreateMode)
-                                    ? "bg-green-600 text-white hover:bg-green-700"
-                                    : "text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
-                            )}
-                        >
-                            {(isEditMode || isCreateMode) ? (
-                                <>
-                                    <Save className="w-4 h-4" />
-                                    <span>{t('common.save') || 'حفظ'}</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Edit className="w-4 h-4" />
-                                    <span className="hidden lg:inline">{t('common.edit') || 'تعديل'}</span>
-                                </>
-                            )}
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>{(isEditMode || isCreateMode) ? (t('common.save') || 'حفظ') : (t('common.edit') || 'تعديل')}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
+            {/* Partially Received Badge */}
+            {isViewMode && isPartiallyReceived && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                    <PackageCheck className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'مُستلم جزئياً' : 'Partially Received'}</span>
+                </div>
+            )}
 
-            {/* Cancel Button (in edit/create mode) */}
-            {(isEditMode || isCreateMode) && (
+            {/* NOTE: Removed duplicate Post button block — now unified above (line ~270) */}
+
+            {/* Already Posted Badge */}
+            {
+                isViewMode && isPosted && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{t('status.posted') || 'مُرحّل'}</span>
+                    </div>
+                )
+            }
+
+            {/* ═══ Received Document Badge ═══ */}
+            {
+                isViewMode && isReceivedDoc && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-semibold border border-indigo-200 dark:border-indigo-800">
+                        <PackageCheck className="w-3.5 h-3.5" />
+                        <span>{t('status.received') || 'مُستلم'}</span>
+                        {!canEditReceived && <Lock className="w-3 h-3 opacity-60" />}
+                    </div>
+                )
+            }
+
+            {/* ✅ Save & Post / Save & Confirm — in edit/create mode */}
+            {
+                (isEditMode || isCreateMode) && isPostable && (() => {
+                    // Purchase invoices in draft: show "Save & Confirm" instead of "Save & Post"
+                    const isPurchaseInvoiceDraft = tradeMode === 'purchase' && docType === 'trade_invoice' && isDraft;
+                    const actionId = isPurchaseInvoiceDraft ? 'save_confirm' : 'save_post';
+                    const labelAr = isPurchaseInvoiceDraft ? 'حفظ وتأكيد' : 'حفظ وترحيل';
+                    const labelEn = isPurchaseInvoiceDraft ? 'Save & Confirm' : 'Save & Post';
+                    const tooltipAr = isPurchaseInvoiceDraft ? 'حفظ الفاتورة وتأكيدها — سيتم إشعار أمين المستودع' : 'حفظ المستند وترحيله فوراً';
+                    const tooltipEn = isPurchaseInvoiceDraft ? 'Save and confirm — warehouse keeper will be notified' : 'Save and post document immediately';
+                    const IconComp = isPurchaseInvoiceDraft ? ShieldCheck : CheckCircle;
+                    const gradientClass = isPurchaseInvoiceDraft
+                        ? 'gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20'
+                        : 'gap-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-sm';
+
+                    return (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => onAction(actionId)}
+                                        disabled={disabled || loading || (!isPurchaseInvoiceDraft && !perms.canPost)}
+                                        className={gradientClass}
+                                    >
+                                        <IconComp className="w-4 h-4" />
+                                        <span>{language === 'ar' ? labelAr : labelEn}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{language === 'ar' ? tooltipAr : tooltipEn}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    );
+                })()
+            }
+
+            {/* ✅ Save Button — for NON-postable docs in create/edit mode (containers, quotations, orders) */}
+            {(isEditMode || isCreateMode) && !isPostable && (
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
-                                variant="ghost"
                                 size="sm"
-                                onClick={handleCancel}
-                                disabled={loading}
-                                className="gap-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/30"
+                                onClick={() => onAction('save')}
+                                disabled={disabled || loading}
+                                className="gap-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-md shadow-blue-500/20"
                             >
-                                <X className="w-4 h-4" />
-                                <span className="hidden lg:inline">{t('common.cancel') || 'إلغاء'}</span>
+                                <Save className="w-4 h-4" />
+                                <span>{language === 'ar' ? 'حفظ' : 'Save'}</span>
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p>{t('common.cancel') || 'إلغاء'}</p>
+                            <p>{language === 'ar' ? 'حفظ المستند' : 'Save document'}</p>
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}
+            {
+                isViewMode && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onModeChange?.('edit')}
+                                    disabled={disabled || loading || ((isReceivedDoc || isPosted) && !canEditReceived)}
+                                    className={cn(
+                                        "gap-1.5",
+                                        (isReceivedDoc || isPosted) && !canEditReceived
+                                            ? "text-gray-400 cursor-not-allowed opacity-50"
+                                            : "text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
+                                    )}
+                                >
+                                    {(isReceivedDoc || isPosted) && !canEditReceived ? (
+                                        <>
+                                            <Lock className="w-4 h-4" />
+                                            <span className="hidden lg:inline">{t('common.locked') || 'مقفل'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Edit className="w-4 h-4" />
+                                            <span className="hidden lg:inline">{t('common.edit') || 'تعديل'}</span>
+                                        </>
+                                    )}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>
+                                    {(isReceivedDoc || isPosted) && !canEditReceived
+                                        ? (t('messages.docLocked') || 'المستند مقفل لا يمكن تعديله')
+                                        : (t('common.edit') || 'تعديل')
+                                    }
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )
+            }
+
+            {/* Cancel Button (in edit/create mode) */}
+            {
+                (isEditMode || isCreateMode) && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleCancel}
+                                    disabled={loading}
+                                    className="gap-1.5 text-red-600 hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/30"
+                                >
+                                    <X className="w-4 h-4" />
+                                    <span className="hidden lg:inline">{t('common.cancel') || 'إلغاء'}</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{t('common.cancel') || 'إلغاء'}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )
+            }
 
             <Separator orientation="vertical" className="h-6 mx-1" />
 
@@ -329,6 +537,7 @@ export function EnhancedActionToolbar({
                 docType={docType}
                 docNumber={docNumber}
                 docId={docId}
+                displayNumber={displayNumber}
                 amount={amount}
                 currency={currency}
             />
@@ -346,7 +555,7 @@ export function EnhancedActionToolbar({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align={isRTL ? "start" : "end"} className="w-48">
-                    <DropdownMenuItem onClick={() => onAction('duplicate')} className="gap-2 cursor-pointer">
+                    <DropdownMenuItem onClick={() => onAction('duplicate')} className="gap-2 cursor-pointer" disabled={!perms.canDuplicate}>
                         <Copy className="w-4 h-4" />
                         <span>{t('common.duplicate') || 'تكرار'}</span>
                     </DropdownMenuItem>
@@ -354,29 +563,35 @@ export function EnhancedActionToolbar({
                         <Share2 className="w-4 h-4" />
                         <span>{t('common.share') || 'مشاركة'}</span>
                     </DropdownMenuItem>
-                    {status !== 'posted' && (
-                        <DropdownMenuItem onClick={() => onAction('post')} className="gap-2 cursor-pointer">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>{t('accounting.post') || 'ترحيل'}</span>
-                        </DropdownMenuItem>
-                    )}
-                    {status === 'posted' && (
+
+                    {/* Unpost Action */}
+                    {isPostable && isPosted && perms.canUnpost && (
                         <DropdownMenuItem onClick={() => onAction('unpost')} className="gap-2 cursor-pointer text-orange-600">
                             <XCircle className="w-4 h-4" />
                             <span>{t('accounting.unpost') || 'إلغاء الترحيل'}</span>
                         </DropdownMenuItem>
                     )}
+                    {/* Unconfirm Action — return confirmed doc to draft */}
+                    {isPostable && isConfirmed && !isReceivedOrPartial && tradeMode === 'purchase' && (
+                        <DropdownMenuItem onClick={() => onAction('unconfirm')} className="gap-2 cursor-pointer text-amber-600">
+                            <XCircle className="w-4 h-4" />
+                            <span>{language === 'ar' ? 'إلغاء التأكيد' : 'Unconfirm'}</span>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                        onClick={() => onAction('delete')}
-                        className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                        <span>{t('common.delete') || 'حذف'}</span>
-                    </DropdownMenuItem>
+                    {/* Delete Action */}
+                    {perms.canDelete && !isReceivedDoc && status !== 'posted' && (
+                        <DropdownMenuItem
+                            onClick={() => onAction('delete')}
+                            className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            <span>{t('common.delete') || 'حذف'}</span>
+                        </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
-        </div>
+        </div >
     );
 }
 

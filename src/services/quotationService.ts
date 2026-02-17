@@ -124,7 +124,7 @@ export const quotationService = {
         }));
 
         const { error: iError } = await supabase
-            .from('sales_invoice_items')
+            .from('sales_transaction_items')
             .insert(items);
 
         if (iError) {
@@ -157,7 +157,7 @@ export const quotationService = {
 
         // Fetch items
         const { data: items, error: iError } = await supabase
-            .from('sales_invoice_items')
+            .from('sales_transaction_items')
             .select(`
         *,
         material:fabric_materials(id, name_ar, name_en, code),

@@ -6,7 +6,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,8 +26,12 @@ import {
     PackageMinus,
     Search,
     X,
+    RefreshCw,
+    AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { useCompany } from '@/hooks/useCompany';
 
 // ─── Movement Types ─────────────────────────────────────────
 type MovementType = 'all' | 'sale' | 'purchase' | 'transfer' | 'adjustment' | 'sales_return' | 'purchase_return' | 'in' | 'out';
@@ -35,21 +39,24 @@ type MovementType = 'all' | 'sale' | 'purchase' | 'transfer' | 'adjustment' | 's
 interface StockMovement {
     id: string;
     date: string;
-    type: MovementType;
+    type: string; // internal DB type
+    displayType: MovementType; // mapped for UI
     reference: string;
     counterparty?: string; // customer or supplier name
     warehouse_from?: string;
     warehouse_to?: string;
-    quantity: number;
+    quantity: number; // For rolls, this is length
+    quantity_unit?: string;
     unit_price?: number;
     total_value?: number;
     notes?: string;
     status?: string;
     created_by: string;
+    roll_number: string;
 }
 
 interface MaterialMovementsTabProps {
-    data: any;
+    data: any; // Material data
 }
 
 // ─── Movement Type Config ────────────────────────────────────
@@ -119,121 +126,29 @@ const getMovementTypeConfig = (language: string) => ({
     },
 });
 
-// ─── Sample Data ─────────────────────────────────────────────
-const generateSampleMovements = (language: string): StockMovement[] => [
-    // Sales
-    {
-        id: 'MOV-001', date: '2024-02-05T10:30:00Z', type: 'sale',
-        reference: 'INV-2024-045',
-        counterparty: language === 'ar' ? 'شركة النسيج المتحدة' : 'United Textile Co.',
-        warehouse_from: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: -150, unit_price: 25, total_value: 3750,
-        status: 'delivered', created_by: 'أحمد',
-    },
-    {
-        id: 'MOV-002', date: '2024-02-01T09:15:00Z', type: 'sale',
-        reference: 'INV-2024-038',
-        counterparty: language === 'ar' ? 'مصنع الأزياء الحديثة' : 'Modern Fashion Factory',
-        warehouse_from: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: -200, unit_price: 22, total_value: 4400,
-        status: 'delivered', created_by: 'محمد',
-    },
-    // Purchases
-    {
-        id: 'MOV-003', date: '2024-02-03T14:20:00Z', type: 'purchase',
-        reference: 'PO-2024-018',
-        counterparty: language === 'ar' ? 'مصنع الأقمشة التركية' : 'Turkish Fabric Mill',
-        warehouse_to: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: 500, unit_price: 15.5, total_value: 7750,
-        status: 'received', created_by: 'خالد',
-    },
-    {
-        id: 'MOV-004', date: '2024-01-25T11:00:00Z', type: 'purchase',
-        reference: 'PO-2024-014',
-        counterparty: language === 'ar' ? 'شركة القطن المصرية' : 'Egyptian Cotton Co.',
-        warehouse_to: language === 'ar' ? 'مستودع الفرع' : 'Branch Warehouse',
-        quantity: 300, unit_price: 14.8, total_value: 4440,
-        status: 'received', created_by: 'خالد',
-    },
-    // Transfers
-    {
-        id: 'MOV-005', date: '2024-01-30T08:45:00Z', type: 'transfer',
-        reference: 'TR-2024-007',
-        warehouse_from: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        warehouse_to: language === 'ar' ? 'مستودع الفرع' : 'Branch Warehouse',
-        quantity: 100, notes: language === 'ar' ? 'نقل داخلي لتغطية الطلب' : 'Internal transfer to cover demand',
-        status: 'completed', created_by: 'سعيد',
-    },
-    {
-        id: 'MOV-006', date: '2024-01-22T16:30:00Z', type: 'transfer',
-        reference: 'TR-2024-005',
-        warehouse_from: language === 'ar' ? 'مستودع الفرع' : 'Branch Warehouse',
-        warehouse_to: language === 'ar' ? 'مستودع المصنع' : 'Factory Warehouse',
-        quantity: 50, notes: language === 'ar' ? 'تحويل للإنتاج' : 'Transfer for production',
-        status: 'completed', created_by: 'سعيد',
-    },
-    // Adjustments
-    {
-        id: 'MOV-007', date: '2024-01-28T13:00:00Z', type: 'adjustment',
-        reference: 'ADJ-2024-003',
-        warehouse_to: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: 25, notes: language === 'ar' ? 'تسوية جرد - فائض' : 'Stock count - surplus',
-        status: 'approved', created_by: 'عمر',
-    },
-    {
-        id: 'MOV-008', date: '2024-01-15T10:00:00Z', type: 'adjustment',
-        reference: 'ADJ-2024-001',
-        warehouse_from: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: -10, notes: language === 'ar' ? 'تسوية جرد - نقص' : 'Stock count - shortage',
-        status: 'approved', created_by: 'عمر',
-    },
-    // Sales Returns
-    {
-        id: 'MOV-009', date: '2024-01-27T11:30:00Z', type: 'sales_return',
-        reference: 'RET-S-2024-002',
-        counterparty: language === 'ar' ? 'دار الخياطة الفاخرة' : 'Luxury Tailoring',
-        warehouse_to: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: 20, unit_price: 25, total_value: 500,
-        notes: language === 'ar' ? 'مرتجع - عيب تصنيع' : 'Return - manufacturing defect',
-        status: 'received', created_by: 'أحمد',
-    },
-    // Purchase Returns
-    {
-        id: 'MOV-010', date: '2024-01-20T09:45:00Z', type: 'purchase_return',
-        reference: 'RET-P-2024-001',
-        counterparty: language === 'ar' ? 'مصنع الأقمشة التركية' : 'Turkish Fabric Mill',
-        warehouse_from: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: -30, unit_price: 15.5, total_value: 465,
-        notes: language === 'ar' ? 'إرجاع - لون مخالف للمواصفات' : 'Return - color mismatch',
-        status: 'returned', created_by: 'خالد',
-    },
-    // Stock In
-    {
-        id: 'MOV-011', date: '2024-01-18T12:00:00Z', type: 'in',
-        reference: 'GRN-2024-012',
-        warehouse_to: language === 'ar' ? 'المستودع الرئيسي' : 'Main Warehouse',
-        quantity: 200, unit_price: 15, total_value: 3000,
-        notes: language === 'ar' ? 'استلام بضاعة من الشحنة رقم SH-045' : 'Goods receipt from shipment SH-045',
-        status: 'confirmed', created_by: 'محمد',
-    },
-    // Stock Out
-    {
-        id: 'MOV-012', date: '2024-01-12T15:30:00Z', type: 'out',
-        reference: 'DN-2024-008',
-        warehouse_from: language === 'ar' ? 'مستودع الفرع' : 'Branch Warehouse',
-        quantity: -80, unit_price: 25, total_value: 2000,
-        notes: language === 'ar' ? 'إذن صرف للقسم الإنتاج' : 'Issue note for production dept',
-        status: 'issued', created_by: 'سعيد',
-    },
-];
+// ─── Helper: Map DB Type to UI Type ──────────────────────────
+const mapMovementType = (dbType: string): MovementType => {
+    const type = dbType?.toLowerCase() || '';
+    if (type.includes('sale_return')) return 'sales_return';
+    if (type.includes('purchase_return')) return 'purchase_return';
+    if (type.includes('sale')) return 'sale';
+    if (type.includes('purchase') || type.includes('receipt')) return 'purchase';
+    if (type.includes('transfer')) return 'transfer';
+    if (type.includes('adjustment') || type.includes('stock_count')) return 'adjustment';
+    if (type.includes('in') || type.includes('receive')) return 'in';
+    if (type.includes('out') || type.includes('issue')) return 'out';
+    return 'all'; // Default
+};
 
 // ─── Component ───────────────────────────────────────────────
 export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
     const { language, direction } = useLanguage();
+    const { companyId } = useCompany();
     const isRTL = direction === 'rtl';
 
     const [movements, setMovements] = useState<StockMovement[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<MovementType>('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -241,14 +156,240 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
 
     const typeConfig = useMemo(() => getMovementTypeConfig(language), [language]);
 
-    // Load sample data
-    useEffect(() => {
+    // Fetch movements
+    const fetchMovements = useCallback(async () => {
+        if (!companyId || !data?.id) return;
+
         setLoading(true);
-        setTimeout(() => {
-            setMovements(generateSampleMovements(language));
+        setError(null);
+
+        try {
+            // Fetch inventory movements (which tracks material movements)
+            // Note: Use product_id or material_id depending on schema. We try both via OR or specific.
+            // Based on service code, product_id is the main FK, but material_id was added.
+            // checking if 'material_id' column exists is safer, but let's query product_id first as standard.
+
+            const { data: rawData, error: fetchError } = await supabase
+                .from('inventory_movements')
+                .select(`
+                    id,
+                    movement_date,
+                    movement_type,
+                    reference_type,
+                    reference_number,
+                    quantity,
+                    unit_cost,
+                    total_cost,
+                    notes,
+                    created_at,
+                    from_warehouse:warehouses!from_warehouse_id (name_ar, name_en),
+                    to_warehouse:warehouses!to_warehouse_id (name_ar, name_en)
+                `)
+                .eq('company_id', companyId)
+                .or(`product_id.eq.${data.id},material_id.eq.${data.id}`)
+                .order('movement_date', { ascending: false })
+                .order('created_at', { ascending: false })
+                .limit(200);
+
+            if (fetchError) {
+                // 1. Handle Missing Column (42703) -> Retry with product_id only
+                if (fetchError.code === '42703') {
+                    const { data: retryData, error: retryError } = await supabase
+                        .from('inventory_movements')
+                        .select(`
+                            id,
+                            movement_date,
+                            movement_type,
+                            reference_type,
+                            reference_number,
+                            quantity,
+                            unit_cost,
+                            total_cost,
+                            notes,
+                            created_at,
+                            from_warehouse:warehouses!from_warehouse_id (name_ar, name_en),
+                            to_warehouse:warehouses!to_warehouse_id (name_ar, name_en)
+                        `)
+                        .eq('company_id', companyId)
+                        .eq('product_id', data.id)
+                        .order('movement_date', { ascending: false })
+                        .limit(200);
+
+                    if (retryError) {
+                        // If retry also fails with PGRST200 (relationship error), we need to catch it here or let it fall through
+                        // Let's assume complex failure logic is handled by main catch or next block if we structured differently.
+                        // For simplicity, if this retry fails, we throw. 
+                        if (retryError.code === 'PGRST200') {
+                            // Fallthrough to PGRST200 handler below would require restructuring. 
+                            // Let's implement a direct simple fetch here for nested safety.
+                            const { data: simpleRetry, error: simpleRetryError } = await supabase
+                                .from('inventory_movements')
+                                .select('*')
+                                .eq('company_id', companyId)
+                                .eq('product_id', data.id)
+                                .order('created_at', { ascending: false })
+                                .limit(200);
+
+                            if (simpleRetryError) throw simpleRetryError;
+                            // We won't have warehouse names here easily, but better than error
+                            processData(simpleRetry);
+                            return;
+                        }
+                        throw retryError;
+                    }
+                    processData(retryData);
+                    return;
+                }
+
+                // 2. Handle Missing Relationship (PGRST200) -> Retry without joins
+                if (fetchError.code === 'PGRST200') {
+                    console.warn('Handling PGRST200: Fetching movements without joins...');
+
+                    // Fetch simple data (no joins)
+                    const { data: simpleData, error: simpleError } = await supabase
+                        .from('inventory_movements')
+                        .select(`
+                            id,
+                            movement_date,
+                            movement_type,
+                            reference_type,
+                            reference_number,
+                            quantity,
+                            unit_cost,
+                            total_cost,
+                            notes,
+                            created_at,
+                            from_warehouse_id,
+                            to_warehouse_id,
+                            product_id
+                        `)
+                        .eq('company_id', companyId)
+                        // Try broad OR query first
+                        .or(`product_id.eq.${data.id},material_id.eq.${data.id}`)
+                        .order('movement_date', { ascending: false })
+                        .limit(200);
+
+                    // If OR query fails (e.g. material_id missing), fallback to product_id
+                    if (simpleError) {
+                        if (simpleError.code === '42703') {
+                            const { data: finalData, error: finalError } = await supabase
+                                .from('inventory_movements')
+                                .select('*')
+                                .eq('company_id', companyId)
+                                .eq('product_id', data.id)
+                                .order('created_at', { ascending: false })
+                                .limit(200);
+
+                            if (finalError) throw finalError;
+                            // Manual Mapping attempt (best effort)
+                            const whIds = new Set([
+                                ...((finalData || []).map((m: any) => m.from_warehouse_id)),
+                                ...((finalData || []).map((m: any) => m.to_warehouse_id))
+                            ].filter(Boolean));
+
+                            let whMap = new Map();
+                            if (whIds.size > 0) {
+                                const { data: whs } = await supabase
+                                    .from('warehouses')
+                                    .select('id, name_ar, name_en')
+                                    .in('id', Array.from(whIds));
+                                if (whs) whMap = new Map(whs.map(w => [w.id, w]));
+                            }
+
+                            const enriched = (finalData || []).map((m: any) => ({
+                                ...m,
+                                from_warehouse: whMap.get(m.from_warehouse_id),
+                                to_warehouse: whMap.get(m.to_warehouse_id)
+                            }));
+                            processData(enriched);
+                            return;
+                        }
+                        throw simpleError;
+                    }
+
+                    // Success on simple query -> Map warehouses manually
+                    const whIds = new Set([
+                        ...((simpleData || []).map((m: any) => m.from_warehouse_id)),
+                        ...((simpleData || []).map((m: any) => m.to_warehouse_id))
+                    ].filter(Boolean));
+
+                    let whMap = new Map();
+                    if (whIds.size > 0) {
+                        const { data: whs } = await supabase
+                            .from('warehouses')
+                            .select('id, name_ar, name_en')
+                            .in('id', Array.from(whIds));
+                        if (whs) whMap = new Map(whs.map(w => [w.id, w]));
+                    }
+
+                    const enrichedData = (simpleData || []).map((m: any) => ({
+                        ...m,
+                        from_warehouse: whMap.get(m.from_warehouse_id),
+                        to_warehouse: whMap.get(m.to_warehouse_id)
+                    }));
+
+                    processData(enrichedData);
+                    return;
+                }
+
+                throw fetchError;
+            }
+
+            processData(rawData);
+        } catch (err: any) {
+            console.error('Failed to fetch movements:', err);
+            if (err.code !== 'PGRST116') {
+                setError(language === 'ar' ? 'فشل في تحميل الحركات' : 'Failed to load movements');
+            }
+        } finally {
             setLoading(false);
-        }, 300);
-    }, [language]);
+        }
+    }, [companyId, data?.id, isRTL, language]);
+
+    const processData = (rawData: any[]) => {
+        const mappedMovements: StockMovement[] = (rawData || []).map((m: any) => {
+            const uiType = mapMovementType(m.movement_type);
+            // Determine sign based on type/quantity
+            let signedQty = m.quantity || 0;
+            // Sales/Issues are negative, Receipts/Returns are positive (usually)
+            // But inventory_movements often stores absolute quantity.
+            // Logic: 
+            // - sale, out, issue, transfer_out -> negative
+            // - purchase, receipt, in, transfer_in, return -> positive
+
+            const lowerType = (m.movement_type || '').toLowerCase();
+            if (['sale', 'out', 'issue', 'transfer_out'].some(t => lowerType.includes(t))) {
+                signedQty = -Math.abs(signedQty);
+            } else if (lowerType.includes('return') && lowerType.includes('purchase')) {
+                signedQty = -Math.abs(signedQty); // Purchase return is OUT
+            } else {
+                signedQty = Math.abs(signedQty);
+            }
+
+            return {
+                id: m.id,
+                date: m.movement_date || m.created_at,
+                type: m.movement_type,
+                displayType: uiType,
+                reference: m.reference_number || m.reference_type || '—',
+                counterparty: '—', // Not directly available on inventory_movements without join
+                warehouse_from: isRTL ? m.from_warehouse?.name_ar : (m.from_warehouse?.name_en || m.from_warehouse?.name_ar),
+                warehouse_to: isRTL ? m.to_warehouse?.name_ar : (m.to_warehouse?.name_en || m.to_warehouse?.name_ar),
+                quantity: signedQty,
+                unit_price: m.unit_cost,
+                total_value: m.total_cost,
+                notes: m.notes,
+                status: 'completed',
+                created_by: 'System',
+                roll_number: '—' // Inventory movements are aggregated by material, roll info is in notes if any
+            };
+        });
+        setMovements(mappedMovements);
+    };
+
+    useEffect(() => {
+        fetchMovements();
+    }, [fetchMovements]);
 
     // Filter movements
     const filteredMovements = useMemo(() => {
@@ -256,7 +397,7 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
 
         // Type filter
         if (activeFilter !== 'all') {
-            result = result.filter(m => m.type === activeFilter);
+            result = result.filter(m => m.displayType === activeFilter);
         }
 
         // Date filters
@@ -274,6 +415,7 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                 m.reference.toLowerCase().includes(q) ||
                 m.counterparty?.toLowerCase().includes(q) ||
                 m.notes?.toLowerCase().includes(q) ||
+                m.roll_number?.toLowerCase().includes(q) ||
                 m.warehouse_from?.toLowerCase().includes(q) ||
                 m.warehouse_to?.toLowerCase().includes(q)
             );
@@ -293,28 +435,27 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
     // Type counts for badges
     const typeCounts = useMemo(() => {
         const counts: Record<string, number> = { all: movements.length };
-        movements.forEach(m => { counts[m.type] = (counts[m.type] || 0) + 1; });
+        movements.forEach(m => { counts[m.displayType] = (counts[m.displayType] || 0) + 1; });
         return counts;
     }, [movements]);
 
     // Filter types to show (only those with data + 'all')
     const filterTypes: MovementType[] = ['all', 'sale', 'purchase', 'transfer', 'adjustment', 'sales_return', 'purchase_return', 'in', 'out'];
 
-    const getStatusBadge = (status: string) => {
-        const config: Record<string, { label: string; color: string; bg: string }> = {
-            delivered: { label: language === 'ar' ? 'تم التسليم' : 'Delivered', color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-            received: { label: language === 'ar' ? 'تم الاستلام' : 'Received', color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-            completed: { label: language === 'ar' ? 'مكتمل' : 'Completed', color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-            approved: { label: language === 'ar' ? 'معتمد' : 'Approved', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-            confirmed: { label: language === 'ar' ? 'مؤكد' : 'Confirmed', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-            pending: { label: language === 'ar' ? 'قيد الانتظار' : 'Pending', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
-            returned: { label: language === 'ar' ? 'تم الإرجاع' : 'Returned', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
-            issued: { label: language === 'ar' ? 'تم الصرف' : 'Issued', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
-        };
-        const c = config[status] || { label: status, color: 'text-gray-600', bg: 'bg-gray-50 border-gray-200' };
+    const getStatusBadge = (status: string, displayType: MovementType) => {
+        // For purchase/receipt, "Received" is more appropriate
+        if (displayType === 'purchase' || displayType === 'in') {
+            return (
+                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-green-50 text-green-700 border-green-200')}>
+                    {language === 'ar' ? 'تم الاستلام' : 'Received'}
+                </span>
+            );
+        }
+
+        // Simple badge since movements are historical
         return (
-            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border', c.bg, c.color)}>
-                {c.label}
+            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gray-50 text-gray-600 border-gray-200')}>
+                {language === 'ar' ? 'مكتمل' : 'Done'}
             </span>
         );
     };
@@ -382,6 +523,18 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* ─── Error Message ───────────────────────────── */}
+            {error && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 text-red-800 rounded-lg border border-red-200">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                    <p className="text-sm font-medium">{error}</p>
+                    <Button variant="ghost" size="sm" onClick={fetchMovements} className="ms-auto h-8 text-xs">
+                        <RefreshCw className="w-3.5 h-3.5 me-1" />
+                        {language === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+                    </Button>
+                </div>
+            )}
 
             {/* ─── Filter Chips ────────────────────────────── */}
             <Card>
@@ -460,6 +613,9 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                                     {language === 'ar' ? 'مسح الفلاتر' : 'Clear'}
                                 </Button>
                             )}
+                            <Button variant="ghost" size="sm" onClick={fetchMovements} disabled={loading} className="h-9 w-9 p-0">
+                                <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+                            </Button>
                         </div>
                     </div>
                 </CardContent>
@@ -509,7 +665,7 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                                             {language === 'ar' ? 'المرجع' : 'Reference'}
                                         </th>
                                         <th className={cn("py-3 px-3 font-semibold text-gray-600 dark:text-gray-400", isRTL ? "text-right" : "text-left")}>
-                                            {language === 'ar' ? 'الطرف المقابل' : 'Counterparty'}
+                                            {language === 'ar' ? 'رقم الرول' : 'Roll #'}
                                         </th>
                                         <th className={cn("py-3 px-3 font-semibold text-gray-600 dark:text-gray-400", isRTL ? "text-right" : "text-left")}>
                                             {language === 'ar' ? 'من / إلى' : 'From / To'}
@@ -527,7 +683,7 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                                 </thead>
                                 <tbody>
                                     {filteredMovements.map((mov, idx) => {
-                                        const tc = typeConfig[mov.type];
+                                        const tc = typeConfig[mov.displayType];
                                         const TypeIcon = tc?.icon || Filter;
                                         return (
                                             <tr
@@ -552,8 +708,8 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                                                 <td className="py-3 px-3 font-mono text-xs font-semibold text-erp-navy dark:text-white group-hover:text-erp-teal transition-colors">
                                                     {mov.reference}
                                                 </td>
-                                                <td className="py-3 px-3 text-gray-800 dark:text-gray-200 text-xs">
-                                                    {mov.counterparty || '—'}
+                                                <td className="py-3 px-3 font-mono text-xs text-gray-600">
+                                                    {mov.roll_number || '—'}
                                                 </td>
                                                 <td className="py-3 px-3 text-xs text-gray-500">
                                                     {mov.warehouse_from && mov.warehouse_to ? (
@@ -577,10 +733,10 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                                                     </span>
                                                 </td>
                                                 <td className="py-3 px-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300">
-                                                    {mov.total_value ? `$${mov.total_value.toLocaleString()}` : '—'}
+                                                    {mov.total_value ? `${data.currency || ''} ${mov.total_value.toLocaleString()}` : '—'}
                                                 </td>
                                                 <td className="py-3 px-3 text-center">
-                                                    {mov.status ? getStatusBadge(mov.status) : '—'}
+                                                    {getStatusBadge(mov.status || 'completed', mov.displayType)}
                                                 </td>
                                             </tr>
                                         );
@@ -597,8 +753,8 @@ export function MaterialMovementsTab({ data }: MaterialMovementsTabProps) {
                 <ArrowRightLeft className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-blue-700 dark:text-blue-300">
                     {language === 'ar'
-                        ? 'يعرض هذا التبويب جميع حركات المادة: مبيعات، مشتريات، مناقلات، تسويات جرد، ومرتجعات. استخدم الفلاتر لتصفية النتائج حسب النوع أو التاريخ.'
-                        : 'This tab shows all material movements: sales, purchases, transfers, stock adjustments, and returns. Use the filters to narrow results by type or date.'}
+                        ? 'يعرض هذا التبويب جميع حركات الرولات: مبيعات، مشتريات، مناقلات، ومرتجعات. استخدم الفلاتر لتصفية النتائج.'
+                        : 'This tab shows all roll movements: sales, purchases, transfers, and returns. Use filters to narrow results.'}
                 </p>
             </div>
         </div>

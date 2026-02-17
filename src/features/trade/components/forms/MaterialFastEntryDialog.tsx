@@ -10,6 +10,8 @@ import { Package, Ruler, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useTaxDefaults, computeTaxAmount } from '@/features/trade/hooks/useTaxDefaults';
+import { useCompany } from '@/hooks/useCompany';
 
 interface MaterialFastEntryDialogProps {
     open: boolean;
@@ -44,6 +46,11 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
 }) => {
     const { t, language, direction } = useLanguage();
     const isAr = language === 'ar';
+
+    // ─── Company & Tax ───
+    const { companyId } = useCompany();
+    const { data: taxDefaults } = useTaxDefaults(companyId);
+    const companyTaxRate = (taxDefaults?.isEnabled && taxDefaults.rate > 0) ? taxDefaults.rate : 0;
 
     // Form State
     const [materialId, setMaterialId] = useState(initialData?.item_id || '');
@@ -137,10 +144,10 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
             unit_price: unitPrice,
             discount_amount: 0,
             discount_percent: 0,
-            tax_rate: 15, // Default VAT
-            tax_amount: (totalPrice * 0.15),
+            tax_rate: companyTaxRate,
+            tax_amount: computeTaxAmount(totalPrice, companyTaxRate),
             subtotal: totalPrice,
-            total: totalPrice * 1.15
+            total: totalPrice + computeTaxAmount(totalPrice, companyTaxRate)
         };
 
         onSave(newItem);

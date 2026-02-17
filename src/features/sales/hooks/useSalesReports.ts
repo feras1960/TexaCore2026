@@ -21,22 +21,22 @@ export const useSalesReports = () => {
                 // 1. Fetch Invoices with Basic Items
                 // We avoid deep nested joins to prevent 400 errors and improve performance
                 const { data: invoices, error: invError } = await supabase
-                    .from('sales_invoices')
+                    .from('sales_transactions')
                     .select(`
                         id, 
-                        invoice_date, 
-                        invoice_number, 
+                        doc_date, 
+                        invoice_no, 
                         total_amount, 
-                        status, 
+                        stage, 
                         customer_id,
                         created_by,
-                        items:sales_invoice_items(
+                        items:sales_transaction_items(
                             id, quantity, total, total_cost, product_id
                         )
                     `)
-                    .gte('invoice_date', format(dateRange.from, 'yyyy-MM-dd'))
-                    .lte('invoice_date', format(dateRange.to, 'yyyy-MM-dd'))
-                    .neq('status', 'cancelled');
+                    .gte('doc_date', format(dateRange.from, 'yyyy-MM-dd'))
+                    .lte('doc_date', format(dateRange.to, 'yyyy-MM-dd'))
+                    .neq('stage', 'cancelled');
 
                 if (invError) throw invError;
                 if (!invoices) return { daily: [], products: [], customers: [], salespersons: [], regions: [], categories: [], returns: [], profit: [] };
@@ -63,7 +63,7 @@ export const useSalesReports = () => {
                 // A. Daily Sales
                 const dailyMap = new Map();
                 invoices.forEach(inv => {
-                    const date = inv.invoice_date;
+                    const date = inv.doc_date;
                     const existing = dailyMap.get(date) || { date, invoices: 0, totalSales: 0, returns: 0, netSales: 0 };
                     const amount = Math.abs(inv.total_amount || 0); // Use absolute for calculations
                     const isReturn = (inv.total_amount || 0) < 0; // Negative amount implies return
@@ -136,11 +136,11 @@ export const useSalesReports = () => {
                     // Customer
                     const cStat = custStats.get(cust.id) || {
                         name: cust.name, region: cust.city || cust.region || 'Unknown',
-                        invoices: 0, totalSales: 0, lastPurchase: inv.invoice_date
+                        invoices: 0, totalSales: 0, lastPurchase: inv.doc_date
                     };
                     cStat.invoices += 1;
                     cStat.totalSales += amount;
-                    if (new Date(inv.invoice_date) > new Date(cStat.lastPurchase)) cStat.lastPurchase = inv.invoice_date;
+                    if (new Date(inv.doc_date) > new Date(cStat.lastPurchase)) cStat.lastPurchase = inv.doc_date;
                     custStats.set(cust.id, cStat);
 
                     // Region
@@ -174,18 +174,18 @@ export const useSalesReports = () => {
                 const returnsData = invoices
                     .filter(inv => (inv.total_amount || 0) < 0)
                     .map(inv => ({
-                        date: inv.invoice_date,
+                        date: inv.doc_date,
                         originalInvoice: 'N/A',
                         customer: customerMap.get(inv.customer_id)?.name || 'Unknown',
                         amount: Math.abs(inv.total_amount),
                         reason: 'Return',
-                        status: inv.status
+                        status: inv.stage
                     }));
 
                 // F. Profit (Monthly)
                 const profitStats = new Map();
                 invoices.forEach(inv => {
-                    const month = inv.invoice_date.substring(0, 7);
+                    const month = inv.doc_date.substring(0, 7);
                     const pStat = profitStats.get(month) || { period: month, revenue: 0, cogs: 0 };
 
                     let cost = 0;

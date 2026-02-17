@@ -1,15 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from "@/components/ui/command";
 import {
     Popover,
     PopoverContent,
@@ -27,6 +19,8 @@ interface SmartAccountSelectorProps {
     error?: boolean;
     type?: 'all' | 'fund' | 'customer' | 'vendor' | string;
     disabled?: boolean;
+    /** إظهار المجموعات أيضاً — افتراضياً false = حسابات تفصيلية فقط */
+    showGroups?: boolean;
 }
 
 export function SmartAccountSelector({
@@ -35,13 +29,18 @@ export function SmartAccountSelector({
     companyId,
     placeholder,
     className,
-    error
+    error,
+    disabled,
+    showGroups = false,
 }: SmartAccountSelectorProps) {
     const { t, language } = useLanguage();
     const [open, setOpen] = useState(false);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<Account | undefined>(undefined);
+    const [inputValue, setInputValue] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
 
     // Initial Load
     useEffect(() => {
@@ -50,8 +49,6 @@ export function SmartAccountSelector({
         const loadAccounts = async () => {
             setLoading(true);
             try {
-                // Ideally this should be cached or passed as prop to avoid fetching on every row
-                // For now we rely on the service to handle caching or react-query if available
                 const data = await accountsService.getAll(companyId);
                 setAccounts(data || []);
             } catch (err) {
@@ -74,8 +71,16 @@ export function SmartAccountSelector({
         }
     }, [value, accounts]);
 
+    // Focus input when opening
+    useEffect(() => {
+        if (open) {
+            setTimeout(() => inputRef.current?.focus(), 50);
+        } else {
+            setInputValue("");
+        }
+    }, [open]);
+
     const handleSelect = (account: Account) => {
-        setValue(account.id); // For local optimistic update if needed
         onChange(account.id, account);
         setOpen(false);
     };
@@ -84,26 +89,26 @@ export function SmartAccountSelector({
     const getAccountLabel = (acc?: Account) => {
         if (!acc) return placeholder || t('accounting.account.select');
         const name = language === 'ar' ? acc.name_ar : (acc.name_en || acc.name_ar);
-        // Truncate if too long
         return `${acc.code} - ${name}`;
     };
 
-    // Helper for command items
-    const [inputValue, setInputValue] = useState("");
-
-    // Filtered accounts for performance
+    // فلترة الحسابات: حذف المجموعات + بحث
     const filteredAccounts = React.useMemo(() => {
-        if (!inputValue) return accounts.slice(0, 50); // Limit initial render
-        const lower = inputValue.toLowerCase();
-        return accounts.filter(acc =>
-            acc.code.includes(lower) ||
-            (acc.name_ar && acc.name_ar.toLowerCase().includes(lower)) ||
-            (acc.name_en && acc.name_en.toLowerCase().includes(lower))
-        ).slice(0, 50);
-    }, [accounts, inputValue]);
+        // أولاً: إخفاء المجموعات (is_group = true) إلا إذا طُلب showGroups
+        let filtered = showGroups ? accounts : accounts.filter(acc => !acc.is_group);
 
-    // We need to sync the internal command input state to filter manually because
-    // Accounts list can be large and default Command filter might be slow or we want custom logic
+        // ثانياً: فلترة بالبحث
+        if (inputValue.trim()) {
+            const lower = inputValue.toLowerCase().trim();
+            filtered = filtered.filter(acc =>
+                acc.code?.includes(lower) ||
+                (acc.name_ar && acc.name_ar.toLowerCase().includes(lower)) ||
+                (acc.name_en && acc.name_en.toLowerCase().includes(lower))
+            );
+        }
+
+        return filtered.slice(0, 60); // حد أقصى 60 نتيجة
+    }, [accounts, inputValue, showGroups]);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -112,6 +117,7 @@ export function SmartAccountSelector({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
+                    disabled={disabled}
                     className={cn(
                         "w-full justify-between font-normal",
                         !value && "text-muted-foreground",
@@ -123,55 +129,81 @@ export function SmartAccountSelector({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0" align="start">
-                <Command shouldFilter={false}>
-                    <CommandInput
-                        placeholder={t('ledger.search_placeholder')}
+            <PopoverContent
+                className="w-[350px] p-0"
+                align="start"
+                sideOffset={4}
+                style={{ zIndex: 9999 }}
+                onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+                {/* ═══ حقل البحث ═══ */}
+                <div className="flex items-center gap-2 px-3 py-2 border-b">
+                    <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <input
+                        ref={inputRef}
+                        type="text"
                         value={inputValue}
-                        onValueChange={setInputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder={placeholder || t('ledger.search_placeholder')}
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                     />
-                    <CommandList>
-                        {loading && (
-                            <div className="py-6 text-center text-sm">
-                                <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
-                                {t('common.loading')}
+                </div>
+
+                {/* ═══ قائمة الحسابات ═══ */}
+                <div
+                    ref={listRef}
+                    style={{
+                        maxHeight: '280px',
+                        overflowY: 'auto',
+                        overscrollBehavior: 'contain',
+                        WebkitOverflowScrolling: 'touch',
+                    }}
+                    onWheel={(e) => {
+                        // منع Radix من اعتراض حدث السكرول
+                        e.stopPropagation();
+                    }}
+                >
+                    {loading && (
+                        <div className="py-6 text-center text-sm">
+                            <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                            {t('common.loading')}
+                        </div>
+                    )}
+
+                    {!loading && filteredAccounts.length === 0 && (
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                            {t('accounting.account.notFound')}
+                        </div>
+                    )}
+
+                    {!loading && filteredAccounts.map((account) => (
+                        <div
+                            key={account.id}
+                            onClick={() => handleSelect(account)}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-2 cursor-pointer text-sm",
+                                "hover:bg-accent hover:text-accent-foreground transition-colors",
+                                value === account.id && "bg-accent"
+                            )}
+                        >
+                            <Check
+                                className={cn(
+                                    "h-4 w-4 shrink-0",
+                                    value === account.id ? "opacity-100 text-emerald-600" : "opacity-0"
+                                )}
+                            />
+                            <div className="flex flex-col min-w-0">
+                                <span className="font-medium truncate">
+                                    {language === 'ar' ? account.name_ar : (account.name_en || account.name_ar)}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                    {account.code}
+                                </span>
                             </div>
-                        )}
-                        {!loading && filteredAccounts.length === 0 && (
-                            <CommandEmpty>{t('accounting.account.notFound')}</CommandEmpty>
-                        )}
-                        <CommandGroup>
-                            {filteredAccounts.map((account) => (
-                                <CommandItem
-                                    key={account.id}
-                                    value={account.id} // We use ID as value for selection
-                                    onSelect={() => handleSelect(account)}
-                                    className="cursor-pointer"
-                                >
-                                    <Check
-                                        className={cn(
-                                            "mr-2 h-4 w-4",
-                                            value === account.id ? "opacity-100" : "opacity-0"
-                                        )}
-                                    />
-                                    <div className="flex flex-col">
-                                        <span className="font-medium">
-                                            {language === 'ar' ? account.name_ar : account.name_en}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground font-mono">
-                                            {account.code}
-                                        </span>
-                                    </div>
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
+                        </div>
+                    ))}
+                </div>
             </PopoverContent>
         </Popover>
     );
-
-    function setValue(val: string) {
-        // Just a helper to update local state if we were uncontrolled, but we are controlled
-    }
 }

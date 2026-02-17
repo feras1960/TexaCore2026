@@ -20,11 +20,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { 
-  QrCode, 
-  Download, 
-  Printer, 
-  Copy, 
+import {
+  QrCode,
+  Download,
+  Printer,
+  Copy,
   Check,
   Share2,
   Smartphone
@@ -33,22 +33,27 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 // Document types that support QR codes
-export type QRDocType = 
-  | 'invoice' 
-  | 'payment' 
-  | 'receipt' 
-  | 'journal_entry' 
+export type QRDocType =
+  | 'invoice'
+  | 'payment'
+  | 'receipt'
+  | 'journal_entry'
   | 'account'
   | 'customer'
   | 'supplier'
   | 'order'
   | 'tenant'
-  | 'fund';
+  | 'fund'
+  | 'quotation'
+  | 'delivery';
 
 interface QRCodeData {
   type: QRDocType;
   id: string;
+  /** الرقم المرجعي الثابت (مصدر QR) */
   number?: string;
+  /** الرقم التسلسلي الخاص بالمرحلة الحالية (يُعرض تحت QR) */
+  stageNumber?: string;
   date?: string;
   total?: number;
   currency?: string;
@@ -85,38 +90,29 @@ const generateZATCAData = (data: QRCodeData): string => {
     { tag: 4, value: data.total?.toFixed(2) || '0.00' }, // Total with VAT
     { tag: 5, value: (data.total ? data.total * 0.15 : 0).toFixed(2) }, // VAT amount (15%)
   ];
-  
+
   // Encode to base64 (simplified - real implementation needs proper TLV encoding)
   const jsonStr = JSON.stringify(tlvData);
   return btoa(jsonStr);
 };
 
 // Generate full QR code value
+// 🔒 QR code is ALWAYS based on the source reference number (number / id)
+// The stageNumber is ONLY for display below the QR code
 const generateQRValue = (data: QRCodeData): string => {
   // For invoices, use ZATCA format if company/VAT is provided
   if (data.type === 'invoice' && data.company && data.vat) {
     return generateZATCAData(data);
   }
-  
-  // Default: use URL with embedded data
-  const qrData = {
-    t: data.type,
-    i: data.id,
-    n: data.number,
-    d: data.date,
-    a: data.total,
-    c: data.currency,
-    s: data.status,
-    ...data.extra
-  };
-  
-  // If URL is preferred, use it
-  if (data.url) {
-    return data.url;
+
+  // 🟢 QR is fixed: always uses the source reference number or ID
+  // This ensures QR code never changes across stages
+  if (data.number) {
+    return data.number;
   }
-  
-  // Otherwise, encode as JSON
-  return JSON.stringify(qrData);
+
+  // Fallback: URL-based
+  return generateQRUrl(data);
 };
 
 // Convert doc type to translation key (e.g., "journal_entry" -> "journalEntry")
@@ -132,6 +128,8 @@ const getDocTypeKey = (type: QRDocType): string => {
     order: 'order',
     tenant: 'tenant',
     fund: 'fund',
+    quotation: 'quotation',
+    delivery: 'delivery',
   };
   return keyMap[type] || type;
 };
@@ -149,9 +147,16 @@ export function QRCodeGenerator({
   const qrRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = React.useState(false);
 
+  // Re-calculate when data changes
   const qrValue = useMemo(() => generateQRValue(data), [data]);
   const qrUrl = useMemo(() => generateQRUrl(data), [data]);
   const docTypeKey = getDocTypeKey(data.type);
+
+  // Visual label below QR:
+  // stageNumber = الرقم التسلسلي حسب المرحلة (draft_no, order_no, invoice_no)
+  // number = الرقم المرجعي الثابت (مصدر QR)
+  const displayLabel = data.stageNumber || data.number || data.id;
+  const sourceRef = data.number || data.id;
 
   const handleCopy = async () => {
     try {
@@ -172,20 +177,20 @@ export function QRCodeGenerator({
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     img.onload = () => {
       canvas.width = size * 2;
       canvas.height = size * 2;
       ctx?.drawImage(img, 0, 0, size * 2, size * 2);
-      
+
       const link = document.createElement('a');
       link.download = `qr-${data.type}-${data.number || data.id}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-      
+
       toast.success(t('qrCode.download'));
     };
-    
+
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
@@ -255,6 +260,7 @@ export function QRCodeGenerator({
         </PopoverTrigger>
         <PopoverContent className="w-auto p-4" align="end">
           <div className="flex flex-col items-center gap-3">
+
             <div ref={qrRef}>
               <QRCodeSVG
                 value={qrValue}
@@ -268,7 +274,10 @@ export function QRCodeGenerator({
                 <p className="text-xs text-muted-foreground">
                   {t('qrCode.scanWithMobile')}
                 </p>
-                <p className="text-sm font-medium">{data.number || data.id}</p>
+                <p className="text-sm font-bold font-mono">{displayLabel}</p>
+                {data.stageNumber && data.number && data.stageNumber !== data.number && (
+                  <p className="text-[10px] text-muted-foreground font-mono">ref: {sourceRef}</p>
+                )}
               </div>
             )}
             {showActions && (
@@ -301,7 +310,7 @@ export function QRCodeGenerator({
           includeMargin={false}
         />
         {showLabel && (
-          <span className="text-xs text-muted-foreground">{data.number || data.id}</span>
+          <span className="text-xs text-muted-foreground font-mono">{displayLabel}</span>
         )}
       </div>
     );
@@ -326,14 +335,17 @@ export function QRCodeGenerator({
               includeMargin={false}
             />
           </div>
-          
+
           <div className="text-center">
             <Badge variant="outline" className="mb-1">
               {t(`qrCode.docTypes.${docTypeKey}`)}
             </Badge>
             <p className="text-sm font-mono font-bold text-primary">
-              {data.number || data.id}
+              {displayLabel}
             </p>
+            {data.stageNumber && data.number && data.stageNumber !== data.number && (
+              <p className="text-[10px] text-muted-foreground font-mono">ref: {sourceRef}</p>
+            )}
             {data.date && (
               <p className="text-xs text-muted-foreground">{data.date}</p>
             )}
@@ -376,13 +388,16 @@ export function QRCodeGenerator({
           includeMargin={false}
         />
       </div>
-      
+
       {showLabel && (
         <div className="text-center">
           <p className="text-xs text-muted-foreground">
             {t('qrCode.title')}
           </p>
-          <p className="text-sm font-mono font-bold">{data.number || data.id}</p>
+          <p className="text-sm font-mono font-bold">{displayLabel}</p>
+          {data.stageNumber && data.number && data.stageNumber !== data.number && (
+            <p className="text-[10px] text-muted-foreground font-mono">ref: {sourceRef}</p>
+          )}
         </div>
       )}
 

@@ -4,8 +4,10 @@
  * Transit Reservation Cart Drawer
  * - Floating cart icon with item count badge
  * - Side drawer with customer selection, item list, advance payment
- * - Confirm reservation → save to transit_reservations DB
- * - Auto-updates reserved_quantity on shipment_items
+ * - Confirm reservation → save to container_reservations DB
+ * - Auto-updates reserved_quantity on container_items
+ * 
+ * 📋 Unified 2026-02-17: migrated from shipments → containers
  * 
  * @module TransitCartDrawer
  * @phase 13B-3
@@ -62,7 +64,7 @@ import type { UseTransitCartReturn, TransitCartCustomer } from '../hooks/useTran
 
 interface TransitCartDrawerProps {
     cart: UseTransitCartReturn;
-    shipmentNumber?: string;
+    shipmentNumber?: string; // kept for backward compat — now means containerNumber
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -120,9 +122,9 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
     const generateReservationNumber = async (): Promise<string> => {
         const prefix = 'TR';
         const date = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-        // Get sequence
+        // Get sequence from container_reservations (unified)
         const { data: existing } = await supabase
-            .from('transit_reservations')
+            .from('container_reservations')
             .select('reservation_number')
             .ilike('reservation_number', `${prefix}${date}%`)
             .order('reservation_number', { ascending: false })
@@ -162,7 +164,7 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
             const { data: { user } } = await supabase.auth.getUser();
             const reservationNumber = await generateReservationNumber();
 
-            // Create one reservation per cart item
+            // Create one reservation per cart item → container_reservations (unified)
             const reservations = cart.cart.items.map(item => ({
                 tenant_id: company?.tenant_id,
                 company_id: companyId,
@@ -170,8 +172,8 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
                 reservation_date: new Date().toISOString().slice(0, 10),
                 customer_id: cart.cart.customer!.id,
                 customer_name: cart.cart.customer!.name,
-                shipment_id: cart.cart.shipmentId,
-                shipment_item_id: item.shipmentItemId,
+                container_id: cart.cart.shipmentId, // ← was shipment_id, now container_id
+                container_item_id: item.shipmentItemId, // ← was shipment_item_id
                 material_id: item.materialId,
                 color_id: item.colorId,
                 product_id: item.productId,
@@ -186,12 +188,12 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
             }));
 
             const { error } = await supabase
-                .from('transit_reservations')
+                .from('container_reservations')
                 .insert(reservations);
 
             if (error) throw error;
 
-            // Update reserved_quantity on shipment_items
+            // Update reserved_quantity on container_items (unified)
             for (const item of cart.cart.items) {
                 const { error: updateError } = await supabase.rpc('increment_reserved_quantity', {
                     p_item_id: item.shipmentItemId,
@@ -200,23 +202,15 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
 
                 // Fallback: direct update if RPC doesn't exist
                 if (updateError) {
-                    await supabase
-                        .from('shipment_items')
-                        .update({
-                            reserved_quantity: supabase.rpc('', {}) as any, // Will use raw SQL below
-                        })
-                        .eq('id', item.shipmentItemId);
-
-                    // Direct SQL approach
                     const { data: currentItem } = await supabase
-                        .from('shipment_items')
+                        .from('container_items')
                         .select('reserved_quantity')
                         .eq('id', item.shipmentItemId)
                         .single();
 
                     if (currentItem) {
                         await supabase
-                            .from('shipment_items')
+                            .from('container_items')
                             .update({
                                 reserved_quantity: (currentItem.reserved_quantity || 0) + item.reservedQuantity,
                             })

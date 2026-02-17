@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Package, ScanBarcode, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useTradePermissions } from '@/hooks/useTradePermissions';
 
 interface TradeItemsTableProps {
     items: TradeItem[];
@@ -31,6 +32,7 @@ export const TradeItemsTable: React.FC<TradeItemsTableProps> = ({
     const isRTL = direction === 'rtl';
     const barcodeInputRef = useRef<HTMLInputElement>(null);
     const [barcode, setBarcode] = useState('');
+    const { columns: colPerms, actions: perms } = useTradePermissions({ tradeMode: mode });
 
     const handleAddRow = (): TradeItem => {
         // Return a clean new item
@@ -151,7 +153,14 @@ export const TradeItemsTable: React.FC<TradeItemsTableProps> = ({
                 </span>
             ),
         },
-    ], [isRTL, onEditItem]);
+    ].filter(col => {
+        // RBAC: hide price-sensitive columns
+        const key = (col as any).accessorKey || (col as any).id;
+        if (key === 'unit_price' && !colPerms.unit_price) return false;
+        if (key === 'discount' && !colPerms.discount) return false;
+        if (key === 'total' && !colPerms.unit_price) return false; // total depends on price
+        return true;
+    }), [isRTL, onEditItem, colPerms]);
 
     // === Editable Config ===
     const editableColumns: EditableColumnConfig[] = [

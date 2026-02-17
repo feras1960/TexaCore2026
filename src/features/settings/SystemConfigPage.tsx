@@ -33,7 +33,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Loader2 } from 'lucide-react';
 import {
-    Settings, Shield, Users, Building2,
+    Settings, Shield, Users, Building2, GitBranch,
     Eye, Layers, Wallet, Globe,
     Calculator, Package, ShoppingCart, ShoppingBag,
     Link2,
@@ -58,6 +58,7 @@ import AccountingSettings from '@/features/accounting/AccountingSettings';
 import WarehouseSettingsPage from '@/features/warehouse/pages/WarehouseSettingsPage';
 import SalesWorkflowSettings from '@/features/sales/pages/SalesWorkflowSettings';
 import IntegrationsTab from './components/IntegrationsTab';
+import BranchesManagementTab from './components/BranchesManagementTab';
 
 // ─── Tab Configuration ──────────────────────────────────────────────────
 
@@ -80,6 +81,15 @@ const CONFIG_TABS: ConfigTab[] = [
         labelEn: 'Company Profile',
         icon: Building2,
         component: CompanyProfileTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    {
+        id: 'branches',
+        labelKey: 'settings.tabs.branches',
+        labelAr: 'الفروع',
+        labelEn: 'Branches',
+        icon: GitBranch,
+        component: BranchesManagementTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     {

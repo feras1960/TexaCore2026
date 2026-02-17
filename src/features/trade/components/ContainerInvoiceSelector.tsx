@@ -30,16 +30,15 @@ export function ContainerInvoiceSelector({
         queryFn: async () => {
             if (!supplierId) return [];
 
-            // Fetch posted invoices not assigned to shipment OR implicitly assigned to THIS shipment (if editing)
-            // For now, let's fetch unassigned posted invoices
+            // Fetch posted invoices not yet assigned to a container
             const { data } = await supabase
-                .from('purchase_invoices')
+                .from('purchase_transactions')
                 .select('*')
                 .eq('company_id', companyId)
                 .eq('supplier_id', supplierId)
-                .eq('status', 'posted')
-                .is('shipment_id', null)
-                .order('invoice_date', { ascending: false });
+                .eq('stage', 'posted')
+                .is('container_id', null) // Not yet assigned to a container (unified)
+                .order('doc_date', { ascending: false });
             return data || [];
         },
         enabled: !!supplierId && !readOnly
@@ -51,7 +50,7 @@ export function ContainerInvoiceSelector({
         queryFn: async () => {
             if (selectedInvoiceIds.length === 0) return [];
             const { data } = await supabase
-                .from('purchase_invoices')
+                .from('purchase_transactions')
                 .select('*')
                 .in('id', selectedInvoiceIds); // Fetch specific IDs
             return data || [];
@@ -113,9 +112,9 @@ export function ContainerInvoiceSelector({
                         <div className={`flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm ${!readOnly ? 'mx-3' : ''}`}>
                             <span className="font-mono font-medium text-indigo-600 flex items-center gap-2">
                                 {readOnly && <FileText className="w-3 h-3 text-gray-400" />}
-                                {inv.invoice_number}
+                                {inv.invoice_no}
                             </span>
-                            <span className="text-gray-500">{new Date(inv.invoice_date).toLocaleDateString()}</span>
+                            <span className="text-gray-500">{new Date(inv.doc_date).toLocaleDateString()}</span>
                             <div className="flex justify-end gap-2">
                                 <span className="font-bold">{Number(inv.total_amount).toLocaleString()}</span>
                                 <span className="text-xs text-gray-500 self-center">{inv.currency}</span>

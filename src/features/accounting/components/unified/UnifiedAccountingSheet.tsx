@@ -11,13 +11,14 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Anchor, Ship, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Import components
@@ -26,56 +27,24 @@ import { EnhancedActionToolbar, ActionToolbar } from './components/ActionToolbar
 import { SheetTabs, TabContentWrapper } from './components/SheetTabs';
 import { MainDocumentTabs } from './components/MainDocumentTabs';
 
-// Import tabs
-import { OverviewTab } from './tabs/OverviewTab';
-import { LedgerTab } from './tabs/LedgerTab';
-import { ActivityTab } from './tabs/ActivityTab';
-// Warehouse Tabs
-import { WarehouseOverviewTab } from './tabs/WarehouseOverviewTab';
-import { WarehouseItemsTab } from './tabs/WarehouseItemsTab';
-import { WarehouseStocktakesTab } from './tabs/WarehouseStocktakesTab';
-// Material Tabs
-import {
-    MaterialOverviewTab,
-    MaterialInventoryTab,
-    MaterialMovementsTab,
-    MaterialPricingTab,
-    MaterialSalesTab,
-    MaterialPurchasesTab,
-    MaterialAnalyticsTab,
-    MaterialVariantsTab,
-    MaterialRollsTab,
-    MaterialBasicInfoTab,
-    MaterialSpecsTab,
-    MaterialImagesTab,
-    MaterialAdditionalInfoTab,
-    MaterialGroupInfoTab,
-} from './tabs';
-import { TradeMainTab } from './tabs/TradeMainTab';
-import { TradeShippingTab } from './tabs/TradeShippingTab';
-import { MaterialBrowserTab } from '@/features/trade/components/tabs/MaterialBrowserTab';
-import { PaymentReceiptTab } from '@/features/trade/components/tabs/PaymentReceiptTab';
-import { CustomerShippingTab } from '@/features/trade/components/tabs/CustomerShippingTab';
-import { NexaAgentTab } from '@/features/trade/components/tabs/NexaAgentTab';
-import { SupplierInfoTab } from '@/features/trade/components/tabs/SupplierInfoTab';
-import { PurchasePaymentTab } from '@/features/trade/components/tabs/PurchasePaymentTab';
-import { ShipmentItemsTab } from '@/features/trade/components/tabs/ShipmentItemsTab';
-import { DocumentAttachmentsTab } from '@/features/trade/components/tabs/DocumentAttachmentsTab';
-import { ContainerExpensesTab } from './tabs/ContainerExpensesTab';
 // Confirmation Workflow
 import { ConfirmationDialog } from '@/features/trade/components/ConfirmationDialog';
-import { confirmationService, type ValidationResult, type WorkflowSettings, type DocType as ConfDocType } from '@/services/confirmationService';
+import { confirmationService, type ValidationResult, type WorkflowSettings } from '@/services/confirmationService';
 import { supabase } from '@/lib/supabase';
-// Accounting Entry Tabs (Phase 1 - Unified)
-import { AccountingEntryTab } from './tabs/AccountingEntryTab';
-// CRM Contact Tabs
-import { ContactOverviewTab } from './tabs/ContactOverviewTab';
-import { ContactInteractionsTab } from './tabs/ContactInteractionsTab';
-import { ContactCallsTab } from './tabs/ContactCallsTab';
-import { ContactNotesTab } from './tabs/ContactNotesTab';
+// Extracted hooks & lazy-loaded tabs
+import {
+    recalcItemTotals,
+    resolveConfDocType,
+    useAccountingSave,
+    useTradeSave,
+    useTradeAutoSave,
+    useSheetActionHandler,
+} from './hooks/useSheetActions';
+import { useTabContentRenderer } from './hooks/TabContentRenderer';
 
 // Import configs
 import { getDocumentConfig } from './configs/documentConfigs';
+import { StatusDropdown } from '@/components/shared/status';
 
 // Import types
 import type {
@@ -87,6 +56,7 @@ import type {
     OpenDocument,
     NavigationProps,
     EditOption,
+    StageActionConfig,
 } from './types';
 
 /**
@@ -100,6 +70,9 @@ interface ExtendedSheetProps extends UnifiedAccountingSheetProps, NavigationProp
     onOpenDocument?: (doc: OpenDocument) => void;
     onCloseDocument?: (id: string) => void;
     onActiveDocumentChange?: (id: string) => void;
+    // Stage Awareness (NEW)
+    currentStage?: string;
+    onStageAdvance?: (targetStage: string, notes?: string) => Promise<void>;
 }
 
 export function UnifiedAccountingSheet({
@@ -144,9 +117,13 @@ export function UnifiedAccountingSheet({
     onOpenDocument,
     onCloseDocument,
     onActiveDocumentChange,
+    // Stage Awareness
+    currentStage,
+    onStageAdvance,
 }: ExtendedSheetProps) {
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
+    const queryClient = useQueryClient();
 
     // ═══ Company ID — fallback to useCompany() if not provided as prop ═══
     const { companyId: hookCompanyId } = useCompany();
@@ -170,9 +147,21 @@ export function UnifiedAccountingSheet({
 
     // Is this a trade document type?
     const isTradeDocType = useMemo(() =>
-        ['trade_order', 'trade_invoice', 'trade_quotation', 'trade_reservation', 'trade_delivery', 'trade_request'].includes(docType),
+        ['trade_order', 'trade_invoice', 'trade_quotation', 'trade_reservation', 'trade_delivery', 'trade_request', 'trade_return', 'trade_receipt', 'trade_container'].includes(docType),
         [docType]
     );
+
+    // Document types that support posting (ترحيل)
+    const POSTABLE_DOC_TYPES = useMemo(() => new Set([
+        'trade_invoice',  // فاتورة بيع/شراء
+        'trade_delivery', // إذن تسليم
+        'trade_receipt',  // استلام بضاعة
+        'trade_return',   // مرتجع
+    ]), []);
+
+    const isPostableDocType = useMemo(() => POSTABLE_DOC_TYPES.has(docType), [POSTABLE_DOC_TYPES, docType]);
+
+    // ═══ Helpers imported from useSheetActions (recalcItemTotals, resolveConfDocType) ═══
 
     // Multi-document state
     const [openDocs, setOpenDocs] = useState<OpenDocument[]>(() => {
@@ -198,12 +187,106 @@ export function UnifiedAccountingSheet({
     // Refs
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Update data when props change
+    // Update data when props change — MERGE to preserve fetched items
     useEffect(() => {
         if (initialData) {
-            setData(initialData);
+            setData((prev: any) => {
+                // If prev has items from DB fetch, keep them
+                const mergedItems = prev?.items?.length > 0 ? prev.items : initialData.items;
+                return { ...initialData, ...(mergedItems ? { items: mergedItems } : {}) };
+            });
         }
     }, [initialData]);
+
+    // ═══ Auto-fetch items for existing trade documents ═══
+    useEffect(() => {
+        if (!isTradeDocType) return;
+        // Containers fetch their own items via ShipmentItemsTab → container_items
+        if (docType === 'trade_container') return;
+        const docId = initialData?.id || documentId;
+        if (!docId) return;
+        // Skip if items are already loaded
+        if (initialData?.items && initialData.items.length > 0) return;
+        // Only fetch for view/edit mode (not create)
+        if (initialMode === 'create') return;
+
+        const fetchItems = async () => {
+            try {
+                const { TradeService } = await import('@/features/trade/services/TradeService');
+
+                // Determine the service doc type from docType + tradeMode
+                const tradeTypeMap: Record<string, Record<string, string>> = {
+                    sales: {
+                        trade_invoice: 'invoice',
+                        trade_order: 'order',
+                        trade_quotation: 'quotation',
+                        trade_delivery: 'delivery',
+                        trade_reservation: 'reservation',
+                    },
+                    purchase: {
+                        trade_invoice: 'purchase_invoice',
+                        trade_order: 'purchase_order',
+                        trade_quotation: 'purchase_quotation',
+                        trade_request: 'purchase_request',
+                        trade_receipt: 'purchase_receipt',
+                        trade_return: 'purchase_return',
+                    },
+                };
+                const modeKey = tradeMode || 'sales';
+                const serviceDocType = tradeTypeMap[modeKey]?.[docType] || 'invoice';
+
+                const result = await TradeService.getTradeDocumentWithItems(docId, serviceDocType);
+                console.log('[Fetch] getTradeDocumentWithItems result:', { header: !!result.header, itemsCount: result.items?.length });
+
+                // Map DB items to the format expected by the UI
+                // ✅ Items carry per-item tax_rate and tax_amount from DB
+                const mappedItems = (result.items || []).map((dbItem: any) => ({
+                    item_id: dbItem.product_id || dbItem.material_id || dbItem.id,
+                    material_id: dbItem.material_id,
+                    item_name: dbItem.description || dbItem.material_name_ar || '',
+                    item_code: dbItem.item_code || dbItem.product_code || '',
+                    quantity: Number(dbItem.quantity || dbItem.quantity_received) || 0,
+                    unit_price: Number(dbItem.unit_price) || 0,
+                    subtotal: Number(dbItem.subtotal) || Number(dbItem.quantity || 0) * Number(dbItem.unit_price || 0) || 0,
+                    total: Number(dbItem.total) || Number(dbItem.subtotal) || 0,
+                    unit: dbItem.unit || '',
+                    notes: dbItem.notes || '',
+                    tax_amount: Number(dbItem.tax_amount) || 0,
+                    tax_rate: Number(dbItem.tax_rate) || 0,
+                    discount_amount: Number(dbItem.discount_amount) || 0,
+                    // Preserve color/roll data for fabric items
+                    color_id: dbItem.color_id,
+                    color_name: dbItem.color_name,
+                    roll_id: dbItem.roll_id,
+                    roll_code: dbItem.roll_code,
+                }));
+
+                // Merge header + items into data
+                setData((prev: any) => ({
+                    ...prev,
+                    // Merge header data from DB (warehouse_id, currency, expenses, etc.)
+                    warehouse_id: result.header?.warehouse_id || prev?.warehouse_id,
+                    currency: result.header?.currency || prev?.currency,
+                    exchange_rate: result.header?.exchange_rate || prev?.exchange_rate,
+                    expenses: result.header?.expenses || prev?.expenses,
+                    attachments: result.header?.attachments || prev?.attachments,
+                    notes: result.header?.notes || prev?.notes,
+                    subtotal: result.header?.subtotal || prev?.subtotal,
+                    total_amount: result.header?.total_amount || prev?.total_amount,
+                    grand_total: result.header?.total_amount || prev?.grand_total,
+                    tax_amount: result.header?.tax_amount || prev?.tax_amount,
+                    supplier_invoice_number: result.header?.supplier_invoice_number || prev?.supplier_invoice_number,
+                    supplier_invoice_date: result.header?.supplier_invoice_date || prev?.supplier_invoice_date,
+                    // Set items
+                    items: mappedItems,
+                }));
+            } catch (err) {
+                console.warn('[UnifiedAccountingSheet] Failed to fetch trade items:', err);
+            }
+        };
+
+        fetchItems();
+    }, [initialData?.id, documentId, isTradeDocType, docType, tradeMode, initialMode]);
 
     // Update mode when props change
     useEffect(() => {
@@ -232,495 +315,34 @@ export function UnifiedAccountingSheet({
         onModeChange?.(newMode);
     }, [onModeChange]);
 
-    // ═══ Built-in Accounting Save Handler (Polymorphic Save Pattern) ═══
-    const isAccountingDocType = ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType);
+    // ═══ Document Type Flags ═══
+    const isAccountingDocType = useMemo(() => ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType), [docType]);
 
-    const handleAccountingSave = useCallback(async (saveData: any) => {
-        if (!isAccountingDocType) return;
-        if (!saveData) {
-            toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ');
-            return;
-        }
+    // ═══ Save Handlers (extracted to useSheetActions) ═══
+    const handleAccountingSave = useAccountingSave(docType, resolvedCompanyId, documentId, mode, t);
+    const handleTradeSave = useTradeSave(docType, tradeMode, resolvedCompanyId, documentId, mode, language, setData, setMode);
 
-        // Dynamic import to avoid circular deps
-        const { journalEntriesService } = await import('@/services/journalEntriesService');
+    // ═══ Auto-Save for Trade Drafts ═══
+    const currentDocId = data?.id || documentId || null;
+    const currentStageValue = currentStage || data?.stage || data?.status || '';
+    const { isSaving: isAutoSaving, lastSavedAt: autoSavedAt, hasUnsavedChanges: autoUnsaved } = useTradeAutoSave(
+        isTradeDocType, handleTradeSave, data, currentDocId, currentStageValue, mode
+    );
 
-        // Get company ID from the data or from component context
-        const saveCompanyId = saveData.company_id || resolvedCompanyId;
-        if (!saveCompanyId) {
-            toast.error(t('errors.companyRequired') || 'يجب تحديد الشركة');
-            return;
-        }
+    // ═══ Action Handler (extracted to useSheetActions) ═══
+    const handleAction = useSheetActionHandler({
+        docType, tradeMode, mode, data, documentId,
+        companyId: resolvedCompanyId,
+        isTradeDocType, isAccountingDocType, isPostableDocType,
+        handleAccountingSave, handleTradeSave,
+        setData, setMode, setLoading, setHasChanges, handleModeChange,
+        setConfirmDialogOpen, setConfirmValidation, setConfirmSettings, setConfirmNeedsApproval,
+        onSave, onDelete, onPost, onUnpost, onDuplicate, onPrint, onRefresh, onClose,
+        enableEditFlow, onEditPermissionDenied, onAdjustmentRequired,
+        initialData, hasChanges,
+    });
 
-        // --- Prepare lines ---
-        let finalLines = (saveData.lines || []).filter((line: any) =>
-            line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0)
-        );
-
-        // --- Auto-Balance for Receipt/Payment ---
-        const entryType = saveData.entry_type || docType;
-        if ((entryType === 'receipt' || entryType === 'payment') && saveData.header_account_id) {
-            const lineTotal = finalLines.reduce((sum: number, line: any) => {
-                return sum + (entryType === 'receipt'
-                    ? (Number(line.credit) || 0)
-                    : (Number(line.debit) || 0));
-            }, 0);
-
-            if (lineTotal > 0) {
-                // Add the balancing header account line
-                finalLines.push({
-                    account_id: saveData.header_account_id,
-                    description: saveData.description || (entryType === 'receipt' ? 'سند قبض' : 'سند صرف'),
-                    debit: entryType === 'receipt' ? lineTotal : 0,   // Receipt: fund is DEBIT
-                    credit: entryType === 'payment' ? lineTotal : 0,  // Payment: fund is CREDIT
-                    cost_center_id: null,
-                });
-            }
-        }
-
-        // --- Validation ---
-        if (finalLines.length < 2) {
-            toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ', {
-                description: t('accounting.errors.minLinesRequired') || 'يجب إدخال بندين على الأقل',
-            });
-            return;
-        }
-
-        const totalDebit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.debit) || 0), 0);
-        const totalCredit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.credit) || 0), 0);
-
-        if (Math.abs(totalDebit - totalCredit) > 0.01) {
-            toast.error(t('accounting.errors.notBalanced') || 'القيد غير متوازن!', {
-                description: `${t('accounting.debit') || 'مدين'}: ${totalDebit.toFixed(2)} ≠ ${t('accounting.credit') || 'دائن'}: ${totalCredit.toFixed(2)}`,
-            });
-            return;
-        }
-
-        // --- Build entry data ---
-        const entryInput = {
-            company_id: saveCompanyId,
-            entry_date: saveData.entry_date || new Date().toISOString().split('T')[0],
-            description: saveData.description || '',
-            entry_type: entryType,
-            lines: finalLines.map((line: any) => ({
-                account_id: line.account_id,
-                debit: Number(line.debit) || 0,
-                credit: Number(line.credit) || 0,
-                description: line.description || '',
-                cost_center_id: line.cost_center_id || null,
-            })),
-        };
-
-        // --- Create or Update ---
-        const entryId = saveData.id || documentId;
-        if (mode === 'edit' && entryId) {
-            await journalEntriesService.update(entryId, entryInput);
-        } else {
-            await journalEntriesService.create(entryInput);
-        }
-    }, [isAccountingDocType, docType, companyId, documentId, mode, t]);
-
-    // ═══ Built-in Trade Save Handler ═══
-    const handleTradeSave = useCallback(async (saveData: any) => {
-        if (!isTradeDocType || !saveData) return;
-
-        const { TradeService } = await import('@/features/trade/services/TradeService');
-
-        // Map unified docType + tradeMode → TradeService type key
-        const tradeTypeMap: Record<string, Record<string, string>> = {
-            sales: {
-                trade_invoice: 'invoice',
-                trade_order: 'order',
-                trade_quotation: 'quotation',
-                trade_delivery: 'delivery',
-                trade_reservation: 'reservation',
-            },
-            purchase: {
-                trade_invoice: 'purchase_invoice',
-                trade_order: 'purchase_invoice', // fallback — purchase orders go via invoice table for now
-                trade_quotation: 'purchase_invoice',
-                trade_request: 'purchase_invoice',
-            },
-        };
-
-        const modeKey = tradeMode || 'sales';
-        const serviceDocType = tradeTypeMap[modeKey]?.[docType] || 'invoice';
-
-        const docId = saveData.id || documentId;
-        const saveCompanyId = saveData.company_id || resolvedCompanyId;
-        if (!saveCompanyId) {
-            toast.error(t('errors.companyRequired') || 'يجب تحديد الشركة');
-            return;
-        }
-
-        // ─── Build document payload ───
-        const docPayload: Record<string, any> = {
-            party_id: saveData.party_id || saveData.customer_id || saveData.supplier_id,
-            warehouse_id: saveData.warehouse_id,
-            date: saveData.date || saveData.invoice_date || saveData.order_date || new Date().toISOString(),
-            currency: saveData.currency || '',
-            exchange_rate: saveData.exchange_rate || 1,
-            notes: saveData.notes,
-            subtotal: Number(saveData.subtotal || 0),
-            grand_total: Number(saveData.grand_total || saveData.total_amount || 0),
-            tax_total: Number(saveData.tax_amount || saveData.tax_total || 0),
-            items: saveData.items || [],
-        };
-
-        // ─── Purchase-specific fields ───
-        if (modeKey === 'purchase') {
-            docPayload.supplier_invoice_number = saveData.supplier_invoice_number;
-            docPayload.supplier_invoice_date = saveData.supplier_invoice_date;
-            docPayload.payment_terms = saveData.payment_terms;
-            docPayload.due_date = saveData.due_date;
-            docPayload.supplier_notes = saveData.supplier_notes;
-        }
-
-        // ─── Expenses & Attachments (included in payload for both create & update) ───
-        if (saveData.expenses) {
-            docPayload.expenses = saveData.expenses;
-            docPayload.expenses_total = saveData.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
-        }
-        if (saveData.attachments) {
-            docPayload.attachments = saveData.attachments;
-        }
-
-        // ─── Create or Update ───
-        if (mode === 'create' || !docId) {
-            const result = await TradeService.createTradeDocument(docPayload, serviceDocType, docPayload.currency);
-            // Update local data with the created document (for subsequent saves/edits)
-            setData((prev: any) => ({ ...prev, ...result, id: result.id }));
-            // Switch to edit mode so further saves become updates
-            setMode('edit');
-        } else {
-            // ─── Update existing document ───
-            await TradeService.updateTradeDocument(docId, docPayload, serviceDocType);
-
-            // Also update extra fields directly (purchase-specific + JSONB)
-            const { supabase } = await import('@/lib/supabase');
-            const tableMapping: Record<string, string> = {
-                invoice: 'sales_invoices',
-                order: 'sales_orders',
-                quotation: 'quotations',
-                delivery: 'sales_deliveries',
-                reservation: 'transit_reservations',
-                purchase_invoice: 'purchase_invoices',
-            };
-            const tableName = tableMapping[serviceDocType];
-            if (tableName) {
-                const extraUpdates: Record<string, any> = {};
-
-                // Purchase-specific columns
-                if (modeKey === 'purchase') {
-                    if (saveData.supplier_invoice_number !== undefined) extraUpdates.supplier_invoice_number = saveData.supplier_invoice_number;
-                    if (saveData.supplier_invoice_date !== undefined) extraUpdates.supplier_invoice_date = saveData.supplier_invoice_date;
-                    if (saveData.payment_terms !== undefined) extraUpdates.payment_terms = saveData.payment_terms;
-                    if (saveData.due_date !== undefined) extraUpdates.due_date = saveData.due_date;
-                    if (saveData.supplier_notes !== undefined) extraUpdates.supplier_notes = saveData.supplier_notes;
-                }
-
-                // Expenses JSONB
-                if (saveData.expenses) {
-                    extraUpdates.expenses = saveData.expenses;
-                    extraUpdates.expenses_total = saveData.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
-                }
-
-                // Attachments JSONB
-                if (saveData.attachments) {
-                    extraUpdates.attachments = saveData.attachments;
-                }
-
-                if (Object.keys(extraUpdates).length > 0) {
-                    await supabase
-                        .from(tableName)
-                        .update(extraUpdates)
-                        .eq('id', docId);
-                }
-            }
-        }
-    }, [isTradeDocType, docType, tradeMode, resolvedCompanyId, documentId, mode, t]);
-
-    // Check edit permission for journal entries
-    const checkEditPermission = useCallback(async (): Promise<boolean> => {
-        // Only check for journal entries when edit flow is enabled
-        if (!enableEditFlow || docType !== 'journal' || !documentId) {
-            return true;
-        }
-
-        try {
-            // Import supabase dynamically to avoid circular dependencies
-            const { supabase } = await import('@/lib/supabase');
-
-            const { data: result, error } = await supabase
-                .rpc('can_edit_journal_entry', { p_entry_id: documentId });
-
-            if (error) {
-                console.error('Edit permission check failed:', error);
-                return true; // Allow edit if check fails
-            }
-
-            if (!result?.can_edit) {
-                // Permission denied
-                const options = result?.options?.map((opt: any) => ({
-                    id: opt.id,
-                    label: opt.label,
-                    recommended: opt.recommended,
-                    warning: opt.warning,
-                    requires_permission: opt.requires_permission,
-                }));
-
-                onEditPermissionDenied?.(result?.message || 'لا يمكن التحرير', options);
-
-                // If linked mode and requires adjustment, notify
-                if (result?.mode === 'linked_closed_year') {
-                    onAdjustmentRequired?.(documentId);
-                }
-
-                return false;
-            }
-
-            // If auto_unpost is needed, handle it
-            if (result?.auto_unpost && onUnpost) {
-                toast.info(t('messages.unpostingEntry') || 'جاري إلغاء الترحيل للتعديل...');
-                await onUnpost();
-            }
-
-            return true;
-        } catch (error) {
-            console.error('Edit permission check error:', error);
-            return true; // Allow edit if check fails
-        }
-    }, [enableEditFlow, docType, documentId, onEditPermissionDenied, onAdjustmentRequired, onUnpost, t]);
-
-    // Handle action
-    const handleAction = useCallback(async (actionId: string) => {
-        try {
-            switch (actionId) {
-                case 'edit':
-                    // Check edit permission first if enabled
-                    if (enableEditFlow && docType === 'journal') {
-                        const canEdit = await checkEditPermission();
-                        if (!canEdit) {
-                            return; // Permission denied, don't enter edit mode
-                        }
-                    }
-                    handleModeChange('edit');
-                    break;
-
-                case 'save':
-                    // Check if the entry has any meaningful data
-                    if (isAccountingDocType) {
-                        const entryLines = data?.lines || [];
-                        const hasData = entryLines.some((line: any) =>
-                            line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0)
-                        );
-                        if (!hasData) {
-                            // Empty entry — do nothing
-                            toast.warning(
-                                language === 'ar'
-                                    ? 'لا يوجد بيانات للحفظ — أدخل بنوداً أولاً'
-                                    : 'No data to save — add line items first'
-                            );
-                            return;
-                        }
-                    }
-
-                    setLoading(true);
-                    if (onSave) {
-                        await onSave(data);
-                    } else if (isAccountingDocType) {
-                        await handleAccountingSave(data);
-                    } else if (isTradeDocType) {
-                        await handleTradeSave(data);
-                    }
-                    toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
-                    setHasChanges(false);
-
-                    if (mode === 'create' && isAccountingDocType) {
-                        // Stay in sheet, reset for new entry
-                        setData({});
-                        // Trigger re-render with fresh state
-                        setTimeout(() => {
-                            setData({ type: docType });
-                        }, 50);
-                    } else if (mode === 'create' && isTradeDocType) {
-                        // Trade documents: switch to view mode to allow Confirm action
-                        handleModeChange('view');
-                    } else if (mode === 'create') {
-                        onClose();
-                    } else {
-                        handleModeChange('view');
-                    }
-                    break;
-
-                case 'delete':
-                    if (onDelete) {
-                        const confirmed = window.confirm(t('messages.confirmDelete') || 'هل أنت متأكد من الحذف؟');
-                        if (confirmed) {
-                            setLoading(true);
-                            await onDelete();
-                            toast.success(t('messages.deletedSuccessfully') || 'تم الحذف بنجاح');
-                            onClose();
-                        }
-                    }
-                    break;
-
-                case 'post':
-                    if (onPost) {
-                        setLoading(true);
-                        await onPost();
-                        toast.success(t('messages.postedSuccessfully') || 'تم الترحيل بنجاح');
-                        if (documentId) {
-                            // Refresh data
-                            onRefresh?.();
-                        }
-                    }
-                    break;
-
-                case 'duplicate':
-                    if (onDuplicate) {
-                        onDuplicate?.();
-                    } else if (isTradeDocType && data) {
-                        // ═══ Built-in Trade Document Duplication ═══
-                        // Copy: customer, items, prices, currency, warehouse
-                        // Reset: id, status, dates, confirmation, document_number
-                        const duplicatedData = {
-                            ...data,
-                            id: undefined,
-                            document_number: undefined,
-                            order_number: undefined,
-                            invoice_number: undefined,
-                            quotation_number: undefined,
-                            delivery_number: undefined,
-                            return_number: undefined,
-                            reservation_number: undefined,
-                            status: 'draft',
-                            confirmation_status: undefined,
-                            confirmed_at: undefined,
-                            confirmed_by: undefined,
-                            delivery_note_id: undefined,
-                            approval_status: undefined,
-                            date: new Date().toISOString(),
-                            created_at: undefined,
-                            updated_at: undefined,
-                            type: data.type || data.subType,
-                            subType: data.subType || data.type,
-                        };
-                        setData(duplicatedData);
-                        handleModeChange('create');
-                        setHasChanges(true);
-                        toast.success(
-                            language === 'ar'
-                                ? '📋 تم نسخ المستند — عدّل ثم احفظ'
-                                : '📋 Document duplicated — edit and save'
-                        );
-                    } else {
-                        toast.info(t('messages.featureComingSoon') || 'قريباً');
-                    }
-                    break;
-
-                case 'print':
-                    onPrint?.();
-                    break;
-
-                case 'refresh':
-                    onRefresh?.();
-                    break;
-
-                case 'convertToCustomer':
-                    // CRM: Convert contact to customer — handled by parent via onSave with special flag
-                    if (data?.id) {
-                        const confirmed = window.confirm(
-                            language === 'ar' ? 'هل تريد تحويل جهة الاتصال إلى عميل؟' : 'Convert this contact to a customer?'
-                        );
-                        if (confirmed) {
-                            try {
-                                const { contactsService } = await import('@/services/contactsService');
-                                const result = await contactsService.convertToCustomer(data.id);
-                                if (result.success) {
-                                    toast.success(language === 'ar' ? 'تم التحويل بنجاح' : 'Converted successfully');
-                                    onRefresh?.();
-                                } else {
-                                    toast.error(result.message);
-                                }
-                            } catch (err: any) {
-                                toast.error(err.message);
-                            }
-                        }
-                    }
-                    break;
-
-                case 'export':
-                    // TODO: Implement export
-                    toast.info(t('messages.featureComingSoon') || 'قريباً');
-                    break;
-
-                case 'confirm': {
-                    // ═══ Confirmation Workflow ═══
-                    if (!resolvedCompanyId) {
-                        toast.error(language === 'ar' ? 'حدد الشركة أولاً' : 'Select company first');
-                        break;
-                    }
-                    setLoading(true);
-                    try {
-                        // 1. Get workflow settings
-                        const settings = await confirmationService.getWorkflowSettings(resolvedCompanyId);
-                        setConfirmSettings(settings);
-
-                        // 2. Map docType to confirmation docType
-                        const confDocType: ConfDocType =
-                            docType === 'trade_order' ? 'sales_order' :
-                                docType === 'trade_invoice' ? 'sales_invoice' :
-                                    docType === 'trade_quotation' ? 'quotation' :
-                                        docType === 'trade_reservation' ? 'reservation' : 'sales_order';
-
-                        // 3. Check if approval is needed
-                        const needsApproval = confirmationService.isApprovalRequired(confDocType, settings, data);
-                        setConfirmNeedsApproval(needsApproval);
-
-                        // 4. Run validation
-                        const validation = await confirmationService.validateForConfirmation(
-                            confDocType,
-                            documentId || data?.id || '',
-                            data,
-                            settings
-                        );
-                        setConfirmValidation(validation);
-
-                        // 5. Open dialog
-                        setConfirmDialogOpen(true);
-                    } catch (err: any) {
-                        toast.error(err.message);
-                    } finally {
-                        setLoading(false);
-                    }
-                    break;
-                }
-
-                case 'cancel':
-                    // In create mode, cancel closes the sheet
-                    if (mode === 'create') {
-                        onClose();
-                    } else {
-                        // In edit mode, revert to view
-                        setData(initialData);
-                        setHasChanges(false);
-                        handleModeChange('view');
-                    }
-                    break;
-
-                default:
-                    console.log('Unknown action:', actionId);
-            }
-        } catch (error: any) {
-            console.error('Action error:', error);
-            toast.error(error.message || t('messages.error') || 'حدث خطأ');
-        } finally {
-            setLoading(false);
-        }
-    }, [data, onSave, onDelete, onPost, onDuplicate, onPrint, onRefresh, onClose, documentId, handleModeChange, handleAccountingSave, handleTradeSave, isAccountingDocType, isTradeDocType, mode, t, resolvedCompanyId]);
-
-    // Filter tabs based on props
+    // Filter tabs based on props and current stage
     const visibleTabs = useMemo(() => {
         let tabs = config.tabs;
 
@@ -732,8 +354,49 @@ export function UnifiedAccountingSheet({
             tabs = tabs.filter(tab => !hiddenTabs.includes(tab.id));
         }
 
+        // Stage-based visibility filtering (NEW)
+        if (currentStage) {
+            tabs = tabs.filter(tab => {
+                if (!tab.visibleInStages) return true; // No restriction = always visible
+                return tab.visibleInStages.includes(currentStage);
+            });
+        }
+
         return tabs;
-    }, [config.tabs, allowedTabs, hiddenTabs]);
+    }, [config.tabs, allowedTabs, hiddenTabs, currentStage]);
+
+    // Is the current stage editable? (NEW)
+    const isStageEditable = useMemo(() => {
+        if (!currentStage || !config.editableStages) return true; // No stage = legacy mode
+        return config.editableStages.includes(currentStage);
+    }, [currentStage, config.editableStages]);
+
+    // Is the current stage locked? (NEW)
+    const isStageLocked = useMemo(() => {
+        if (!currentStage || !config.lockedStages) return false;
+        return config.lockedStages.includes(currentStage);
+    }, [currentStage, config.lockedStages]);
+
+    // ═══ Container Lock — فاتورة مربوطة بكونتينر = مقفلة ═══
+    const isContainerLinked = useMemo(() => {
+        if (docType !== 'trade_invoice' || tradeMode !== 'purchase') return false;
+        return !!(data?.container_id);
+    }, [docType, tradeMode, data?.container_id]);
+
+    const containerLockInfo = useMemo(() => {
+        if (!isContainerLinked) return null;
+        return {
+            containerId: data?.container_id,
+            containerNumber: data?.container_number || data?.container_id?.substring(0, 8),
+            containerStatus: data?.container_status,
+        };
+    }, [isContainerLinked, data?.container_id, data?.container_number, data?.container_status]);
+
+    // Get stage-specific actions (NEW)
+    const currentStageActions: StageActionConfig[] = useMemo(() => {
+        if (!currentStage || !config.stageActions) return [];
+        return config.stageActions[currentStage] || [];
+    }, [currentStage, config.stageActions]);
 
     // Get mock ledger entries for demo
     const mockLedgerEntries: LedgerEntry[] = useMemo(() => {
@@ -767,503 +430,16 @@ export function UnifiedAccountingSheet({
 
     // Activity events are now fetched from audit_logs inside ActivityTab
 
-    // Render tab content
-    const renderTabContent = (tabId: string) => {
-        switch (tabId) {
-            // ═══ Accounting Entry Tabs (Unified) ═══
-            case 'entry':
-            case 'form':
-                if (['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType)) {
-                    return (
-                        <AccountingEntryTab
-                            data={data}
-                            mode={mode}
-                            docType={docType}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                            onSaveComplete={() => {
-                                console.log('Entry saved successfully');
-                            }}
-                            companyId={resolvedCompanyId}
-                        />
-                    );
-                }
-                break;
-
-            case 'items':
-                return <WarehouseItemsTab />;
-
-            case 'stocktakes':
-                return <WarehouseStocktakesTab />;
-
-            case 'overview':
-                if (docType === 'warehouse') {
-                    return (
-                        <WarehouseOverviewTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => setData((prev: any) => ({ ...prev, ...updates }))}
-                        />
-                    );
-                }
-                if (docType === 'material') {
-                    return (
-                        <MaterialOverviewTab
-                            data={data}
-                            mode={mode}
-                            groups={options?.groups}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                return (
-                    <OverviewTab
-                        data={data}
-                        stats={config.stats}
-                        currency={data?.currency || ''}
-                        useArabicNumerals={useArabicNumerals}
-                    />
-                );
-
-            case 'variants':
-                if (docType === 'material') {
-                    return (
-                        <MaterialVariantsTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'inventory':
-                if (docType === 'material') {
-                    return <MaterialInventoryTab data={data} onClose={onClose} />;
-                }
-                break;
-
-            case 'movements':
-                if (docType === 'material') {
-                    return <MaterialMovementsTab data={data} />;
-                }
-                break;
-
-            case 'pricing':
-                if (docType === 'material') {
-                    return <MaterialPricingTab data={data} />;
-                }
-                break;
-
-            case 'sales':
-                if (docType === 'material') {
-                    return <MaterialSalesTab data={data} />;
-                }
-                break;
-
-            case 'purchases':
-                if (docType === 'material') {
-                    return <MaterialPurchasesTab data={data} />;
-                }
-                break;
-
-            case 'analytics':
-                if (docType === 'material') {
-                    return <MaterialAnalyticsTab data={data} />;
-                }
-                break;
-
-            case 'ledger':
-                return (
-                    <LedgerTab
-                        entries={mockLedgerEntries}
-                        loading={loading}
-                        currency={data?.currency || ''}
-                        useArabicNumerals={useArabicNumerals}
-                        openingBalance={data?.opening_balance || 0}
-                        closingBalance={data?.current_balance || data?.balance || 0}
-                        totalDebit={data?.total_debit || 0}
-                        totalCredit={data?.total_credit || 0}
-                        onEntryClick={(entry) => {
-                            console.log('Entry clicked:', entry);
-                        }}
-                        onEntryOpen={(entry) => {
-                            // MDI: Open entry in new tab
-                            const newDocId = entry.id;
-                            const existingDoc = openDocs.find(d => d.id === newDocId);
-
-                            if (existingDoc) {
-                                setActiveDocId(newDocId);
-                            } else {
-                                const newDoc = {
-                                    id: newDocId,
-                                    type: 'journal' as const, // Treat ledger entries as journals for now
-                                    title: entry.entry_number || entry.description || 'Entry',
-                                    titleAr: entry.entry_number || entry.description,
-                                    code: entry.entry_number,
-                                    data: entry,
-                                    isClosable: true,
-                                };
-                                setOpenDocs(prev => [...prev, newDoc]);
-                                setActiveDocId(newDocId);
-                            }
-                        }}
-                    />
-                );
-
-            case 'activity': {
-                // Resolve entity type for audit log queries
-                const resolveEntityType = () => {
-                    if (tradeMode === 'purchase') {
-                        switch (docType) {
-                            case 'trade_order': return 'purchase_orders';
-                            case 'trade_invoice': return 'purchase_invoices';
-                            case 'trade_quotation': return 'purchase_quotations';
-                            case 'trade_request': return 'purchase_requests';
-                            case 'trade_receipt': return 'purchase_receipts';
-                            case 'trade_return': return 'purchase_returns';
-                            case 'trade_container': return 'shipments';
-                            default: return undefined;
-                        }
-                    }
-                    switch (docType) {
-                        case 'trade_order': return 'sales_orders';
-                        case 'trade_invoice': return 'sales_invoices';
-                        case 'trade_quotation': return 'quotations';
-                        case 'trade_delivery': return 'sales_deliveries';
-                        case 'trade_return': return 'sales_returns';
-                        default: return undefined;
-                    }
-                };
-                return (
-                    <ActivityTab
-                        documentId={documentId || data?.id}
-                        entityType={resolveEntityType()}
-                        useArabicNumerals={useArabicNumerals}
-                    />
-                );
-            }
-
-            // === New Material Tabs ===
-            case 'rolls':
-                if (docType === 'material') {
-                    return <MaterialRollsTab data={data} />;
-                }
-                break;
-
-            case 'images':
-            case 'createImages':
-                if (docType === 'material') {
-                    return (
-                        <MaterialImagesTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'basicInfo':
-                if (docType === 'material') {
-                    return (
-                        <MaterialBasicInfoTab
-                            data={data}
-                            mode={mode}
-                            groups={options?.groups}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            // ═══ Material Group Tabs ═══
-            case 'groupInfo':
-                if (docType === 'materialGroup') {
-                    return (
-                        <MaterialGroupInfoTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'specs':
-                if (docType === 'material') {
-                    return (
-                        <MaterialSpecsTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'createPricing':
-                if (docType === 'material') {
-                    return (
-                        <MaterialPricingTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'additionalInfo':
-                if (docType === 'material') {
-                    return (
-                        <MaterialAdditionalInfoTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'trade_details':
-                return (
-                    <TradeMainTab
-                        data={data}
-                        mode={mode as any}
-                        tradeMode={tradeMode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            case 'material_browser':
-                return (
-                    <MaterialBrowserTab
-                        items={data?.items || []}
-                        onAddItem={(newItem: any) => {
-                            const currentItems = data?.items || [];
-                            setData((prev: any) => ({
-                                ...prev,
-                                items: [...currentItems, newItem],
-                            }));
-                            setHasChanges(true);
-                        }}
-                        currency={data?.currency || 'SAR'}
-                        readOnly={mode === 'view'}
-                    />
-                );
-
-            case 'payment_receipt':
-                return (
-                    <PaymentReceiptTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            case 'shipping': {
-                // Trade documents → CustomerShippingTab (customer delivery)
-                // Containers → TradeShippingTab (maritime shipping)
-                const isContainer = docType === 'trade_container';
-                if (isContainer) {
-                    return (
-                        <TradeShippingTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                return (
-                    <CustomerShippingTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-            }
-
-            // ═══ Shipment Items Tab ═══
-            case 'shipment_items':
-                return (
-                    <ShipmentItemsTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            case 'expenses':
-                return (
-                    <ContainerExpensesTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            // ═══ NexaAgent Tab ═══
-            case 'nexa_agent':
-                return (
-                    <NexaAgentTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            // ═══ Purchase-specific Tabs ═══
-            case 'supplier_info':
-                return (
-                    <SupplierInfoTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            case 'purchase_payment':
-                return (
-                    <PurchasePaymentTab
-                        data={data}
-                        mode={mode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-            // ═══ Attachments Tab (PDF uploads) ═══
-            case 'attachments':
-                return (
-                    <DocumentAttachmentsTab
-                        data={data}
-                        mode={mode}
-                        docType={docType}
-                        tradeMode={tradeMode}
-                        onChange={(updates: any) => {
-                            setData((prev: any) => ({ ...prev, ...updates }));
-                            setHasChanges(true);
-                        }}
-                    />
-                );
-
-            // ═══ CRM Contact Tabs ═══
-            case 'contactOverview':
-                if (docType === 'contact') {
-                    return (
-                        <ContactOverviewTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'contactInteractions':
-                if (docType === 'contact') {
-                    return (
-                        <ContactInteractionsTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            case 'contactCalls':
-                if (docType === 'contact') {
-                    return (
-                        <ContactCallsTab
-                            data={data}
-                            mode={mode}
-                        />
-                    );
-                }
-                break;
-
-            case 'contactNotes':
-                if (docType === 'contact') {
-                    return (
-                        <ContactNotesTab
-                            data={data}
-                            mode={mode}
-                            onChange={(updates: any) => {
-                                setData((prev: any) => ({ ...prev, ...updates }));
-                                setHasChanges(true);
-                            }}
-                        />
-                    );
-                }
-                break;
-
-            default:
-                return (
-                    <div className="flex items-center justify-center h-64 text-gray-500">
-                        <p>{t('messages.contentComingSoon') || 'المحتوى قيد التطوير'}</p>
-                    </div>
-                );
-        }
-    };
+    // ═══ Lazy-loaded Tab Content Renderer (extracted to reduce file size) ═══
+    const renderTabContent = useTabContentRenderer({
+        data, mode, docType, tradeMode, loading,
+        companyId: resolvedCompanyId, documentId, currentStage, options,
+        useArabicNumerals,
+        setData, setHasChanges, onClose, onRefresh,
+        openDocs, setOpenDocs, setActiveDocId,
+        stats: config.stats,
+        mockLedgerEntries,
+    });
 
     return (
         <>
@@ -1293,10 +469,7 @@ export function UnifiedAccountingSheet({
                             </div>
                         )}
 
-                        {/* Extra header slot (e.g. document type selector) */}
-                        {headerExtra}
-
-                        {/* Combined Header + Action Toolbar — Compact */}
+                        {/* Combined Header + Action Toolbar — Compact (FIRST) */}
                         {customHeader || (
                             <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b">
                                 {/* Single Row: Icon, Title, Code, Status, Actions, Close */}
@@ -1316,11 +489,72 @@ export function UnifiedAccountingSheet({
                                         <div className="flex flex-col min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <h2 className="text-base font-bold text-gray-900 dark:text-white truncate">
-                                                    {language === 'ar' ? (data?.nameAr || data?.name_ar || data?.name) : (data?.name_en || data?.name) || t(config.titleKey)}
+                                                    {/* Dynamic title for trade docs based on status/stage */}
+                                                    {isTradeDocType ? (
+                                                        (() => {
+                                                            // Special title for containers
+                                                            if (docType === 'trade_container') {
+                                                                if (mode === 'create') return language === 'ar' ? 'إنشاء كونتينر' : 'New Container';
+                                                                return language === 'ar' ? 'تفاصيل الكونتينر' : 'Container Details';
+                                                            }
+                                                            const stage = data?.stage || data?.document_stage || data?.status;
+                                                            const isSales = tradeMode === 'sales';
+                                                            const stageTitle: Record<string, { ar: string; en: string }> = {
+                                                                draft: { ar: isSales ? 'مسودة مبيعات' : 'مسودة مشتريات', en: isSales ? 'Sales Draft' : 'Purchase Draft' },
+                                                                confirmed: { ar: isSales ? 'مبيعات مؤكدة' : 'مشتريات مؤكدة', en: isSales ? 'Confirmed Sales' : 'Confirmed Purchase' },
+                                                                partially_received: { ar: 'مستلم جزئياً', en: 'Partially Received' },
+                                                                requested: { ar: isSales ? 'طلب بيع' : 'طلب شراء', en: isSales ? 'Sales Request' : 'Purchase Request' },
+                                                                quoted: { ar: isSales ? 'عرض سعر مبيعات' : 'عرض سعر شراء', en: isSales ? 'Sales Quotation' : 'Purchase Quotation' },
+                                                                ordered: { ar: isSales ? 'أمر بيع' : 'أمر شراء', en: isSales ? 'Sales Order' : 'Purchase Order' },
+                                                                received: { ar: 'تم الاستلام', en: 'Received' },
+                                                                invoiced: { ar: isSales ? 'فاتورة مبيعات' : 'فاتورة مشتريات', en: isSales ? 'Sales Invoice' : 'Purchase Invoice' },
+                                                                posted: { ar: isSales ? 'فاتورة مرحّلة' : 'فاتورة مرحّلة', en: 'Posted Invoice' },
+                                                                partially_paid: { ar: 'مدفوعة جزئياً', en: 'Partially Paid' },
+                                                                partial_paid: { ar: 'مدفوعة جزئياً', en: 'Partially Paid' },
+                                                                paid: { ar: 'مدفوعة', en: 'Paid' },
+                                                                cancelled: { ar: 'ملغاة', en: 'Cancelled' },
+                                                            };
+                                                            const title = stageTitle[stage || 'draft'] || stageTitle.draft;
+                                                            return language === 'ar' ? title.ar : title.en;
+                                                        })()
+                                                    ) : (
+                                                        language === 'ar' ? (data?.nameAr || data?.name_ar || data?.name) : (data?.name_en || data?.name) || t(config.titleKey)
+                                                    )}
                                                 </h2>
 
-                                                {/* Status Badges inline */}
-                                                {data?.status && (
+                                                {/* Status — Stage-based badge for trade docs, simple badge for others */}
+                                                {isTradeDocType && data?.id ? (() => {
+                                                    const stageCode = data?.stage || data?.status || 'draft';
+                                                    const stageStyles: Record<string, string> = {
+                                                        draft: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+                                                        confirmed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                                                        partially_received: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                                                        received: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+                                                        posted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                                                        cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+                                                        paid: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                                                        partial_paid: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                    };
+                                                    const stageLabels: Record<string, { ar: string; en: string }> = {
+                                                        draft: { ar: 'مسودة', en: 'Draft' },
+                                                        confirmed: { ar: 'مؤكد', en: 'Confirmed' },
+                                                        partially_received: { ar: 'مستلم جزئياً', en: 'Partially Received' },
+                                                        received: { ar: 'مستلم', en: 'Received' },
+                                                        posted: { ar: 'مرحّل', en: 'Posted' },
+                                                        cancelled: { ar: 'ملغى', en: 'Cancelled' },
+                                                        paid: { ar: 'مدفوع', en: 'Paid' },
+                                                        partial_paid: { ar: 'مدفوع جزئياً', en: 'Partially Paid' },
+                                                    };
+                                                    const label = stageLabels[stageCode] || { ar: stageCode, en: stageCode };
+                                                    return (
+                                                        <span className={cn(
+                                                            "px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 border",
+                                                            stageStyles[stageCode] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                        )}>
+                                                            {language === 'ar' ? label.ar : label.en}
+                                                        </span>
+                                                    );
+                                                })() : data?.status ? (
                                                     <span className={cn(
                                                         "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
                                                         data.status === 'posted' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
@@ -1333,7 +567,7 @@ export function UnifiedAccountingSheet({
                                                                 data.status === 'saved' ? (t('status.saved') || 'Saved') :
                                                                     data.status}
                                                     </span>
-                                                )}
+                                                ) : null}
                                                 {data?.is_active !== undefined && (
                                                     <span className={cn(
                                                         "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
@@ -1344,33 +578,49 @@ export function UnifiedAccountingSheet({
                                                 )}
                                             </div>
 
-                                            {/* Code + Balance in compact second line */}
+                                            {/* Code / Document Number in compact second line */}
                                             <div className="flex items-center gap-2">
-                                                {(data?.code || data?.entry_number) && (
+                                                {/* Show invoice/order number prominently for trade docs */}
+                                                {(data?.invoice_no || data?.invoice_number || data?.order_number) ? (
+                                                    <span className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                                                        {data.invoice_no || data.invoice_number || data.order_number}
+                                                    </span>
+                                                ) : (data?.code || data?.entry_number) ? (
                                                     <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                                        #{data?.code || data?.entry_number}
+                                                        #{data.code || data.entry_number}
                                                     </span>
-                                                )}
+                                                ) : null}
 
-                                                {/* Balance inline with code */}
-                                                {data && (data.current_balance !== undefined || data.balance !== undefined) && (
-                                                    <span className="text-sm font-bold font-mono text-erp-primary">
-                                                        {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                                            .format(data.current_balance ?? data.balance ?? 0)}
-                                                        <span className="text-xs ms-1 text-gray-500 font-normal">
-                                                            {t(`currencies.${(data.currency || '').toUpperCase()}`) || data.currency || ''}
+                                                {/* Balance / Grand Total inline with code */}
+                                                {data && (() => {
+                                                    // For trade docs: use pre-calculated grand_total (tax-inclusive)
+                                                    let displayAmount: number | undefined;
+                                                    if (isTradeDocType) {
+                                                        displayAmount = Number(data?.grand_total || data?.total_amount || data?.subtotal || 0) || undefined;
+                                                    } else {
+                                                        displayAmount = data?.current_balance ?? data?.balance;
+                                                    }
+                                                    if (displayAmount === undefined || displayAmount === null) return null;
+                                                    return (
+                                                        <span className="text-sm font-bold font-mono text-erp-primary">
+                                                            {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                                .format(displayAmount)}
+                                                            <span className="text-xs ms-1 text-gray-500 font-normal">
+                                                                {t(`currencies.${(data.currency || '').toUpperCase()}`) || data.currency || ''}
+                                                            </span>
                                                         </span>
-                                                    </span>
-                                                )}
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Right: Action Toolbar */}
-                                    {!hideActions && (
+                                    {/* Right: Action Toolbar — hidden when container-linked */}
+                                    {!hideActions && !isContainerLinked && (
                                         <EnhancedActionToolbar
                                             mode={mode}
                                             status={data?.status}
+                                            stage={isTradeDocType ? (data?.stage || data?.document_stage || currentStage || '') : undefined}
                                             onAction={handleAction}
                                             loading={loading}
                                             // Navigation
@@ -1380,9 +630,13 @@ export function UnifiedAccountingSheet({
                                             hasNext={hasNext}
                                             // QR
                                             docType={docType}
-                                            docNumber={data?.code || data?.entry_number || data?.id || ''}
+                                            docNumber={data?.id || documentId || ''}
                                             docId={data?.id || documentId || ''}
-                                            amount={data?.current_balance ?? data?.balance ?? data?.total}
+                                            displayNumber={data?.invoice_no || data?.invoice_number || data?.order_number || data?.quotation_number || data?.receipt_number || data?.code || data?.entry_number || (isTradeDocType ? (language === 'ar' ? 'مسودة' : 'Draft') : '')}
+                                            amount={isTradeDocType
+                                                ? Number(data?.grand_total || data?.total_amount || 0)
+                                                : (data?.grand_total ?? data?.total_amount ?? data?.current_balance ?? data?.balance ?? data?.total)
+                                            }
                                             currency={data?.currency || ''}
                                             // Mode
                                             onModeChange={handleModeChange}
@@ -1394,7 +648,18 @@ export function UnifiedAccountingSheet({
                                             // Confirmation
                                             showConfirmAction={isTradeDocType}
                                             confirmationStatus={data?.confirmation_status}
+                                            tradeMode={tradeMode as 'sales' | 'purchase'}
                                         />
+                                    )}
+
+                                    {/* Container Lock Badge — shown instead of toolbar */}
+                                    {isContainerLinked && containerLockInfo && (
+                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-50 border border-cyan-200 rounded-md">
+                                            <Anchor className="w-3.5 h-3.5 text-cyan-600" />
+                                            <span className="text-[11px] font-semibold text-cyan-700 font-mono">
+                                                {containerLockInfo.containerNumber}
+                                            </span>
+                                        </div>
                                     )}
 
                                     {/* Close Button — Compact */}
@@ -1405,6 +670,53 @@ export function UnifiedAccountingSheet({
                                         <span className="text-sm text-gray-600 dark:text-gray-300">✕</span>
                                     </button>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Extra header slot — renders AFTER toolbar (e.g. receipt type / document selectors) */}
+                        {headerExtra}
+
+                        {/* ⚓ Container Lock Banner — shown when invoice is linked to a container */}
+                        {isContainerLinked && containerLockInfo && (
+                            <div className={cn(
+                                "flex items-center gap-3 px-4 py-2.5 border-b",
+                                "bg-gradient-to-r from-cyan-50 via-sky-50 to-blue-50",
+                                "dark:from-cyan-950/30 dark:via-sky-950/30 dark:to-blue-950/30",
+                                "border-cyan-200 dark:border-cyan-800"
+                            )}>
+                                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-100 dark:bg-cyan-900/50 shrink-0">
+                                    <Ship className="w-4.5 h-4.5 text-cyan-600 dark:text-cyan-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-cyan-800 dark:text-cyan-200">
+                                        {language === 'ar'
+                                            ? `⚓ هذه الفاتورة مربوطة بالكونتينر`
+                                            : `⚓ This invoice is linked to container`}
+                                        <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400 ms-1.5">
+                                            {containerLockInfo.containerNumber}
+                                        </span>
+                                    </p>
+                                    <p className="text-[11px] text-cyan-600/80 dark:text-cyan-400/60 mt-0.5">
+                                        {language === 'ar'
+                                            ? 'الفاتورة مقفلة — لا يمكن التعديل. لفك الارتباط اذهب لصفحة الكونتينر'
+                                            : 'Invoice is locked — no edits allowed. To unlink, go to the container page'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        // Open container in new tab/window 
+                                        window.open(`/purchases?tab=containers&container=${containerLockInfo.containerId}`, '_blank');
+                                    }}
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium shrink-0",
+                                        "bg-cyan-100 hover:bg-cyan-200 text-cyan-700",
+                                        "dark:bg-cyan-900/50 dark:hover:bg-cyan-800/50 dark:text-cyan-300",
+                                        "transition-colors border border-cyan-200 dark:border-cyan-700"
+                                    )}
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    {language === 'ar' ? 'عرض الكونتينر' : 'View Container'}
+                                </button>
                             </div>
                         )}
 
@@ -1484,6 +796,51 @@ export function UnifiedAccountingSheet({
 
                         {/* Custom Footer */}
                         {customFooter}
+
+                        {/* Stage Action Buttons (NEW — shown when stage is active) */}
+                        {currentStage && currentStageActions.length > 0 && onStageAdvance && (
+                            <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-2.5 bg-gray-50/80 dark:bg-gray-800/80">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {/* Stage indicator */}
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 me-auto">
+                                        {language === 'ar' ? `المرحلة: ${currentStage}` : `Stage: ${currentStage}`}
+                                        {isStageLocked && (
+                                            <span className="ms-1.5 text-amber-500">🔒</span>
+                                        )}
+                                        {/* Auto-save indicator */}
+                                        {isAutoSaving && (
+                                            <span className="ms-2 text-blue-500 animate-pulse">💾 {language === 'ar' ? 'جارٍ الحفظ...' : 'Saving...'}</span>
+                                        )}
+                                        {!isAutoSaving && autoSavedAt && (
+                                            <span className="ms-2 text-emerald-500">✅ {language === 'ar' ? 'تم الحفظ' : 'Saved'}</span>
+                                        )}
+                                        {autoUnsaved && !isAutoSaving && (
+                                            <span className="ms-2 text-amber-500">● {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved'}</span>
+                                        )}
+                                    </span>
+                                    {/* Action buttons */}
+                                    {currentStageActions.map((action) => (
+                                        <button
+                                            key={action.id}
+                                            onClick={() => onStageAdvance(action.targetStage)}
+                                            disabled={loading}
+                                            className={cn(
+                                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                                                action.variant === 'success' && 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                                action.variant === 'destructive' && 'bg-red-600 hover:bg-red-700 text-white',
+                                                action.variant === 'warning' && 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                action.variant === 'outline' && 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300',
+                                                action.variant === 'default' && 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                loading && 'opacity-50 cursor-not-allowed',
+                                            )}
+                                        >
+                                            <span>{action.icon}</span>
+                                            <span>{language === 'ar' ? action.labelAr : action.labelEn}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </SheetContent>
             </Sheet>
@@ -1495,11 +852,7 @@ export function UnifiedAccountingSheet({
                 onConfirm={async () => {
                     if (!resolvedCompanyId) return;
 
-                    const confDocType: ConfDocType =
-                        docType === 'trade_order' ? 'sales_order' :
-                            docType === 'trade_invoice' ? 'sales_invoice' :
-                                docType === 'trade_quotation' ? 'quotation' :
-                                    docType === 'trade_reservation' ? 'reservation' : 'sales_order';
+                    const confDocType = resolveConfDocType(docType, tradeMode);
 
                     const { data: { user } } = await supabase.auth.getUser();
                     if (!user) return;
@@ -1530,11 +883,7 @@ export function UnifiedAccountingSheet({
                 onRequestApproval={async () => {
                     if (!resolvedCompanyId) return;
 
-                    const confDocType: ConfDocType =
-                        docType === 'trade_order' ? 'sales_order' :
-                            docType === 'trade_invoice' ? 'sales_invoice' :
-                                docType === 'trade_quotation' ? 'quotation' :
-                                    docType === 'trade_reservation' ? 'reservation' : 'sales_order';
+                    const confDocType = resolveConfDocType(docType, tradeMode);
 
                     const { data: { user } } = await supabase.auth.getUser();
                     if (!user) return;
@@ -1562,12 +911,7 @@ export function UnifiedAccountingSheet({
                         toast.error(result.message);
                     }
                 }}
-                docType={
-                    docType === 'trade_order' ? 'sales_order' :
-                        docType === 'trade_invoice' ? 'sales_invoice' :
-                            docType === 'trade_quotation' ? 'quotation' :
-                                docType === 'trade_reservation' ? 'reservation' : 'sales_order'
-                }
+                docType={resolveConfDocType(docType, tradeMode)}
                 docData={data}
                 validation={confirmValidation}
                 settings={confirmSettings}

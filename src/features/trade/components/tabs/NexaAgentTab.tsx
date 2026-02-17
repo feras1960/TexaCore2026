@@ -239,8 +239,8 @@ export function NexaAgentTab({ data, mode }: NexaAgentTabProps) {
 
             // Fetch invoices for payment rate
             const { data: invoices } = await supabase
-                .from('sales_invoices')
-                .select('id, total_amount, paid_amount, created_at, status, due_date')
+                .from('sales_transactions')
+                .select('id, total_amount, paid_amount, created_at, stage, due_date')
                 .eq('customer_id', customerId)
                 .order('created_at', { ascending: false });
 
@@ -289,7 +289,7 @@ export function NexaAgentTab({ data, mode }: NexaAgentTabProps) {
                     recentOrders < previousOrders ? 'decreasing' : 'stable';
 
             // Average payment days
-            const paidInvoices = invoiceList.filter((i: any) => i.status === 'paid');
+            const paidInvoices = invoiceList.filter((i: any) => i.stage === 'paid');
             const avgPaymentDays = paidInvoices.length > 0
                 ? Math.round(paidInvoices.reduce((sum: number, i: any) => {
                     const created = new Date(i.created_at);

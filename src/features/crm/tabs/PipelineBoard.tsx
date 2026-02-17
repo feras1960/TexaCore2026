@@ -176,7 +176,7 @@ export default function PipelineBoard() {
                 fetchTable('quotations', 'quotation', 'quotation_date', 'quotation_number', 'total_amount'),
                 fetchTable('sales_orders', 'order', 'order_date', 'order_number', 'total_amount'),
                 fetchTable('sales_deliveries', 'delivery', 'delivery_date', 'delivery_number', undefined),
-                fetchTable('sales_invoices', 'invoice', 'invoice_date', 'invoice_number', 'total_amount'),
+                fetchTable('sales_transactions', 'invoice', 'doc_date', 'invoice_no', 'total_amount'),
                 fetchTable('transit_reservations', 'reservation', 'reservation_date', 'reservation_number', undefined),
             ]);
             const [quotations, orders, deliveries, invoices, reservations] = results.map(r =>
@@ -224,7 +224,7 @@ export default function PipelineBoard() {
             const getStage = (docs: any[]): PipelineStage => {
                 const types = new Set(docs.map((d: any) => d._type));
                 // Check from most advanced to least
-                if (docs.some((d: any) => d._type === 'invoice' && ['posted', 'paid'].includes(d.status))) return 'completed';
+                if (docs.some((d: any) => d._type === 'invoice' && ['posted', 'paid'].includes(d.status || d.stage))) return 'completed';
                 if (types.has('invoice')) return 'invoice';
                 if (types.has('delivery')) return 'delivery';
                 if (types.has('order')) return 'order';

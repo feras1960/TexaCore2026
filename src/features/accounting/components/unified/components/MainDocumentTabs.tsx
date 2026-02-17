@@ -47,7 +47,7 @@ const iconMap: Record<string, any> = {
 };
 
 // Color mapping for doc types
-const colorMap: Record<UnifiedDocType, string> = {
+const colorMap: Partial<Record<UnifiedDocType, string>> = {
     account: 'text-blue-600',
     fund: 'text-green-600',
     party: 'text-purple-600',
@@ -60,6 +60,7 @@ const colorMap: Record<UnifiedDocType, string> = {
     material: 'text-teal-600',
     materialGroup: 'text-indigo-600',
     warehouse: 'text-cyan-600',
+    goods_receipt: 'text-emerald-600',
 };
 
 interface MainDocumentTabsProps {

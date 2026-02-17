@@ -21,8 +21,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +68,9 @@ import {
     RefreshCw,
     Plus,
     Check,
+    Trash2,
+    Lock,
+    AlertTriangle,
 } from 'lucide-react';
 import { useTransitCart } from '../../hooks/useTransitCart';
 import { TransitCartDrawer } from '../TransitCartDrawer';
@@ -116,6 +121,7 @@ interface ShipmentItemsTabProps {
     data: any;
     mode: 'view' | 'edit' | 'create';
     onChange: (updates: any) => void;
+    onClose?: () => void;
 }
 
 type ViewMode = 'table' | 'by_supplier' | 'by_invoice';
@@ -143,11 +149,11 @@ function useContainerPermissions() {
             if (user) {
                 const { data: profile } = await supabase
                     .from('user_profiles')
-                    .select('system_role')
+                    .select('role')
                     .eq('id', user.id)
                     .single();
-                if (profile?.system_role) {
-                    setUserRole(profile.system_role);
+                if (profile?.role) {
+                    setUserRole(profile.role);
                 }
             }
         };
@@ -173,6 +179,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     data,
     mode,
     onChange,
+    onClose,
 }) => {
     const { t, isRTL } = useLanguage();
     const { companyId } = useCompany();
@@ -190,47 +197,308 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     });
     const [showFilters, setShowFilters] = useState(false);
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+    const [showImportDialog, setShowImportDialog] = useState(false);
+    const [importingInvoiceId, setImportingInvoiceId] = useState<string | null>(null);
+    const queryClient = useQueryClient();
 
-    const shipmentId = data?.id;
+    const containerId = data?.id;
+    const tenantId = data?.tenant_id;
 
     // 🛒 Transit Cart
-    const transitCart = useTransitCart(shipmentId || '');
+    const transitCart = useTransitCart(containerId || '');
 
     // ── Fetch Items ──
     const { data: items = [], isLoading, refetch } = useQuery({
-        queryKey: ['shipment-items', shipmentId],
+        queryKey: ['container-items', containerId],
         queryFn: async () => {
-            if (!shipmentId) return [];
+            if (!containerId) return [];
 
             const { data: result, error } = await supabase
-                .from('shipment_items')
+                .from('container_items')
                 .select(`
                     *,
-                    material:fabric_materials(id, name, code),
-                    color:fabric_colors(id, name),
-                    supplier:suppliers(id, name),
-                    invoice:purchase_invoices(id, invoice_number)
+                    material:fabric_materials(id, name_ar, name_en, code),
+                    color:fabric_colors(id, name, name_en),
+                    supplier_ref:suppliers(id, name_ar, name_en)
                 `)
-                .eq('shipment_id', shipmentId)
+                .eq('container_id', containerId)
                 .order('created_at', { ascending: true });
 
             if (error) {
-                console.error('Error fetching shipment items:', error);
+                console.error('Error fetching container items:', error);
                 return [];
             }
 
-            return (result || []).map((item: any) => ({
-                ...item,
-                item_description: item.item_description || item.material?.name || '',
-                material_code: item.material_code || item.material?.code || '',
-                color_name: item.color_name || item.color?.name || '',
-                supplier_name: item.supplier_name || item.supplier?.name || '',
-                invoice_number: item.invoice_number || item.invoice?.invoice_number || '',
-                available_quantity: (item.expected_quantity || 0) - (item.reserved_quantity || 0) - (item.sold_quantity || 0),
-            }));
+            return (result || []).map((item: any) => {
+                // For materials without colors, keep color_name as null
+                const hasColor = !!(item.color_id);
+                const resolvedColorName = hasColor
+                    ? (item.color_name || item.color?.name || item.color?.name_en || '')
+                    : null;
+
+                // Material description fallback chain (respects current language)
+                const matName = isRTL
+                    ? (item.material?.name_ar || item.material?.name_en || '')
+                    : (item.material?.name_en || item.material?.name_ar || '');
+                const resolvedDescription = item.item_description || matName || '';
+
+                return {
+                    ...item,
+                    shipment_id: containerId, // compat
+                    item_description: resolvedDescription,
+                    material_code: item.material_code || item.material?.code || '',
+                    color_name: resolvedColorName,
+                    supplier_name: item.supplier_name || item.supplier_ref?.name_ar || item.supplier_ref?.name_en || '',
+                    invoice_number: item.invoice_no || '',
+                    purchase_invoice_id: item.purchase_invoice_id || null,
+                    available_quantity: item.available_quantity || ((item.expected_quantity || 0) - (item.reserved_quantity || 0) - (item.sold_quantity || 0)),
+                };
+            });
         },
-        enabled: !!shipmentId,
+        enabled: !!containerId,
     });
+
+    // ── Fetch confirmed international purchase invoices for import ──
+    const { data: availableInvoices = [], isLoading: loadingInvoices } = useQuery({
+        queryKey: ['international-invoices-for-container', companyId, containerId],
+        queryFn: async () => {
+            if (!companyId) return [];
+
+            // 1. Get all confirmed international invoices
+            const { data: invoices, error } = await supabase
+                .from('purchase_transactions')
+                .select(`
+                    id, invoice_no, invoice_date, doc_date, supplier_id,
+                    subtotal, total_amount, currency, stage, receipt_mode,
+                    supplier:suppliers(id, name_ar, name_en)
+                `)
+                .eq('company_id', companyId)
+                .eq('receipt_mode', 'international')
+                .in('stage', ['posted', 'partial_paid', 'paid'])
+                .order('invoice_date', { ascending: false });
+
+            if (error) {
+                console.warn('Error fetching international invoices:', error);
+                return [];
+            }
+
+            // 2. Get invoice IDs already imported into ANY container
+            const { data: imported } = await supabase
+                .from('container_items')
+                .select('purchase_invoice_id')
+                .not('purchase_invoice_id', 'is', null);
+
+            const importedIds = new Set(
+                (imported || []).map((i: any) => i.purchase_invoice_id)
+            );
+
+            // 3. Filter out already-imported invoices
+            return (invoices || []).filter((inv: any) => !importedIds.has(inv.id));
+        },
+        enabled: !!companyId && (mode === 'edit' || mode === 'create'),
+    });
+
+    // ── Import items from an invoice into this container ──
+    const handleImportFromInvoice = async (invoiceId: string) => {
+        if (!containerId || !tenantId) {
+            toast.error(isRTL ? 'يرجى حفظ الكونتينر أولاً' : 'Please save the container first');
+            return;
+        }
+        setImportingInvoiceId(invoiceId);
+        try {
+            // Check if this invoice was already imported to THIS container
+            const { data: existingItems } = await supabase
+                .from('container_items')
+                .select('id')
+                .eq('container_id', containerId)
+                .eq('purchase_invoice_id', invoiceId)
+                .limit(1);
+
+            if (existingItems && existingItems.length > 0) {
+                toast.warning(isRTL ? 'هذه الفاتورة مستوردة بالفعل في هذا الكونتينر' : 'This invoice is already imported in this container');
+                setImportingInvoiceId(null);
+                return;
+            }
+
+            // Fetch invoice items with material & color details
+            const { data: invoiceItems, error: itemsError } = await supabase
+                .from('purchase_transaction_items')
+                .select(`
+                    *,
+                    material:fabric_materials(id, name_ar, name_en, code),
+                    color:fabric_colors(id, name, name_en)
+                `)
+                .eq('transaction_id', invoiceId);
+
+            if (itemsError) throw itemsError;
+            if (!invoiceItems || invoiceItems.length === 0) {
+                toast.warning(isRTL ? 'لا توجد بنود في هذه الفاتورة' : 'No items in this invoice');
+                return;
+            }
+
+            // Get invoice header for supplier info
+            const invoice = availableInvoices.find((inv: any) => inv.id === invoiceId);
+            const sup = Array.isArray(invoice?.supplier) ? invoice?.supplier?.[0] : invoice?.supplier;
+            const supplierName = isRTL
+                ? sup?.name_ar || sup?.name_en || ''
+                : sup?.name_en || sup?.name_ar || '';
+
+            // Map invoice items to container_items (denormalized for performance)
+            // Supports both: materials WITH colors and materials WITHOUT colors
+            const containerItems = invoiceItems.map((item: any) => {
+                const mat = Array.isArray(item.material) ? item.material[0] : item.material;
+                const clr = Array.isArray(item.color) ? item.color[0] : item.color;
+                const hasColor = !!(item.color_id && (item.color_name || clr?.name || clr?.name_en));
+
+                // Build description: prefer explicit description, then material name
+                const materialName = isRTL
+                    ? (mat?.name_ar || mat?.name_en || '')
+                    : (mat?.name_en || mat?.name_ar || '');
+                const itemDescription = item.description || item.description_ar || materialName || '';
+
+                return {
+                    tenant_id: tenantId,
+                    container_id: containerId,
+                    purchase_invoice_id: invoiceId,
+                    invoice_no: invoice?.invoice_no || '',
+                    supplier_id: invoice?.supplier_id || null,
+                    supplier_name: supplierName,
+                    material_id: item.material_id || null,
+                    product_id: item.product_id || null,
+                    color_id: item.color_id || null,
+                    item_description: itemDescription,
+                    material_code: item.item_code || mat?.code || '',
+                    color_name: hasColor ? (item.color_name || clr?.name || clr?.name_en || '') : null,
+                    expected_quantity: Number(item.quantity) || 0,
+                    expected_rolls: item.rolls_count || null,
+                    unit_cost: Number(item.unit_price) || 0,
+                    unit: item.unit || 'meter',
+                    unit_price: Number(item.unit_price) || 0,
+                    total_price: Number(item.subtotal || item.total) || 0,
+                    notes: `Imported from invoice: ${invoice?.invoice_no || invoiceId.substring(0, 8)}`,
+                };
+            });
+
+            const { error: insertError } = await supabase
+                .from('container_items')
+                .insert(containerItems);
+
+            if (insertError) throw insertError;
+
+            toast.success(
+                isRTL
+                    ? `تم استيراد ${containerItems.length} بنود من الفاتورة`
+                    : `Imported ${containerItems.length} items from invoice`
+            );
+
+            // Link the invoice directly to this container
+            await supabase
+                .from('purchase_transactions')
+                .update({ container_id: containerId })
+                .eq('id', invoiceId);
+
+            // Refresh items list + available invoices + purchase cycle
+            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
+            queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
+            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+            setShowImportDialog(false);
+        } catch (err: any) {
+            console.error('Import error:', err);
+            toast.error(isRTL ? 'خطأ في الاستيراد: ' + err.message : 'Import error: ' + err.message);
+        } finally {
+            setImportingInvoiceId(null);
+        }
+    };
+
+    // ── Container locked status (no edits when received or closed) ──
+    const isContainerLocked = ['received', 'closed'].includes(data?.status || '');
+    const effectiveMode = isContainerLocked ? 'view' : mode;
+
+    // ── Delete a single item ──
+    const handleDeleteItem = async (itemId: string) => {
+        if (isContainerLocked) return;
+        const confirmed = window.confirm(
+            isRTL ? 'هل أنت متأكد من حذف هذا البند؟' : 'Are you sure you want to delete this item?'
+        );
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from('container_items')
+                .delete()
+                .eq('id', itemId);
+
+            if (error) throw error;
+
+            toast.success(isRTL ? 'تم حذف البند' : 'Item deleted');
+            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
+            queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
+        } catch (err: any) {
+            toast.error(isRTL ? 'خطأ في الحذف: ' + err.message : 'Delete error: ' + err.message);
+        }
+    };
+
+    // ── Delete all items from a specific invoice ──
+    const handleDeleteInvoiceItems = async (invoiceId: string, invoiceNo: string) => {
+        if (isContainerLocked) return;
+        const confirmed = window.confirm(
+            isRTL
+                ? `هل أنت متأكد من حذف جميع بنود الفاتورة ${invoiceNo}؟`
+                : `Are you sure you want to delete all items from invoice ${invoiceNo}?`
+        );
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from('container_items')
+                .delete()
+                .eq('container_id', containerId)
+                .eq('purchase_invoice_id', invoiceId);
+
+            if (error) throw error;
+
+            // Unlink the invoice from this container
+            await supabase
+                .from('purchase_transactions')
+                .update({ container_id: null })
+                .eq('id', invoiceId);
+
+            toast.success(isRTL ? `تم حذف بنود الفاتورة ${invoiceNo}` : `Invoice ${invoiceNo} items deleted`);
+            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
+            queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
+            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+        } catch (err: any) {
+            toast.error(isRTL ? 'خطأ في الحذف: ' + err.message : 'Delete error: ' + err.message);
+        }
+    };
+
+    // ── Delete the entire container (only if empty) ──
+    const handleDeleteContainer = async () => {
+        if (items.length > 0) {
+            toast.error(isRTL ? 'لا يمكن حذف كونتينر يحتوي على بنود. احذف البنود أولاً.' : 'Cannot delete a container with items. Delete items first.');
+            return;
+        }
+        const confirmed = window.confirm(
+            isRTL ? 'هل أنت متأكد من حذف هذا الكونتينر نهائياً؟' : 'Are you sure you want to permanently delete this container?'
+        );
+        if (!confirmed) return;
+
+        try {
+            const { error } = await supabase
+                .from('containers')
+                .delete()
+                .eq('id', containerId);
+
+            if (error) throw error;
+
+            toast.success(isRTL ? 'تم حذف الكونتينر' : 'Container deleted');
+            queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+            // Close the sheet
+            if (typeof onClose === 'function') onClose();
+        } catch (err: any) {
+            toast.error(isRTL ? 'خطأ في الحذف: ' + err.message : 'Delete error: ' + err.message);
+        }
+    };
 
     // ── Filter Options ──
     const filterOptions = useMemo(() => {
@@ -586,13 +854,16 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                     {isRTL ? 'سعر البيع' : 'Sell Price'}
                 </TableHead>
             )}
-            {permissions.canSeeCostPrice && !compact && (
+            {permissions.canSeeCostPrice && (
                 <>
                     <TableHead className="text-xs font-semibold text-center">
                         {isRTL ? 'سعر المورد' : 'Cost'}
                     </TableHead>
                     <TableHead className="text-xs font-semibold text-center">
-                        {isRTL ? 'التكلفة المتوقعة' : 'Est. Landed'}
+                        {isRTL ? 'التكلفة التقديرية' : 'Est. Cost'}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-center">
+                        {isRTL ? 'التكلفة الواصلة' : 'Landed Cost'}
                     </TableHead>
                 </>
             )}
@@ -604,6 +875,11 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
             {permissions.canCreateReservation && (
                 <TableHead className="text-xs font-semibold text-center w-[70px]">
                     {isRTL ? 'حجز' : 'Reserve'}
+                </TableHead>
+            )}
+            {effectiveMode === 'edit' && !isContainerLocked && (
+                <TableHead className="text-xs font-semibold text-center w-[50px]">
+                    <Trash2 className="w-3.5 h-3.5 mx-auto text-muted-foreground" />
                 </TableHead>
             )}
         </TableRow>
@@ -631,10 +907,12 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                     </TableCell>
                 )}
                 <TableCell className="text-sm">
-                    {item.color_name && (
+                    {item.color_name ? (
                         <Badge variant="outline" className="text-xs font-normal">
                             {item.color_name}
                         </Badge>
+                    ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
                     )}
                 </TableCell>
                 <TableCell className="text-center text-xs text-muted-foreground">
@@ -672,14 +950,28 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                         )}
                     </TableCell>
                 )}
-                {permissions.canSeeCostPrice && !compact && (
+                {permissions.canSeeCostPrice && (
                     <>
+                        {/* سعر المورد */}
                         <TableCell className="text-center font-mono text-sm text-muted-foreground">
                             {fmt(item.unit_price)}
                         </TableCell>
+                        {/* التكلفة التقديرية (من المصاريف التقديرية) */}
                         <TableCell className="text-center font-mono text-sm font-medium">
                             {item.provisional_unit_cost ? (
-                                <span className="text-amber-700 dark:text-amber-400">{fmt(item.provisional_unit_cost)}</span>
+                                <span className="text-amber-700 dark:text-amber-400" title={isRTL ? 'تكلفة تقديرية' : 'Estimated cost'}>
+                                    {fmt(item.provisional_unit_cost)}
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                        </TableCell>
+                        {/* التكلفة الواصلة الحقيقية (من المصاريف الفعلية) */}
+                        <TableCell className="text-center font-mono text-sm font-medium">
+                            {item.final_unit_cost ? (
+                                <span className="text-emerald-700 dark:text-emerald-400" title={isRTL ? 'تكلفة واصلة مثبّتة' : 'Finalized landed cost'}>
+                                    {fmt(item.final_unit_cost)}
+                                </span>
                             ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                             )}
@@ -714,13 +1006,13 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                                         shipmentItemId: item.id,
                                         itemDescription: item.item_description,
                                         materialCode: item.material_code,
-                                        colorName: item.color_name,
+                                        colorName: item.color_name || null,
                                         unit: item.unit || 'm',
                                         availableQuantity: availableQty,
                                         reservedQuantity: Math.min(availableQty, 100),
                                         unitPrice: item.expected_sell_price || 0,
                                         materialId: item.material_id,
-                                        colorId: item.color_id,
+                                        colorId: item.color_id || null,
                                         productId: item.product_id,
                                     });
                                 }}
@@ -729,6 +1021,19 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                                 <ShoppingCart className="w-3 h-3" />
                             </Button>
                         )}
+                    </TableCell>
+                )}
+                {effectiveMode === 'edit' && !isContainerLocked && (
+                    <TableCell className="text-center">
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                            className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            title={isRTL ? 'حذف البند' : 'Delete item'}
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                     </TableCell>
                 )}
             </TableRow>
@@ -828,6 +1133,20 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                                                 {fmt(group.totalValue)} {companyCurrency}
                                             </Badge>
                                         )}
+                                        {type === 'invoice' && effectiveMode === 'edit' && !isContainerLocked && key !== 'none' && (
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteInvoiceItems(key, group.number || key);
+                                                }}
+                                                className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                                title={isRTL ? 'حذف كل بنود الفاتورة' : 'Delete all invoice items'}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </CollapsibleTrigger>
@@ -863,6 +1182,49 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
 
     return (
         <div className="space-y-2">
+            {/* Import from Invoice Button — only in edit/create mode */}
+            {/* Container Lock Banner */}
+            {isContainerLocked && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs">
+                    <Lock className="w-4 h-4 flex-shrink-0" />
+                    <span>
+                        {isRTL
+                            ? 'الكونتينر مقفل — لا يمكن التعديل بعد الاستلام أو الإغلاق'
+                            : 'Container is locked — no edits after receiving or closing'}
+                    </span>
+                </div>
+            )}
+
+            {/* Action Buttons */}
+            {(effectiveMode === 'edit' || effectiveMode === 'create') && containerId && (
+                <div className="flex justify-between items-center">
+                    <div className="flex gap-2">
+                        {/* Delete Container (only when empty) */}
+                        {items.length === 0 && mode === 'edit' && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleDeleteContainer}
+                                className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                {isRTL ? 'حذف الكونتينر' : 'Delete Container'}
+                            </Button>
+                        )}
+                    </div>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowImportDialog(true)}
+                        className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                    >
+                        <Plus className="w-4 h-4" />
+                        <FileText className="w-4 h-4" />
+                        {isRTL ? 'استيراد من فاتورة دولية' : 'Import from Invoice'}
+                    </Button>
+                </div>
+            )}
+
             {/* Summary Statistics */}
             {renderSummary()}
 
@@ -884,13 +1246,87 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
             {viewMode === 'by_supplier' && renderGroupedView(groupedBySupplier, 'supplier')}
             {viewMode === 'by_invoice' && renderGroupedView(groupedByInvoice, 'invoice')}
 
-            {/* 🛒 Transit Cart Drawer */}
-            {permissions.canCreateReservation && (
+            {/* 🛒 Transit Cart Drawer — only in view mode for sales reservations */}
+            {mode === 'view' && items.length > 0 && permissions.canCreateReservation && (
                 <TransitCartDrawer
                     cart={transitCart}
                     shipmentNumber={data?.shipment_number || data?.container_number}
                 />
             )}
+
+            {/* ═══ Import from Invoice Dialog ═══ */}
+            <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-blue-500" />
+                            {isRTL ? 'استيراد بنود من فاتورة دولية' : 'Import Items from International Invoice'}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {loadingInvoices ? (
+                        <div className="flex items-center justify-center py-8">
+                            <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : availableInvoices.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                            <p>{isRTL ? 'لا توجد فواتير دولية مؤكدة' : 'No confirmed international invoices found'}</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                                {isRTL
+                                    ? 'اختر فاتورة لاستيراد بنودها إلى هذا الكونتينر:'
+                                    : 'Select an invoice to import its items into this container:'}
+                            </p>
+                            {availableInvoices.map((inv: any) => {
+                                const s = Array.isArray(inv.supplier) ? inv.supplier?.[0] : inv.supplier;
+                                const supplierName = isRTL
+                                    ? s?.name_ar || s?.name_en || ''
+                                    : s?.name_en || s?.name_ar || '';
+                                const invoiceNum = inv.invoice_no || inv.id?.substring(0, 8);
+                                const isImporting = importingInvoiceId === inv.id;
+
+                                return (
+                                    <div
+                                        key={inv.id}
+                                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-sm">
+                                                {invoiceNum}
+                                                <Badge variant="secondary" className="mx-2 text-xs">
+                                                    {inv.stage}
+                                                </Badge>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                                                {supplierName && <span>📦 {supplierName}</span>}
+                                                {(inv.invoice_date || inv.doc_date) && <span>📅 {new Date(inv.invoice_date || inv.doc_date).toLocaleDateString()}</span>}
+                                                {inv.total_amount && <span>💰 {Number(inv.total_amount).toLocaleString()} {inv.currency || ''}</span>}
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => handleImportFromInvoice(inv.id)}
+                                            disabled={isImporting}
+                                            className="gap-1 bg-blue-500 hover:bg-blue-600 text-white"
+                                        >
+                                            {isImporting ? (
+                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <Plus className="w-3.5 h-3.5" />
+                                            )}
+                                            {isRTL ? 'استيراد' : 'Import'}
+                                        </Button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

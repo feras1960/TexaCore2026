@@ -60,7 +60,7 @@ export function PriceHistoryPopover({
             // Search across all trade document tables
             const tables = [
                 { table: 'sales_orders', dateCol: 'order_date', numCol: 'order_number', type: 'order' },
-                { table: 'sales_invoices', dateCol: 'invoice_date', numCol: 'invoice_number', type: 'invoice' },
+                { table: 'sales_transactions', dateCol: 'doc_date', numCol: 'invoice_no', type: 'invoice' },
                 { table: 'quotations', dateCol: 'quotation_date', numCol: 'quotation_number', type: 'quotation' },
             ];
 

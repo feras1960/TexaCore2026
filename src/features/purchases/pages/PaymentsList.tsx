@@ -63,7 +63,7 @@ export default function PaymentsList() {
                     *,
                     supplier:suppliers(name_ar, name_en),
                     shipment:shipments(shipment_number),
-                    invoice:purchase_invoices(invoice_number)
+                    invoice:purchase_transactions(invoice_no)
                 `)
                 .eq('company_id', companyId)
                 // .eq('type', 'payment') // payment_vouchers is explicitly for payments usually. If mixed types exist, add filter.

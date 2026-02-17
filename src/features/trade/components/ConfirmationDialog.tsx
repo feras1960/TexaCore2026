@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
     CheckCircle2,
     XCircle,
@@ -75,45 +76,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
             setVisible(false);
         }
     }, [isOpen]);
-
-    if (!isOpen) return null;
-
-    const docTypeLabels: Record<DocType, { ar: string; en: string; icon: React.ReactNode }> = {
-        quotation: { ar: 'عرض السعر', en: 'Quotation', icon: <FileText className="w-5 h-5" /> },
-        sales_order: { ar: 'أمر البيع', en: 'Sales Order', icon: <Package className="w-5 h-5" /> },
-        sales_invoice: { ar: 'الفاتورة', en: 'Invoice', icon: <DollarSign className="w-5 h-5" /> },
-        reservation: { ar: 'الحجز', en: 'Reservation', icon: <Package className="w-5 h-5" /> },
-    };
-
-    const docLabel = docTypeLabels[docType];
-    const docNumber = docData?.order_number || docData?.invoice_number || docData?.doc_number || '';
-    const customerName = docData?.customer_name || (isRTL ? 'غير محدد' : 'Not specified');
-    const itemCount = docData?.items?.length || 0;
-    const totalAmount = docData?.total_amount || docData?.grand_total || 0;
-    const currency = docData?.currency || 'USD';
-
-    const handleConfirm = async () => {
-        setConfirming(true);
-        try {
-            await onConfirm();
-        } finally {
-            setConfirming(false);
-        }
-    };
-
-    const handleRequestApproval = async () => {
-        setConfirming(true);
-        try {
-            if (onRequestApproval) await onRequestApproval();
-        } finally {
-            setConfirming(false);
-        }
-    };
-
-    const isBlocked = validation && !validation.isValid;
-    const hasApprovalBlocker = validation?.blockers?.includes('needs_approval');
-
-    // What happens after confirmation
+    // What happens after confirmation — MUST be before early return to satisfy React hooks rules
     const afterConfirmItems = useMemo(() => {
         const items = [
             { icon: <ShieldCheck className="w-4 h-4 text-green-400" />, ar: 'تغيير الحالة إلى "مؤكد"', en: 'Status changes to "Confirmed"' },
@@ -144,17 +107,57 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         return items;
     }, [settings, docType]);
 
-    return (
+    if (!isOpen) return null;
+
+    const docTypeLabels: Record<DocType, { ar: string; en: string; icon: React.ReactNode }> = {
+        quotation: { ar: 'عرض السعر', en: 'Quotation', icon: <FileText className="w-5 h-5" /> },
+        sales_order: { ar: 'أمر البيع', en: 'Sales Order', icon: <Package className="w-5 h-5" /> },
+        sales_invoice: { ar: 'الفاتورة', en: 'Invoice', icon: <DollarSign className="w-5 h-5" /> },
+        reservation: { ar: 'الحجز', en: 'Reservation', icon: <Package className="w-5 h-5" /> },
+        purchase_order: { ar: 'أمر الشراء', en: 'Purchase Order', icon: <Package className="w-5 h-5" /> },
+        purchase_invoice: { ar: 'فاتورة الشراء', en: 'Purchase Invoice', icon: <DollarSign className="w-5 h-5" /> },
+    };
+
+    const docLabel = docTypeLabels[docType] || { ar: 'مستند', en: 'Document', icon: <FileText className="w-5 h-5" /> };
+    const docNumber = docData?.order_number || docData?.invoice_number || docData?.doc_number || '';
+    const isPurchase = docType === 'purchase_order' || docType === 'purchase_invoice';
+    const customerName = docData?.customer_name || docData?.supplier_name || (isRTL ? 'غير محدد' : 'Not specified');
+    const itemCount = docData?.items?.length || 0;
+    const totalAmount = docData?.total_amount || docData?.grand_total || 0;
+    const currency = docData?.currency || 'USD';
+
+    const handleConfirm = async () => {
+        setConfirming(true);
+        try {
+            await onConfirm();
+        } finally {
+            setConfirming(false);
+        }
+    };
+
+    const handleRequestApproval = async () => {
+        setConfirming(true);
+        try {
+            if (onRequestApproval) await onRequestApproval();
+        } finally {
+            setConfirming(false);
+        }
+    };
+
+    const isBlocked = validation && !validation.isValid;
+    const hasApprovalBlocker = validation?.blockers?.includes('needs_approval');
+
+    return createPortal(
         <div
-            className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-300 ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-300 ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             onClick={onClose}
         >
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />
 
             {/* Dialog */}
             <div
-                className={`relative w-full max-w-lg mx-4 bg-gradient-to-b from-slate-900/95 to-slate-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${visible ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+                className={`relative z-[10000] w-full max-w-lg mx-4 bg-gradient-to-b from-slate-900/95 to-slate-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 pointer-events-auto ${visible ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
                 dir={isRTL ? 'rtl' : 'ltr'}
                 onClick={e => e.stopPropagation()}
             >
@@ -188,7 +191,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                         <SummaryCard
                             icon={<User className="w-4 h-4 text-blue-400" />}
-                            label={isRTL ? 'العميل' : 'Customer'}
+                            label={isPurchase ? (isRTL ? 'المورد' : 'Supplier') : (isRTL ? 'العميل' : 'Customer')}
                             value={customerName}
                         />
                         <SummaryCard
@@ -302,7 +305,8 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

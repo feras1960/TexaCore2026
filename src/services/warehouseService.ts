@@ -678,9 +678,34 @@ export const warehouseService = {
             // Fetch statistics for these materials using our custom RPC
             const materialIds = data.map((m: any) => m.id);
             let stats: any[] | null = null;
+
+            // Try RPC first
             const rpcResult = await checkRpcExists('get_material_inventory_stats_batch', { material_ids: materialIds });
             if (rpcResult.exists && rpcResult.data) {
                 stats = rpcResult.data;
+            } else {
+                // FALLBACK: Query fabric_rolls directly if RPC is missing
+                console.warn('RPC get_material_inventory_stats_batch missing, using fallback query');
+                const { data: rollsData, error: rollsError } = await supabase
+                    .from('fabric_rolls')
+                    .select('material_id, current_length, status')
+                    .in('material_id', materialIds)
+                    .neq('status', 'consumed');
+
+                if (!rollsError && rollsData) {
+                    // Aggregate manually
+                    const statsMap = new Map<string, any>();
+                    rollsData.forEach((roll: any) => {
+                        const mId = roll.material_id;
+                        if (!statsMap.has(mId)) {
+                            statsMap.set(mId, { material_id: mId, rolls_count: 0, rolls_total_length: 0 });
+                        }
+                        const s = statsMap.get(mId);
+                        s.rolls_count++;
+                        s.rolls_total_length += (roll.current_length || 0);
+                    });
+                    stats = Array.from(statsMap.values());
+                }
             }
 
             // Merge stats with materials
@@ -896,31 +921,250 @@ export const warehouseService = {
     },
 
     /**
-     * Get pending receipts (استلامات معلقة)
-     * Uses roll_movements table which tracks fabric roll transfers
+     * Get pending receipts (posted invoices / confirmed orders awaiting receipt)
+     * Enhanced: includes linked purchase_receipt data for draft resumption
      */
     async getPendingReceipts(companyId: string): Promise<any[]> {
-        // Skip if table doesn't exist (prevents repeated 404s)
-        if (!(await checkTableExists('roll_movements'))) return [];
+        const pending: any[] = [];
 
-        try {
-            const { data, error } = await supabase
-                .from('roll_movements')
-                .select('*')
-                .eq('company_id', companyId)
-                .eq('movement_type', 'transfer')
-                .order('movement_date', { ascending: false })
-                .limit(50);
+        // 1. Fetch Posted Invoices (from purchase_transactions — unified system)
+        const { data: invoices, error: invError } = await supabase
+            .from('purchase_transactions')
+            .select('id, invoice_no, doc_date, invoice_date, supplier_name, supplier_id, total_amount, currency, stage')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+            .in('stage', ['confirmed', 'posted', 'partial_paid', 'partially_received'])
+            .order('doc_date', { ascending: false });
 
-            if (error) {
-                console.warn('getPendingReceipts error:', error.message);
-                return [];
-            }
-            return data || [];
-        } catch (err) {
-            console.warn('getPendingReceipts exception:', err);
-            return [];
+        if (invError) {
+            console.error('getPendingReceipts invoice error:', invError);
         }
+
+        // 2. Fetch Confirmed Purchase Orders
+        const { data: orders, error: ordError } = await supabase
+            .from('purchase_orders')
+            .select('id, order_number, order_date, supplier_name, total_amount, currency, status')
+            .eq('company_id', companyId)
+            .in('status', ['confirmed', 'partially_received'])
+            .order('order_date', { ascending: false });
+
+        if (ordError) {
+            console.error('getPendingReceipts PO error:', ordError);
+        }
+
+        // 3. Fetch ALL related purchase_receipts for these invoices/orders
+        const invoiceIds = (invoices || []).map((i: any) => i.id);
+        const orderIds = (orders || []).map((o: any) => o.id);
+
+        let receiptsMap: Record<string, any> = {};
+
+        // Fetch receipts linked to invoices
+        if (invoiceIds.length > 0) {
+            const { data: invReceipts } = await supabase
+                .from('purchase_receipts')
+                .select('id, receipt_number, receipt_date, status, invoice_id, order_id, warehouse_id')
+                .eq('company_id', companyId)
+                .in('invoice_id', invoiceIds)
+                .order('created_at', { ascending: false });
+
+            if (invReceipts) {
+                invReceipts.forEach((r: any) => {
+                    // Keep the most recent receipt per invoice
+                    if (!receiptsMap[r.invoice_id] || r.status === 'draft') {
+                        receiptsMap[r.invoice_id] = r;
+                    }
+                });
+            }
+        }
+
+        // Fetch receipts linked to orders
+        if (orderIds.length > 0) {
+            const { data: ordReceipts } = await supabase
+                .from('purchase_receipts')
+                .select('id, receipt_number, receipt_date, status, invoice_id, order_id, warehouse_id')
+                .eq('company_id', companyId)
+                .in('order_id', orderIds)
+                .order('created_at', { ascending: false });
+
+            if (ordReceipts) {
+                ordReceipts.forEach((r: any) => {
+                    if (!receiptsMap[r.order_id] || r.status === 'draft') {
+                        receiptsMap[r.order_id] = r;
+                    }
+                });
+            }
+        }
+
+        // 4. Build enriched pending list for invoices
+        if (invoices) {
+            invoices.forEach((inv: any) => {
+                const linkedReceipt = receiptsMap[inv.id];
+                const docNumber = inv.invoice_no || inv.id?.substring(0, 8);
+                pending.push({
+                    id: inv.id,
+                    type: 'purchase',
+                    reference: docNumber,
+                    reference_label: `Invoice #${docNumber}`,
+                    description: inv.supplier_name || 'Unknown Supplier',
+                    supplier_name: inv.supplier_name || '',
+                    status: inv.stage === 'partially_received' ? 'partial' : 'ready',
+                    invoice_status: inv.stage,
+                    items: 0,
+                    itemsUnit: 'items',
+                    arrivalDate: inv.doc_date || inv.invoice_date,
+                    source_type: 'invoice',
+                    source_id: inv.id,
+                    total_amount: inv.total_amount,
+                    currency: inv.currency,
+                    // Receipt tracking data
+                    receipt_id: linkedReceipt?.id || null,
+                    receipt_number: linkedReceipt?.receipt_number || null,
+                    receipt_status: linkedReceipt?.status || 'none', // none | draft | completed
+                    receipt_date: linkedReceipt?.receipt_date || null,
+                });
+            });
+        }
+
+        // 5. Build enriched pending list for orders
+        if (orders) {
+            orders.forEach((ord: any) => {
+                const linkedReceipt = receiptsMap[ord.id];
+                pending.push({
+                    id: ord.id,
+                    type: 'purchase',
+                    reference: ord.order_number,
+                    reference_label: `PO #${ord.order_number}`,
+                    description: ord.supplier_name || 'Unknown Supplier',
+                    supplier_name: ord.supplier_name || '',
+                    status: ord.status === 'partially_received' ? 'partial' : 'shipped',
+                    invoice_status: ord.status,
+                    items: 0,
+                    itemsUnit: 'items',
+                    arrivalDate: ord.order_date,
+                    source_type: 'order',
+                    source_id: ord.id,
+                    total_amount: ord.total_amount,
+                    currency: ord.currency,
+                    // Receipt tracking data
+                    receipt_id: linkedReceipt?.id || null,
+                    receipt_number: linkedReceipt?.receipt_number || null,
+                    receipt_status: linkedReceipt?.status || 'none',
+                    receipt_date: linkedReceipt?.receipt_date || null,
+                });
+            });
+        }
+
+        return pending;
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // DRAFT RECEIPT MANAGEMENT (إدارة مسودات الاستلام)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Create a draft receipt in the database (persists across sessions/power outages)
+     */
+    async createDraftReceipt(params: {
+        tenantId: string;
+        companyId: string;
+        branchId?: string;
+        warehouseId: string;
+        sourceDocumentId: string;
+        sourceDocumentType: 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction';
+        supplierId?: string;
+        items: any[];
+        createdBy?: string;
+    }): Promise<{ id: string; receiptNumber: string } | null> {
+        const isOrder = params.sourceDocumentType === 'purchase_order';
+        const receiptNumber = `GRN-DRAFT-${Date.now().toString(36).toUpperCase()}`;
+
+        const { data, error } = await supabase
+            .from('purchase_receipts')
+            .insert({
+                tenant_id: params.tenantId,
+                company_id: params.companyId,
+                branch_id: params.branchId || null,
+                receipt_number: receiptNumber,
+                receipt_date: new Date().toISOString().split('T')[0],
+                receipt_type: 'direct',
+                order_id: isOrder ? params.sourceDocumentId : null,
+                invoice_id: !isOrder ? params.sourceDocumentId : null,
+                supplier_id: params.supplierId || null,
+                warehouse_id: params.warehouseId,
+                status: 'draft',
+                draft_data: { items: params.items, savedAt: new Date().toISOString() },
+                notes: 'Draft receipt - in progress',
+                created_by: params.createdBy || null,
+            })
+            .select('id, receipt_number')
+            .single();
+
+        if (error) {
+            console.error('❌ Failed to create draft receipt:', error.message);
+            return null;
+        }
+
+        console.log('📝 Draft receipt created:', data?.id);
+        return data ? { id: data.id, receiptNumber: data.receipt_number } : null;
+    },
+
+    /**
+     * Update draft receipt items (auto-save during editing)
+     */
+    async updateDraftReceipt(receiptId: string, items: any[]): Promise<boolean> {
+        const { error } = await supabase
+            .from('purchase_receipts')
+            .update({
+                draft_data: { items, savedAt: new Date().toISOString() },
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', receiptId)
+            .eq('status', 'draft');
+
+        if (error) {
+            console.error('❌ Failed to update draft receipt:', error.message);
+            return false;
+        }
+
+        return true;
+    },
+
+    /**
+     * Load draft receipt items from database
+     */
+    async getDraftReceiptItems(receiptId: string): Promise<{ items: any[]; savedAt: string } | null> {
+        const { data, error } = await supabase
+            .from('purchase_receipts')
+            .select('id, draft_data, warehouse_id')
+            .eq('id', receiptId)
+            .eq('status', 'draft')
+            .single();
+
+        if (error || !data?.draft_data) {
+            return null;
+        }
+
+        return {
+            items: (data.draft_data as any)?.items || [],
+            savedAt: (data.draft_data as any)?.savedAt || '',
+        };
+    },
+
+    /**
+     * Delete a draft receipt (when user cancels)
+     */
+    async deleteDraftReceipt(receiptId: string): Promise<boolean> {
+        const { error } = await supabase
+            .from('purchase_receipts')
+            .delete()
+            .eq('id', receiptId)
+            .eq('status', 'draft');
+
+        if (error) {
+            console.error('❌ Failed to delete draft receipt:', error.message);
+            return false;
+        }
+        return true;
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -1086,8 +1330,9 @@ export const warehouseService = {
                     available_length,
                     status,
                     updated_at,
-                    warehouse:warehouses(id, code, name_ar, name_en)
-                `)
+                    roll_number,
+                    warehouse: warehouses!inner(id, code, name_ar, name_en)
+                    `)
                 .eq('company_id', companyId)
                 .eq('material_id', materialId)
                 .in('status', ['available', 'reserved', 'partial']);
@@ -1179,15 +1424,15 @@ export const warehouseService = {
                     id,
                     roll_number,
                     warehouse_id,
-                    original_length,
+                    initial_length,
                     current_length,
                     reserved_length,
                     available_length,
                     status,
                     cost_per_meter,
                     created_at,
-                    warehouse:warehouses(name_ar, name_en)
-                `)
+                    warehouse: warehouses(name_ar, name_en)
+                    `)
                 .eq('company_id', companyId)
                 .eq('material_id', materialId)
                 .in('status', ['available', 'reserved', 'partial'])
@@ -1213,7 +1458,7 @@ export const warehouseService = {
                 warehouse_id: roll.warehouse_id,
                 warehouse_name_ar: roll.warehouse?.name_ar || '',
                 warehouse_name_en: roll.warehouse?.name_en || '',
-                initial_length: Number(roll.original_length) || 0,
+                initial_length: Number(roll.initial_length) || 0,
                 current_length: Number(roll.current_length) || 0,
                 reserved_length: Number(roll.reserved_length) || 0,
                 available_length: Number(roll.available_length) || 0,
@@ -1275,7 +1520,9 @@ export const warehouseService = {
         );
 
         return capacityData;
-    }
+    },
+
+
 };
 
 export default warehouseService;

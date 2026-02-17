@@ -86,6 +86,7 @@ export const STATUS_COLORS = {
   indigo: { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300', dark: 'dark:bg-indigo-900/30 dark:text-indigo-400' },
   teal: { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-300', dark: 'dark:bg-teal-900/30 dark:text-teal-400' },
   cyan: { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-300', dark: 'dark:bg-cyan-900/30 dark:text-cyan-400' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-300', dark: 'dark:bg-rose-900/30 dark:text-rose-400' },
 } as const;
 
 export type StatusColor = keyof typeof STATUS_COLORS;

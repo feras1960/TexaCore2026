@@ -19,6 +19,12 @@ export interface CompanyAccountingSettings {
     default_expense_account_id?: string;
     default_receivable_account_id?: string;
     default_payable_account_id?: string;
+    default_purchase_account_id?: string;
+    default_cogs_account_id?: string;
+    default_sales_account_id?: string;
+    default_tax_input_account_id?: string;
+    default_tax_output_account_id?: string;
+    default_inventory_account_id?: string;
     journal_entry_prefix: string;
     reset_numbering_yearly: boolean;
     current_entry_number: number;
@@ -67,7 +73,7 @@ export function useAccountingSettings() {
         error,
         refetch: () => fetchSettings(true),
         // Helper properties for cleaner access
-        vatRate: settings?.vat_rate ?? 15,
+        vatRate: settings?.vat_rate ?? 0,
         isVatEnabled: settings?.vat_enabled ?? false,
         baseCurrency: settings?.base_currency || '',
         dateFormat: settings?.date_format || 'DD/MM/YYYY',

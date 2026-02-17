@@ -21,7 +21,6 @@ import {
 // Lazy load components
 const SalesDashboard = lazy(() => import('./pages/SalesDashboard'));
 const CustomersList = lazy(() => import('./pages/CustomersList'));
-const SalesCycleList = lazy(() => import('./pages/SalesCycleList'));
 const SalesInvoicesList = lazy(() => import('./pages/SalesInvoicesList'));
 const SalesPaymentsList = lazy(() => import('./pages/SalesPaymentsList'));
 // Reports and Settings
@@ -78,11 +77,6 @@ export default function SalesPage() {
             icon: ShoppingCart,
         },
         {
-            id: 'invoices',
-            labelKey: 'sales.invoices',
-            icon: FileText,
-        },
-        {
             id: 'payments',
             labelKey: 'sales.payments', // Or sales.receipts
             icon: CreditCard,
@@ -113,8 +107,6 @@ export default function SalesPage() {
             case 'customers':
                 return <CustomersList />;
             case 'cycle':
-                return <SalesCycleList />;
-            case 'invoices':
                 return <SalesInvoicesList />;
             case 'payments':
                 return <SalesPaymentsList />;
