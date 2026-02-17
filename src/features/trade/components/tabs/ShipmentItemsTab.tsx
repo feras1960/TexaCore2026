@@ -275,7 +275,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                 `)
                 .eq('company_id', companyId)
                 .eq('receipt_mode', 'international')
-                .in('stage', ['posted', 'partial_paid', 'paid'])
+                .in('stage', ['confirmed', 'posted', 'partial_paid', 'paid'])
                 .order('invoice_date', { ascending: false });
 
             if (error) {
@@ -474,18 +474,25 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
         }
     };
 
-    // ── Unlink invoice from container (keep items in container, free the invoice) ──
+    // ── Unlink invoice from container (remove items + free the invoice) ──
     const handleUnlinkInvoice = async (invoiceId: string, invoiceNo: string) => {
         if (isContainerLocked) return;
         const confirmed = window.confirm(
             isRTL
-                ? `هل أنت متأكد من فك ارتباط الفاتورة ${invoiceNo} من هذا الكونتينر؟\nسيتم فك الارتباط فقط — البنود ستبقى في الكونتينر.`
-                : `Are you sure you want to unlink invoice ${invoiceNo} from this container?\nOnly the link will be removed — items will remain.`
+                ? `هل أنت متأكد من فك ارتباط الفاتورة ${invoiceNo} من هذا الكونتينر؟\nسيتم حذف بنود الفاتورة من الكونتينر وتحرير الفاتورة.`
+                : `Are you sure you want to unlink invoice ${invoiceNo} from this container?\nInvoice items will be removed and the invoice will be freed.`
         );
         if (!confirmed) return;
 
         try {
-            // Clear all container fields from the invoice
+            // 1. Delete invoice items from container_items
+            await supabase
+                .from('container_items')
+                .delete()
+                .eq('container_id', containerId)
+                .eq('purchase_invoice_id', invoiceId);
+
+            // 2. Clear all container fields from the invoice
             const { error } = await supabase
                 .from('purchase_transactions')
                 .update({ container_id: null, container_number: null, container_status: null })
