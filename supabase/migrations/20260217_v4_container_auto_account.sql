@@ -179,3 +179,10 @@ BEGIN
     RAISE NOTICE '🏁 تم إنشاء % حساب للكونتينرات الموجودة', v_count;
 END;
 $$;
+
+-- ============================================================
+-- Add missing columns to container_items
+-- ============================================================
+ALTER TABLE container_items ADD COLUMN IF NOT EXISTS color_name TEXT;
+ALTER TABLE container_items ADD COLUMN IF NOT EXISTS material_code TEXT;
+ALTER TABLE container_items ADD COLUMN IF NOT EXISTS expected_sell_price NUMERIC DEFAULT 0;
