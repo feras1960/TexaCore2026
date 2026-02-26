@@ -14,6 +14,8 @@
 
 import { supabase } from '@/lib/supabase';
 import type { ReceiptItem } from './receiptLocalStore';
+import { documentStatusService as DSS } from '@/services/documentStatusService';
+
 
 interface ReceiptCompletionParams {
     // Session info
@@ -24,7 +26,7 @@ interface ReceiptCompletionParams {
     warehouseId: string;
     // Source document
     sourceDocumentId: string;
-    sourceDocumentType: 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction';
+    sourceDocumentType: 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction' | 'container';
     sourceDocumentNumber: string;
     supplierId?: string;
     // Items
@@ -44,6 +46,11 @@ interface ReceiptCompletionParams {
     // Meta
     notes?: string;
     createdBy?: string;
+    // 🔑 Variance tracking (for accountant review flow)
+    varianceStatus?: 'ok' | 'requires_review';   // 'requires_review' = out-of-tolerance
+    varianceAmount?: number;                       // diff in meters (signed: + excess, - shortage)
+    variancePct?: number;                          // diff as % of expected
+    varianceTolerancePct?: number;                 // tolerance used (e.g. 1%)
 }
 
 interface ReceiptCompletionResult {
@@ -105,33 +112,49 @@ export async function completeReceipt(params: ReceiptCompletionParams): Promise<
         result.receiptNumber = receiptNumber;
         result.details.receiptCreated = true;
 
-        // ═══ Step 2: Create purchase_receipt_items ═══
-        const itemsCreated = await createReceiptItems(params, receiptId);
-        result.details.receiptItemsCreated = itemsCreated;
+        // ═══ Stage 2: PARALLEL — Steps 2,3,5 (all independent, need receiptId) ═══
+        const [itemsResult, sourceResult, syncResult] = await Promise.allSettled([
+            createReceiptItems(params, receiptId),
+            updateSourceDocument(params, receiptId, receiptNumber),
+            syncFabricRolls(params, receiptId),
+        ]);
 
-        // ═══ Step 3 & 4: Update source document (Status + Quantities) ═══
-        // 🛠️ Consolidated to handle Partial Receipts and status updates atomically
-        const sourceUpdated = await updateSourceDocument(params, receiptId, receiptNumber);
-        result.details.sourceUpdated = sourceUpdated;
-        result.details.actualQuantitiesUpdated = sourceUpdated;
+        if (itemsResult.status === 'fulfilled') result.details.receiptItemsCreated = itemsResult.value;
+        if (sourceResult.status === 'fulfilled') {
+            result.details.sourceUpdated = sourceResult.value;
+            result.details.actualQuantitiesUpdated = sourceResult.value;
+        }
+        if (syncResult.status === 'fulfilled') result.details.fabricRollsSynced = syncResult.value;
 
-        // ═══ Step 5: Ensure fabric_rolls are synced ═══
-        const rollsSynced = await syncFabricRolls(params, receiptId);
-        result.details.fabricRollsSynced = rollsSynced;
+        // ═══ Stage 3: PARALLEL — Steps 5.5,6,7,8 (post-processing) ═══
+        const [, movementsResult, journalResult, activityResult] = await Promise.allSettled([
+            params.sourceDocumentType === 'container'
+                ? finalizeFabricRollCosts(params.sourceDocumentId)
+                : Promise.resolve(),
+            createInventoryMovements(params, receiptId, receiptNumber),
+            handleAccountingEntry(params, receiptId, receiptNumber, params.varianceStatus, params.varianceAmount, params.variancePct),
+            recordActivityLog(params, receiptId, receiptNumber, null),
+        ]);
 
-        // ═══ Step 6: Create inventory_movements records ═══
-        const movementsCreated = await createInventoryMovements(params, receiptId, receiptNumber);
-        result.details.inventoryMovementsCreated = movementsCreated;
-
-        // ═══ Step 7: Create/update accounting journal entry ═══
-        const journalId = await handleAccountingEntry(params, receiptId, receiptNumber);
-        result.details.journalEntryId = journalId || undefined;
-
-        // ═══ Step 8: Record activity log for audit trail (DISABLED - Table Missing) ═══
-        // const logsCreated = await recordActivityLog(params, receiptId, receiptNumber, journalId);
-        // result.details.activityLogsCreated = logsCreated;
+        if (movementsResult.status === 'fulfilled') {
+            result.details.inventoryMovementsCreated = movementsResult.value as number;
+        }
+        if (journalResult.status === 'fulfilled') {
+            result.details.journalEntryId = (journalResult.value as string | null) || undefined;
+        }
+        if (activityResult.status === 'fulfilled') {
+            result.details.activityLogsCreated = activityResult.value as number;
+        }
 
         result.success = true;
+
+        // ═══ Variance Notification — alert accountants when review needed ═══
+        if (params.varianceStatus === 'requires_review') {
+            sendVarianceNotification(params, receiptNumber).catch(err =>
+                console.warn('⚠️ Variance notification failed (non-fatal):', err.message)
+            );
+        }
+
         return result;
     } catch (err: any) {
         console.error('❌ Receipt completion failed:', err);
@@ -145,30 +168,75 @@ export async function completeReceipt(params: ReceiptCompletionParams): Promise<
 // ─────────────────────────────────────────────────────────────
 async function createPurchaseReceipt(params: ReceiptCompletionParams, receiptNumber: string): Promise<string | null> {
     const isOrder = params.sourceDocumentType === 'purchase_order';
+    const isContainer = params.sourceDocumentType === 'container';
+    const isInvoice = !isOrder && !isContainer;
 
-    // 🔑 Check if a draft receipt already exists for this source document
-    const sourceColumn = isOrder ? 'order_id' : 'invoice_id';
-    const { data: existingDraft } = await supabase
+    // 🛡️ DUPLICATE GUARD — Check ALL active receipts for this source document
+    const sourceColumn = isOrder ? 'order_id' : isContainer ? 'container_id' : 'invoice_id';
+    const { data: existingReceipts } = await supabase
         .from('purchase_receipts')
-        .select('id')
+        .select('id, status, receipt_number')
         .eq('company_id', params.companyId)
         .eq(sourceColumn, params.sourceDocumentId)
-        .eq('status', 'draft')
-        .maybeSingle();
+        .not('status', 'in', '("cancelled","rejected")');
+
+    const existingDraft = existingReceipts?.find(r => r.status === 'draft' || r.status === 'in_progress');
+    const existingCompleted = existingReceipts?.find(r => r.status === 'completed');
+
+    // ⛔ BLOCK if already completed
+    if (existingCompleted) {
+        console.error('⛔ DUPLICATE RECEIPT BLOCKED:', existingCompleted.receipt_number);
+        throw new Error(
+            `تم استلام هذه الوثيقة بالفعل (${existingCompleted.receipt_number}). يُمنع تسجيل استلام مكرر.`
+        );
+    }
 
     if (existingDraft?.id) {
         // ✅ Draft exists — upgrade it to completed
         console.log('📝→✅ Upgrading draft receipt to completed:', existingDraft.id);
+
+        // Fetch draft_data to preserve started_at info
+        const { data: draftRecord } = await supabase
+            .from('purchase_receipts')
+            .select('draft_data, created_by')
+            .eq('id', existingDraft.id)
+            .single();
+
+        const draftData = (draftRecord?.draft_data as any) || {};
+        const startedAt = draftData.started_at || draftRecord?.created_by;
+        const completedAt = new Date().toISOString();
+
+        // Calculate duration
+        let durationMinutes = 0;
+        if (startedAt) {
+            durationMinutes = Math.round((Date.now() - new Date(startedAt).getTime()) / 60000);
+        }
+
+        const activityLog = {
+            started_at: draftData.started_at || null,
+            started_by: draftData.started_by || draftRecord?.created_by || null,
+            completed_at: completedAt,
+            completed_by: params.createdBy || null,
+            duration_minutes: durationMinutes,
+        };
+
         const { error } = await supabase
             .from('purchase_receipts')
             .update({
                 receipt_number: receiptNumber,
                 receipt_date: new Date().toISOString().split('T')[0],
                 status: 'completed',
-                draft_data: null, // Clear draft data
+                draft_data: { activity_log: activityLog }, // Keep activity log, clear items
                 notes: params.notes || `Receipt for ${params.sourceDocumentNumber}`,
                 warehouse_id: params.warehouseId,
-                updated_at: new Date().toISOString(),
+                updated_at: completedAt,
+                // 🔑 Variance fields — for accountant/manager review
+                ...(params.varianceAmount !== undefined && {
+                    variance_status: params.varianceStatus || 'ok',
+                    variance_amount: params.varianceAmount,
+                    variance_pct: params.variancePct || 0,
+                    variance_tolerance_pct: params.varianceTolerancePct || 1,
+                }),
             })
             .eq('id', existingDraft.id);
 
@@ -176,6 +244,7 @@ async function createPurchaseReceipt(params: ReceiptCompletionParams, receiptNum
             console.error('❌ Failed to upgrade draft receipt:', error.message);
             return null;
         }
+        console.log(`✅ Receipt completed — duration: ${durationMinutes} minutes`);
         return existingDraft.id;
     }
 
@@ -188,9 +257,10 @@ async function createPurchaseReceipt(params: ReceiptCompletionParams, receiptNum
             branch_id: params.branchId || null,
             receipt_number: receiptNumber,
             receipt_date: new Date().toISOString().split('T')[0],
-            receipt_type: 'direct',
+            receipt_type: isContainer ? 'container' : 'direct',
             order_id: isOrder ? params.sourceDocumentId : null,
-            invoice_id: !isOrder ? params.sourceDocumentId : null,
+            invoice_id: isInvoice ? params.sourceDocumentId : null,
+            container_id: isContainer ? params.sourceDocumentId : null,
             supplier_id: params.supplierId || null,
             warehouse_id: params.warehouseId,
             status: 'completed',
@@ -293,27 +363,39 @@ async function updateSourceDocument(
     receiptNumber: string
 ): Promise<boolean> {
     try {
+        const isContainer = params.sourceDocumentType === 'container';
         const table = params.sourceDocumentType === 'purchase_order' ? 'purchase_orders'
             : params.sourceDocumentType === 'purchase_transaction' ? 'purchase_transactions'
-                : 'purchase_transactions'; // Default to new table for invoices too
+                : isContainer ? 'containers'
+                    : 'purchase_invoices'; // NEW unified table for purchase_invoice types
         const now = new Date().toISOString();
 
         // 1. Fetch current document state to ensure we add to existing history
+        // 🔑 FIX: Different tables have different column names
+        //   - purchase_invoices: total_received_quantity, total_received_amount, received_items_detail
+        //   - containers: total_received_items (no total_received_quantity/amount/items_detail)
+        //   - purchase_orders/transactions: stage, status
+        const selectCols = isContainer
+            ? 'total_received_items, status'
+            : table === 'purchase_invoices'
+                ? 'total_received_quantity, total_received_amount, received_items_detail, status'
+                : 'stage, status';
+
         const { data: currentDoc, error: fetchError } = await supabase
             .from(table)
-            .select('total_received_quantity, total_received_amount, received_items_detail, stage, status')
+            .select(selectCols)
             .eq('id', params.sourceDocumentId)
             .single();
 
         if (fetchError || !currentDoc) {
             console.error(`❌ Failed to fetch current ${table} state:`, fetchError?.message);
-            // Proceed with blind update fallback if fetch fails? Risk of data loss. Better to fail.
-            return false;
+            // Continue with zero defaults if fetch fails — better than blocking the entire receipt
+            console.warn('⚠️ Proceeding with zero defaults for partial receipt tracking');
         }
 
-        const prevDetail: any[] = Array.isArray(currentDoc.received_items_detail) ? currentDoc.received_items_detail : [];
-        const prevTotalQty = Number(currentDoc.total_received_quantity) || 0;
-        const prevTotalAmt = Number(currentDoc.total_received_amount) || 0;
+        const prevDetail: any[] = Array.isArray((currentDoc as any)?.received_items_detail) ? (currentDoc as any).received_items_detail : [];
+        const prevTotalQty = Number((currentDoc as any)?.total_received_quantity || (currentDoc as any)?.total_received_items) || 0;
+        const prevTotalAmt = Number((currentDoc as any)?.total_received_amount) || 0;
 
         // 2. Calculate NEW received totals per material for THIS receipt
         const currentReceiptByMaterial: Record<string, { quantity: number; rollCount: number }> = {};
@@ -371,31 +453,163 @@ async function updateSourceDocument(
 
         // 5. Determine Status
         const totalOrdered = params.sourceItems.reduce((s, i) => s + (i.quantity || 0), 0);
-        // Tolerance for floating point (0.01)
-        const isFullyReceived = newTotalQty >= (totalOrdered - 0.01);
+        // Tolerance for floating point (0.01m)
+        const isFullyReceived = totalOrdered > 0 && newTotalQty >= (totalOrdered - 0.01);
+        const isPartial = !isFullyReceived && newTotalQty > 0;
 
-        // If already 'received' or 'posted' (for invoice), we respect logic.
-        // But for PO, we transition: draft -> confirmed -> partially_received -> received
-        let newStatus = isFullyReceived ? 'received' : 'partially_received';
+        // ══════════════════════════════════════════════════════════════
+        // STATUS MAP — unified across all document types
+        //   fully received  → 'received'
+        //   partial         → 'partially_received'
+        //   (sent on start) → 'in_progress'  (handled in createDraftReceipt)
+        // ══════════════════════════════════════════════════════════════
+        const newStatus = isFullyReceived ? 'received' : 'partially_received';
 
-        // ⚠️ Specific Logic for Purchase Invoices ⚠️
-        // Invoices usually stay 'posted' (finance) until Paid. 
-        // But the user requested "remove from purchase invoice tab upon receipt".
-        // The PurchaseCycleList hides 'received'. 
-        // So we apply 'received' (hidden) or 'partially_received' (visible).
-        // This effectively moves fully received invoices to history.
+        // 6. Perform Update — adapt fields per target table
+        const updateData: any = { updated_at: now };
 
-        // 6. Perform Update
-        const updateData: any = {
-            total_received_quantity: newTotalQty,
-            total_received_amount: newTotalAmt,
-            received_items_detail: mergedDetail,
-            received_at: now,
-            updated_at: now,
-            receipt_id: receiptId, // Link last receipt
-            receipt_number: receiptNumber,
-            status: newStatus
-        };
+        if (table === 'purchase_invoices') {
+            // receipt_status values: 'pending' | 'in_progress' | 'partial' | 'received'
+            updateData.receipt_status = isFullyReceived ? 'received' : 'partial';
+            // receiving_status mirrors newStatus for granular tracking
+            updateData.receiving_status = newStatus;
+            updateData.total_received_quantity = newTotalQty;
+            updateData.total_received_amount = newTotalAmt;
+            updateData.received_items_detail = mergedDetail;
+            updateData.received_at = now;
+            updateData.receipt_id = receiptId;
+            updateData.receipt_number = receiptNumber;
+
+        } else if (table === 'containers') {
+            // Container allowed statuses: draft|booked|loading|in_transit|at_port|customs|cleared|in_receiving|received|closed
+            updateData.status = isFullyReceived ? 'received' : 'in_receiving';
+            updateData.received_date = isFullyReceived ? now.split('T')[0] : null;
+            updateData.total_received_items = newTotalQty;
+            updateData.receiving_notes = `GRN: ${receiptNumber} — ${isFullyReceived ? 'مكتمل' : 'جزئي'}`;
+            updateData.receiving_warehouse_id = params.warehouseId;
+
+            // ═══ FIX: Update each container_item.received_quantity + received_rolls ═══
+            // Fetch container_items to map material_id → item id
+            const { data: containerItems } = await supabase
+                .from('container_items')
+                .select('id, material_id, expected_quantity, received_quantity, received_rolls')
+                .eq('container_id', params.sourceDocumentId);
+
+            if (containerItems && containerItems.length > 0) {
+                for (const ci of containerItems) {
+                    const matId = ci.material_id;
+                    const received = currentReceiptByMaterial[matId];
+                    if (!received) continue;
+
+                    // Accumulate on top of what's already there
+                    const prevQty = Number(ci.received_quantity) || 0;
+                    const prevRolls = Number(ci.received_rolls) || 0;
+                    const newQty = prevQty + received.quantity;
+                    const newRolls = prevRolls + received.rollCount;
+
+                    await supabase
+                        .from('container_items')
+                        .update({
+                            received_quantity: newQty,
+                            received_rolls: newRolls,
+                            updated_at: now,
+                        })
+                        .eq('id', ci.id);
+
+                    // Also ensure fabric_rolls.container_item_id is set correctly
+                    await supabase
+                        .from('fabric_rolls')
+                        .update({ container_item_id: ci.id })
+                        .eq('container_id', params.sourceDocumentId)
+                        .eq('material_id', matId)
+                        .is('container_item_id', null);
+                }
+                console.log(`✅ [Container] Updated received_quantity/rolls for ${containerItems.length} container_items`);
+
+                // ═══ CRITICAL: Sync received quantities to linked purchase_transaction_items ═══
+                // A container may have multiple linked purchase invoices (purchase_transactions).
+                // Each purchase_transaction has items (purchase_transaction_items) with received_qty.
+                // When we receive the container, we need to update those items too.
+                try {
+                    const { data: linkedTransactions } = await supabase
+                        .from('purchase_transactions')
+                        .select('id, stage')
+                        .eq('container_id', params.sourceDocumentId)
+                        .not('stage', 'in', '("cancelled")');
+
+                    if (linkedTransactions && linkedTransactions.length > 0) {
+                        for (const txn of linkedTransactions) {
+                            // Fetch transaction items
+                            const { data: txnItems } = await supabase
+                                .from('purchase_transaction_items')
+                                .select('id, material_id, product_id, quantity, received_qty')
+                                .eq('transaction_id', txn.id);
+
+                            if (!txnItems || txnItems.length === 0) continue;
+
+                            let totalOrdered = 0;
+                            let totalReceived = 0;
+
+                            for (const txnItem of txnItems) {
+                                const matId = txnItem.material_id || txnItem.product_id;
+                                if (!matId) continue;
+
+                                // Find the matching container_item to get actual received_quantity
+                                const matchingCI = containerItems.find(ci => ci.material_id === matId);
+                                if (!matchingCI) continue;
+
+                                // Also add from current receipt
+                                const currentRec = currentReceiptByMaterial[matId];
+                                const prevReceivedQty = Number(txnItem.received_qty) || 0;
+                                const addedQty = currentRec ? currentRec.quantity : 0;
+                                const newReceivedQty = prevReceivedQty + addedQty;
+
+                                if (addedQty > 0) {
+                                    await supabase
+                                        .from('purchase_transaction_items')
+                                        .update({
+                                            received_qty: newReceivedQty,
+                                            updated_at: now,
+                                        })
+                                        .eq('id', txnItem.id);
+                                }
+
+                                totalOrdered += Number(txnItem.quantity) || 0;
+                                totalReceived += newReceivedQty;
+                            }
+
+                            // Update transaction stage based on received status
+                            const txnFullyReceived = totalOrdered > 0 && totalReceived >= (totalOrdered - 0.01);
+                            const txnNewStage = txnFullyReceived ? 'received' : (totalReceived > 0 ? 'partially_received' : txn.stage);
+
+                            if (txnNewStage !== txn.stage) {
+                                await supabase
+                                    .from('purchase_transactions')
+                                    .update({
+                                        stage: txnNewStage,
+                                        updated_at: now,
+                                    })
+                                    .eq('id', txn.id);
+                            }
+
+                            console.log(`✅ [Container→Transaction] Synced received_qty for ${txnItems.length} items in txn ${txn.id} (stage: ${txn.stage} → ${txnNewStage})`);
+                        }
+                        console.log(`✅ [Container] Synced received quantities to ${linkedTransactions.length} linked purchase_transactions`);
+                    }
+                } catch (syncErr: any) {
+                    // Non-fatal — don't block the receipt completion
+                    console.warn('⚠️ [Container] Failed to sync received_qty to purchase_transaction_items (non-fatal):', syncErr.message);
+                }
+            }
+
+        } else if (table === 'purchase_orders') {
+            updateData.status = newStatus;
+
+        } else {
+            // LEGACY purchase_transactions
+            updateData.stage = newStatus;
+            updateData.status = newStatus;
+        }
 
         console.log(`📝 [UpdateSource] Updating ${table} ID: ${params.sourceDocumentId}`, {
             prevTotalQty,
@@ -429,21 +643,29 @@ async function updateSourceDocument(
             }
         }
 
-        // 7. Cross-Update (PO <-> Invoice)
-        // If we updated PO, we should update linked invoices statuses too, but ONLY if they match.
-        // Actually, strictly speaking, receiving a PO doesn't mean receiving the Invoice if they are decoupled.
-        // But usually, they are linked. We'll update linked docs to sync status.
-        if (params.sourceDocumentType === 'purchase_order') {
-            const { data: linked } = await supabase.from('purchase_transactions').select('id').eq('source_order_id', params.sourceDocumentId);
-            if (linked?.length) {
-                await supabase.from('purchase_transactions').update({ stage: newStatus }).in('id', linked.map(l => l.id));
-            }
+        // ════ 7. Cross-Update via DSS — مركز التحكم ════
+        //   كل منطق التحديث المتضاعف في documentStatusService
+        const docType = isContainer ? 'container'
+            : params.sourceDocumentType === 'purchase_order' ? 'purchase_order'
+                : params.sourceDocumentType === 'purchase_transaction' ? 'purchase_transaction'
+                    : 'purchase_invoice';
+
+        const dssResult = await DSS.onReceiptCompleted({
+            documentType: docType,
+            documentId: params.sourceDocumentId,
+            companyId: params.companyId,
+            receiptId,
+            receiptNumber,
+            isFullyReceived,
+            isPartial,
+            totalQty: newTotalQty,
+            warehouseId: params.warehouseId,
+        });
+
+        if (dssResult.success) {
+            console.log('🎛️ [DSS] Receipt completed — updated:', dssResult.updatedTables.join(', '));
         } else {
-            // If Invoice updated, update PO
-            const { data: inv } = await supabase.from('purchase_transactions').select('source_order_id').eq('id', params.sourceDocumentId).single();
-            if (inv?.source_order_id) {
-                await supabase.from('purchase_orders').update({ status: newStatus }).eq('id', inv.source_order_id);
-            }
+            console.warn('⚠️ [DSS] onReceiptCompleted partial failure:', dssResult.error);
         }
 
         return true;
@@ -455,75 +677,223 @@ async function updateSourceDocument(
 }
 
 // ─────────────────────────────────────────────────────────────
+//  Step 5.5: Finalize fabric_roll costs from container_items
+//  Called after syncFabricRolls for containers only.
+//  Updates cost_per_meter → final_unit_cost from container_items,
+//  sets cost_status = 'finalized', and fills allocated_expenses.
+// ─────────────────────────────────────────────────────────────
+async function finalizeFabricRollCosts(containerId: string): Promise<void> {
+    try {
+        // Fetch container_items with final cost
+        const { data: containerItems } = await supabase
+            .from('container_items')
+            .select('id, material_id, unit_cost, final_unit_cost')
+            .eq('container_id', containerId)
+            .gt('final_unit_cost', 0);
+
+        if (!containerItems || containerItems.length === 0) return;
+
+        for (const ci of containerItems) {
+            const finalCost = Number(ci.final_unit_cost) || 0;
+            const unitCost = Number(ci.unit_cost) || 0;
+            if (finalCost <= 0) continue;
+
+            await supabase
+                .from('fabric_rolls')
+                .update({
+                    cost_per_meter: finalCost,
+                    final_landed_cost: finalCost,
+                    allocated_expenses: parseFloat((finalCost - unitCost).toFixed(4)),
+                    cost_status: 'finalized',
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('container_item_id', ci.id)
+                .neq('cost_status', 'finalized'); // skip already-finalized rolls
+        }
+
+        console.log(`✅ [Step 5.5] Finalized roll costs for ${containerItems.length} container_items in container ${containerId}`);
+    } catch (err: any) {
+        // Non-fatal — don't block the receipt
+        console.warn('⚠️ [Step 5.5] finalizeFabricRollCosts failed (non-fatal):', err.message);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Step 5: Sync fabric_rolls (ensure all are in DB)
 //  ⚠️ IMPORTANT: addItem() in receiptLocalStore already syncs
-//  each roll to fabric_rolls. Here we ONLY handle items that
-//  failed to sync (no supabaseId) to prevent duplicates.
+//  each roll to fabric_rolls. Here we:
+//  1. Update existing rolls with the GRN reference AND cost (if missing)
+//  2. Insert any truly missing rolls (fallback)
 // ─────────────────────────────────────────────────────────────
 async function syncFabricRolls(params: ReceiptCompletionParams, receiptId: string): Promise<number> {
     let synced = 0;
+    const isContainer = params.sourceDocumentType === 'container';
+    const containerId = isContainer ? params.sourceDocumentId : null;
+
+    // ═══ OPTIMIZATION: Batch rolls by category ═══
+    // Category 1: Already synced (have supabaseId) → bulk update by IDs
+    // Category 2: Unknown (no supabaseId) → check existence then insert/update
+    const alreadySynced: { id: string; materialId: string }[] = [];
+    const needsCheck: typeof params.items = [];
 
     for (const item of params.items) {
-        // Already synced by receiptLocalStore.addItem()
         if (item.supabaseId) {
-            // Update the existing roll with GRN reference
-            await supabase
-                .from('fabric_rolls')
-                .update({ notes: `GRN: ${receiptId}` })
-                .eq('id', item.supabaseId);
-            synced++;
-            continue;
+            alreadySynced.push({ id: item.supabaseId, materialId: item.materialId });
+        } else {
+            needsCheck.push(item);
         }
-
-        // Check if roll already exists by roll_number (prevent duplicates)
-        const { data: existing } = await supabase
-            .from('fabric_rolls')
-            .select('id')
-            .eq('company_id', params.companyId)
-            .eq('roll_number', item.rollNumber)
-            .maybeSingle();
-
-        if (existing?.id) {
-            // Roll already exists, just update with GRN reference
-            await supabase
-                .from('fabric_rolls')
-                .update({ notes: `GRN: ${receiptId}` })
-                .eq('id', existing.id);
-            synced++;
-            continue;
-        }
-
-        // Only insert if truly missing
-        // 🔑 FIX: Use correct column names from fabric_rolls schema:
-        //   - initial_length (NOT original_length)
-        //   - available_length is GENERATED (do NOT insert)
-        //   - batch_id references inventory_batches(id)
-        // Calculate cost per meter from source item
-        const sourceItem = params.sourceItems.find(si => (si.material_id || si.product_id) === item.materialId);
-        const costPerMeter = sourceItem?.unit_price || 0;
-
-        const { error } = await supabase
-            .from('fabric_rolls')
-            .insert({
-                tenant_id: params.tenantId,
-                company_id: params.companyId,
-                warehouse_id: params.warehouseId,
-                material_id: item.materialId,
-                roll_number: item.rollNumber,
-                initial_length: item.rollLength,
-                current_length: item.rollLength,
-                cost_per_meter: costPerMeter,
-                reserved_length: 0,
-                status: 'available',
-                notes: `GRN: ${receiptId}`,
-            });
-
-        if (!error) synced++;
-        else console.warn('⚠️ Failed to sync roll:', item.rollNumber, error.message, error.details);
     }
 
+    // ── Batch 1: Bulk-update already-synced rolls (single query per material group) ──
+    if (alreadySynced.length > 0) {
+        // Group by materialId to resolve cost once per material
+        const byMaterial = new Map<string, string[]>();
+        for (const r of alreadySynced) {
+            const arr = byMaterial.get(r.materialId) || [];
+            arr.push(r.id);
+            byMaterial.set(r.materialId, arr);
+        }
+
+        const batchPromises = Array.from(byMaterial.entries()).map(async ([matId, ids]) => {
+            const sourceItem = params.sourceItems.find(
+                si => (si.material_id || si.product_id) === matId
+            );
+            const costPerMeter = sourceItem?.unit_price || 0;
+            const containerItemId = isContainer && sourceItem?.id ? sourceItem.id : null;
+
+            const updateData: any = {
+                notes: `GRN: ${receiptId}`,
+                ...(costPerMeter > 0 ? {
+                    cost_per_meter: costPerMeter,
+                    supplier_unit_cost: costPerMeter,
+                    estimated_landed_cost: costPerMeter,
+                    cost_status: 'provisional',
+                } : {}),
+                ...(containerId ? {
+                    container_id: containerId,
+                    container_item_id: containerItemId,
+                } : {}),
+            };
+
+            // Update all rolls of this material in one query
+            const { error, count } = await supabase
+                .from('fabric_rolls')
+                .update(updateData)
+                .in('id', ids);
+
+            if (!error) return ids.length;
+            console.warn(`⚠️ Batch update failed for ${ids.length} rolls:`, error.message);
+            return 0;
+        });
+
+        const results = await Promise.all(batchPromises);
+        synced += results.reduce((sum, n) => sum + n, 0);
+    }
+
+    // ── Batch 2: Check & insert/update unknown rolls (parallel in chunks of 10) ──
+    if (needsCheck.length > 0) {
+        // First, fetch ALL existing rolls in one query
+        const rollNumbers = needsCheck.map(i => i.rollNumber);
+        const { data: existingRolls } = await supabase
+            .from('fabric_rolls')
+            .select('id, roll_number, cost_per_meter, container_id')
+            .eq('company_id', params.companyId)
+            .in('roll_number', rollNumbers);
+
+        const existingMap = new Map((existingRolls || []).map(r => [r.roll_number, r]));
+
+        // Separate into updates vs inserts
+        const toUpdate: { id: string; data: any }[] = [];
+        const toInsert: any[] = [];
+
+        for (const item of needsCheck) {
+            const sourceItem = params.sourceItems.find(
+                si => (si.material_id || si.product_id) === item.materialId
+            );
+            const costPerMeter = (item as any).unitPrice || sourceItem?.unit_price || 0;
+            const containerItemId = isContainer && sourceItem?.id ? sourceItem.id : null;
+
+            const existing = existingMap.get(item.rollNumber);
+
+            if (existing?.id) {
+                toUpdate.push({
+                    id: existing.id,
+                    data: {
+                        notes: `GRN: ${receiptId}`,
+                        ...(costPerMeter > 0 && (!existing.cost_per_meter || existing.cost_per_meter === 0) ? {
+                            cost_per_meter: costPerMeter,
+                            supplier_unit_cost: costPerMeter,
+                            estimated_landed_cost: costPerMeter,
+                            cost_status: 'provisional',
+                        } : {}),
+                        ...(containerId && !existing.container_id ? {
+                            container_id: containerId,
+                            container_item_id: containerItemId,
+                        } : {}),
+                    },
+                });
+            } else {
+                toInsert.push({
+                    tenant_id: params.tenantId,
+                    company_id: params.companyId,
+                    warehouse_id: params.warehouseId,
+                    material_id: item.materialId,
+                    roll_number: item.rollNumber,
+                    initial_length: item.rollLength,
+                    current_length: item.rollLength,
+                    cost_per_meter: costPerMeter,
+                    supplier_unit_cost: costPerMeter,
+                    estimated_landed_cost: costPerMeter,
+                    cost_status: costPerMeter > 0 ? 'provisional' : 'pending',
+                    container_id: containerId,
+                    container_item_id: containerItemId,
+                    reserved_length: 0,
+                    status: 'available',
+                    notes: `GRN: ${receiptId}`,
+                });
+            }
+        }
+
+        // Parallel updates (chunks of 10)
+        if (toUpdate.length > 0) {
+            const updateChunks = [];
+            for (let i = 0; i < toUpdate.length; i += 10) {
+                updateChunks.push(toUpdate.slice(i, i + 10));
+            }
+            const updateResults = await Promise.all(
+                updateChunks.map(chunk =>
+                    Promise.all(chunk.map(u =>
+                        supabase.from('fabric_rolls').update(u.data).eq('id', u.id)
+                    ))
+                )
+            );
+            synced += toUpdate.length;
+        }
+
+        // Bulk insert all new rolls in one query
+        if (toInsert.length > 0) {
+            const { data: inserted, error } = await supabase
+                .from('fabric_rolls')
+                .insert(toInsert)
+                .select('id');
+
+            if (!error) {
+                synced += inserted?.length || 0;
+            } else {
+                console.warn('⚠️ Bulk insert failed, trying one-by-one:', error.message);
+                // Fallback: insert one by one
+                for (const roll of toInsert) {
+                    const { error: e } = await supabase.from('fabric_rolls').insert(roll);
+                    if (!e) synced++;
+                }
+            }
+        }
+    }
+
+    console.log(`✅ [syncFabricRolls] Synced ${synced}/${params.items.length} rolls (batched)`);
     return synced;
 }
+
 
 // ─────────────────────────────────────────────────────────────
 //  Step 6: Create Inventory Movements
@@ -570,24 +940,33 @@ async function createInventoryMovements(
     const isDirectInvoice = params.sourceDocumentType !== 'purchase_order';
     const displayRefNumber = isDirectInvoice ? params.sourceDocumentNumber : receiptNumber;
 
-    const movements = Object.entries(materialGroups).map(([materialId, agg], idx) => ({
-        tenant_id: params.tenantId,
-        company_id: params.companyId,
-        product_id: materialId,  // Will work after FK is dropped by migration
-        material_id: materialId, // New column — no FK constraint
-        to_warehouse_id: params.warehouseId,
-        movement_type: 'receipt',
-        movement_number: `MV-GRN-${receiptNumber.replace('GRN-', '')}-${idx + 1}`,
-        quantity: agg.totalLength,
-        reference_type: 'goods_receipt', // Keep as goods_receipt to enable "View Invoice" button logic
-        reference_id: receiptId,         // Point to the Receipt ID for linkage
-        reference_number: displayRefNumber, // Show Invoice Number or GRN
-        movement_date: new Date().toISOString().split('T')[0],
-        created_by: currentUserId,
-        notes: isDirectInvoice
-            ? `${agg.rollCount} roll(s) - Invoice: ${params.sourceDocumentNumber}`
-            : `${agg.rollCount} roll(s) - GRN: ${receiptNumber} (PO: ${params.sourceDocumentNumber})`,
-    }));
+    const movements = Object.entries(materialGroups).map(([materialId, agg], idx) => {
+        // 🔑 Get unit_cost from source item for proper cost tracking
+        const sourceItem = params.sourceItems.find(si => (si.material_id || si.product_id) === materialId);
+        const unitCost = sourceItem?.unit_price || 0;
+
+        return {
+            tenant_id: params.tenantId,
+            company_id: params.companyId,
+            product_id: materialId,  // Will work after FK is dropped by migration
+            material_id: materialId, // New column — no FK constraint
+            to_warehouse_id: params.warehouseId,
+            movement_type: params.sourceDocumentType === 'container' ? 'container_receipt' : 'receipt',
+
+            movement_number: `MV-GRN-${receiptNumber.replace('GRN-', '')}-${idx + 1}`,
+            quantity: agg.totalLength,
+            unit_cost: unitCost,       // 🔑 Required by update_inventory_stock trigger for weighted avg
+            total_cost: agg.totalLength * unitCost,
+            reference_type: 'goods_receipt', // Keep as goods_receipt to enable "View Invoice" button logic
+            reference_id: receiptId,         // Point to the Receipt ID for linkage
+            reference_number: displayRefNumber, // Show Invoice Number or GRN
+            movement_date: new Date().toISOString().split('T')[0],
+            created_by: currentUserId,
+            notes: isDirectInvoice
+                ? `${agg.rollCount} roll(s) - Invoice: ${params.sourceDocumentNumber}`
+                : `${agg.rollCount} roll(s) - GRN: ${receiptNumber} (PO: ${params.sourceDocumentNumber})`,
+        };
+    });
 
     if (movements.length === 0) return 0;
 
@@ -616,7 +995,10 @@ async function createInventoryMovements(
 async function handleAccountingEntry(
     params: ReceiptCompletionParams,
     receiptId: string,
-    receiptNumber: string
+    receiptNumber: string,
+    varianceStatus?: 'ok' | 'requires_review',
+    varianceAmount?: number,
+    variancePct?: number
 ): Promise<string | null> {
     try {
         // Get current user for created_by
@@ -628,7 +1010,8 @@ async function handleAccountingEntry(
         if (!supplierId) {
             const table = params.sourceDocumentType === 'purchase_order' ? 'purchase_orders'
                 : params.sourceDocumentType === 'purchase_transaction' ? 'purchase_transactions'
-                    : 'purchase_transactions';
+                    : params.sourceDocumentType === 'container' ? 'containers'
+                        : 'purchase_invoices';
             const { data: doc } = await supabase
                 .from(table)
                 .select('supplier_id')
@@ -711,11 +1094,75 @@ async function handleAccountingEntry(
             actualTotal += receivedQty * unitPrice;
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // 🔑 CONTAINER FIX: For container receipts, actualTotal must equal
+        // the EXACT debit balance on the container account (sum of all
+        // capitalized costs: FOB + shipping + other expenses).
+        // This ensures Dr Inventory = Cr Container = container balance → ZERO.
+        //
+        // If we use item unit_price only, we miss the capitalized expenses
+        // and leave a debit balance on the container account.
+        // ═══════════════════════════════════════════════════════════════
+        let containerAccountBalance: number | null = null;
+        if (params.sourceDocumentType === 'container') {
+            try {
+                // Get container account id
+                const { data: contDoc } = await supabase
+                    .from('containers')
+                    .select('container_account_id')
+                    .eq('id', params.sourceDocumentId)
+                    .single();
+
+                if (contDoc?.container_account_id) {
+                    // Sum all posted DEBIT lines on the container account
+                    const { data: contLines } = await supabase
+                        .from('journal_entry_lines')
+                        .select('debit, credit, entry_id')
+                        .eq('account_id', contDoc.container_account_id);
+
+                    if (contLines?.length) {
+                        // Get only posted entries
+                        const entryIds = [...new Set(contLines.map(l => l.entry_id).filter(Boolean))];
+                        const { data: postedEntries } = await supabase
+                            .from('journal_entries')
+                            .select('id')
+                            .in('id', entryIds)
+                            .eq('status', 'posted');
+                        const postedSet = new Set(postedEntries?.map(e => e.id));
+
+                        let contDr = 0, contCr = 0;
+                        contLines.forEach(l => {
+                            if (postedSet.has(l.entry_id)) {
+                                contDr += Number(l.debit || 0);
+                                contCr += Number(l.credit || 0);
+                            }
+                        });
+                        const balance = contDr - contCr;
+                        if (balance > 0) {
+                            containerAccountBalance = balance;
+                            console.log('✅ [Accounting] Container account balance used for GRN:',
+                                { balance, contDr, contCr, itemsBased: actualTotal });
+                        }
+                    }
+                }
+            } catch (balErr) {
+                console.warn('⚠️ [Accounting] Could not read container account balance, using items-based total:', balErr);
+            }
+        }
+
+        // Use container account balance if available (more accurate), else fall back to items-based
+        if (containerAccountBalance !== null && containerAccountBalance > 0) {
+            actualTotal = containerAccountBalance;
+        }
+
         console.log('📊 [Accounting] Totals — expected:', expectedTotal, ', actual:', actualTotal,
+            ', containerAccountBalance:', containerAccountBalance,
             ', receivedByMaterial:', receivedByMaterial);
+
 
         const discrepancy = actualTotal - expectedTotal;
         const isOrder = params.sourceDocumentType === 'purchase_order';
+        const isContainer = params.sourceDocumentType === 'container';
 
         // Generate entry number
         const entryNumber = `JE-GRN-${receiptNumber.replace('GRN-', '')}`;
@@ -738,7 +1185,64 @@ async function handleAccountingEntry(
         const creditAccId = payableAccountId;
         const creditAccName = creditAccId ? (accountMap[creditAccId]?.name_ar || 'ذمم دائنة') : 'ذمم دائنة';
 
-        if (isOrder) {
+        if (isContainer) {
+            // ═══ CONTAINER RECEIPT ═══
+            // Each container has a dedicated account created by DB trigger (trg_create_container_account)
+            // under parent 1143 (بضاعة بالطريق). This account is MANDATORY.
+            // On receipt:  Debit Inventory (المخزون)  /  Credit Container Account (إقفال حساب الكونتينر)
+            const { data: containerDoc } = await supabase
+                .from('containers')
+                .select('container_account_id, container_number')
+                .eq('id', params.sourceDocumentId)
+                .single();
+
+            const containerAccountId = containerDoc?.container_account_id || null;
+
+            // ❌ ABORT if no container account — this should never happen (created by trigger)
+            if (!containerAccountId) {
+                console.error('❌ [Accounting] Container has no container_account_id! Cannot create receipt entry.',
+                    { containerId: params.sourceDocumentId });
+                return null; // Skip accounting — don't create bad entries
+            }
+
+            let containerAccountName = 'حساب الكونتينر';
+            const { data: accDetail } = await supabase
+                .from('chart_of_accounts')
+                .select('id, name_ar, name_en')
+                .eq('id', containerAccountId)
+                .single();
+            if (accDetail) {
+                containerAccountName = accDetail.name_ar || accDetail.name_en || containerAccountName;
+                accountMap[accDetail.id] = { id: accDetail.id, name_ar: accDetail.name_ar, name_en: accDetail.name_en || accDetail.name_ar };
+            }
+
+            const containerNum = containerDoc?.container_number || params.sourceDocumentNumber;
+
+            // Debit: Inventory (المخزون)  
+            lines.push({
+                account_id: debitAccId,
+                account_name: debitAccName,
+                debit: actualTotal,
+                credit: 0,
+                description: `استلام كونتينر ${containerNum} - نقل للمخزون`,
+            });
+            // Credit: Container Account (إقفال حساب الكونتينر — الحساب الثابت المرتبط)
+            lines.push({
+                account_id: containerAccountId,
+                account_name: containerAccountName,
+                debit: 0,
+                credit: actualTotal,
+                description: `إقفال حساب كونتينر ${containerNum}`,
+                entity_type: 'supplier',
+                entity_id: supplierId,
+            });
+
+            console.log('✅ [Accounting] Container Receipt Entry (Dr Inventory / Cr Container Account)', {
+                containerAccountId,
+                containerAccountName,
+                amount: actualTotal,
+            });
+        } else if (isOrder) {
             // PO Receipt: Debit Inventory, Credit Payable/GRNI
             lines.push({
                 account_id: debitAccId,
@@ -795,7 +1299,13 @@ async function handleAccountingEntry(
             lines: lines.map(l => ({ acc: l.account_name, dr: l.debit, cr: l.credit }))
         });
 
-        // Insert the journal entry
+        // Build variance note for accountant (shown in description when out-of-tolerance)
+        const varianceNote = varianceStatus === 'requires_review' && varianceAmount !== undefined
+            ? ` | ⚠ فارق ${varianceAmount > 0 ? '+' : ''}${varianceAmount}م (${variancePct?.toFixed(1)}%) — يحتاج مراجعة`
+            : '';
+
+        // Insert the journal entry — ALWAYS posted immediately
+        // Accountant can adjust amounts via journal entry edit if variance requires correction
         const { data: entryData, error: entryError } = await supabase
             .from('journal_entries')
             .insert({
@@ -805,14 +1315,16 @@ async function handleAccountingEntry(
                 entry_number: entryNumber,
                 entry_date: new Date().toISOString().split('T')[0],
                 description: isOrder
-                    ? `قيد استلام بضائع - أمر شراء ${params.sourceDocumentNumber}`
-                    : `قيد استلام بضائع - فاتورة ${params.sourceDocumentNumber}`,
+                    ? `قيد استلام بضائع - أمر شراء ${params.sourceDocumentNumber}${varianceNote}`
+                    : `قيد استلام بضائع - فاتورة ${params.sourceDocumentNumber}${varianceNote}`,
                 reference_type: 'goods_receipt',
                 reference_id: receiptId,
-                status: 'posted',
+                status: 'posted', // 🔑 Always posted — accountant adjusts entry if needed
                 total_debit: lines.reduce((s, l) => s + (l.debit || 0), 0),
                 total_credit: lines.reduce((s, l) => s + (l.credit || 0), 0),
                 created_by: currentUserId,
+                // Tag for accountant review filter
+                ...(varianceStatus === 'requires_review' ? { notes: `variance:${varianceAmount}m/${variancePct?.toFixed(1)}%` } : {}),
             })
             .select('id')
             .single();
@@ -828,6 +1340,7 @@ async function handleAccountingEntry(
         //   - no company_id column in journal_entry_lines
         //   - account_id is NOT NULL — skip lines without account_id
         if (entryData?.id) {
+            // 🔑 FIX: journal_entry_lines uses party_type/party_id (NOT entity_type/entity_id)
             const entryLines = lines
                 .filter(line => line.account_id) // account_id is NOT NULL
                 .map((line, idx) => ({
@@ -838,8 +1351,8 @@ async function handleAccountingEntry(
                     description: line.description,
                     debit: line.debit || 0,
                     credit: line.credit || 0,
-                    entity_type: line.entity_type || null,
-                    entity_id: line.entity_id || null,
+                    party_type: line.entity_type || null,
+                    party_id: line.entity_id || null,
                 }));
 
             if (entryLines.length > 0) {
@@ -878,129 +1391,90 @@ async function recordActivityLog(
         const now = new Date().toISOString();
         const isOrder = params.sourceDocumentType === 'purchase_order';
         const sourceTable = isOrder ? 'purchase_orders'
-            : (params.sourceDocumentType === 'purchase_transaction' ? 'purchase_transactions' : 'purchase_transactions');
+            : params.sourceDocumentType === 'purchase_transaction' ? 'purchase_transactions'
+                : params.sourceDocumentType === 'container' ? 'containers'
+                    : 'purchase_invoices';
 
-        // Build activity entries for each stage
+        // Get current user for created_by
+        const { data: { user } } = await supabase.auth.getUser();
+        const currentUserId = user?.id || params.createdBy || null;
+
+        // Build activity entries — using `document_activity` table schema:
+        // entity_type, entity_id, activity_type, content, event_code, metadata, created_by
         const activities: any[] = [
             {
                 tenant_id: params.tenantId,
-                company_id: params.companyId,
                 entity_type: sourceTable,
                 entity_id: params.sourceDocumentId,
-                action: 'goods_received',
-                description_ar: `تم استلام البضائع — إذن استلام ${receiptNumber}`,
-                description_en: `Goods received — GRN ${receiptNumber}`,
+                activity_type: 'goods_received',
+                event_code: 'GR_COMPLETED',
+                content: `تم استلام البضائع — إذن استلام ${receiptNumber} (${params.items.length} رولون)`,
                 metadata: {
                     receipt_id: receiptId,
                     receipt_number: receiptNumber,
                     warehouse_id: params.warehouseId,
                     items_count: params.items.length,
-                    stage: 'receipt_created',
+                    variance_status: params.varianceStatus,
                 },
-                performed_by: params.createdBy || null,
-                performed_at: now,
+                created_by: currentUserId,
+                created_at: now,
             },
             {
                 tenant_id: params.tenantId,
-                company_id: params.companyId,
-                entity_type: sourceTable,
-                entity_id: params.sourceDocumentId,
-                action: 'status_changed',
-                description_ar: `تم تغيير الحالة إلى "مستلم"`,
-                description_en: `Status changed to "received"`,
+                entity_type: 'purchase_receipts',
+                entity_id: receiptId,
+                activity_type: 'receipt_completed',
+                event_code: 'GRN_POSTED',
+                content: `${receiptNumber} — ${params.items.length} رولون${params.varianceStatus === 'requires_review' ? ' ⚠ يحتاج مراجعة' : ' ✓'}`,
                 metadata: {
-                    from_status: 'confirmed',
-                    to_status: 'received',
-                    receipt_number: receiptNumber,
-                    stage: 'status_updated',
+                    source_document_type: params.sourceDocumentType,
+                    source_document_id: params.sourceDocumentId,
+                    source_document_number: params.sourceDocumentNumber,
+                    journal_entry_id: journalEntryId,
+                    variance_status: params.varianceStatus,
+                    variance_amount: params.varianceAmount,
                 },
-                performed_by: params.createdBy || null,
-                performed_at: now,
-            },
-            {
-                tenant_id: params.tenantId,
-                company_id: params.companyId,
-                entity_type: sourceTable,
-                entity_id: params.sourceDocumentId,
-                action: 'quantities_updated',
-                description_ar: `تم تحديث الكميات الفعلية المستلمة — ${params.items.length} رولون`,
-                description_en: `Actual received quantities updated — ${params.items.length} roll(s)`,
-                metadata: {
-                    total_rolls: params.items.length,
-                    receipt_number: receiptNumber,
-                    stage: 'quantities_recorded',
-                },
-                performed_by: params.createdBy || null,
-                performed_at: now,
+                created_by: currentUserId,
+                created_at: now,
             },
         ];
 
-        // Add accounting entry activity
+        // Add journal entry activity if created
         if (journalEntryId) {
             activities.push({
                 tenant_id: params.tenantId,
-                company_id: params.companyId,
                 entity_type: sourceTable,
                 entity_id: params.sourceDocumentId,
-                action: 'journal_entry_created',
-                description_ar: `تم إنشاء القيد المحاسبي — قيد استلام بضائع`,
-                description_en: `Journal entry created — Goods receipt entry`,
+                activity_type: 'journal_entry_created',
+                event_code: 'JE_POSTED',
+                content: `قيد محاسبي استلام مرحَّل — ${receiptNumber}`,
                 metadata: {
                     journal_entry_id: journalEntryId,
                     receipt_number: receiptNumber,
-                    stage: 'accounting_posted',
                 },
-                performed_by: params.createdBy || null,
-                performed_at: now,
+                created_by: currentUserId,
+                created_at: now,
             });
         }
 
-        // Also log on the receipt itself
-        activities.push({
-            tenant_id: params.tenantId,
-            company_id: params.companyId,
-            entity_type: 'purchase_receipts',
-            entity_id: receiptId,
-            action: 'receipt_completed',
-            description_ar: `تم إكمال إذن الاستلام ${receiptNumber} — ${params.items.length} رولون`,
-            description_en: `Receipt ${receiptNumber} completed — ${params.items.length} roll(s)`,
-            metadata: {
-                source_document_type: params.sourceDocumentType,
-                source_document_id: params.sourceDocumentId,
-                source_document_number: params.sourceDocumentNumber,
-                journal_entry_id: journalEntryId,
-                stage: 'completed',
-            },
-            performed_by: params.createdBy || null,
-            performed_at: now,
-        });
-
         const { data, error } = await supabase
-            .from('activity_logs')
+            .from('document_activity')
             .insert(activities)
             .select('id');
 
         if (error) {
-            console.warn('⚠️ Activity log creation failed:', error.message);
-            // Try alternate table name
-            const { data: altData, error: altError } = await supabase
-                .from('document_activity_log')
-                .insert(activities)
-                .select('id');
-
-            if (altError) {
-                console.warn('⚠️ Alternate activity log also failed:', altError.message);
-                return 0;
-            }
-            return altData?.length || 0;
+            console.warn('⚠️ Activity log failed:', error.message);
+            return 0;
         }
 
+        console.log('✅ Activity log created:', data?.length, 'entries');
         return data?.length || 0;
     } catch (err: any) {
         console.warn('⚠️ Activity log failed (non-critical):', err.message);
         return 0;
     }
 }
+
 /**
  * HACK: Self-healing function to ensure critical accounts exist
  * If accounts 1400, 2100, 2108, 5108 are missing, create them dynamically.
@@ -1056,3 +1530,59 @@ async function ensureCriticalAccounts(tenantId: string, companyId: string) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+//  Variance Notification — إشعار المحاسب عند وجود فروقات
+// ─────────────────────────────────────────────────────────────
+async function sendVarianceNotification(
+    params: ReceiptCompletionParams,
+    receiptNumber: string,
+): Promise<void> {
+    // Find admin/super_admin users to notify
+    const { data: adminRoles } = await supabase
+        .from('roles')
+        .select('id')
+        .or('is_super_admin.eq.true,code.ilike.%admin%,code.ilike.%account%')
+        .eq('tenant_id', params.tenantId);
+
+    if (!adminRoles || adminRoles.length === 0) return;
+
+    const roleIds = adminRoles.map(r => r.id);
+    const { data: adminUsers } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role_id', roleIds);
+
+    if (!adminUsers || adminUsers.length === 0) return;
+
+    const uniqueUserIds = [...new Set(adminUsers.map(u => u.user_id))];
+
+    const variancePct = params.variancePct ? `${params.variancePct.toFixed(1)}%` : '';
+    const varianceAmt = params.varianceAmount ? `${params.varianceAmount.toFixed(1)}` : '';
+
+    const title = `⚠️ فروقات كميات — ${params.sourceDocumentNumber} | ⚠️ Quantity Variance — ${params.sourceDocumentNumber}`;
+    const body = `إذن استلام ${receiptNumber} — فرق ${varianceAmt} متر (${variancePct}). يحتاج مراجعة محاسبية | Receipt ${receiptNumber} — variance ${varianceAmt} meters (${variancePct}). Needs accountant review`;
+
+    const notifications = uniqueUserIds.map(userId => ({
+        tenant_id: params.tenantId,
+        user_id: userId,
+        title,
+        body,
+        type: 'warning' as const,
+        source_type: 'container',
+        source_id: params.sourceDocumentId,
+        metadata: {
+            container_number: params.sourceDocumentNumber,
+            receipt_number: receiptNumber,
+            variance_amount: params.varianceAmount,
+            variance_pct: params.variancePct,
+            action_required: 'variance_review',
+        },
+    }));
+
+    const { error } = await supabase.from('notifications').insert(notifications);
+    if (error) {
+        console.warn('⚠️ Variance notification insert failed:', error.message);
+    } else {
+        console.log(`🔔 Variance notification sent to ${uniqueUserIds.length} user(s)`);
+    }
+}

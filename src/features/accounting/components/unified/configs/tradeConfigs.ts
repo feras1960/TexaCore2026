@@ -17,13 +17,13 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.materials',
         icon: 'Search',
         component: 'MaterialBrowserTab',
+        showInModes: ['create', 'edit'],
     },
     attachments: {
         id: 'attachments',
         labelKey: 'trade.tabs.attachments',
         icon: 'Paperclip',
         component: 'AttachmentsTab',
-        badge: '0',
     },
     activity: {
         id: 'activity',
@@ -58,6 +58,7 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.materials',
         icon: 'Search',
         component: 'PurchaseMaterialBrowserTab',
+        showInModes: ['create', 'edit'],
     },
     supplierInfo: {
         id: 'supplier_info',
@@ -96,6 +97,13 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.journalPreview',
         icon: 'BookOpen',
         component: 'StageJournalPreview',
+    },
+    // ── المبيعات: الدفعات + القيد + التوصيل (مدمج) ──
+    salesFinance: {
+        id: 'sales_finance',
+        labelKey: 'trade.tabs.salesFinance',
+        icon: 'CreditCard',
+        component: 'SalesFinanceTab',
     },
 
     // ── خاص بالحاويات ──
@@ -139,13 +147,15 @@ const STAGE_TAB: Record<string, TabConfig> = {
     // ── مواد (stage-aware) ──
     materialBrowserStaged: {
         ...TAB.materialBrowser,
-        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation'],
+        showInModes: ['create', 'edit'],
     },
     purchaseMaterialBrowserStaged: {
         ...TAB.purchaseMaterialBrowser,
-        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation'],
+        showInModes: ['create', 'edit'],
     },
     // ── مورد (stage-aware) ──
     supplierInfoStaged: {
@@ -168,25 +178,31 @@ const STAGE_TAB: Record<string, TabConfig> = {
     // ── شحن مبيعات (stage-aware) ──
     customerShippingStaged: {
         ...TAB.customerShipping,
-        visibleInStages: ['order', 'confirmed', 'delivery', 'invoice', 'posted', 'partial_paid', 'paid'],
-        editableInStages: ['order', 'delivery'],
+        visibleInStages: ['order', 'confirmed', 'in_delivery', 'delivered', 'delivery', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['order', 'delivery', 'in_delivery'],
     },
     // ── سداد مبيعات (stage-aware) ──
     paymentReceiptStaged: {
         ...TAB.paymentReceipt,
-        visibleInStages: ['confirmed', 'invoice', 'posted', 'partial_paid', 'paid'],
-        editableInStages: ['invoice', 'partial_paid'],
+        visibleInStages: ['draft', 'quotation', 'reservation', 'order', 'confirmed', 'delivery', 'in_delivery', 'delivered', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['draft', 'quotation', 'order', 'invoice', 'partial_paid'],
     },
-    // ── المورد والمالية المدمج (stage-aware) ──
+    // ── المورد والمالية المدمج — مشتريات (stage-aware) ──
     supplierFinanceStaged: {
         ...TAB.supplierFinance,
-        visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
+        visibleInStages: ['draft', 'quotation', 'reservation', 'order', 'approved', 'confirmed', 'delivery', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['quotation', 'order'],
+    },
+    // ── المبيعات: دفعات + قيد + توصيل (stage-aware) ──
+    salesFinanceStaged: {
+        ...TAB.salesFinance,
+        visibleInStages: ['draft', 'quotation', 'reservation', 'order', 'confirmed', 'delivery', 'in_delivery', 'delivered', 'invoice', 'posted', 'partial_paid', 'paid'],
+        editableInStages: ['draft', 'quotation', 'order', 'invoice', 'partial_paid'],
     },
     // ── القيد المحاسبي (stage-aware) ──
     journalPreviewStaged: {
         ...TAB.journalPreview,
-        visibleInStages: ['confirmed', 'partially_received', 'received', 'invoice', 'posted', 'partial_paid', 'paid'],
+        visibleInStages: ['confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'invoice', 'posted', 'partial_paid', 'paid'],
     },
 };
 
@@ -278,6 +294,18 @@ const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
         { id: 'post', labelAr: 'ترحيل', labelEn: 'Post', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء قيد محاسبي. هل تريد المتابعة؟', confirmMessageEn: 'A journal entry will be created. Continue?' },
         { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
     ],
+    // المراحل الجديدة — إذن التسليم
+    confirmed: [
+        { id: 'to_in_delivery', labelAr: 'تأكيد الإخراج من المستودع', labelEn: 'Confirm Warehouse Dispatch', icon: '📤', targetStage: 'in_delivery', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إخراج البضاعة وترحيل القيد المحاسبي', confirmMessageEn: 'Stock will be dispatched and journal entry posted' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    sent_to_branch: [
+        { id: 'confirm_delivery', labelAr: 'تأكيد التسليم للعميل', labelEn: 'Confirm Customer Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
+    ],
+    in_delivery: [
+        { id: 'confirm_delivery', labelAr: 'تأكيد التسليم', labelEn: 'Confirm Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
+    ],
+    delivered: [],
     posted: [
         { id: 'collect', labelAr: 'تحصيل دفعة', labelEn: 'Collect Payment', icon: '💰', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
     ],
@@ -293,7 +321,7 @@ const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
 
 // Stage order constants
 const PURCHASE_STAGE_ORDER = ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'];
-const SALES_STAGE_ORDER = ['draft', 'quotation', 'reservation', 'order', 'delivery', 'invoice', 'posted', 'partial_paid', 'paid'];
+const SALES_STAGE_ORDER = ['draft', 'quotation', 'reservation', 'order', 'delivery', 'invoice', 'confirmed', 'sent_to_branch', 'in_delivery', 'delivered', 'posted', 'partial_paid', 'paid'];
 
 // ═══════════════════════════════════════════════════════════════
 // Common Action Definitions
@@ -369,7 +397,6 @@ export const tradeOrderConfig: DocumentConfig = {
         TAB.customerShipping,
         TAB.nexaAgent,
         TAB.attachments,
-        TAB.activity,
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
@@ -392,11 +419,10 @@ export const tradeInvoiceConfig: DocumentConfig = {
     tabs: [
         STAGE_TAB.tradeDetailsStaged,
         STAGE_TAB.materialBrowserStaged,
-        STAGE_TAB.paymentReceiptStaged,
-        STAGE_TAB.customerShippingStaged,
+        STAGE_TAB.salesFinanceStaged,
         TAB.nexaAgent,
+        TAB.activity,
         TAB.attachments,
-        STAGE_TAB.stageHistory,
     ],
 };
 
@@ -412,7 +438,6 @@ export const tradeQuotationConfig: DocumentConfig = {
         TAB.tradeDetails,
         TAB.materialBrowser,
         TAB.attachments,
-        TAB.activity,
     ],
 };
 
@@ -428,7 +453,6 @@ export const tradeDeliveryConfig: DocumentConfig = {
         TAB.tradeDetails,
         TAB.customerShipping,
         TAB.attachments,
-        TAB.activity,
     ],
     stats: [
         {
@@ -453,7 +477,6 @@ export const tradeReservationConfig: DocumentConfig = {
         TAB.tradeDetails,
         TAB.materialBrowser,
         TAB.attachments,
-        TAB.activity,
     ],
     stats: [
         {
@@ -478,7 +501,6 @@ export const tradeReturnConfig: DocumentConfig = {
         TAB.materialBrowser,
         TAB.paymentReceipt,
         TAB.attachments,
-        TAB.activity,
     ],
 };
 
@@ -506,11 +528,9 @@ export const purchaseOrderConfig: DocumentConfig = {
     tabs: [
         TAB.tradeDetails,
         TAB.purchaseMaterialBrowser,
-        TAB.receiptSummary,
         TAB.supplierInfo,
         TAB.customerShipping, // re-used as purchase shipping
         TAB.attachments,
-        TAB.activity,
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
@@ -535,11 +555,8 @@ export const purchaseInvoiceConfig: DocumentConfig = {
     tabs: [
         STAGE_TAB.tradeDetailsStaged,
         STAGE_TAB.purchaseMaterialBrowserStaged,
-        TAB.receiptSummary,
         STAGE_TAB.supplierFinanceStaged,
-        STAGE_TAB.warehouseReceivingStaged,
         TAB.attachments,
-        STAGE_TAB.stageHistory,
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
@@ -565,7 +582,6 @@ export const purchaseRequestConfig: DocumentConfig = {
         TAB.tradeDetails,
         TAB.purchaseMaterialBrowser,
         TAB.attachments,
-        TAB.activity,
     ],
     actions: TRADE_ACTIONS,
     stats: [
@@ -594,7 +610,6 @@ export const purchaseQuotationConfig: DocumentConfig = {
         TAB.purchaseMaterialBrowser,
         TAB.supplierInfo,
         TAB.attachments,
-        TAB.activity,
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
@@ -615,7 +630,6 @@ export const purchaseReceiptConfig: DocumentConfig = {
         TAB.purchaseMaterialBrowser,
         TAB.warehouseReceiving,
         TAB.attachments,
-        TAB.activity,
     ],
     actions: TRADE_ACTIONS,
     stats: [
@@ -643,7 +657,6 @@ export const purchaseReturnConfig: DocumentConfig = {
         TAB.tradeDetails,
         TAB.supplierInfo,
         TAB.attachments,
-        TAB.activity,
     ],
     actions: TRADE_ACTIONS,
     stats: [TOTAL_STAT],
@@ -675,7 +688,6 @@ export const goodsReceiptConfig: DocumentConfig = {
             component: 'ReceiptSummaryTab',
         },
         TAB.attachments,
-        TAB.activity,
     ],
     actions: [
         {
@@ -691,6 +703,15 @@ export const goodsReceiptConfig: DocumentConfig = {
             icon: 'X',
             variant: 'outline',
             showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            showInModes: ['create', 'edit', 'view'],
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
         },
         {
             id: 'post',
@@ -728,6 +749,77 @@ export const goodsReceiptConfig: DocumentConfig = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// تسليم مبيعات (Sales Delivery — Warehouse Level)
+// اختيار رولونات موجودة للتسليم (عكس الاستلام)
+// ═══════════════════════════════════════════════════════════════
+export const salesDeliveryConfig: DocumentConfig = {
+    type: 'sales_delivery',
+    titleKey: 'warehouse.salesDelivery.title',
+    subtitleKey: 'warehouse.salesDelivery.subtitle',
+    icon: 'Truck',
+    iconColor: 'bg-rose-600',
+    defaultTab: 'sales_delivery_items',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['reference_number', 'warehouse_name', 'date', 'status'],
+    tabs: [
+        {
+            id: 'sales_delivery_items',
+            labelKey: 'warehouse.salesDelivery.tabs.items',
+            icon: 'ScanLine',
+            component: 'SalesDeliveryItemsTab',
+        },
+        {
+            id: 'delivery_info',
+            labelKey: 'warehouse.salesDelivery.tabs.deliveryInfo',
+            icon: 'Truck',
+            component: 'DeliveryInfoTab',
+        },
+        TAB.attachments,
+    ],
+    actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'print',
+            labelKey: 'actions.print',
+            icon: 'Printer',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+    ],
+    stats: [
+        {
+            id: 'rollsCount',
+            labelKey: 'warehouse.salesDelivery.stats.rolls',
+            valueKey: 'rolls_count',
+            icon: 'Cylinder',
+            format: 'number',
+            colorClass: 'text-rose-600',
+        },
+        {
+            id: 'totalLength',
+            labelKey: 'warehouse.salesDelivery.stats.totalLength',
+            valueKey: 'total_length',
+            icon: 'Ruler',
+            format: 'number',
+            colorClass: 'text-blue-600',
+        },
+    ],
+};
+
+// ═══════════════════════════════════════════════════════════════
 // حاوية (Container/Shipment) — مشتريات فقط
 // ═══════════════════════════════════════════════════════════════
 export const tradeContainerConfig: DocumentConfig = {
@@ -747,8 +839,13 @@ export const tradeContainerConfig: DocumentConfig = {
         },
         TAB.shipmentItems,
         TAB.expenses,
+        {
+            id: 'receipt_summary',
+            labelKey: 'trade.tabs.receiptSummary',
+            icon: 'ClipboardCheck',
+            component: 'ContainerReceiptSummaryTab',
+        },
         TAB.attachments,
-        TAB.activity,
     ],
     actions: [
         {

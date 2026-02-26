@@ -40,9 +40,21 @@ export default function PurchaseInvoicesList() {
     const isRTL = direction === 'rtl';
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
 
-    // 🔄 Realtime — listen to purchase_transactions (invalidates both phases)
+    // 🔄 Realtime — listen to purchase_transactions & purchase_invoices (DSS updates)
     useRealtimeInvalidation({
         table: 'purchase_transactions',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['purchase_transactions_recent'], ['purchase_transactions_full']],
+    });
+    useRealtimeInvalidation({
+        table: 'purchase_invoices',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['purchase_transactions_recent'], ['purchase_transactions_full']],
+    });
+    useRealtimeInvalidation({
+        table: 'purchase_receipts',
         companyId,
         filter: companyId ? `company_id=eq.${companyId}` : undefined,
         queryKeys: [['purchase_transactions_recent'], ['purchase_transactions_full']],
@@ -849,17 +861,27 @@ export default function PurchaseInvoicesList() {
                                                         )}
                                                     </td>
 
-                                                    {/* Delivery */}
+                                                    {/* Receipt Status — DSS Real-time */}
                                                     <td className="px-4 py-3.5">
-                                                        {isConfirmedPlus ? (
-                                                            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${isDelivered
-                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                                : 'bg-orange-50 text-orange-600 border border-orange-200'
-                                                                }`}>
-                                                                {isDelivered ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                                                                {isDelivered ? (isRTL ? 'مستلمة' : 'Delivered') : (isRTL ? 'معلقة' : 'Pending')}
-                                                            </span>
-                                                        ) : (
+                                                        {isConfirmedPlus ? (() => {
+                                                            // الحالة الحقيقية من stage في purchase_transactions
+                                                            const receiptStatus =
+                                                                doc.receipt_status ||
+                                                                (stage === 'received' || stage === 'posted' ? 'received' :
+                                                                    stage === 'confirmed' ? 'pending' : null);
+                                                            const cfg: Record<string, { label_ar: string; label_en: string; cls: string; icon: string }> = {
+                                                                received: { label_ar: 'مستلم ✔', label_en: 'Received ✔', cls: 'bg-green-50 text-green-700 border-green-200', icon: '✅' },
+                                                                partial: { label_ar: 'جزئي', label_en: 'Partial', cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: '🔶' },
+                                                                in_progress: { label_ar: 'قيد الاستلام', label_en: 'Receiving...', cls: 'bg-teal-50 text-teal-700 border-teal-200 animate-pulse', icon: '🔄' },
+                                                                pending: { label_ar: 'معلق', label_en: 'Pending', cls: 'bg-orange-50 text-orange-600 border-orange-200', icon: '⏳' },
+                                                            };
+                                                            const c = cfg[receiptStatus || 'pending'] || cfg.pending;
+                                                            return (
+                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border ${c.cls}`}>
+                                                                    {c.icon} {isRTL ? c.label_ar : c.label_en}
+                                                                </span>
+                                                            );
+                                                        })() : (
                                                             <span className="text-[11px] text-gray-300">—</span>
                                                         )}
                                                     </td>
@@ -948,14 +970,18 @@ export default function PurchaseInvoicesList() {
                                         ? (isRTL ? `جزئي ${paymentPct}%` : `${paymentPct}% Paid`)
                                         : (isRTL ? 'غير مدفوعة' : 'Unpaid');
 
-                                // ═══ Delivery status ═══
-                                const isReceived = stage === 'received' || stage === 'posted';
-                                const deliveryLabel = isReceived
-                                    ? (isRTL ? '✅ مستلمة' : '✅ Delivered')
-                                    : stage === 'confirmed'
-                                        ? (isRTL ? '⏳ في الانتظار' : '⏳ Pending')
-                                        : null;
-                                const deliveryColor = isReceived ? 'text-emerald-700 bg-emerald-50' : 'text-orange-600 bg-orange-50';
+                                // ═══ Receipt Status — from purchase_transactions directly ═══
+                                const receiptStatus =
+                                    doc.receipt_status ||
+                                    (stage === 'received' || stage === 'posted' ? 'received' :
+                                        stage === 'confirmed' ? 'pending' : null);
+                                const receiptCfg: Record<string, { label: string; cls: string }> = {
+                                    received: { label: isRTL ? '✅ مستلم' : '✅ Received', cls: 'text-green-700 bg-green-50' },
+                                    partial: { label: isRTL ? '🔶 جزئي' : '🔶 Partial', cls: 'text-amber-700 bg-amber-50' },
+                                    in_progress: { label: isRTL ? '🔄 قيد الاستلام' : '🔄 Receiving', cls: 'text-teal-700 bg-teal-50 animate-pulse' },
+                                    pending: { label: isRTL ? '⏳ معلق' : '⏳ Pending', cls: 'text-orange-600 bg-orange-50' },
+                                };
+                                const receiptBadge = receiptCfg[receiptStatus || 'pending'] || receiptCfg.pending;
 
                                 // ═══ Posted badge ═══
                                 const isPosted = doc.is_posted || stage === 'posted';
@@ -988,9 +1014,9 @@ export default function PurchaseInvoicesList() {
                                                 <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${paymentColor}`}>
                                                     {paymentIcon} {paymentLabel}
                                                 </span>
-                                                {deliveryLabel && (
-                                                    <span className={`inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full ${deliveryColor}`}>
-                                                        {deliveryLabel}
+                                                {receiptStatus && (
+                                                    <span className={`inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full ${receiptBadge.cls}`}>
+                                                        {receiptBadge.label}
                                                     </span>
                                                 )}
                                                 {isPosted && (
@@ -1099,7 +1125,11 @@ export default function PurchaseInvoicesList() {
                             : selectedDoc
                         }
                         currentStage={selectedDoc?.stage || undefined}
-                        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['purchase_transactions_list'] })}
+                        onRefresh={() => {
+                            queryClient.invalidateQueries({ queryKey: ['purchase_transactions_list'] });
+                            queryClient.invalidateQueries({ queryKey: ['purchase_transactions_recent'] });
+                            queryClient.invalidateQueries({ queryKey: ['purchase_transactions_full'] });
+                        }}
                     />
                 )
             }

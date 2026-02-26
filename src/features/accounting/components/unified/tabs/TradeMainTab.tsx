@@ -14,16 +14,21 @@ import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { TradeHeader } from '@/features/trade/components/forms/TradeHeader';
 import { CartItemsView, type InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
+import { DeliveryOutputView } from '@/features/trade/components/grids/DeliveryOutputView';
 import { TradeDocument } from '@/features/trade/types';
 import { ContainerInvoiceSelector } from '@/features/trade/components/ContainerInvoiceSelector';
 import { ContainerMainTab } from './ContainerMainTab';
 import { ContainerInfoCard } from '@/features/trade/components/shared/ContainerInfoCard';
+import { DeliveryProgressBanner } from '@/features/trade/components/DeliveryProgressBanner';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useCompany } from '@/hooks/useCompany';
+import { useAccountingSettings } from '@/hooks/useAccountingSettings';
+import { useTaxDefaults, resolveItemTaxRate, computeTaxAmount } from '@/features/trade/hooks/useTaxDefaults';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,7 +38,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
     StickyNote, AlertTriangle, CreditCard, Percent,
     CalendarClock, Tag, Loader2, ShieldAlert, CheckCircle2,
-    ChevronDown, Building2, Calendar, DollarSign, Warehouse
+    ChevronDown, Building2, Calendar, DollarSign, Warehouse, Truck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -53,10 +58,76 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     const { isRTL, t, language } = useLanguage();
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
     const { companyId } = useCompany();
+    const { supportedCurrencies } = useAccountingSettings();
     const { lookupRate } = useExchangeRateLookup();
+
+    // ─── Tax Defaults (for tax reconciliation on load) ───
+    const { data: taxDefaults } = useTaxDefaults(companyId);
+    const companyTaxRate = taxDefaults?.isEnabled ? taxDefaults.rate : 0;
+    const companyTaxEnabled = taxDefaults?.isEnabled ?? false;
 
     // Determine specific trade mode — prop takes priority, then fallback
     const tradeMode = tradeModeFromProp || (data.type?.includes('purchase') ? 'purchase' : 'sales');
+
+    // ─── Load Trade Defaults on Create ───
+    const tradeDefaultsAppliedRef = useRef(false);
+    useEffect(() => {
+        if (mode !== 'create' || tradeDefaultsAppliedRef.current) return;
+        tradeDefaultsAppliedRef.current = true;
+
+        (async () => {
+            try {
+                const prefs = await getTablePreferences(`trade_defaults_${tradeMode}`);
+                if (!prefs) return;
+                const defaults = (prefs as any).custom_data || (prefs as any).columnVisibility || {};
+                if (!defaults || typeof defaults !== 'object') return;
+
+                const updates: Record<string, any> = {};
+
+                // Apply receipt_mode default (purchase only)
+                if (tradeMode === 'purchase' && defaults.receipt_mode && !data.receipt_mode) {
+                    updates.receipt_mode = defaults.receipt_mode;
+                }
+
+                // Apply auto_update_stock default
+                if (defaults.auto_update_stock !== undefined && data.auto_update_stock === undefined) {
+                    updates.auto_update_stock = defaults.auto_update_stock;
+                }
+
+                // Apply default warehouse
+                if (defaults.stock_warehouse_id && !data.stock_warehouse_id) {
+                    updates.stock_warehouse_id = defaults.stock_warehouse_id;
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    console.log(`[TradeMainTab] 📋 Applied trade defaults:`, updates);
+                    onChange(updates);
+                }
+            } catch (e) {
+                console.warn('[TradeMainTab] Could not load trade defaults:', e);
+            }
+        })();
+    }, [mode, tradeMode]); // Only on mount for create mode
+
+    // ─── Save Trade Defaults when settings change ───
+    const prevAutoStockRef = useRef<boolean | undefined>(undefined);
+    useEffect(() => {
+        // Skip on initial load and non-interactive modes
+        if (mode === 'view') return;
+        if (prevAutoStockRef.current === undefined) {
+            prevAutoStockRef.current = data.auto_update_stock;
+            return;
+        }
+        // Save preferences when auto_update_stock or related fields change
+        debouncedSavePreferences(`trade_defaults_${tradeMode}`, {
+            columnVisibility: {
+                auto_update_stock: data.auto_update_stock || false,
+                stock_warehouse_id: data.warehouse_id || '',
+                receipt_mode: data.receipt_mode || 'direct',
+            },
+        } as any, 2000);
+        prevAutoStockRef.current = data.auto_update_stock;
+    }, [data.auto_update_stock, data.warehouse_id, data.receipt_mode, tradeMode, mode]);
 
     // ─── Smart pricing hook ───
     const currentPartyId = data.party_id || data.customer_id || '';
@@ -145,6 +216,13 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     };
 
     const isContainer = data.docType === 'trade_container' || data.subType === 'container' || data.type === 'trade_container';
+    // For sales: delivered, posted, in_delivery
+    // For purchases: received, partially_received, in_receiving, posted
+    const purchaseReceiptStages = ['received', 'partially_received', 'in_receiving', 'posted'];
+    const salesDeliveryStages = ['delivered', 'posted', 'in_delivery'];
+    const isDeliveredStage = tradeMode === 'purchase'
+        ? purchaseReceiptStages.includes(data.stage || '')
+        : salesDeliveryStages.includes(data.stage || '');
 
     // ─── Fetch real customers from Supabase ───
     const { data: customersList = [] } = useQuery({
@@ -223,7 +301,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
             id: item.id || crypto.randomUUID(),
             material_id: item.material_id || item.product_id || '',
             material_code: item.material_code || item.item_code || '',
-            material_name_ar: item.material_name_ar || item.item_name || item.name_ar || '',
+            material_name_ar: item.material_name_ar || item.description_ar || item.description || item.item_name || item.name_ar || '',
             material_name_en: item.material_name_en || item.item_name_en || item.name_en || '',
             quantity: Number(item.quantity || 0),
             unit: item.unit || 'meter',
@@ -242,6 +320,10 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
             available_stock: item.available_stock,
             preferred_rolls: item.preferred_rolls || [],
             notes: item.notes,
+            // Delivery/Receipt tracking — map received_qty (purchases) → delivered_qty
+            delivered_qty: Number(item.delivered_qty || item.received_qty || 0),
+            cost_price: Number(item.cost_price || 0),
+            delivery_rolls: item.delivery_rolls || [],
         }));
     }, [resolvedItems, data.currency, companyCurrency]);
 
@@ -252,7 +334,9 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         // Discount = مجموع خصومات الأصناف
         const discountAmount = updatedItems.reduce((s, i) => s + Number(i.discount_amount || 0), 0);
         // Tax = مجموع ضرائب الأصناف (كل صنف يحمل ضريبته الخاصة)
-        const taxAmount = updatedItems.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
+        // 🌍 International: force tax=0 on invoice level
+        const isInternational = tradeMode === 'purchase' && data.receipt_mode === 'international';
+        const taxAmount = isInternational ? 0 : updatedItems.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
         // Total = صافي + ضريبة
         const net = subtotal - discountAmount;
         const total = net + taxAmount;
@@ -265,7 +349,69 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
             total_amount: total,
             grand_total: total,
         });
-    }, [onChange]);
+    }, [onChange, tradeMode, data.receipt_mode]);
+
+    // ─── Tax Reconciliation: recalculate tax for items loaded with tax_rate=0 ───
+    // This runs ONCE when items are loaded AND tax defaults are ready
+    const taxReconciliationDoneRef = useRef(false);
+    useEffect(() => {
+        // Skip if already reconciled, or no items, or tax defaults not loaded
+        if (taxReconciliationDoneRef.current) return;
+        if (!taxDefaults || lineItems.length === 0) return;
+
+        // Skip for international purchases (tax = 0 is correct)
+        const isInternational = tradeMode === 'purchase' && data.receipt_mode === 'international';
+        if (isInternational) {
+            taxReconciliationDoneRef.current = true;
+            return;
+        }
+
+        // Check if any items are missing tax but should have it
+        const needsReconciliation = companyTaxEnabled && companyTaxRate > 0 &&
+            lineItems.some(item => !item.tax_rate || item.tax_rate === 0);
+
+        if (!needsReconciliation) {
+            taxReconciliationDoneRef.current = true;
+            return;
+        }
+
+        // Recalculate tax for items missing it
+        const reconciledItems = lineItems.map(item => {
+            if (item.tax_rate && item.tax_rate > 0) return item; // Already has tax
+
+            // Apply Golden Rule: material → company → 0%
+            // For loaded items, we don't have material.tax_rate from fabric_materials,
+            // so we use company tax as fallback (materialTaxRate = undefined)
+            const resolved = resolveItemTaxRate(undefined, companyTaxRate, companyTaxEnabled);
+            if (resolved.rate <= 0) return item;
+
+            const subtotal = Number(item.subtotal || (item.quantity * item.unit_price) || 0);
+            const discountAmount = Number(item.discount_amount || 0);
+            const netAfterDiscount = subtotal - discountAmount;
+            const taxAmt = computeTaxAmount(netAfterDiscount, resolved.rate);
+
+            return {
+                ...item,
+                tax_rate: resolved.rate,
+                tax_amount: taxAmt,
+                total: netAfterDiscount + taxAmt,
+            };
+        });
+
+        taxReconciliationDoneRef.current = true;
+
+        // Trigger update with reconciled items
+        const totalTax = reconciledItems.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
+        if (totalTax > 0) {
+            console.log(`[TradeMainTab] 🔄 Tax reconciliation: applied ${companyTaxRate}% to ${reconciledItems.filter(i => i.tax_amount! > 0).length} items`);
+            handleItemsChange(reconciledItems);
+        }
+    }, [lineItems, taxDefaults, companyTaxRate, companyTaxEnabled, tradeMode, data.receipt_mode, handleItemsChange]);
+
+    // Reset reconciliation flag when document changes
+    useEffect(() => {
+        taxReconciliationDoneRef.current = false;
+    }, [data.id]);
 
     // Handle container invoice selection
     const handleInvoiceSelection = (ids: string[]) => {
@@ -378,6 +524,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                 warehouseList={warehousesList}
                                 salespersonList={salespersonsList}
                                 baseCurrency={companyCurrency}
+                                supportedCurrencies={supportedCurrencies}
                                 onCurrencyChange={handleCurrencyChange}
                                 viewMode={mode}
                             />
@@ -513,8 +660,20 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 />
             )}
 
-            {/* 3. Items Grid — Always uses CartItemsView (modern component) */}
-            <div className="mt-4">
+            {/* ═══ Sales Delivery Progress — Real-time ═══ */}
+            {tradeMode === 'sales' && data.id && ['in_delivery', 'delivered', 'confirmed'].includes(data.stage || '') && (
+                <DeliveryProgressBanner
+                    invoiceId={data.id}
+                    stage={data.stage || 'confirmed'}
+                    initialDraft={data.delivery_draft}
+                    items={resolvedItems}
+                />
+            )}
+
+
+
+            {/* 3. Items Grid — CartItemsView + DeliveryOutputView */}
+            <div className="mt-4 space-y-3">
                 {isContainer ? (
                     <ContainerInvoiceSelector
                         supplierId={tradeData.party_id || ''}
@@ -523,17 +682,80 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                         readOnly={mode === 'view'}
                     />
                 ) : (
-                    <CartItemsView
-                        items={lineItems}
-                        onItemsChange={handleItemsChange}
-                        readOnly={mode === 'view'}
-                        currency={data.currency || companyCurrency || 'SAR'}
-                        companyCurrency={companyCurrency || 'SAR'}
-                        showDiscount={true}
-                        showTax={true}
-                        customerId={currentPartyId || undefined}
-                        priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
-                    />
+                    <>
+                        {/* ═══ Delivery/Receipt Output Section — appears after delivery/receipt ═══ */}
+                        {isDeliveredStage && (
+                            <Collapsible defaultOpen={true}>
+                                <CollapsibleTrigger className={cn(
+                                    "flex items-center gap-2 w-full px-4 py-3 rounded-lg border transition-colors group",
+                                    tradeMode === 'purchase'
+                                        ? "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800 hover:from-emerald-100 hover:to-teal-100 dark:hover:from-emerald-950/50 dark:hover:to-teal-950/30"
+                                        : "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-950/50 dark:hover:to-indigo-950/30"
+                                )}>
+                                    <Truck className={cn("w-5 h-5", tradeMode === 'purchase' ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400")} />
+                                    <span className={cn("text-sm font-bold", tradeMode === 'purchase' ? "text-emerald-800 dark:text-emerald-300" : "text-blue-800 dark:text-blue-300")}>
+                                        {tradeMode === 'purchase'
+                                            ? (isRTL ? 'البضاعة المستلمة — مدخلات المستودع' : 'Received Goods — Warehouse Input')
+                                            : (isRTL ? 'الفاتورة المسلمة — مخرجات المستودع' : 'Delivered Invoice — Warehouse Output')}
+                                    </span>
+                                    <ChevronDown className={cn("w-4 h-4 ms-auto transition-transform group-data-[state=closed]:rotate-[-90deg]", tradeMode === 'purchase' ? "text-emerald-500" : "text-blue-500")} />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-2">
+                                    <DeliveryOutputView
+                                        items={(lineItems as any[]).map(item => ({
+                                            ...item,
+                                            delivered_qty: (item as any).delivered_qty || 0,
+                                            delivery_rolls: (item as any).delivery_rolls || [],
+                                        }))}
+                                        currency={data.currency || companyCurrency || 'SAR'}
+                                        tradeMode={tradeMode as 'sales' | 'purchase'}
+                                    />
+                                </CollapsibleContent>
+                            </Collapsible>
+                        )}
+
+                        {/* ═══ Original Invoice Section ═══ */}
+                        {isDeliveredStage ? (
+                            <Collapsible defaultOpen={false}>
+                                <CollapsibleTrigger className="flex items-center gap-2 w-full px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800/40 dark:to-gray-800/20 rounded-lg border border-gray-200 dark:border-gray-700 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-800/60 dark:hover:to-gray-800/40 transition-colors group">
+                                    <StickyNote className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                    <span className="text-sm font-bold text-gray-600 dark:text-gray-300">
+                                        {tradeMode === 'purchase'
+                                            ? (isRTL ? 'الفاتورة الأصلية — البنود المطلوبة' : 'Original Invoice — Ordered Items')
+                                            : (isRTL ? 'الفاتورة الأصلية — البنود المحجوزة' : 'Original Invoice — Reserved Items')}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 text-gray-400 ms-auto transition-transform group-data-[state=closed]:rotate-[-90deg]" />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-2">
+                                    <CartItemsView
+                                        items={lineItems}
+                                        onItemsChange={handleItemsChange}
+                                        readOnly={mode === 'view'}
+                                        currency={data.currency || companyCurrency || 'SAR'}
+                                        companyCurrency={companyCurrency || 'SAR'}
+                                        showDiscount={true}
+                                        showTax={true}
+                                        customerId={currentPartyId || undefined}
+                                        isInternational={tradeMode === 'purchase' && data.receipt_mode === 'international'}
+                                        priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
+                                    />
+                                </CollapsibleContent>
+                            </Collapsible>
+                        ) : (
+                            <CartItemsView
+                                items={lineItems}
+                                onItemsChange={handleItemsChange}
+                                readOnly={mode === 'view'}
+                                currency={data.currency || companyCurrency || 'SAR'}
+                                companyCurrency={companyCurrency || 'SAR'}
+                                showDiscount={true}
+                                showTax={true}
+                                customerId={currentPartyId || undefined}
+                                isInternational={tradeMode === 'purchase' && data.receipt_mode === 'international'}
+                                priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </div>

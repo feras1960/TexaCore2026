@@ -47,6 +47,11 @@ export interface MaterialSearchResult {
     origin_country: string | null;
     /** Per-material tax rate (NULL = use company default, 0 = exempt) */
     tax_rate: number | null;
+    /** Variant engine fields */
+    is_variant_parent?: boolean;
+    has_variants?: boolean;
+    parent_material_id?: string | null;
+    variant_id?: string | null;
 }
 
 /** Color variant for a material (from fabric_material_colors join) */
@@ -99,6 +104,18 @@ export interface MaterialRollDetail {
     supplier_name?: string;
     received_date?: string;
     created_at: string;
+}
+
+/** Roll data for variant hierarchy — includes material_id for grouping */
+export interface VariantRollData {
+    id: string;
+    roll_number: string;
+    material_id: string;
+    warehouse_id: string;
+    current_length: number;
+    available_length: number;
+    reserved_length: number;
+    status: string;
 }
 
 export interface MaterialSearchFilters {
@@ -222,6 +239,27 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         staleTime: 2 * 60 * 1000,
     });
 
+    // ─── Aggregate children stock for variant parents ─────────────
+    // المواد الأم لا تملك رولونات مباشرة — الرصيد على المتغيرات الفرعية
+    const parentStockMap = useMemo(() => {
+        if (!rawMaterials || !stockMap) return {};
+
+        const result: Record<string, { stock_qty: number; roll_count: number }> = {};
+
+        // Find all children and sum their stock to their parent
+        for (const m of rawMaterials as any[]) {
+            if (m.parent_material_id && stockMap[m.id]) {
+                if (!result[m.parent_material_id]) {
+                    result[m.parent_material_id] = { stock_qty: 0, roll_count: 0 };
+                }
+                result[m.parent_material_id].stock_qty += stockMap[m.id].stock_qty;
+                result[m.parent_material_id].roll_count += stockMap[m.id].roll_count;
+            }
+        }
+
+        return result;
+    }, [rawMaterials, stockMap]);
+
     // ─── Map to MaterialSearchResult format ─────────────────────
     const mappedMaterials = useMemo((): MaterialSearchResult[] => {
         if (!rawMaterials || rawMaterials.length === 0) return [];
@@ -252,6 +290,11 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
             .map((m: any) => {
                 // Use real stock from fabric_rolls
                 const stock = stockMap?.[m.id];
+                const isParent = !!m.is_variant_parent || !!m.has_variants;
+
+                // للمواد الأم: استخدم مجموع أرصدة المتغيرات الفرعية
+                const parentStock = isParent ? parentStockMap[m.id] : null;
+
                 return {
                     id: m.id,
                     code: m.code || '',
@@ -268,22 +311,35 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                     default_width: Number(m.default_width || 150),
                     min_stock: Number(m.min_stock || 0),
                     status: m.status || 'active',
-                    stock_qty: stock?.stock_qty ?? 0,
-                    roll_count: stock?.roll_count ?? 0,
+                    stock_qty: isParent
+                        ? (parentStock?.stock_qty ?? 0) + (stock?.stock_qty ?? 0)
+                        : (stock?.stock_qty ?? 0),
+                    roll_count: isParent
+                        ? (parentStock?.roll_count ?? 0) + (stock?.roll_count ?? 0)
+                        : (stock?.roll_count ?? 0),
                     swatch_url: m.swatch_url || null,
                     images: m.images || [],
                     default_supplier_id: m.default_supplier_id || null,
                     origin_country: m.origin_country || null,
                     tax_rate: m.tax_rate != null ? Number(m.tax_rate) : null,
+                    // Variant engine fields
+                    is_variant_parent: !!m.is_variant_parent,
+                    has_variants: !!m.has_variants,
+                    parent_material_id: m.parent_material_id || null,
+                    variant_id: m.variant_id || null,
                 };
-            });
-    }, [rawMaterials, filters.status, filters.category, filters.supplierId, filters.warehouseId, warehouseStockMap, stockMap]);
+            })
+            // ⚠️ فلترة: إخفاء المتغيرات الفرعية من القائمة الرئيسية
+            // (تظهر فقط تحت المادة الأم عند فتحها)
+            .filter((m: MaterialSearchResult) => !m.parent_material_id);
+    }, [rawMaterials, filters.status, filters.category, filters.supplierId, filters.warehouseId, warehouseStockMap, stockMap, parentStockMap]);
 
     // ─── In stock / below min stock filters ─────────────────────
     const filteredResults = useMemo(() => {
         let result = mappedMaterials;
         if (filters.inStockOnly) {
-            result = result.filter(m => m.stock_qty > 0);
+            // السماح للمواد الأم بالظهور دائماً — رصيدها على المتغيرات الفرعية
+            result = result.filter(m => m.stock_qty > 0 || m.is_variant_parent || m.has_variants);
         }
         if (filters.belowMinStock) {
             result = result.filter(m => m.min_stock > 0 && m.stock_qty <= m.min_stock);
@@ -359,6 +415,87 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         }
     }, [companyId]);
 
+    /** Fetch variant children for a parent material — returns them grouped by variant group */
+    const fetchVariantChildren = useCallback(async (parentMaterialId: string): Promise<MaterialSearchResult[]> => {
+        if (!companyId) return [];
+        try {
+            const { data, error } = await supabase
+                .from('fabric_materials')
+                .select('*, group:fabric_groups!group_id(id, name_ar, name_en)')
+                .eq('parent_material_id', parentMaterialId)
+                .eq('status', 'active')
+                .order('name_ar');
+
+            if (error || !data) return [];
+
+            return data.map((m: any) => {
+                const stock = stockMap?.[m.id];
+                return {
+                    id: m.id,
+                    code: m.code || '',
+                    name_ar: m.name_ar || '',
+                    name_en: m.name_en || m.name_ar || '',
+                    group_id: m.group_id || null,
+                    group_name_ar: m.group?.name_ar || '',
+                    group_name_en: m.group?.name_en || '',
+                    category: m.category || 'mixed',
+                    unit: m.unit || 'meter',
+                    purchase_price: Number(m.purchase_price || 0),
+                    selling_price: Number(m.selling_price || 0),
+                    currency: m.currency || 'USD',
+                    default_width: Number(m.default_width || 150),
+                    min_stock: Number(m.min_stock || 0),
+                    status: m.status || 'active',
+                    stock_qty: stock?.stock_qty ?? 0,
+                    roll_count: stock?.roll_count ?? 0,
+                    swatch_url: m.swatch_url || null,
+                    images: m.images || [],
+                    default_supplier_id: m.default_supplier_id || null,
+                    origin_country: m.origin_country || null,
+                    tax_rate: m.tax_rate != null ? Number(m.tax_rate) : null,
+                    is_variant_parent: false,
+                    has_variants: false,
+                    parent_material_id: m.parent_material_id || null,
+                    variant_id: m.variant_id || null,
+                };
+            });
+        } catch (err) {
+            console.warn('Failed to fetch variant children:', err);
+            return [];
+        }
+    }, [companyId, stockMap]);
+
+    /** Fetch all rolls for variant children — single query for hierarchical view */
+    const fetchVariantRolls = useCallback(async (childMaterialIds: string[]): Promise<VariantRollData[]> => {
+        if (!companyId || childMaterialIds.length === 0) return [];
+        try {
+            const { data, error } = await supabase
+                .from('fabric_rolls')
+                .select('id, roll_number, material_id, warehouse_id, current_length, available_length, reserved_length, status')
+                .eq('company_id', companyId)
+                .in('material_id', childMaterialIds)
+                .in('status', ['available', 'reserved', 'partial'])
+                .order('warehouse_id')
+                .order('material_id');
+
+            if (error || !data) return [];
+
+            return data.map((r: any) => ({
+                id: r.id,
+                roll_number: r.roll_number || '',
+                material_id: r.material_id,
+                warehouse_id: r.warehouse_id,
+                current_length: Number(r.current_length) || 0,
+                available_length: Number(r.available_length) || 0,
+                reserved_length: Number(r.reserved_length) || 0,
+                status: r.status || 'available',
+            }));
+        } catch (err) {
+            console.warn('Failed to fetch variant rolls:', err);
+            return [];
+        }
+    }, [companyId]);
+
     return {
         materials: filteredResults,
         groups: mappedGroups,
@@ -366,10 +503,14 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         isSearching: materialsLoading,
         error: materialsError,
         totalCount: filteredResults.length,
-        // New: on-demand stock detail fetchers
+        // On-demand stock detail fetchers
         fetchWarehouseStock,
         fetchRollDetails,
-        // New: on-demand color fetcher
+        // On-demand color fetcher (legacy)
         fetchMaterialColors,
+        // Variant children fetcher
+        fetchVariantChildren,
+        // Variant rolls fetcher (for hierarchical view)
+        fetchVariantRolls,
     };
 }

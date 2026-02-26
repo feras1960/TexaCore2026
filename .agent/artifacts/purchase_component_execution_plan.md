@@ -654,6 +654,7 @@ const { data: logs } = useQuery({
 | 6.16 | الاستلام الدولي (عبر الكونتينر) | ربط shipment → receipt عند الوصول | 🔵 | ⬜ |
 | 6.17 | شركات مصاريف الكونتينرات | صفحة + خدمة + ربط مع المصاريف | 🟢 | ⬜ |
 | 6.18 | حدود مالية على الموافقات | Approval Thresholds في accounting_settings | 🟢 | ⬜ |
+| 6.19 | **نظام المرفقات الموحد** | Storage bucket + `attachmentService` + Upload Dialog + 3 أوضاع عرض + Document Viewer + تكامل شامل (📎 تفاصيل: 6B-5 في `phase6b_7_plan.md`) | 🔴 | ⬜ |
 
 ---
 

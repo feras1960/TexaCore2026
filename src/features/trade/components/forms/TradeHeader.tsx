@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Select,
     SelectContent,
@@ -10,7 +11,7 @@ import {
     SelectValue
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { CalendarIcon, Users, Building, Hash, Layers, UserCircle2, Coins, ArrowRightLeft, CalendarClock, Globe2, Truck, HelpCircle } from 'lucide-react';
+import { CalendarIcon, Users, Building, Hash, Layers, UserCircle2, Coins, ArrowRightLeft, CalendarClock, Globe2, Truck, HelpCircle, Package, Warehouse, Store, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -46,6 +47,8 @@ interface TradeHeaderProps {
     salespersonList?: { id: string, name: string }[];
     /** Company base currency code, e.g. 'UAH' */
     baseCurrency?: string;
+    /** Currencies supported by the company (from accounting settings) */
+    supportedCurrencies?: string[];
     /** Exchange rate lookup function */
     onCurrencyChange?: (currency: string, exchangeRate: number) => void;
     /** Document view mode — when 'view', all fields are readonly */
@@ -60,6 +63,7 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
     warehouseList,
     salespersonList = [],
     baseCurrency = '',
+    supportedCurrencies,
     onCurrencyChange,
     viewMode = 'edit',
 }) => {
@@ -92,13 +96,31 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
         };
     }, [data.items]);
 
+    // ─── Filtered currencies based on company settings ───
+    const filteredCurrencies = useMemo(() => {
+        // If supportedCurrencies provided, filter CURRENCY_META to only those
+        // Always include baseCurrency even if not in the list
+        if (supportedCurrencies && supportedCurrencies.length > 0) {
+            const allowed = new Set(supportedCurrencies);
+            if (baseCurrency) allowed.add(baseCurrency);
+            return Object.entries(CURRENCY_META).filter(([code]) => allowed.has(code));
+        }
+        // Fallback: if baseCurrency is set, show baseCurrency + USD + EUR
+        if (baseCurrency) {
+            const defaults = new Set([baseCurrency, 'USD', 'EUR']);
+            return Object.entries(CURRENCY_META).filter(([code]) => defaults.has(code));
+        }
+        // Last resort: show all
+        return Object.entries(CURRENCY_META);
+    }, [supportedCurrencies, baseCurrency]);
+
     // ─── Smart currency resolution for receipt mode ───
     const resolveInternationalCurrency = useMemo(() => {
-        const available = Object.keys(CURRENCY_META);
+        const available = filteredCurrencies.map(([code]) => code);
         if (available.includes('USD')) return 'USD';
         if (available.includes('EUR')) return 'EUR';
         return baseCurrency || 'USD';
-    }, [baseCurrency]);
+    }, [filteredCurrencies, baseCurrency]);
 
     const handleReceiptModeChange = (newMode: 'direct' | 'international') => {
         // Guard: prevent changing from international to direct if linked to a shipment
@@ -319,7 +341,7 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                                 <SelectValue placeholder={isAr ? 'اختر العملة...' : 'Select currency...'} />
                             </SelectTrigger>
                             <SelectContent align={isAr ? 'end' : 'start'}>
-                                {Object.entries(CURRENCY_META).map(([code, meta]) => (
+                                {filteredCurrencies.map(([code, meta]) => (
                                     <SelectItem key={code} value={code}>
                                         <span className="flex items-center gap-2">
                                             <span>{meta.flag}</span>
@@ -452,6 +474,124 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                                     {isAr ? 'دولي' : 'International'}
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* 🏪 Sales Mode Toggle (Sales only) — POS vs Workflow */}
+                    {mode === 'sales' && (
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                                <Store className="w-3.5 h-3.5" />
+                                {isAr ? 'نوع البيع' : 'Sales Type'}
+                                <HelpTip
+                                    isAr={isAr}
+                                    ar="نقطة بيع: بيع مباشر مع خصم فوري من المخزون والدفع الفوري. سير عمل: دورة بيع كاملة (عرض سعر ← طلب ← تسليم ← فاتورة)"
+                                    en="POS: Direct sale with immediate stock deduction and instant payment. Workflow: Full sales cycle (quotation → order → delivery → invoice)"
+                                />
+                            </Label>
+                            <div className={cn(
+                                "h-10 flex items-center rounded-md border overflow-hidden",
+                                isReadOnly && "opacity-70"
+                            )}>
+                                <button
+                                    type="button"
+                                    disabled={isReadOnly}
+                                    onClick={() => {
+                                        onChange('is_pos', false);
+                                    }}
+                                    className={cn(
+                                        "flex-1 h-full flex items-center justify-center gap-1.5 text-xs font-medium transition-all",
+                                        !data.is_pos
+                                            ? "bg-blue-500 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-50"
+                                    )}
+                                >
+                                    <ShoppingCart className="w-3.5 h-3.5" />
+                                    {isAr ? 'سير العمل' : 'Workflow'}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isReadOnly}
+                                    onClick={() => {
+                                        onChange('is_pos', true);
+                                        // POS always updates stock directly
+                                        if (!data.auto_update_stock) {
+                                            onChange('auto_update_stock', true);
+                                        }
+                                    }}
+                                    className={cn(
+                                        "flex-1 h-full flex items-center justify-center gap-1.5 text-xs font-medium transition-all",
+                                        data.is_pos
+                                            ? "bg-amber-500 text-white"
+                                            : "bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-50"
+                                    )}
+                                >
+                                    <Store className="w-3.5 h-3.5" />
+                                    {isAr ? 'نقطة بيع' : 'POS'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🌍 International Tax Notice */}
+                    {mode === 'purchase' && data.receipt_mode === 'international' && (
+                        <div className="md:col-span-4 flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800/60 text-xs">
+                            <Globe2 className="w-4 h-4 text-amber-500 shrink-0" />
+                            <span className="text-amber-700 dark:text-amber-300">
+                                {isAr
+                                    ? '🌍 شراء دولي — الضريبة = 0% على الفاتورة. تُحسب وتُوزع لاحقاً ضمن تكاليف الكونتينر والتخليص الجمركي.'
+                                    : '🌍 International purchase — Tax = 0% on invoice. Tax is calculated and distributed later via container & customs costs.'}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* 📦 Direct Stock Update — تحديث المخزون المباشر */}
+                    {/* Shows for: local purchases, all sales (not international purchases) */}
+                    {!(mode === 'purchase' && data.receipt_mode === 'international') && (
+                        <div className={cn(
+                            "flex items-center gap-4 px-3 py-2.5 rounded-lg border transition-all",
+                            data.auto_update_stock
+                                ? "border-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-800/60"
+                                : "border-gray-200 bg-gray-50/40 dark:bg-gray-800/30 dark:border-gray-700",
+                            mode === 'sales' ? 'md:col-span-5' : 'md:col-span-4'
+                        )}>
+                            {/* Checkbox */}
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="auto-update-stock"
+                                    checked={data.auto_update_stock || false}
+                                    onCheckedChange={(checked) => onChange('auto_update_stock', !!checked)}
+                                    disabled={isReadOnly}
+                                    className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                                />
+                                <label
+                                    htmlFor="auto-update-stock"
+                                    className={cn(
+                                        "text-xs font-medium cursor-pointer select-none flex items-center gap-1.5",
+                                        data.auto_update_stock
+                                            ? "text-emerald-700 dark:text-emerald-300"
+                                            : "text-gray-500 dark:text-gray-400"
+                                    )}
+                                >
+                                    <Package className="w-3.5 h-3.5" />
+                                    {isAr ? 'تحديث المخزون مباشرة عند الترحيل' : 'Update stock directly on posting'}
+                                </label>
+                                <HelpTip
+                                    isAr={isAr}
+                                    ar="عند التفعيل: يتم تحديث المخزون تلقائياً عند ترحيل الفاتورة بدون الحاجة لإذن استلام أو تسليم منفصل. يستخدم المستودع المحدد أعلاه. مناسب للشركات الصغيرة ونقاط البيع."
+                                    en="When enabled: inventory is updated automatically upon posting, without needing a separate goods receipt or delivery note. Uses the warehouse selected above. Ideal for small businesses and POS."
+                                />
+                            </div>
+
+                            {/* Note: uses warehouse from header */}
+                            {data.auto_update_stock && currentWarehouseId && (
+                                <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
+                                    <Warehouse className="w-3 h-3" />
+                                    <span>
+                                        {isAr ? '← سيُحدّث في المستودع المحدد أعلاه' : '← Will update stock in warehouse selected above'}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
 

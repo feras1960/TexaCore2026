@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { activityLogService } from './activityLogService';
 import type {
     PurchaseTransaction,
     PurchaseTransactionItem,
@@ -51,6 +52,8 @@ export const purchaseTransactionService = {
                 stage: 'draft',
                 created_by: input.created_by || null,
                 created_by_name: input.created_by_name || null,
+                auto_update_stock: input.auto_update_stock || false,
+                stock_warehouse_id: input.stock_warehouse_id || null,
             })
             .select()
             .single();
@@ -58,6 +61,17 @@ export const purchaseTransactionService = {
         if (error) {
             console.error('❌ خطأ في إنشاء معاملة الشراء:', error.message);
             return null;
+        }
+
+        // 📜 Activity Log: تسجيل الإنشاء
+        if (data) {
+            activityLogService.logEvent({
+                table: 'purchase_transactions',
+                documentId: data.id,
+                event: 'created',
+                userId: input.created_by || 'system',
+                userName: input.created_by_name || 'النظام',
+            });
         }
 
         return data as PurchaseTransaction;
@@ -239,6 +253,24 @@ export const purchaseTransactionService = {
         if (error) {
             console.error('❌ خطأ في تحويل المرحلة:', error.message);
             return { success: false, error: error.message };
+        }
+
+        // 📜 Activity Log: تسجيل تحويل المرحلة
+        const stageEventMap: Record<string, string> = {
+            confirmed: 'confirmed',
+            received: 'received',
+            cancelled: 'cancelled',
+        };
+        const logEvent = stageEventMap[input.new_stage];
+        if (logEvent) {
+            activityLogService.logEvent({
+                table: 'purchase_transactions',
+                documentId: input.transaction_id,
+                event: logEvent as any,
+                userId: input.user_id,
+                userName: input.user_name || '',
+                details: { new_stage: input.new_stage, notes: input.notes },
+            });
         }
 
         return data as StageTransitionResult;
@@ -461,6 +493,16 @@ export const purchaseTransactionService = {
                     last_printed_by: userId,
                 })
                 .eq('id', id);
+
+            // 📜 Activity Log: تسجيل الطباعة
+            activityLogService.logEvent({
+                table: 'purchase_transactions',
+                documentId: id,
+                event: 'printed',
+                userId,
+                userName: '',
+                details: { print_count: (current.printed_count || 0) + 1 },
+            });
         }
     },
 

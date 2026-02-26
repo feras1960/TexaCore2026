@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { TradeDocument, TradeItem, PurchaseTransaction, PurchaseTransactionItem, StageAdvanceResult, TransactionStageLog } from '../types';
 import type { PurchaseStage } from '../config/stageConfig';
+import { documentStatusService as DSS } from '@/services/documentStatusService';
+
 
 /**
  * Trade Document Table Mapping
@@ -325,6 +327,21 @@ export const TradeService = {
         if (deliveryError) {
             console.error('POS Auto-Delivery failed:', deliveryError);
             // Don't throw — invoice is still valid
+        } else if (delivery) {
+            // 🎛️ DSS: POS delivery is always fully delivered immediately
+            const companyId = (doc as any).company_id;
+            if (companyId) {
+                await DSS.onDeliveryCompleted({
+                    documentType: 'sales_delivery',
+                    documentId: delivery.id,
+                    companyId,
+                    deliveryId: delivery.id,
+                    deliveryNumber: delivery.delivery_number || delivery.id,
+                    isFullyDelivered: true,
+                    isPartial: false,
+                    totalQty: doc.items?.reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0) || 0,
+                });
+            }
         }
 
         // 3. Deduct inventory for each item
@@ -1021,7 +1038,7 @@ export const TradeService = {
         transactionId: string,
         targetStage: PurchaseStage,
         transactionType: 'purchase' | 'sale' = 'purchase',
-        options?: { notes?: string; cancellation_reason?: string }
+        options?: { notes?: string; cancellation_reason?: string; companyId?: string; }
     ): Promise<StageAdvanceResult> {
         const { data, error } = await supabase.rpc('advance_transaction_stage', {
             p_type: transactionType,
@@ -1032,13 +1049,32 @@ export const TradeService = {
         });
 
         if (error) {
-            return {
-                success: false,
-                error: error.message,
-            };
+            return { success: false, error: error.message };
         }
 
-        // RPC returns JSON result
+        // 🎛️ DSS: Sync status on key stage transitions
+        if (options?.companyId) {
+            const companyId = options.companyId;
+
+            if (transactionType === 'purchase' && targetStage === 'posted') {
+                // فاتورة شراء تُرحَّل → حالتها تصبح pending (جاهزة للاستلام)
+                await DSS.onReceiptStarted({
+                    documentType: 'purchase_transaction',
+                    documentId: transactionId,
+                    companyId,
+                });
+            }
+
+            if (transactionType === 'sale' && (targetStage === 'posted' || targetStage === 'confirmed')) {
+                // فاتورة مبيعات → تُصبح pending delivery
+                await DSS.onDeliveryStarted({
+                    documentType: 'sales_invoice',
+                    documentId: transactionId,
+                    companyId,
+                });
+            }
+        }
+
         return {
             success: true,
             from_stage: data?.from_stage,

@@ -136,7 +136,7 @@ BEGIN
         NEW.tenant_id, v_entry_id, 1,
         v_customer_account_id, NEW.total_amount, 0,
         NEW.currency, NEW.exchange_rate,
-        'ذمة العميل - فاتورة ' || NEW.invoice_number,
+        CASE WHEN NEW.notes IS NOT NULL AND NEW.notes != '' THEN 'ذمة العميل - فاتورة ' || NEW.invoice_number || ' - ' || NEW.notes ELSE 'ذمة العميل - فاتورة ' || NEW.invoice_number END,
         'customer', NEW.customer_id,
         'sales_invoice', NEW.id
     );
@@ -153,7 +153,7 @@ BEGIN
         NEW.tenant_id, v_entry_id, 2,
         v_sales_account_id, 0, NEW.taxable_amount,
         NEW.currency, NEW.exchange_rate,
-        'إيراد مبيعات - فاتورة ' || NEW.invoice_number,
+        CASE WHEN NEW.notes IS NOT NULL AND NEW.notes != '' THEN 'إيراد مبيعات - فاتورة ' || NEW.invoice_number || ' - ' || NEW.notes ELSE 'إيراد مبيعات - فاتورة ' || NEW.invoice_number END,
         'sales_invoice', NEW.id
     );
     

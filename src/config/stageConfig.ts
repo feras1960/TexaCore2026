@@ -364,8 +364,8 @@ export const SALES_STAGES: Record<string, StageConfig> = {
 
     posted: {
         key: 'posted',
-        label_ar: 'مُرحّلة',
-        label_en: 'Posted',
+        label_ar: 'مسلّمة ومرحّلة',
+        label_en: 'Delivered & Posted',
         icon: '📊',
         color: '#16A34A',
         bgColor: '#F0FDF4',

@@ -93,54 +93,73 @@ export function useCustomerPricing(
         queryFn: async () => {
             if (!customerId) return null;
 
-            // First try with group join
-            const { data, error } = await supabase
-                .from('customers')
-                .select(`
-          id,
-          price_list_id,
-          discount_percent,
-          credit_limit,
-          payment_terms_days,
-          currency,
-          balance,
-          group_id,
-          group:customer_groups!group_id (
-            id,
-            name_ar,
-            name_en,
-            price_list_id,
-            discount_percent,
-            credit_limit,
-            payment_terms_days
-          )
-        `)
-                .eq('id', customerId)
-                .maybeSingle();
-
-            if (error) {
-                // Fallback: fetch without group join if relationship fails
-                console.warn('Customer pricing query with group failed, trying without:', error.message);
-                const { data: fallbackData, error: fallbackError } = await supabase
+            // Level 1: Full query with group join
+            try {
+                const { data, error } = await supabase
                     .from('customers')
                     .select(`
-              id, price_list_id, discount_percent, credit_limit,
-              payment_terms_days, currency, balance, group_id
+              id,
+              price_list_id,
+              discount_percent,
+              credit_limit,
+              payment_terms_days,
+              currency,
+              balance,
+              group_id,
+              group:customer_groups!group_id (
+                id,
+                name_ar,
+                name_en,
+                price_list_id,
+                discount_percent,
+                credit_limit,
+                payment_terms_days
+              )
             `)
                     .eq('id', customerId)
                     .maybeSingle();
 
-                if (fallbackError) {
-                    console.warn('Customer pricing fallback also failed:', fallbackError.message);
-                    return null;
+                if (!error && data) return data;
+            } catch { /* Level 1 failed */ }
+
+            // Level 2: Without group join, all pricing columns
+            try {
+                const { data, error } = await supabase
+                    .from('customers')
+                    .select('id, price_list_id, discount_percent, credit_limit, payment_terms_days, currency, balance, group_id')
+                    .eq('id', customerId)
+                    .maybeSingle();
+
+                if (!error && data) return { ...data, group: null };
+            } catch { /* Level 2 failed */ }
+
+            // Level 3: Minimal — just id + basic columns that definitely exist
+            try {
+                const { data, error } = await supabase
+                    .from('customers')
+                    .select('id, currency, group_id')
+                    .eq('id', customerId)
+                    .maybeSingle();
+
+                if (!error && data) {
+                    return {
+                        ...data,
+                        price_list_id: null,
+                        discount_percent: 0,
+                        credit_limit: 0,
+                        payment_terms_days: 0,
+                        balance: 0,
+                        group: null,
+                    };
                 }
-                return fallbackData ? { ...fallbackData, group: null } : null;
-            }
-            return data;
+            } catch { /* Level 3 failed */ }
+
+            console.warn('[useCustomerPricing] All customer queries failed for:', customerId);
+            return null;
         },
         enabled: !!customerId,
         staleTime: 60000,
-        retry: 1,
+        retry: 0, // Don't retry — we handle fallbacks internally
     });
 
     // ─── Resolve which price list to use (cascade) ───
@@ -171,7 +190,7 @@ export function useCustomerPricing(
             // If no customer/group price list, find the default one
             if (!priceListId && companyId) {
                 try {
-                    const { data: defaultPL } = await supabase
+                    const { data: defaultPL, error: plError } = await supabase
                         .from('price_lists')
                         .select('id')
                         .eq('company_id', companyId)
@@ -179,12 +198,13 @@ export function useCustomerPricing(
                         .eq('is_active', true)
                         .maybeSingle();
 
-                    if (defaultPL) {
+                    if (!plError && defaultPL) {
                         priceListId = defaultPL.id;
                         source = 'default';
                     }
                 } catch (err) {
-                    console.warn('Failed to fetch default price list:', err);
+                    // price_lists table may not exist yet — ignore
+                    console.warn('Failed to fetch default price list (table may not exist):', err);
                 }
             }
 

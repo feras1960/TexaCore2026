@@ -12,8 +12,10 @@
 
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { useCompany } from './useCompany';
 import purchaseTransactionService from '@/services/purchaseTransactionService';
 import salesTransactionService from '@/services/salesTransactionService';
+import { documentActivityService } from '@/services/documentActivityService';
 import { getStageConfig } from '@/config/stageConfig';
 import type {
     TransactionType,
@@ -21,6 +23,24 @@ import type {
     StageAction,
 } from '@/types/transactions';
 
+/** Maps target stage to activity event code */
+const STAGE_TO_EVENT: Record<string, string> = {
+    quotation: 'quotation_sent',
+    reservation: 'reservation_created',
+    order: 'order_created',
+    approved: 'confirmed',
+    confirmed: 'confirmed',
+    receipt: 'receipt_started',
+    partially_received: 'partially_received',
+    received: 'receipt_received',
+    delivery: 'delivery_started',
+    invoice: 'invoice_created',
+    posted: 'posted',
+    partial_paid: 'payment_received',
+    paid: 'fully_paid',
+    cancelled: 'cancelled',
+    draft: 'reopened',
+};
 
 interface UseStageTransitionOptions {
     /** نوع المعاملة */
@@ -59,6 +79,8 @@ export function useStageTransition({
     const [isAdvancing, setIsAdvancing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { user } = useAuth();
+    const { company } = useCompany();
+    const tenantId = company?.tenant_id;
 
     const service = type === 'purchase'
         ? purchaseTransactionService
@@ -92,6 +114,23 @@ export function useStageTransition({
                 });
 
                 if (result.success) {
+                    // ═══ Auto-log stage transition to activity ═══
+                    if (tenantId) {
+                        const entityType = type === 'purchase' ? 'purchase_invoice' : 'sales_invoice';
+                        const eventCode = STAGE_TO_EVENT[targetStage] || `stage_${targetStage}`;
+                        documentActivityService.logEvent(
+                            entityType,
+                            transactionId,
+                            tenantId,
+                            eventCode,
+                            notes || undefined,
+                            {
+                                target_stage: targetStage,
+                                transaction_type: type,
+                                cancellation_reason: cancellationReason || undefined,
+                            },
+                        ).catch(err => console.warn('[StageTransition] Activity log failed:', err));
+                    }
                     onSuccess?.(result);
                 } else {
                     const errMsg = result.error || 'فشل التحويل';

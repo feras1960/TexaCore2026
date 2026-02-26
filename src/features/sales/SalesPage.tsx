@@ -22,6 +22,7 @@ import {
 const SalesDashboard = lazy(() => import('./pages/SalesDashboard'));
 const CustomersList = lazy(() => import('./pages/CustomersList'));
 const SalesInvoicesList = lazy(() => import('./pages/SalesInvoicesList'));
+const SalesCycleList = lazy(() => import('./pages/SalesCycleList'));
 const SalesPaymentsList = lazy(() => import('./pages/SalesPaymentsList'));
 // Reports and Settings
 const SalesReports = lazy(() => import('./pages/SalesReportsPage'));
@@ -107,7 +108,7 @@ export default function SalesPage() {
             case 'customers':
                 return <CustomersList />;
             case 'cycle':
-                return <SalesInvoicesList />;
+                return <SalesCycleList />;
             case 'payments':
                 return <SalesPaymentsList />;
             case 'reports':

@@ -218,7 +218,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                 .from('container_items')
                 .select(`
                     *,
-                    material:fabric_materials(id, name_ar, name_en, code),
+                    material:fabric_materials(id, name_ar, name_en, code, tax_rate),
                     color:fabric_colors(id, name, name_en),
                     supplier_ref:suppliers(id, name_ar, name_en)
                 `)
@@ -259,6 +259,34 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
         enabled: !!containerId,
     });
 
+    // ── Fetch total tax from actual (posted) expenses ──
+    const { data: totalActualTax = 0 } = useQuery({
+        queryKey: ['container-actual-tax', containerId],
+        queryFn: async () => {
+            if (!containerId) return 0;
+            const { data: rows } = await supabase
+                .from('container_expenses')
+                .select('tax_amount')
+                .eq('container_id', containerId)
+                .not('vendor_account_id', 'is', null); // فقط الفعلية
+            return (rows || []).reduce((sum: number, r: any) => sum + (r.tax_amount || 0), 0);
+        },
+        enabled: !!containerId,
+    });
+
+    // ── حساب الضريبة الموزعة على كل بند حسب نسبته من القيمة ──
+    const itemTaxMap = useMemo(() => {
+        const map: Record<string, number> = {};
+        if (!totalActualTax || !items.length) return map;
+        const totalValue = items.reduce((sum, item) => sum + ((item.unit_price || 0) * (item.expected_quantity || 0)), 0);
+        if (totalValue <= 0) return map;
+        for (const item of items) {
+            const itemValue = (item.unit_price || 0) * (item.expected_quantity || 0);
+            map[item.id] = (itemValue / totalValue) * totalActualTax;
+        }
+        return map;
+    }, [items, totalActualTax]);
+
     // ── Fetch confirmed international purchase invoices for import ──
     const { data: availableInvoices = [], isLoading: loadingInvoices } = useQuery({
         queryKey: ['international-invoices-for-container', companyId, containerId],
@@ -275,7 +303,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                 `)
                 .eq('company_id', companyId)
                 .eq('receipt_mode', 'international')
-                .in('stage', ['confirmed', 'posted', 'partial_paid', 'paid'])
+                .in('stage', ['posted', 'partial_paid', 'paid'])
                 .order('invoice_date', { ascending: false });
 
             if (error) {
@@ -893,11 +921,16 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                         {isRTL ? 'سعر المورد' : 'Cost'}
                     </TableHead>
                     <TableHead className="text-xs font-semibold text-center">
-                        {isRTL ? 'التكلفة التقديرية' : 'Est. Cost'}
+                        {isRTL ? 'التكلفة الأولية' : 'Prel. Cost'}
                     </TableHead>
                     <TableHead className="text-xs font-semibold text-center">
-                        {isRTL ? 'التكلفة الواصلة' : 'Landed Cost'}
+                        {isRTL ? 'التكلفة النهائية' : 'Final Cost'}
                     </TableHead>
+                    {totalActualTax > 0 && (
+                        <TableHead className="text-xs font-semibold text-center">
+                            {isRTL ? 'الضريبة' : 'Tax'}
+                        </TableHead>
+                    )}
                 </>
             )}
             {permissions.canSeeSupplierInfo && !compact && (
@@ -989,26 +1022,37 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                         <TableCell className="text-center font-mono text-sm text-muted-foreground">
                             {fmt(item.unit_price)}
                         </TableCell>
-                        {/* التكلفة التقديرية (من المصاريف التقديرية) */}
+                        {/* التكلفة الأولية (من المصاريف الأولية) */}
                         <TableCell className="text-center font-mono text-sm font-medium">
                             {item.provisional_unit_cost ? (
-                                <span className="text-amber-700 dark:text-amber-400" title={isRTL ? 'تكلفة تقديرية' : 'Estimated cost'}>
+                                <span className="text-amber-700 dark:text-amber-400" title={isRTL ? 'تكلفة أولية' : 'Preliminary cost'}>
                                     {fmt(item.provisional_unit_cost)}
                                 </span>
                             ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                             )}
                         </TableCell>
-                        {/* التكلفة الواصلة الحقيقية (من المصاريف الفعلية) */}
+                        {/* التكلفة النهائية (من المصاريف الفعلية) */}
                         <TableCell className="text-center font-mono text-sm font-medium">
                             {item.final_unit_cost ? (
-                                <span className="text-emerald-700 dark:text-emerald-400" title={isRTL ? 'تكلفة واصلة مثبّتة' : 'Finalized landed cost'}>
+                                <span className="text-emerald-700 dark:text-emerald-400" title={isRTL ? 'التكلفة النهائية المثبتة' : 'Finalized cost'}>
                                     {fmt(item.final_unit_cost)}
                                 </span>
                             ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                             )}
                         </TableCell>
+                        {totalActualTax > 0 && (
+                            <TableCell className="text-center font-mono text-sm font-medium">
+                                {itemTaxMap[item.id] ? (
+                                    <span className="text-rose-600 dark:text-rose-400" title={isRTL ? `ضريبة موزعة حسب القيمة` : `Tax allocated by value`}>
+                                        {fmt(itemTaxMap[item.id])}
+                                    </span>
+                                ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                            </TableCell>
+                        )}
                     </>
                 )}
                 {permissions.canSeeSupplierInfo && !compact && (

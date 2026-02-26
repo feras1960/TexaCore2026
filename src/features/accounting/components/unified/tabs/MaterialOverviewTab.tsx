@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, Layers, Tag, FileText, Ruler, Weight, Palette } from 'lucide-react';
+import { Package, Layers, Tag, FileText, Ruler, Weight, Palette, Snowflake } from 'lucide-react';
 import type { SheetMode } from '../types';
 
 interface MaterialOverviewTabProps {
@@ -72,7 +72,7 @@ export function MaterialOverviewTab({ data, mode, onChange, groups = [] }: Mater
                                 </SelectTrigger>
                                 <SelectContent>
                                     {groups.length > 0 ? (
-                                        groups.map((group) => (
+                                        groups.filter(g => g.id).map((group) => (
                                             <SelectItem key={group.id} value={group.id}>
                                                 <span className="flex items-center gap-2">
                                                     <Badge variant="outline" className="text-xs">{group.code}</Badge>
@@ -251,6 +251,35 @@ export function MaterialOverviewTab({ data, mode, onChange, groups = [] }: Mater
                                 disabled={isReadOnly}
                                 placeholder="250.50"
                             />
+                        </div>
+
+                        {/* Season */}
+                        <div className="space-y-2">
+                            <Label htmlFor="season" className="flex items-center gap-2">
+                                <Snowflake className="w-4 h-4 text-blue-400" />
+                                {language === 'ar' ? 'الموسم' : 'Season'}
+                            </Label>
+                            <Select
+                                value={data?.season || '__none__'}
+                                onValueChange={(value) => handleChange('season', value === '__none__' ? null : value)}
+                                disabled={isReadOnly}
+                            >
+                                <SelectTrigger id="season">
+                                    <SelectValue placeholder={language === 'ar' ? 'غير محدد' : 'Not specified'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__none__">{language === 'ar' ? '— غير محدد' : '— Not specified'}</SelectItem>
+                                    <SelectItem value="winter">{language === 'ar' ? '❄️ شتوي' : '❄️ Winter'}</SelectItem>
+                                    <SelectItem value="spring">{language === 'ar' ? '🌸 ربيعي' : '🌸 Spring'}</SelectItem>
+                                    <SelectItem value="summer">{language === 'ar' ? '☀️ صيفي' : '☀️ Summer'}</SelectItem>
+                                    <SelectItem value="autumn">{language === 'ar' ? '🍂 خريفي' : '🍂 Autumn'}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-gray-500">
+                                {language === 'ar'
+                                    ? 'يُستخدم لتصفية المخزون حسب الموسم'
+                                    : 'Used to filter inventory by season'}
+                            </p>
                         </div>
                     </div>
                 </CardContent>

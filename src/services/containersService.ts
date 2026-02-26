@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { activityLogService } from './activityLogService';
 
 // ========================================
 // الأنواع (Types)
@@ -377,6 +378,19 @@ export async function createContainer(
     .single();
 
   if (error) throw error;
+
+  // 📜 Activity Log: تسجيل إنشاء الكونتينر
+  if (data) {
+    activityLogService.logEvent({
+      table: 'containers',
+      documentId: data.id,
+      event: 'created',
+      userId: container.created_by || 'system',
+      userName: 'النظام',
+      details: { container_number: data.container_number, shipment_number: data.shipment_number },
+    });
+  }
+
   return data;
 }
 
@@ -395,6 +409,28 @@ export async function updateContainer(
     .single();
 
   if (error) throw error;
+
+  // 📜 Activity Log: تسجيل تغيير الحالة
+  if (data && updates.status) {
+    const statusEventMap: Record<string, string> = {
+      in_transit: 'confirmed',
+      at_port: 'delivered',
+      received: 'received',
+      closed: 'posted',
+    };
+    const logEvent = statusEventMap[updates.status];
+    if (logEvent) {
+      activityLogService.logEvent({
+        table: 'containers',
+        documentId: containerId,
+        event: logEvent as any,
+        userId: 'system',
+        userName: 'النظام',
+        details: { new_status: updates.status },
+      });
+    }
+  }
+
   return data;
 }
 
@@ -713,9 +749,14 @@ export async function calculateLandedCost(containerId: string) {
     return sum + (exp.expected_amount || exp.amount || 0);
   }, 0);
 
-  // حساب إجمالي المصاريف الفعلية
+  // حساب إجمالي المصاريف الفعلية (المبلغ الصافي بدون ضريبة — الضريبة مستردة ولا تدخل التكلفة)
   const totalActualExpenses = actualExpenses.reduce((sum: number, exp: any) => {
-    return sum + (exp.amount || 0);
+    return sum + (exp.amount_before_tax || exp.amount || 0);
+  }, 0);
+
+  // حساب إجمالي الضريبة من المصاريف الفعلية
+  const totalActualTax = actualExpenses.reduce((sum: number, exp: any) => {
+    return sum + (exp.tax_amount || 0);
   }, 0);
 
   // توزيع حسب الطريقة المحددة
@@ -736,6 +777,7 @@ export async function calculateLandedCost(containerId: string) {
     totalExpenses,
     totalEstimatedExpenses,
     totalActualExpenses,
+    totalActualTax,
     totalLandedCost,
     allocatedItems: estimatedAllocatedItems, // backward compat
     estimatedAllocatedItems,
@@ -776,13 +818,25 @@ export async function saveEstimatedDistribution(containerId: string) {
 export async function saveActualDistribution(containerId: string) {
   const result = await calculateLandedCost(containerId);
 
-  // حفظ التوزيع الفعلي في كل بند
+  // حفظ التوزيع الفعلي + الضريبة الموزعة في كل بند
   for (const item of result.actualAllocatedItems) {
     const totalFinalCost = item.finalUnitCost * (item.expected_quantity || 0);
+    const itemValue = (item.unit_cost || 0) * (item.expected_quantity || 0);
+    const ratio = result.totalGoodsValue > 0 ? itemValue / result.totalGoodsValue : 1 / result.actualAllocatedItems.length;
+    const itemTax = result.totalActualTax * ratio;
+    const itemTaxPerUnit = item.expected_quantity > 0 ? itemTax / item.expected_quantity : 0;
+    // نسبة الضريبة: نحسبها من المصاريف الفعلية (إجمالي الضريبة / إجمالي المبلغ قبل الضريبة)
+    const effectiveTaxRate = result.totalActualExpenses > 0
+      ? (result.totalActualTax / result.totalActualExpenses) * 100
+      : 0;
+
     await updateContainerItem(item.id, {
       final_unit_cost: item.finalUnitCost,
       total_final_cost: totalFinalCost,
-    });
+      allocated_tax: itemTax,
+      tax_per_unit: itemTaxPerUnit,
+      tax_rate: effectiveTaxRate,
+    } as any);
   }
 
   return result;
@@ -849,13 +903,24 @@ export async function finalizeLandedCost(
 ) {
   const landedCost = await calculateLandedCost(containerId);
 
-  // تحديث البنود بالتكلفة النهائية
+  // تحديث البنود بالتكلفة النهائية + الضريبة الموزعة
   for (const item of landedCost.allocatedItems) {
+    const itemValue = (item.unit_cost || 0) * (item.expected_quantity || 0);
+    const ratio = landedCost.totalGoodsValue > 0 ? itemValue / landedCost.totalGoodsValue : 1 / landedCost.allocatedItems.length;
+    const itemTax = landedCost.totalActualTax * ratio;
+    const itemTaxPerUnit = item.expected_quantity > 0 ? itemTax / item.expected_quantity : 0;
+    const effectiveTaxRate = landedCost.totalActualExpenses > 0
+      ? (landedCost.totalActualTax / landedCost.totalActualExpenses) * 100
+      : 0;
+
     await updateContainerItem(item.id, {
       allocated_costs: item.allocatedCost,
       final_unit_cost: item.finalUnitCost,
       total_final_cost: item.finalUnitCost * item.expected_quantity,
-    });
+      allocated_tax: itemTax,
+      tax_per_unit: itemTaxPerUnit,
+      tax_rate: effectiveTaxRate,
+    } as any);
   }
 
   // تحديث الكونتينر
@@ -868,7 +933,96 @@ export async function finalizeLandedCost(
     finalized_by: userId,
   });
 
-  // TODO: إنشاء القيد المحاسبي النهائي
+  // ═══════════════════════════════════════════════
+  // إنشاء قيد الإقفال: Dr المخزون / Cr حساب الكونتينر
+  // المبلغ = مصاريف الكونتينر فقط (بدون الضريبة المستردة)
+  // ═══════════════════════════════════════════════
+  try {
+    // جلب بيانات الكونتينر
+    const { data: containerDoc } = await supabase
+      .from('containers')
+      .select('container_account_id, container_number, company_id, tenant_id')
+      .eq('id', containerId)
+      .single();
+
+    if (containerDoc?.container_account_id && containerDoc?.company_id) {
+      // جلب حساب المخزون من الإعدادات
+      const { data: settings } = await supabase
+        .from('company_accounting_settings')
+        .select('default_inventory_account_id')
+        .eq('company_id', containerDoc.company_id)
+        .single();
+
+      const inventoryAccountId = settings?.default_inventory_account_id;
+
+      if (inventoryAccountId) {
+        // حساب المبلغ = رصيد حساب الكونتينر (مصاريف فقط — الضريبة ذهبت لـ 117)
+        const { data: balanceData } = await supabase
+          .from('journal_entry_lines')
+          .select('debit, credit')
+          .eq('account_id', containerDoc.container_account_id);
+
+        const containerBalance = (balanceData || []).reduce(
+          (sum, line) => sum + (line.debit || 0) - (line.credit || 0), 0
+        );
+
+        if (containerBalance > 0) {
+          const ts = Date.now();
+          const rand = Math.floor(1000 + Math.random() * 9000);
+          const entryNumber = `JE-CLOSE-${ts}-${rand}`;
+          const today = new Date().toISOString().slice(0, 10);
+
+          const { data: je, error: jeErr } = await supabase
+            .from('journal_entries')
+            .insert({
+              tenant_id: containerDoc.tenant_id,
+              company_id: containerDoc.company_id,
+              entry_number: entryNumber,
+              entry_date: today,
+              description: `إقفال مصاريف كونتينر ${containerDoc.container_number} → المخزون`,
+              reference_type: 'container_close',
+              reference_id: containerId,
+              status: 'posted',
+              total_debit: containerBalance,
+              total_credit: containerBalance,
+              created_by: userId,
+            })
+            .select()
+            .single();
+
+          if (!jeErr && je) {
+            await supabase
+              .from('journal_entry_lines')
+              .insert([
+                {
+                  tenant_id: containerDoc.tenant_id,
+                  entry_id: je.id,
+                  account_id: inventoryAccountId,
+                  debit: containerBalance,
+                  credit: 0,
+                  description: `إقفال مصاريف كونتينر ${containerDoc.container_number} → المخزون`,
+                  line_number: 1,
+                },
+                {
+                  tenant_id: containerDoc.tenant_id,
+                  entry_id: je.id,
+                  account_id: containerDoc.container_account_id,
+                  debit: 0,
+                  credit: containerBalance,
+                  description: `تصفير حساب كونتينر ${containerDoc.container_number}`,
+                  line_number: 2,
+                },
+              ]);
+
+            console.log(`✅ Container closing entry created: ${entryNumber} — Amount: ${containerBalance}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error creating container closing entry:', err);
+    // لا نرمي خطأ — القيد اختياري ولا يمنع التثبيت
+  }
 
   return landedCost;
 }
@@ -887,10 +1041,10 @@ async function updateContainerTotals(containerId: string) {
     .select('expected_quantity, unit_cost')
     .eq('container_id', containerId);
 
-  // جلب المصاريف
+  // جلب المصاريف — مع فلتر لتمييز الأولية عن الفعلية
   const { data: expenses } = await supabase
     .from('container_expenses')
-    .select('amount, expected_amount, actual_amount')
+    .select('amount, expected_amount, actual_amount, vendor_account_id, amount_before_tax')
     .eq('container_id', containerId);
 
   // حساب الإجماليات
@@ -898,15 +1052,17 @@ async function updateContainerTotals(containerId: string) {
     return sum + ((item.unit_cost || 0) * (item.expected_quantity || 0));
   }, 0) || 0;
 
-  const totalExpectedCosts = expenses?.reduce((sum, exp) => {
+  // المصاريف الأولية فقط (بدون vendor_account_id)
+  const totalExpectedCosts = expenses?.filter(exp => !exp.vendor_account_id).reduce((sum, exp) => {
     return sum + (exp.expected_amount || exp.amount || 0);
   }, 0) || 0;
 
-  const totalActualCosts = expenses?.reduce((sum, exp) => {
-    return sum + (exp.actual_amount || exp.amount || 0);
+  // المصاريف الفعلية فقط (مع vendor_account_id — مرحّلة)
+  const totalActualCosts = expenses?.filter(exp => !!exp.vendor_account_id).reduce((sum, exp) => {
+    return sum + (exp.amount_before_tax || exp.actual_amount || exp.amount || 0);
   }, 0) || 0;
 
-  // تحديث الكونتينر
+  // تحديث الكونتينر — التكلفة النهائية = بضاعة + فعلية فقط (بدون أولية)
   await supabase
     .from('containers')
     .update({

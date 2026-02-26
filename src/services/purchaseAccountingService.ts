@@ -1,6 +1,8 @@
 
 import { supabase } from '@/lib/supabase';
 import journalEntriesService, { CreateJournalEntryInput } from './journalEntriesService';
+import { directStockUpdateService } from './directStockUpdateService';
+import { activityLogService } from './activityLogService';
 
 // ═══════════════════════════════════════════════════════════════
 // Purchase Accounting Service — V2 (Smart Posting)
@@ -249,9 +251,45 @@ export const purchaseAccountingService = {
         // ═══════════════════════════════════════════════
         const missingAccounts: string[] = [];
 
-        const debitAccountId = defaults.default_purchase_account_id || defaults.default_cogs_account_id;
+        // 🔑 CONTAINER FIX: If invoice is linked to a container,
+        // debit the CONTAINER ACCOUNT (Goods in Transit) — not Purchases/COGS.
+        // This ensures the container account accumulates the full landed cost
+        // (FOB + expenses) until goods are received and the account is closed.
+        let debitAccountId: string | null = null;
+        let isContainerInvoice = false;
+
+        if (invoice.container_id) {
+            // Fetch container's dedicated account
+            const { data: containerDoc } = await supabase
+                .from('containers')
+                .select('container_account_id, container_number')
+                .eq('id', invoice.container_id)
+                .single();
+
+            if (containerDoc?.container_account_id) {
+                debitAccountId = containerDoc.container_account_id;
+                isContainerInvoice = true;
+                console.log('📦 [Container Invoice] Using container account as debit:',
+                    containerDoc.container_number, '→', debitAccountId);
+            } else {
+                console.warn('⚠️ Invoice linked to container but no container_account_id found — falling back to purchases account');
+                warnings.push('الفاتورة مرتبطة بكونتينر لكن لا يوجد حساب بضاعة بالطريق — تم الترحيل على حساب المشتريات');
+            }
+        }
+
+        // Fallback: Inventory account (1141 بضاعة جاهزة)
+        // ⚠️ Purchase invoices ALWAYS go to Inventory — NOT COGS!
+        // COGS (511) is only used when goods are SOLD, not purchased.
         if (!debitAccountId) {
-            missingAccounts.push('حساب المشتريات / تكلفة البضاعة (Purchases/COGS Account)');
+            debitAccountId = defaults.default_inventory_account_id;
+        }
+        // Secondary fallback: purchases account (if inventory not configured)
+        if (!debitAccountId) {
+            debitAccountId = defaults.default_purchase_account_id;
+        }
+
+        if (!debitAccountId) {
+            missingAccounts.push('حساب المخزون / بضاعة جاهزة (Inventory Account 1141)');
         }
 
         let creditAccountId: string | null = null;
@@ -397,16 +435,23 @@ export const purchaseAccountingService = {
         const invoiceRef = invoice.invoice_no || invoice.invoice_number || '-';
         const lines = [];
 
-        // Line 1: Debit — Purchases/COGS (Subtotal before tax)
+        // Line 1: Debit — Container Account (Goods in Transit) OR Purchases/COGS
         if (effectiveSubtotal > 0) {
+            const memo = invoice.notes || invoice.description || '';
+            const lineDesc = isContainerInvoice
+                ? `بضاعة كونتينر #${invoiceRef} - ${supplierName} (بضاعة بالطريق)`
+                : postingSource === 'receipt'
+                    ? `فاتورة مشتريات #${invoiceRef} - ${supplierName} (بالمستلم فعلياً)`
+                    : `فاتورة مشتريات #${invoiceRef} - ${supplierName}`;
+
             lines.push({
                 account_id: debitAccountId!,
                 debit: Math.round(effectiveSubtotal * 100) / 100,
                 credit: 0,
-                description: postingSource === 'receipt'
-                    ? `فاتورة مشتريات #${invoiceRef} - ${supplierName} (بالمستلم فعلياً)`
-                    : `فاتورة مشتريات #${invoiceRef} - ${supplierName}`,
-                cost_center_id: null
+                description: memo ? `${lineDesc} - ${memo}` : lineDesc,
+                cost_center_id: null,
+                // NOTE: party_id NOT set on debit line — only on credit (payable) line
+                // to avoid double-counting in sub-ledger reports
             });
         }
 
@@ -422,15 +467,21 @@ export const purchaseAccountingService = {
         }
 
         // Line 3: Credit — Supplier/Payable (Grand Total)
+        // 🔑 CRITICAL: party_type + party_id enable Sub-Ledger tracking per supplier
         if (effectiveTotal > 0) {
+            const memo = invoice.notes || invoice.description || '';
+            const lineDesc = postingSource === 'receipt'
+                ? `فاتورة مشتريات #${invoiceRef} - ${supplierName} (بالمستلم فعلياً)`
+                : `فاتورة مشتريات #${invoiceRef} - ${supplierName}`;
+
             lines.push({
                 account_id: creditAccountId!,
                 debit: 0,
                 credit: Math.round(effectiveTotal * 100) / 100,
-                description: postingSource === 'receipt'
-                    ? `فاتورة مشتريات #${invoiceRef} - ${supplierName} (بالمستلم فعلياً)`
-                    : `فاتورة مشتريات #${invoiceRef} - ${supplierName}`,
-                cost_center_id: null
+                description: memo ? `${lineDesc} - ${memo}` : lineDesc,
+                cost_center_id: null,
+                party_type: invoice.supplier_id ? 'supplier' : null,
+                party_id: invoice.supplier_id || null,
             });
         }
 
@@ -500,6 +551,43 @@ export const purchaseAccountingService = {
             warnings.push('تم إنشاء القيد لكن فشل ترحيله للدفتر — يرجى الترحيل يدوياً');
         }
 
+        // ═══════════════════════════════════════════════
+        // 11. Direct Stock Update (if auto_update_stock enabled)
+        // ═══════════════════════════════════════════════
+        if (invoice.auto_update_stock && invoice.items?.length > 0) {
+            const stockWarehouseId = invoice.stock_warehouse_id || invoice.warehouse_id;
+
+            if (!stockWarehouseId) {
+                warnings.push('تحديث المخزون المباشر مفعّل لكن لا يوجد مستودع محدد — تم تخطي التحديث');
+            } else {
+                const stockItems = invoice.items
+                    .filter((item: any) => (item.material_id || item.product_id) && Number(item.quantity) > 0)
+                    .map((item: any) => ({
+                        material_id: item.material_id || item.product_id,
+                        quantity: Number(item.quantity),
+                        unit_price: Number(item.unit_price || 0),
+                        description: item.description || item.description_ar || '',
+                    }));
+
+                const stockResult = await directStockUpdateService.executeDirectStockUpdate({
+                    type: 'purchase',
+                    transaction_id: invoiceId,
+                    transaction_number: invoice.invoice_no || invoice.draft_no || '',
+                    tenant_id: invoice.tenant_id,
+                    company_id: companyId,
+                    warehouse_id: stockWarehouseId,
+                    doc_date: invoice.doc_date || new Date().toISOString().split('T')[0],
+                    items: stockItems,
+                    user_id: userId,
+                });
+
+                if (!stockResult.success) {
+                    warnings.push('فشل في تحديث المخزون المباشر — يرجى التحديث يدوياً');
+                }
+                warnings.push(...stockResult.warnings);
+            }
+        }
+
         return {
             journalEntryId: journalEntry.id,
             postingSource,
@@ -507,6 +595,9 @@ export const purchaseAccountingService = {
             variances,
             hasSignificantVariance,
         };
+
+        // 📜 Activity Log: تسجيل الترحيل
+        // Note: يتم التسجيل في purchaseTransactionService.advanceStage()
     },
 
     /**
@@ -520,7 +611,7 @@ export const purchaseAccountingService = {
         // 1. Get Invoice to find JE ID and determine return stage
         const { data: invoice, error: fetchError } = await supabase
             .from('purchase_transactions')
-            .select('id, journal_entry_id, stage, receipt_variance_detail')
+            .select('id, journal_entry_id, stage, receipt_variance_detail, stock_movement_id, auto_update_stock')
             .eq('id', invoiceId)
             .single();
 
@@ -591,6 +682,15 @@ export const purchaseAccountingService = {
             returnStage = 'confirmed';
         }
 
+        // 3.5 Reverse Direct Stock Update (if any)
+        if (invoice.stock_movement_id) {
+            console.log('📦 Reversing direct stock update...');
+            const reverseResult = await directStockUpdateService.reverseDirectStockUpdate(invoiceId, 'purchase');
+            if (!reverseResult.success) {
+                console.error('⚠️ Stock reversal failed:', reverseResult.error);
+            }
+        }
+
         // 4. Update Invoice: Remove Link and Reset Stage
         const { error: updateError } = await supabase
             .from('purchase_transactions')
@@ -600,6 +700,7 @@ export const purchaseAccountingService = {
                 posted_at: null,
                 stage: returnStage,
                 receipt_variance_detail: null,
+                stock_movement_id: null,
             })
             .eq('id', invoiceId);
 

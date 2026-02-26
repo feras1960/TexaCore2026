@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -110,6 +111,7 @@ const roleLevelConfig: Record<string, { color: string; icon: React.ReactNode; bg
 export default function UserPermissionsTab() {
     const { t, language, direction } = useLanguage();
     const { toast } = useToast();
+    const { companyId } = useAuth();
     const isRTL = direction === 'rtl';
 
     // State
@@ -132,19 +134,18 @@ export default function UserPermissionsTab() {
         branchPermissions: [] as { branch_id: string; can_manage: boolean; is_primary: boolean }[],
     });
 
-    // Load data
+    // Load data — scoped to current company
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
 
-            // Load all available roles (for assignment)
-            // Load roles by is_system flag or all roles as fallback
+            // Load roles (exclude system-level roles like super_admin)
             let rolesData: any[] = [];
             try {
-                // First try loading system roles or accessible roles
                 const { data: systemRoles, error: rolesError } = await supabase
                     .from('roles')
                     .select('*')
+                    .neq('level', 'system')
                     .order('code');
 
                 if (!rolesError && systemRoles && systemRoles.length > 0) {
@@ -155,58 +156,63 @@ export default function UserPermissionsTab() {
             }
             setRoles(rolesData);
 
-            // Load users with their profiles
-            const { data: usersData, error: usersError } = await supabase
+            // Load users — filtered by company_id
+            let usersQuery = supabase
                 .from('user_profiles')
-                .select(`
-          id,
-          full_name,
-          avatar_url,
-          email
-        `)
+                .select('id, full_name, avatar_url, email')
                 .order('full_name');
 
-            if (usersError) throw usersError;
-
-            // Try to load user roles (table may not exist in all environments)
-            let userRolesData: any[] = [];
-            try {
-                const { data: urData, error: urError } = await supabase
-                    .from('user_roles')
-                    .select('user_id, role_id');
-
-                if (!urError && urData && urData.length > 0) {
-                    // Load roles separately for lookup
-                    const roleIds = [...new Set(urData.map(ur => ur.role_id))];
-                    const { data: rolesLookup } = await supabase
-                        .from('roles')
-                        .select('id, code, name_ar, name_en')
-                        .in('id', roleIds);
-
-                    // Create lookup map
-                    const rolesMap = new Map((rolesLookup || []).map(r => [r.id, r]));
-
-                    // Combine data
-                    userRolesData = urData.map(ur => ({
-                        ...ur,
-                        is_active: true,
-                        roles: rolesMap.get(ur.role_id) || { code: '', name_ar: '', name_en: '' }
-                    }));
-                } else if (urError) {
-                    console.warn('user_roles table may not exist:', urError.message);
-                }
-            } catch (e) {
-                // Silently handle - user_roles table may not be created yet
-                console.warn('Could not load user_roles (table may not exist yet)');
+            if (companyId) {
+                usersQuery = usersQuery.eq('company_id', companyId);
             }
 
-            // Load funds (cash/bank accounts) - use cash_accounts table
+            const { data: usersData, error: usersError } = await usersQuery;
+            if (usersError) throw usersError;
+
+            // Get user IDs for this company
+            const companyUserIds = (usersData || []).map(u => u.id);
+
+            // Load user_roles only for company users
+            let userRolesData: any[] = [];
+            try {
+                if (companyUserIds.length > 0) {
+                    const { data: urData, error: urError } = await supabase
+                        .from('user_roles')
+                        .select('user_id, role_id')
+                        .in('user_id', companyUserIds);
+
+                    if (!urError && urData && urData.length > 0) {
+                        const roleIds = [...new Set(urData.map(ur => ur.role_id))];
+                        const { data: rolesLookup } = await supabase
+                            .from('roles')
+                            .select('id, code, name_ar, name_en')
+                            .in('id', roleIds);
+
+                        const rolesMap = new Map((rolesLookup || []).map(r => [r.id, r]));
+
+                        userRolesData = urData.map(ur => ({
+                            ...ur,
+                            is_active: true,
+                            roles: rolesMap.get(ur.role_id) || { code: '', name_ar: '', name_en: '' }
+                        }));
+                    } else if (urError) {
+                        console.warn('user_roles query error:', urError.message);
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load user_roles:', e);
+            }
+
+            // Load funds — filtered by company_id
             let fundsData: any[] = [];
             try {
-                // First try cash_accounts table (proper treasury module)
-                const { data: cashData, error: cashError } = await supabase
+                let cashQuery = supabase
                     .from('cash_accounts')
                     .select('id, name_ar, name_en, code, account_type');
+                if (companyId) {
+                    cashQuery = cashQuery.eq('company_id', companyId);
+                }
+                const { data: cashData, error: cashError } = await cashQuery;
 
                 if (!cashError && cashData && cashData.length > 0) {
                     fundsData = cashData.map(acc => ({
@@ -217,11 +223,14 @@ export default function UserPermissionsTab() {
                         account_type: acc.account_type
                     }));
                 } else {
-                    // Fallback to chart_of_accounts
-                    const { data, error } = await supabase
+                    let coaQuery = supabase
                         .from('chart_of_accounts')
                         .select('id, name_ar, name_en, account_code, is_cash_account, is_bank_account')
                         .or('is_cash_account.eq.true,is_bank_account.eq.true');
+                    if (companyId) {
+                        coaQuery = coaQuery.eq('company_id', companyId);
+                    }
+                    const { data, error } = await coaQuery;
                     if (!error) {
                         fundsData = (data || []).map(acc => ({
                             ...acc,
@@ -234,24 +243,32 @@ export default function UserPermissionsTab() {
             }
             setFunds(fundsData);
 
-            // Load warehouses
+            // Load warehouses — filtered by company_id
             let warehousesData: any[] = [];
             try {
-                const { data, error } = await supabase
+                let whQuery = supabase
                     .from('warehouses')
                     .select('id, name_ar, name_en, code');
+                if (companyId) {
+                    whQuery = whQuery.eq('company_id', companyId);
+                }
+                const { data, error } = await whQuery;
                 if (!error) warehousesData = data || [];
             } catch (e) {
                 console.warn('Could not load warehouses:', e);
             }
             setWarehouses(warehousesData);
 
-            // Load branches
+            // Load branches — filtered by company_id
             let branchesData: any[] = [];
             try {
-                const { data, error } = await supabase
+                let brQuery = supabase
                     .from('branches')
                     .select('id, name_ar, name_en, code');
+                if (companyId) {
+                    brQuery = brQuery.eq('company_id', companyId);
+                }
+                const { data, error } = await brQuery;
                 if (!error) branchesData = data || [];
             } catch (e) {
                 console.warn('Could not load branches:', e);
@@ -290,7 +307,7 @@ export default function UserPermissionsTab() {
         } finally {
             setLoading(false);
         }
-    }, [language, toast]);
+    }, [language, toast, companyId]);
 
     useEffect(() => {
         loadData();

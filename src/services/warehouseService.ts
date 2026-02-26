@@ -6,6 +6,8 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { documentStatusService as DSS } from './documentStatusService';
+
 
 // Module-level cache: tracks which tables/RPCs exist to avoid repeated 404/400 errors
 const _tableExistsCache: Record<string, boolean | null> = {};
@@ -94,6 +96,8 @@ export interface WarehouseSettings {
     auto_generate_location_barcode: boolean;
     require_location_scan_on_receive: boolean;
     require_photo_on_receive: boolean;
+    // 🔑 Receipt variance tolerance (default: 1%)
+    receipt_variance_tolerance_pct?: number;
 }
 
 export interface DeliveryNote {
@@ -839,10 +843,7 @@ export const warehouseService = {
 
         let query = supabase
             .from('roll_reservations')
-            .select(`
-                *,
-                customer:customers(id, name, phone)
-            `)
+            .select(`*`)
             .eq('company_id', companyId)
             .order('reserved_at', { ascending: false });
 
@@ -881,9 +882,14 @@ export const warehouseService = {
         dateTo?: string;
         limit?: number;
     }): Promise<any[]> {
+        // Enhanced SELECT with warehouse joins for display names
         let query = supabase
             .from('inventory_movements')
-            .select('*')
+            .select(`
+                *,
+                from_warehouse:warehouses!inventory_movements_from_warehouse_id_fkey(id, name_ar, name_en),
+                to_warehouse:warehouses!inventory_movements_to_warehouse_id_fkey(id, name_ar, name_en)
+            `)
             .eq('company_id', companyId)
             .order('movement_date', { ascending: false });
 
@@ -917,7 +923,35 @@ export const warehouseService = {
             console.warn('getInventoryMovements error:', error.message);
             return [];
         }
-        return data || [];
+
+        if (!data || data.length === 0) return [];
+
+        // Enrich with material names (no FK exists, so we batch-lookup)
+        const materialIds = [...new Set(data.map((m: any) => m.material_id || m.product_id).filter(Boolean))];
+        let materialsMap: Record<string, any> = {};
+
+        if (materialIds.length > 0) {
+            const { data: materials } = await supabase
+                .from('fabric_materials')
+                .select('id, name_ar, name_en, code')
+                .in('id', materialIds);
+            if (materials) {
+                materials.forEach((mat: any) => { materialsMap[mat.id] = mat; });
+            }
+        }
+
+        // Flatten joined data for easy consumption by UI
+        return data.map((m: any) => ({
+            ...m,
+            // Warehouse display names
+            from_warehouse_name: m.from_warehouse?.name_ar || m.from_warehouse?.name_en || null,
+            to_warehouse_name: m.to_warehouse?.name_ar || m.to_warehouse?.name_en || null,
+            warehouse_name: m.to_warehouse?.name_ar || m.to_warehouse?.name_en || m.from_warehouse?.name_ar || m.from_warehouse?.name_en || null,
+            // Material display names
+            material_name_ar: materialsMap[m.material_id || m.product_id]?.name_ar || null,
+            material_name_en: materialsMap[m.material_id || m.product_id]?.name_en || null,
+            material_code: materialsMap[m.material_id || m.product_id]?.code || null,
+        }));
     },
 
     /**
@@ -926,24 +960,62 @@ export const warehouseService = {
      */
     async getPendingReceipts(companyId: string): Promise<any[]> {
         const pending: any[] = [];
+        const seenIds = new Set<string>();
 
-        // 1. Fetch Posted Invoices (from purchase_transactions — unified system)
-        const { data: invoices, error: invError } = await supabase
+        // Pre-fetch supplier names for resolution
+        let supplierNames: Record<string, string> = {};
+        const { data: suppliersData } = await supabase
+            .from('suppliers')
+            .select('id, name_ar, name_en, company_name')
+            .eq('company_id', companyId);
+        if (suppliersData) {
+            suppliersData.forEach((s: any) => {
+                supplierNames[s.id] = s.name_ar || s.name_en || s.company_name || '';
+            });
+        }
+
+        // ← container_items uses tenant_id not company_id; we'll filter after building allInvoiceIds
+        let invoiceIdsInContainers = new Set<string>();
+
+        // ═══════════════════════════════════════════════════════════
+        // 1a. Fetch from purchase_invoices (NEW unified table)
+        // ═══════════════════════════════════════════════════════════
+        const { data: newInvoices, error: newInvError } = await supabase
+            .from('purchase_invoices')
+            .select('id, invoice_number, invoice_date, due_date, supplier_name, supplier_id, total_amount, currency, document_stage, status, receipt_status, receipt_mode, container_id, created_at, updated_at')
+            .eq('company_id', companyId)
+            .neq('status', 'cancelled')
+            .neq('status', 'draft')
+            .in('document_stage', ['invoice', 'posted', 'confirmed'])
+            .not('receipt_status', 'eq', 'received')
+            .is('container_id', null)           // ← exclude invoices with container_id set directly
+            .order('invoice_date', { ascending: false });
+
+        if (newInvError) {
+            console.error('getPendingReceipts [purchase_invoices] error:', newInvError);
+        }
+
+        // 1b. Fallback: Fetch from purchase_transactions (ARCHIVED legacy table)
+        const { data: legacyInvoices, error: legacyInvError } = await supabase
             .from('purchase_transactions')
-            .select('id, invoice_no, doc_date, invoice_date, supplier_name, supplier_id, total_amount, currency, stage')
+            .select('id, invoice_no, doc_date, invoice_date, supplier_name, supplier_id, total_amount, currency, stage, container_id, created_at, updated_at')
             .eq('company_id', companyId)
             .eq('is_active', true)
             .in('stage', ['confirmed', 'posted', 'partial_paid', 'partially_received'])
+            .is('container_id', null)           // ← skip transactions assigned to containers
             .order('doc_date', { ascending: false });
 
-        if (invError) {
-            console.error('getPendingReceipts invoice error:', invError);
+        if (legacyInvError) {
+            console.error('getPendingReceipts [purchase_transactions] error:', legacyInvError);
         }
 
-        // 2. Fetch Confirmed Purchase Orders
+        // ═══════════════════════════════════════════════════════════
+        // 2. Fetch Confirmed Purchase Orders (from purchase_invoices with document_stage='order')
+        //    + standalone purchase_orders table
+        // ═══════════════════════════════════════════════════════════
         const { data: orders, error: ordError } = await supabase
             .from('purchase_orders')
-            .select('id, order_number, order_date, supplier_name, total_amount, currency, status')
+            .select('id, order_number, order_date, supplier_name, total_amount, currency, status, created_at, updated_at')
             .eq('company_id', companyId)
             .in('status', ['confirmed', 'partially_received'])
             .order('order_date', { ascending: false });
@@ -952,24 +1024,43 @@ export const warehouseService = {
             console.error('getPendingReceipts PO error:', ordError);
         }
 
-        // 3. Fetch ALL related purchase_receipts for these invoices/orders
-        const invoiceIds = (invoices || []).map((i: any) => i.id);
+        // ═══════════════════════════════════════════════════════════
+        // 3. Build combined invoice ID list & fetch related receipts
+        // ═══════════════════════════════════════════════════════════
+        const allInvoiceIds = [
+            ...(newInvoices || []).map((i: any) => i.id),
+            ...(legacyInvoices || []).map((i: any) => i.id),
+        ];
         const orderIds = (orders || []).map((o: any) => o.id);
+
+        // Now fetch which invoice IDs from our list appear in container_items
+        // (container_items has tenant_id not company_id, so filter by known IDs)
+        if (allInvoiceIds.length > 0) {
+            const { data: cInvIds } = await supabase
+                .from('container_items')
+                .select('purchase_invoice_id')
+                .in('purchase_invoice_id', allInvoiceIds)
+                .not('purchase_invoice_id', 'is', null);
+            if (cInvIds) {
+                cInvIds.forEach((r: any) => {
+                    if (r.purchase_invoice_id) invoiceIdsInContainers.add(r.purchase_invoice_id);
+                });
+            }
+        }
 
         let receiptsMap: Record<string, any> = {};
 
         // Fetch receipts linked to invoices
-        if (invoiceIds.length > 0) {
+        if (allInvoiceIds.length > 0) {
             const { data: invReceipts } = await supabase
                 .from('purchase_receipts')
-                .select('id, receipt_number, receipt_date, status, invoice_id, order_id, warehouse_id')
+                .select('id, receipt_number, receipt_date, status, invoice_id, order_id, warehouse_id, created_at')
                 .eq('company_id', companyId)
-                .in('invoice_id', invoiceIds)
+                .in('invoice_id', allInvoiceIds)
                 .order('created_at', { ascending: false });
 
             if (invReceipts) {
                 invReceipts.forEach((r: any) => {
-                    // Keep the most recent receipt per invoice
                     if (!receiptsMap[r.invoice_id] || r.status === 'draft') {
                         receiptsMap[r.invoice_id] = r;
                     }
@@ -981,7 +1072,7 @@ export const warehouseService = {
         if (orderIds.length > 0) {
             const { data: ordReceipts } = await supabase
                 .from('purchase_receipts')
-                .select('id, receipt_number, receipt_date, status, invoice_id, order_id, warehouse_id')
+                .select('id, receipt_number, receipt_date, status, invoice_id, order_id, warehouse_id, created_at')
                 .eq('company_id', companyId)
                 .in('order_id', orderIds)
                 .order('created_at', { ascending: false });
@@ -995,9 +1086,56 @@ export const warehouseService = {
             }
         }
 
-        // 4. Build enriched pending list for invoices
-        if (invoices) {
-            invoices.forEach((inv: any) => {
+        // ═══════════════════════════════════════════════════════════
+        // 4a. Build pending list — NEW purchase_invoices (priority)
+        // ═══════════════════════════════════════════════════════════
+        if (newInvoices) {
+            newInvoices.forEach((inv: any) => {
+                // Skip invoices that are linked to a container via container_items
+                if (invoiceIdsInContainers.has(inv.id)) return;
+
+                seenIds.add(inv.id);
+                const linkedReceipt = receiptsMap[inv.id];
+                const docNumber = inv.invoice_number || inv.id?.substring(0, 8);
+                const stage = inv.document_stage || inv.status || 'draft';
+                pending.push({
+                    id: inv.id,
+                    type: 'purchase',
+                    reference: docNumber,
+                    reference_label: `Invoice #${docNumber}`,
+                    description: inv.supplier_name || supplierNames[inv.supplier_id] || '',
+                    supplier_name: inv.supplier_name || supplierNames[inv.supplier_id] || '',
+                    status: inv.receipt_status === 'partial' ? 'partial' : 'ready',
+                    invoice_status: stage,
+                    items: 0,
+                    itemsUnit: 'items',
+                    arrivalDate: inv.invoice_date,
+                    source_type: 'invoice',
+                    source_id: inv.id,
+                    source_table: 'purchase_invoices', // ← track source
+                    total_amount: inv.total_amount,
+                    currency: inv.currency,
+                    receipt_id: linkedReceipt?.id || null,
+                    receipt_number: linkedReceipt?.receipt_number || null,
+                    receipt_status: linkedReceipt?.status || 'none',
+                    receipt_date: linkedReceipt?.receipt_date || linkedReceipt?.created_at || null,
+                    pending_since: inv.updated_at || inv.created_at || inv.invoice_date,
+                    receipt_created_at: linkedReceipt?.created_at || null,
+                    created_at: inv.created_at,
+                });
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 4b. Build pending list — LEGACY purchase_transactions (fallback)
+        // ═══════════════════════════════════════════════════════════
+        if (legacyInvoices) {
+            legacyInvoices.forEach((inv: any) => {
+                // Skip if already added from new table
+                if (seenIds.has(inv.id)) return;
+                // Skip legacy invoices linked to containers via container_items
+                if (invoiceIdsInContainers.has(inv.id)) return;
+                seenIds.add(inv.id);
                 const linkedReceipt = receiptsMap[inv.id];
                 const docNumber = inv.invoice_no || inv.id?.substring(0, 8);
                 pending.push({
@@ -1005,8 +1143,8 @@ export const warehouseService = {
                     type: 'purchase',
                     reference: docNumber,
                     reference_label: `Invoice #${docNumber}`,
-                    description: inv.supplier_name || 'Unknown Supplier',
-                    supplier_name: inv.supplier_name || '',
+                    description: inv.supplier_name || supplierNames[inv.supplier_id] || '',
+                    supplier_name: inv.supplier_name || supplierNames[inv.supplier_id] || '',
                     status: inv.stage === 'partially_received' ? 'partial' : 'ready',
                     invoice_status: inv.stage,
                     items: 0,
@@ -1014,18 +1152,23 @@ export const warehouseService = {
                     arrivalDate: inv.doc_date || inv.invoice_date,
                     source_type: 'invoice',
                     source_id: inv.id,
+                    source_table: 'purchase_transactions', // ← legacy
                     total_amount: inv.total_amount,
                     currency: inv.currency,
-                    // Receipt tracking data
                     receipt_id: linkedReceipt?.id || null,
                     receipt_number: linkedReceipt?.receipt_number || null,
-                    receipt_status: linkedReceipt?.status || 'none', // none | draft | completed
-                    receipt_date: linkedReceipt?.receipt_date || null,
+                    receipt_status: linkedReceipt?.status || 'none',
+                    receipt_date: linkedReceipt?.receipt_date || linkedReceipt?.created_at || null,
+                    pending_since: inv.updated_at || inv.created_at || inv.doc_date,
+                    receipt_created_at: linkedReceipt?.created_at || null,
+                    created_at: inv.created_at,
                 });
             });
         }
 
-        // 5. Build enriched pending list for orders
+        // ═══════════════════════════════════════════════════════════
+        // 5. Build pending list — Purchase Orders
+        // ═══════════════════════════════════════════════════════════
         if (orders) {
             orders.forEach((ord: any) => {
                 const linkedReceipt = receiptsMap[ord.id];
@@ -1034,8 +1177,8 @@ export const warehouseService = {
                     type: 'purchase',
                     reference: ord.order_number,
                     reference_label: `PO #${ord.order_number}`,
-                    description: ord.supplier_name || 'Unknown Supplier',
-                    supplier_name: ord.supplier_name || '',
+                    description: ord.supplier_name || supplierNames[ord.supplier_id] || '',
+                    supplier_name: ord.supplier_name || supplierNames[ord.supplier_id] || '',
                     status: ord.status === 'partially_received' ? 'partial' : 'shipped',
                     invoice_status: ord.status,
                     items: 0,
@@ -1043,15 +1186,156 @@ export const warehouseService = {
                     arrivalDate: ord.order_date,
                     source_type: 'order',
                     source_id: ord.id,
+                    source_table: 'purchase_orders',
                     total_amount: ord.total_amount,
                     currency: ord.currency,
-                    // Receipt tracking data
                     receipt_id: linkedReceipt?.id || null,
                     receipt_number: linkedReceipt?.receipt_number || null,
                     receipt_status: linkedReceipt?.status || 'none',
-                    receipt_date: linkedReceipt?.receipt_date || null,
+                    receipt_date: linkedReceipt?.receipt_date || linkedReceipt?.created_at || null,
+                    pending_since: ord.updated_at || ord.created_at || ord.order_date,
+                    receipt_created_at: linkedReceipt?.created_at || null,
+                    created_at: ord.created_at,
                 });
             });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 6. Build pending list — Containers (الكونتينرات)
+        //    Stages ready for receipt: at_port, customs, cleared
+        // ═══════════════════════════════════════════════════════════
+        const { data: containers, error: containerError } = await supabase
+            .from('containers')
+            .select('id, container_number, container_name, supplier_id, status, arrival_date, expected_arrival_date, total_purchase_value, currency, receiving_warehouse_id')
+            .eq('company_id', companyId)
+            .in('status', ['customs', 'cleared', 'at_port', 'in_receiving', 'receiving'])
+            .order('created_at', { ascending: false });
+
+        if (containerError) {
+            console.error('getPendingReceipts [containers] error:', containerError);
+        }
+
+        // Fetch receipts linked to containers (stored in container_id column)
+        const containerIds = (containers || []).map((c: any) => c.id);
+        if (containerIds.length > 0) {
+            const { data: containerReceipts } = await supabase
+                .from('purchase_receipts')
+                .select('id, receipt_number, receipt_date, status, container_id, created_at')
+                .eq('company_id', companyId)
+                .in('container_id', containerIds)
+                .order('created_at', { ascending: false });
+
+            if (containerReceipts) {
+                containerReceipts.forEach((r: any) => {
+                    if (!receiptsMap[r.container_id] || r.status === 'draft') {
+                        receiptsMap[r.container_id] = r;
+                    }
+                });
+            }
+        }
+
+        if (containers) {
+            containers.forEach((c: any) => {
+                const linkedReceipt = receiptsMap[c.id];
+                const containerLabel = c.container_number || c.container_name || c.id?.substring(0, 8);
+                const resolvedSupplier = supplierNames[c.supplier_id] || '';
+                pending.push({
+                    id: c.id,
+                    type: 'container',
+                    reference: containerLabel,
+                    reference_label: `Container ${containerLabel}`,
+                    description: resolvedSupplier || containerLabel,
+                    supplier_name: resolvedSupplier,
+                    status: ['at_port', 'customs', 'cleared'].includes(c.status) ? 'ready' : 'in_transit',
+                    invoice_status: c.status,
+                    items: 0,
+                    itemsUnit: 'items',
+                    arrivalDate: c.arrival_date || c.expected_arrival_date,
+                    source_type: 'container',
+                    source_id: c.id,
+                    source_table: 'containers',
+                    total_amount: c.total_purchase_value || 0,
+                    currency: c.currency,
+                    receipt_id: linkedReceipt?.id || null,
+                    receipt_number: linkedReceipt?.receipt_number || null,
+                    receipt_status: linkedReceipt?.status || 'none',
+                    receipt_date: linkedReceipt?.receipt_date || linkedReceipt?.created_at || null,
+                    pending_since: c.updated_at || c.arrival_date || c.created_at,
+                    receipt_created_at: linkedReceipt?.created_at || null,
+                    receiving_warehouse_id: c.receiving_warehouse_id,
+                });
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 7. SALES DELIVERIES — Confirmed sales invoices pending delivery
+        //    فواتير المبيعات المؤكدة بانتظار التسليم
+        // ═══════════════════════════════════════════════════════════
+        try {
+            const { data: salesInvoices, error: salesError } = await supabase
+                .from('sales_transactions')
+                .select('id, invoice_no, draft_no, doc_date, customer_id, customer_name, total_amount, currency, stage, warehouse_id, delivery_draft, delivery_method, created_at, updated_at')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .in('stage', ['confirmed', 'in_delivery'])  // Confirmed + being loaded
+                .order('updated_at', { ascending: false });
+
+            if (salesError) {
+                console.warn('getPendingReceipts [sales_transactions] error:', salesError.message);
+            }
+
+            if (salesInvoices && salesInvoices.length > 0) {
+                // Pre-fetch customer names
+                const customerIds = [...new Set(salesInvoices.map((s: any) => s.customer_id).filter(Boolean))];
+                let customerNames: Record<string, string> = {};
+                if (customerIds.length > 0) {
+                    const { data: customers } = await supabase
+                        .from('customers')
+                        .select('id, name_ar, name_en')
+                        .in('id', customerIds);
+                    if (customers) {
+                        customers.forEach((c: any) => {
+                            customerNames[c.id] = c.name_ar || c.name_en || '';
+                        });
+                    }
+                }
+
+                salesInvoices.forEach((inv: any) => {
+                    const docNumber = inv.invoice_no || inv.draft_no || inv.id?.substring(0, 8);
+                    const customerDisplay = inv.customer_name || customerNames[inv.customer_id] || '';
+                    pending.push({
+                        id: inv.id,
+                        type: 'sale_invoice',
+                        source_type: 'sale_invoice',
+                        reference: docNumber,
+                        reference_label: `Sales #${docNumber}`,
+                        description: customerDisplay,
+                        supplier_name: customerDisplay, // re-use field for display
+                        status: 'ready',
+                        invoice_status: inv.stage || 'confirmed',
+                        stage: inv.stage || 'confirmed',
+                        delivery_draft: inv.delivery_draft || null,
+                        delivery_method: inv.delivery_method || null,
+                        items: 0,
+                        itemsUnit: 'items',
+                        arrivalDate: inv.doc_date,
+                        source_id: inv.id,
+                        source_table: 'sales_transactions',
+                        total_amount: inv.total_amount,
+                        currency: inv.currency,
+                        receipt_id: null,
+                        receipt_number: null,
+                        receipt_status: inv.stage === 'in_delivery' ? 'in_progress' : 'none',
+                        receipt_date: null,
+                        pending_since: inv.updated_at || inv.created_at,
+                        receipt_created_at: null,
+                        warehouse_id: inv.warehouse_id,
+                        created_at: inv.created_at,
+                    });
+                });
+            }
+        } catch (err: any) {
+            console.warn('getPendingReceipts [sales] exception:', err?.message);
         }
 
         return pending;
@@ -1070,13 +1354,50 @@ export const warehouseService = {
         branchId?: string;
         warehouseId: string;
         sourceDocumentId: string;
-        sourceDocumentType: 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction';
+        sourceDocumentType: 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction' | 'container';
         supplierId?: string;
         items: any[];
         createdBy?: string;
     }): Promise<{ id: string; receiptNumber: string } | null> {
         const isOrder = params.sourceDocumentType === 'purchase_order';
-        const receiptNumber = `GRN-DRAFT-${Date.now().toString(36).toUpperCase()}`;
+        const isContainer = params.sourceDocumentType === 'container';
+        const isInvoice = !isOrder && !isContainer;
+
+        // ══════════════════════════════════════════════════════════
+        // 🛡️ DUPLICATE GUARD — prevent creating multiple receipts
+        //    for the same source document
+        // ══════════════════════════════════════════════════════════
+        const matchField = isContainer ? 'container_id'
+            : isOrder ? 'order_id'
+                : 'invoice_id';
+
+        const { data: existingReceipts } = await supabase
+            .from('purchase_receipts')
+            .select('id, receipt_number, status')
+            .eq('company_id', params.companyId)
+            .eq(matchField, params.sourceDocumentId)
+            .not('status', 'in', '("cancelled","rejected")');
+
+        if (existingReceipts && existingReceipts.length > 0) {
+            const existing = existingReceipts[0];
+
+            // If there's an active draft → resume it (return it instead of creating)
+            if (existing.status === 'draft' || existing.status === 'in_progress') {
+                console.log('🔄 Resuming existing draft receipt:', existing.receipt_number);
+                return { id: existing.id, receiptNumber: existing.receipt_number };
+            }
+
+            // If already completed → block creation
+            if (existing.status === 'completed') {
+                console.warn('⛔ Receipt already completed for this document:', existing.receipt_number);
+                throw new Error(
+                    `تم استلام هذه الوثيقة مسبقاً (${existing.receipt_number}). لا يمكن تكرار الاستلام.`
+                );
+            }
+        }
+        // ══════════════════════════════════════════════════════════
+
+        const receiptNumber = `GRN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
         const { data, error } = await supabase
             .from('purchase_receipts')
@@ -1086,13 +1407,19 @@ export const warehouseService = {
                 branch_id: params.branchId || null,
                 receipt_number: receiptNumber,
                 receipt_date: new Date().toISOString().split('T')[0],
-                receipt_type: 'direct',
+                receipt_type: isContainer ? 'container' : 'direct',
                 order_id: isOrder ? params.sourceDocumentId : null,
-                invoice_id: !isOrder ? params.sourceDocumentId : null,
+                invoice_id: isInvoice ? params.sourceDocumentId : null,
+                container_id: isContainer ? params.sourceDocumentId : null,
                 supplier_id: params.supplierId || null,
                 warehouse_id: params.warehouseId,
                 status: 'draft',
-                draft_data: { items: params.items, savedAt: new Date().toISOString() },
+                draft_data: {
+                    items: params.items,
+                    savedAt: new Date().toISOString(),
+                    started_at: new Date().toISOString(),
+                    started_by: params.createdBy || null,
+                },
                 notes: 'Draft receipt - in progress',
                 created_by: params.createdBy || null,
             })
@@ -1104,6 +1431,26 @@ export const warehouseService = {
             return null;
         }
 
+        // 🎛️ Tell DSS: receipt started — updates all linked documents atomically
+        if (data?.id) {
+            const docType = isContainer ? 'container'
+                : isOrder ? 'purchase_order'
+                    : params.sourceDocumentType === 'purchase_transaction' ? 'purchase_transaction'
+                        : 'purchase_invoice';
+
+            const dssResult = await DSS.onReceiptStarted({
+                documentType: docType,
+                documentId: params.sourceDocumentId,
+                companyId: params.companyId,
+                receiptId: data.id,
+            });
+            if (dssResult.success) {
+                console.log('🎛️ [DSS] Receipt started — updated:', dssResult.updatedTables.join(', '));
+            } else {
+                console.warn('⚠️ [DSS] onReceiptStarted partial failure:', dssResult.error);
+            }
+        }
+
         console.log('📝 Draft receipt created:', data?.id);
         return data ? { id: data.id, receiptNumber: data.receipt_number } : null;
     },
@@ -1112,10 +1459,24 @@ export const warehouseService = {
      * Update draft receipt items (auto-save during editing)
      */
     async updateDraftReceipt(receiptId: string, items: any[]): Promise<boolean> {
+        // First fetch existing draft_data to preserve started_at
+        const { data: existing } = await supabase
+            .from('purchase_receipts')
+            .select('draft_data')
+            .eq('id', receiptId)
+            .maybeSingle();
+
+        const prevData = (existing?.draft_data as any) || {};
+
         const { error } = await supabase
             .from('purchase_receipts')
             .update({
-                draft_data: { items, savedAt: new Date().toISOString() },
+                draft_data: {
+                    items,
+                    savedAt: new Date().toISOString(),
+                    started_at: prevData.started_at || new Date().toISOString(),
+                    started_by: prevData.started_by || null,
+                },
                 updated_at: new Date().toISOString(),
             })
             .eq('id', receiptId)
@@ -1138,7 +1499,7 @@ export const warehouseService = {
             .select('id, draft_data, warehouse_id')
             .eq('id', receiptId)
             .eq('status', 'draft')
-            .single();
+            .maybeSingle();
 
         if (error || !data?.draft_data) {
             return null;
@@ -1151,19 +1512,197 @@ export const warehouseService = {
     },
 
     /**
-     * Delete a draft receipt (when user cancels)
+     * 🔄 Reverse a receipt's journal entry (called before deleting any receipt)
+     * يعكس القيد المحاسبي لإذن الاستلام لحماية سلامة البيانات المالية
+     */
+    async reverseReceiptJournalEntry(receiptId: string): Promise<boolean> {
+        try {
+            // Fetch the receipt and its journal entry
+            const { data: receipt } = await supabase
+                .from('purchase_receipts')
+                .select('id, receipt_number, journal_entry_id, tenant_id, company_id')
+                .eq('id', receiptId)
+                .maybeSingle();
+
+            if (!receipt?.journal_entry_id) {
+                console.log('ℹ️ Receipt has no journal_entry_id — no reversal needed');
+                return true;
+            }
+
+            const jeId = receipt.journal_entry_id;
+
+            // Check if reversal already exists
+            const { data: existingRev } = await supabase
+                .from('journal_entries')
+                .select('id, entry_number')
+                .ilike('entry_number', `REV-GRN-%`)
+                .ilike('description', `%${receipt.receipt_number}%`)
+                .limit(1);
+
+            if (existingRev?.length) {
+                console.log('ℹ️ Reversal already exists:', existingRev[0].entry_number);
+                return true;
+            }
+
+            // Get original journal entry
+            const { data: origEntry } = await supabase
+                .from('journal_entries')
+                .select('id, entry_number, entry_date, description, total_debit, total_credit, tenant_id, company_id')
+                .eq('id', jeId)
+                .single();
+
+            if (!origEntry) {
+                console.warn('⚠️ Original journal entry not found:', jeId);
+                return true; // non-fatal
+            }
+
+            // Get user
+            const { data: { user } } = await supabase.auth.getUser();
+
+            // Create reversal entry
+            const reversalNumber = `REV-${origEntry.entry_number}`;
+            const { data: revEntry, error: revErr } = await supabase
+                .from('journal_entries')
+                .insert({
+                    tenant_id: origEntry.tenant_id || receipt.tenant_id,
+                    company_id: origEntry.company_id || receipt.company_id,
+                    entry_number: reversalNumber,
+                    entry_date: new Date().toISOString().split('T')[0],
+                    description: `إبطال قيد استلام محذوف — ${origEntry.entry_number} (${receipt.receipt_number})`,
+                    status: 'posted',
+                    total_debit: Number(origEntry.total_credit || 0),
+                    total_credit: Number(origEntry.total_debit || 0),
+                    created_by: user?.id,
+                    notes: `Auto-reversal on receipt deletion. Original: ${origEntry.entry_number}`,
+                })
+                .select('id')
+                .single();
+
+            if (revErr || !revEntry) {
+                console.error('❌ Failed to create reversal entry:', revErr?.message);
+                return false;
+            }
+
+            // Get original lines and reverse them
+            const { data: origLines } = await supabase
+                .from('journal_entry_lines')
+                .select('account_id, debit, credit, currency, exchange_rate, description, tenant_id')
+                .eq('entry_id', jeId);
+
+            if (origLines?.length) {
+                const reversalLines = origLines.map(l => ({
+                    tenant_id: l.tenant_id,
+                    entry_id: revEntry.id,
+                    account_id: l.account_id,
+                    debit: Number(l.credit || 0),   // Swap debit ↔ credit
+                    credit: Number(l.debit || 0),
+                    currency: l.currency || 'USD',
+                    exchange_rate: l.exchange_rate || 1,
+                    description: `عكس: ${l.description || origEntry.description}`,
+                }));
+
+                const { error: rlErr } = await supabase
+                    .from('journal_entry_lines')
+                    .insert(reversalLines);
+
+                if (rlErr) {
+                    console.error('❌ Failed to insert reversal lines:', rlErr.message);
+                } else {
+                    console.log(`✅ Reversal entry created: ${reversalNumber} (${reversalLines.length} lines)`);
+                }
+            }
+
+            // Mark original entry as reversed
+            await supabase
+                .from('journal_entries')
+                .update({
+                    status: 'voided',
+                    description: `${origEntry.description} [مُبطَل - استلام محذوف]`,
+                    notes: `Reversed by ${reversalNumber}`,
+                })
+                .eq('id', jeId);
+
+            return true;
+        } catch (err: any) {
+            console.error('❌ reverseReceiptJournalEntry error:', err?.message);
+            return false; // non-fatal — deletion can still proceed
+        }
+    },
+
+    /**
+      * Delete a draft receipt (when user cancels) and unlock the source document
      */
     async deleteDraftReceipt(receiptId: string): Promise<boolean> {
-        const { error } = await supabase
+        // First, fetch the draft to know which source document to unlock
+        const { data: draft, error: fetchErr } = await supabase
             .from('purchase_receipts')
-            .delete()
+            .select('id, invoice_id, order_id, container_id, company_id, journal_entry_id, status')
             .eq('id', receiptId)
-            .eq('status', 'draft');
+            .maybeSingle();
+
+        if (fetchErr || !draft) {
+            console.error('❌ Failed to find draft receipt for deletion:', fetchErr?.message);
+            return false;
+        }
+
+        // 🔄 CRITICAL: Reverse journal entry BEFORE deletion (prevents orphaned accounting entries)
+        // This applies even to drafts that may have had a journal entry created
+        if (draft.journal_entry_id) {
+            console.log('🔄 Reversing journal entry before receipt deletion...');
+            await this.reverseReceiptJournalEntry(receiptId);
+        }
+
+        // Delete ALL drafts for this source document (cleans up any older duplicate/ghost drafts)
+        let query = supabase.from('purchase_receipts').delete().eq('status', 'draft');
+
+        if (draft.container_id) query = query.eq('container_id', draft.container_id);
+        else if (draft.invoice_id) query = query.eq('invoice_id', draft.invoice_id);
+        else if (draft.order_id) query = query.eq('order_id', draft.order_id);
+        else query = query.eq('id', receiptId);
+
+        const { error } = await query;
 
         if (error) {
             console.error('❌ Failed to delete draft receipt:', error.message);
             return false;
         }
+
+        // 🔓 Unlock source document via DSS (centralized reversal)
+        try {
+            const companyId = draft.company_id;
+            if (companyId) {
+                if (draft.container_id) {
+                    await DSS.onReceiptCancelled({
+                        documentType: 'container',
+                        documentId: draft.container_id,
+                        companyId,
+                        receiptId,
+                        hadPreviousReceipts: false,
+                    });
+                } else if (draft.invoice_id) {
+                    await DSS.onReceiptCancelled({
+                        documentType: 'purchase_invoice',
+                        documentId: draft.invoice_id,
+                        companyId,
+                        receiptId,
+                        hadPreviousReceipts: false,
+                    });
+                } else if (draft.order_id) {
+                    await DSS.onReceiptCancelled({
+                        documentType: 'purchase_order',
+                        documentId: draft.order_id,
+                        companyId,
+                        receiptId,
+                        hadPreviousReceipts: false,
+                    });
+                }
+            }
+            console.log('🔓 Source document unlocked via DSS after draft deletion');
+        } catch (unlockErr) {
+            console.warn('⚠️ DSS unlock failed (non-fatal):', unlockErr);
+        }
+
+        console.log('🗑️ Draft receipt deleted:', receiptId);
         return true;
     },
 
@@ -1413,6 +1952,11 @@ export const warehouseService = {
         reserved_length: number;
         available_length: number;
         status: string;
+        // ─── Color info ───
+        color_id?: string;
+        color_name_ar?: string;
+        color_name_en?: string;
+        color_hex?: string;
         supplier_name?: string;
         received_date?: string;
         created_at: string;
@@ -1424,6 +1968,7 @@ export const warehouseService = {
                     id,
                     roll_number,
                     warehouse_id,
+                    color_id,
                     initial_length,
                     current_length,
                     reserved_length,
@@ -1431,7 +1976,8 @@ export const warehouseService = {
                     status,
                     cost_per_meter,
                     created_at,
-                    warehouse: warehouses(name_ar, name_en)
+                    warehouse: warehouses!left(name_ar, name_en),
+                    color: fabric_colors!left(id, name_ar, name_en, hex_code)
                     `)
                 .eq('company_id', companyId)
                 .eq('material_id', materialId)
@@ -1463,6 +2009,11 @@ export const warehouseService = {
                 reserved_length: Number(roll.reserved_length) || 0,
                 available_length: Number(roll.available_length) || 0,
                 status: roll.status,
+                // Color info — attached to each roll
+                color_id: roll.color_id || undefined,
+                color_name_ar: roll.color?.name_ar || undefined,
+                color_name_en: roll.color?.name_en || undefined,
+                color_hex: roll.color?.hex_code || undefined,
                 supplier_name: undefined,
                 received_date: undefined,
                 created_at: roll.created_at,

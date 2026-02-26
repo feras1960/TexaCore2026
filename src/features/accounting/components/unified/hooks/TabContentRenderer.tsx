@@ -9,8 +9,11 @@ import React, { lazy, Suspense, useCallback } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { journalEntriesService } from '@/services/journalEntriesService';
 import { recalcItemTotals, resolveConfDocType } from '../hooks/useSheetActions';
-import type { SheetMode, LedgerEntry, OpenDocument } from '../types';
+import type { SheetMode, OpenDocument } from '../types';
+import { supabase } from '@/lib/supabase';
+import { TradeService } from '@/features/trade/services/TradeService';
 
 // ═══ Eager imports (always needed for core tabs) ═══
 import { OverviewTab } from '../tabs/OverviewTab';
@@ -19,6 +22,7 @@ import { AccountingEntryTab } from '../tabs/AccountingEntryTab';
 // ═══ Lazy imports (loaded on demand per tab) ═══
 const LedgerTab = lazy(() => import('../tabs/LedgerTab').then(m => ({ default: m.LedgerTab })));
 const ActivityTab = lazy(() => import('../tabs/ActivityTab').then(m => ({ default: m.ActivityTab })));
+const ActivityTabV2 = lazy(() => import('../tabs/ActivityTabV2').then(m => ({ default: m.ActivityTabV2 })));
 
 // Warehouse
 const WarehouseOverviewTab = lazy(() => import('../tabs/WarehouseOverviewTab').then(m => ({ default: m.WarehouseOverviewTab })));
@@ -54,12 +58,23 @@ const PurchasePaymentTab = lazy(() => import('@/features/trade/components/tabs/P
 const ShipmentItemsTab = lazy(() => import('@/features/trade/components/tabs/ShipmentItemsTab').then(m => ({ default: m.ShipmentItemsTab })));
 const DocumentAttachmentsTab = lazy(() => import('@/features/trade/components/tabs/DocumentAttachmentsTab').then(m => ({ default: m.DocumentAttachmentsTab })));
 const SupplierFinanceTab = lazy(() => import('@/features/trade/components/tabs/SupplierFinanceTab').then(m => ({ default: m.SupplierFinanceTab })));
+const SalesFinanceTab = lazy(() => import('@/features/trade/components/tabs/SalesFinanceTab').then(m => ({ default: m.SalesFinanceTab })));
 const StageJournalPreview = lazy(() => import('@/features/trade/components/shared/StageJournalPreview').then(m => ({ default: m.StageJournalPreview })));
 
 // Warehouse receipt
 const GoodsReceiptItemsTab = lazy(() => import('@/features/warehouse/components/tabs/GoodsReceiptItemsTab').then(m => ({ default: m.GoodsReceiptItemsTab })));
 const ReceiptSummaryTab = lazy(() => import('@/features/warehouse/components/tabs/ReceiptSummaryTab').then(m => ({ default: m.ReceiptSummaryTab })));
 const ContainerExpensesTab = lazy(() => import('../tabs/ContainerExpensesTab').then(m => ({ default: m.ContainerExpensesTab })));
+const ContainerReceiptSummaryTab = lazy(() => import('../tabs/ContainerReceiptSummaryTab').then(m => ({ default: m.ContainerReceiptSummaryTab })));
+
+// Sales Delivery (roll picking)
+const SalesDeliveryItemsTab = lazy(() => import('@/features/warehouse/tabs/SalesDeliveryItemsTab').then(m => ({ default: m.SalesDeliveryItemsTab })));
+const DeliverySummaryTab = lazy(() => import('@/features/warehouse/tabs/DeliverySummaryTab').then(m => ({ default: m.DeliverySummaryTab })));
+const DeliveryInfoTab = lazy(() => import('@/features/warehouse/tabs/DeliveryInfoTab').then(m => ({ default: m.DeliveryInfoTab })));
+
+// Party
+const PartyOverviewTab = lazy(() => import('../tabs/PartyOverviewTab').then(m => ({ default: m.PartyOverviewTab })));
+const PartyLedgerExpandedRow = lazy(() => import('../tabs/PartyLedgerExpandedRow').then(m => ({ default: m.PartyLedgerExpandedRow })));
 
 // CRM
 const ContactOverviewTab = lazy(() => import('../tabs/ContactOverviewTab').then(m => ({ default: m.ContactOverviewTab })));
@@ -98,7 +113,6 @@ export interface TabContentRendererProps {
     setActiveDocId: React.Dispatch<React.SetStateAction<string>>;
     // Config
     stats?: any;
-    mockLedgerEntries: LedgerEntry[];
 }
 
 // ═══ Shared onChange handler builder ═══
@@ -110,13 +124,13 @@ function makeOnChange(setData: (fn: any) => void, setHasChanges: (v: boolean) =>
 }
 
 export function useTabContentRenderer(props: TabContentRendererProps) {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const {
         data, mode, docType, tradeMode, loading, companyId, documentId,
         currentStage, options, useArabicNumerals,
         setData, setHasChanges, onClose, onRefresh,
         openDocs, setOpenDocs, setActiveDocId,
-        stats, mockLedgerEntries,
+        stats,
     } = props;
 
     const onChange = useCallback(makeOnChange(setData, setHasChanges), [setData, setHasChanges]);
@@ -128,7 +142,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
             return <Suspense fallback={<TabLoading />}>{content}</Suspense>;
         }
         return content;
-    }, [data, mode, docType, tradeMode, loading, companyId, documentId, currentStage, options, useArabicNumerals, onChange, openDocs, mockLedgerEntries]);
+    }, [data, mode, docType, tradeMode, loading, companyId, documentId, currentStage, options, useArabicNumerals, onChange, openDocs]);
 
     function renderTabContentInner(tabId: string): React.ReactNode {
         switch (tabId) {
@@ -162,13 +176,31 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                 if (docType === 'material') {
                     return <MaterialOverviewTab data={data} mode={mode} groups={options?.groups} onChange={onChange} />;
                 }
+                if (docType === 'party' || docType === 'account') {
+                    return (
+                        <Suspense fallback={<TabLoading />}>
+                            <PartyOverviewTab
+                                data={data}
+                                mode={mode}
+                                onChange={onChange}
+                                companyId={companyId}
+                            />
+                        </Suspense>
+                    );
+                }
                 return (
-                    <OverviewTab
-                        data={data}
-                        stats={stats}
-                        currency={data?.currency || ''}
-                        useArabicNumerals={useArabicNumerals}
-                    />
+                    <Suspense fallback={<TabLoading />}>
+                        <OverviewTab
+                            data={data}
+                            stats={stats}
+                            currency={data?.currency || ''}
+                            useArabicNumerals={useArabicNumerals}
+                            mode={mode}
+                            onChange={(field: string, value: any) => onChange({ [field]: value })}
+                            companyId={companyId}
+                            allAccounts={options?.allAccounts}
+                        />
+                    </Suspense>
                 );
 
             case 'variants':
@@ -203,62 +235,164 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                 if (docType === 'material') return <MaterialAnalyticsTab data={data} />;
                 break;
 
-            case 'ledger':
+            case 'ledger': {
+                // For parties, use their accounting sub-account ID
+                let ledgerAccountId = data?.id || documentId || '';
+                if (docType === 'party') {
+                    const partyType = data?._partyType || data?.party_type || data?.type || 'customer';
+                    ledgerAccountId = partyType === 'customer'
+                        ? (data?.receivable_account_id || '')
+                        : (data?.payable_account_id || '');
+                }
                 return (
                     <LedgerTab
-                        entries={mockLedgerEntries}
-                        loading={loading}
+                        accountId={ledgerAccountId}
+                        companyId={companyId || ''}
                         currency={data?.currency || ''}
-                        useArabicNumerals={useArabicNumerals}
-                        openingBalance={data?.opening_balance || 0}
-                        closingBalance={data?.current_balance || data?.balance || 0}
-                        totalDebit={data?.total_debit || 0}
-                        totalCredit={data?.total_credit || 0}
-                        onEntryClick={(entry) => console.log('Entry clicked:', entry)}
-                        onEntryOpen={(entry) => {
-                            const newDocId = entry.id;
-                            const existingDoc = openDocs.find(d => d.id === newDocId);
+                        partyMode={true}
+                        renderExpandedRowOverride={(row) => (
+                            <Suspense fallback={<div className="flex items-center justify-center py-4"><Loader2 className="w-4 h-4 animate-spin" /></div>}>
+                                <PartyLedgerExpandedRow
+                                    entry={row}
+                                    currency={data?.currency || ''}
+                                    onOpenEntry={async (entry) => {
+                                        // Simplified for now - just delegate to the parent's onEntryOpen
+                                    }}
+                                />
+                            </Suspense>
+                        )}
+                        onEntryOpen={async (entry) => {
+                            // Determine the correct document type and ID to open
+                            const refType = entry.referenceType || '';
+                            const entryType = (entry as any).entryType || '';
+                            const refId = entry.referenceId;
+
+                            // Map reference_type to document type for MDI
+                            let docType: string = 'journal';
+                            let tradeModeExt: 'sales' | 'purchase' | undefined = undefined;
+                            let lastActiveTabExt: string | undefined = undefined;
+                            let docId = entry.entryId;
+                            let docTitle = entry.entryNumber || entry.description || 'Entry';
+                            let typeIcon = '📋';
+
+                            if (refId) {
+                                if (refType.includes('sales_invoice') || refType === 'sales' || refType.includes('sales_order')) {
+                                    docType = 'trade_invoice';
+                                    tradeModeExt = 'sales';
+                                    docId = refId;
+                                    typeIcon = '🧾';
+                                    docTitle = `${language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice'}`;
+                                    if (refType.includes('order')) {
+                                        docType = 'trade_order';
+                                        docTitle = `${language === 'ar' ? 'أمر بيع' : 'Sales Order'}`;
+                                    }
+                                } else if (refType.includes('purchase_invoice') || refType === 'purchase' || refType.includes('purchase_order')) {
+                                    docType = 'trade_invoice';
+                                    tradeModeExt = 'purchase';
+                                    docId = refId;
+                                    typeIcon = '📦';
+                                    docTitle = `${language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice'}`;
+                                    if (refType.includes('order')) {
+                                        docType = 'trade_order';
+                                        docTitle = `${language === 'ar' ? 'أمر شراء' : 'Purchase Order'}`;
+                                    }
+                                } else if (refType.includes('payment') || refType === 'PAY') {
+                                    docType = 'payment';
+                                    docId = refId;
+                                    typeIcon = '💸';
+                                    docTitle = `${language === 'ar' ? 'سند صرف' : 'Payment'}`;
+                                } else if (refType.includes('receipt') || refType === 'RCT') {
+                                    docType = 'receipt';
+                                    docId = refId;
+                                    typeIcon = '💰';
+                                    docTitle = `${language === 'ar' ? 'سند قبض' : 'Receipt'}`;
+                                } else if (refType.includes('container') || refType.includes('shipment')) {
+                                    docType = 'trade_container';
+                                    docId = refId;
+                                    typeIcon = '🚢';
+                                    docTitle = `${language === 'ar' ? 'كونتينر' : 'Container'}`;
+                                    if (refType.includes('expense') || refType.includes('tax') || entryType === 'container_expense') {
+                                        lastActiveTabExt = 'expenses';
+                                    }
+                                } else if (refType.includes('expense') || entryType.includes('expense')) {
+                                    docType = 'expense';
+                                    docId = refId;
+                                    typeIcon = '💳';
+                                    docTitle = `${language === 'ar' ? 'مصروف' : 'Expense'}`;
+                                } else if (refType.includes('transfer') || refType === 'TRF') {
+                                    docType = 'transfer';
+                                    docId = refId;
+                                    typeIcon = '🔄';
+                                    docTitle = `${language === 'ar' ? 'تحويل' : 'Transfer'}`;
+                                }
+                            }
+
+                            // Check if already open
+                            const existingDoc = openDocs.find(d => d.id === docId);
                             if (existingDoc) {
-                                setActiveDocId(newDocId);
-                            } else {
+                                setActiveDocId(docId);
+                                return;
+                            }
+
+                            try {
+                                let docData: any = null;
+
+                                if (docType === 'journal' || !refId) {
+                                    docData = await journalEntriesService.getById(entry.entryId);
+                                } else if (docType === 'trade_invoice' || docType === 'trade_order' || docType === 'trade_delivery') {
+                                    // Fetch trade document — strip 'trade_' prefix for TradeService mapping
+                                    const tradeDocType = docType.replace('trade_', '');
+                                    const { header, items } = await TradeService.getTradeDocumentWithItems(refId, tradeDocType);
+                                    docData = { ...header, items, _sourceEntryId: entry.entryId };
+                                    if (!docData.invoice_no && docData.number) docData.invoice_no = docData.number; // Compatibility
+                                } else if (docType === 'trade_container') {
+                                    const { data, error } = await supabase.from('containers').select('*').eq('id', refId).single();
+                                    if (error) throw error;
+                                    docData = { ...data, _sourceEntryId: entry.entryId };
+                                } else if (docType === 'receipt') {
+                                    const { data, error } = await supabase.from('cash_receipts').select('*').eq('id', refId).single();
+                                    if (error) throw error;
+                                    docData = { ...data, _sourceEntryId: entry.entryId };
+                                } else if (docType === 'payment') {
+                                    const { data, error } = await supabase.from('payment_transactions').select('*').eq('id', refId).single();
+                                    if (error) throw error;
+                                    docData = { ...data, _sourceEntryId: entry.entryId };
+                                } else {
+                                    // Fallback to journal entry if type is unrecognized but we have a ref
+                                    docData = await journalEntriesService.getById(entry.entryId);
+                                    docData._sourceRefId = refId;
+                                    docData._sourceRefType = refType;
+                                }
+
                                 setOpenDocs(prev => [...prev, {
-                                    id: newDocId,
-                                    type: 'journal' as const,
-                                    title: entry.entry_number || entry.description || 'Entry',
-                                    titleAr: entry.entry_number || entry.description,
-                                    code: entry.entry_number,
-                                    data: entry,
+                                    id: docId,
+                                    type: docType as any,
+                                    title: `${typeIcon} ${docTitle}`,
+                                    titleAr: docTitle,
+                                    code: docData?.invoice_no || docData?.number || docData?.container_number || docData?.receipt_number || docData?.payment_number || entry.entryNumber,
+                                    data: docData,
                                     isClosable: true,
+                                    tradeMode: tradeModeExt,
+                                    lastActiveTab: lastActiveTabExt,
                                 }]);
-                                setActiveDocId(newDocId);
+                                // Don't auto-activate: let user click the tab to switch
+                                // setActiveDocId(docId);
+                            } catch (err) {
+                                console.error('Error opening document:', err);
                             }
                         }}
                     />
                 );
+            }
 
             case 'activity': {
-                const resolveEntityType = () => {
-                    if (tradeMode === 'purchase') {
-                        const map: Record<string, string> = {
-                            trade_order: 'purchase_orders', trade_invoice: 'purchase_transactions',
-                            trade_quotation: 'purchase_quotations', trade_request: 'purchase_requests',
-                            trade_receipt: 'purchase_receipts', trade_return: 'purchase_returns',
-                            trade_container: 'shipments',
-                        };
-                        return map[docType];
-                    }
-                    const map: Record<string, string> = {
-                        trade_order: 'sales_orders', trade_invoice: 'sales_transactions',
-                        trade_quotation: 'quotations', trade_delivery: 'sales_deliveries',
-                        trade_return: 'sales_returns',
-                    };
-                    return map[docType];
-                };
                 return (
-                    <ActivityTab
+                    <ActivityTabV2
                         documentId={documentId || data?.id}
-                        entityType={resolveEntityType()}
-                        useArabicNumerals={useArabicNumerals}
+                        docType={docType}
+                        tradeMode={tradeMode}
+                        mode={mode}
+                        onChange={onChange}
                     />
                 );
             }
@@ -340,6 +474,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         currency={data?.currency || ''}
                         readOnly={mode === 'view'}
                         supplierId={data?.supplier_id}
+                        receiptMode={data?.receipt_mode}
                     />
                 );
 
@@ -358,6 +493,9 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'expenses':
                 return <ContainerExpensesTab data={data} mode={mode} onChange={onChange} />;
+
+            case 'receipt_summary':
+                return <ContainerReceiptSummaryTab data={data} mode={mode} />;
 
             case 'nexa_agent':
                 return <NexaAgentTab data={data} mode={mode} onChange={onChange} />;
@@ -381,6 +519,19 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                     />
                 );
 
+            case 'sales_finance':
+                return (
+                    <SalesFinanceTab
+                        data={data}
+                        mode={mode}
+                        onChange={onChange}
+                        currentStage={currentStage || data?.stage || 'draft'}
+                        transactionType="sale"
+                        isLoading={false}
+                        companyId={companyId}
+                    />
+                );
+
             case 'journal_preview': {
                 const jpItems = data?.items || data?.purchase_transaction_items || data?.sale_items || [];
                 const jpTotals = jpItems.length > 0 ? recalcItemTotals(jpItems) : null;
@@ -391,10 +542,12 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         totalAmount={jpNet}
                         taxAmount={jpTotals?.tax_amount || Number(data?.tax_amount || 0)}
                         discountAmount={jpTotals?.discount_amount || Number(data?.discount_amount || 0)}
-                        supplierName={data?.supplier_name || data?.party_name || ''}
+                        supplierName={tradeMode === 'sales' ? (data?.customer_name || data?.party_name || '') : (data?.supplier_name || data?.party_name || '')}
                         currency={data?.currency || ''}
                         transactionType={tradeMode === 'sales' ? 'sale' : 'purchase'}
                         companyId={companyId}
+                        journalEntryId={data?.journal_entry_id}
+                        partyId={data?.customer_id || data?.supplier_id || data?.party_id}
                     />
                 );
             }
@@ -418,8 +571,33 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                     />
                 );
 
-            case 'receipt_summary':
-                return <ReceiptSummaryTab data={data} mode={mode} onChange={onChange} />;
+            // ═══ Sales Delivery (roll picking) ═══
+            case 'sales_delivery_items':
+                return (
+                    <SalesDeliveryItemsTab
+                        data={data}
+                        mode={mode}
+                        onChange={onChange}
+                    />
+                );
+
+            case 'delivery_summary':
+                return (
+                    <DeliverySummaryTab
+                        data={data}
+                        mode={mode}
+                        onChange={onChange}
+                    />
+                );
+
+            case 'delivery_info':
+                return (
+                    <DeliveryInfoTab
+                        data={data}
+                        mode={mode}
+                        onChange={onChange}
+                    />
+                );
 
             // ═══ CRM Contact Tabs ═══
             case 'contactOverview':

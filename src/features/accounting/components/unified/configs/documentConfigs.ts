@@ -20,7 +20,7 @@ export const accountConfig: DocumentConfig = {
             id: 'overview',
             labelKey: 'accounting.tabs.overview',
             icon: 'LayoutDashboard',
-            component: 'OverviewTab',
+            component: 'PartyOverviewTab',
         },
         {
             id: 'ledger',
@@ -29,29 +29,16 @@ export const accountConfig: DocumentConfig = {
             component: 'LedgerTab',
         },
         {
-            id: 'documents',
-            labelKey: 'accounting.tabs.documents',
-            icon: 'Files',
-            component: 'DocumentsTab',
-        },
-        {
-            id: 'payments',
-            labelKey: 'accounting.tabs.payments',
-            icon: 'CreditCard',
-            component: 'PaymentsTab',
-        },
-        {
-            id: 'analysis',
-            labelKey: 'accounting.tabs.analysis',
-            icon: 'BarChart3',
-            component: 'AnalysisTab',
-            badge: 'AI',
-        },
-        {
             id: 'activity',
             labelKey: 'accounting.tabs.activity',
             icon: 'Clock',
-            component: 'ActivityTab',
+            component: 'ActivityLogTab',
+        },
+        {
+            id: 'attachments',
+            labelKey: 'accounting.tabs.attachments',
+            icon: 'Paperclip',
+            component: 'AttachmentsTab',
         },
     ],
     actions: [
@@ -85,7 +72,8 @@ export const accountConfig: DocumentConfig = {
     stats: [
         {
             id: 'balance',
-            labelKey: 'accounting.account.balance',
+            labelKey: 'accounting.current_balance',
+            descriptionKey: 'accounting.stats.balance_desc',
             valueKey: 'current_balance',
             icon: 'Wallet',
             format: 'currency',
@@ -93,7 +81,8 @@ export const accountConfig: DocumentConfig = {
         },
         {
             id: 'debit',
-            labelKey: 'accounting.entry.debit',
+            labelKey: 'accounting.totalDebit',
+            descriptionKey: 'accounting.stats.debit_desc',
             valueKey: 'total_debit',
             icon: 'ArrowUpRight',
             format: 'currency',
@@ -101,7 +90,8 @@ export const accountConfig: DocumentConfig = {
         },
         {
             id: 'credit',
-            labelKey: 'accounting.entry.credit',
+            labelKey: 'accounting.totalCredit',
+            descriptionKey: 'accounting.stats.credit_desc',
             valueKey: 'total_credit',
             icon: 'ArrowDownRight',
             format: 'currency',
@@ -110,6 +100,7 @@ export const accountConfig: DocumentConfig = {
         {
             id: 'transactions',
             labelKey: 'accounting.transactionCount',
+            descriptionKey: 'accounting.stats.transactions_desc',
             valueKey: 'transaction_count',
             icon: 'Hash',
             format: 'number',
@@ -146,12 +137,7 @@ export const fundConfig: DocumentConfig = {
             icon: 'DollarSign',
             component: 'FundCurrenciesTab',
         },
-        {
-            id: 'activity',
-            labelKey: 'accounting.tabs.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-        },
+
     ],
     actions: [
         {
@@ -238,22 +224,16 @@ export const partyConfig: DocumentConfig = {
             component: 'LedgerTab',
         },
         {
-            id: 'invoices',
-            labelKey: 'accounting.tabs.invoices',
-            icon: 'Receipt',
-            component: 'InvoicesTab',
-        },
-        {
-            id: 'payments',
-            labelKey: 'accounting.tabs.payments',
-            icon: 'CreditCard',
-            component: 'PaymentsTab',
-        },
-        {
             id: 'activity',
             labelKey: 'accounting.tabs.activity',
             icon: 'Clock',
-            component: 'ActivityTab',
+            component: 'ActivityLogTab',
+        },
+        {
+            id: 'attachments',
+            labelKey: 'accounting.tabs.attachments',
+            icon: 'Paperclip',
+            component: 'AttachmentsTab',
         },
     ],
     actions: [
@@ -334,13 +314,7 @@ export const journalConfig: DocumentConfig = {
             component: 'AttachmentsTab',
             showInModes: ['view', 'edit'],
         },
-        {
-            id: 'activity',
-            labelKey: 'accounting.tabs.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-            showInModes: ['view'],
-        },
+
     ],
     actions: [
         {
@@ -439,13 +413,7 @@ export const cashConfig: DocumentConfig = {
             component: 'AttachmentsTab',
             showInModes: ['view', 'edit'],
         },
-        {
-            id: 'activity',
-            labelKey: 'accounting.tabs.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-            showInModes: ['view'],
-        },
+
     ],
     actions: [
         {
@@ -648,13 +616,7 @@ export const transferConfig: DocumentConfig = {
             icon: 'FileEdit',
             component: 'TransferFormTab',
         },
-        {
-            id: 'activity',
-            labelKey: 'accounting.tabs.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-            showInModes: ['view'],
-        },
+
     ],
     actions: [
         {
@@ -701,13 +663,7 @@ export const exchangeConfig: DocumentConfig = {
             icon: 'FileEdit',
             component: 'ExchangeFormTab',
         },
-        {
-            id: 'activity',
-            labelKey: 'accounting.tabs.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-            showInModes: ['view'],
-        },
+
     ],
     actions: [
         {
@@ -817,12 +773,7 @@ export const warehouseConfig: DocumentConfig = {
             icon: 'ClipboardList',
             component: 'WarehouseStocktakesTab',
         },
-        {
-            id: 'activity',
-            labelKey: 'common.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-        },
+
     ],
     actions: [
         {
@@ -919,13 +870,7 @@ export const materialConfig: DocumentConfig = {
             component: 'MaterialAnalyticsTab',
             showInModes: ['view'],
         },
-        {
-            id: 'activity',
-            labelKey: 'accounting.tabs.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-            showInModes: ['view'],
-        },
+
         // === Create/Edit Mode Tabs ===
         {
             id: 'basicInfo',
@@ -1175,13 +1120,7 @@ export const contactConfig: DocumentConfig = {
             icon: 'StickyNote',
             component: 'ContactNotesTab',
         },
-        {
-            id: 'activity',
-            labelKey: 'crm.activity',
-            icon: 'Clock',
-            component: 'ActivityTab',
-            showInModes: ['view'],
-        },
+
     ],
     actions: [
         {
@@ -1259,6 +1198,7 @@ import {
     tradeRequestConfig,
     tradeContainerConfig,
     goodsReceiptConfig,
+    salesDeliveryConfig,
     getTradeDocConfig,
 } from './tradeConfigs';
 
@@ -1290,6 +1230,7 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     trade_reservation: tradeReservationConfig,
     trade_container: tradeContainerConfig,
     goods_receipt: goodsReceiptConfig,
+    sales_delivery: salesDeliveryConfig,
 };
 
 // Get config by type — with optional tradeMode for smart tab selection

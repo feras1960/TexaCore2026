@@ -73,6 +73,10 @@ export function getCurrencySymbol(currency: string): string {
         BHD: 'د.ب',
         OMR: 'ر.ع',
         JOD: 'د.أ',
+        UAH: '₴',
+        TRY: '₺',
+        PLN: 'zł',
+        RON: 'lei',
     };
     return symbols[currency] || currency;
 }

@@ -476,14 +476,14 @@ export const paymentScheduleService = {
         return data || [];
     },
 
-    // ─── Generate Journal Entry Preview ───────────────
     generateJournalPreview(params: {
         totalAmount: number;
         paidAmount: number;
+        taxAmount?: number;
+        costAmount?: number;
         currency: string;
         customerName?: string;
         isRTL: boolean;
-        // Dynamic account codes from company_accounting_settings
         accountCodes?: {
             receivableCode?: string;
             receivableName?: string;
@@ -491,21 +491,35 @@ export const paymentScheduleService = {
             salesName?: string;
             cashCode?: string;
             cashName?: string;
+            taxOutputCode?: string;
+            taxOutputName?: string;
+            cogsCode?: string;
+            cogsName?: string;
+            inventoryCode?: string;
+            inventoryName?: string;
         };
+        partySubAccount?: {
+            code: string;
+            nameAr: string;
+            nameEn?: string;
+        } | null;
     }): JournalPreviewLine[] {
-        const { totalAmount, paidAmount, currency, customerName, isRTL, accountCodes } = params;
+        const { totalAmount, paidAmount, taxAmount = 0, costAmount = 0, currency, customerName, isRTL, accountCodes, partySubAccount } = params;
         const lines: JournalPreviewLine[] = [];
 
-        // Use dynamic codes from settings, or generic label if not provided
-        const arCode = accountCodes?.receivableCode || '—';
-        const arName = accountCodes?.receivableName || (isRTL ? 'ذمم مدينة — عملاء' : 'Accounts Receivable');
+        const arCode = partySubAccount?.code || accountCodes?.receivableCode || '—';
+        const arName = partySubAccount
+            ? (isRTL ? partySubAccount.nameAr : (partySubAccount.nameEn || partySubAccount.nameAr))
+            : (accountCodes?.receivableName || (isRTL ? 'ذمم مدينة — عملاء' : 'Accounts Receivable'));
         const salesCode = accountCodes?.salesCode || '—';
         const salesName = accountCodes?.salesName || (isRTL ? 'إيرادات المبيعات' : 'Sales Revenue');
         const cashCode = accountCodes?.cashCode || '—';
         const cashName = accountCodes?.cashName || (isRTL ? 'الصندوق / البنك' : 'Cash / Bank');
+        const taxCode = accountCodes?.taxOutputCode || '—';
+        const taxName = accountCodes?.taxOutputName || (isRTL ? 'ضريبة القيمة المضافة - مخرجات' : 'Output VAT');
+        const netAmount = totalAmount - taxAmount;
 
         if (totalAmount > 0) {
-            // Debit: Accounts Receivable
             lines.push({
                 account_name: arName,
                 account_code: arCode,
@@ -515,20 +529,45 @@ export const paymentScheduleService = {
                     ? `فاتورة بيع ${customerName || ''}`
                     : `Sales Invoice ${customerName || ''}`,
             });
-            // Credit: Sales Revenue
             lines.push({
                 account_name: salesName,
                 account_code: salesCode,
                 debit: 0,
-                credit: totalAmount,
+                credit: taxAmount > 0 ? netAmount : totalAmount,
                 description: isRTL
                     ? `إيرادات مبيعات ${customerName || ''}`
                     : `Sales revenue ${customerName || ''}`,
             });
+            if (taxAmount > 0) {
+                lines.push({
+                    account_name: taxName,
+                    account_code: taxCode,
+                    debit: 0,
+                    credit: taxAmount,
+                    description: isRTL
+                        ? `ضريبة مبيعات ${customerName || ''}`
+                        : `Sales tax ${customerName || ''}`,
+                });
+            }
+            if (costAmount > 0 && accountCodes?.cogsCode && accountCodes?.inventoryCode) {
+                lines.push({
+                    account_name: accountCodes.cogsName || (isRTL ? 'تكلفة البضاعة المباعة' : 'COGS'),
+                    account_code: accountCodes.cogsCode,
+                    debit: costAmount,
+                    credit: 0,
+                    description: isRTL ? 'تكلفة مبيعات' : 'Cost of goods sold',
+                });
+                lines.push({
+                    account_name: accountCodes.inventoryName || (isRTL ? 'المخزون' : 'Inventory'),
+                    account_code: accountCodes.inventoryCode,
+                    debit: 0,
+                    credit: costAmount,
+                    description: isRTL ? 'إخراج مخزون' : 'Inventory reduction',
+                });
+            }
         }
 
         if (paidAmount > 0) {
-            // Debit: Cash/Bank
             lines.push({
                 account_name: cashName,
                 account_code: cashCode,
@@ -538,7 +577,6 @@ export const paymentScheduleService = {
                     ? `استلام دفعة من ${customerName || 'العميل'}`
                     : `Payment received from ${customerName || 'customer'}`,
             });
-            // Credit: Accounts Receivable
             lines.push({
                 account_name: arName,
                 account_code: arCode,

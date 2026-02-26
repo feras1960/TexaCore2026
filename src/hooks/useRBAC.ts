@@ -15,7 +15,10 @@ import {
     Permission,
     ResourceType,
     UserResourceAccess,
-    AVAILABLE_MODULES
+    AVAILABLE_MODULES,
+    SpecialPermissions,
+    SpecialPermissionKey,
+    SPECIAL_PERMISSIONS_KEYS
 } from '@/services/rbacService';
 
 // ═══════════════════════════════════════════════════════════════
@@ -30,6 +33,7 @@ interface UseRBACReturn {
     userPermissions: Record<string, Permission[]>;
     userResources: Record<ResourceType, UserResourceAccess[]>;
     visibleModules: string[];
+    specialPermissions: SpecialPermissions;
 
     // Permission checks
     hasPermission: (module: string, permission: Permission) => boolean;
@@ -45,6 +49,10 @@ interface UseRBACReturn {
     canSee: (target: string, type?: 'page' | 'field' | 'module') => boolean;
     canSeeModule: (moduleCode: string) => boolean;
     getMaskValue: (targetType: string, targetName: string) => string | null;
+
+    // Special permission checks
+    hasSpecialPermission: (permName: SpecialPermissionKey) => boolean;
+    getSpecialPermissionKeys: () => typeof SPECIAL_PERMISSIONS_KEYS;
 
     // Role checks
     hasRole: (roleCode: string) => boolean;
@@ -93,6 +101,7 @@ export function useRBAC(): UseRBACReturn {
         cost_center: [],
     });
     const [visibleModules, setVisibleModules] = useState<string[]>(['dashboard']);
+    const [specialPermissions, setSpecialPermissions] = useState<SpecialPermissions>({});
     const [visibilityRules, setVisibilityRules] = useState<Map<string, { visible: boolean; maskValue?: string }>>(new Map());
 
     // Load user permissions on mount/user change
@@ -115,7 +124,8 @@ export function useRBAC(): UseRBACReturn {
                 userRoleAssignmentsResult,
                 permissionsResult,
                 resourcesResult,
-                modulesResult
+                modulesResult,
+                specialPermsResult
             ] = await Promise.all([
                 // 1. Load all roles (non-critical)
                 rbacService.getRoles().catch(e => {
@@ -148,6 +158,11 @@ export function useRBAC(): UseRBACReturn {
                     console.warn('Could not load modules:', e);
                     return ['dashboard'] as string[];
                 }),
+                // 6. Load special permissions
+                rbacService.getUserSpecialPermissions(user.id).catch(e => {
+                    console.warn('Could not load special permissions:', e);
+                    return {} as SpecialPermissions;
+                }),
             ]);
 
             setRoles(allRolesResult);
@@ -155,6 +170,7 @@ export function useRBAC(): UseRBACReturn {
             setUserPermissions(permissionsResult);
             setUserResources(resourcesResult);
             setVisibleModules(modulesResult.length > 0 ? modulesResult : ['dashboard']);
+            setSpecialPermissions(specialPermsResult);
 
         } catch (error) {
             console.error('Failed to load RBAC permissions:', error);
@@ -233,8 +249,8 @@ export function useRBAC(): UseRBACReturn {
         // This will be enhanced with async visibility rule checking
         const userRoleCodes = userRoles.map(r => r.code);
 
-        // Super admin and tenant owner can see everything
-        if (userRoleCodes.includes('super_admin') || userRoleCodes.includes('tenant_owner')) {
+        // Super admin, tenant owner, and company owner can see everything
+        if (userRoleCodes.includes('super_admin') || userRoleCodes.includes('tenant_owner') || userRoleCodes.includes('company_owner')) {
             return true;
         }
 
@@ -288,9 +304,9 @@ export function useRBAC(): UseRBACReturn {
         return hasRole('super_admin');
     }, [hasRole]);
 
-    // Any admin level (platform, tenant owner, or company admin)
+    // Any admin level (platform, tenant owner, company owner, or company admin)
     const isAdmin = useCallback((): boolean => {
-        return hasAnyRole(['super_admin', 'tenant_owner', 'company_admin']);
+        return hasAnyRole(['super_admin', 'tenant_owner', 'company_owner', 'company_admin']);
     }, [hasAnyRole]);
 
     // Tenant owner level (highest customer role)
@@ -300,7 +316,7 @@ export function useRBAC(): UseRBACReturn {
 
     // Company admin level
     const isCompanyAdmin = useCallback((): boolean => {
-        return hasAnyRole(['super_admin', 'tenant_owner', 'company_admin']);
+        return hasAnyRole(['super_admin', 'tenant_owner', 'company_owner', 'company_admin']);
     }, [hasAnyRole]);
 
     // ─────────────────────────────────────────────────────────────
@@ -316,6 +332,18 @@ export function useRBAC(): UseRBACReturn {
     }, [loadPermissions]);
 
     const getModules = useCallback(() => AVAILABLE_MODULES, []);
+
+    // ─────────────────────────────────────────────────────────────
+    // Special Permission Checks
+    // ─────────────────────────────────────────────────────────────
+
+    const hasSpecialPermission = useCallback((permName: SpecialPermissionKey): boolean => {
+        // super_admin and tenant_owner always true
+        if (userRoles.some(r => r.code === 'super_admin' || r.code === 'tenant_owner')) return true;
+        return specialPermissions[permName] === true;
+    }, [userRoles, specialPermissions]);
+
+    const getSpecialPermissionKeys = useCallback(() => SPECIAL_PERMISSIONS_KEYS, []);
 
     // ─────────────────────────────────────────────────────────────
     // Return
@@ -336,6 +364,7 @@ export function useRBAC(): UseRBACReturn {
         userPermissions,
         userResources,
         visibleModules,
+        specialPermissions,
 
         // Permission checks
         hasPermission,
@@ -363,6 +392,10 @@ export function useRBAC(): UseRBACReturn {
         // Utilities
         refreshPermissions,
         getModules,
+
+        // Special permissions
+        hasSpecialPermission,
+        getSpecialPermissionKeys,
     }), [
         loading,
         authLoading,
@@ -371,6 +404,7 @@ export function useRBAC(): UseRBACReturn {
         userPermissions,
         userResources,
         visibleModules,
+        specialPermissions,
         hasPermission,
         hasAnyPermission,
         hasAllPermissions,
@@ -388,6 +422,8 @@ export function useRBAC(): UseRBACReturn {
         isCompanyAdmin,
         refreshPermissions,
         getModules,
+        hasSpecialPermission,
+        getSpecialPermissionKeys,
     ]);
 }
 
@@ -402,6 +438,7 @@ interface PermissionGuardProps {
     requireAll?: boolean;
     role?: string;
     roles?: string[];
+    specialPermission?: SpecialPermissionKey;
     resource?: { type: ResourceType; id: string; permission?: keyof UserResourceAccess['permissions'] };
     target?: string;
     targetType?: 'page' | 'field' | 'module';
@@ -419,6 +456,7 @@ export function PermissionGuard({
     requireAll = false,
     role,
     roles,
+    specialPermission,
     resource,
     target,
     targetType = 'page',
@@ -432,11 +470,17 @@ export function PermissionGuard({
         hasRole,
         hasAnyRole,
         hasResourceAccess,
+        hasSpecialPermission,
         canSee,
         loading,
     } = useRBAC();
 
     if (loading) {
+        return fallback;
+    }
+
+    // Check special permission
+    if (specialPermission && !hasSpecialPermission(specialPermission)) {
         return fallback;
     }
 

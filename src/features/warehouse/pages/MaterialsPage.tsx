@@ -65,6 +65,10 @@ interface Material {
     is_active: boolean;
     is_group?: boolean;
     parent_id?: string;
+    parent_material_id?: string;
+    variant_id?: string;
+    has_variants?: boolean;
+    is_variant_parent?: boolean;
     created_at: string;
 }
 
@@ -333,8 +337,10 @@ export default function MaterialsPage() {
         // Second pass: build tree
         mats.forEach((material) => {
             const node = materialMap.get(material.id)!;
-            if (material.parent_id) {
-                const parent = materialMap.get(material.parent_id);
+            // Use parent_id (for groups) or parent_material_id (for variants)
+            const parentId = material.parent_id || material.parent_material_id;
+            if (parentId) {
+                const parent = materialMap.get(parentId);
                 if (parent) {
                     if (!parent.children) parent.children = [];
                     parent.children.push(node);
@@ -414,12 +420,21 @@ export default function MaterialsPage() {
                 <div className="flex items-center gap-2" style={{ paddingInlineStart: `${(row.level || 0) * 8}px` }}>
                     {row.is_group ? (
                         <Folder className="w-4 h-4 text-erp-teal flex-shrink-0" />
+                    ) : row.is_variant_parent ? (
+                        <Layers className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                    ) : row.variant_id ? (
+                        <span className="w-4 h-4 flex items-center justify-center text-[10px] flex-shrink-0">↳</span>
                     ) : (
                         <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     )}
-                    <span className="font-tajawal">
+                    <span className={cn("font-tajawal", row.variant_id && "text-gray-600 dark:text-gray-400")}>
                         {language === 'ar' ? row.name_ar : (row.name_en || row.name_ar)}
                     </span>
+                    {row.is_variant_parent && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-purple-50 text-purple-600 border-purple-200">
+                            {language === 'ar' ? 'أم' : 'Parent'}
+                        </Badge>
+                    )}
                 </div>
             ),
         },

@@ -19,6 +19,8 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 interface EntryActionToolbarProps {
     mode: 'view' | 'edit' | 'create';
     status?: string;
+    isProtected?: boolean;
+    protectedSource?: string;
     onEdit?: () => void;
     onPrint?: () => void;
     onCopy?: () => void;
@@ -34,6 +36,8 @@ interface EntryActionToolbarProps {
 export function EntryActionToolbar({
     mode,
     status = 'draft',
+    isProtected = false,
+    protectedSource = '',
     onEdit,
     onPrint,
     onCopy,
@@ -45,7 +49,7 @@ export function EntryActionToolbar({
     onToggleQR,
     className
 }: EntryActionToolbarProps) {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
 
     if (mode === 'create') return null;
 
@@ -59,12 +63,17 @@ export function EntryActionToolbar({
                 {status === 'posted' ? (
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={onUnpost} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                            <Button variant="ghost" size="sm" onClick={onUnpost} disabled={isProtected}
+                                className={cn("text-orange-600 hover:text-orange-700 hover:bg-orange-50", isProtected && "opacity-50 cursor-not-allowed")}>
                                 <Ban className="w-4 h-4 mr-1" />
                                 <span className="text-xs">{t('accounting.unpost')}</span>
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{t('accounting.tooltips.unpost')}</TooltipContent>
+                        <TooltipContent>
+                            {isProtected
+                                ? (language === 'ar' ? `مرتبط بـ ${protectedSource} — لا يمكن إلغاء الترحيل` : `Linked to ${protectedSource} — cannot unpost`)
+                                : t('accounting.tooltips.unpost')}
+                        </TooltipContent>
                     </Tooltip>
                 ) : (
                     <Tooltip>
@@ -80,16 +89,21 @@ export function EntryActionToolbar({
 
                 <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-                {/* Edit (only if not posted) */}
+                {/* Edit (only if not posted and not protected) */}
                 {status !== 'posted' && (
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={onEdit}>
+                            <Button variant="ghost" size="sm" onClick={onEdit} disabled={isProtected}
+                                className={isProtected ? "opacity-50 cursor-not-allowed" : ""}>
                                 <Edit className="w-4 h-4 mr-1" />
                                 <span className="text-xs">{t('common.edit')}</span>
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{t('accounting.tooltips.edit')}</TooltipContent>
+                        <TooltipContent>
+                            {isProtected
+                                ? (language === 'ar' ? `مرتبط بـ ${protectedSource} — عدّل من المصدر` : `Linked to ${protectedSource} — edit from source`)
+                                : t('accounting.tooltips.edit')}
+                        </TooltipContent>
                     </Tooltip>
                 )}
 
@@ -129,11 +143,16 @@ export function EntryActionToolbar({
                         <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={onDelete}>
+                                <Button variant="ghost" size="icon" className={cn("h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50", isProtected && "opacity-50 cursor-not-allowed")}
+                                    onClick={onDelete} disabled={isProtected}>
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>{t('accounting.tooltips.delete')}</TooltipContent>
+                            <TooltipContent>
+                                {isProtected
+                                    ? (language === 'ar' ? `مرتبط بـ ${protectedSource} — احذف من المصدر` : `Linked to ${protectedSource} — delete from source`)
+                                    : t('accounting.tooltips.delete')}
+                            </TooltipContent>
                         </Tooltip>
                     </>
                 )}

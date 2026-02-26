@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle, SheetDes
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Loader2, Anchor, Ship, ExternalLink, Unlink } from 'lucide-react';
+import { Loader2, Anchor, Ship, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Import components
@@ -31,6 +31,7 @@ import { MainDocumentTabs } from './components/MainDocumentTabs';
 import { ConfirmationDialog } from '@/features/trade/components/ConfirmationDialog';
 import { confirmationService, type ValidationResult, type WorkflowSettings } from '@/services/confirmationService';
 import { supabase } from '@/lib/supabase';
+import { attachmentService, resolveEntityType } from '@/services/attachmentService';
 // Extracted hooks & lazy-loaded tabs
 import {
     recalcItemTotals,
@@ -41,6 +42,7 @@ import {
     useSheetActionHandler,
 } from './hooks/useSheetActions';
 import { useTabContentRenderer } from './hooks/TabContentRenderer';
+import { useDocumentActivityLogger } from './hooks/useDocumentActivityLogger';
 
 // Import configs
 import { getDocumentConfig } from './configs/documentConfigs';
@@ -52,7 +54,6 @@ import type {
     UnifiedDocType,
     SheetMode,
     DocumentConfig,
-    LedgerEntry,
     OpenDocument,
     NavigationProps,
     EditOption,
@@ -131,6 +132,7 @@ export function UnifiedAccountingSheet({
 
     // Get document config
     const config = useMemo(() => getDocumentConfig(docType, tradeMode), [docType, tradeMode]);
+    // effectiveConfig: used for rendering tabs/content when MDI switches document type
 
     // State
     const [mode, setMode] = useState<SheetMode>(initialMode);
@@ -138,6 +140,8 @@ export function UnifiedAccountingSheet({
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState(defaultTab || config.defaultTab);
     const [hasChanges, setHasChanges] = useState(false);
+    const [attachmentCount, setAttachmentCount] = useState<number>(0);
+    const [activityCount, setActivityCount] = useState<number>(0);
 
     // ═══ Confirmation Workflow State ═══
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -175,11 +179,50 @@ export function UnifiedAccountingSheet({
                 code: initialData.code || initialData.entry_number,
                 data: initialData,
                 isClosable: false,
+                lastActiveTab: defaultTab || config.defaultTab,
+                tradeMode: tradeMode as any,
             }];
         }
         return [];
     });
-    const [activeDocId, setActiveDocId] = useState<string>(activeDocumentId || openDocs[0]?.id || 'primary');
+    const [activeDocId, setActiveDocId] = useState<string>(activeDocumentId || (openDocs.length > 0 ? openDocs[0].id : 'primary'));
+
+    // ═══ Ensure Primary Document is in MDI Tabs ═══
+    // If the sheet opens with no initialData, openDocs starts empty. 
+    // We must inject the primary document as soon as data arrives, so the tab is visible.
+    useEffect(() => {
+        if (data && openDocs.length === 0) {
+            const primaryId = documentId || data.id || 'primary';
+            setOpenDocs([{
+                id: primaryId,
+                type: docType,
+                title: data.name || data.entry_number || data.name_en || 'Document',
+                titleAr: data.name_ar || data.name,
+                code: data.code || data.account_code || data.entry_number,
+                data: data,
+                isClosable: false, // The primary document cannot be closed
+                lastActiveTab: defaultTab || config.defaultTab,
+                tradeMode: tradeMode as any,
+            }]);
+            if (activeDocId === 'primary') {
+                setActiveDocId(primaryId);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data, documentId, docType]);
+
+    // Effective docType: changes based on active document type (for MDI cross-type navigation)
+    const effectiveDocType = useMemo(() => {
+        const activeDoc = openDocs.find(d => d.id === activeDocId);
+        return activeDoc?.type || docType;
+    }, [activeDocId, openDocs, docType]);
+
+    const effectiveTradeMode = useMemo(() => {
+        const activeDoc = openDocs.find(d => d.id === activeDocId);
+        return activeDoc?.tradeMode || tradeMode || 'sales'; // Default to sales if purely undefined to prevent config breaks
+    }, [activeDocId, openDocs, tradeMode]);
+
+    const effectiveConfig = useMemo(() => getDocumentConfig(effectiveDocType, effectiveTradeMode as any), [effectiveDocType, effectiveTradeMode]);
 
     // Get user preferences (would normally come from settings context)
     const useArabicNumerals = false; // سيتم ربطها بإعدادات المستخدم
@@ -187,16 +230,146 @@ export function UnifiedAccountingSheet({
     // Refs
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Update data when props change — MERGE to preserve fetched items
+    // Update data when props change — MERGE to preserve fetched items & posting state
     useEffect(() => {
         if (initialData) {
             setData((prev: any) => {
+                // ═══ Guard: If we already saved (prev has id) but parent still sends
+                // create-mode skeleton (initialData has no id), skip the merge entirely.
+                // This prevents stale parent props from overwriting locally-saved data.
+                if (prev?.id && !initialData?.id) {
+                    return prev;
+                }
+
                 // If prev has items from DB fetch, keep them
                 const mergedItems = prev?.items?.length > 0 ? prev.items : initialData.items;
-                return { ...initialData, ...(mergedItems ? { items: mergedItems } : {}) };
+
+                // Preserve critical posting fields that may have been set locally
+                // (e.g., after journal entry creation) and not yet reflected in parent data
+                const preservePostingState: Record<string, any> = {};
+                if (prev?.journal_entry_id && !initialData.journal_entry_id) {
+                    preservePostingState.journal_entry_id = prev.journal_entry_id;
+                }
+                if (prev?.is_posted && !initialData.is_posted) {
+                    preservePostingState.is_posted = prev.is_posted;
+                    preservePostingState.posted_at = prev.posted_at;
+                }
+                if (prev?.stage === 'posted' && initialData.stage !== 'posted') {
+                    preservePostingState.stage = 'posted';
+                }
+                // Preserve advanced stage (confirmed/received) if parent data has a lower stage
+                const stageOrder = ['', 'draft', 'confirmed', 'received', 'posted'];
+                const prevStageIdx = stageOrder.indexOf(prev?.stage || '');
+                const initStageIdx = stageOrder.indexOf(initialData.stage || '');
+                if (prevStageIdx > 0 && initStageIdx >= 0 && prevStageIdx > initStageIdx) {
+                    preservePostingState.stage = prev.stage;
+                    if (prev?.status) preservePostingState.status = prev.status;
+                }
+
+                // Preserve calculated financial fields if parent data doesn't include them
+                // (PurchaseCycleList query doesn't fetch subtotal/tax_amount/etc)
+                const preserveFinancials: Record<string, any> = {};
+                const financialFields = ['subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'grand_total'];
+                for (const field of financialFields) {
+                    if (prev?.[field] != null && prev[field] !== 0 && (initialData[field] == null || initialData[field] === undefined)) {
+                        preserveFinancials[field] = prev[field];
+                    }
+                }
+
+                return {
+                    ...initialData,
+                    ...(mergedItems ? { items: mergedItems } : {}),
+                    ...preserveFinancials,
+                    ...preservePostingState,
+                };
             });
         }
     }, [initialData]);
+
+    // ═══ Auto-fetch Account Stats (total_debit, total_credit, transaction_count) ═══
+    // يجلب الإحصائيات الحقيقية للحساب من journal_entry_lines عند فتح الشيت
+    useEffect(() => {
+        if (docType !== 'account') return;
+        const accountId = initialData?.id || documentId;
+        if (!accountId) return;
+
+        const fetchAccountStats = async () => {
+            try {
+                // 1) جلب عملة الحساب من chart_of_accounts (الحقل اسمه currency وليس currency_code)
+                const { data: acctRow } = await supabase
+                    .from('chart_of_accounts')
+                    .select('currency, company_id')
+                    .eq('id', accountId)
+                    .single();
+
+                // 2) Fallback: عملة الشركة الأساسية (الحقل default_currency في جدول companies)
+                let currencyCode = acctRow?.currency || '';
+                if (!currencyCode && acctRow?.company_id) {
+                    const { data: companyRow } = await supabase
+                        .from('companies')
+                        .select('default_currency')
+                        .eq('id', acctRow.company_id)
+                        .single();
+                    currencyCode = companyRow?.default_currency || '';
+                }
+
+                // 3) جلب سطور القيود
+                const { data: lines, error } = await supabase
+                    .from('journal_entry_lines')
+                    .select(`
+                        debit,
+                        credit,
+                        journal_entries (
+                            entry_date,
+                            status
+                        )
+                    `)
+                    .eq('account_id', accountId);
+
+                if (error || !lines) return;
+
+                // فلترة المرحّلة فقط — استثناء cancelled و voided
+                const postedLines = lines.filter((l: any) => {
+                    const status = l.journal_entries?.status;
+                    return status === 'posted';
+                });
+
+                const totalDebit = postedLines.reduce((s: number, l: any) => s + (l.debit || 0), 0);
+                const totalCredit = postedLines.reduce((s: number, l: any) => s + (l.credit || 0), 0);
+                const transactionCount = postedLines.length;
+
+                // الرصيد الصحيح = افتتاحي + مدين - دائن
+                const openingBalance = initialData?.opening_balance || 0;
+                const correctBalance = openingBalance + totalDebit - totalCredit;
+
+                // آخر تاريخ حركة مرحّلة
+                const dates = postedLines
+                    .map((l: any) => l.journal_entries?.entry_date)
+                    .filter(Boolean)
+                    .sort()
+                    .reverse();
+                const lastActivity = dates[0] || null;
+
+                setData((prev: any) => {
+                    // لا تستبدل العملة إذا كانت القيمة الجديدة فارغة
+                    const finalCurrency = currencyCode || prev?.currency || '';
+                    return {
+                        ...prev,
+                        total_debit: totalDebit,
+                        total_credit: totalCredit,
+                        transaction_count: transactionCount,
+                        last_activity: lastActivity,
+                        current_balance: correctBalance,
+                        currency: finalCurrency,
+                    };
+                });
+            } catch (err) {
+                console.error('[Account Stats] fetch error:', err);
+            }
+        };
+
+        fetchAccountStats();
+    }, [docType, initialData?.id, documentId]);
 
     // ═══ Auto-fetch items for existing trade documents ═══
     useEffect(() => {
@@ -259,6 +432,14 @@ export function UnifiedAccountingSheet({
                     color_name: dbItem.color_name,
                     roll_id: dbItem.roll_id,
                     roll_code: dbItem.roll_code,
+                    // ═══ Receipt/Delivery tracking — CRITICAL for sync ═══
+                    received_qty: Number(dbItem.received_qty) || 0,
+                    delivered_qty: Number(dbItem.delivered_qty) || 0,
+                    delivery_rolls: dbItem.delivery_rolls || [],
+                    // Warehouse info
+                    warehouse_id: dbItem.warehouse_id || '',
+                    warehouse_name_ar: dbItem.warehouse_name_ar || '',
+                    warehouse_name_en: dbItem.warehouse_name_en || '',
                 }));
 
                 // Merge header + items into data
@@ -330,7 +511,7 @@ export function UnifiedAccountingSheet({
     );
 
     // ═══ Action Handler (extracted to useSheetActions) ═══
-    const handleAction = useSheetActionHandler({
+    const handleActionRaw = useSheetActionHandler({
         docType, tradeMode, mode, data, documentId,
         companyId: resolvedCompanyId,
         isTradeDocType, isAccountingDocType, isPostableDocType,
@@ -342,9 +523,57 @@ export function UnifiedAccountingSheet({
         initialData, hasChanges,
     });
 
+    // ═══ Auto-log document events (confirm, post, print, etc.) ═══
+    const handleAction = useDocumentActivityLogger({
+        documentId, docType, tradeMode, data, mode,
+        handleAction: handleActionRaw,
+    });
+
+    // ═══ Fetch attachment count for badge ═══
+    useEffect(() => {
+        const entityId = data?.id || documentId;
+        if (!entityId || mode === 'create') {
+            setAttachmentCount(0);
+            return;
+        }
+        // If child (DocumentAttachmentsTab) reported count via onChange, use it directly
+        if (typeof data?.attachments_count === 'number') {
+            setAttachmentCount(data.attachments_count);
+            return;
+        }
+        // Otherwise fetch from DB
+        const hasAttachmentsTab = config.tabs.some(t => t.id === 'attachments');
+        if (!hasAttachmentsTab) return;
+
+        const entityType = resolveEntityType(docType, tradeMode);
+        attachmentService.getEntityAttachmentCount(entityType, entityId)
+            .then(count => setAttachmentCount(count))
+            .catch(() => setAttachmentCount(0));
+    }, [data?.id, data?.attachments_count, documentId, docType, tradeMode, mode, config.tabs]);
+
+    // ═══ Sync activity count from child component ═══
+    useEffect(() => {
+        if (typeof data?.activity_count === 'number') {
+            setActivityCount(data.activity_count);
+        }
+    }, [data?.activity_count]);
+
     // Filter tabs based on props and current stage
     const visibleTabs = useMemo(() => {
-        let tabs = config.tabs;
+        let tabs = [...effectiveConfig.tabs];
+
+        // ═══ Auto-inject activity tab if not present ═══
+        if (!tabs.some(t => t.id === 'activity')) {
+            const activityTab = {
+                id: 'activity' as const,
+                labelKey: 'accounting.tabs.activity',
+                icon: 'Clock',
+                component: 'ActivityTab',
+            };
+            // Insert before the last tab (usually stageHistory) for consistent positioning
+            const insertIndex = Math.max(tabs.length - 1, 0);
+            tabs.splice(insertIndex, 0, activityTab);
+        }
 
         if (allowedTabs && allowedTabs.length > 0) {
             tabs = tabs.filter(tab => allowedTabs.includes(tab.id));
@@ -354,16 +583,31 @@ export function UnifiedAccountingSheet({
             tabs = tabs.filter(tab => !hiddenTabs.includes(tab.id));
         }
 
-        // Stage-based visibility filtering (NEW)
+        // Stage-based visibility filtering
         if (currentStage) {
             tabs = tabs.filter(tab => {
-                if (!tab.visibleInStages) return true; // No restriction = always visible
+                if (!tab.visibleInStages) return true;
                 return tab.visibleInStages.includes(currentStage);
             });
         }
 
+        // ═══ Dynamic badges for attachments & activity tabs ═══
+        tabs = tabs.map(tab => {
+            if (tab.id === 'attachments') {
+                return { ...tab, badge: attachmentCount > 0 ? String(attachmentCount) : undefined };
+            }
+            if (tab.id === 'activity') {
+                return { ...tab, badge: activityCount > 0 ? String(activityCount) : undefined };
+            }
+            // ═══ Variance badge on receipt_summary tab ═══
+            if (tab.id === 'receipt_summary' && data?.variance_status === 'pending_review') {
+                return { ...tab, badge: '⚠️' };
+            }
+            return tab;
+        });
+
         return tabs;
-    }, [config.tabs, allowedTabs, hiddenTabs, currentStage]);
+    }, [effectiveConfig.tabs, allowedTabs, hiddenTabs, currentStage, attachmentCount, activityCount, data?.variance_status]);
 
     // Is the current stage editable? (NEW)
     const isStageEditable = useMemo(() => {
@@ -398,47 +642,16 @@ export function UnifiedAccountingSheet({
         return config.stageActions[currentStage] || [];
     }, [currentStage, config.stageActions]);
 
-    // Get mock ledger entries for demo
-    const mockLedgerEntries: LedgerEntry[] = useMemo(() => {
-        if (!data) return [];
-
-        // Generate mock ledger entries
-        const entries: LedgerEntry[] = [];
-        let balance = data.opening_balance || 0;
-
-        for (let i = 0; i < 15; i++) {
-            const isDebit = Math.random() > 0.5;
-            const amount = Math.floor(Math.random() * 5000) + 500;
-            balance += isDebit ? amount : -amount;
-
-            entries.push({
-                id: `LE-${1000 + i}`,
-                date: new Date(Date.now() - (15 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                entry_number: `JV-${2024}${String(i + 1).padStart(4, '0')}`,
-                description: isDebit ? 'إيداع نقدي' : 'صرف مصروفات',
-                debit: isDebit ? amount : 0,
-                credit: isDebit ? 0 : amount,
-                balance,
-                status: 'posted',
-                reference: `REF-${100 + i}`,
-                cost_center: isDebit ? 'المبيعات' : 'المشتريات',
-            });
-        }
-
-        return entries;
-    }, [data]);
-
     // Activity events are now fetched from audit_logs inside ActivityTab
 
     // ═══ Lazy-loaded Tab Content Renderer (extracted to reduce file size) ═══
     const renderTabContent = useTabContentRenderer({
-        data, mode, docType, tradeMode, loading,
+        data, mode, docType: effectiveDocType, tradeMode: effectiveTradeMode as any, loading,
         companyId: resolvedCompanyId, documentId, currentStage, options,
         useArabicNumerals,
         setData, setHasChanges, onClose, onRefresh,
         openDocs, setOpenDocs, setActiveDocId,
         stats: config.stats,
-        mockLedgerEntries,
     });
 
     return (
@@ -501,18 +714,25 @@ export function UnifiedAccountingSheet({
                                                             const isSales = tradeMode === 'sales';
                                                             const stageTitle: Record<string, { ar: string; en: string }> = {
                                                                 draft: { ar: isSales ? 'مسودة مبيعات' : 'مسودة مشتريات', en: isSales ? 'Sales Draft' : 'Purchase Draft' },
-                                                                confirmed: { ar: isSales ? 'مبيعات مؤكدة' : 'مشتريات مؤكدة', en: isSales ? 'Confirmed Sales' : 'Confirmed Purchase' },
-                                                                partially_received: { ar: 'مستلم جزئياً', en: 'Partially Received' },
+                                                                confirmed: { ar: isSales ? 'فاتورة مبيعات مؤكدة' : 'فاتورة مشتريات مؤكدة', en: isSales ? 'Confirmed Sales Invoice' : 'Confirmed Purchase Invoice' },
+                                                                posted: { ar: isSales ? 'فاتورة مبيعات مرحّلة' : 'فاتورة مشتريات مرحّلة', en: isSales ? 'Posted Sales Invoice' : 'Posted Purchase Invoice' },
+                                                                in_delivery: { ar: 'فاتورة مبيعات — قيد التسليم', en: 'Sales Invoice — In Delivery' },
+                                                                sent_to_branch: { ar: 'فاتورة مبيعات — أُرسلت للفرع', en: 'Sales Invoice — Sent to Branch' },
+                                                                delivered: { ar: 'فاتورة مبيعات — تم التسليم', en: 'Sales Invoice — Delivered' },
+                                                                in_receiving: { ar: 'فاتورة مشتريات — قيد الاستلام', en: 'Purchase Invoice — In Receiving' },
+                                                                partially_received: { ar: 'فاتورة مشتريات — مستلم جزئياً', en: 'Purchase Invoice — Partially Received' },
+                                                                received: { ar: isSales ? 'تم التسليم' : 'تم الاستلام', en: isSales ? 'Delivered' : 'Received' },
+                                                                fully_received: { ar: 'تم الاستلام بالكامل', en: 'Fully Received' },
+                                                                completed: { ar: isSales ? 'فاتورة مكتملة' : 'فاتورة مكتملة', en: 'Completed Invoice' },
                                                                 requested: { ar: isSales ? 'طلب بيع' : 'طلب شراء', en: isSales ? 'Sales Request' : 'Purchase Request' },
                                                                 quoted: { ar: isSales ? 'عرض سعر مبيعات' : 'عرض سعر شراء', en: isSales ? 'Sales Quotation' : 'Purchase Quotation' },
                                                                 ordered: { ar: isSales ? 'أمر بيع' : 'أمر شراء', en: isSales ? 'Sales Order' : 'Purchase Order' },
-                                                                received: { ar: 'تم الاستلام', en: 'Received' },
                                                                 invoiced: { ar: isSales ? 'فاتورة مبيعات' : 'فاتورة مشتريات', en: isSales ? 'Sales Invoice' : 'Purchase Invoice' },
-                                                                posted: { ar: isSales ? 'فاتورة مرحّلة' : 'فاتورة مرحّلة', en: 'Posted Invoice' },
                                                                 partially_paid: { ar: 'مدفوعة جزئياً', en: 'Partially Paid' },
                                                                 partial_paid: { ar: 'مدفوعة جزئياً', en: 'Partially Paid' },
-                                                                paid: { ar: 'مدفوعة', en: 'Paid' },
+                                                                paid: { ar: 'مدفوعة بالكامل', en: 'Fully Paid' },
                                                                 cancelled: { ar: 'ملغاة', en: 'Cancelled' },
+                                                                closed: { ar: 'مغلقة', en: 'Closed' },
                                                             };
                                                             const title = stageTitle[stage || 'draft'] || stageTitle.draft;
                                                             return language === 'ar' ? title.ar : title.en;
@@ -529,21 +749,36 @@ export function UnifiedAccountingSheet({
                                                         draft: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
                                                         confirmed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
                                                         partially_received: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                                                        in_receiving: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+                                                        in_delivery: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
                                                         received: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+                                                        fully_received: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                                                        completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
                                                         posted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
                                                         cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
                                                         paid: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
                                                         partial_paid: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                        partially_paid: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                        // 🔒 Closed
+                                                        closed: 'bg-slate-200 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300 border-slate-400',
                                                     };
                                                     const stageLabels: Record<string, { ar: string; en: string }> = {
                                                         draft: { ar: 'مسودة', en: 'Draft' },
                                                         confirmed: { ar: 'مؤكد', en: 'Confirmed' },
                                                         partially_received: { ar: 'مستلم جزئياً', en: 'Partially Received' },
+                                                        in_receiving: { ar: 'جاري الاستلام', en: 'In Receiving' },
+                                                        in_delivery: { ar: 'قيد التسليم', en: 'In Delivery' },
                                                         received: { ar: 'مستلم', en: 'Received' },
+                                                        fully_received: { ar: 'مستلم بالكامل', en: 'Fully Received' },
+                                                        completed: { ar: 'مكتمل', en: 'Completed' },
                                                         posted: { ar: 'مرحّل', en: 'Posted' },
                                                         cancelled: { ar: 'ملغى', en: 'Cancelled' },
                                                         paid: { ar: 'مدفوع', en: 'Paid' },
                                                         partial_paid: { ar: 'مدفوع جزئياً', en: 'Partially Paid' },
+                                                        partially_paid: { ar: 'مدفوع جزئياً', en: 'Partially Paid' },
+                                                        invoiced: { ar: 'مفوتر', en: 'Invoiced' },
+                                                        // 🔒 Closed
+                                                        closed: { ar: '🔒 مغلق — مرجعية', en: '🔒 Closed — Reference' },
                                                     };
                                                     const label = stageLabels[stageCode] || { ar: stageCode, en: stageCode };
                                                     return (
@@ -606,7 +841,7 @@ export function UnifiedAccountingSheet({
                                                             {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                                                 .format(displayAmount)}
                                                             <span className="text-xs ms-1 text-gray-500 font-normal">
-                                                                {t(`currencies.${(data.currency || '').toUpperCase()}`) || data.currency || ''}
+                                                                {data.currency ? t(`currencies.${data.currency.toUpperCase()}`) : ''}
                                                             </span>
                                                         </span>
                                                     );
@@ -646,7 +881,7 @@ export function UnifiedAccountingSheet({
                                             }}
                                             hasChanges={hasChanges}
                                             // Confirmation
-                                            showConfirmAction={isTradeDocType}
+                                            showConfirmAction={isTradeDocType && docType !== 'trade_container'}
                                             confirmationStatus={data?.confirmation_status}
                                             tradeMode={tradeMode as 'sales' | 'purchase'}
                                         />
@@ -717,71 +952,68 @@ export function UnifiedAccountingSheet({
                                     <ExternalLink className="w-3.5 h-3.5" />
                                     {language === 'ar' ? 'عرض الكونتينر' : 'View Container'}
                                 </button>
-                                <button
-                                    onClick={async () => {
-                                        const confirmed = window.confirm(
-                                            language === 'ar'
-                                                ? `هل تريد فك ارتباط هذه الفاتورة من الكونتينر ${containerLockInfo.containerNumber}؟\nسيتم تحرير الفاتورة لإضافتها لكونتينر آخر.`
-                                                : `Unlink this invoice from container ${containerLockInfo.containerNumber}?\nThe invoice will be freed for reassignment.`
-                                        );
-                                        if (!confirmed) return;
-                                        try {
-                                            const { error } = await supabase
-                                                .from('purchase_transactions')
-                                                .update({ container_id: null, container_number: null, container_status: null })
-                                                .eq('id', data?.id || documentId);
-                                            if (error) throw error;
-                                            toast.success(
-                                                language === 'ar'
-                                                    ? '✅ تم فك ارتباط الفاتورة — يمكن إضافتها لكونتينر آخر'
-                                                    : '✅ Invoice unlinked — can be added to another container'
-                                            );
-                                            setData((prev: any) => ({ ...prev, container_id: null, container_number: null, container_status: null }));
-                                            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
-                                            queryClient.invalidateQueries({ queryKey: ['available_invoices_for_container'] });
-                                            onRefresh?.();
-                                        } catch (err: any) {
-                                            toast.error(language === 'ar' ? 'خطأ: ' + err.message : 'Error: ' + err.message);
-                                        }
-                                    }}
-                                    className={cn(
-                                        "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium shrink-0",
-                                        "bg-amber-100 hover:bg-amber-200 text-amber-700",
-                                        "dark:bg-amber-900/50 dark:hover:bg-amber-800/50 dark:text-amber-300",
-                                        "transition-colors border border-amber-200 dark:border-amber-700"
-                                    )}
-                                >
-                                    <Unlink className="w-3.5 h-3.5" />
-                                    {language === 'ar' ? 'فك الارتباط' : 'Unlink'}
-                                </button>
                             </div>
                         )}
 
-                        {/* Main Document Tabs */}
-                        {openDocs.length > 0 && (
-                            <MainDocumentTabs
-                                documents={openDocs}
-                                activeId={activeDocId}
-                                onTabChange={(id) => {
-                                    setActiveDocId(id);
-                                    const doc = openDocs.find(d => d.id === id);
-                                    if (doc) {
-                                        setData(doc.data);
+                        {/* Main Document Tabs — always visible to enable multi-document MDI */}
+                        <MainDocumentTabs
+                            documents={openDocs.length > 0 ? openDocs : [{
+                                id: documentId || data?.id || 'primary',
+                                type: docType,
+                                title: data?.name || data?.entry_number || data?.name_en || (language === 'ar' ? 'مستند' : 'Document'),
+                                titleAr: data?.name_ar || data?.name,
+                                code: data?.code || data?.account_code || data?.entry_number,
+                                data: data,
+                                isClosable: false,
+                            }]}
+                            activeId={activeDocId || documentId || data?.id || 'primary'}
+                            onTabChange={(id) => {
+                                if (id === activeDocId) return;
+
+                                // 1. Save current active document's data AND active tab back into openDocs
+                                setOpenDocs(prevDocs => {
+                                    const updatedDocs = prevDocs.map(d =>
+                                        d.id === activeDocId ? { ...d, data: data, lastActiveTab: activeTab } : d
+                                    );
+
+                                    // 2. Find the target document we are switching to
+                                    const targetDoc = updatedDocs.find(d => d.id === id);
+                                    if (targetDoc) {
+                                        // 3. Switch active state asynchronously to avoid render clash
+                                        setTimeout(() => {
+                                            setActiveDocId(id);
+                                            setData(targetDoc.data);
+                                            // 4. Update the active tab to the new document's saved tab or default tab
+                                            const newConfig = getDocumentConfig(targetDoc.type, (targetDoc.tradeMode || tradeMode || 'sales') as any);
+                                            setActiveTab(targetDoc.lastActiveTab || newConfig.defaultTab);
+                                            onActiveDocumentChange?.(id);
+                                        }, 0);
                                     }
-                                    onActiveDocumentChange?.(id);
-                                }}
-                                onTabClose={(id) => {
-                                    setOpenDocs(prev => prev.filter(d => d.id !== id));
-                                    // Switch to previous tab if active one was closed
-                                    if (id === activeDocId && openDocs.length > 1) {
-                                        const remaining = openDocs.filter(d => d.id !== id);
-                                        setActiveDocId(remaining[remaining.length - 1].id);
-                                        setData(remaining[remaining.length - 1].data);
-                                    }
-                                    onCloseDocument?.(id);
-                                }}
-                            />
-                        )}
+                                    return updatedDocs;
+                                });
+                            }}
+                            onTabClose={(id) => {
+                                const remaining = openDocs.filter(d => d.id !== id);
+                                setOpenDocs(remaining);
+
+                                if (id === activeDocId && remaining.length > 0) {
+                                    // Switch to primary (first) tab
+                                    const primary = remaining[0];
+                                    setActiveDocId(primary.id);
+                                    setData(primary.data);
+                                    const newConfig = getDocumentConfig(primary.type, (primary.tradeMode || tradeMode || 'sales') as any);
+                                    setActiveTab(newConfig.defaultTab);
+                                }
+                                onCloseDocument?.(id);
+                            }}
+                            onAddTab={onOpenDocument ? () => onOpenDocument({
+                                id: 'new-' + Date.now(),
+                                type: docType,
+                                title: language === 'ar' ? 'مستند جديد' : 'New Document',
+                                data: null,
+                                isClosable: true,
+                            }) : undefined}
+                        />
 
                         {/* Content Area */}
                         <div className="flex-1 flex flex-col overflow-hidden min-h-0" ref={contentRef}>
@@ -799,34 +1031,19 @@ export function UnifiedAccountingSheet({
                                     mode={mode}
                                     variant="default"
                                 >
-                                    {/* Ledger tab needs special handling for sticky footer */}
-                                    {activeTab === 'ledger' ? (
-                                        <div className="flex-1 flex flex-col overflow-hidden p-4">
+                                    <ScrollArea className="flex-1 h-full">
+                                        <div className="p-4">
                                             {visibleTabs.map((tab) => (
                                                 <TabsContent
                                                     key={tab.id}
                                                     value={tab.id}
-                                                    className="m-0 outline-none flex-1 flex flex-col min-h-0"
+                                                    className="m-0 outline-none"
                                                 >
                                                     {activeTab === tab.id && renderTabContent(tab.id)}
                                                 </TabsContent>
                                             ))}
                                         </div>
-                                    ) : (
-                                        <ScrollArea className="flex-1 h-full">
-                                            <div className="p-4">
-                                                {visibleTabs.map((tab) => (
-                                                    <TabsContent
-                                                        key={tab.id}
-                                                        value={tab.id}
-                                                        className="m-0 outline-none"
-                                                    >
-                                                        {activeTab === tab.id && renderTabContent(tab.id)}
-                                                    </TabsContent>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    )}
+                                    </ScrollArea>
                                 </SheetTabs>
                             )}
                         </div>

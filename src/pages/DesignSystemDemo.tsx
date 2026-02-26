@@ -10,27 +10,27 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
 // Design System imports
-import { 
-  gradients, 
-  cardStyles, 
-  statusColors, 
+import {
+  gradients,
+  cardStyles,
+  statusColors,
   sectorColors,
 } from '@/lib/design-system';
 
 // Animation imports
-import { 
-  fadeIn, 
-  slideUp, 
-  staggerContainer, 
+import {
+  fadeIn,
+  slideUp,
+  staggerContainer,
   staggerItem,
   pageTransition,
 } from '@/lib/animations';
 
 // Icon imports
-import { 
-  DollarSign, 
-  Users, 
-  ShoppingCart, 
+import {
+  DollarSign,
+  Users,
+  ShoppingCart,
   TrendingUp,
   CheckCircle,
   XCircle,
@@ -49,12 +49,18 @@ import {
   Layers,
 } from '@/lib/icons';
 
-// UI Pro Components - moved to deprecated/, import directly
-import { AnimatedCard } from '@/components/deprecated/AnimatedCard';
-import { GlassCard } from '@/components/deprecated/GlassCard';
-import { AnimatedButton } from '@/components/deprecated/AnimatedButton';
-import { AnimatedList, AnimatedListItem } from '@/components/deprecated/AnimatedList';
-import { StatsCard } from '@/components/deprecated/StatsCard';
+// Simple Mock Components for missing UI Pro Components
+const AnimatedCard = ({ children, className }: any) => <div className={className}>{children}</div>;
+const GlassCard = ({ children, className }: any) => <div className={className}>{children}</div>;
+const AnimatedButton = ({ children, className, onClick, disabled }: any) => <button className={className} onClick={onClick} disabled={disabled}>{children}</button>;
+const AnimatedList = ({ children, className }: any) => <ul className={className}>{children}</ul>;
+const AnimatedListItem = ({ children }: any) => <li>{children}</li>;
+const StatsCard = ({ title, value, change, icon: Icon }: any) => (
+  <div className="p-4 border rounded-lg bg-white dark:bg-gray-800">
+    <div className="flex items-center gap-2 mb-2"><Icon className="w-4 h-4 text-emerald-500" /> <span className="font-semibold">{title}</span></div>
+    <div className="text-2xl font-bold">{value}</div><div className="text-sm text-gray-400">{change}</div>
+  </div>
+);
 
 // Hooks
 import { useLanguage } from '@/hooks';
@@ -128,7 +134,7 @@ export default function DesignSystemDemo() {
   );
 
   return (
-    <motion.div 
+    <motion.div
       {...pageTransition}
       className="min-h-screen p-6 md:p-8 space-y-10 bg-gray-50/50 dark:bg-gray-950"
       dir={direction}
@@ -139,7 +145,7 @@ export default function DesignSystemDemo() {
           {language === 'ar' ? 'نظام التصميم' : 'Design System'}
         </h1>
         <p className="text-base text-muted-foreground font-tajawal max-w-xl mx-auto">
-          {language === 'ar' 
+          {language === 'ar'
             ? 'استعراض شامل لجميع مكونات واجهة المستخدم الاحترافية'
             : 'Comprehensive showcase of all professional UI components'}
         </p>
@@ -149,11 +155,11 @@ export default function DesignSystemDemo() {
       {/* Section 1: Cards - قسم البطاقات */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'البطاقات' : 'Cards'}
           subtitle={language === 'ar' ? 'أنواع مختلفة من البطاقات المتحركة' : 'Different types of animated cards'}
         />
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* AnimatedCard */}
           <AnimatedCard delay={0} className="bg-white dark:bg-gray-800">
@@ -166,7 +172,7 @@ export default function DesignSystemDemo() {
               </h3>
             </div>
             <p className="text-muted-foreground font-tajawal text-sm leading-relaxed">
-              {language === 'ar' 
+              {language === 'ar'
                 ? 'بطاقة بتأثيرات حركية عند الظهور والتمرير'
                 : 'Card with motion effects on appear and hover'}
             </p>
@@ -193,7 +199,7 @@ export default function DesignSystemDemo() {
                   </h3>
                 </div>
                 <p className="text-white/80 font-tajawal text-sm leading-relaxed">
-                  {language === 'ar' 
+                  {language === 'ar'
                     ? 'تأثير الزجاج الضبابي (Glassmorphism)'
                     : 'Glassmorphism blur effect'}
                 </p>
@@ -212,7 +218,7 @@ export default function DesignSystemDemo() {
               </h3>
             </div>
             <p className="text-muted-foreground font-tajawal text-sm leading-relaxed">
-              {language === 'ar' 
+              {language === 'ar'
                 ? 'بطاقة بخلفية متدرجة الألوان'
                 : 'Card with gradient background'}
             </p>
@@ -224,11 +230,11 @@ export default function DesignSystemDemo() {
       {/* Section 2: Buttons - قسم الأزرار */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'الأزرار' : 'Buttons'}
           subtitle={language === 'ar' ? 'أنماط وأحجام مختلفة' : 'Different variants and sizes'}
         />
-        
+
         <motion.div {...slideUp} className="space-y-6">
           {/* Button Variants */}
           <div>
@@ -276,8 +282,8 @@ export default function DesignSystemDemo() {
               {language === 'ar' ? 'حالات خاصة' : 'Special States'}
             </p>
             <div className="flex flex-wrap gap-3 items-center">
-              <AnimatedButton 
-                variant="gradient" 
+              <AnimatedButton
+                variant="gradient"
                 loading={loadingBtn}
                 onClick={handleLoadingDemo}
                 className="!bg-gradient-to-r !from-[#0A2540] !to-[#2d5a4c]"
@@ -296,11 +302,11 @@ export default function DesignSystemDemo() {
       {/* Section 3: Stats Cards - قسم الإحصائيات */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'بطاقات الإحصائيات' : 'Stats Cards'}
           subtitle={language === 'ar' ? 'عرض الأرقام بشكل جذاب' : 'Display numbers attractively'}
         />
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
             title={language === 'ar' ? 'إجمالي المبيعات' : 'Total Sales'}
@@ -341,11 +347,11 @@ export default function DesignSystemDemo() {
       {/* Section 4: Animated List - قسم القوائم */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'القوائم المتحركة' : 'Animated Lists'}
           subtitle={language === 'ar' ? 'عناصر تظهر بشكل متسلسل' : 'Elements appear sequentially'}
         />
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* List 1 */}
           <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
@@ -404,12 +410,12 @@ export default function DesignSystemDemo() {
       {/* Section 5: Status Badges - قسم الحالات */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'شارات الحالات' : 'Status Badges'}
           subtitle={language === 'ar' ? 'ألوان مختلفة للحالات المختلفة' : 'Different colors for different statuses'}
         />
-        
-        <motion.div 
+
+        <motion.div
           variants={staggerContainer}
           initial="initial"
           animate="animate"
@@ -477,14 +483,14 @@ export default function DesignSystemDemo() {
       {/* Section 6: Notifications - قسم الإشعارات */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'الإشعارات (Toast)' : 'Notifications (Toast)'}
           subtitle={language === 'ar' ? 'اختبر أنواع الإشعارات المختلفة' : 'Test different notification types'}
         />
-        
+
         <motion.div {...slideUp} className="flex flex-wrap gap-3">
-          <AnimatedButton 
-            variant="primary" 
+          <AnimatedButton
+            variant="primary"
             size="sm"
             onClick={showSuccessToast}
             className="!bg-emerald-500 hover:!bg-emerald-600"
@@ -492,8 +498,8 @@ export default function DesignSystemDemo() {
             <CheckCircle className="w-4 h-4" />
             {language === 'ar' ? 'نجاح' : 'Success'}
           </AnimatedButton>
-          
-          <AnimatedButton 
+
+          <AnimatedButton
             variant="primary"
             size="sm"
             className="!bg-red-500 hover:!bg-red-600"
@@ -502,8 +508,8 @@ export default function DesignSystemDemo() {
             <XCircle className="w-4 h-4" />
             {language === 'ar' ? 'خطأ' : 'Error'}
           </AnimatedButton>
-          
-          <AnimatedButton 
+
+          <AnimatedButton
             variant="primary"
             size="sm"
             className="!bg-amber-500 hover:!bg-amber-600"
@@ -512,8 +518,8 @@ export default function DesignSystemDemo() {
             <AlertTriangle className="w-4 h-4" />
             {language === 'ar' ? 'تحذير' : 'Warning'}
           </AnimatedButton>
-          
-          <AnimatedButton 
+
+          <AnimatedButton
             variant="primary"
             size="sm"
             className="!bg-sky-500 hover:!bg-sky-600"
@@ -522,7 +528,7 @@ export default function DesignSystemDemo() {
             <Info className="w-4 h-4" />
             {language === 'ar' ? 'معلومة' : 'Info'}
           </AnimatedButton>
-          
+
           <AnimatedButton variant="secondary" size="sm" onClick={showLoadingToast}>
             <Loader2 className="w-4 h-4" />
             {language === 'ar' ? 'تحميل' : 'Loading'}
@@ -534,11 +540,11 @@ export default function DesignSystemDemo() {
       {/* Section 7: Gradients Preview - معاينة التدرجات */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
-        <SectionHeader 
+        <SectionHeader
           title={language === 'ar' ? 'التدرجات اللونية' : 'Color Gradients'}
           subtitle={language === 'ar' ? 'تدرجات جاهزة للاستخدام - نمط سويسري هادئ' : 'Ready-to-use gradients - Swiss minimalism style'}
         />
-        
+
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
             { name: language === 'ar' ? 'أساسي' : 'Primary', class: gradients.primary },
@@ -564,12 +570,12 @@ export default function DesignSystemDemo() {
       </section>
 
       {/* Footer */}
-      <motion.div 
+      <motion.div
         {...fadeIn}
         className="text-center py-6 text-sm text-muted-foreground font-tajawal"
       >
         <p>
-          {language === 'ar' 
+          {language === 'ar'
             ? 'تم إنشاء هذا النظام باستخدام React + Tailwind CSS + Framer Motion'
             : 'Built with React + Tailwind CSS + Framer Motion'}
         </p>

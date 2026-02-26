@@ -16,7 +16,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -30,7 +30,8 @@ import {
   Settings,
   FileText,
   PieChart,
-  RefreshCw
+  RefreshCw,
+  Scale,
 } from 'lucide-react';
 
 // Direct imports (no lazy loading) for instant switching
@@ -43,7 +44,8 @@ import AccountingReports from './AccountingReports';
 import Parties from './Parties';
 import AccountingSettings from './AccountingSettings';
 import BudgetPage from './BudgetPage';
-import RecurringEntriesPage from './RecurringEntriesPage';
+import VATSettlement from './VATSettlement';
+const RecurringEntriesPage = lazy(() => import('./RecurringEntriesPage'));
 
 // Tab configuration type
 interface TabConfig {
@@ -68,6 +70,7 @@ export default function Accounting() {
       if (path.includes('/funds')) return 'funds';
       if (path.includes('/parties')) return 'parties';
       if (path.includes('/budget')) return 'budget';
+      if (path.includes('/vat-settlement')) return 'vat-settlement';
       if (path.includes('/recurring')) return 'recurring';
       if (path.includes('/settings')) return 'settings';
       if (path.includes('/reports')) return 'reports';
@@ -78,9 +81,19 @@ export default function Accounting() {
 
   const [activeTab, setActiveTab] = useState(getActiveTab);
 
+  // Track which tabs have been visited to enable mount-on-first-visit
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
+
   // Update active tab when location changes
   useEffect(() => {
-    setActiveTab(getActiveTab());
+    const newTab = getActiveTab();
+    setActiveTab(newTab);
+    setVisitedTabs(prev => {
+      if (prev.has(newTab)) return prev;
+      const next = new Set(prev);
+      next.add(newTab);
+      return next;
+    });
   }, [getActiveTab]);
 
   // Tab configuration - memoized to prevent re-renders
@@ -134,6 +147,12 @@ export default function Accounting() {
       component: RecurringEntriesPage,
     },
     {
+      id: 'vat-settlement',
+      labelKey: 'accounting.vatSettlement',
+      icon: Scale,
+      component: VATSettlement,
+    },
+    {
       id: 'settings',
       labelKey: 'accounting.settings',
       icon: Settings,
@@ -151,6 +170,12 @@ export default function Accounting() {
   const handleTabChange = useCallback((tabId: string) => {
     if (tabId !== activeTab) {
       setActiveTab(tabId);
+      setVisitedTabs(prev => {
+        if (prev.has(tabId)) return prev;
+        const next = new Set(prev);
+        next.add(tabId);
+        return next;
+      });
       // Navigate to the correct URL so refresh preserves state
       const path = tabId === 'dashboard' ? '/accounting' : `/accounting/${tabId}`;
       navigate(path, { replace: true });
@@ -159,7 +184,7 @@ export default function Accounting() {
 
   // Tabs data for MainTabsBar (without component property)
   const tabsForBar = useMemo(() =>
-    tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })),
+    tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })) as any,
     [tabs]
   );
 
@@ -185,6 +210,10 @@ export default function Accounting() {
         {tabs.map((tab) => {
           const TabComponent = tab.component;
           const isActive = activeTab === tab.id;
+          const wasVisited = visitedTabs.has(tab.id);
+
+          // Only mount the component after the tab has been visited at least once
+          if (!wasVisited) return null;
 
           return (
             <div
@@ -199,7 +228,9 @@ export default function Accounting() {
                 contentVisibility: isActive ? 'visible' : 'hidden',
               }}
             >
-              <TabComponent />
+              <Suspense fallback={<div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>}>
+                <TabComponent />
+              </Suspense>
             </div>
           );
         })}

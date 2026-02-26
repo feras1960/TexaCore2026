@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -180,18 +181,8 @@ export function Header() {
             </TooltipContent>
           </Tooltip>
 
-          {/* Notifications */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-10 w-10 relative">
-                <Bell className="h-5 w-5 text-gray-500" />
-                <span className="absolute top-2 end-2 h-2 w-2 bg-erp-error rounded-full" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {t('header.notifications')}
-            </TooltipContent>
-          </Tooltip>
+          {/* Notifications — Live Notification Center */}
+          <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>

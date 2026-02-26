@@ -31,6 +31,7 @@ export type UnifiedDocType =
     | 'contact'        // جهة اتصال CRM
     | 'debit_note'     // إشعار مدين
     | 'goods_receipt'  // استلام مواد مخزنية (Material/Goods Receipt)
+    | 'sales_delivery' // تسليم مبيعات (Sales Delivery — roll picking)
     | 'credit_note';   // إشعار دائن
 
 // Mode of the sheet
@@ -67,6 +68,7 @@ export interface ActionConfig {
 export interface StatConfig {
     id: string;
     labelKey: string;
+    descriptionKey?: string;  // مفتاح ترجمة الوصف التوضيحي (اختياري)
     valueKey: string;        // Path to value in data object
     icon: string;
     format?: 'number' | 'currency' | 'date' | 'percent';
@@ -329,7 +331,9 @@ export interface OpenDocument {
     code?: string;
     data: any;
     isClosable: boolean;  // التبويب الأول غير قابل للإغلاق
+    lastActiveTab?: string;
     icon?: string;
+    tradeMode?: 'sales' | 'purchase';
 }
 
 // Props للتنقل بين السجلات

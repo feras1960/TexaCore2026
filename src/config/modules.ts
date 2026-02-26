@@ -20,6 +20,7 @@ import {
   Pill,
   Stethoscope,
   GitBranch,
+  ShieldCheck,
 } from 'lucide-react';
 
 export interface StaticModule {
@@ -125,16 +126,7 @@ export const STATIC_MODULES: StaticModule[] = [
     requires_upgrade: false,
     is_core: false
   },
-  {
-    code: 'shipments', // NEW: From DB Tables
-    name_ar: 'إدارة الشحنات',
-    name_en: 'Shipments',
-    icon: Package, // Temporary icon
-    path: '/shipments',
-    is_enabled: true,
-    requires_upgrade: false,
-    is_core: false
-  },
+  // NOTE: shipments module removed — containers are managed under purchases
   {
     code: 'sales',
     name_ar: 'المبيعات',
@@ -275,6 +267,16 @@ export const STATIC_MODULES: StaticModule[] = [
     is_enabled: true,
     requires_upgrade: false,
     is_core: false
+  },
+  {
+    code: 'users_permissions',
+    name_ar: 'المستخدمون والصلاحيات',
+    name_en: 'Users & Permissions',
+    icon: ShieldCheck,
+    path: '/users-permissions',
+    is_enabled: true,
+    requires_upgrade: false,
+    is_core: true
   },
   {
     code: 'system_config',

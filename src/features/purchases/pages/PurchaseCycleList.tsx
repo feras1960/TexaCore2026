@@ -24,7 +24,7 @@ import {
     Loader2,
     XCircle
 } from 'lucide-react';
-import { NexaDataTable } from '@/components/ui/nexa-data-table';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { NexaKanbanBoard, type KanbanColumnDef, type KanbanItem } from '@/components/ui/nexa-kanban';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -49,7 +49,7 @@ import type { DocType } from '@/components/sheets/configs/sheet.types';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { StatusDropdown } from '@/components/shared/status';
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfDay } from 'date-fns';
+import { startOfMonth, endOfDay, format } from 'date-fns';
 import { toast } from 'sonner';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
 import { usePosting } from '@/hooks/usePosting';
@@ -126,6 +126,18 @@ export default function PurchaseCycleList() {
     const [isUnifiedSheetOpen, setIsUnifiedSheetOpen] = useState(false);
     const [unifiedTransactionId, setUnifiedTransactionId] = useState<string | null>(null);
     const [unifiedMode, setUnifiedMode] = useState<'create' | 'view' | 'edit'>('view');
+
+    // ─── NexaListTable state ───
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortField, setSortField] = useState<string | undefined>();
+    const [sortAsc, setSortAsc] = useState(false);
+    const handleSort = useCallback((field: string) => {
+        setSortField(prev => {
+            if (prev === field) { setSortAsc(a => !a); return field; }
+            setSortAsc(false);
+            return field;
+        });
+    }, []);
 
     // ═══ Stage Transition Hook (must be after state declarations) ═══
     const { advanceStage, isTransitioning } = useStageTransition({
@@ -374,18 +386,18 @@ export default function PurchaseCycleList() {
         setIsSheetOpen(true);
     };
 
-    // Columns Configuration
-    const columns = [
+    // Columns Configuration — NexaListTable format
+    const columns: NexaListColumn<any>[] = [
         {
+            id: 'order_number',
             header: isRTL ? 'رقم المستند' : 'Document #',
-            accessorKey: 'order_number',
-            cell: ({ row }: any) => {
-                const doc = row.original;
+            sortable: true,
+            sortKey: 'order_number',
+            cell: (doc) => {
                 return (
                     <div className="flex flex-col gap-0.5">
                         <span
-                            className="font-bold font-mono text-erp-primary cursor-pointer hover:underline"
-                            onClick={() => handleRowClick(doc)}
+                            className="font-bold font-mono text-[13px] text-erp-primary leading-tight"
                         >
                             {doc.order_number || '-'}
                         </span>
@@ -404,10 +416,10 @@ export default function PurchaseCycleList() {
             }
         },
         {
+            id: 'type',
             header: isRTL ? 'النوع' : 'Type',
-            accessorKey: 'type',
-            cell: ({ row }: any) => {
-                const type = row.original.type;
+            cell: (doc) => {
+                const type = doc.type;
                 let colorClass = 'bg-gray-100 text-gray-800';
 
                 switch (type) {
@@ -422,8 +434,8 @@ export default function PurchaseCycleList() {
 
                 const typeLabel = type === 'pending_receipt'
                     ? (isRTL
-                        ? `بانتظار الاستلام (${row.original._source_type === 'order' ? 'أمر' : 'فاتورة'})`
-                        : `Pending Receipt (${row.original._source_type})`)
+                        ? `بانتظار الاستلام (${doc._source_type === 'order' ? 'أمر' : 'فاتورة'})`
+                        : `Pending Receipt (${doc._source_type})`)
                     : (t(`purchases.types.${type}`) || type);
 
                 return (
@@ -434,31 +446,60 @@ export default function PurchaseCycleList() {
             }
         },
         {
-            header: isRTL ? 'التاريخ' : 'Date',
-            accessorKey: 'date',
-            enableSorting: true,
-            cell: ({ row }: any) => <span className="text-gray-600 font-mono text-xs">{new Date(row.original.date || row.original.created_at).toLocaleDateString()}</span>
+            id: 'date',
+            header: isRTL ? 'التاريخ والوقت' : 'Date & Time',
+            sortable: true,
+            sortKey: 'date',
+            cell: (doc) => {
+                const d = doc.date || doc.created_at;
+                if (!d) return <span className="text-[11px] text-gray-300">—</span>;
+                const dt = new Date(d);
+                return (
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 text-gray-600">
+                            <Calendar className="w-3 h-3 opacity-50" />
+                            <span className="text-[12px] font-mono font-medium">
+                                {format(dt, 'yyyy/MM/dd')}
+                            </span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-mono ps-[18px]">
+                            {format(new Date(doc.created_at), 'HH:mm')}
+                        </span>
+                    </div>
+                );
+            }
         },
         {
-            // 🆕 New Column: Source Reference (Invoice/PO #)
+            id: 'reference',
             header: isRTL ? 'المرجع' : 'Reference',
-            accessorKey: 'reference_number',
-            cell: ({ row }: any) => (
+            cell: (doc) => (
                 <span className="font-mono text-xs text-gray-500">
-                    {row.original.reference_number || '-'}
+                    {doc.reference_number || '-'}
                 </span>
             )
         },
         {
+            id: 'supplier',
             header: isRTL ? 'المورد' : 'Supplier',
-            accessorKey: 'supplier_id',
-            cell: ({ row }: any) => <span className="font-medium">{row.original.supplier_name}</span>
+            cell: (doc) => {
+                const name = doc.supplier_name || (isRTL ? 'مورد غير محدد' : 'Unknown');
+                const initials = name === '-' ? '?' : name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+                return (
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0 shadow-sm">
+                            {initials}
+                        </div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                            {name}
+                        </span>
+                    </div>
+                );
+            }
         },
         {
+            id: 'shipping',
             header: isRTL ? 'الشحن / الكونتينر' : 'Shipping / Container',
-            accessorKey: 'receipt_type',
-            cell: ({ row }: any) => {
-                const doc = row.original;
+            cell: (doc) => {
 
                 // Show container info for ANY document linked to a container
                 if (doc.container_number || doc.container_status) {
@@ -497,188 +538,228 @@ export default function PurchaseCycleList() {
             }
         },
         {
+            id: 'total',
             header: isRTL ? 'الإجمالي' : 'Total',
-            accessorKey: 'total_amount',
-            cell: ({ row }: any) => (
-                <span className="font-mono font-bold tracking-tight">
-                    {Number(row.original.total_amount || 0).toLocaleString()} <span className="text-xs text-gray-500">{row.original.currency || ''}</span>
-                </span>
-            )
+            align: 'end',
+            sortable: true,
+            sortKey: 'total_amount',
+            cell: (doc) => {
+                const amount = Number(doc.total_amount || 0);
+                if (amount === 0) return <span className="text-[11px] text-gray-300 text-end block">—</span>;
+                return (
+                    <div className="flex flex-col items-end">
+                        <span className="font-mono font-bold text-[13px] text-gray-800 dark:text-gray-200 tracking-tight tabular-nums" dir="ltr">
+                            {amount.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-semibold">
+                            {doc.currency || ''}
+                        </span>
+                    </div>
+                );
+            },
         },
         {
+            id: 'receiving',
+            header: isRTL ? 'الاستلام' : 'Receiving',
+            cell: (doc) => {
+                const receivedAt = doc.received_at;
+                const postedAt = doc.posted_at;
+                if (!receivedAt && !postedAt) {
+                    if (['in_receiving', 'partially_received'].includes(doc.stage || doc.status)) {
+                        return (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-cyan-600 font-medium">
+                                <PackageCheck className="w-3 h-3" />
+                                {isRTL ? (doc.stage === 'partially_received' ? 'مستلم جزئياً' : 'قيد الاستلام') : (doc.stage === 'partially_received' ? 'Partial' : 'In receiving')}
+                            </span>
+                        );
+                    }
+                    return <span className="text-[11px] text-gray-300">—</span>;
+                }
+                return (
+                    <div className="flex flex-col gap-0.5">
+                        {receivedAt && (
+                            <div className="flex items-center gap-1 text-[10px] text-teal-600 font-medium">
+                                <PackageCheck className="w-3 h-3" />
+                                {format(new Date(receivedAt), 'MM/dd HH:mm')}
+                            </div>
+                        )}
+                        {postedAt && (
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                                <CheckCircle className="w-3 h-3" />
+                                {format(new Date(postedAt), 'MM/dd HH:mm')}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
+            id: 'status',
             header: isRTL ? 'الحالة' : 'Status',
-            accessorKey: 'status',
-            cell: ({ row }: any) => {
-                const doc = row.original;
-                // Map cycle type to doc_type for StatusDropdown
-                const docTypeMap: Record<string, string> = {
-                    invoice: 'purchase_invoice',
-                    order: 'purchase_order',
-                    quotation: 'purchase_order',
-                    request: 'purchase_order',
-                    receipt: 'purchase_invoice',
-                    return: 'purchase_invoice',
-                    pending_receipt: 'purchase_invoice',
+            cell: (doc) => {
+                const stage = doc.stage || doc.status || 'draft';
+
+                // Compound status labels
+                const stageConfig: Record<string, { bg: string; text: string; dot: string; labelAr: string; labelEn: string }> = {
+                    draft: { bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400', labelAr: 'مسودة', labelEn: 'Draft' },
+                    quotation: { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500', labelAr: 'عرض سعر', labelEn: 'Quotation' },
+                    order: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', labelAr: 'أمر شراء', labelEn: 'Order' },
+                    approved: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', labelAr: 'معتمد', labelEn: 'Approved' },
+                    confirmed: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', labelAr: 'مؤكد', labelEn: 'Confirmed' },
+                    in_receiving: { bg: 'bg-cyan-50', text: 'text-cyan-700', dot: 'bg-cyan-500', labelAr: 'قيد الاستلام', labelEn: 'In Receiving' },
+                    partially_received: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', labelAr: 'مستلم جزئياً', labelEn: 'Partially Received' },
+                    received: { bg: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-500', labelAr: 'مستلمة', labelEn: 'Received' },
+                    invoice: { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-500', labelAr: 'فاتورة', labelEn: 'Invoice' },
+                    posted: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', labelAr: doc.received_at ? 'مستلمة ومرحّلة' : 'مرحّلة', labelEn: doc.received_at ? 'Received & Posted' : 'Posted' },
+                    paid: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', labelAr: 'مدفوع', labelEn: 'Paid' },
+                    partial_paid: { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-500', labelAr: 'مدفوع جزئياً', labelEn: 'Partially Paid' },
+                    cancelled: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500', labelAr: 'ملغاة', labelEn: 'Cancelled' },
+                    closed: { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-500', labelAr: 'مغلقة', labelEn: 'Closed' },
                 };
-                const mappedDocType = docTypeMap[doc.type] || 'purchase_invoice';
+                const style = stageConfig[stage] || stageConfig.draft;
 
                 return (
-                    <StatusDropdown
-                        docType={mappedDocType}
-                        docId={doc.id}
-                        currentStatusCode={doc.status || 'draft'}
-                        tenantId={tenantId}
-                        size="sm"
-                        onStatusChange={() => {
-                            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
-                        }}
-                    />
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${style.bg} ${style.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                        {isRTL ? style.labelAr : style.labelEn}
+                    </span>
                 );
             }
         },
-        {
-            id: 'actions',
-            cell: ({ row }: any) => {
-                const doc = row.original;
-                const isOrderOrInvoice = (doc.type === 'order' || doc.type === 'invoice') && doc.status !== 'received';
-                const isShipmentReceipt = doc.type === 'receipt' && doc.receipt_type === 'shipment' && doc.shipment_id;
-
-                // ═══ Posting conditions ═══
-                const canPostInvoice = doc.type === 'invoice' && !['posted', 'cancelled'].includes(doc.status);
-                const canPostReturn = doc.type === 'return' && !['posted', 'cancelled'].includes(doc.status);
-                const canConvertQuotation = doc.type === 'quotation' && !['converted', 'cancelled'].includes(doc.status);
-                const hasActions = isOrderOrInvoice || isShipmentReceipt || canPostInvoice || canPostReturn || canConvertQuotation;
-
-                if (!hasActions) return null;
-
-                return (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={isPosting}>
-                                {isPosting ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <MoreHorizontal className="h-4 w-4" />
-                                )}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>{isRTL ? 'إجراءات' : 'Actions'}</DropdownMenuLabel>
-
-                            {/* ═══ Posting: Invoice ═══ */}
-                            {canPostInvoice && (
-                                <DropdownMenuItem
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
-                                        await postPurchaseInvoice(doc.id);
-                                    }}
-                                    className="text-green-700 focus:text-green-800 focus:bg-green-50"
-                                    disabled={isPosting}
-                                >
-                                    <Send className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                    {isRTL ? 'ترحيل الفاتورة' : 'Post Invoice'}
-                                </DropdownMenuItem>
-                            )}
-
-                            {/* ═══ Posting: Return ═══ */}
-                            {canPostReturn && (
-                                <DropdownMenuItem
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
-                                        await postPurchaseReturn(doc.id);
-                                    }}
-                                    className="text-orange-700 focus:text-orange-800 focus:bg-orange-50"
-                                    disabled={isPosting}
-                                >
-                                    <RotateCcw className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                    {isRTL ? 'ترحيل المرتجع' : 'Post Return'}
-                                </DropdownMenuItem>
-                            )}
-
-                            {/* ═══ Convert Quotation → Order ═══ */}
-                            {canConvertQuotation && (
-                                <>
-                                    <DropdownMenuItem
-                                        onClick={async (e) => {
-                                            e.stopPropagation();
-                                            await convertQuotation(doc.id, 'purchase');
-                                        }}
-                                        className="text-purple-700 focus:text-purple-800 focus:bg-purple-50"
-                                        disabled={isPosting}
-                                    >
-                                        <ArrowLeftRight className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                        {isRTL ? 'تحويل إلى أمر شراء' : 'Convert to Order'}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={async (e) => {
-                                            e.stopPropagation();
-                                            // Convert quotation directly to invoice
-                                            toast.info(isRTL ? 'جاري التحويل إلى فاتورة...' : 'Converting to invoice...');
-                                            try {
-                                                const { data: quote } = await supabase
-                                                    .from('purchase_quotations')
-                                                    .select('*')
-                                                    .eq('id', doc.id)
-                                                    .single();
-                                                if (quote) {
-                                                    handleCreate('draft');
-                                                    toast.success(isRTL ? '✅ تم فتح فاتورة جديدة من بيانات عرض السعر' : '✅ New invoice opened from quotation data');
-                                                }
-                                            } catch (err) {
-                                                toast.error(isRTL ? '❌ خطأ في التحويل' : '❌ Conversion error');
-                                            }
-                                        }}
-                                        className="text-indigo-700 focus:text-indigo-800 focus:bg-indigo-50"
-                                        disabled={isPosting}
-                                    >
-                                        <ArrowRight className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                        {isRTL ? 'تحويل إلى فاتورة مشتريات' : 'Convert to Invoice'}
-                                    </DropdownMenuItem>
-                                </>
-                            )}
-
-                            {/* ═══ Convert Order → Invoice ═══ */}
-                            {doc.type === 'order' && !['cancelled', 'closed'].includes(doc.status) && (
-                                <DropdownMenuItem
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
-                                        toast.info(isRTL ? 'جاري إنشاء فاتورة من أمر الشراء...' : 'Creating invoice from order...');
-                                        handleCreate('draft');
-                                    }}
-                                    className="text-indigo-700 focus:text-indigo-800 focus:bg-indigo-50"
-                                    disabled={isPosting}
-                                >
-                                    <ArrowRight className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                    {isRTL ? 'تحويل إلى فاتورة مشتريات' : 'Convert to Invoice'}
-                                </DropdownMenuItem>
-                            )}
-
-                            {(canPostInvoice || canPostReturn || canConvertQuotation) && (isOrderOrInvoice || isShipmentReceipt) && (
-                                <DropdownMenuSeparator />
-                            )}
-
-                            {/* ═══ Receipt Recording ═══ */}
-                            {isOrderOrInvoice && (
-                                <DropdownMenuItem onClick={() => {
-                                    toast.info(isRTL ? 'تسجيل استلام بضائع...' : 'Recording Receipt...');
-                                }}>
-                                    <Truck className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                    {isRTL ? 'تسجيل استلام' : 'Record Receipt'}
-                                </DropdownMenuItem>
-                            )}
-
-                            {isShipmentReceipt && (
-                                <DropdownMenuItem onClick={() => handleTransitReservation(doc)}>
-                                    <Truck className={`${isRTL ? 'ml-2' : 'mr-2'} h-4 w-4`} />
-                                    {isRTL ? 'حجز بضاعة بالطريق' : 'Transit Reservation'}
-                                </DropdownMenuItem>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                );
-            }
-        }
     ];
+
+    // Actions renderer for NexaListTable
+    const renderRowActions = (doc: any) => {
+        const isOrderOrInvoice = (doc.type === 'order' || doc.type === 'invoice') && doc.status !== 'received';
+        const isShipmentReceipt = doc.type === 'receipt' && doc.receipt_type === 'shipment' && doc.shipment_id;
+        const canPostInvoice = doc.type === 'invoice' && !['posted', 'cancelled'].includes(doc.status);
+        const canPostReturn = doc.type === 'return' && !['posted', 'cancelled'].includes(doc.status);
+        const canConvertQuotation = doc.type === 'quotation' && !['converted', 'cancelled'].includes(doc.status);
+        const hasActions = isOrderOrInvoice || isShipmentReceipt || canPostInvoice || canPostReturn || canConvertQuotation;
+
+        if (!hasActions) return null;
+
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-7 w-7 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100" disabled={isPosting}>
+                        {isPosting ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        ) : (
+                            <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                        )}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="min-w-[180px]">
+                    <DropdownMenuLabel className="text-[11px] text-gray-400">{isRTL ? 'إجراءات' : 'Actions'}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+
+                    {canPostInvoice && (
+                        <DropdownMenuItem
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                await postPurchaseInvoice(doc.id);
+                            }}
+                            className="gap-2 cursor-pointer text-green-700 focus:text-green-800 focus:bg-green-50"
+                            disabled={isPosting}
+                        >
+                            <Send className="w-4 h-4" />
+                            {isRTL ? 'ترحيل الفاتورة' : 'Post Invoice'}
+                        </DropdownMenuItem>
+                    )}
+
+                    {canPostReturn && (
+                        <DropdownMenuItem
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                await postPurchaseReturn(doc.id);
+                            }}
+                            className="gap-2 cursor-pointer text-orange-700 focus:text-orange-800 focus:bg-orange-50"
+                            disabled={isPosting}
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                            {isRTL ? 'ترحيل المرتجع' : 'Post Return'}
+                        </DropdownMenuItem>
+                    )}
+
+                    {canConvertQuotation && (
+                        <>
+                            <DropdownMenuItem
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await convertQuotation(doc.id, 'purchase');
+                                }}
+                                className="gap-2 cursor-pointer text-purple-700 focus:text-purple-800 focus:bg-purple-50"
+                                disabled={isPosting}
+                            >
+                                <ArrowLeftRight className="w-4 h-4" />
+                                {isRTL ? 'تحويل إلى أمر شراء' : 'Convert to Order'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    toast.info(isRTL ? 'جاري التحويل إلى فاتورة...' : 'Converting to invoice...');
+                                    try {
+                                        const { data: quote } = await supabase
+                                            .from('purchase_quotations')
+                                            .select('*')
+                                            .eq('id', doc.id)
+                                            .single();
+                                        if (quote) {
+                                            handleCreate('draft');
+                                            toast.success(isRTL ? '✅ تم فتح فاتورة جديدة من بيانات عرض السعر' : '✅ New invoice opened from quotation data');
+                                        }
+                                    } catch (err) {
+                                        toast.error(isRTL ? '❌ خطأ في التحويل' : '❌ Conversion error');
+                                    }
+                                }}
+                                className="gap-2 cursor-pointer text-indigo-700 focus:text-indigo-800 focus:bg-indigo-50"
+                                disabled={isPosting}
+                            >
+                                <ArrowRight className="w-4 h-4" />
+                                {isRTL ? 'تحويل إلى فاتورة مشتريات' : 'Convert to Invoice'}
+                            </DropdownMenuItem>
+                        </>
+                    )}
+
+                    {doc.type === 'order' && !['cancelled', 'closed'].includes(doc.status) && (
+                        <DropdownMenuItem
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                toast.info(isRTL ? 'جاري إنشاء فاتورة من أمر الشراء...' : 'Creating invoice from order...');
+                                handleCreate('draft');
+                            }}
+                            className="gap-2 cursor-pointer text-indigo-700 focus:text-indigo-800 focus:bg-indigo-50"
+                            disabled={isPosting}
+                        >
+                            <ArrowRight className="w-4 h-4" />
+                            {isRTL ? 'تحويل إلى فاتورة مشتريات' : 'Convert to Invoice'}
+                        </DropdownMenuItem>
+                    )}
+
+                    {(canPostInvoice || canPostReturn || canConvertQuotation) && (isOrderOrInvoice || isShipmentReceipt) && (
+                        <DropdownMenuSeparator />
+                    )}
+
+                    {isOrderOrInvoice && (
+                        <DropdownMenuItem onClick={() => {
+                            toast.info(isRTL ? 'تسجيل استلام بضائع...' : 'Recording Receipt...');
+                        }} className="gap-2 cursor-pointer">
+                            <Truck className="w-4 h-4" />
+                            {isRTL ? 'تسجيل استلام' : 'Record Receipt'}
+                        </DropdownMenuItem>
+                    )}
+
+                    {isShipmentReceipt && (
+                        <DropdownMenuItem onClick={() => handleTransitReservation(doc)} className="gap-2 cursor-pointer">
+                            <Truck className="w-4 h-4" />
+                            {isRTL ? 'حجز بضاعة بالطريق' : 'Transit Reservation'}
+                        </DropdownMenuItem>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    };
 
     // ─── Kanban Configuration — حسب الدستور: 6 أعمدة ───
     // request | quotation | invoice (يشمل draft+confirmed+received+posted) | receipt | return | cancelled
@@ -898,15 +979,41 @@ export default function PurchaseCycleList() {
 
                 {/* ─── Content Area ─── */}
                 {viewMode === 'list' ? (
-                    <div className="flex-1 min-h-0 border rounded-lg bg-white shadow-sm overflow-hidden">
-                        <NexaDataTable
-                            data={enrichedDocuments}
-                            columns={columns}
-                            enableSearch={true}
-                            searchPlaceholder={isRTL ? 'بحث برقم المستند...' : 'Search document #...'}
-                            pageSize={15}
-                        />
-                    </div>
+                    <NexaListTable
+                        data={enrichedDocuments}
+                        columns={columns}
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        searchPlaceholder={isRTL ? 'بحث برقم المستند أو المورد...' : 'Search document # or supplier...'}
+                        totalCount={enrichedDocuments.length}
+                        countLabel={isRTL ? 'مستند' : 'documents'}
+                        sortField={sortField}
+                        sortAsc={sortAsc}
+                        onSort={handleSort}
+                        onRowClick={handleRowClick}
+                        getRowKey={(row: any) => row.id}
+                        isLoading={isLoading}
+                        emptyIcon={<FileText className="w-12 h-12 text-gray-300" />}
+                        emptyMessage={isRTL ? 'لا توجد مستندات مشتريات' : 'No purchase documents found'}
+                        showFooter={true}
+                        footerLeftText={
+                            isRTL
+                                ? `عرض ${enrichedDocuments.length} مستند`
+                                : `Showing ${enrichedDocuments.length} documents`
+                        }
+                        footerRightContent={
+                            <div className="flex items-center gap-3">
+                                <span className="font-mono font-bold text-gray-700 dark:text-gray-300" dir="ltr">
+                                    {isRTL ? 'الإجمالي: ' : 'Total: '}
+                                    {enrichedDocuments.reduce((sum: number, d: any) => sum + Number(d.total_amount || 0), 0).toLocaleString()}
+                                    <span className="text-gray-400 ms-1 text-xs">{enrichedDocuments[0]?.currency || ''}</span>
+                                </span>
+                            </div>
+                        }
+                        renderActions={renderRowActions}
+                        isRTL={isRTL}
+                        direction={direction}
+                    />
                 ) : (
                     <div
                         className="overflow-hidden rounded-lg border bg-gradient-to-br from-gray-50 to-slate-50 shadow-sm"

@@ -17,6 +17,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     flowType: 'pkce', // Use PKCE flow for better security
+    // 🔒 Bypass navigator.locks to prevent timeout errors with multiple tabs
+    lock: async (name: string, acquireTimeout: number, cb: () => Promise<any>) => {
+      return await cb();
+    },
+    debug: false,
   },
   global: {
     headers: {

@@ -28,37 +28,29 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Loader2 } from 'lucide-react';
 import {
-    Settings, Shield, Users, Building2, GitBranch,
-    Eye, Layers, Wallet, Globe,
-    Calculator, Package, ShoppingCart, ShoppingBag,
-    Link2,
+    Settings, Building2,
+    Globe, Bell,
+    Calculator, Package, ShoppingCart,
+    Link2, Printer,
     type LucideIcon
 } from 'lucide-react';
 
-// ─── Tab Components ─────────────────────────────────────────────────────
-// Direct imports (no lazy loading) for instant switching
-
-// New unified tabs
+// Tab Components
 import CompanyProfileTab from './components/CompanyProfileTab';
 import TaxSystemTab from './components/TaxSystemTab';
 
-// Permission/admin tabs
-import RolesManagementTab from './components/RolesManagementTab';
-import UsersManagementTab from './components/UsersManagementTab';
-import VisibilityRulesTab from './components/VisibilityRulesTab';
-import UserPermissionsTab from '@/features/accounting/components/UserPermissionsTab';
-
-// Module settings (imported from their original locations)
+// Module settings
 import AccountingSettings from '@/features/accounting/AccountingSettings';
 import WarehouseSettingsPage from '@/features/warehouse/pages/WarehouseSettingsPage';
 import SalesWorkflowSettings from '@/features/sales/pages/SalesWorkflowSettings';
 import IntegrationsTab from './components/IntegrationsTab';
-import BranchesManagementTab from './components/BranchesManagementTab';
+import NotificationsSettingsTab from './components/NotificationsSettingsTab';
+import PrintSettingsTab from './components/PrintSettingsTab';
 
 // ─── Tab Configuration ──────────────────────────────────────────────────
 
@@ -81,15 +73,6 @@ const CONFIG_TABS: ConfigTab[] = [
         labelEn: 'Company Profile',
         icon: Building2,
         component: CompanyProfileTab,
-        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
-    },
-    {
-        id: 'branches',
-        labelKey: 'settings.tabs.branches',
-        labelAr: 'الفروع',
-        labelEn: 'Branches',
-        icon: GitBranch,
-        component: BranchesManagementTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     {
@@ -138,68 +121,23 @@ const CONFIG_TABS: ConfigTab[] = [
         component: IntegrationsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
-    // ─ Admin & Permissions ───────────────────────
     {
-        id: 'roles',
-        labelKey: 'settings.tabs.roles',
-        labelAr: 'إدارة الأدوار',
-        labelEn: 'Roles',
-        icon: Shield,
-        component: RolesManagementTab,
+        id: 'print',
+        labelKey: 'settings.tabs.print',
+        labelAr: 'الطباعة',
+        labelEn: 'Printing',
+        icon: Printer,
+        component: PrintSettingsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
     {
-        id: 'users',
-        labelKey: 'settings.tabs.users',
-        labelAr: 'المستخدمين',
-        labelEn: 'Users',
-        icon: Users,
-        component: UsersManagementTab,
+        id: 'notifications',
+        labelKey: 'settings.tabs.notifications',
+        labelAr: 'الإشعارات',
+        labelEn: 'Notifications',
+        icon: Bell,
+        component: NotificationsSettingsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
-    },
-    {
-        id: 'resources',
-        labelKey: 'settings.tabs.resources',
-        labelAr: 'صلاحيات الموارد',
-        labelEn: 'Resources',
-        icon: Wallet,
-        component: UserPermissionsTab,
-        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
-    },
-    {
-        id: 'visibility',
-        labelKey: 'settings.tabs.visibility',
-        labelAr: 'قواعد الإخفاء',
-        labelEn: 'Visibility',
-        icon: Eye,
-        component: VisibilityRulesTab,
-        requiresRole: ['super_admin', 'tenant_owner'],
-    },
-    {
-        id: 'modules',
-        labelKey: 'settings.tabs.modules',
-        labelAr: 'الموديولات',
-        labelEn: 'Modules',
-        icon: Layers,
-        requiresRole: ['super_admin', 'tenant_owner'],
-        component: () => (
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-tajawal flex items-center gap-2">
-                        <Layers className="w-5 h-5 text-erp-teal" />
-                        إدارة الموديولات
-                    </CardTitle>
-                    <CardDescription className="font-tajawal">
-                        تفعيل وإلغاء تفعيل الموديولات
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-gray-500 dark:text-gray-400 font-tajawal text-center py-8">
-                        قريباً...
-                    </p>
-                </CardContent>
-            </Card>
-        ),
     },
 ];
 

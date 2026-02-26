@@ -25,11 +25,12 @@ import {
     Clock,
     AlertTriangle,
     QrCode,
-    Smartphone
+    Smartphone,
+    PackageCheck,
 } from 'lucide-react';
 
 export default function WarehouseSettingsPage() {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const { companyId, tenantId } = useAuth();
 
     // State
@@ -51,6 +52,8 @@ export default function WarehouseSettingsPage() {
         auto_generate_location_barcode: true,
         require_location_scan_on_receive: false,
         require_photo_on_receive: false,
+        // 🔑 Receipt variance tolerance
+        receipt_variance_tolerance_pct: 1,
     });
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -281,6 +284,88 @@ export default function WarehouseSettingsPage() {
                             checked={settings.enforce_same_dye_lot}
                             onCheckedChange={(checked) => updateSetting('enforce_same_dye_lot', checked)}
                         />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* ═══ 🔑 Receipt Settings — Variance Tolerance ═══ */}
+            <Card className="border-emerald-200 dark:border-emerald-800">
+                <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <PackageCheck className="h-4 w-4 text-emerald-600" />
+                        {language === 'ar' ? 'إعدادات الاستلام' : 'Receipt Settings'}
+                    </CardTitle>
+                    <CardDescription>
+                        {language === 'ar'
+                            ? 'ضبط قواعد استلام البضائع والتسامح في الكميات'
+                            : 'Configure goods receipt rules and quantity tolerance'}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {/* Variance tolerance */}
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium">
+                            {language === 'ar' ? 'نسبة التسامح في الكميات (%)' : 'Quantity Variance Tolerance (%)'}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            {language === 'ar'
+                                ? 'الفارق المسموح به بين الكمية المطلوبة والمستلمة فعلياً. أي فارق يتجاوز هذه النسبة سيُعلَّم للمراجعة.'
+                                : 'Allowed variance between expected and actual received quantity. Variances beyond this will be flagged for review.'}
+                        </p>
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    max={20}
+                                    step={0.5}
+                                    value={(settings as any).receipt_variance_tolerance_pct ?? 1}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        receipt_variance_tolerance_pct: parseFloat(e.target.value) || 0
+                                    }))}
+                                    className="w-24 pe-7"
+                                />
+                                <span className="absolute end-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
+                            </div>
+                            <div className="flex gap-2">
+                                {[0.5, 1, 2, 3, 5].map(v => (
+                                    <button
+                                        key={v}
+                                        type="button"
+                                        onClick={() => setSettings(prev => ({ ...prev, receipt_variance_tolerance_pct: v }))}
+                                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${(settings as any).receipt_variance_tolerance_pct === v
+                                            ? 'bg-emerald-600 text-white border-emerald-600'
+                                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-emerald-400'
+                                            }`}
+                                    >
+                                        {v}%
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mt-2 ${(settings as any).receipt_variance_tolerance_pct === 0
+                            ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                            : (settings as any).receipt_variance_tolerance_pct <= 1
+                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                                : (settings as any).receipt_variance_tolerance_pct <= 3
+                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                    : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                            }`}>
+                            <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+                            {(settings as any).receipt_variance_tolerance_pct === 0 && (
+                                language === 'ar' ? 'لا تسامح — أي فارق سيُعلَّم للمراجعة' : 'Zero tolerance — any variance will be flagged'
+                            )}
+                            {(settings as any).receipt_variance_tolerance_pct > 0 && (settings as any).receipt_variance_tolerance_pct <= 1 && (
+                                language === 'ar' ? `✓ صارم — فقط فروقات أكبر من ${(settings as any).receipt_variance_tolerance_pct}% تُعلَّم` : `✓ Strict — only variances > ${(settings as any).receipt_variance_tolerance_pct}% flagged`
+                            )}
+                            {(settings as any).receipt_variance_tolerance_pct > 1 && (settings as any).receipt_variance_tolerance_pct <= 3 && (
+                                language === 'ar' ? `✓ متوازن — معيار الصناعة للأقمشة` : `✓ Balanced — fabric industry standard`
+                            )}
+                            {(settings as any).receipt_variance_tolerance_pct > 3 && (
+                                language === 'ar' ? `⚠ متساهل — فروقات كبيرة ستُقبل تلقائياً` : `⚠ Lenient — large variances auto-accepted`
+                            )}
+                        </div>
                     </div>
                 </CardContent>
             </Card>

@@ -53,12 +53,11 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
-    const abortController = new AbortController();
 
     // Get initial session - use both getSession and getUser for reliability
     const initializeAuth = async () => {
       // Skip if component unmounted
-      if (!mounted || abortController.signal.aborted) return;
+      if (!mounted) return;
 
       try {
         // 🚀 PERFORMANCE: Run session + user verification in parallel instead of sequential
@@ -71,7 +70,7 @@ export function useAuth() {
         const { user: currentUser, error: userError } = userResult;
 
         // Skip if unmounted during async operation
-        if (!mounted || abortController.signal.aborted) return;
+        if (!mounted) return;
 
         // Only log session errors if there's actually a session issue (not just missing session or connection error)
         if (sessionError && !isConnectionError(sessionError) && sessionError.message !== 'Auth session missing!') {
@@ -84,11 +83,11 @@ export function useAuth() {
         }
 
         // If we have a session but no user (or vice versa), try to refresh
-        if (storedSession && !currentUser && mounted && !abortController.signal.aborted) {
+        if (storedSession && !currentUser && mounted) {
           // Try to refresh the session
           try {
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession(storedSession);
-            if (!refreshError && refreshData.session && mounted && !abortController.signal.aborted) {
+            if (!refreshError && refreshData.session && mounted) {
               setState({
                 session: refreshData.session,
                 user: refreshData.session.user,
@@ -104,7 +103,7 @@ export function useAuth() {
         }
 
         // Skip if unmounted during async operation
-        if (!mounted || abortController.signal.aborted) return;
+        if (!mounted) return;
 
         // Get extended user with metadata
         let authUser = null;
@@ -116,7 +115,7 @@ export function useAuth() {
           }
         }
 
-        if (mounted && !abortController.signal.aborted) {
+        if (mounted) {
           setState({
             session: storedSession || null,
             user: currentUser || storedSession?.user || null,
@@ -129,7 +128,7 @@ export function useAuth() {
       } catch (err: any) {
         // Silently ignore AbortError and connection errors
         if (isConnectionError(err)) {
-          if (mounted && !abortController.signal.aborted) {
+          if (mounted) {
             setState(prev => ({
               ...prev,
               loading: false,
@@ -145,7 +144,7 @@ export function useAuth() {
           console.error('Auth initialization error:', err);
         }
 
-        if (mounted && !abortController.signal.aborted) {
+        if (mounted) {
           const displayError = shouldShowErrorToUser(err?.message);
 
           setState(prev => ({
@@ -162,7 +161,7 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (!mounted || abortController.signal.aborted) return;
+        if (!mounted) return;
 
         // إنشاء authUser فوري من بيانات الجلسة
         let authUser: AuthUser | null = null;
@@ -192,10 +191,10 @@ export function useAuth() {
         if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
           // استخدم setTimeout لتجنب blocking و AbortError
           setTimeout(async () => {
-            if (!mounted || abortController.signal.aborted) return;
+            if (!mounted) return;
             try {
               const updatedAuthUser = await getCurrentUserWithMetadata();
-              if (updatedAuthUser && mounted && !abortController.signal.aborted) {
+              if (updatedAuthUser && mounted) {
                 setState(prev => ({
                   ...prev,
                   authUser: updatedAuthUser,
@@ -211,7 +210,6 @@ export function useAuth() {
 
     return () => {
       mounted = false;
-      abortController.abort();
       subscription.unsubscribe();
     };
   }, []);

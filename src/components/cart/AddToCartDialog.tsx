@@ -38,6 +38,7 @@ import {
     Heart,
     Loader2,
     Info,
+    ChevronDown,
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCart, type PreferredRoll } from '@/contexts/CartContext';
@@ -126,7 +127,7 @@ export function AddToCartDialog({
     const [unitPrice, setUnitPrice] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [selectedRolls, setSelectedRolls] = useState<Set<string>>(new Set());
-    const [showRolls, setShowRolls] = useState(false);
+    const [showRolls, setShowRolls] = useState(true); // open by default — user can collapse
 
     const max = warehouse.available_length || 0;
     const qty = parseFloat(quantity) || 0;
@@ -168,10 +169,8 @@ export function AddToCartDialog({
             setUnitPrice(String(material.price || ''));
             setError('');
             setSelectedRolls(new Set());
-            setShowRolls(false);
-            // Focus quantity input
+            setShowRolls(true); // always open on mount
             setTimeout(() => inputRef.current?.focus(), 100);
-            // Load rolls if available
             if (onLoadRolls && !rolls && !rollsLoading) {
                 onLoadRolls();
             }
@@ -330,7 +329,7 @@ export function AddToCartDialog({
 
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="sm:max-w-[520px]" onKeyDown={handleKeyDown}>
+            <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto" onKeyDown={handleKeyDown}>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
@@ -441,44 +440,47 @@ export function AddToCartDialog({
                         />
                     </div>
 
-                    {/* ─── Roll Selection (V3) ─── */}
+                    {/* ─── Roll Selection — Always Visible if rolls available ─── */}
                     {(hasRolls || rollsLoading || onLoadRolls) && (
                         <div className="space-y-2">
+                            {/* Section header */}
                             <div className="flex items-center justify-between">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 px-2"
+                                <button
+                                    type="button"
+                                    className="flex items-center gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-100 transition-colors"
                                     onClick={() => {
                                         setShowRolls(!showRolls);
-                                        if (!showRolls && onLoadRolls && !rolls) {
-                                            onLoadRolls();
-                                        }
+                                        if (!showRolls && onLoadRolls && !rolls) onLoadRolls();
                                     }}
                                 >
-                                    <Scroll className="w-3.5 h-3.5" />
-                                    {showRolls ? t('إخفاء الرولونات', 'Hide Rolls') : t('اختيار رولونات مفضلة', 'Select Preferred Rolls')}
+                                    <div className={cn(
+                                        'w-5 h-5 rounded-md flex items-center justify-center transition-colors',
+                                        showRolls ? 'bg-indigo-600 text-white' : 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600'
+                                    )}>
+                                        <Scroll className="w-3 h-3" />
+                                    </div>
+                                    {t('تفضيل الرولونات للحجز', 'Preferred Rolls for Reservation')}
                                     {selectedRolls.size > 0 && (
-                                        <Badge className="h-4 px-1 text-[9px] bg-indigo-600 text-white ms-1">
+                                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-indigo-600 text-white">
                                             {selectedRolls.size}
-                                        </Badge>
+                                        </span>
                                     )}
-                                </Button>
+                                    <ChevronDown className={cn('w-3.5 h-3.5 text-indigo-400 transition-transform ms-auto', showRolls && 'rotate-180')} />
+                                </button>
                                 {selectedRolls.size > 0 && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 text-[10px] gap-1 text-emerald-600 hover:text-emerald-700"
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 px-2 py-1 rounded-md transition-colors"
                                         onClick={handleUseRollsQuantity}
                                     >
                                         <Ruler className="w-3 h-3" />
-                                        {t(`استخدم ${selectedRollsLength.toFixed(1)}`, `Use ${selectedRollsLength.toFixed(1)}`)}
-                                    </Button>
+                                        {t(`استخدم`, 'Use')} {selectedRollsLength.toLocaleString('en-US', { maximumFractionDigits: 1 })} {unitLabel[isAr ? 'ar' : 'en']}
+                                    </button>
                                 )}
                             </div>
 
                             {showRolls && (
-                                <div className="border rounded-lg overflow-hidden bg-white dark:bg-gray-900">
+                                <div className="rounded-xl border border-indigo-200/70 dark:border-indigo-800/50 overflow-hidden bg-indigo-50/30 dark:bg-indigo-950/20">
                                     {rollsLoading ? (
                                         <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
                                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -490,103 +492,107 @@ export function AddToCartDialog({
                                         </div>
                                     ) : (
                                         <>
-                                            {/* Header with Select All */}
-                                            <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 px-3 py-2 border-b">
-                                                <div className="flex items-center gap-2">
-                                                    <Scroll className="w-3.5 h-3.5 text-indigo-500" />
-                                                    <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                                                        {t('الرولونات المتاحة', 'Available Rolls')}
-                                                    </span>
-                                                    <Badge variant="outline" className="text-[9px] h-4">
-                                                        {availableRolls.length}
-                                                    </Badge>
-                                                </div>
+                                            {/* Header — select all */}
+                                            <div className="flex items-center justify-between px-3 py-2 border-b border-indigo-200/50 dark:border-indigo-800/40">
+                                                <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                                                    {availableRolls.length} {t('رولون متاح', 'rolls available')}
+                                                </span>
                                                 {availableRolls.length > 1 && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-5 text-[10px] text-indigo-500 px-1.5"
+                                                    <button
+                                                        type="button"
+                                                        className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
                                                         onClick={handleSelectAllRolls}
                                                     >
                                                         {selectedRolls.size === availableRolls.length
-                                                            ? t('إلغاء الكل', 'Deselect All')
-                                                            : t('تحديد الكل', 'Select All')}
-                                                    </Button>
+                                                            ? t('إلغاء تحديد الكل', 'Deselect All')
+                                                            : t('تحديد الكل', 'Select All')
+                                                        }
+                                                    </button>
                                                 )}
                                             </div>
 
-                                            {/* Rolls List */}
-                                            <ScrollArea className="max-h-[180px]">
-                                                {rolls!.map((roll) => {
-                                                    const isSelected = selectedRolls.has(roll.id);
-                                                    const isAvailable = roll.available_length > 0;
-                                                    const rstatus = getRollStatusLabel(roll.status);
+                                            {/* Roll cards grid */}
+                                            <div className="max-h-[280px] overflow-y-auto p-2">
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {rolls!.map((roll) => {
+                                                        const isSelected = selectedRolls.has(roll.id);
+                                                        const isAvailable = roll.available_length > 0;
+                                                        const rstatus = getRollStatusLabel(roll.status);
 
-                                                    return (
-                                                        <div
-                                                            key={roll.id}
-                                                            className={cn(
-                                                                'flex items-center gap-3 px-3 py-2 border-b last:border-b-0 transition-colors cursor-pointer',
-                                                                isSelected && 'bg-indigo-50/70 dark:bg-indigo-900/20',
-                                                                !isAvailable && 'opacity-40 cursor-not-allowed',
-                                                                isAvailable && !isSelected && 'hover:bg-gray-50 dark:hover:bg-gray-800/30',
-                                                            )}
-                                                            onClick={() => isAvailable && handleToggleRoll(roll.id)}
-                                                        >
-                                                            {/* Checkbox */}
-                                                            <div className={cn(
-                                                                'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0',
-                                                                isSelected
-                                                                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                                                                    : 'border-gray-300 dark:border-gray-600',
-                                                                !isAvailable && 'border-gray-200 dark:border-gray-700',
-                                                            )}>
-                                                                {isSelected && <Check className="w-3 h-3" />}
-                                                            </div>
-
-                                                            {/* Roll number */}
-                                                            <div className="flex-1 min-w-0">
-                                                                <span className={cn(
-                                                                    'text-xs font-mono',
-                                                                    isSelected ? 'text-indigo-700 dark:text-indigo-300 font-semibold' : 'text-gray-700 dark:text-gray-300',
+                                                        return (
+                                                            <div
+                                                                key={roll.id}
+                                                                className={cn(
+                                                                    'relative flex flex-col gap-1 p-2.5 rounded-lg border-2 cursor-pointer transition-all select-none',
+                                                                    isSelected
+                                                                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 shadow-sm shadow-indigo-200 dark:shadow-indigo-900/50'
+                                                                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-indigo-300 dark:hover:border-indigo-700',
+                                                                    !isAvailable && 'opacity-40 cursor-not-allowed',
+                                                                )}
+                                                                onClick={() => isAvailable && handleToggleRoll(roll.id)}
+                                                            >
+                                                                {/* Selected checkmark */}
+                                                                <div className={cn(
+                                                                    'absolute top-2 end-2 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0',
+                                                                    isSelected
+                                                                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                                        : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900'
                                                                 )}>
+                                                                    {isSelected && <Check className="w-2.5 h-2.5" />}
+                                                                </div>
+
+                                                                {/* Roll number */}
+                                                                <span className={cn(
+                                                                    'text-xs font-mono font-semibold pe-5',
+                                                                    isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'
+                                                                )} dir="ltr">
                                                                     {roll.roll_number}
                                                                 </span>
+
+                                                                {/* Available meters */}
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className={cn(
+                                                                        'text-sm font-bold font-mono',
+                                                                        isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'
+                                                                    )} dir="ltr">
+                                                                        {roll.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                        <span className="text-[9px] font-normal text-gray-400 ms-0.5">{unitLabel[isAr ? 'ar' : 'en']}</span>
+                                                                    </span>
+                                                                    {/* Status dot */}
+                                                                    <span className={cn(
+                                                                        'text-[8px] px-1.5 py-0.5 rounded-full font-semibold',
+                                                                        rstatus.color === 'green' && 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
+                                                                        rstatus.color === 'orange' && 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+                                                                        rstatus.color === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
+                                                                        rstatus.color === 'red' && 'bg-red-100 text-red-700',
+                                                                    )}>
+                                                                        {rstatus.label}
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Heart when selected */}
+                                                                {isSelected && (
+                                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                                        <Heart className="w-3 h-3 text-pink-500 fill-pink-500" />
+                                                                        <span className="text-[9px] text-pink-500 font-medium">{t('مفضل', 'Preferred')}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
 
-                                                            {/* Available */}
-                                                            <div className="text-xs font-mono text-green-600 dark:text-green-400 font-medium flex-shrink-0">
-                                                                {roll.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                                <span className="text-gray-400 ms-0.5">{unitLabel[isAr ? 'ar' : 'en']}</span>
-                                                            </div>
-
-                                                            {/* Status */}
-                                                            <span className={cn(
-                                                                'text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0',
-                                                                rstatus.color === 'green' && 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-                                                                rstatus.color === 'orange' && 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-                                                                rstatus.color === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-                                                                rstatus.color === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-                                                            )}>
-                                                                {rstatus.label}
-                                                            </span>
-
-                                                            {/* Heart */}
-                                                            {isSelected && (
-                                                                <Heart className="w-3.5 h-3.5 text-pink-500 fill-pink-500 flex-shrink-0" />
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </ScrollArea>
-
-                                            {/* Selected summary */}
+                                            {/* Selected summary bar */}
                                             {selectedRolls.size > 0 && (
-                                                <div className="flex items-center justify-between px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 border-t text-xs">
-                                                    <span className="text-indigo-700 dark:text-indigo-300 font-medium">
-                                                        {selectedRolls.size} {t('رولون مختار', 'rolls selected')}
-                                                    </span>
-                                                    <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                                                <div className="flex items-center justify-between px-3 py-2 bg-indigo-600 dark:bg-indigo-700 text-white text-xs">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Heart className="w-3.5 h-3.5 fill-white" />
+                                                        <span className="font-semibold">
+                                                            {selectedRolls.size} {t('رولون مفضل للحجز', 'rolls preferred for reservation')}
+                                                        </span>
+                                                    </div>
+                                                    <span className="font-bold font-mono" dir="ltr">
                                                         {selectedRollsLength.toLocaleString('en-US', { maximumFractionDigits: 1 })} {unitLabel[isAr ? 'ar' : 'en']}
                                                     </span>
                                                 </div>
@@ -596,14 +602,14 @@ export function AddToCartDialog({
                                 </div>
                             )}
 
-                            {/* Info note about preferred rolls */}
+                            {/* Info note */}
                             {showRolls && hasRolls && (
                                 <div className="flex items-start gap-1.5 px-1">
                                     <Info className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
                                     <p className="text-[10px] text-blue-500 dark:text-blue-400 leading-tight">
                                         {t(
-                                            'الرولونات المفضلة هي اقتراح لأمين المستودع. القرار النهائي لاختيار الرولونات يعود لأمين المستودع عند إذن التسليم.',
-                                            'Preferred rolls are suggestions for the warehouse keeper. Final roll selection is decided at delivery.'
+                                            'الرولونات المفضلة اقتراح لأمين المستودع. القرار النهائي عند إذن التسليم.',
+                                            'Preferred rolls are suggestions. Final selection is at delivery.'
                                         )}
                                     </p>
                                 </div>

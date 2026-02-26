@@ -48,6 +48,11 @@ export interface ReceiptItem {
     errorMessage?: string;
     createdAt: string;
     supabaseId?: string;          // ID from Supabase after sync
+    // ─── Cost & Container Linking ───────────────────────────
+    unitPrice?: number;           // 🔑 Cost per meter from source document
+    containerItemId?: string;     // 🔑 Links to container_items.id for cost tracking
+    containerId?: string;         // 🔑 Container reference for fabric_rolls.container_id
+    supplierId?: string;          // Supplier reference
 }
 
 export interface ReceiptSession {
@@ -308,14 +313,23 @@ export const receiptLocalStore = {
                     material_id: item.materialId,
                     roll_number: item.rollNumber,
                     batch_id: batchIdToSave,
-                    // 🔑 FIX: Schema alignment
-                    initial_length: item.rollLength, // DB column is initial_length
+                    // ─── Length ───
+                    initial_length: item.rollLength,
                     current_length: item.rollLength,
-                    cost_per_meter: 0, // Default to 0, cost updated later via Receipt
+                    // ─── Cost (🔑 FIX: use unit price from source document) ───
+                    cost_per_meter: item.unitPrice || 0,
+                    supplier_unit_cost: item.unitPrice || 0,
+                    estimated_landed_cost: item.unitPrice || 0,
+                    cost_status: item.unitPrice ? 'provisional' : 'pending',
+                    // ─── Container Linking (🔑 FIX: link roll to container item) ───
+                    container_id: item.containerId || null,
+                    container_item_id: item.containerItemId || null,
+                    // ─── Color ───
+                    color_id: item.colorId || null,
+                    color_name: item.colorName || null,
 
                     reserved_length: 0,
                     status: 'available',
-
                     notes: notesToSave,
                 })
                 .select('id')

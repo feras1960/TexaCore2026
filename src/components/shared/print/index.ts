@@ -3,11 +3,12 @@
  * تصدير مكونات الطباعة
  */
 
-export { 
-  PrintDialog, 
-  type PrintTemplate, 
-  type PrintDocument, 
+export {
+  PrintDialog,
+  type PrintTemplate,
+  type PrintDocument,
   type PrintOptions,
-  type TemplateCategory 
+  type TemplateCategory
 } from './PrintDialog';
 export { default } from './PrintDialog';
+export { EnhancedPrintDialog } from './EnhancedPrintDialog';

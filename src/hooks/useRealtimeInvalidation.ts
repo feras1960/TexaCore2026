@@ -110,8 +110,8 @@ export function useRealtimeInvalidation(config: RealtimeInvalidationConfig) {
         // Don't subscribe if disabled or missing companyId
         if (!enabled || !companyId) return;
 
-        // Build a unique channel name
-        const channelName = `rt-${table}-${companyId}`;
+        // Build a unique channel name per hook instance
+        const channelName = `rt-${table}-${companyId}-${Math.random().toString(36).substring(2, 10)}`;
 
         // Clean up existing channel if any
         if (channelRef.current) {

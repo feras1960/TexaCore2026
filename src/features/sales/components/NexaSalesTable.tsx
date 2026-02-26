@@ -19,7 +19,8 @@ import { Button } from '@/components/ui/button';
 import {
     Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
     FileText, ShoppingCart, Truck, Package, RotateCcw, MoreHorizontal,
-    Calendar, User, Receipt, Eye, Pencil, Copy, Trash2, Send, ArrowLeftRight, Loader2
+    Calendar, User, Receipt, Eye, Pencil, Copy, Trash2, Send, ArrowLeftRight, Loader2,
+    CheckCircle, BookOpen, FilePlus
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -33,7 +34,7 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 // ─── Types ───
-type CycleType = 'quotation' | 'order' | 'delivery' | 'invoice' | 'return' | 'reservation';
+type CycleType = 'quotation' | 'order' | 'delivery' | 'invoice' | 'return' | 'reservation' | 'draft' | 'confirmed' | 'posted';
 
 interface SalesDocument {
     id: string;
@@ -121,6 +122,30 @@ const TYPE_CONFIG: Record<CycleType, {
         dotColor: 'bg-cyan-500',
         typeKey: 'sales.types.reservation',
     },
+    draft: {
+        icon: <FilePlus className="w-4 h-4" />,
+        borderColor: 'border-s-gray-400',
+        badgeBg: 'bg-gray-100 dark:bg-gray-800',
+        badgeText: 'text-gray-600 dark:text-gray-400',
+        dotColor: 'bg-gray-400',
+        typeKey: 'common.status.draft',
+    },
+    confirmed: {
+        icon: <CheckCircle className="w-4 h-4" />,
+        borderColor: 'border-s-green-500',
+        badgeBg: 'bg-green-50 dark:bg-green-950/30',
+        badgeText: 'text-green-700 dark:text-green-400',
+        dotColor: 'bg-green-500',
+        typeKey: 'common.status.confirmed',
+    },
+    posted: {
+        icon: <BookOpen className="w-4 h-4" />,
+        borderColor: 'border-s-emerald-500',
+        badgeBg: 'bg-emerald-50 dark:bg-emerald-950/30',
+        badgeText: 'text-emerald-700 dark:text-emerald-400',
+        dotColor: 'bg-emerald-500',
+        typeKey: 'common.status.posted',
+    },
 };
 
 // ─── Status Config (using translation keys) ───
@@ -134,10 +159,24 @@ const STATUS_STYLES: Record<string, {
     pending: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
     approved: { bg: 'bg-green-50 dark:bg-green-950/30', text: 'text-green-700 dark:text-green-400', dot: 'bg-green-500' },
     confirmed: { bg: 'bg-green-50 dark:bg-green-950/30', text: 'text-green-700 dark:text-green-400', dot: 'bg-green-500' },
-    posted: { bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500' },
+    posted: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
     delivered: { bg: 'bg-teal-50 dark:bg-teal-950/30', text: 'text-teal-700 dark:text-teal-400', dot: 'bg-teal-500' },
+    in_delivery: { bg: 'bg-sky-50 dark:bg-sky-950/30', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500' },
+    in_receiving: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500' },
     cancelled: { bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500' },
     completed: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    paid: { bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500' },
+    partial_paid: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500' },
+    partially_paid: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500' },
+    partially_received: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500' },
+    fully_received: { bg: 'bg-green-50 dark:bg-green-950/30', text: 'text-green-700 dark:text-green-400', dot: 'bg-green-500' },
+    quotation: { bg: 'bg-purple-50 dark:bg-purple-950/30', text: 'text-purple-700 dark:text-purple-400', dot: 'bg-purple-500' },
+    order: { bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500' },
+    reservation: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500' },
+    invoice: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500' },
+    invoiced: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500' },
+    delivery: { bg: 'bg-orange-50 dark:bg-orange-950/30', text: 'text-orange-700 dark:text-orange-400', dot: 'bg-orange-500' },
+    closed: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-500' },
 };
 
 // ─── Component ───

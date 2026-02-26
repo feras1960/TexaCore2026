@@ -162,14 +162,42 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
         enabled: !!companyId && !!(docIds.quotation_id || docIds.sales_order_id || docIds.sales_invoice_id),
     });
 
+    // ─── Fetch party sub-account (customer) ──────────
+    const customerId = data?.customer_id;
+    const { data: partySubAccount } = useQuery({
+        queryKey: ['party_sub_account', customerId, 'customer'],
+        queryFn: async () => {
+            if (!customerId) return null;
+            const { data: row, error } = await supabase
+                .from('chart_of_accounts')
+                .select('id, account_code, name_ar, name_en')
+                .eq('is_party_account', true)
+                .eq('party_type', 'customer')
+                .eq('party_id', customerId)
+                .maybeSingle();
+            if (error || !row) return null;
+            return {
+                code: row.account_code,
+                nameAr: row.name_ar || '',
+                nameEn: row.name_en || row.name_ar || '',
+            };
+        },
+        enabled: !!customerId,
+    });
+
+    // ─── Tax from data ───────────────────────
+    const taxAmount = Number(data?.tax_amount || 0);
+
     // ─── Journal Preview ─────────────────
     const journalLines = useMemo<JournalPreviewLine[]>(() => {
         return paymentScheduleService.generateJournalPreview({
             totalAmount,
             paidAmount,
+            taxAmount,
             currency: docCurrency,
             customerName,
             isRTL,
+            partySubAccount: partySubAccount || null,
             accountCodes: acctSettings ? {
                 receivableCode: getAccountCode(acctCodes, acctSettings.default_receivable_account_id),
                 receivableName: getAccountName(acctCodes, acctSettings.default_receivable_account_id, isRTL),
@@ -177,9 +205,11 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
                 salesName: getAccountName(acctCodes, acctSettings.default_sales_account_id, isRTL),
                 cashCode: getAccountCode(acctCodes, acctSettings.default_cash_account_id),
                 cashName: getAccountName(acctCodes, acctSettings.default_cash_account_id, isRTL),
+                taxOutputCode: getAccountCode(acctCodes, acctSettings.default_tax_output_account_id),
+                taxOutputName: getAccountName(acctCodes, acctSettings.default_tax_output_account_id, isRTL),
             } : undefined,
         });
-    }, [totalAmount, paidAmount, docCurrency, customerName, isRTL, acctCodes, acctSettings]);
+    }, [totalAmount, paidAmount, taxAmount, docCurrency, customerName, isRTL, acctCodes, acctSettings, partySubAccount]);
 
     // ─── Payment Requirement Toggle ───────
     useEffect(() => {
@@ -754,72 +784,6 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
                     </div>
                 </div>
             )}
-
-            {/* ═══ Section 5: Journal Entry Preview ═══ */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                <button
-                    onClick={() => setJournalExpanded(!journalExpanded)}
-                    className="flex items-center justify-between w-full text-sm font-bold text-gray-800 dark:text-gray-200"
-                >
-                    <span className="flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-amber-600" />
-                        {isRTL ? 'معاينة القيد المحاسبي' : 'Journal Entry Preview'}
-                    </span>
-                    {journalExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-
-                {journalExpanded && journalLines.length > 0 && (
-                    <div className="mt-3">
-                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                            <table className="w-full text-xs">
-                                <thead className="bg-amber-50 dark:bg-amber-900/20">
-                                    <tr>
-                                        <th className="px-3 py-2 text-start">{isRTL ? 'الحساب' : 'Account'}</th>
-                                        <th className="px-3 py-2 text-start">{isRTL ? 'البيان' : 'Description'}</th>
-                                        <th className="px-3 py-2 text-end">{isRTL ? 'مدين' : 'Debit'}</th>
-                                        <th className="px-3 py-2 text-end">{isRTL ? 'دائن' : 'Credit'}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {journalLines.map((line, idx) => (
-                                        <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
-                                            <td className="px-3 py-2">
-                                                <span className="font-mono text-gray-500 me-1">{line.account_code}</span>
-                                                <span className="font-medium">{line.account_name}</span>
-                                            </td>
-                                            <td className="px-3 py-2 text-gray-500">{line.description}</td>
-                                            <td className="px-3 py-2 text-end font-mono font-medium text-red-600">
-                                                {line.debit > 0 ? fmt(line.debit) : ''}
-                                            </td>
-                                            <td className="px-3 py-2 text-end font-mono font-medium text-emerald-600">
-                                                {line.credit > 0 ? fmt(line.credit) : ''}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {/* Totals */}
-                                    <tr className="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-bold">
-                                        <td colSpan={2} className="px-3 py-2 text-end">{isRTL ? 'الإجمالي' : 'Total'}</td>
-                                        <td className="px-3 py-2 text-end font-mono text-red-600">
-                                            {fmt(journalLines.reduce((s, l) => s + l.debit, 0))}
-                                        </td>
-                                        <td className="px-3 py-2 text-end font-mono text-emerald-600">
-                                            {fmt(journalLines.reduce((s, l) => s + l.credit, 0))}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-2 text-center">
-                            {isRTL ? '⚠️ هذه معاينة فقط — القيد الفعلي يُنشأ عند ترحيل الفاتورة' : '⚠️ Preview only — actual entry created on posting'}
-                        </p>
-                    </div>
-                )}
-                {journalExpanded && journalLines.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-3 mt-2">
-                        {isRTL ? 'لا يمكن عرض القيد — لا يوجد مبلغ' : 'No entry — amount is zero'}
-                    </p>
-                )}
-            </div>
         </div>
     );
 };

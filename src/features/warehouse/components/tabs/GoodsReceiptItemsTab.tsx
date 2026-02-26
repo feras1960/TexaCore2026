@@ -75,6 +75,9 @@ interface SourceDocumentItem {
     unit?: string;
     notes?: string;
     received_quantity?: number;
+    // ─── Dynamic variant fields (from source document) ───
+    color_id?: string;
+    color_name?: string;
 }
 
 // ─── Props ───────────────────────────────────────────────────
@@ -118,6 +121,16 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
 
     // Refs
     const rollLengthInputRef = useRef<HTMLInputElement>(null);
+    const confirmPrintBtnRef = useRef<HTMLButtonElement>(null);
+
+    // Auto-focus confirm+print button when label preview opens
+    useEffect(() => {
+        if (showLabelPreview) {
+            // Small delay to let Radix finish its focus management, then override
+            const timer = setTimeout(() => confirmPrintBtnRef.current?.focus(), 50);
+            return () => clearTimeout(timer);
+        }
+    }, [showLabelPreview]);
 
     // Items from data
     const items: ReceiptItem[] = data?.receipt_items || [];
@@ -199,13 +212,109 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
         if (si.material_id) {
             setMaterialId(si.material_id);
         }
+        // ─── Dynamic: auto-fill color from source document ───
+        if (si.color_name) {
+            setColorName(si.color_name);
+        } else {
+            setColorName('');
+        }
         // Focus on roll length for fast entry
         setTimeout(() => rollLengthInputRef.current?.focus(), 150);
     }, []);
 
     // ─── Pre-Add Item (show label preview) ───────────────────
+    // ─── Dynamic: determine if color field should show ─────
+    const selectedSourceItem = useMemo(() =>
+        sourceItems.find(s => s.id === selectedSourceItemId),
+        [sourceItems, selectedSourceItemId]
+    );
+    const showColorField = !selectedSourceItemId // manual entry → always show
+        || selectedSourceItem?.color_id
+        || selectedSourceItem?.color_name;
+
+    // ─── Resolved color_id for the current entry ─────────
+    const resolvedColorId = useMemo(() => {
+        if (selectedSourceItem?.color_id) return selectedSourceItem.color_id;
+        return undefined;
+    }, [selectedSourceItem]);
+
+    // ─── 🔑 Colors available for the selected material from source items ───
+    // Derives the list of colors (from sourceItems) for the currently chosen materialId
+    const colorOptionsForMaterial = useMemo(() => {
+        if (!materialId || sourceItems.length === 0) return [];
+        const matItems = sourceItems.filter(
+            si => (si.material_id === materialId || si.product_id === materialId)
+                && (si.color_name || si.color_id)
+        );
+        // De-duplicate by color_name
+        const seen = new Set<string>();
+        const opts: Array<{ id?: string; name: string; sourceItemId: string }> = [];
+        for (const si of matItems) {
+            const key = si.color_name || si.color_id || '';
+            if (key && !seen.has(key)) {
+                seen.add(key);
+                opts.push({
+                    id: si.color_id,
+                    name: si.color_name || si.color_id || '',
+                    sourceItemId: si.id,
+                });
+            }
+        }
+        return opts;
+    }, [materialId, sourceItems]);
+
+    // ─── 🔑 Auto-select color when material changes ──────────
+    // If only one color is available → select it automatically
+    // Also sync the selectedSourceItemId to match the color's source item
+    useEffect(() => {
+        if (colorOptionsForMaterial.length === 1) {
+            setColorName(colorOptionsForMaterial[0].name);
+            // Also auto-link to the correct source item
+            if (!selectedSourceItemId) {
+                setSelectedSourceItemId(colorOptionsForMaterial[0].sourceItemId);
+            }
+        } else if (colorOptionsForMaterial.length === 0) {
+            // No colors defined in source → allow free text (clear only if current color not in listed)
+            // Don't clear, user may type manually
+        }
+        // Multi-color: reset color so user must choose
+        else {
+            setColorName('');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [materialId]);
+
+    // ─── 🔑 Handle color selection from dropdown ─────────
+    const handleColorSelect = useCallback((selectedColorName: string) => {
+        setColorName(selectedColorName);
+        // Also sync the source item selection to this color's source item
+        const matchingOpt = colorOptionsForMaterial.find(o => o.name === selectedColorName);
+        if (matchingOpt) {
+            setSelectedSourceItemId(matchingOpt.sourceItemId);
+        }
+    }, [colorOptionsForMaterial]);
+
+    // ─── 🔑 Handle material change → sync source item linked to that material
+    const handleMaterialChange = useCallback((newMaterialId: string) => {
+        setMaterialId(newMaterialId);
+        setColorName(''); // reset color when material changes
+        // Auto-link source item if there's only ONE source item for this material
+        const matItems = sourceItems.filter(
+            si => si.material_id === newMaterialId || si.product_id === newMaterialId
+        );
+        if (matItems.length === 1) {
+            setSelectedSourceItemId(matItems[0].id);
+        } else if (matItems.length === 0) {
+            setSelectedSourceItemId('');
+        }
+        // If multiple → keep selectedSourceItemId empty until user picks or color is selected
+    }, [sourceItems]);
+
     const handlePreAddItem = useCallback(() => {
-        if (!materialId || !colorName || !rollLength || Number(rollLength) <= 0) return;
+        // If color field is visible, require it; otherwise skip
+        const needsColor = showColorField;
+        if (!materialId || !rollLength || Number(rollLength) <= 0) return;
+        if (needsColor && !colorName) return;
 
         const mat = materials.find(m => m.id === materialId);
         const rollNum = generateRollNumber();
@@ -231,7 +340,8 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
             materialName: mat
                 ? (language === 'ar' ? (mat.name_ar || mat.name_en) : (mat.name_en || mat.name_ar))
                 : materialId,
-            colorName,
+            colorId: resolvedColorId || undefined,
+            colorName: colorName || '',
             rollLength: Number(rollLength),
             quality: quality as ReceiptItem['quality'],
             sourceItemId: resolvedSourceItemId || undefined,
@@ -241,11 +351,26 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
         };
         setPendingItem(previewItem);
         setShowLabelPreview(true);
-    }, [materialId, colorName, rollLength, quality, selectedSourceItemId, sourceItems, materials, language, data?.reference_number]);
+    }, [materialId, colorName, rollLength, quality, selectedSourceItemId, sourceItems, materials, language, data?.reference_number, showColorField, resolvedColorId]);
 
     // ─── Confirm Add Item ────────────────────────────────────
     const confirmAddItem = useCallback(async () => {
         if (!pendingItem || !sessionId) return;
+
+        // 🔑 FIX Phase-1: استخراج التكلفة من مستند المصدر وربطه بالكونتينر
+        // يحل مشكلة cost_per_meter = 0 في جميع الرولونات
+        const resolvedSourceItem = sourceItems.find(si =>
+            si.id === pendingItem.sourceItemId ||
+            (si.material_id && si.material_id === pendingItem.materialId) ||
+            (si.product_id && si.product_id === pendingItem.materialId)
+        );
+        const unitPrice = resolvedSourceItem?.unit_price || 0;
+
+        // للكونتينر: ربط الرولون بـ container_id + container_item_id
+        const isContainerReceipt = sourceDocument?.type === 'container';
+        const containerId = isContainerReceipt ? (sourceDocument?.id || undefined) : undefined;
+        const containerItemId = isContainerReceipt && resolvedSourceItem?.id
+            ? resolvedSourceItem.id : undefined;
 
         setIsSaving(true);
         try {
@@ -254,12 +379,18 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                 batchId: pendingItem.batchId,
                 materialId: pendingItem.materialId,
                 materialName: pendingItem.materialName,
+                colorId: pendingItem.colorId,
                 colorName: pendingItem.colorName,
                 rollLength: pendingItem.rollLength,
                 quality: pendingItem.quality,
                 sourceItemId: pendingItem.sourceItemId,
                 source: pendingItem.source,
+                // 🔑 NEW: تكلفة الوحدة وربط الكونتينر
+                unitPrice,
+                containerId,
+                containerItemId,
             });
+
 
             // Update parent data through onChange
             onChange({
@@ -279,7 +410,7 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
         } finally {
             setIsSaving(false);
         }
-    }, [pendingItem, sessionId, items, onChange, data]);
+    }, [pendingItem, sessionId, items, onChange, data, sourceItems, sourceDocument]);
 
     // ─── Remove Item ─────────────────────────────────────────
     const handleRemoveItem = useCallback((itemId: string) => {
@@ -362,13 +493,16 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
         return language === 'ar' ? (mat.name_ar || mat.name_en) : (mat.name_en || mat.name_ar);
     }, [materials, language]);
 
-    // ─── Discrepancy Calculation ──────────────────────────────
+    // ─── Discrepancy Calculation (🔑 FIX: tolerance for floating point errors) ─
     const overallDiscrepancy = useMemo(() => {
         if (stats.expectedTotal === 0) return { type: 'none', amount: 0 };
-        const diff = stats.totalLength - stats.expectedTotal;
+        const rawDiff = stats.totalLength - stats.expectedTotal;
+        // 🔑 Round to 3 decimal places to avoid floating-point ghosts (e.g. 1.82e-14)
+        const EPSILON = 0.001; // 1mm tolerance
+        const diff = Math.abs(rawDiff) < EPSILON ? 0 : rawDiff;
         if (diff === 0) return { type: 'none' as const, amount: 0 };
-        if (diff > 0) return { type: 'excess' as const, amount: diff };
-        return { type: 'shortage' as const, amount: Math.abs(diff) };
+        if (diff > 0) return { type: 'excess' as const, amount: Math.round(diff * 1000) / 1000 };
+        return { type: 'shortage' as const, amount: Math.round(Math.abs(diff) * 1000) / 1000 };
     }, [stats]);
 
     // ════════════════════════════════════════════════════════════
@@ -437,6 +571,11 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                                                 <th className="p-2 text-start text-[11px] font-medium text-blue-700 dark:text-blue-400">
                                                     {language === 'ar' ? 'المادة' : 'Material'}
                                                 </th>
+                                                {sourceItems.some(si => si.color_id || si.color_name) && (
+                                                    <th className="p-2 text-start text-[11px] font-medium text-blue-700 dark:text-blue-400">
+                                                        {language === 'ar' ? 'اللون' : 'Color'}
+                                                    </th>
+                                                )}
                                                 <th className="p-2 text-start text-[11px] font-medium text-blue-700 dark:text-blue-400">
                                                     {language === 'ar' ? 'الكمية المطلوبة' : 'Required Qty'}
                                                 </th>
@@ -472,6 +611,18 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                                                         <td className="p-2 text-xs font-medium">
                                                             {si.description || getMaterialName(si.material_id)}
                                                         </td>
+                                                        {sourceItems.some(s => s.color_id || s.color_name) && (
+                                                            <td className="p-2 text-xs">
+                                                                {si.color_name ? (
+                                                                    <Badge variant="outline" className="text-[10px] gap-1">
+                                                                        <span className="w-2 h-2 rounded-full bg-current" />
+                                                                        {si.color_name}
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <span className="text-muted-foreground">—</span>
+                                                                )}
+                                                            </td>
+                                                        )}
                                                         <td className="p-2 font-mono text-xs font-medium text-blue-700 dark:text-blue-400">
                                                             {si.quantity.toLocaleString()}
                                                             {si.unit && <span className="text-muted-foreground ms-1">{si.unit}</span>}
@@ -626,7 +777,7 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                             <Label className="text-xs text-muted-foreground">
                                 {language === 'ar' ? 'المادة' : 'Material'}
                             </Label>
-                            <Select value={materialId} onValueChange={setMaterialId}>
+                            <Select value={materialId} onValueChange={handleMaterialChange}>
                                 <SelectTrigger className="h-9">
                                     <SelectValue placeholder={language === 'ar' ? 'اختر المادة' : 'Select'} />
                                 </SelectTrigger>
@@ -640,17 +791,53 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                             </Select>
                         </div>
 
-                        <div className="w-[110px] space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">
-                                {language === 'ar' ? 'اللون' : 'Color'}
-                            </Label>
-                            <Input
-                                className="h-9"
-                                placeholder={language === 'ar' ? 'اللون' : 'Color'}
-                                value={colorName}
-                                onChange={(e) => setColorName(e.target.value)}
-                            />
-                        </div>
+                        {showColorField && (
+                            <div className="w-[130px] space-y-1.5">
+                                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                    {language === 'ar' ? 'اللون' : 'Color'}
+                                    {colorOptionsForMaterial.length > 0 && (
+                                        <span className="text-[9px] bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 px-1 rounded">
+                                            {colorOptionsForMaterial.length}
+                                        </span>
+                                    )}
+                                </Label>
+                                {colorOptionsForMaterial.length > 0 ? (
+                                    // 🔑 Dropdown mode: colors from source document
+                                    <Select
+                                        value={colorName}
+                                        onValueChange={handleColorSelect}
+                                    >
+                                        <SelectTrigger className="h-9 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+                                            <SelectValue
+                                                placeholder={language === 'ar' ? 'اختر اللون' : 'Pick color'}
+                                            />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {colorOptionsForMaterial.map((opt, i) => (
+                                                <SelectItem key={`${opt.name}-${i}`} value={opt.name}>
+                                                    <div className="flex items-center gap-2">
+                                                        <span
+                                                            className="w-3 h-3 rounded-full border border-border"
+                                                            style={{ backgroundColor: opt.name.toLowerCase() }}
+                                                            aria-hidden
+                                                        />
+                                                        {opt.name}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    // Free-text mode: no colors defined in source
+                                    <Input
+                                        className="h-9"
+                                        placeholder={language === 'ar' ? 'أدخل اللون' : 'Enter color'}
+                                        value={colorName}
+                                        onChange={(e) => setColorName(e.target.value)}
+                                    />
+                                )}
+                            </div>
+                        )}
 
                         <div className="w-[100px] space-y-1.5">
                             <Label className="text-xs text-muted-foreground">
@@ -690,7 +877,7 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                         <Button
                             className="h-9 px-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md shadow-emerald-500/20"
                             onClick={handlePreAddItem}
-                            disabled={!materialId || !colorName || !rollLength || Number(rollLength) <= 0}
+                            disabled={!materialId || (showColorField && !colorName) || !rollLength || Number(rollLength) <= 0}
                         >
                             <Plus className="h-4 w-4" />
                         </Button>
@@ -879,7 +1066,7 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
 
             {/* ─── Label Preview Dialog ─── */}
             <AlertDialog open={showLabelPreview} onOpenChange={setShowLabelPreview}>
-                <AlertDialogContent dir={isRTL ? 'rtl' : 'ltr'} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAddItem(); } }}>
+                <AlertDialogContent dir={isRTL ? 'rtl' : 'ltr'}>
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
                             <Tag className="h-5 w-5 text-emerald-500" />
@@ -928,18 +1115,16 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                         <AlertDialogCancel onClick={() => { setPendingItem(null); }}>
                             {language === 'ar' ? 'إلغاء' : 'Cancel'}
                         </AlertDialogCancel>
-                        <Button variant="outline" className="gap-1" onClick={confirmAddItem}>
-                            <Printer className="h-4 w-4" />
-                            {language === 'ar' ? 'تأكيد + طباعة' : 'Confirm + Print'}
-                        </Button>
-                        <AlertDialogAction
-                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                        <Button
+                            ref={confirmPrintBtnRef}
+                            className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
                             onClick={confirmAddItem}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAddItem(); } }}
                             disabled={isSaving}
                         >
-                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 me-1" />}
-                            {language === 'ar' ? 'تأكيد الإضافة' : 'Confirm Add'}
-                        </AlertDialogAction>
+                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                            {language === 'ar' ? 'تأكيد + طباعة' : 'Confirm + Print'}
+                        </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 
 // ─── Types ────────────────────────────────────────────────────
 interface NovaPoshtaSettings {
@@ -53,13 +53,13 @@ interface Integrations {
 export default function IntegrationsTab() {
     const { language } = useLanguage();
     const { toast } = useToast();
-    const { user } = useAuth();
+    const { companyId } = useCompany();
     const isAr = language === 'ar';
 
     // State
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [companyId, setCompanyId] = useState<string>('');
+
     const [integrations, setIntegrations] = useState<Integrations>({});
 
     // NP-specific
@@ -78,23 +78,15 @@ export default function IntegrationsTab() {
 
     // ─── Load integrations ──────────────────────────────────────
     const loadIntegrations = useCallback(async () => {
+        if (!companyId) return;
         try {
             setLoading(true);
-            // Get company_id from user profile
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('company_id')
-                .eq('id', user?.id)
-                .single();
 
-            if (!profile?.company_id) return;
-            setCompanyId(profile.company_id);
-
-            // Get integrations
+            // Get integrations directly — companyId comes from useCompany
             const { data: company } = await supabase
                 .from('companies')
                 .select('integrations')
-                .eq('id', profile.company_id)
+                .eq('id', companyId)
                 .single();
 
             const intg: Integrations = company?.integrations || {};
@@ -121,7 +113,7 @@ export default function IntegrationsTab() {
         } finally {
             setLoading(false);
         }
-    }, [user?.id]);
+    }, [companyId]);
 
     useEffect(() => {
         loadIntegrations();
@@ -275,7 +267,7 @@ export default function IntegrationsTab() {
                                     Nova Poshta
                                     {npApiKey && (
                                         <Badge variant="outline" className={`text-[10px] ${npTestStatus === 'success' ? 'border-green-500 text-green-600' :
-                                                npApiKey ? 'border-amber-500 text-amber-600' : ''
+                                            npApiKey ? 'border-amber-500 text-amber-600' : ''
                                             }`}>
                                             {npTestStatus === 'success'
                                                 ? (isAr ? '✅ متصل' : '✅ Connected')
@@ -331,7 +323,7 @@ export default function IntegrationsTab() {
                                 onClick={testNpConnection}
                                 disabled={npTestStatus === 'testing' || !npApiKey}
                                 className={`gap-1.5 h-9 px-3 text-xs ${npTestStatus === 'success' ? 'border-green-500 text-green-600' :
-                                        npTestStatus === 'error' ? 'border-red-500 text-red-600' : ''
+                                    npTestStatus === 'error' ? 'border-red-500 text-red-600' : ''
                                     }`}
                             >
                                 {npTestStatus === 'testing' ? (

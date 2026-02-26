@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { EnhancedPrintDialog } from '@/components/shared/print/EnhancedPrintDialog';
 
 // Import LedgerTable
 import { LedgerTable, type LedgerColumn, type LedgerStats, type MarkerColorId } from '@/components/shared';
@@ -228,6 +229,14 @@ export default function AccountDetailsSheetV2({
               >
                 <RefreshCw className={cn('w-4 h-4', (ledgerLoading || paymentsLoading) && 'animate-spin')} />
               </Button>
+              {/* Print Account Statement */}
+              <EnhancedPrintDialog
+                docType="account_statement"
+                docId={account?.id || ''}
+                variant="button"
+                size="sm"
+                className="text-white/80 hover:text-white hover:bg-white/10"
+              />
               {onEditClick && (
                 <Button
                   variant="ghost"
@@ -695,7 +704,28 @@ function LedgerTab({ account, language, t, entries, loading, error, totalDebit, 
       enableMarker
       onMarkerChange={handleMarkerChange}
       onRefresh={onRefresh}
-      onPrint={() => window.print()}
+      onPrint={() => {
+        // Open the EnhancedPrintDialog by dispatching a print event
+        const printData = {
+          account: {
+            name: account?.name || account?.name_ar || '',
+            code: account?.code || '',
+            opening: openingBalance,
+            closing: currentBalance,
+            total_debit: totalDebit,
+            total_credit: totalCredit,
+            entries: entries.map((e: any) => ({
+              date: e.date,
+              entry_number: e.reference,
+              description: e.description,
+              debit: e.debit || 0,
+              credit: e.credit || 0,
+            })),
+          },
+        };
+        // Fallback to window.print for now — EnhancedPrintDialog is available in toolbar
+        window.print();
+      }}
       onExport={() => { /* TODO: Implement export */ }}
       footerLabel={language === 'ar' ? 'الإجمالي' : 'Total'}
       emptyMessage={t('common.noData')}

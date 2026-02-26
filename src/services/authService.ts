@@ -157,8 +157,36 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
     }
 
     // Get tenant_id and company_id from metadata or profile
-    const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || null;
-    const companyId = user.user_metadata?.company_id || user.app_metadata?.company_id || null;
+    let tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || null;
+    let companyId = user.user_metadata?.company_id || user.app_metadata?.company_id || null;
+
+    // 🔄 Fallback: if company_id or tenant_id missing from metadata, fetch from user_profiles
+    if (!tenantId || !companyId) {
+      try {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('tenant_id, company_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          tenantId = tenantId || profile.tenant_id;
+          companyId = companyId || profile.company_id;
+
+          // Update metadata for future fast access
+          if (profile.tenant_id || profile.company_id) {
+            supabase.auth.updateUser({
+              data: {
+                tenant_id: tenantId,
+                company_id: companyId,
+              },
+            }).catch(() => { /* ignore */ });
+          }
+        }
+      } catch {
+        // Ignore profile fetch errors
+      }
+    }
 
     // 🛡️ SECURITY: استدعاء الدالة الآمنة للتحقق من Super Admin
     let isSuper = false;

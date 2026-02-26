@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { activityLogService } from './activityLogService';
 import type {
     SalesTransaction,
     SalesTransactionItem,
@@ -52,6 +53,8 @@ export const salesTransactionService = {
                 stage: 'draft',
                 created_by: input.created_by || null,
                 created_by_name: input.created_by_name || null,
+                auto_update_stock: input.auto_update_stock || false,
+                stock_warehouse_id: input.stock_warehouse_id || null,
             })
             .select()
             .single();
@@ -61,12 +64,23 @@ export const salesTransactionService = {
             return null;
         }
 
+        // 📜 Activity Log: تسجيل الإنشاء
+        if (data) {
+            activityLogService.logEvent({
+                table: 'sales_transactions',
+                documentId: data.id,
+                event: 'created',
+                userId: input.created_by || 'system',
+                userName: input.created_by_name || 'النظام',
+            });
+        }
+
         return data as SalesTransaction;
     },
 
 
     /**
-     * جلب معاملة مبيعات واحدة مع البنود
+     * جلب معاملة مبيعات واحدة مع البنود + رولونات التسليم
      */
     async fetchById(id: string): Promise<SalesTransaction | null> {
         const { data, error } = await supabase
@@ -81,6 +95,35 @@ export const salesTransactionService = {
         if (error) {
             console.error('❌ خطأ في جلب المعاملة:', error.message);
             return null;
+        }
+
+        // Enrich items with delivery rolls (for delivered/posted invoices)
+        if (data && data.items?.length > 0 && ['delivered', 'posted', 'in_delivery'].includes(data.stage)) {
+            const materialIds = [...new Set(data.items.map((i: any) => i.material_id).filter(Boolean))];
+            if (materialIds.length > 0) {
+                const { data: rolls } = await supabase
+                    .from('fabric_rolls')
+                    .select('id, roll_number, current_length, status, material_id')
+                    .in('material_id', materialIds)
+                    .eq('status', 'sold');
+
+                if (rolls && rolls.length > 0) {
+                    const rollsByMat: Record<string, any[]> = {};
+                    for (const r of rolls) {
+                        if (!rollsByMat[r.material_id]) rollsByMat[r.material_id] = [];
+                        rollsByMat[r.material_id].push({
+                            roll_id: r.id,
+                            roll_number: r.roll_number,
+                            length: r.current_length,
+                            status: r.status,
+                        });
+                    }
+                    data.items = data.items.map((item: any) => ({
+                        ...item,
+                        delivery_rolls: rollsByMat[item.material_id] || [],
+                    }));
+                }
+            }
         }
 
         return data as SalesTransaction;
@@ -241,6 +284,24 @@ export const salesTransactionService = {
         if (error) {
             console.error('❌ خطأ في تحويل المرحلة:', error.message);
             return { success: false, error: error.message };
+        }
+
+        // 📜 Activity Log: تسجيل تحويل المرحلة
+        const stageEventMap: Record<string, string> = {
+            confirmed: 'confirmed',
+            delivered: 'delivered',
+            cancelled: 'cancelled',
+        };
+        const logEvent = stageEventMap[input.new_stage];
+        if (logEvent) {
+            activityLogService.logEvent({
+                table: 'sales_transactions',
+                documentId: input.transaction_id,
+                event: logEvent as any,
+                userId: input.user_id,
+                userName: input.user_name || '',
+                details: { new_stage: input.new_stage, notes: input.notes },
+            });
         }
 
         return data as StageTransitionResult;
@@ -448,6 +509,16 @@ export const salesTransactionService = {
                     last_printed_by: userId,
                 })
                 .eq('id', id);
+
+            // 📜 Activity Log: تسجيل الطباعة
+            activityLogService.logEvent({
+                table: 'sales_transactions',
+                documentId: id,
+                event: 'printed',
+                userId,
+                userName: '',
+                details: { print_count: (current.printed_count || 0) + 1 },
+            });
         }
     },
 

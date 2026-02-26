@@ -144,14 +144,17 @@ function TreeNode({
                         <Package className="w-4 h-4 flex-shrink-0 text-blue-400 dark:text-blue-500" />
                     )}
 
-                    <span className={cn(
-                        'text-[10px] font-mono flex-shrink-0 px-1.5 py-0.5 rounded transition-colors',
-                        isSelected
-                            ? 'bg-erp-navy/20 dark:bg-erp-navy/40 text-erp-navy dark:text-white font-semibold'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                    )}>
-                        {node.code}
-                    </span>
+                    {/* Show code only when it's short (not auto-generated variant codes) */}
+                    {node.code && node.code.length <= 15 && (
+                        <span className={cn(
+                            'text-[10px] font-mono flex-shrink-0 px-1.5 py-0.5 rounded transition-colors',
+                            isSelected
+                                ? 'bg-erp-navy/20 dark:bg-erp-navy/40 text-erp-navy dark:text-white font-semibold'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                        )}>
+                            {node.code}
+                        </span>
+                    )}
 
                     <span className={cn(
                         'font-medium text-sm font-tajawal truncate transition-colors flex-1',

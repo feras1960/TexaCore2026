@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { AddAccountSheet } from './AddAccountSheet';
 import { AccountTreeView } from './AccountTreeView';
-import { UniversalDetailSheet } from '@/components/sheets';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import { ImportWizard } from '@/features/import';
 import { ChartTemplateSelector } from '@/components/accounting/ChartTemplateSelector';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -53,12 +53,13 @@ type ViewMode = 'tree' | 'table';
 export function ChartOfAccounts() {
   const { t, language, direction } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [selectedParent, setSelectedParent] = useState<Account | null>(null);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [selectedAccountForDetails, setSelectedAccountForDetails] = useState<Account | null>(null);
   const [isAccountDetailsOpen, setIsAccountDetailsOpen] = useState(false);
+  const [isCreateSheetOpen, setIsCreateSheetOpen] = useState(false);
+  const [createSheetData, setCreateSheetData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined);
   const [collapseAll, setCollapseAll] = useState<boolean | undefined>(undefined);
@@ -85,34 +86,86 @@ export function ChartOfAccounts() {
   // Chart template selector state
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
+  // ═══ Helper: resolve account_type_id from parent hierarchy ═══
+  const resolveAccountTypeFromParent = useCallback((parentId: string): string | null => {
+    const parent = accounts.find(a => a.id === parentId);
+    if (!parent) return null;
+    if (parent.account_type_id) return parent.account_type_id;
+    if (parent.parent_id) return resolveAccountTypeFromParent(parent.parent_id);
+    return null;
+  }, [accounts]);
+
   const handleAddClick = () => {
-    setSelectedParent(null);
-    setEditingAccount(null);
-    setIsGroupMode(false);
-    setIsAddSheetOpen(true);
+    // Open UnifiedAccountingSheet in create mode (detail account)
+    setCreateSheetData({
+      company_id: companyId,
+      is_group: false,
+      is_active: true,
+      level: 1,
+    });
+    setIsCreateSheetOpen(true);
   };
 
   const handleAccountClick = (account: Account) => {
-    // فقط فتح popup للحسابات التفصيلية (ليس المجموعات)
-    if (!account.is_group) {
-      setSelectedAccountForDetails(account);
-      setIsAccountDetailsOpen(true);
-    }
-    // المجموعات ستُعرض في الجانب الأيمن تلقائياً عبر AccountTreeView
+    // فتح popup لكل أنواع الحسابات (المجموعات والتفصيلية)
+    setSelectedAccountForDetails(account);
+    setIsAccountDetailsOpen(true);
   };
 
+  // ═══ Helper: compute next sequential account code for a parent group ═══
+  const getNextChildCode = useCallback((parent: Account): string => {
+    const parentCode = parent.code || parent.account_code || '';
+    if (!parentCode) return '';
+
+    // Get direct children of this parent
+    const children = accounts.filter(a => a.parent_id === parent.id);
+
+    if (children.length === 0) {
+      // First child: parentCode + "1" → e.g. 111 → 1111
+      return parentCode + '1';
+    }
+
+    // Find max code among direct children (only codes that start with parentCode)
+    const childCodes = children
+      .map(a => {
+        const code = a.code || a.account_code || '';
+        return code.startsWith(parentCode) ? parseInt(code) : NaN;
+      })
+      .filter(n => !isNaN(n));
+
+    if (childCodes.length === 0) {
+      return parentCode + '1';
+    }
+
+    const maxCode = Math.max(...childCodes);
+    return (maxCode + 1).toString();
+  }, [accounts]);
+
   const handleAddChild = (parent: Account) => {
-    setSelectedParent(parent);
-    setEditingAccount(null);
-    setIsGroupMode(false);
-    setIsAddSheetOpen(true);
+    // Open UnifiedAccountingSheet in create mode under a parent group
+    const inheritedType = resolveAccountTypeFromParent(parent.id);
+    const nextCode = getNextChildCode(parent);
+    setCreateSheetData({
+      company_id: companyId,
+      parent_id: parent.id,
+      is_group: false,
+      is_active: true,
+      level: (parent.level || 0) + 1,
+      account_type_id: inheritedType || parent.account_type_id,
+      account_code: nextCode,
+    });
+    setIsCreateSheetOpen(true);
   };
 
   const handleAddGroup = () => {
-    setSelectedParent(null);
-    setEditingAccount(null);
-    setIsGroupMode(true);
-    setIsAddSheetOpen(true);
+    // Open UnifiedAccountingSheet in create mode (group)
+    setCreateSheetData({
+      company_id: companyId,
+      is_group: true,
+      is_active: true,
+      level: 1,
+    });
+    setIsCreateSheetOpen(true);
   };
 
   const handleDeleteClick = (account: Account) => {
@@ -145,7 +198,8 @@ export function ChartOfAccounts() {
       // Wait a bit for the accounts to be refreshed
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      setIsAddSheetOpen(false);
+      setIsCreateSheetOpen(false);
+      setCreateSheetData(null);
       setEditingAccount(null);
       setSelectedParent(null);
       setIsGroupMode(false);
@@ -815,24 +869,25 @@ export function ChartOfAccounts() {
         />
       )}
 
-      {/* Add/Edit Sheet */}
-      {companyId && (
-        <AddAccountSheet
-          isOpen={isAddSheetOpen}
-          onClose={() => {
-            setIsAddSheetOpen(false);
-            setEditingAccount(null);
-            setSelectedParent(null);
-            setIsGroupMode(false);
-          }}
-          onSave={handleSave}
-          parentAccount={selectedParent}
-          editingAccount={editingAccount}
-          allAccounts={accounts}
-          companyId={companyId}
-          isGroupMode={isGroupMode}
-        />
-      )}
+      {/* ═══ Create Account Sheet — UnifiedAccountingSheet in create mode ═══ */}
+      <UnifiedAccountingSheet
+        isOpen={isCreateSheetOpen}
+        onClose={() => {
+          setIsCreateSheetOpen(false);
+          setCreateSheetData(null);
+        }}
+        docType="account"
+        mode="create"
+        data={createSheetData}
+        companyId={companyId || undefined}
+        options={{ allAccounts: accounts }}
+        onRefresh={refetch}
+        onSave={async () => {
+          refetch();
+          setIsCreateSheetOpen(false);
+          setCreateSheetData(null);
+        }}
+      />
 
       {/* Delete Confirmation Modal */}
       <UnifiedModal
@@ -862,22 +917,32 @@ export function ChartOfAccounts() {
         <div />
       </UnifiedModal>
 
-      {/* Account Details Sheet - Universal */}
-      <UniversalDetailSheet
+      {/* Account Details Sheet — Unified (Full-featured) */}
+      <UnifiedAccountingSheet
         isOpen={isAccountDetailsOpen}
         onClose={() => {
           setIsAccountDetailsOpen(false);
           setSelectedAccountForDetails(null);
         }}
         docType="account"
+        mode={selectedAccountForDetails?.id ? 'view' : 'create'}
         data={selectedAccountForDetails}
+        companyId={companyId || undefined}
+        options={{ allAccounts: accounts }}
         onRefresh={refetch}
-        onEdit={() => {
-          setEditingAccount(selectedAccountForDetails);
-          setSelectedParent(null);
-          setIsGroupMode(false);
+        onSave={async () => {
+          refetch();
           setIsAccountDetailsOpen(false);
-          setIsAddSheetOpen(true);
+          setSelectedAccountForDetails(null);
+        }}
+        enableEditFlow
+        onEditPermissionDenied={() => {
+          // Fallback: open unified sheet in edit mode
+          if (selectedAccountForDetails) {
+            setCreateSheetData(selectedAccountForDetails);
+            setIsAccountDetailsOpen(false);
+            setIsCreateSheetOpen(true);
+          }
         }}
       />
 

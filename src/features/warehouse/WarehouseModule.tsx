@@ -40,7 +40,7 @@ import WarehouseSettingsPage from './pages/WarehouseSettingsPage';
 import MaterialsPage from './pages/MaterialsPage';
 import InventoryPage from './pages/InventoryPage';
 import ReservationsPage from './pages/ReservationsPage';
-import DeliveryPage from './pages/DeliveryPage';
+import ReceiptsDeliveriesPage from './pages/ReceiptsDeliveriesPage';
 import ReportsPage from './pages/ReportsPage';
 import WarehouseDashboard from './pages/WarehouseDashboard';
 import LocationManagementPage from './pages/LocationManagementPage';
@@ -78,7 +78,7 @@ export default function WarehouseModule() {
         if (path.includes('/materials')) return 'materials';
         if (path.includes('/rolls')) return 'rolls'; // Alias for materials if needed
         if (path.includes('/reservations')) return 'reservations';
-        if (path.includes('/delivery')) return 'delivery';
+        if (path.includes('/receiptsDeliveries')) return 'receiptsDeliveries';
         if (path.includes('/reports')) return 'reports';
         if (path.includes('/settings')) return 'settings';
         if (path.includes('/samples')) return 'samples';
@@ -121,6 +121,12 @@ export default function WarehouseModule() {
             component: InventoryPage,
         },
         {
+            id: 'receiptsDeliveries',
+            labelKey: 'warehouse.tabs.receiptsDeliveries',
+            icon: Truck,
+            component: ReceiptsDeliveriesPage,
+        },
+        {
             id: 'stockMovements',
             labelKey: 'warehouse.tabs.stockMovements',
             icon: ArrowLeftRight,
@@ -137,12 +143,6 @@ export default function WarehouseModule() {
             labelKey: 'warehouse.tabs.reservations',
             icon: Calendar,
             component: ReservationsPage,
-        },
-        {
-            id: 'delivery',
-            labelKey: 'warehouse.tabs.delivery',
-            icon: Truck,
-            component: DeliveryPage,
         },
         {
             id: 'reports',

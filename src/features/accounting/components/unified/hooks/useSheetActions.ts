@@ -434,6 +434,9 @@ export function useTradeAutoSave(
 function invalidateTradeQueries(queryClient: ReturnType<typeof useQueryClient>) {
     queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
     queryClient.invalidateQueries({ queryKey: ['purchase_transactions_list'] });
+    // ── PurchaseInvoicesList actual query keys ──
+    queryClient.invalidateQueries({ queryKey: ['purchase_transactions_recent'] });
+    queryClient.invalidateQueries({ queryKey: ['purchase_transactions_full'] });
     queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
     queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
     // Also invalidate warehouse queries so pending receipts update
@@ -499,6 +502,158 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                 case 'save_post':
                 case 'save': {
+                    // ═══ Account Save (create/edit) ═══
+                    if (docType === 'account') {
+                        if (!data?.name_ar) {
+                            toast.error(language === 'ar' ? 'اسم الحساب بالعربية مطلوب' : 'Arabic name is required');
+                            return;
+                        }
+                        if (!data?.account_type_id) {
+                            toast.error(language === 'ar' ? 'نوع الحساب مطلوب' : 'Account type is required');
+                            return;
+                        }
+
+                        setLoading(true);
+                        try {
+                            const { accountsService } = await import('@/services/accountsService');
+                            if (mode === 'create') {
+                                // Create new account
+                                await accountsService.create({
+                                    company_id: companyId || data.company_id || '',
+                                    account_code: data.account_code || data.code || '',
+                                    name_ar: data.name_ar,
+                                    name_en: data.name_en || undefined,
+                                    name_ru: data.name_ru || undefined,
+                                    name_uk: data.name_uk || undefined,
+                                    name_ro: data.name_ro || undefined,
+                                    name_pl: data.name_pl || undefined,
+                                    name_tr: data.name_tr || undefined,
+                                    name_de: data.name_de || undefined,
+                                    name_it: data.name_it || undefined,
+                                    account_type_id: data.account_type_id,
+                                    parent_id: data.parent_id || undefined,
+                                    is_group: data.is_group || false,
+                                    level: data.level || 1,
+                                    currency: data.currency || undefined,
+                                    description: data.description || undefined,
+                                });
+                            } else {
+                                // Update existing account
+                                await accountsService.update(data.id, {
+                                    account_code: data.account_code || data.code,
+                                    name_ar: data.name_ar,
+                                    name_en: data.name_en || undefined,
+                                    name_ru: data.name_ru || undefined,
+                                    name_uk: data.name_uk || undefined,
+                                    name_ro: data.name_ro || undefined,
+                                    name_pl: data.name_pl || undefined,
+                                    name_tr: data.name_tr || undefined,
+                                    name_de: data.name_de || undefined,
+                                    name_it: data.name_it || undefined,
+                                    account_type_id: data.account_type_id,
+                                    parent_id: data.parent_id || undefined,
+                                    is_group: data.is_group,
+                                    currency: data.currency,
+                                    description: data.description || undefined,
+                                });
+                            }
+                            toast.success(language === 'ar' ? 'تم حفظ الحساب بنجاح' : 'Account saved successfully');
+                            setHasChanges(false);
+                            if (onSave) await onSave(data);
+                            setMode('view');
+                        } catch (err: any) {
+                            console.error('[Account Save Error]', err);
+                            toast.error(language === 'ar' ? 'فشل حفظ الحساب' : 'Failed to save account', {
+                                description: err.message || '',
+                            });
+                        } finally {
+                            setLoading(false);
+                        }
+                        return;
+                    }
+
+                    // ═══ Party Save (customer/supplier) ═══
+                    if (docType === 'party') {
+                        if (!data?.name_ar) {
+                            toast.error(language === 'ar' ? 'اسم الجهة بالعربية مطلوب' : 'Arabic name is required');
+                            return;
+                        }
+
+                        setLoading(true);
+                        try {
+                            const partyType = data?._partyType || data?.party_type || data?.type || 'customer';
+                            const isCustomer = partyType === 'customer';
+                            const tableName = isCustomer ? 'customers' : 'suppliers';
+
+                            // Build update payload — only include fields that exist in the table
+                            const updatePayload: Record<string, any> = {
+                                name_ar: data.name_ar,
+                                name_en: data.name_en || null,
+                                name_ru: data.name_ru || null,
+                                name_uk: data.name_uk || null,
+                                name_ro: data.name_ro || null,
+                                name_pl: data.name_pl || null,
+                                name_tr: data.name_tr || null,
+                                name_de: data.name_de || null,
+                                name_it: data.name_it || null,
+                                phone: data.phone || null,
+                                mobile: data.mobile || null,
+                                email: data.email || null,
+                                country: data.country || null,
+                                city: data.city || null,
+                                address: data.address || null,
+                                tax_number: data.tax_number || null,
+                                currency: data.currency || null,
+                                notes: data.notes || null,
+                                status: data.status || 'active',
+                                updated_at: new Date().toISOString(),
+                            };
+
+                            // Customer-specific fields
+                            if (isCustomer) {
+                                updatePayload.customer_type = data.customer_type || null;
+                                updatePayload.company_name = data.company_name || null;
+                                updatePayload.credit_limit = data.credit_limit || null;
+                                updatePayload.discount_percent = data.discount_percent || null;
+                                updatePayload.payment_terms_days = data.payment_terms_days || null;
+                                updatePayload.preferred_language = data.preferred_language || null;
+                                updatePayload.telegram_username = data.telegram_username || null;
+                                updatePayload.sales_agent_id = data.sales_agent_id || null;
+                            } else {
+                                updatePayload.supplier_type = data.supplier_type || null;
+                                updatePayload.company_name = data.company_name || null;
+                                updatePayload.payment_terms_days = data.payment_terms_days || null;
+                                updatePayload.telegram_username = data.telegram_username || null;
+                                updatePayload.sales_agent_id = data.sales_agent_id || null;
+                            }
+
+                            // Bank info (if columns exist)
+                            if (data.bank_name !== undefined) updatePayload.bank_name = data.bank_name || null;
+                            if (data.iban !== undefined) updatePayload.iban = data.iban || null;
+                            if (data.bank_account !== undefined) updatePayload.bank_account = data.bank_account || null;
+
+                            const { error } = await supabase
+                                .from(tableName)
+                                .update(updatePayload)
+                                .eq('id', data.id);
+
+                            if (error) throw error;
+
+                            toast.success(language === 'ar' ? 'تم حفظ بيانات الجهة بنجاح' : 'Party saved successfully');
+                            setHasChanges(false);
+                            if (onSave) await onSave(data);
+                            setMode('view');
+                        } catch (err: any) {
+                            console.error('[Party Save Error]', err);
+                            toast.error(language === 'ar' ? 'فشل حفظ بيانات الجهة' : 'Failed to save party', {
+                                description: err.message || '',
+                            });
+                        } finally {
+                            setLoading(false);
+                        }
+                        return;
+                    }
+
                     // Check if entry has meaningful data
                     if (isAccountingDocType) {
                         const entryLines = data?.lines || [];
@@ -537,8 +692,15 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                                 if (modeKey === 'purchase' && docType === 'trade_invoice') {
                                     const { purchaseAccountingService } = await import('@/services/purchaseAccountingService');
-                                    await purchaseAccountingService.createPurchaseInvoiceJournalEntry(docId, user.id);
-                                    setData((prev: any) => ({ ...prev, status: 'posted', stage: 'posted', is_posted: true }));
+                                    const postResult = await purchaseAccountingService.createPurchaseInvoiceJournalEntry(docId, user.id);
+                                    setData((prev: any) => ({
+                                        ...prev,
+                                        status: 'posted',
+                                        stage: 'posted',
+                                        is_posted: true,
+                                        journal_entry_id: postResult.journalEntryId,
+                                        posted_at: new Date().toISOString(),
+                                    }));
                                     toast.success(language === 'ar' ? '✅ تم الحفظ والترحيل بنجاح' : '✅ Saved & Posted successfully');
                                     manualPostSuccess = true;
                                 } else {
@@ -576,15 +738,17 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     }
 
                     // Auto-Post Logic (skipped if manual post succeeded)
-                    if (!manualPostSuccess && isTradeDocType && isPostableDocType && companyId && data?.status !== 'posted') {
+                    // ⚠️ SALES: Auto-post is DISABLED for sales documents — user must manually post via button
+                    // Auto-post only applies to purchase documents when enabled in workflow settings
+                    const modeKey2 = tradeMode || 'sales';
+                    if (!manualPostSuccess && isTradeDocType && isPostableDocType && companyId && data?.status !== 'posted' && modeKey2 === 'purchase') {
                         try {
                             const { data: settingsJson } = await supabase.rpc('get_workflow_settings', { p_company_id: companyId });
                             const autoPostKey2 = getAutoPostKey(docType);
                             const shouldAutoPost = autoPostKey2 && settingsJson?.[autoPostKey2] === true;
 
                             if (shouldAutoPost) {
-                                const modeKey = tradeMode || 'sales';
-                                const tableName = TRADE_POST_MAP[modeKey]?.[docType];
+                                const tableName = TRADE_POST_MAP[modeKey2]?.[docType];
                                 const docId = data?.id || documentId;
                                 if (tableName && docId) {
                                     const isTransaction = tableName.includes('_transactions');
@@ -601,7 +765,88 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     break;
                 }
 
-                case 'delete':
+                case 'delete': {
+                    // ═══ Account Delete Protection ═══
+                    if (docType === 'account') {
+                        // Check for transactions
+                        if (data?.transaction_count > 0 || data?.total_debit > 0 || data?.total_credit > 0) {
+                            toast.error(
+                                language === 'ar'
+                                    ? '🚫 لا يمكن حذف هذا الحساب — عليه حركات محاسبية'
+                                    : '🚫 Cannot delete this account — it has transactions',
+                                { duration: 5000 }
+                            );
+                            break;
+                        }
+                        // Check for system account
+                        if (data?.is_system) {
+                            toast.error(
+                                language === 'ar'
+                                    ? '🚫 لا يمكن حذف حساب نظام'
+                                    : '🚫 Cannot delete a system account',
+                                { duration: 5000 }
+                            );
+                            break;
+                        }
+
+                        const confirmed = window.confirm(
+                            language === 'ar'
+                                ? `هل أنت متأكد من حذف الحساب "${data?.name_ar || data?.name}"?\n\nسيتم إلغاء تفعيل الحساب (soft delete).`
+                                : `Are you sure you want to delete "${data?.name_en || data?.name}"?\n\nThe account will be deactivated (soft delete).`
+                        );
+                        if (confirmed) {
+                            setLoading(true);
+                            try {
+                                const { accountsService } = await import('@/services/accountsService');
+                                await accountsService.delete(data.id);
+                                toast.success(language === 'ar' ? 'تم حذف الحساب' : 'Account deleted');
+                                if (onSave) await onSave(data);
+                                onClose();
+                            } catch (err: any) {
+                                toast.error(
+                                    language === 'ar' ? 'فشل حذف الحساب' : 'Failed to delete account',
+                                    { description: err.message || '' }
+                                );
+                            } finally {
+                                setLoading(false);
+                            }
+                        }
+                        break;
+                    }
+
+                    // ══ Business Rule: Cannot delete executed trade documents ══
+                    // - Purchase: received/posted → must use Purchase Return
+                    // - Sales:    delivered/invoiced/posted → must use Sales Return
+                    const currentStageVal = data?.stage || data?._stage || '';
+
+                    // PURCHASE: block if goods have been received
+                    const BLOCKED_PURCHASE_STAGES = ['received', 'posted', 'receiving'];
+                    const isPurchaseTrade = tradeMode === 'purchase' &&
+                        (docType === 'trade_invoice' || docType === 'trade_receipt');
+                    if (isPurchaseTrade && BLOCKED_PURCHASE_STAGES.includes(currentStageVal)) {
+                        toast.error(
+                            language === 'ar'
+                                ? '🚫 لا يمكن حذف فاتورة تم استلام بضاعتها — استخدم مرتجع الشراء لعكس العملية'
+                                : '🚫 Cannot delete a received invoice — create a Purchase Return to reverse it',
+                            { duration: 6000 }
+                        );
+                        break;
+                    }
+
+                    // SALES: block if goods have been delivered or invoice posted
+                    const BLOCKED_SALES_STAGES = ['delivered', 'invoiced', 'posted', 'completed'];
+                    const isSalesTrade = tradeMode === 'sales' &&
+                        (docType === 'trade_invoice' || docType === 'trade_delivery');
+                    if (isSalesTrade && BLOCKED_SALES_STAGES.includes(currentStageVal)) {
+                        toast.error(
+                            language === 'ar'
+                                ? '🚫 لا يمكن حذف فاتورة/تسليم مُنجَز — استخدم مرتجع المبيعات لعكس العملية'
+                                : '🚫 Cannot delete a delivered invoice — create a Sales Return to reverse it',
+                            { duration: 6000 }
+                        );
+                        break;
+                    }
+
                     if (onDelete) {
                         const confirmed = window.confirm(t('messages.confirmDelete') || 'هل أنت متأكد من الحذف؟');
                         if (confirmed) {
@@ -632,27 +877,38 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         }
                     }
                     break;
+                }
 
                 case 'save_confirm': {
                     if (!isTradeDocType) break;
-                    const docId = data?.id || documentId;
-                    if (!docId) {
-                        toast.error(language === 'ar' ? 'يجب حفظ المستند أولاً' : 'Please save the document first');
-                        break;
-                    }
                     setLoading(true);
                     try {
-                        if (hasChanges && data) await handleTradeSave(data);
-                        const tableName = tradeMode === 'purchase' ? 'purchase_transactions' : 'sale_transactions';
+                        // ═══ Step 1: Save first (handles both create & edit) ═══
+                        let savedResult: any = null;
+                        if (mode === 'create' || !data?.id) {
+                            // Must save first to get the docId
+                            savedResult = await handleTradeSave(data);
+                        } else if (hasChanges && data) {
+                            savedResult = await handleTradeSave(data);
+                        }
+
+                        const docId = savedResult?.id || data?.id || documentId;
+                        if (!docId) {
+                            toast.error(language === 'ar' ? 'فشل في حفظ المستند — لا يوجد معرّف' : 'Failed to save — no document ID');
+                            break;
+                        }
+
+                        // ═══ Step 2: Confirm (update stage) ═══
+                        const modeKey = tradeMode || 'sales';
+                        const tableName = TRADE_TABLE_MAP[modeKey]?.[docType] || (tradeMode === 'purchase' ? 'purchase_transactions' : 'sales_transactions');
                         const { error } = await supabase
                             .from(tableName)
                             .update({ stage: 'confirmed', updated_at: new Date().toISOString() })
                             .eq('id', docId);
                         if (error) throw error;
 
-                        // ═══ Assign permanent sequential number at confirmation ═══
-                        const modeKey = tradeMode || 'purchase';
-                        const serviceDocType = TRADE_TYPE_MAP[modeKey]?.[docType] || 'purchase_invoice';
+                        // ═══ Step 3: Assign permanent sequential number at confirmation ═══
+                        const serviceDocType = TRADE_TYPE_MAP[modeKey]?.[docType] || (tradeMode === 'purchase' ? 'purchase_invoice' : 'invoice');
                         const saveCompanyId = data?.company_id || companyId;
                         let permanentNumber = '';
                         try {
@@ -679,20 +935,31 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                         setData((prev: any) => prev ? {
                             ...prev,
+                            id: docId,
                             stage: 'confirmed',
+                            status: 'confirmed',
                             ...(permanentNumber ? { [numberField]: permanentNumber } : {}),
                         } : prev);
                         setHasChanges(false);
+
+                        // Transition to view mode after save+confirm
+                        if (mode === 'create') {
+                            handleModeChange('view');
+                        }
+
                         invalidateTradeQueries(queryClient);
+
+                        // Sales vs Purchase confirmation message
+                        const isSales = modeKey === 'sales';
                         toast.success(
                             language === 'ar'
-                                ? `✅ تم تأكيد الفاتورة بنجاح${permanentNumber ? ` — الرقم: ${permanentNumber}` : ''}`
-                                : `✅ Invoice confirmed${permanentNumber ? ` — Number: ${permanentNumber}` : ''}`,
+                                ? `✅ تم حفظ وتأكيد الفاتورة بنجاح${permanentNumber ? ` — الرقم: ${permanentNumber}` : ''}${isSales ? '\n📦 سيتم إشعار أمين المستودع لتجهيز الطلب' : ''}`
+                                : `✅ Invoice saved & confirmed${permanentNumber ? ` — Number: ${permanentNumber}` : ''}${isSales ? '\n📦 Warehouse keeper will be notified' : ''}`,
                         );
                         onRefresh?.();
                     } catch (err: any) {
                         console.error('SaveConfirm failed:', err);
-                        toast.error(language === 'ar' ? 'فشل في تأكيد الفاتورة' : 'Failed to confirm invoice', { description: err?.message });
+                        toast.error(language === 'ar' ? 'فشل في حفظ أو تأكيد الفاتورة' : 'Failed to save/confirm invoice', { description: err?.message });
                     } finally {
                         setLoading(false);
                     }
@@ -716,20 +983,39 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         break;
                     }
 
-                    // Safety: check if any receipt exists for this invoice
-                    const { data: existingReceipts } = await supabase
-                        .from('purchase_receipts')
-                        .select('id')
-                        .eq('invoice_id', unconfDocId)
-                        .limit(1);
-
-                    if (existingReceipts && existingReceipts.length > 0) {
-                        toast.error(
-                            language === 'ar'
-                                ? 'لا يمكن إلغاء التأكيد — يوجد استلام بضاعة مرتبط بهذه الفاتورة'
-                                : 'Cannot unconfirm — a goods receipt is linked to this invoice',
-                        );
-                        break;
+                    // Safety: check if any receipt/delivery exists for this invoice
+                    if (tradeMode === 'purchase') {
+                        const { data: existingReceipts } = await supabase
+                            .from('purchase_receipts')
+                            .select('id')
+                            .eq('invoice_id', unconfDocId)
+                            .limit(1);
+                        if (existingReceipts && existingReceipts.length > 0) {
+                            toast.error(
+                                language === 'ar'
+                                    ? 'لا يمكن إلغاء التأكيد — يوجد استلام بضاعة مرتبط بهذه الفاتورة'
+                                    : 'Cannot unconfirm — a goods receipt is linked to this invoice',
+                            );
+                            break;
+                        }
+                    } else {
+                        // Sales: check for delivery notes
+                        try {
+                            const { data: existingDeliveries } = await supabase
+                                .from('stock_movements')
+                                .select('id')
+                                .eq('reference_id', unconfDocId)
+                                .eq('movement_type', 'out')
+                                .limit(1);
+                            if (existingDeliveries && existingDeliveries.length > 0) {
+                                toast.error(
+                                    language === 'ar'
+                                        ? 'لا يمكن إلغاء التأكيد — يوجد إذن تسليم مرتبط بهذه الفاتورة'
+                                        : 'Cannot unconfirm — a delivery note is linked to this invoice',
+                                );
+                                break;
+                            }
+                        } catch { /* stock_movements may not exist yet — allow unconfirm */ }
                     }
 
                     const confirmUnconfirm = window.confirm(
@@ -741,11 +1027,11 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     if (confirmUnconfirm) {
                         setLoading(true);
                         try {
-                            const unconfTableName = tradeMode === 'purchase' ? 'purchase_transactions' : 'sale_transactions';
+                            const unconfModeKey = tradeMode || 'sales';
+                            const unconfTableName = TRADE_TABLE_MAP[unconfModeKey]?.[docType] || (tradeMode === 'purchase' ? 'purchase_transactions' : 'sales_transactions');
                             // Revert to DRAFT number
                             const draftNumber = `DRAFT-${Date.now().toString().slice(-6)}`;
-                            const unconfModeKey = tradeMode || 'purchase';
-                            const unconfServiceDocType = TRADE_TYPE_MAP[unconfModeKey]?.[docType] || 'purchase_invoice';
+                            const unconfServiceDocType = TRADE_TYPE_MAP[unconfModeKey]?.[docType] || (tradeMode === 'purchase' ? 'purchase_invoice' : 'invoice');
                             const unconfNumberFieldMap: Record<string, string> = {
                                 purchase_invoice: 'invoice_no',
                                 invoice: 'invoice_no',
@@ -841,6 +1127,16 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                                 { fromStage: currentStage }
                                             );
 
+                                            // Update data with journal entry info
+                                            setData((prev: any) => ({
+                                                ...prev,
+                                                journal_entry_id: result.journalEntryId,
+                                                stage: 'posted',
+                                                status: 'posted',
+                                                is_posted: true,
+                                                posted_at: new Date().toISOString(),
+                                            }));
+
                                             // Show success with posting source info
                                             const sourceLabel = result.postingSource === 'receipt'
                                                 ? (language === 'ar' ? '(بالكميات المستلمة)' : '(from received quantities)')
@@ -888,10 +1184,13 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                         .eq('id', docId);
                                     if (error) throw error;
                                 }
-
-                                setData((prev: any) => ({ ...prev, stage: 'posted', status: 'posted', is_posted: true }));
+                                // For non-purchase-invoice docs, set posted state and show toast
+                                // (purchase invoices already handled above with their own setData + toast)
+                                if (!(modeKey === 'purchase' && docType === 'trade_invoice')) {
+                                    setData((prev: any) => ({ ...prev, stage: 'posted', status: 'posted', is_posted: true }));
+                                    toast.success(language === 'ar' ? '✅ تم ترحيل المستند بنجاح' : '✅ Document posted successfully');
+                                }
                                 invalidateTradeQueries(queryClient);
-                                toast.success(language === 'ar' ? '✅ تم ترحيل المستند بنجاح' : '✅ Document posted successfully');
                                 onRefresh?.();
                             }
                         }
@@ -976,6 +1275,285 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         toast.info(t('messages.featureComingSoon') || 'قريباً');
                     }
                     break;
+
+                // ═══ إغلاق الحاوية — تسكير دورة الحياة ═══
+                case 'close_container': {
+                    if (docType !== 'trade_container') break;
+                    const closeDocId = data?.id || documentId;
+                    if (!closeDocId) break;
+
+                    const currentContainerStatus = data?.status || '';
+                    // Only allow closing when fully received — NOT in_receiving (partial)
+                    const closableStatuses = ['received', 'fully_received', 'completed'];
+                    if (!closableStatuses.includes(currentContainerStatus)) {
+                        const isPartialReceiving = currentContainerStatus === 'in_receiving';
+                        toast.warning(
+                            language === 'ar'
+                                ? isPartialReceiving
+                                    ? '⚠️ لا يمكن إغلاق الحاوية — الاستلام لم يكتمل بعد. يرجى إكمال استلام جميع البنود أولاً'
+                                    : '⚠️ لا يمكن إغلاق الحاوية — يجب إتمام الاستلام الفعلي أولاً'
+                                : isPartialReceiving
+                                    ? '⚠️ Cannot close — receiving is still in progress. Complete all items first'
+                                    : '⚠️ Cannot close container — complete physical receiving first',
+                        );
+                        break;
+                    }
+
+                    // Block closing if variance review is still pending
+                    if (data?.variance_status === 'pending_review') {
+                        toast.warning(
+                            language === 'ar'
+                                ? '⚠️ لا يمكن إغلاق الحاوية — يوجد فروقات كميات تحتاج مراجعة المحاسب. راجع تبويب "ملخص الاستلام" أولاً'
+                                : '⚠️ Cannot close — quantity variances need accountant review. Check "Receipt Summary" tab first',
+                        );
+                        break;
+                    }
+
+                    const confirmed = window.confirm(
+                        language === 'ar'
+                            ? '🔒 هل تريد إغلاق هذه الحاوية نهائياً؟\n\nبعد الإغلاق:\n• لن يمكن تعديلها\n• ستكون للمرجعية والتقارير فقط\n• سيتم تسكير جميع الأرقام المحاسبية\n\nتأكيد الإغلاق؟'
+                            : '🔒 Close this container permanently?\n\nAfter closing:\n• No further edits allowed\n• Reference and reports only\n• All accounting figures will be locked\n\nConfirm?'
+                    );
+
+                    if (!confirmed) break;
+
+                    setLoading(true);
+                    try {
+                        const { data: { user: authUser } } = await supabase.auth.getUser();
+
+                        // ══════════════════════════════════════════
+                        // 🛡️ Race Condition Guard (B.5)
+                        // منع إغلاق الكونتينر مرتين
+                        // ══════════════════════════════════════════
+                        const { data: currentState } = await supabase
+                            .from('containers')
+                            .select('status, closing_journal_entry_id')
+                            .eq('id', closeDocId)
+                            .single();
+
+                        if (currentState?.status === 'closed' || currentState?.closing_journal_entry_id) {
+                            toast.error(
+                                language === 'ar'
+                                    ? '⚠️ الكونتينر مغلق بالفعل — لا يمكن إغلاقه مرة ثانية'
+                                    : '⚠️ Container is already closed — cannot close again'
+                            );
+                            setLoading(false);
+                            break;
+                        }
+
+                        // ══════════════════════════════════════════
+                        // A. إنشاء القيد المحاسبي: Dr. مخزون / Cr. كونتينر
+                        // ══════════════════════════════════════════
+                        let closingJournalEntryId: string | null = null;
+                        try {
+                            // 1. جلب بيانات الكونتينر
+                            const { data: containerData } = await supabase
+                                .from('containers')
+                                .select('container_account_id, company_id, tenant_id, total_cost, container_number')
+                                .eq('id', closeDocId)
+                                .single();
+
+                            if (containerData?.container_account_id && containerData?.company_id) {
+                                // 2. جلب بيانات حساب الكونتينر من CoA (الأعمدة الصحيحة)
+                                const { data: coaAccount } = await supabase
+                                    .from('chart_of_accounts')
+                                    .select('id, account_code, name_ar, name_en, current_balance, opening_balance')
+                                    .eq('id', containerData.container_account_id)
+                                    .maybeSingle();
+
+                                // 3. جلب حساب المخزون من companies.accounting_settings (المصدر المركزي)
+                                const { data: companySettings } = await supabase
+                                    .from('companies')
+                                    .select('accounting_settings')
+                                    .eq('id', containerData.company_id)
+                                    .maybeSingle();
+
+                                let inventoryAccountId =
+                                    companySettings?.accounting_settings?.default_accounts?.inventory_account_id;
+
+                                // 3b. fallback: ابحث في CoA مباشرة (كود 1141 أو اسم مخزون)
+                                if (!inventoryAccountId) {
+                                    const { data: invFallback } = await supabase
+                                        .from('chart_of_accounts')
+                                        .select('id, account_code, name_ar')
+                                        .eq('company_id', containerData.company_id)
+                                        .or('account_code.like.1141%,name_ar.ilike.%بضاعة جاهزة%,name_ar.ilike.%مخزون%')
+                                        .order('account_code')
+                                        .limit(1)
+                                        .maybeSingle();
+                                    inventoryAccountId = invFallback?.id;
+                                }
+
+                                // جلب تفاصيل حساب المخزون (للاسم)
+                                let inventoryAccountCode = '';
+                                let inventoryAccountName = '';
+                                if (inventoryAccountId) {
+                                    const { data: invAcc } = await supabase
+                                        .from('chart_of_accounts')
+                                        .select('account_code, name_ar, name_en')
+                                        .eq('id', inventoryAccountId)
+                                        .maybeSingle();
+                                    inventoryAccountCode = invAcc?.account_code || '';
+                                    inventoryAccountName = language === 'ar'
+                                        ? (invAcc?.name_ar || 'مخزون')
+                                        : (invAcc?.name_en || invAcc?.name_ar || 'Inventory');
+                                }
+
+                                const containerAccountCode = coaAccount?.account_code || '';
+                                const containerAccountName = coaAccount?.name_ar || containerData.container_number;
+
+                                // الرصيد = current_balance أو opening_balance أو total_cost
+                                const containerBalance = Math.abs(
+                                    coaAccount?.current_balance ?? coaAccount?.opening_balance ?? containerData.total_cost ?? 0
+                                );
+
+                                if (inventoryAccountId && containerBalance > 0) {
+                                    // 4. رقم القيد
+                                    const now = new Date();
+                                    const mm = String(now.getMonth() + 1).padStart(2, '0');
+                                    const entryNumber = `JE-CLZ-${containerData.container_number}-${now.getFullYear()}${mm}`;
+
+                                    // 5. إنشاء القيد
+                                    const { data: newJE, error: jeError } = await supabase
+                                        .from('journal_entries')
+                                        .insert({
+                                            entry_number: entryNumber,
+                                            entry_date: now.toISOString().split('T')[0],
+                                            entry_type: 'container_close',
+                                            status: 'posted',
+                                            description: language === 'ar'
+                                                ? `إقفال ${containerAccountCode} ${containerAccountName} → ${inventoryAccountCode} ${inventoryAccountName}`
+                                                : `Close ${containerAccountCode} ${containerAccountName} → ${inventoryAccountCode} ${inventoryAccountName}`,
+                                            notes: `container_id:${closeDocId}`,
+                                            reference_id: closeDocId,
+                                            reference_type: 'container',
+                                            total_debit: containerBalance,
+                                            total_credit: containerBalance,
+                                            company_id: containerData.company_id,
+                                            tenant_id: containerData.tenant_id || null,
+                                            created_by: authUser?.id || null,
+                                            posted_by: authUser?.id || null,
+                                            posted_at: now.toISOString(),
+                                        })
+                                        .select('id')
+                                        .single();
+
+                                    if (!jeError && newJE) {
+                                        closingJournalEntryId = newJE.id;
+
+                                        // 6. سطور القيد — تستخدم entry_id (الاسم الصحيح في DB)
+                                        await supabase.from('journal_entry_lines').insert([
+                                            {
+                                                entry_id: newJE.id,
+                                                account_id: inventoryAccountId,
+                                                debit: containerBalance,
+                                                credit: 0,
+                                                line_number: 1,
+                                                description: `${inventoryAccountCode} ${inventoryAccountName} — ${containerData.container_number}`,
+                                            },
+                                            {
+                                                entry_id: newJE.id,
+                                                account_id: containerData.container_account_id,
+                                                debit: 0,
+                                                credit: containerBalance,
+                                                line_number: 2,
+                                                description: `${containerAccountCode} ${containerAccountName} — إقفال`,
+                                            },
+                                        ]);
+
+                                        // 7. تحديث أرصدة الحسابات
+                                        // أ) الكونتينر → صفر
+                                        await supabase
+                                            .from('chart_of_accounts')
+                                            .update({ current_balance: 0 })
+                                            .eq('id', containerData.container_account_id);
+
+                                        // ب) المخزون → يزيد بقيمة الكونتينر
+                                        const { data: invBal } = await supabase
+                                            .from('chart_of_accounts')
+                                            .select('current_balance')
+                                            .eq('id', inventoryAccountId)
+                                            .maybeSingle();
+                                        await supabase
+                                            .from('chart_of_accounts')
+                                            .update({ current_balance: (invBal?.current_balance || 0) + containerBalance })
+                                            .eq('id', inventoryAccountId);
+                                    }
+                                }
+                            }
+                        } catch (jeErr) {
+                            console.warn('Container closing JE creation failed (non-fatal):', jeErr);
+                            // القيد اختياري — لا نوقف الإغلاق إذا فشل
+                        }
+
+                        // ══════════════════════════════════════════
+                        // B. تغيير status الكونتينر → closed
+                        // ══════════════════════════════════════════
+                        let closeError: any = null;
+                        const fullUpdate = await supabase
+                            .from('containers')
+                            .update({
+                                status: 'closed',
+                                closed_at: new Date().toISOString(),
+                                closed_by: authUser?.id || null,
+                                closing_journal_entry_id: closingJournalEntryId,
+                                updated_at: new Date().toISOString(),
+                            })
+                            .eq('id', closeDocId);
+
+                        if (fullUpdate.error) {
+                            // Fallback: بدون الأعمدة الاختيارية
+                            const fallback = await supabase
+                                .from('containers')
+                                .update({
+                                    status: 'closed',
+                                    updated_at: new Date().toISOString(),
+                                })
+                                .eq('id', closeDocId);
+                            closeError = fallback.error;
+                        }
+
+                        if (closeError) throw closeError;
+
+                        // Log to activity
+                        try {
+                            const { activityLogService } = await import('@/services/activityLogService');
+                            await activityLogService.logEvent({
+                                table: 'containers',
+                                documentId: closeDocId,
+                                event: 'posted', // closest available event type
+                                userId: authUser?.id || '',
+                                userName: authUser?.user_metadata?.full_name || authUser?.email || 'System',
+                                details: { action: 'closed', previous_status: currentContainerStatus }
+                            });
+                        } catch { /* non-fatal */ }
+
+                        setData((prev: any) => ({
+                            ...prev,
+                            status: 'closed',
+                            closed_at: new Date().toISOString(),
+                        }));
+
+                        queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+                        toast.success(
+                            language === 'ar'
+                                ? '🔒 تم إغلاق الحاوية بنجاح — أصبحت مرجعاً للتقارير'
+                                : '🔒 Container closed successfully — now available for reports only',
+                            { duration: 5000 }
+                        );
+                        onRefresh?.();
+                    } catch (err: any) {
+                        console.error('Close container failed:', err);
+                        toast.error(
+                            language === 'ar' ? `فشل إغلاق الحاوية: ${err.message}` : `Failed to close: ${err.message}`
+                        );
+                    } finally {
+                        setLoading(false);
+                    }
+                    break;
+                }
+
+
 
                 case 'print':
                     onPrint?.();

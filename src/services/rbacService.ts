@@ -18,6 +18,43 @@ export type RoleLevel = 'system' | 'tenant' | 'company' | 'branch' | 'operations
 export type ResourceType = 'branch' | 'warehouse' | 'cash_account' | 'bank_account' | 'cost_center';
 export type VisibilityRuleType = 'page' | 'field' | 'module' | 'report' | 'action';
 
+// Special Permissions — 14 granular permissions per role
+export type SpecialPermissionKey =
+    | 'can_edit_posted_purchase'
+    | 'can_edit_posted_sale'
+    | 'can_edit_posted_journal'
+    | 'can_delete_posted'
+    | 'can_unpost'
+    | 'can_edit_closed_period'
+    | 'can_view_audit_log'
+    | 'can_view_all_branches'
+    | 'can_manage_roles'
+    | 'can_approve_transactions'
+    | 'can_view_cost_prices'
+    | 'can_view_profit_margins'
+    | 'can_export_data'
+    | 'can_manage_containers';
+
+export type SpecialPermissions = Partial<Record<SpecialPermissionKey, boolean>>;
+
+// All special permission keys with labels (for UI)
+export const SPECIAL_PERMISSIONS_KEYS: Array<{ key: SpecialPermissionKey; name_ar: string; name_en: string; category: string }> = [
+    { key: 'can_edit_posted_purchase', name_ar: 'تعديل مشتريات مرحلة', name_en: 'Edit Posted Purchase', category: 'documents' },
+    { key: 'can_edit_posted_sale', name_ar: 'تعديل مبيعات مرحلة', name_en: 'Edit Posted Sale', category: 'documents' },
+    { key: 'can_edit_posted_journal', name_ar: 'تعديل قيود مرحلة', name_en: 'Edit Posted Journal', category: 'documents' },
+    { key: 'can_delete_posted', name_ar: 'حذف مستندات مرحلة', name_en: 'Delete Posted Documents', category: 'documents' },
+    { key: 'can_unpost', name_ar: 'إلغاء ترحيل المستندات', name_en: 'Unpost Documents', category: 'documents' },
+    { key: 'can_edit_closed_period', name_ar: 'تعديل فترة مغلقة', name_en: 'Edit Closed Period', category: 'accounting' },
+    { key: 'can_view_audit_log', name_ar: 'عرض سجل التدقيق', name_en: 'View Audit Log', category: 'system' },
+    { key: 'can_view_all_branches', name_ar: 'عرض جميع الفروع', name_en: 'View All Branches', category: 'system' },
+    { key: 'can_manage_roles', name_ar: 'إدارة الأدوار', name_en: 'Manage Roles', category: 'system' },
+    { key: 'can_approve_transactions', name_ar: 'اعتماد المعاملات', name_en: 'Approve Transactions', category: 'operations' },
+    { key: 'can_view_cost_prices', name_ar: 'عرض أسعار التكلفة', name_en: 'View Cost Prices', category: 'financial' },
+    { key: 'can_view_profit_margins', name_ar: 'عرض هوامش الربح', name_en: 'View Profit Margins', category: 'financial' },
+    { key: 'can_export_data', name_ar: 'تصدير البيانات', name_en: 'Export Data', category: 'operations' },
+    { key: 'can_manage_containers', name_ar: 'إدارة الحاويات', name_en: 'Manage Containers', category: 'operations' },
+];
+
 export interface Role {
     id: string;
     tenant_id?: string;
@@ -28,6 +65,7 @@ export interface Role {
     description?: string;
     level: RoleLevel;
     permissions: Record<string, Permission[]>;
+    special_permissions?: SpecialPermissions;
     is_system: boolean;
     is_custom: boolean;
     can_be_deleted: boolean;
@@ -130,6 +168,7 @@ export interface CreateRoleDTO {
     description?: string;
     level?: RoleLevel;
     permissions: Record<string, Permission[]>;
+    special_permissions?: SpecialPermissions;
     tenant_id?: string;
     company_id?: string;
     icon?: string;
@@ -141,6 +180,7 @@ export interface UpdateRoleDTO {
     name_en?: string;
     description?: string;
     permissions?: Record<string, Permission[]>;
+    special_permissions?: SpecialPermissions;
     icon?: string;
     color?: string;
 }
@@ -235,6 +275,12 @@ class RBACService {
             .select('*')
             .order('level', { ascending: true })
             .order('created_at', { ascending: true });
+
+        // 🔒 Always hide super_admin (system level) from tenant users
+        // Only platform SaaS panel should see system roles
+        if (filters?.include_system !== true) {
+            query = query.neq('level', 'system');
+        }
 
         if (filters?.tenant_id) {
             query = query.or(`tenant_id.eq.${filters.tenant_id},tenant_id.is.null`);
@@ -926,6 +972,95 @@ class RBACService {
     }
 
     // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Special Permissions
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Check if user has a specific special permission.
+     * Uses SQL function for best performance. Falls back to JS check.
+     * super_admin always returns true.
+     */
+    async checkSpecialPermission(userId: string, permName: SpecialPermissionKey): Promise<boolean> {
+        try {
+            // Try SQL function first
+            const { data, error } = await supabase
+                .rpc('check_special_permission', {
+                    p_user_id: userId,
+                    p_perm_name: permName
+                });
+
+            if (!error && data !== null) {
+                return !!data;
+            }
+
+            // Fallback: JS-based check
+            console.warn('[RBAC] check_special_permission RPC failed, using fallback:', error?.message);
+            const userRoles = await this.getUserRoles(userId);
+            for (const ur of userRoles) {
+                if (!ur.role) continue;
+                // super_admin, tenant_owner, and company_owner always have all permissions
+                if (['super_admin', 'tenant_owner', 'company_owner'].includes(ur.role.code)) return true;
+                const sp = (ur.role as Role & { special_permissions?: SpecialPermissions }).special_permissions;
+                if (sp && sp[permName] === true) return true;
+            }
+            return false;
+        } catch (err) {
+            console.error('[RBAC] checkSpecialPermission error:', err);
+            return false;
+        }
+    }
+
+    /**
+     * Get all special permissions for a user (merged from all roles).
+     * Uses SQL function for best performance. Falls back to JS merge.
+     * super_admin returns all true.
+     */
+    async getUserSpecialPermissions(userId: string): Promise<SpecialPermissions> {
+        try {
+            // JS-based merge (SQL function not yet deployed)
+            const userRoles = await this.getUserRoles(userId);
+            const merged: SpecialPermissions = {};
+
+            for (const ur of userRoles) {
+                if (!ur.role) continue;
+                // super_admin / tenant_owner / company_owner = all true
+                if (['super_admin', 'tenant_owner', 'company_owner'].includes(ur.role.code)) {
+                    const allTrue: SpecialPermissions = {};
+                    SPECIAL_PERMISSIONS_KEYS.forEach(k => { allTrue[k.key] = true; });
+                    return allTrue;
+                }
+                const sp = (ur.role as Role & { special_permissions?: SpecialPermissions }).special_permissions;
+                if (sp) {
+                    // Permissive merge: true overrides false
+                    for (const [key, val] of Object.entries(sp)) {
+                        if (val === true) {
+                            merged[key as SpecialPermissionKey] = true;
+                        } else if (!(key as SpecialPermissionKey in merged)) {
+                            merged[key as SpecialPermissionKey] = val;
+                        }
+                    }
+                }
+            }
+            return merged;
+        } catch (err) {
+            console.error('[RBAC] getUserSpecialPermissions error:', err);
+            return {};
+        }
+    }
+
+    /**
+     * Update special permissions for a role
+     */
+    async updateRoleSpecialPermissions(roleId: string, specialPerms: SpecialPermissions): Promise<void> {
+        const { error } = await supabase
+            .from('roles')
+            .update({ special_permissions: specialPerms })
+            .eq('id', roleId);
+
+        if (error) throw error;
+    }
+
     // Utility Methods
     // ─────────────────────────────────────────────────────────────
 

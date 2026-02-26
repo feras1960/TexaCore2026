@@ -4,6 +4,7 @@
  */
 
 import { supabase, getCurrentTenantIdAsync, getCurrentCompanyId } from '@/lib/supabase';
+import { activityLogService } from './activityLogService';
 
 export interface JournalEntry {
   id: string;
@@ -34,6 +35,8 @@ export interface JournalEntryLine {
   credit: number;
   description?: string;
   cost_center_id?: string;
+  party_type?: string | null;   // 'supplier' | 'customer'
+  party_id?: string | null;     // UUID of supplier or customer
   created_at: string;
 }
 
@@ -51,6 +54,8 @@ export interface CreateJournalEntryInput {
     credit: number;
     description?: string;
     cost_center_id?: string;
+    party_type?: string | null;   // 'supplier' | 'customer'
+    party_id?: string | null;     // UUID of supplier or customer
   }[];
 }
 
@@ -212,6 +217,18 @@ export const journalEntriesService = {
       throw new Error('Failed to create journal entry after multiple attempts');
     }
 
+    // ═══ Sub-Ledger Validation ═══
+    // Warn if party_type is set without party_id (helps catch missing supplier/customer tracking)
+    for (const line of input.lines) {
+      if (line.party_type && !line.party_id) {
+        console.warn(
+          `⚠️ [Sub-Ledger] Line has party_type="${line.party_type}" but no party_id!`,
+          `Entry: "${input.description}", Account: ${line.account_id}`,
+          'This means the transaction won\'t appear in the party\'s balance.'
+        );
+      }
+    }
+
     // Create lines
     const linesData = input.lines.map((line, index) => ({
       tenant_id: tenantId,
@@ -222,6 +239,8 @@ export const journalEntriesService = {
       credit: line.credit || 0,
       description: line.description || null,
       cost_center_id: line.cost_center_id || null,
+      party_type: line.party_type || null,
+      party_id: line.party_id || null,
     }));
 
     const { data: lines, error: linesError } = await supabase
@@ -235,6 +254,16 @@ export const journalEntriesService = {
       await supabase.from('journal_entries').delete().eq('id', entry.id);
       throw linesError;
     }
+
+    // 📜 Activity Log: تسجيل الإنشاء
+    activityLogService.logEvent({
+      table: 'journal_entries',
+      documentId: entry.id,
+      event: 'created',
+      userId: 'system',
+      userName: 'النظام',
+      details: { entry_number: entryNumber, total: totalDebit },
+    });
 
     return {
       ...entry,
@@ -260,6 +289,15 @@ export const journalEntriesService = {
       console.error('Error posting journal entry:', error);
       throw error;
     }
+
+    // 📜 Activity Log: تسجيل الترحيل
+    activityLogService.logEvent({
+      table: 'journal_entries',
+      documentId: entryId,
+      event: 'posted',
+      userId,
+      userName: '',
+    });
   },
 
   /**
@@ -327,6 +365,8 @@ export const journalEntriesService = {
         credit: line.credit || 0,
         description: line.description || null,
         cost_center_id: line.cost_center_id || null,
+        party_type: line.party_type || null,
+        party_id: line.party_id || null,
       }));
 
       const { error: linesError } = await supabase
@@ -360,14 +400,17 @@ export const journalEntriesService = {
     const tenantId = await getCurrentTenantIdAsync();
     if (!tenantId) throw new Error('No tenant ID available');
 
-    // حماية: القيود المولّدة من الكونتينر
+    // حماية: القيود المرتبطة بمستندات أخرى
     const { data: entryCheck } = await supabase
       .from('journal_entries')
-      .select('reference_type')
+      .select('reference_type, entry_type')
       .eq('id', id)
       .single();
-    if (entryCheck?.reference_type === 'container') {
-      throw new Error('هذا القيد مولّد تلقائياً من الكونتينر — إلغاء الترحيل متاح فقط من صفحة الكونتينر');
+
+    const protectedRefs = ['container', 'purchase_invoice', 'sales_invoice', 'goods_receipt'];
+    const protectedTypes = ['container_expense', 'container_expense_reversal', 'auto', 'provisional'];
+    if (protectedRefs.includes(entryCheck?.reference_type) || protectedTypes.includes(entryCheck?.entry_type)) {
+      throw new Error('هذا القيد مرتبط بمستند آخر — التعديل متاح فقط من المصدر الأصلي');
     }
 
     const { error } = await supabase
@@ -377,6 +420,15 @@ export const journalEntriesService = {
       .eq('tenant_id', tenantId);
 
     if (error) throw error;
+
+    // 📜 Activity Log: تسجيل إلغاء الترحيل
+    activityLogService.logEvent({
+      table: 'journal_entries',
+      documentId: id,
+      event: 'unposted',
+      userId: 'system',
+      userName: 'النظام',
+    });
   },
 
   // Duplicate entry
@@ -413,14 +465,16 @@ export const journalEntriesService = {
     // Check if entry is posted or container-generated
     const { data: entry } = await supabase
       .from('journal_entries')
-      .select('is_posted, status, reference_type')
+      .select('is_posted, status, reference_type, entry_type')
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .single();
 
-    // حماية: القيود المولّدة من الكونتينر لا تُحذف من هنا
-    if (entry?.reference_type === 'container') {
-      throw new Error('هذا القيد مولّد تلقائياً من الكونتينر — الحذف متاح فقط من صفحة الكونتينر');
+    // حماية: القيود المرتبطة بمستندات أخرى لا تُحذف من هنا
+    const protectedRefs = ['container', 'purchase_invoice', 'sales_invoice', 'goods_receipt'];
+    const protectedTypes = ['container_expense', 'container_expense_reversal', 'auto', 'provisional'];
+    if (protectedRefs.includes(entry?.reference_type) || protectedTypes.includes(entry?.entry_type)) {
+      throw new Error('هذا القيد مرتبط بمستند آخر — الحذف متاح فقط من المصدر الأصلي');
     }
 
     if (entry?.is_posted || entry?.status === 'posted') {

@@ -95,6 +95,7 @@ export function useCompanyCurrencies(): CompanyCurrencies {
 export const currencyMetadata: Record<string, { name: string; nameAr: string; symbol: string }> = {
     USD: { name: 'US Dollar', nameAr: 'دولار أمريكي', symbol: '$' },
     EUR: { name: 'Euro', nameAr: 'يورو', symbol: '€' },
+    UAH: { name: 'Ukrainian Hryvnia', nameAr: 'هريفنيا أوكرانية', symbol: '₴' },
     SAR: { name: 'Saudi Riyal', nameAr: 'ريال سعودي', symbol: '﷼' },
     AED: { name: 'UAE Dirham', nameAr: 'درهم إماراتي', symbol: 'د.إ' },
     GBP: { name: 'British Pound', nameAr: 'جنيه إسترليني', symbol: '£' },
@@ -108,6 +109,9 @@ export const currencyMetadata: Record<string, { name: string; nameAr: string; sy
     CNY: { name: 'Chinese Yuan', nameAr: 'يوان صيني', symbol: '¥' },
     INR: { name: 'Indian Rupee', nameAr: 'روبية هندية', symbol: '₹' },
     PKR: { name: 'Pakistani Rupee', nameAr: 'روبية باكستانية', symbol: '₨' },
+    RUB: { name: 'Russian Ruble', nameAr: 'روبل روسي', symbol: '₽' },
+    PLN: { name: 'Polish Zloty', nameAr: 'زلوتي بولندي', symbol: 'zł' },
+    RON: { name: 'Romanian Leu', nameAr: 'ليو روماني', symbol: 'lei' },
 };
 
 // Helper to get currency display name

@@ -161,32 +161,34 @@ export function AddAccountSheet({
     const effectiveParent = overrideParent || parentAccount;
 
     // If parent account exists, generate code based on parent
+    // الترقيم التسلسلي: أول ابن = كود الأب + "1" (111 → 1111)، التالي = آخر كود + 1 (1113 → 1114)
     if (effectiveParent && effectiveParent.code) {
       const parentCode = effectiveParent.code;
 
-      // Get all children of the parent account
+      // Get DIRECT children of the parent account
       const parentChildren = allAccounts.filter(
         (a) => a.parent_id === effectiveParent.id
       );
 
       if (parentChildren.length === 0) {
-        // First child: parent code + 10 (e.g., 1100 -> 1110)
-        const baseCode = parseInt(parentCode) || 0;
-        const nextCode = baseCode + 10;
-        return nextCode.toString().padStart(parentCode.length, '0');
+        // First child: parentCode + "1" → e.g. 111 → 1111
+        return parentCode + '1';
       }
 
-      // Find max code among children
-      const maxCode = parentChildren
+      // Find max code among direct children (only codes that start with parentCode)
+      const childCodes = parentChildren
         .map((a) => {
-          const codeNum = parseInt(a.code || '0');
-          return isNaN(codeNum) ? 0 : codeNum;
+          const code = a.code || a.account_code || '';
+          return code.startsWith(parentCode) ? parseInt(code) : NaN;
         })
-        .reduce((max, n) => Math.max(max, n), parseInt(parentCode) || 0);
+        .filter((n) => !isNaN(n));
 
-      // Next code: max + 10 (e.g., 1110 -> 1120, 1120 -> 1130)
-      const nextCode = maxCode + 10;
-      return nextCode.toString().padStart(parentCode.length, '0');
+      if (childCodes.length === 0) {
+        return parentCode + '1';
+      }
+
+      const maxCode = Math.max(...childCodes);
+      return (maxCode + 1).toString();
     }
 
     // No parent: use account type prefix
@@ -300,6 +302,15 @@ export function AddAccountSheet({
   // Get parent options (only groups)
   const parentOptions = allAccounts.filter((a) => a.is_group);
 
+  // Resolve account_type_id from parent hierarchy
+  const resolveTypeFromParent = (parentId: string): string | null => {
+    const parent = allAccounts.find(a => a.id === parentId);
+    if (!parent) return null;
+    if (parent.account_type_id) return parent.account_type_id;
+    if (parent.parent_id) return resolveTypeFromParent(parent.parent_id);
+    return null;
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent side={direction === 'rtl' ? 'left' : 'right'} className="w-[600px] sm:max-w-[600px]">
@@ -371,15 +382,22 @@ export function AddAccountSheet({
             />
           </div>
 
-          {/* Account Type */}
+          {/* Account Type — يُورث تلقائياً من المجموعة الأم */}
           <div className="space-y-2">
-            <Label htmlFor="account_type">{t('accounting.account.type')} *</Label>
+            <Label htmlFor="account_type">
+              {t('accounting.account.type')} *
+              {formData.parent_id && (
+                <span className="text-[10px] text-gray-400 ms-1">
+                  ({language === 'ar' ? 'موروث من المجموعة' : 'Inherited from group'})
+                </span>
+              )}
+            </Label>
             <Select
               value={formData.account_type_id}
               onValueChange={(value: string) =>
                 setFormData((prev) => ({ ...prev, account_type_id: value }))
               }
-              disabled={accountTypesLoading}
+              disabled={accountTypesLoading || !!formData.parent_id}
             >
               <SelectTrigger id="account_type" className="w-full">
                 <SelectValue placeholder={accountTypesLoading ? t('common.loading') : t('accounting.account.type')} />
@@ -392,6 +410,13 @@ export function AddAccountSheet({
                 ))}
               </SelectContent>
             </Select>
+            {formData.parent_id && (
+              <p className="text-[10px] text-gray-400">
+                {language === 'ar'
+                  ? 'ℹ️ نوع الحساب يُحدد تلقائياً حسب المجموعة — لتغييره غيّر المجموعة'
+                  : 'ℹ️ Account type is auto-determined by parent group'}
+              </p>
+            )}
           </div>
 
           {/* Parent Account */}
@@ -412,10 +437,18 @@ export function AddAccountSheet({
                     level: newParent ? newParent.level + 1 : 1,
                   };
 
+                  // توريث نوع الحساب تلقائياً من المجموعة الأم
+                  if (newParent) {
+                    const inheritedType = resolveTypeFromParent(newParentId!);
+                    if (inheritedType) {
+                      updated.account_type_id = inheritedType;
+                    }
+                  }
+
                   // تحديث رقم الحساب تلقائياً عند تغيير المجموعة
-                  if (!editingAccount && formData.account_type_id) {
+                  if (!editingAccount && (updated.account_type_id || formData.account_type_id)) {
                     const nextCode = getNextAccountCode(
-                      formData.account_type_id,
+                      updated.account_type_id || formData.account_type_id,
                       newParent || undefined
                     );
                     updated.code = nextCode;

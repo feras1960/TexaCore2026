@@ -152,7 +152,8 @@ export const accountsService = {
         )
       `)
       .eq('company_id', companyId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .or('is_party_account.is.null,is_party_account.eq.false');  // Hide party sub-accounts from tree
 
     // Add tenant filter if available (for multi-tenant support)
     // Note: We rely on company_id and RLS for security. 

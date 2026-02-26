@@ -54,10 +54,16 @@ function getSectionVisibility(stage: string): SectionVisibility {
     const stageOrder: Record<string, number> = {
         'draft': 0,
         'quotation': 1,
+        'reservation': 1,
         'order': 2,
         'approved': 3,
+        'confirmed': 3,
+        'delivery': 3,
+        'in_delivery': 3,
+        'delivered': 4,
         'invoice': 4,
         'posted': 5,
+        'partial_paid': 6,
         'partial_payment': 6,
         'paid': 7,
         'cancelled': -1,
@@ -167,14 +173,21 @@ export const SupplierFinanceTab: React.FC<SupplierFinanceTabProps> = ({
                     open={supplierOpen}
                     onOpenChange={setSupplierOpen}
                     icon={Building2}
-                    title={isRTL ? 'بيانات المورد' : 'Supplier Information'}
+                    title={isRTL
+                        ? (transactionType === 'sale' ? 'بيانات العميل' : 'بيانات المورد')
+                        : (transactionType === 'sale' ? 'Customer Information' : 'Supplier Information')
+                    }
                     color="blue"
                     isReadOnly={visibility.supplierReadOnly}
                     isRTL={isRTL}
                     badge={
-                        data?.supplier_name || data?.supplier_id
+                        (transactionType === 'sale'
+                            ? (data?.customer_name || data?.customer_id)
+                            : (data?.supplier_name || data?.supplier_id))
                             ? <Badge variant="secondary" className="text-[10px]">
-                                {data?.supplier_name || (isRTL ? 'مُحدد' : 'Selected')}
+                                {(transactionType === 'sale'
+                                    ? data?.customer_name
+                                    : data?.supplier_name) || (isRTL ? 'مُحدد' : 'Selected')}
                             </Badge>
                             : undefined
                     }
@@ -261,10 +274,17 @@ export const SupplierFinanceTab: React.FC<SupplierFinanceTabProps> = ({
                         totalAmount={liveTotal}
                         taxAmount={liveTax}
                         discountAmount={Number(data?.discount_amount || 0)}
-                        supplierName={data?.supplier_name || data?.party_name || ''}
+                        supplierName={
+                            transactionType === 'sale'
+                                ? (data?.customer_name || data?.party_name || '')
+                                : (data?.supplier_name || data?.party_name || '')
+                        }
                         currency={data?.currency || ''}
                         transactionType={transactionType}
                         companyId={companyId}
+                        journalEntryId={data?.journal_entry_id}
+                        receiptMode={data?.receipt_mode}
+                        partyId={data?.customer_id || data?.supplier_id || data?.party_id}
                     />
                 </CollapsibleSection>
             )}

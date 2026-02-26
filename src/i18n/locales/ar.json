@@ -19,8 +19,27 @@
     "closingBalance": "الرصيد الختامي"
   },
   "messages": {
-    "savedSuccessfully": "تم الحفظ بنجاح",
-    "successMessage": "العملية تمت بنجاح"
+    "accessDenied": "الوصول مرفوض",
+    "confirmCancel": "هل أنت متأكد أنك تريد الإلغاء؟",
+    "contentComingSoon": "المحتوى قريباً...",
+    "confirmDelete": "هل أنت متأكد أنك تريد الحذف؟",
+    "deleteError": "فشل الحذف",
+    "deleteSuccess": "تم الحذف بنجاح",
+    "discardAndClose": "تجاهل وإغلاق",
+    "loadingError": "فشل تحميل البيانات",
+    "networkError": "خطأ في الاتصال بالشبكة",
+    "noResults": "لا توجد نتائج",
+    "notFound": "الصفحة غير موجودة",
+    "pageUnderDevelopment": "هذه الصفحة قيد التطوير",
+    "saveError": "فشل الحفظ",
+    "saveSuccess": "تم الحفظ بنجاح",
+    "sessionExpired": "انتهت الجلسة",
+    "unsavedChanges": "تغييرات غير محفوظة",
+    "unsavedChangesDesc": "لديك تغييرات غير محفوظة. هل أنت متأكد من إغلاق هذا النموذج؟ سيتم فقدان جميع البيانات.",
+    "updateError": "فشل التحديث",
+    "updateSuccess": "تم التحديث بنجاح",
+    "selectSupplierFirst": "الرجاء اختيار المورد أولاً",
+    "featureComingSoon": "هذه الميزة قادمة قريباً"
   },
   "trade": {
     "quotation": {
@@ -66,6 +85,7 @@
       "shipmentItems": "بنود البضائع",
       "receiptSummary": "ملخص الاستلام",
       "supplierFinance": "المورد والمالية",
+      "salesFinance": "الدفعات والقيد والتوصيل",
       "stageHistory": "السجل"
     },
     "total": "الإجمالي",
@@ -488,6 +508,7 @@
     "audit": "تدقيق الشجرة المحاسبية",
     "budget": "الموازنة",
     "recurring": "القيود المتكررة",
+    "vatSettlement": "التسوية الضريبية",
     "payment": {
       "amount": "المبلغ",
       "date": "تاريخ السند",
@@ -574,6 +595,10 @@
     },
     "sqlTemplateExample": "SELECT apply_chart_template_to_company('company_id', 'fabric_extended_demo');",
     "stats": {
+      "balance_desc": "💰 صافي الرصيد",
+      "debit_desc": "↗ ما دخل للحساب",
+      "credit_desc": "↙ ما خرج من الحساب",
+      "transactions_desc": "عدد القيود المرحّلة",
       "cashFlow": "التدفق النقدي",
       "netProfit": "صافي الربح",
       "thisMonth": "هذا الشهر",
@@ -1493,6 +1518,10 @@
         "name": "📋 لوحة كانبان (NexaKanban)",
         "description": "لوحة كانبان احترافية مع السحب والإفلات، أعمدة ملونة، إجماليات، ودعم RTL - قابلة لإعادة الاستخدام في جميع الأقسام"
       },
+      "nexaListTable": {
+        "name": "📋 جدول القوائم الغني (NexaListTable)",
+        "description": "مكون جدول مشترك بتصميم غني — أرقام صفوف، حدود ملونة، فلاتر متقدمة، بحث، فوتر إجمالي — طبق الأصل من دورة الشراء — للاستخدام في كل صفحات القوائم"
+      },
       "saasDetailSheet": {
         "description": "شيت موحد لجميع كيانات SaaS (Plans, Tenants, Agents, Modules) - مع 6 تبويبات للباقات",
         "name": "شيت SaaS الموحد (Production)"
@@ -2311,7 +2340,46 @@
     "unit": "الوحدة",
     "unitCost": "تكلفة الوحدة",
     "warehouse": "المستودع",
-    "warehouses": "المستودعات"
+    "warehouses": "المستودعات",
+    "management": "إدارة المخزون",
+    "managementDesc": "عرض وتحليل مخزون المواد والرولونات بالتفصيل",
+    "showEmpty": "المواد الفارغة",
+    "hideEmpty": "إخفاء الفارغة",
+    "noInventory": "لا توجد مواد في المخزون",
+    "totalRolls": "إجمالي الرولونات",
+    "availableMeters": "الأمتار المتاحة",
+    "totalStock": "إجمالي المخزون",
+    "stockValue": "قيمة المخزون",
+    "stockValueLabel": "قيمة المخزون:",
+    "allWarehouses": "كل المستودعات",
+    "allColors": "كل الألوان",
+    "allBatches": "كل الدفعات",
+    "allStatuses": "كل الحالات",
+    "inStock": "متوفر",
+    "lowStock": "منخفض",
+    "outOfStock": "نفذ",
+    "metersRange": "الأمتار",
+    "costPerMeter": "التكلفة/م",
+    "avgCost": "متوسط",
+    "sellPrice": "سعر البيع",
+    "totalValue": "القيمة الإجمالية",
+    "container": "الكونتينر",
+    "colors": "الألوان",
+    "batch": "الدفعة",
+    "material": "المادة",
+    "rolls": "رولونات",
+    "meters": "الأمتار",
+    "reserved": "محجوز",
+    "warehouseCount": "مستودع",
+    "inCart": "في السلة",
+    "addToCart": "إضافة للسلة",
+    "showing": "عرض",
+    "of": "من",
+    "types": "نوع",
+    "priceRestricted": "معلومات الأسعار والتكاليف مقيدة لصلاحيتك الحالية",
+    "searchPlaceholder": "بحث بالاسم أو الكود...",
+    "clearAll": "مسح الكل",
+    "meterUnit": "م"
   },
   "inventoryAsset": "أصول المخزون",
   "invoiceTypes": {
@@ -2380,29 +2448,6 @@
   },
   "marked": "معلّم",
   "maxQty": "الكمية القصوى",
-  "messages": {
-    "accessDenied": "الوصول مرفوض",
-    "confirmCancel": "هل أنت متأكد أنك تريد الإلغاء؟",
-    "contentComingSoon": "المحتوى قريباً...",
-    "confirmDelete": "هل أنت متأكد أنك تريد الحذف؟",
-    "deleteError": "فشل الحذف",
-    "deleteSuccess": "تم الحذف بنجاح",
-    "discardAndClose": "تجاهل وإغلاق",
-    "loadingError": "فشل تحميل البيانات",
-    "networkError": "خطأ في الاتصال بالشبكة",
-    "noResults": "لا توجد نتائج",
-    "notFound": "الصفحة غير موجودة",
-    "pageUnderDevelopment": "هذه الصفحة قيد التطوير",
-    "saveError": "فشل الحفظ",
-    "saveSuccess": "تم الحفظ بنجاح",
-    "sessionExpired": "انتهت الجلسة",
-    "unsavedChanges": "تغييرات غير محفوظة",
-    "unsavedChangesDesc": "لديك تغييرات غير محفوظة. هل أنت متأكد من إغلاق هذا النموذج؟ سيتم فقدان جميع البيانات.",
-    "updateError": "فشل التحديث",
-    "updateSuccess": "تم التحديث بنجاح",
-    "selectSupplierFirst": "الرجاء اختيار المورد أولاً",
-    "featureComingSoon": "هذه الميزة قادمة قريباً"
-  },
   "modes": {
     "view": "عرض",
     "edit": "تعديل",
@@ -3763,7 +3808,8 @@
       "delivery": "التسليم",
       "reports": "التقارير",
       "samples": "العينات",
-      "settings": "الإعدادات"
+      "settings": "الإعدادات",
+      "receiptsDeliveries": "أذون الاستلام والتسليم"
     },
     "dashboard": {
       "title": "لوحة المستودعات",
@@ -4199,7 +4245,16 @@
       "resources": "صلاحيات الموارد",
       "visibility": "قواعد الإخفاء",
       "modules": "الموديولات",
-      "branches": "الفروع"
+      "branches": "الفروع",
+      "notifications": "الإشعارات"
+    }
+  },
+  "usersPermissions": {
+    "tabs": {
+      "roles": "مجموعات المستخدمين",
+      "users": "المستخدمين",
+      "branches": "الفروع",
+      "auditLog": "سجل التدقيق"
     }
   }
 }

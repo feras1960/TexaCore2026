@@ -164,7 +164,9 @@ export interface PurchaseTransactionItem {
     total: number;
 
     // ═══ الأقمشة ═══
+    /** @deprecated Colors are now managed as variant materials */
     color_id?: string;
+    /** @deprecated Colors are now managed as variant materials */
     color_name?: string;
     roll_id?: string;
     roll_code?: string;
@@ -363,7 +365,9 @@ export interface TradeItem {
     item_code: string;
     item_name: string;
     item_name_ar?: string;
+    /** @deprecated Colors are now managed as variant materials */
     color_id?: string;
+    /** @deprecated Colors are now managed as variant materials */
     color_name?: string;
     roll_id?: string;
     roll_code?: string;
@@ -385,7 +389,8 @@ export interface TradeItem {
 export interface GridRollItem {
     id: string;
     material_id: string;
-    color_id: string;
+    /** @deprecated Colors are now managed as variant materials */
+    color_id?: string;
     roll_length: number;
     is_saved: boolean;
 }

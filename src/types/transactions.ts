@@ -199,6 +199,11 @@ export interface PurchaseTransaction {
     source_type: string | null;
     source_id: string | null;
 
+    // 📦 تحديث المخزون المباشر
+    auto_update_stock: boolean;
+    stock_warehouse_id: string | null;
+    stock_movement_id: string | null;
+
     // البنود (joins)
     items?: PurchaseTransactionItem[];
 }
@@ -266,6 +271,7 @@ export interface SalesTransaction {
     // المحاسبة
     journal_entry_id: string | null;
     cost_entry_id: string | null;
+    cogs_journal_entry_id: string | null;
     is_posted: boolean;
 
     // 👤 تتبع المستخدمين
@@ -335,6 +341,11 @@ export interface SalesTransaction {
     // المصدر
     source_type: string | null;
     source_id: string | null;
+
+    // 📦 تحديث المخزون المباشر
+    auto_update_stock: boolean;
+    stock_warehouse_id: string | null;
+    stock_movement_id: string | null;
 
     // البنود (joins)
     items?: SalesTransactionItem[];
@@ -476,6 +487,8 @@ export interface CreatePurchaseTransactionInput {
     tags?: string[];
     created_by?: string;
     created_by_name?: string;
+    auto_update_stock?: boolean;
+    stock_warehouse_id?: string;
 }
 
 export interface CreateSalesTransactionInput {
@@ -498,6 +511,8 @@ export interface CreateSalesTransactionInput {
     tags?: string[];
     created_by?: string;
     created_by_name?: string;
+    auto_update_stock?: boolean;
+    stock_warehouse_id?: string;
 }
 
 export interface TransactionItemInput {

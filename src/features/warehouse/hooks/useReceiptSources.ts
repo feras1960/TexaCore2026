@@ -4,16 +4,16 @@
  * ════════════════════════════════════════════════════════════════
  *
  * يجلب من قاعدة البيانات الفعلية:
- * ┌──────────────────────┬──────────────────────┬──────────────────────┐
- * │ النوع                │ الجدول               │ جدول البنود          │
- * ├──────────────────────┼──────────────────────┼──────────────────────┤
- * │ فاتورة شراء          │ purchase_transactions │ purchase_transaction_items│
- * │ فاتورة شراء داخلي    │ purchase_transactions │ purchase_transaction_items│
- * │ أمر شراء             │ purchase_orders       │ purchase_order_items │
- * │ كونتينر              │ containers            │ container_items      │
- * │ مرتجع                │ purchase_returns      │ purchase_return_items│
- * │ مناقلة               │ (لم يُبنَ بعد)       │ —                    │
- * └──────────────────────┴──────────────────────┴──────────────────────┘
+ * ┌──────────────────────┬──────────────────────┬────────────────────────────┐
+ * │ النوع                │ الجدول               │ جدول البنود                │
+ * ├──────────────────────┼──────────────────────┼────────────────────────────┤
+ * │ فاتورة شراء (جديد)   │ purchase_invoices     │ purchase_invoice_items      │
+ * │ فاتورة شراء (أرشيف)  │ purchase_transactions │ purchase_transaction_items  │
+ * │ أمر شراء             │ purchase_orders       │ purchase_order_items       │
+ * │ كونتينر              │ containers            │ container_items            │
+ * │ مرتجع                │ purchase_returns      │ purchase_return_items      │
+ * │ مناقلة               │ (لم يُبنَ بعد)       │ —                          │
+ * └──────────────────────┴──────────────────────┴────────────────────────────┘
  *
  * ════════════════════════════════════════════════════════════════
  */
@@ -25,7 +25,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 
 // ─── Types ───────────────────────────────────────────────────
 
-export type SourceDocType = 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction' | 'container' | 'purchase_return';
+export type SourceDocType = 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction' | 'container' | 'purchase_return' | 'sales_transaction';
 
 export interface SourceDocumentItem {
     id: string;
@@ -40,6 +40,13 @@ export interface SourceDocumentItem {
     notes?: string;
     /** How many already received (future: from purchase_receipts) */
     received_quantity?: number;
+    // ─── Dynamic variant fields (from source document) ───
+    /** Color UUID reference */
+    color_id?: string;
+    /** Color display name */
+    color_name?: string;
+    // design_id?: string;   // مستقبلي: معرف الرسمة
+    // design_name?: string; // مستقبلي: اسم الرسمة
 }
 
 export interface SourceDocument {
@@ -74,7 +81,7 @@ export interface SourceDocument {
 }
 
 // ─── Receipt type → SourceDocType mapping ────────────────────
-export type ReceiptTypeKey = 'purchase_local' | 'container' | 'transfer' | 'return' | 'stock_count';
+export type ReceiptTypeKey = 'purchase_local' | 'container' | 'transfer' | 'return' | 'stock_count' | 'sales_delivery';
 
 const RECEIPT_TYPE_TO_SOURCE: Record<ReceiptTypeKey, SourceDocType[]> = {
     purchase_local: ['purchase_order', 'purchase_invoice', 'purchase_invoice_local', 'purchase_transaction'],
@@ -82,6 +89,7 @@ const RECEIPT_TYPE_TO_SOURCE: Record<ReceiptTypeKey, SourceDocType[]> = {
     transfer: [], // not built yet
     return: ['purchase_return'],
     stock_count: [], // will connect to stock_counts table later
+    sales_delivery: ['sales_transaction'],
 };
 
 // ─── Hook ────────────────────────────────────────────────────
@@ -127,21 +135,46 @@ export function useReceiptSources() {
         enabled: !!companyId,
     });
 
-    // ─── 3. Purchase Invoices (from purchase_transactions — at invoice/posted stage, ready for receipt) ──────
+    // ─── 3. Purchase Invoices (NEW: purchase_invoices + LEGACY: purchase_transactions fallback) ──────
     const { data: rawInvoices = [], isLoading: loadingInvoices } = useQuery({
         queryKey: ['receipt_src_invoices', companyId],
         queryFn: async () => {
             if (!companyId) return [];
-            const { data, error } = await supabase
+            const combined: any[] = [];
+            const seenIds = new Set<string>();
+
+            // 3a. NEW: purchase_invoices
+            const { data: newData, error: newErr } = await supabase
+                .from('purchase_invoices')
+                .select('*')
+                .eq('company_id', companyId)
+                .neq('status', 'cancelled')
+                .in('document_stage', ['invoice', 'posted', 'confirmed'])
+                .not('receipt_status', 'eq', 'received')
+                .order('invoice_date', { ascending: false });
+            if (newErr) { console.warn('[useReceiptSources] purchase_invoices:', newErr.message); }
+            (newData || []).forEach((d: any) => {
+                seenIds.add(d.id);
+                combined.push({ ...d, _source: 'purchase_invoices' });
+            });
+
+            // 3b. LEGACY: purchase_transactions (fallback for archived data)
+            const { data: legacyData, error: legacyErr } = await supabase
                 .from('purchase_transactions')
                 .select('*')
                 .eq('company_id', companyId)
                 .eq('is_active', true)
-                // Invoice/Posted stage transactions are ready for goods receipt
                 .in('stage', ['invoice', 'posted', 'partial_paid', 'partially_received'])
                 .order('doc_date', { ascending: false });
-            if (error) { console.warn('[useReceiptSources] invoices:', error.message); return []; }
-            return data || [];
+            if (legacyErr) { console.warn('[useReceiptSources] purchase_transactions:', legacyErr.message); }
+            (legacyData || []).forEach((d: any) => {
+                if (!seenIds.has(d.id)) {
+                    seenIds.add(d.id);
+                    combined.push({ ...d, _source: 'purchase_transactions' });
+                }
+            });
+
+            return combined;
         },
         enabled: !!companyId,
     });
@@ -196,20 +229,42 @@ export function useReceiptSources() {
         enabled: orderIds.length > 0,
     });
 
-    // ─── 7. Fetch Items for Purchase Invoices ────────────────
-    const invoiceIds = rawInvoices.map((i: any) => i.id);
+    // ─── 7. Fetch Items for Purchase Invoices (dual-source) ────────────────
+    const newInvoiceIds = rawInvoices.filter((i: any) => i._source === 'purchase_invoices').map((i: any) => i.id);
+    const legacyInvoiceIds = rawInvoices.filter((i: any) => i._source === 'purchase_transactions').map((i: any) => i.id);
+    const allInvoiceIds = rawInvoices.map((i: any) => i.id);
     const { data: invoiceItems = [], isLoading: loadingII } = useQuery({
-        queryKey: ['receipt_invoice_items', invoiceIds],
+        queryKey: ['receipt_invoice_items', allInvoiceIds],
         queryFn: async () => {
-            if (invoiceIds.length === 0) return [];
-            const { data, error } = await supabase
-                .from('purchase_transaction_items')
-                .select('*')
-                .in('transaction_id', invoiceIds);
-            if (error) return [];
-            return data || [];
+            if (allInvoiceIds.length === 0) return [];
+            const combined: any[] = [];
+
+            // 7a. NEW: purchase_invoice_items (FK: invoice_id)
+            if (newInvoiceIds.length > 0) {
+                const { data, error } = await supabase
+                    .from('purchase_invoice_items')
+                    .select('*')
+                    .in('invoice_id', newInvoiceIds);
+                if (!error && data) {
+                    // Normalize FK field to 'transaction_id' for unified mapping
+                    data.forEach((item: any) => combined.push({ ...item, transaction_id: item.invoice_id }));
+                }
+            }
+
+            // 7b. LEGACY: purchase_transaction_items (FK: transaction_id)
+            if (legacyInvoiceIds.length > 0) {
+                const { data, error } = await supabase
+                    .from('purchase_transaction_items')
+                    .select('*')
+                    .in('transaction_id', legacyInvoiceIds);
+                if (!error && data) {
+                    combined.push(...data);
+                }
+            }
+
+            return combined;
         },
-        enabled: invoiceIds.length > 0,
+        enabled: allInvoiceIds.length > 0,
     });
 
     // ─── 8. Fetch Items for Containers ───────────────────────
@@ -252,6 +307,62 @@ export function useReceiptSources() {
         enabled: returnIds.length > 0,
     });
 
+    // ─── 10. Sales Transactions (confirmed, for delivery) ────
+    const { data: rawSalesInvoices = [], isLoading: loadingSales } = useQuery({
+        queryKey: ['receipt_src_sales', companyId],
+        queryFn: async () => {
+            if (!companyId) return [];
+            const { data, error } = await supabase
+                .from('sales_transactions')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .eq('stage', 'confirmed')
+                .order('updated_at', { ascending: false });
+            if (error) { console.warn('[useReceiptSources] sales_transactions:', error.message); return []; }
+            return data || [];
+        },
+        enabled: !!companyId,
+    });
+
+    // ─── 11. Fetch Items for Sales Transactions ──────────────
+    const salesInvoiceIds = rawSalesInvoices.map((s: any) => s.id);
+    const { data: salesItems = [], isLoading: loadingSI } = useQuery({
+        queryKey: ['receipt_sales_items', salesInvoiceIds],
+        queryFn: async () => {
+            if (salesInvoiceIds.length === 0) return [];
+            const { data, error } = await supabase
+                .from('sales_transaction_items')
+                .select('*')
+                .in('transaction_id', salesInvoiceIds);
+            if (error) {
+                console.warn('[useReceiptSources] sales_transaction_items:', error.message);
+                return [];
+            }
+            return data || [];
+        },
+        enabled: salesInvoiceIds.length > 0,
+    });
+
+    // ─── 12. Customers map (for sales) ───────────────────────
+    const { data: customersMap = {} } = useQuery({
+        queryKey: ['receipt_customers_map', companyId, language],
+        queryFn: async () => {
+            if (!companyId) return {};
+            const { data, error } = await supabase
+                .from('customers')
+                .select('id, name_ar, name_en')
+                .eq('company_id', companyId);
+            if (error) return {};
+            return (data || []).reduce((acc: Record<string, string>, c: any) => {
+                acc[c.id] = language === 'ar' ? (c.name_ar || c.name_en || '') : (c.name_en || c.name_ar || '');
+                return acc;
+            }, {});
+        },
+        enabled: !!companyId && rawSalesInvoices.length > 0,
+        staleTime: 60000,
+    });
+
     // ════════════════════════════════════════════════════════════
     // Build unified SourceDocument[] 
     // ════════════════════════════════════════════════════════════
@@ -261,14 +372,17 @@ export function useReceiptSources() {
             id: i.id,
             material_id: i.material_id,
             product_id: i.product_id,
-            description: i.description || '',
-            quantity: i.quantity || 0,
-            unit_price: i.unit_price || 0,
-            subtotal: i.subtotal || 0,
-            total: i.total || i.subtotal || 0,
-            unit: i.unit,
+            description: i.description || i.item_description || '',
+            quantity: i.quantity || i.expected_quantity || 0,
+            unit_price: i.unit_price || i.unit_cost || 0,
+            subtotal: i.subtotal || i.total_cost || 0,
+            total: i.total || i.subtotal || i.total_cost || 0,
+            unit: i.unit || i.uom || 'meter',
             notes: i.notes,
             received_quantity: 0,
+            // ─── Dynamic variant fields ───
+            color_id: i.color_id || null,
+            color_name: i.color_name || null,
         }));
 
     // ─── Purchase Orders ─────────────────────────────────────
@@ -293,26 +407,37 @@ export function useReceiptSources() {
         };
     });
 
-    // ─── Purchase Invoices ───────────────────────────────────
+    // ─── Purchase Invoices (handles both new & legacy sources) ───────────────────────────────────
     const purchaseInvoiceDocs: SourceDocument[] = rawInvoices.map((pi: any) => {
-        const supplierName = suppliersMap[pi.supplier_id] || '';
+        const supplierName = suppliersMap[pi.supplier_id] || pi.supplier_name || '';
+        const isNewSource = pi._source === 'purchase_invoices';
         const isLocal = pi.receipt_mode === 'direct';
+        // Normalize field names
+        const docNumber = isNewSource
+            ? (pi.invoice_number || pi.id?.substring(0, 8))
+            : (pi.invoice_no || pi.invoice_number || pi.id?.substring(0, 8));
+        const docDate = isNewSource
+            ? pi.invoice_date
+            : (pi.doc_date || pi.invoice_date);
+        const docStage = isNewSource
+            ? (pi.document_stage || pi.status || 'draft')
+            : (pi.stage || pi.status || 'draft');
         return {
             id: pi.id,
-            document_number: pi.invoice_no || pi.invoice_number || pi.id?.substring(0, 8),
+            document_number: docNumber,
             type: isLocal ? 'purchase_invoice_local' as const : 'purchase_transaction' as const,
-            label: `${pi.invoice_no || pi.invoice_number || pi.id?.substring(0, 8)}${supplierName ? ` - ${supplierName}` : ''}`,
+            label: `${docNumber}${supplierName ? ` - ${supplierName}` : ''}`,
             supplier_name: supplierName,
             supplier_id: pi.supplier_id || '',
-            date: pi.doc_date || pi.invoice_date,
+            date: docDate,
             total_amount: pi.total_amount || 0,
             currency: pi.currency || '',
-            status: pi.stage || pi.status || 'draft',
+            status: docStage,
             confirmation_status: pi.confirmation_status || '',
             receipt_mode: pi.receipt_mode || 'direct',
             warehouse_id: pi.warehouse_id,
             items: mapItems(invoiceItems, 'transaction_id', pi.id),
-            original_table: 'purchase_transactions',
+            original_table: isNewSource ? 'purchase_invoices' : 'purchase_transactions',
         };
     });
 
@@ -357,12 +482,36 @@ export function useReceiptSources() {
         };
     });
 
+    // ─── Sales Delivery Documents ─────────────────────────────
+    const salesDeliveryDocs: SourceDocument[] = rawSalesInvoices.map((si: any) => {
+        const customerName = si.customer_name || customersMap[si.customer_id] || '';
+        const docNumber = si.invoice_no || si.draft_no || si.id?.substring(0, 8);
+        return {
+            id: si.id,
+            document_number: docNumber,
+            type: 'sales_transaction' as const,
+            label: `${docNumber}${customerName ? ` - ${customerName}` : ''}`,
+            supplier_name: customerName, // Reuse field for customer display
+            supplier_id: si.customer_id || '',
+            date: si.doc_date,
+            total_amount: si.total_amount || 0,
+            currency: si.currency || '',
+            status: si.stage || 'confirmed',
+            confirmation_status: 'confirmed',
+            receipt_mode: 'direct',
+            warehouse_id: si.warehouse_id,
+            items: mapItems(salesItems, 'transaction_id', si.id),
+            original_table: 'sales_transactions',
+        };
+    });
+
     // ─── All sources combined ────────────────────────────────
     const allDocuments: SourceDocument[] = [
         ...purchaseOrderDocs,
         ...purchaseInvoiceDocs,
         ...containerDocs,
         ...returnDocs,
+        ...salesDeliveryDocs,
     ];
 
     // ════════════════════════════════════════════════════════════
@@ -386,7 +535,7 @@ export function useReceiptSources() {
     }
 
     const isLoading = loadingOrders || loadingInvoices || loadingContainers || loadingReturns
-        || loadingOI || loadingII || loadingCI || loadingRI;
+        || loadingOI || loadingII || loadingCI || loadingRI || loadingSales || loadingSI;
 
     return {
         /** All source documents */
@@ -407,5 +556,9 @@ export function useReceiptSources() {
         isLoading,
         /** Suppliers map */
         suppliersMap,
+        /** Sales delivery docs */
+        salesDeliveryDocs,
+        /** Customers map */
+        customersMap,
     };
 }

@@ -1,537 +1,734 @@
 /**
- * Enhanced Ledger Tab - تبويب كشف الحساب المحسن
- * يعرض سجل العمليات المالية باستخدام NexaDataTable مع:
- * - فلاتر تواريخ سريعة
- * - فلتر العملة
- * - شريط مجاميع ثابت في الأسفل
- * - دعم MDI لفتح القيود في تبويبات
- * - سحب وإفلات الأعمدة
- * - تغيير حجم الأعمدة
+ * LedgerTab — كشف الحساب (الإصدار الجديد)
+ * 
+ * يستخدم NexaListTable + بيانات حقيقية من accountLedgerService
+ * ✅ أسطر منفتحة (تفاصيل القيد عند الضغط)
+ * ✅ ماركر 9 ألوان للمطابقة المحاسبية
+ * ✅ تجميع شهري قابل للإلغاء
+ * ✅ فلاتر: تواريخ سريعة + عملة + نوع الحركة
+ * ✅ حساب مقابل ذكي (ثنائي أو متعدد)
+ * ✅ أيقونة نوع المستند
+ * ✅ شريط ملخص علوي + footer ثابت
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { NexaDataTable } from '@/components/ui/nexa-data-table';
-import { ColumnDef } from '@tanstack/react-table';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
+import { LedgerExpandedRow } from './LedgerExpandedRow';
+import { useLedgerData, type ExtendedLedgerEntry } from '../hooks/useLedgerData';
+import { cn, formatNumber } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Download,
-    Printer,
-    Filter,
-    ChevronDown,
-    ChevronUp,
-    FileText,
-    Table as TableIcon,
-    LayoutGrid,
+    Calendar,
+    CalendarDays,
+    CalendarRange,
+    Layers,
+    TrendingUp,
+    TrendingDown,
+    Minus,
+    ListOrdered,
+    LayoutList,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatNumber, formatDate } from '../utils/formatters';
-import type { LedgerEntry } from '../types';
 
+// ═══ Entry Type Icons ═══
+const ENTRY_TYPE_ICONS: Record<string, string> = {
+    journal: '📋',
+    invoice: '🧾',
+    payment: '💸',
+    receipt: '💰',
+    transfer: '🔄',
+};
+
+// ═══ Props ═══
 interface LedgerTabProps {
-    entries?: LedgerEntry[];
-    loading?: boolean;
-    error?: string;
+    accountId: string;
+    companyId: string;
     currency?: string;
-    useArabicNumerals?: boolean;
-    onEntryClick?: (entry: LedgerEntry) => void;
-    onEntryOpen?: (entry: LedgerEntry) => void; // MDI: open in new tab
-    onExport?: () => void;
-    onPrint?: () => void;
-    // Totals
-    totalDebit?: number;
-    totalCredit?: number;
-    openingBalance?: number;
-    closingBalance?: number;
-    // Currency options
-    availableCurrencies?: string[];
-    selectedCurrency?: string;
-    onCurrencyChange?: (currency: string) => void;
+    onEntryOpen?: (entry: ExtendedLedgerEntry) => void;
+    renderExpandedRowOverride?: (row: ExtendedLedgerEntry) => React.ReactNode;
+    /** Party mode: enables invoice+payment grouping toggle */
+    partyMode?: boolean;
 }
 
-// Quick date preset type
-type QuickDatePreset = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'thisYear' | 'all';
+// ═══ View Mode ═══
+type ViewMode = 'chronological' | 'grouped';
 
-// View mode type
-type ViewMode = 'nexa' | 'classic';
+// ═══ Quick Date Presets ═══
+type DatePreset = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
+
+const DATE_PRESETS: { id: DatePreset; label_ar: string; label_en: string; icon: React.ReactNode }[] = [
+    { id: 'month', label_ar: 'الشهر', label_en: 'Month', icon: <Calendar className="w-3.5 h-3.5" /> },
+    { id: 'quarter', label_ar: 'الربع', label_en: 'Quarter', icon: <CalendarRange className="w-3.5 h-3.5" /> },
+    { id: 'year', label_ar: 'السنة', label_en: 'Year', icon: <CalendarDays className="w-3.5 h-3.5" /> },
+    { id: 'all', label_ar: 'الكل', label_en: 'All', icon: <Layers className="w-3.5 h-3.5" /> },
+];
+
+// ═══ Movement Type Filter ═══
+type MovementFilter = 'all' | 'debit' | 'credit';
+
+// ═══ Entry Type Filter (Party mode) ═══
+type EntryTypeFilter = 'all' | 'invoices' | 'payments';
 
 export function LedgerTab({
-    entries = [],
-    loading = false,
-    error,
+    accountId,
+    companyId,
     currency = '',
-    useArabicNumerals = false,
-    onEntryClick,
     onEntryOpen,
-    onExport,
-    onPrint,
-    totalDebit = 0,
-    totalCredit = 0,
-    openingBalance = 0,
-    closingBalance = 0,
-    availableCurrencies,
-    selectedCurrency,
-    onCurrencyChange,
+    renderExpandedRowOverride,
+    partyMode = false,
 }: LedgerTabProps) {
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
     const { supportedCurrencies } = useAccountingSettings();
 
-    // Use provided currencies or fallback to company settings
-    const currencies = availableCurrencies || supportedCurrencies || [];
+    // ═══ Data Hook ═══
+    const {
+        entries,
+        stats,
+        loading,
+        error,
+        filters,
+        setDateFrom,
+        setDateTo,
+        setCurrency,
+        setDatePreset,
+        setSearch,
+        refetch,
+        fetchEntryDetails,
+    } = useLedgerData({
+        accountId,
+        companyId,
+        enabled: !!accountId,
+    });
 
-    // Local state for filters
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [showFilters, setShowFilters] = useState(false);
-    const [quickDatePreset, setQuickDatePreset] = useState<QuickDatePreset>('all');
-    const [localCurrency, setLocalCurrency] = useState(selectedCurrency || currency);
-    const [viewMode, setViewMode] = useState<ViewMode>('nexa'); // Default to new table
+    // ═══ Local State ═══
+    const [activePreset, setActivePreset] = useState<DatePreset>('all');
+    const [movementFilter, setMovementFilter] = useState<MovementFilter>('all');
+    const [showMonthlyGroups, setShowMonthlyGroups] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [viewMode, setViewMode] = useState<ViewMode>('chronological');
+    const [entryTypeFilter, setEntryTypeFilter] = useState<EntryTypeFilter>('all');
+    const [invoicePaymentMap, setInvoicePaymentMap] = useState<Map<string, string[]>>(new Map());
 
-    // Quick date helper
-    const applyQuickDate = useCallback((preset: QuickDatePreset) => {
-        setQuickDatePreset(preset);
-        const today = new Date();
-        const formatDateString = (d: Date) => d.toISOString().split('T')[0];
+    // ═══ Handle Preset Click ═══
+    const handlePresetClick = useCallback((preset: DatePreset) => {
+        setActivePreset(preset);
+        setDatePreset(preset);
+    }, [setDatePreset]);
 
-        switch (preset) {
-            case 'today':
-                setDateFrom(formatDateString(today));
-                setDateTo(formatDateString(today));
-                break;
-            case 'yesterday':
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                setDateFrom(formatDateString(yesterday));
-                setDateTo(formatDateString(yesterday));
-                break;
-            case 'thisWeek':
-                const weekStart = new Date(today);
-                weekStart.setDate(today.getDate() - today.getDay());
-                setDateFrom(formatDateString(weekStart));
-                setDateTo(formatDateString(today));
-                break;
-            case 'thisMonth':
-                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-                setDateFrom(formatDateString(monthStart));
-                setDateTo(formatDateString(today));
-                break;
-            case 'thisYear':
-                const yearStart = new Date(today.getFullYear(), 0, 1);
-                setDateFrom(formatDateString(yearStart));
-                setDateTo(formatDateString(today));
-                break;
-            case 'all':
-            default:
-                setDateFrom('');
-                setDateTo('');
-                break;
+    // ═══ Build Invoice→Payment Links (for grouped mode) ═══
+    useEffect(() => {
+        if (!partyMode || viewMode !== 'grouped' || entries.length === 0) return;
+
+        const buildLinks = async () => {
+            // Find all payment/receipt entries that have a referenceId
+            const paymentEntries = entries.filter(e =>
+                (e.type === 'payment' || e.type === 'receipt') && e.referenceId
+            );
+            if (paymentEntries.length === 0) return;
+
+            // Query cash_transactions to find their reference_id (which links to sales_transactions)
+            const paymentRefIds = paymentEntries.map(e => e.referenceId!).filter(Boolean);
+            const { data: cashTxns } = await supabase
+                .from('cash_transactions')
+                .select('id, reference_type, reference_id')
+                .in('id', paymentRefIds);
+
+            if (!cashTxns) return;
+
+            // Build map: invoice_id → [payment_entry_ids]
+            const map = new Map<string, string[]>();
+            for (const ct of cashTxns) {
+                if (ct.reference_id && (ct.reference_type?.includes('invoice') || ct.reference_type?.includes('sales'))) {
+                    // Find which invoice entry has this reference_id
+                    const invoiceEntry = entries.find(e => e.type === 'invoice' && e.referenceId === ct.reference_id);
+                    if (invoiceEntry) {
+                        const payEntry = paymentEntries.find(e => e.referenceId === ct.id);
+                        if (payEntry) {
+                            const existing = map.get(invoiceEntry.id) || [];
+                            existing.push(payEntry.id);
+                            map.set(invoiceEntry.id, existing);
+                        }
+                    }
+                }
+            }
+            setInvoicePaymentMap(map);
+        };
+
+        buildLinks();
+    }, [partyMode, viewMode, entries]);
+
+    // ═══ Filter Entries by Movement Type + Entry Type ═══
+    const filteredEntries = useMemo(() => {
+        let filtered = entries;
+        if (movementFilter === 'debit') {
+            filtered = filtered.filter(e => e.debit > 0);
+        } else if (movementFilter === 'credit') {
+            filtered = filtered.filter(e => e.credit > 0);
+        }
+        // Entry type filter (party mode)
+        if (partyMode && entryTypeFilter !== 'all') {
+            if (entryTypeFilter === 'invoices') {
+                filtered = filtered.filter(e => e.type === 'invoice');
+            } else if (entryTypeFilter === 'payments') {
+                filtered = filtered.filter(e => e.type === 'payment' || e.type === 'receipt');
+            }
+        }
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            filtered = filtered.filter(e =>
+                e.description?.toLowerCase().includes(term) ||
+                e.entryNumber?.toLowerCase().includes(term) ||
+                e.counterAccount?.accountNameAr?.toLowerCase().includes(term) ||
+                e.counterAccount?.accountNameEn?.toLowerCase().includes(term) ||
+                e.counterAccount?.accountCode?.toLowerCase().includes(term)
+            );
+        }
+        return filtered;
+    }, [entries, movementFilter, entryTypeFilter, partyMode, searchTerm]);
+
+    // ═══ Grouped Entries (invoices with their payments) ═══
+    const groupedEntries = useMemo(() => {
+        if (!partyMode || viewMode !== 'grouped') return filteredEntries;
+
+        // Collect all payment IDs that are linked to invoices
+        const linkedPaymentIds = new Set<string>();
+        invoicePaymentMap.forEach(payIds => payIds.forEach(id => linkedPaymentIds.add(id)));
+
+        // Build ordered list: invoice → its payments → next invoice → ...
+        const result: ExtendedLedgerEntry[] = [];
+        const processedIds = new Set<string>();
+
+        // First pass: invoices with their linked payments
+        for (const entry of filteredEntries) {
+            if (entry.type === 'invoice' && !processedIds.has(entry.id)) {
+                result.push(entry);
+                processedIds.add(entry.id);
+
+                // Add linked payments right after the invoice
+                const linkedPayIds = invoicePaymentMap.get(entry.id) || [];
+                for (const payId of linkedPayIds) {
+                    const payEntry = filteredEntries.find(e => e.id === payId);
+                    if (payEntry && !processedIds.has(payEntry.id)) {
+                        result.push(payEntry);
+                        processedIds.add(payEntry.id);
+                    }
+                }
+            }
+        }
+
+        // Second pass: unlinked entries (payments not tied to invoices, journal entries, etc.)
+        for (const entry of filteredEntries) {
+            if (!processedIds.has(entry.id)) {
+                result.push(entry);
+                processedIds.add(entry.id);
+            }
+        }
+
+        return result;
+    }, [filteredEntries, partyMode, viewMode, invoicePaymentMap]);
+
+    // Use grouped or filtered entries based on mode
+    const displayEntries = partyMode && viewMode === 'grouped' ? groupedEntries : filteredEntries;
+
+    // ═══ Monthly Groups ═══
+    const monthlyData = useMemo(() => {
+        if (!showMonthlyGroups || filteredEntries.length === 0) return null;
+
+        const groups = new Map<string, { debit: number; credit: number; count: number }>();
+        filteredEntries.forEach(e => {
+            const monthKey = e.date.substring(0, 7); // "2026-02"
+            const existing = groups.get(monthKey) || { debit: 0, credit: 0, count: 0 };
+            existing.debit += e.debit;
+            existing.credit += e.credit;
+            existing.count++;
+            groups.set(monthKey, existing);
+        });
+        return groups;
+    }, [filteredEntries, showMonthlyGroups]);
+
+    // ═══ Column Definitions ═══
+    const dateCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'date',
+        header: isRTL ? 'التاريخ' : 'Date',
+        sortKey: 'date',
+        sortable: true,
+        width: 'w-[85px]',
+        cell: (row) => (
+            <div className="flex items-center gap-1">
+                <span className="text-xs">{ENTRY_TYPE_ICONS[row.type] || '📋'}</span>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-mono">
+                    {row.date}
+                </span>
+            </div>
+        ),
+    };
+
+    const referenceCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'reference',
+        header: isRTL ? 'المرجع' : 'Ref',
+        width: 'w-[55px]',
+        cell: (row) => {
+            // Abbreviate long reference: "JE-17713680391085-3873" → "...3873"
+            const ref = row.entryNumber || '';
+            const short = ref.length > 8 ? '...' + ref.slice(-4) : ref;
+            return (
+                <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400" title={ref}>
+                    {short}
+                </span>
+            );
+        },
+    };
+
+    const descriptionCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'description',
+        header: isRTL ? 'البيان' : 'Description',
+        width: 'min-w-[120px]',
+        cell: (row) => (
+            <p className="text-xs text-gray-800 dark:text-gray-200">
+                {row.description || '-'}
+            </p>
+        ),
+    };
+
+    const counterAccountCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'counterAccount',
+        header: isRTL ? 'الحساب المقابل' : 'Counter Acct',
+        width: 'w-[100px]',
+        cell: (row) => {
+            const ca = row.counterAccount;
+            if (!ca || ca.otherLinesCount === 0) {
+                return <span className="text-xs text-gray-300">-</span>;
+            }
+            if (ca.otherLinesCount === 1) {
+                return (
+                    <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">
+                            {ca.accountCode}
+                        </span>
+                        <span className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-[80px]">
+                            {isRTL ? ca.accountNameAr : (ca.accountNameEn || ca.accountNameAr)}
+                        </span>
+                    </div>
+                );
+            }
+            return (
+                <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded-full">
+                    {isRTL ? `متعددة (${ca.otherLinesCount})` : `Multiple (${ca.otherLinesCount})`}
+                </span>
+            );
+        },
+    };
+
+    const debitCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'debit',
+        header: isRTL ? 'مدين' : 'Debit',
+        align: 'end',
+        width: 'w-[85px]',
+        sortKey: 'debit',
+        sortable: true,
+        cell: (row) => (
+            row.debit > 0 ? (
+                <span className="font-mono text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                    {formatNumber(row.debit)}
+                </span>
+            ) : (
+                <span className="text-gray-300 dark:text-gray-600">-</span>
+            )
+        ),
+    };
+
+    const creditCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'credit',
+        header: isRTL ? 'دائن' : 'Credit',
+        align: 'end',
+        width: 'w-[85px]',
+        sortKey: 'credit',
+        sortable: true,
+        cell: (row) => (
+            row.credit > 0 ? (
+                <span className="font-mono text-sm font-medium text-red-500 dark:text-red-400">
+                    {formatNumber(row.credit)}
+                </span>
+            ) : (
+                <span className="text-gray-300 dark:text-gray-600">-</span>
+            )
+        ),
+    };
+
+    const balanceCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'balance',
+        header: isRTL ? 'الرصيد' : 'Balance',
+        align: 'end',
+        width: 'w-[90px]',
+        cell: (row) => {
+            const isPositive = row.balance >= 0;
+            return (
+                <span className={cn(
+                    "font-mono text-sm font-bold",
+                    isPositive
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-red-600 dark:text-red-400'
+                )}>
+                    {formatNumber(Math.abs(row.balance))}
+                    <span className="text-[9px] ms-0.5 opacity-60">
+                        {isPositive ? (isRTL ? 'م' : 'D') : (isRTL ? 'د' : 'C')}
+                    </span>
+                </span>
+            );
+        },
+    };
+
+    const currencyCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'currency',
+        header: isRTL ? 'العملة' : 'Cur',
+        align: 'center',
+        width: 'w-[50px]',
+        cell: (row) => (
+            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                {row.currency || '-'}
+            </span>
+        ),
+    };
+
+    const costCenterCol: NexaListColumn<ExtendedLedgerEntry> = {
+        id: 'costCenter',
+        header: isRTL ? 'م.التكلفة' : 'CC',
+        width: 'w-[70px]',
+        cell: (row) => (
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                {row.costCenterName || '-'}
+            </span>
+        ),
+    };
+
+    // ═══ Columns — ordered for correct visual display ═══
+    // With dir="rtl" on <table>, array[0] appears on the RIGHT side
+    // RTL (right→left): # | مدين | دائن | الرصيد | التاريخ | المرجع | البيان | الحساب المقابل | العملة
+    // LTR (left→right): Date | Ref | Description | Counter Acct | Debit | Credit | Balance | Currency
+    const columns: NexaListColumn<ExtendedLedgerEntry>[] = useMemo(() =>
+        isRTL
+            ? [debitCol, creditCol, balanceCol, dateCol, referenceCol, descriptionCol, counterAccountCol, currencyCol]
+            : [dateCol, referenceCol, descriptionCol, counterAccountCol, debitCol, creditCol, balanceCol, currencyCol],
+        [isRTL]);
+
+    // ═══ Row Accent (entry type color) ═══
+    const getRowAccent = useCallback((row: ExtendedLedgerEntry) => {
+        switch (row.type) {
+            case 'receipt': return 'border-s-emerald-400';
+            case 'payment': return 'border-s-red-400';
+            case 'invoice': return 'border-s-amber-400';
+            case 'transfer': return 'border-s-blue-400';
+            default: return 'border-s-gray-300 dark:border-s-gray-600';
         }
     }, []);
 
-    // Filter entries by date only (search handled by NexaDataTable)
-    const filteredEntries = useMemo(() => {
-        return entries.filter((entry) => {
-            // Date filters
-            if (dateFrom && entry.date < dateFrom) return false;
-            if (dateTo && entry.date > dateTo) return false;
-            return true;
+    // ═══ Filters for NexaListTable ═══
+    const nexaFilters = useMemo(() => {
+        const f: any[] = [];
+
+        // Movement filter
+        f.push({
+            id: 'movement',
+            label: isRTL ? 'النوع' : 'Type',
+            type: 'select' as const,
+            value: movementFilter,
+            onChange: (v: string) => setMovementFilter(v as MovementFilter),
+            options: [
+                { value: 'all', label: isRTL ? 'الكل' : 'All' },
+                { value: 'debit', label: isRTL ? 'مدين فقط' : 'Debit Only' },
+                { value: 'credit', label: isRTL ? 'دائن فقط' : 'Credit Only' },
+            ],
         });
-    }, [entries, dateFrom, dateTo]);
 
-    // Calculate filtered totals
-    const filteredTotals = useMemo(() => {
-        return filteredEntries.reduce(
-            (acc, entry) => ({
-                debit: acc.debit + (entry.debit || 0),
-                credit: acc.credit + (entry.credit || 0),
-            }),
-            { debit: 0, credit: 0 }
-        );
-    }, [filteredEntries]);
+        // Entry type filter (Party mode only)
+        if (partyMode) {
+            f.push({
+                id: 'entryType',
+                label: isRTL ? 'المستند' : 'Document',
+                type: 'select' as const,
+                value: entryTypeFilter,
+                onChange: (v: string) => setEntryTypeFilter(v as EntryTypeFilter),
+                options: [
+                    { value: 'all', label: isRTL ? 'الكل' : 'All' },
+                    { value: 'invoices', label: isRTL ? '🧾 فواتير فقط' : '🧾 Invoices' },
+                    { value: 'payments', label: isRTL ? '💰 دفعات فقط' : '💰 Payments' },
+                ],
+            });
+        }
 
-    // NexaDataTable columns
-    const columns: ColumnDef<LedgerEntry>[] = useMemo(() => [
-        {
-            accessorKey: 'serial',
-            header: t('serial') || 'م',
-            size: 50,
-            cell: ({ row }) => (
-                <span className="text-gray-400 text-center block">
-                    {useArabicNumerals ? (row.index + 1).toLocaleString('ar-SA') : (row.index + 1)}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'debit',
-            header: t('debit') || 'مدين',
-            size: 100,
-            cell: ({ row }) => (
-                <span className="font-mono text-end block">
-                    {row.original.debit > 0 ? formatNumber(row.original.debit, useArabicNumerals) : '-'}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'credit',
-            header: t('credit') || 'دائن',
-            size: 100,
-            cell: ({ row }) => (
-                <span className="font-mono text-end block">
-                    {row.original.credit > 0 ? formatNumber(row.original.credit, useArabicNumerals) : '-'}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'balance',
-            header: t('balance') || 'الرصيد',
-            size: 120,
-            cell: ({ row }) => (
-                <span className={cn(
-                    "font-mono font-medium text-end block",
-                    row.original.balance < 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white"
-                )}>
-                    {formatNumber(row.original.balance, useArabicNumerals)}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'description',
-            header: t('description') || 'البيان',
-            size: 200,
-            cell: ({ row }) => (
-                <div className="flex flex-col gap-0.5">
-                    <span className="truncate font-medium text-gray-700 dark:text-gray-200" title={row.original.description}>
-                        {row.original.description || '-'}
+        // Monthly groups toggle
+        f.push({
+            id: 'monthlyGroup',
+            label: isRTL ? 'تجميع شهري' : 'Monthly',
+            type: 'select' as const,
+            value: showMonthlyGroups ? 'on' : 'off',
+            onChange: (v: string) => setShowMonthlyGroups(v === 'on'),
+            options: [
+                { value: 'on', label: isRTL ? 'مُفعّل' : 'On' },
+                { value: 'off', label: isRTL ? 'مُعطّل' : 'Off' },
+            ],
+        });
+
+        return f;
+    }, [isRTL, movementFilter, showMonthlyGroups, partyMode, entryTypeFilter]);
+
+    // ═══ Footer Content ═══
+    const footerRight = useMemo(() => {
+        if (!stats) return null;
+        return (
+            <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1">
+                    <span className="text-gray-400">{isRTL ? 'افتتاحي:' : 'Opening:'}</span>
+                    <span className="font-mono font-semibold text-gray-600 dark:text-gray-300">
+                        {formatNumber(stats.openingBalance)}
                     </span>
-                    {row.original.status && row.original.status !== 'posted' && (
-                        <Badge className={cn(
-                            "text-[10px] px-1.5 py-0 w-fit",
-                            row.original.status === 'draft' ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
-                        )}>
-                            {row.original.status === 'draft' ? (t('status.draft') || 'مسودة') : (t('status.cancelled') || 'ملغي')}
-                        </Badge>
-                    )}
                 </div>
-            ),
-        },
-        {
-            accessorKey: 'entry_number',
-            header: t('reference') || 'المرجع',
-            size: 100,
-            cell: ({ row }) => (
-                <span className="text-blue-600 dark:text-blue-400 font-mono text-[11px]">
-                    {row.original.entry_number || row.original.reference || '-'}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'date',
-            header: t('date') || 'التاريخ',
-            size: 100,
-            cell: ({ row }) => (
-                <span className="font-mono text-gray-600">
-                    {formatDate(row.original.date, useArabicNumerals, 'short')}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'cost_center',
-            header: t('costCenter') || 'مركز التكلفة',
-            size: 100,
-            cell: ({ row }) => (
-                <span className="text-gray-500 truncate block" title={row.original.cost_center}>
-                    {row.original.cost_center || '-'}
-                </span>
-            ),
-        },
-    ], [t, useArabicNumerals]);
-
-    // Handle currency change
-    const handleCurrencyChange = (value: string) => {
-        setLocalCurrency(value);
-        onCurrencyChange?.(value);
-    };
-
-    // Loading state
-    if (loading) {
-        return (
-            <div className="space-y-3">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-64 w-full" />
+                <span className="text-gray-200 dark:text-gray-700">|</span>
+                <div className="flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatNumber(stats.totalDebit)}
+                    </span>
+                </div>
+                <span className="text-gray-200 dark:text-gray-700">|</span>
+                <div className="flex items-center gap-1">
+                    <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                    <span className="font-mono font-semibold text-red-500 dark:text-red-400">
+                        {formatNumber(stats.totalCredit)}
+                    </span>
+                </div>
+                <span className="text-gray-200 dark:text-gray-700">|</span>
+                <div className="flex items-center gap-1">
+                    <span className="text-gray-400">{isRTL ? 'الرصيد:' : 'Balance:'}</span>
+                    <span className={cn(
+                        "font-mono font-bold",
+                        stats.currentBalance >= 0
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : 'text-red-600 dark:text-red-400'
+                    )}>
+                        {formatNumber(Math.abs(stats.currentBalance))}
+                        <span className="text-[10px] ms-0.5 opacity-60">
+                            {stats.currentBalance >= 0 ? (isRTL ? 'م' : 'D') : (isRTL ? 'د' : 'C')}
+                        </span>
+                    </span>
+                </div>
             </div>
         );
-    }
-
-    // Error state
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                <FileText className="w-12 h-12 mb-4 opacity-50" />
-                <p className="text-red-500">{error}</p>
-            </div>
-        );
-    }
-
-    const currentBalance = closingBalance || (filteredTotals.debit - filteredTotals.credit + openingBalance);
+    }, [stats, isRTL]);
 
     return (
-        <div className="flex flex-col h-full">
-            {/* Compact Toolbar */}
-            <div className="flex items-center gap-2 flex-wrap pb-2 border-b mb-2">
-                {/* View Mode Toggle */}
-                <div className="flex items-center border rounded-lg overflow-hidden">
-                    <Button
-                        variant={viewMode === 'nexa' ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setViewMode('nexa')}
-                        className="h-8 rounded-none px-3 gap-1.5"
-                    >
-                        <LayoutGrid className="w-3.5 h-3.5" />
-                        <span className="text-xs hidden sm:inline">{t('views.advanced') || 'متقدم'}</span>
-                    </Button>
-                    <Button
-                        variant={viewMode === 'classic' ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setViewMode('classic')}
-                        className="h-8 rounded-none px-3 gap-1.5"
-                    >
-                        <TableIcon className="w-3.5 h-3.5" />
-                        <span className="text-xs hidden sm:inline">{t('views.classic') || 'كلاسيكي'}</span>
-                    </Button>
-                </div>
-
-                {/* Currency Filter */}
-                {currencies.length > 1 && (
-                    <Select value={localCurrency} onValueChange={handleCurrencyChange}>
-                        <SelectTrigger className="h-8 w-24 text-xs">
-                            <SelectValue placeholder={t('currency') || 'العملة'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {currencies.map((curr) => (
-                                <SelectItem key={curr} value={curr} className="text-xs">
-                                    {t(`currencies.${curr}`) || curr}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-
-                {/* Show/Hide Filters */}
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="h-8 gap-1.5 text-xs px-2"
-                >
-                    <Filter className="w-3.5 h-3.5" />
-                    {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </Button>
-
-                <div className="flex-1" />
-
-                {/* Actions */}
-                {onPrint && (
-                    <Button variant="ghost" size="sm" onClick={onPrint} className="h-8 w-8 p-0">
-                        <Printer className="w-3.5 h-3.5" />
-                    </Button>
-                )}
-                {onExport && (
-                    <Button variant="ghost" size="sm" onClick={onExport} className="h-8 w-8 p-0">
-                        <Download className="w-3.5 h-3.5" />
-                    </Button>
-                )}
-            </div>
-
-            {/* Quick Date Presets + Date Filters */}
-            {showFilters && (
-                <div className="flex items-center gap-2 pb-2 border-b mb-2 flex-wrap">
-                    {/* Quick Date Buttons */}
-                    <div className="flex items-center gap-1">
-                        {[
-                            { key: 'today', label: t('filters.today') || 'اليوم' },
-                            { key: 'yesterday', label: t('filters.yesterday') || 'أمس' },
-                            { key: 'thisWeek', label: t('filters.thisWeek') || 'هذا الأسبوع' },
-                            { key: 'thisMonth', label: t('filters.thisMonth') || 'هذا الشهر' },
-                            { key: 'thisYear', label: t('filters.thisYear') || 'هذه السنة' },
-                        ].map(({ key, label }) => (
-                            <Button
-                                key={key}
-                                variant={quickDatePreset === key ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => applyQuickDate(key as QuickDatePreset)}
-                                className="h-7 text-xs px-2"
-                            >
-                                {label}
-                            </Button>
-                        ))}
-                    </div>
-
-                    <div className="h-4 w-px bg-gray-300 mx-1" />
-
-                    {/* Manual Date Inputs */}
-                    <div className="flex items-center gap-1.5">
-                        <Input
-                            type="date"
-                            value={dateFrom}
-                            onChange={(e) => { setDateFrom(e.target.value); setQuickDatePreset('all'); }}
-                            className="h-7 w-32 text-xs"
-                        />
-                        <span className="text-xs text-gray-400">→</span>
-                        <Input
-                            type="date"
-                            value={dateTo}
-                            onChange={(e) => { setDateTo(e.target.value); setQuickDatePreset('all'); }}
-                            className="h-7 w-32 text-xs"
-                        />
-                    </div>
-
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            setDateFrom('');
-                            setDateTo('');
-                            setQuickDatePreset('all');
-                        }}
-                        className="h-7 text-xs text-gray-500"
-                    >
-                        {t('filters.reset') || 'مسح'}
-                    </Button>
+        <div className="flex flex-col gap-2 h-full overflow-y-auto">
+            {/* ═══ Summary Cards ═══ */}
+            {stats && (
+                <div className="grid grid-cols-4 gap-3">
+                    <SummaryCard
+                        label={isRTL ? 'عدد الحركات' : 'Transactions'}
+                        value={stats.transactionCount.toString()}
+                        icon={<Layers className="w-4 h-4" />}
+                        color="indigo"
+                        isRTL={isRTL}
+                    />
+                    <SummaryCard
+                        label={isRTL ? 'مجموع المدين' : 'Total Debit'}
+                        value={formatNumber(stats.totalDebit)}
+                        icon={<TrendingUp className="w-4 h-4" />}
+                        color="emerald"
+                        isRTL={isRTL}
+                    />
+                    <SummaryCard
+                        label={isRTL ? 'مجموع الدائن' : 'Total Credit'}
+                        value={formatNumber(stats.totalCredit)}
+                        icon={<TrendingDown className="w-4 h-4" />}
+                        color="red"
+                        isRTL={isRTL}
+                    />
+                    <SummaryCard
+                        label={isRTL ? 'الرصيد الحالي' : 'Current Balance'}
+                        value={formatNumber(Math.abs(stats.currentBalance))}
+                        suffix={stats.currentBalance >= 0 ? (isRTL ? 'مدين' : 'Dr') : (isRTL ? 'دائن' : 'Cr')}
+                        icon={<Minus className="w-4 h-4" />}
+                        color={stats.currentBalance >= 0 ? 'emerald' : 'red'}
+                        isRTL={isRTL}
+                    />
                 </div>
             )}
 
-            {/* Table Container */}
-            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                {viewMode === 'nexa' ? (
-                    /* NexaDataTable View */
-                    <div className="flex-1 overflow-hidden">
-                        <NexaDataTable
-                            data={filteredEntries}
-                            columns={columns}
-                            isRTL={isRTL}
-                            pageSize={15}
-                            searchPlaceholder={t('accounting.searchTransactions') || 'بحث في الحركات...'}
-                            emptyMessage={t('messages.noTransactions') || 'لا توجد حركات'}
-                            enableColumnResizing={true}
-                            enableColumnReordering={true}
-                            enablePagination={true}
-                            enableSearch={true}
-                            onRowClick={(row) => onEntryOpen?.(row)}
-                        />
-                    </div>
-                ) : (
-                    /* Classic Table View - Keep existing simple table for comparison */
-                    <div className="flex-1 overflow-auto border rounded-lg bg-white dark:bg-gray-900">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                                <tr>
-                                    <th className="p-2 text-center w-12">{t('serial') || 'م'}</th>
-                                    <th className="p-2 text-end w-24">{t('debit') || 'مدين'}</th>
-                                    <th className="p-2 text-end w-24">{t('credit') || 'دائن'}</th>
-                                    <th className="p-2 text-end w-28">{t('balance') || 'الرصيد'}</th>
-                                    <th className="p-2">{t('description') || 'البيان'}</th>
-                                    <th className="p-2 w-24">{t('reference') || 'المرجع'}</th>
-                                    <th className="p-2 w-24">{t('date') || 'التاريخ'}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredEntries.map((entry, index) => (
-                                    <tr
-                                        key={entry.id || index}
-                                        className="border-b hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                                        onClick={() => onEntryOpen?.(entry)}
-                                    >
-                                        <td className="p-2 text-center text-gray-400">{index + 1}</td>
-                                        <td className="p-2 text-end font-mono">{entry.debit > 0 ? formatNumber(entry.debit, useArabicNumerals) : '-'}</td>
-                                        <td className="p-2 text-end font-mono">{entry.credit > 0 ? formatNumber(entry.credit, useArabicNumerals) : '-'}</td>
-                                        <td className={cn("p-2 text-end font-mono font-medium", entry.balance < 0 && "text-red-600")}>
-                                            {formatNumber(entry.balance, useArabicNumerals)}
-                                        </td>
-                                        <td className="p-2 truncate max-w-[200px]">{entry.description || '-'}</td>
-                                        <td className="p-2 text-blue-600 font-mono text-xs">{entry.entry_number || '-'}</td>
-                                        <td className="p-2 font-mono text-xs">{formatDate(entry.date, useArabicNumerals, 'short')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {/* ═══ Quick Date Presets + View Mode Toggle ═══ */}
+            <div className="flex items-center gap-2 px-1">
+                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                    {isRTL ? 'الفترة:' : 'Period:'}
+                </span>
+                {DATE_PRESETS.map((preset) => (
+                    <button
+                        key={preset.id}
+                        onClick={() => handlePresetClick(preset.id)}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+                            activePreset === preset.id
+                                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                                : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700'
+                        )}
+                    >
+                        {preset.icon}
+                        {isRTL ? preset.label_ar : preset.label_en}
+                    </button>
+                ))}
+
+                {/* ═══ View Mode Toggle (Party mode only) ═══ */}
+                {partyMode && (
+                    <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 ms-2">
+                        <button
+                            onClick={() => setViewMode('chronological')}
+                            title={isRTL ? 'عرض زمني' : 'Chronological'}
+                            className={cn(
+                                "flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-all",
+                                viewMode === 'chronological'
+                                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                            )}
+                        >
+                            <ListOrdered className="w-3.5 h-3.5" />
+                            {isRTL ? 'زمني' : 'Timeline'}
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grouped')}
+                            title={isRTL ? 'تجميع الفواتير مع دفعاتها' : 'Group invoices with payments'}
+                            className={cn(
+                                "flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-all",
+                                viewMode === 'grouped'
+                                    ? 'bg-white dark:bg-gray-700 text-amber-700 dark:text-amber-300 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                            )}
+                        >
+                            <LayoutList className="w-3.5 h-3.5" />
+                            {isRTL ? 'تجميع' : 'Grouped'}
+                        </button>
                     </div>
                 )}
+
+                {/* Manual dates */}
+                <div className="flex items-center gap-1.5 ms-auto">
+                    <input
+                        type="date"
+                        value={filters.dateFrom}
+                        onChange={(e) => {
+                            setDateFrom(e.target.value);
+                            setActivePreset('all'); // custom = no preset active
+                        }}
+                        className="h-7 px-2 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 focus:ring-1 focus:ring-indigo-400"
+                    />
+                    <span className="text-[10px] text-gray-300">→</span>
+                    <input
+                        type="date"
+                        value={filters.dateTo}
+                        onChange={(e) => {
+                            setDateTo(e.target.value);
+                            setActivePreset('all');
+                        }}
+                        className="h-7 px-2 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 focus:ring-1 focus:ring-indigo-400"
+                    />
+                </div>
             </div>
 
-            {/* FIXED TOTALS FOOTER */}
-            <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-sm p-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 mt-2 rounded-lg">
-                <div className="flex items-center justify-between">
-                    {/* Info Badge */}
-                    {viewMode === 'nexa' && (
-                        <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                                ✨ {t('messages.dragColumns') || 'اسحب الأعمدة لإعادة الترتيب'}
-                            </Badge>
-                        </div>
-                    )}
-
-                    {/* Right Side: Totals Breakdown */}
-                    <div className="flex items-center gap-6 flex-1 justify-end">
-                        {/* Opening (Hidden on small screens if needed) */}
-                        {openingBalance !== 0 && (
-                            <div className="flex flex-col items-end hidden sm:flex">
-                                <span className="text-[10px] text-gray-500 font-medium">{t('accounting.openingBalance') || 'الرصيد الافتتاحي'}</span>
-                                <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
-                                    {formatNumber(openingBalance, useArabicNumerals)}
-                                </span>
-                            </div>
-                        )}
-
-                        {/* Separator */}
-                        <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block" />
-
-                        {/* Totals Group */}
-                        <div className="flex items-center gap-4">
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] text-gray-500 font-medium">{t('totalDebit') || 'مجموع المدين'}</span>
-                                <span className="text-xs font-mono font-bold text-green-600 dark:text-green-400">
-                                    {formatNumber(filteredTotals.debit, useArabicNumerals)}
-                                </span>
-                            </div>
-
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] text-gray-500 font-medium">{t('totalCredit') || 'مجموع الدائن'}</span>
-                                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400">
-                                    {formatNumber(filteredTotals.credit, useArabicNumerals)}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Closing Balance Card */}
-                        <div className={cn(
-                            "flex flex-col items-end px-3 py-1.5 rounded-lg shadow-sm min-w-[120px]",
-                            currentBalance >= 0
-                                ? "bg-gradient-to-br from-erp-navy/90 to-erp-navy text-white"
-                                : "bg-gradient-to-br from-red-600 to-red-700 text-white"
-                        )}>
-                            <span className="text-[10px] opacity-80 font-medium mb-0.5">{t('currentBalance') || 'الرصيد الحالي'}</span>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-lg font-bold font-mono tracking-tight">
-                                    {formatNumber(Math.abs(currentBalance), useArabicNumerals)}
-                                </span>
-                                <span className="text-[10px] opacity-80">{currency}</span>
-                            </div>
-                        </div>
-                    </div>
+            {/* ═══ Error ═══ */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 text-xs px-3 py-2 rounded-lg">
+                    {error}
                 </div>
+            )}
+
+            {/* ═══ NexaListTable ═══ */}
+            <NexaListTable<ExtendedLedgerEntry>
+                data={displayEntries}
+                columns={columns}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder={isRTL ? 'بحث في البيان أو رقم القيد أو الحساب المقابل...' : 'Search description, entry number, or counter account...'}
+                totalCount={entries.length}
+                countLabel={isRTL ? 'حركة' : 'entries'}
+                filters={nexaFilters}
+                hasActiveFilters={movementFilter !== 'all' || !showMonthlyGroups || (partyMode && viewMode !== 'chronological') || (partyMode && entryTypeFilter !== 'all')}
+                onClearFilters={() => {
+                    setMovementFilter('all');
+                    setShowMonthlyGroups(true);
+                    setViewMode('chronological');
+                    setEntryTypeFilter('all');
+                }}
+                filtersLabel={isRTL ? 'فلاتر' : 'Filters'}
+                clearFiltersLabel={isRTL ? 'مسح الفلاتر' : 'Clear All'}
+                getRowAccent={getRowAccent}
+                getRowKey={(row) => row.id}
+                showRowNumbers={true}
+                isLoading={loading}
+                isRTL={isRTL}
+                direction={direction}
+                showFooter={true}
+                footerLeftText={isRTL
+                    ? `عرض ${displayEntries.length} من ${entries.length} حركة`
+                    : `Showing ${displayEntries.length} of ${entries.length} entries`
+                }
+                footerRightContent={footerRight}
+                // Expandable rows
+                renderExpandedRow={(row) => (
+                    renderExpandedRowOverride ? renderExpandedRowOverride(row) : (
+                        <LedgerExpandedRow
+                            entry={row}
+                            currency={currency}
+                            fetchEntryDetails={fetchEntryDetails}
+                            onOpenEntry={onEntryOpen}
+                        />
+                    )
+                )}
+                // Marker
+                enableMarker={true}
+                className="min-h-[400px]"
+            />
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════
+// Summary Card Component
+// ═══════════════════════════════════════════
+
+function SummaryCard({
+    label,
+    value,
+    suffix,
+    icon,
+    color,
+    isRTL,
+}: {
+    label: string;
+    value: string;
+    suffix?: string;
+    icon: React.ReactNode;
+    color: 'indigo' | 'emerald' | 'red' | 'amber';
+    isRTL: boolean;
+}) {
+    const colorMap = {
+        indigo: 'from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/10 text-indigo-600 dark:text-indigo-400',
+        emerald: 'from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 text-emerald-600 dark:text-emerald-400',
+        red: 'from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/10 text-red-600 dark:text-red-400',
+        amber: 'from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/10 text-amber-600 dark:text-amber-400',
+    };
+
+    return (
+        <div className={cn(
+            "bg-gradient-to-br rounded-xl px-3 py-2.5 border border-gray-100 dark:border-gray-800",
+            colorMap[color]
+        )}>
+            <div className="flex items-center gap-1.5 mb-1">
+                {icon}
+                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+                    {label}
+                </span>
+            </div>
+            <div className="flex items-baseline gap-1">
+                <span className="text-lg font-bold font-mono">{value}</span>
+                {suffix && <span className="text-[10px] opacity-60">{suffix}</span>}
             </div>
         </div>
     );

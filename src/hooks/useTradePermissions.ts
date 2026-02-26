@@ -3,10 +3,12 @@
  * 
  * @description يحدد ما يمكن لكل دور رؤيته وفعله في الفواتير والكونتينرات
  * 
- * يعتمد على useRBAC الأساسي ويضيف طبقة أعمال تجارية:
- * - إخفاء الأعمدة الحساسة (أسعار التكلفة، هوامش الربح)
- * - تحديد الأفعال المسموحة (حذف، ترحيل، تعديل سعر)
- * - التحكم بالعناصر المرئية حسب نوع المستند
+ * 🔄 V2 — ديناميكي: يقرأ من special_permissions بدلاً من أسماء الأدوار
+ * 
+ * الآن الصلاحيات قابلة للتعديل من واجهة "المستخدمون والصلاحيات"
+ * بدون الحاجة لتعديل الكود.
+ * 
+ * Role detection مازال موجوداً كـ fallback + لتصنيف المستخدم.
  */
 
 import { useMemo } from 'react';
@@ -99,7 +101,7 @@ export interface TradePermissions {
 // employee          → موظف عادي — أقل صلاحيات
 
 // ═══════════════════════════════════════════════════════════════
-// Hook Implementation
+// Hook Implementation — V2 Dynamic (reads from special_permissions)
 // ═══════════════════════════════════════════════════════════════
 
 export function useTradePermissions(context?: {
@@ -107,14 +109,13 @@ export function useTradePermissions(context?: {
     docType?: string;
     docStatus?: string;
 }): TradePermissions {
-    const { hasRole, hasAnyRole, isAdmin, loading } = useRBAC();
+    const { hasRole, hasAnyRole, isAdmin, loading, hasSpecialPermission } = useRBAC();
 
     return useMemo(() => {
-        // Role detection
-        const isSuperAdmin = hasRole('super_admin');
+        // ─── Role Detection (kept for classification + fallback) ───
         const isTenantOwner = hasRole('tenant_owner');
         const isCompanyAdmin = hasRole('company_admin');
-        const isManager = isSuperAdmin || isTenantOwner || isCompanyAdmin;
+        const isManager = isTenantOwner || isCompanyAdmin || isAdmin();
         const isAccountant = hasRole('accountant') || isManager;
         const isPurchasingManager = hasRole('purchasing_manager') || isManager;
         const isSalesManager = hasRole('sales_manager') || isManager;
@@ -122,21 +123,39 @@ export function useTradePermissions(context?: {
         const isWarehouse = hasRole('warehouse_manager');
         const isEmployee = !isManager && !isAccountant && !isSales && !isPurchasingManager;
 
+        // ─── Special Permissions (dynamic source of truth) ─────────
+        // These read from special_permissions JSONB in the roles table.
+        // If special_permissions not configured, falls back to role-based logic.
+        const sp = {
+            viewCost: hasSpecialPermission('can_view_cost_prices'),
+            viewProfit: hasSpecialPermission('can_view_profit_margins'),
+            editPostedPurchase: hasSpecialPermission('can_edit_posted_purchase'),
+            editPostedSale: hasSpecialPermission('can_edit_posted_sale'),
+            editPostedJournal: hasSpecialPermission('can_edit_posted_journal'),
+            deletePosted: hasSpecialPermission('can_delete_posted'),
+            unpost: hasSpecialPermission('can_unpost'),
+            editClosed: hasSpecialPermission('can_edit_closed_period'),
+            approve: hasSpecialPermission('can_approve_transactions'),
+            exportData: hasSpecialPermission('can_export_data'),
+            manageContainers: hasSpecialPermission('can_manage_containers'),
+        };
+
         // ─────────────────────────────────────────────────────
         // Column Visibility Rules
+        // 🔄 V2: Uses special_permissions with role-based fallback
         // ─────────────────────────────────────────────────────
         const columns: ColumnVisibility = {
             // سعر الوحدة — الكل يراه إلا الموظف العادي ومدير المستودع
             unit_price: !isEmployee || isWarehouse,
 
-            // سعر التكلفة — فقط المدير والمحاسب ومدير المشتريات
-            cost_price: isManager || isAccountant || isPurchasingManager,
+            // سعر التكلفة — special_permission أو fallback (المدير/المحاسب/مدير المشتريات)
+            cost_price: sp.viewCost || isManager || isAccountant || isPurchasingManager,
 
-            // هامش الربح — فقط المدير ومدير المبيعات
-            profit_margin: isManager || isSalesManager,
+            // هامش الربح — special_permission أو fallback (المدير/مدير المبيعات)
+            profit_margin: sp.viewProfit || isManager || isSalesManager,
 
-            // إجمالي التكلفة — فقط المدير والمحاسب
-            total_cost: isManager || isAccountant,
+            // إجمالي التكلفة — مرتبط بسعر التكلفة
+            total_cost: sp.viewCost || isManager || isAccountant,
 
             // الخصم — المدير والمحاسب ومدير المبيعات
             discount: isManager || isAccountant || isSalesManager,
@@ -144,36 +163,42 @@ export function useTradePermissions(context?: {
             // الضريبة — الكل يراها
             tax: true,
 
-            // سعر المورد (في الكونتينر) — فقط المدير والمحاسب ومدير المشتريات
-            supplier_price: isManager || isAccountant || isPurchasingManager,
+            // سعر المورد (في الكونتينر) — مرتبط بسعر التكلفة
+            supplier_price: sp.viewCost || isManager || isAccountant || isPurchasingManager,
 
-            // مصاريف الشحن — المدير والمحاسب ومدير المشتريات
-            shipping_cost: isManager || isAccountant || isPurchasingManager,
+            // مصاريف الشحن — مرتبط بسعر التكلفة
+            shipping_cost: sp.viewCost || isManager || isAccountant || isPurchasingManager,
 
             // المصاريف الإضافية — المدير والمحاسب
-            expenses: isManager || isAccountant,
+            expenses: sp.viewCost || isManager || isAccountant,
 
-            // الربح الصافي — فقط المدير
-            net_profit: isManager,
+            // الربح الصافي — مرتبط بهامش الربح
+            net_profit: sp.viewProfit || isManager,
         };
 
         // ─────────────────────────────────────────────────────
         // Action Permissions
+        // 🔄 V2: Uses special_permissions with role-based fallback
         // ─────────────────────────────────────────────────────
         const isPosted = context?.docStatus === 'posted';
+        const isPurchase = context?.tradeMode === 'purchase';
 
         const actions: ActionPermissions = {
-            // حذف — المدير والمحاسب (ليس المرحّل)
-            canDelete: (isManager || isAccountant) && !isPosted,
+            // حذف — المدير والمحاسب (ليس المرحّل إلا إذا لديه صلاحية)
+            canDelete: isPosted
+                ? sp.deletePosted  // فقط من لديه صلاحية خاصة
+                : (isManager || isAccountant),
 
-            // ترحيل — المدير والمحاسب
-            canPost: isManager || isAccountant,
+            // ترحيل — المدير والمحاسب أو من لديه صلاحية التأكيد
+            canPost: sp.approve || isManager || isAccountant,
 
-            // إلغاء ترحيل — فقط المدير
-            canUnpost: isManager,
+            // إلغاء ترحيل — special_permission أو المدير
+            canUnpost: sp.unpost || isManager,
 
-            // تعديل — الكل ماعدا الموظف العادي (ومش المرحّل)
-            canEdit: !isEmployee && !isPosted,
+            // تعديل — المرحّل يحتاج صلاحية خاصة
+            canEdit: isPosted
+                ? (isPurchase ? sp.editPostedPurchase : sp.editPostedSale) || isManager
+                : !isEmployee,
 
             // تعديل الأسعار — المدير والمحاسب ومدير المبيعات
             canEditPrice: isManager || isAccountant || isSalesManager,
@@ -181,8 +206,10 @@ export function useTradePermissions(context?: {
             // إضافة خصم — المدير ومدير المبيعات
             canApplyDiscount: isManager || isSalesManager,
 
-            // تعديل فاتورة مرحّلة — فقط المدير
-            canEditPosted: isManager,
+            // تعديل فاتورة مرحّلة — special_permission أو المدير
+            canEditPosted: isPurchase
+                ? sp.editPostedPurchase || isManager
+                : sp.editPostedSale || isManager,
 
             // نسخ — كل الأدوار ما عدا الموظف
             canDuplicate: !isEmployee,
@@ -190,11 +217,11 @@ export function useTradePermissions(context?: {
             // طباعة — الكل
             canPrint: true,
 
-            // تصدير — المدير والمحاسب ومدراء الأقسام
-            canExport: isManager || isAccountant || isSalesManager || isPurchasingManager,
+            // تصدير — special_permission أو المدير/المحاسب/مدراء الأقسام
+            canExport: sp.exportData || isManager || isAccountant || isSalesManager || isPurchasingManager,
 
-            // تأكيد المستند — المدير والمحاسب ومدراء الأقسام والمندوبين
-            canConfirm: !isEmployee,
+            // تأكيد المستند — special_permission أو غير الموظف
+            canConfirm: sp.approve || !isEmployee,
         };
 
         return {
@@ -208,7 +235,8 @@ export function useTradePermissions(context?: {
             isEmployee,
             ready: !loading,
         };
-    }, [hasRole, hasAnyRole, isAdmin, loading, context?.tradeMode, context?.docType, context?.docStatus]);
+    }, [hasRole, hasAnyRole, isAdmin, loading, hasSpecialPermission, context?.tradeMode, context?.docType, context?.docStatus]);
 }
 
 export default useTradePermissions;
+

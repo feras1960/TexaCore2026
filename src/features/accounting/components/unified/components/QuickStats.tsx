@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StatConfig } from '../types';
-import { formatCurrency, formatNumber, formatPercent, formatDate } from '../utils/formatters';
+import { formatCurrency, formatNumber, formatPercent, formatDate, getCurrencySymbol } from '../utils/formatters';
 
 // Icon mapping
 const statIconMap: Record<string, any> = {
@@ -137,6 +137,11 @@ export function QuickStats({
                                 compact ? "text-base" : "text-lg"
                             )}>
                                 {formattedValue}
+                                {stat.format === 'currency' && currency && (
+                                    <span className="text-[10px] ms-1 font-normal text-gray-400">
+                                        {getCurrencySymbol(currency)}
+                                    </span>
+                                )}
                             </p>
                             <p className={cn(
                                 "text-gray-500 dark:text-gray-400 truncate",
@@ -144,6 +149,11 @@ export function QuickStats({
                             )}>
                                 {t(stat.labelKey)}
                             </p>
+                            {stat.descriptionKey && !compact && (
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                                    {t(stat.descriptionKey)}
+                                </p>
+                            )}
                         </div>
                     </div>
                 );

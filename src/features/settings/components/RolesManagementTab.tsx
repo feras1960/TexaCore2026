@@ -1,6 +1,6 @@
 /**
- * RolesManagementTab - تبويب إدارة الأدوار
- * Roles Management Tab
+ * RolesManagementTab - تبويب مجموعات المستخدمين (الأدوار)
+ * User Groups (Roles) Management Tab
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Sheet,
@@ -38,16 +39,83 @@ import {
 import {
     Shield, Plus, Edit2, Trash2, Copy, Search,
     Crown, Building2, GitBranch, UserCog, Eye,
-    Loader2, Check, X, Save, RefreshCw
+    Loader2, Check, X, Save, RefreshCw, Zap, Lock
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useToast } from '@/components/ui/use-toast';
-import { rbacService, Role, AVAILABLE_MODULES, Permission } from '@/services/rbacService';
-import { useRBAC } from '@/hooks/useRBAC';
+import { useAuth } from '@/hooks/useAuth';
+import { logAuditEvent } from '@/features/users-permissions/components/AuditLogTab';
+import {
+    rbacService, Role, AVAILABLE_MODULES, Permission,
+    SpecialPermissionKey, SPECIAL_PERMISSIONS_KEYS, SpecialPermissions
+} from '@/services/rbacService';
+
+// ─── Role Configuration ──────────────────────────────────────
+// Platform/system roles — NEVER shown to subscribers
+const HIDDEN_ROLE_CODES = ['super_admin', 'support', 'support_senior', 'tenant_admin'];
+
+// Fix: some roles have wrong level='tenant' in DB due to migration bug
+// This map corrects the display level in the frontend
+const ROLE_LEVEL_FIX: Record<string, string> = {
+    auditor: 'special',
+    purchaser: 'operations',
+    employee: 'operations',
+    driver: 'operations',
+    agent: 'operations',
+};
+
+// Sort priority: المالك → مالك الشركة → مدير الشركة → مدير الفرع → عمليات → مخصص
+const ROLE_SORT_PRIORITY: Record<string, number> = {
+    tenant: 0,      // المالك (tenant_owner)
+    company: 1,     // مالك الشركة / مدير الشركة
+    branch: 2,      // مدير الفرع
+    operations: 3,  // محاسب / أمين صندوق / أمين مستودع...
+    custom: 4,      // مخصص / مشاهد
+    special: 5,     // مدقق
+};
+
+// Secondary sort within same level (by code)
+const ROLE_CODE_ORDER: Record<string, number> = {
+    tenant_owner: 0,
+    company_owner: 1,
+    company_admin: 2,
+    branch_manager: 3,
+    accountant: 4,
+    cashier: 5,
+    warehouse_keeper: 6,
+    sales_rep: 7,
+    purchaser: 8,
+    viewer: 9,
+    employee: 10,
+    auditor: 11,
+    driver: 12,
+    agent: 13,
+};
+
+// Protected roles — can be VIEWED (click to see details) but NOT deleted
+const PROTECTED_ROLE_CODES = ['tenant_owner', 'company_owner'];
+
+// ─── Special Permissions Config ─────────────────────────────────
+const SPECIAL_PERMS_CONFIG: { key: SpecialPermissionKey; labelAr: string; labelEn: string; category: string }[] = [
+    { key: 'can_edit_posted_purchase', labelAr: 'تعديل فاتورة شراء مرحّلة', labelEn: 'Edit posted purchase', category: 'documents' },
+    { key: 'can_edit_posted_sale', labelAr: 'تعديل فاتورة بيع مرحّلة', labelEn: 'Edit posted sale', category: 'documents' },
+    { key: 'can_edit_posted_journal', labelAr: 'تعديل قيد مرحّل', labelEn: 'Edit posted journal', category: 'documents' },
+    { key: 'can_delete_posted', labelAr: 'حذف مستند مرحّل', labelEn: 'Delete posted document', category: 'documents' },
+    { key: 'can_unpost', labelAr: 'إلغاء ترحيل', labelEn: 'Unpost document', category: 'documents' },
+    { key: 'can_edit_closed_period', labelAr: 'تعديل في فترة مقفلة', labelEn: 'Edit closed period', category: 'accounting' },
+    { key: 'can_view_audit_log', labelAr: 'عرض سجل المراجعة', labelEn: 'View audit log', category: 'system' },
+    { key: 'can_view_all_branches', labelAr: 'رؤية كل الفروع', labelEn: 'View all branches', category: 'system' },
+    { key: 'can_manage_roles', labelAr: 'إدارة الأدوار', labelEn: 'Manage roles', category: 'system' },
+    { key: 'can_approve_transactions', labelAr: 'موافقة على المعاملات', labelEn: 'Approve transactions', category: 'operations' },
+    { key: 'can_view_cost_prices', labelAr: 'رؤية أسعار التكلفة', labelEn: 'View cost prices', category: 'financial' },
+    { key: 'can_view_profit_margins', labelAr: 'رؤية هوامش الربح', labelEn: 'View profit margins', category: 'financial' },
+    { key: 'can_export_data', labelAr: 'تصدير البيانات', labelEn: 'Export data', category: 'operations' },
+    { key: 'can_manage_containers', labelAr: 'إدارة الكونتينرات', labelEn: 'Manage containers', category: 'operations' },
+];
 
 // Role level configuration
 const ROLE_LEVELS = [
-    { value: 'tenant', labelAr: 'مستوى المستأجر', labelEn: 'Tenant Level', icon: Crown, color: 'orange' },
+    { value: 'tenant', labelAr: 'المالك', labelEn: 'Owner', icon: Crown, color: 'amber' },
     { value: 'company', labelAr: 'مستوى الشركة', labelEn: 'Company Level', icon: Building2, color: 'blue' },
     { value: 'branch', labelAr: 'مستوى الفرع', labelEn: 'Branch Level', icon: GitBranch, color: 'green' },
     { value: 'operations', labelAr: 'مستوى العمليات', labelEn: 'Operations Level', icon: UserCog, color: 'purple' },
@@ -60,7 +128,8 @@ const PERMISSION_TYPES = ['read', 'write', 'delete'] as const;
 export default function RolesManagementTab() {
     const { language, direction } = useLanguage();
     const { toast } = useToast();
-    const { isPlatformAdmin, isTenantOwner } = useRBAC();
+    const { authUser } = useAuth();
+    const tenantId = authUser?.tenant_id;
 
     // State
     const [roles, setRoles] = useState<Role[]>([]);
@@ -79,14 +148,37 @@ export default function RolesManagementTab() {
         level: 'operations' as string,
         permissions: {} as Record<string, string[]>,
         visible_modules: ['dashboard'] as string[],
+        special_permissions: {} as SpecialPermissions,
     });
 
-    // Load roles
+    // Load roles — sorted by hierarchy
     const loadRoles = useCallback(async () => {
         try {
             setLoading(true);
-            const data = await rbacService.getRoles();
-            setRoles(data);
+            const allRoles = await rbacService.getRoles(
+                tenantId ? { tenant_id: tenantId } : undefined
+            );
+
+            // Step 1: Fix wrong levels from DB migration bug
+            const fixedRoles = allRoles.map(r => ({
+                ...r,
+                level: (ROLE_LEVEL_FIX[r.code] || r.level) as typeof r.level,
+            }));
+
+            // Step 2: Hide platform roles, show everything else
+            const visibleRoles = fixedRoles
+                .filter(r => !HIDDEN_ROLE_CODES.includes(r.code))
+                .sort((a, b) => {
+                    // Sort by level priority first
+                    const pa = ROLE_SORT_PRIORITY[a.level] ?? 99;
+                    const pb = ROLE_SORT_PRIORITY[b.level] ?? 99;
+                    if (pa !== pb) return pa - pb;
+                    // Then by specific code order within same level
+                    const ca = ROLE_CODE_ORDER[a.code] ?? 50;
+                    const cb = ROLE_CODE_ORDER[b.code] ?? 50;
+                    return ca - cb;
+                });
+            setRoles(visibleRoles);
         } catch (error) {
             console.error('Error loading roles:', error);
             toast({
@@ -97,7 +189,7 @@ export default function RolesManagementTab() {
         } finally {
             setLoading(false);
         }
-    }, [language, toast]);
+    }, [language, toast, tenantId]);
 
     useEffect(() => {
         loadRoles();
@@ -125,6 +217,7 @@ export default function RolesManagementTab() {
             level: 'operations',
             permissions: {},
             visible_modules: ['dashboard'],
+            special_permissions: {},
         });
         setIsSheetOpen(true);
     };
@@ -132,15 +225,47 @@ export default function RolesManagementTab() {
     // Open edit sheet
     const handleEditRole = (role: Role) => {
         setEditingRole(role);
-        setFormData({
-            code: role.code,
-            name_ar: role.name_ar,
-            name_en: role.name_en || '',
-            description: role.description || '',
-            level: role.level,
-            permissions: role.permissions || {},
-            visible_modules: (role as any).visible_modules || ['dashboard'],
-        });
+
+        // For protected roles (tenant_owner, company_owner): enforce FULL access
+        const isProtected = PROTECTED_ROLE_CODES.includes(role.code);
+
+        if (isProtected) {
+            // All modules visible
+            const allModules = AVAILABLE_MODULES.map(m => m.code);
+            // All permissions: read + write + delete for every module
+            const allPermissions: Record<string, string[]> = {};
+            AVAILABLE_MODULES.forEach(m => {
+                allPermissions[m.code] = ['read', 'write', 'delete'];
+            });
+            // All special permissions true
+            const allSpecialPerms: SpecialPermissions = {} as SpecialPermissions;
+            SPECIAL_PERMS_CONFIG.forEach(p => {
+                allSpecialPerms[p.key] = true;
+            });
+
+            setFormData({
+                code: role.code,
+                name_ar: role.name_ar,
+                name_en: role.name_en || '',
+                description: role.description || '',
+                level: role.level,
+                permissions: allPermissions,
+                visible_modules: allModules,
+                special_permissions: allSpecialPerms,
+            });
+        } else {
+            setFormData({
+                code: role.code,
+                name_ar: role.name_ar,
+                name_en: role.name_en || '',
+                description: role.description || '',
+                level: role.level,
+                permissions: role.permissions || {},
+                visible_modules: (role as any).visible_modules || ['dashboard'],
+                special_permissions: (role as any).special_permissions || {},
+            });
+        }
+
         setIsSheetOpen(true);
     };
 
@@ -207,6 +332,7 @@ export default function RolesManagementTab() {
                     name_en: formData.name_en,
                     description: formData.description,
                     permissions: typedPermissions,
+                    special_permissions: formData.special_permissions,
                 });
                 // Update visible modules separately
                 await rbacService.updateRoleVisibleModules(editingRole.id, formData.visible_modules);
@@ -217,12 +343,26 @@ export default function RolesManagementTab() {
                     name_en: formData.name_en,
                     level: formData.level as any,
                     permissions: typedPermissions,
+                    special_permissions: formData.special_permissions,
                 });
             }
 
             toast({
                 title: language === 'ar' ? 'تم الحفظ' : 'Saved',
                 description: language === 'ar' ? 'تم حفظ الدور بنجاح' : 'Role saved successfully',
+            });
+
+            // Audit log
+            logAuditEvent({
+                action: editingRole ? 'update_role' : 'create_role',
+                entity_type: 'roles',
+                entity_id: editingRole?.id,
+                entity_name: formData.name_ar || formData.code,
+                new_values: {
+                    code: formData.code,
+                    modules: formData.visible_modules.length,
+                    permissions: Object.keys(formData.permissions).length,
+                },
             });
 
             setIsSheetOpen(false);
@@ -283,12 +423,12 @@ export default function RolesManagementTab() {
                     <div>
                         <CardTitle className="font-tajawal flex items-center gap-2">
                             <Shield className="w-5 h-5 text-erp-teal" />
-                            {language === 'ar' ? 'إدارة الأدوار' : 'Roles Management'}
+                            {language === 'ar' ? 'مجموعات المستخدمين' : 'User Groups'}
                         </CardTitle>
                         <CardDescription className="font-tajawal">
                             {language === 'ar'
-                                ? 'إنشاء وتعديل الأدوار وصلاحياتها'
-                                : 'Create and manage roles and their permissions'}
+                                ? 'إدارة مجموعات المستخدمين وصلاحياتهم والموديولات المرئية'
+                                : 'Manage user groups, permissions, and visible modules'}
                         </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -303,7 +443,7 @@ export default function RolesManagementTab() {
                         <Button onClick={handleCreateRole} className="gap-2">
                             <Plus className="w-4 h-4" />
                             <span className="hidden sm:inline">
-                                {language === 'ar' ? 'إضافة دور' : 'Add Role'}
+                                {language === 'ar' ? 'إضافة مجموعة' : 'Add Group'}
                             </span>
                         </Button>
                     </div>
@@ -364,11 +504,23 @@ export default function RolesManagementTab() {
                                                 className="group hover:bg-gray-50 dark:hover:bg-gray-800"
                                             >
                                                 <TableCell>
-                                                    <div className="flex flex-col">
+                                                    <div className="flex flex-col gap-0.5">
                                                         <span className="font-medium font-tajawal">
                                                             {language === 'ar' ? role.name_ar : role.name_en || role.name_ar}
                                                         </span>
-                                                        <code className="text-xs text-gray-400">{role.code}</code>
+                                                        <div className="flex items-center gap-2">
+                                                            <code className="text-xs text-gray-400">{role.code}</code>
+                                                            {role.code === 'tenant_owner' && (
+                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700 font-tajawal">
+                                                                    {language === 'ar' ? 'كل الشركات' : 'All Companies'}
+                                                                </Badge>
+                                                            )}
+                                                            {role.code === 'company_owner' && (
+                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700 font-tajawal">
+                                                                    {language === 'ar' ? 'الشركة المحددة' : 'Selected Company'}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
@@ -408,13 +560,20 @@ export default function RolesManagementTab() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        {/* View/Edit button — protected roles can be viewed */}
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={() => handleEditRole(role)}
+                                                            title={language === 'ar' ? 'عرض التفاصيل' : 'View details'}
                                                         >
-                                                            <Edit2 className="w-4 h-4" />
+                                                            {PROTECTED_ROLE_CODES.includes(role.code) ? (
+                                                                <Eye className="w-4 h-4 text-teal-600" />
+                                                            ) : (
+                                                                <Edit2 className="w-4 h-4" />
+                                                            )}
                                                         </Button>
+                                                        {/* Copy — available for all */}
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
@@ -422,7 +581,8 @@ export default function RolesManagementTab() {
                                                         >
                                                             <Copy className="w-4 h-4" />
                                                         </Button>
-                                                        {!role.is_system && role.can_be_deleted && (
+                                                        {/* Delete — NOT available for protected or system roles */}
+                                                        {!PROTECTED_ROLE_CODES.includes(role.code) && !role.is_system && role.can_be_deleted && (
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
@@ -431,6 +591,10 @@ export default function RolesManagementTab() {
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
+                                                        )}
+                                                        {/* Lock indicator for protected roles */}
+                                                        {PROTECTED_ROLE_CODES.includes(role.code) && (
+                                                            <Lock className="w-3.5 h-3.5 text-amber-500" />
                                                         )}
                                                     </div>
                                                 </TableCell>
@@ -447,182 +611,257 @@ export default function RolesManagementTab() {
             {/* Edit/Create Sheet */}
             <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                 <SheetContent side={direction === 'rtl' ? 'left' : 'right'} className="w-full sm:max-w-xl overflow-y-auto">
-                    <SheetHeader>
-                        <SheetTitle className="font-tajawal">
-                            {editingRole
-                                ? (language === 'ar' ? 'تعديل الدور' : 'Edit Role')
-                                : (language === 'ar' ? 'إنشاء دور جديد' : 'Create New Role')}
-                        </SheetTitle>
-                        <SheetDescription className="font-tajawal">
-                            {language === 'ar'
-                                ? 'حدد اسم الدور وصلاحياته والموديولات المرئية'
-                                : 'Set role name, permissions, and visible modules'}
-                        </SheetDescription>
-                    </SheetHeader>
+                    {(() => {
+                        const isProtectedRole = editingRole ? PROTECTED_ROLE_CODES.includes(editingRole.code) : false;
+                        return (
+                            <>
+                                <SheetHeader>
+                                    <SheetTitle className="font-tajawal">
+                                        {editingRole
+                                            ? (isProtectedRole
+                                                ? (language === 'ar' ? 'عرض الدور' : 'View Role')
+                                                : (language === 'ar' ? 'تعديل الدور' : 'Edit Role'))
+                                            : (language === 'ar' ? 'إنشاء دور جديد' : 'Create New Role')}
+                                    </SheetTitle>
+                                    <SheetDescription className="font-tajawal">
+                                        {isProtectedRole
+                                            ? (language === 'ar'
+                                                ? 'هذا الدور محمي — يملك صلاحيات كاملة على كل الموديولات'
+                                                : 'This role is protected — it has full access to all modules')
+                                            : (language === 'ar'
+                                                ? 'حدد اسم الدور وصلاحياته والموديولات المرئية'
+                                                : 'Set role name, permissions, and visible modules')}
+                                    </SheetDescription>
+                                </SheetHeader>
 
-                    <div className="space-y-6 py-6">
-                        {/* Basic Info */}
-                        <div className="space-y-4">
-                            <h3 className="font-semibold font-tajawal text-sm text-gray-500">
-                                {language === 'ar' ? 'المعلومات الأساسية' : 'Basic Information'}
-                            </h3>
+                                {/* Protected role info banner */}
+                                {isProtectedRole && (
+                                    <div className="mt-3 flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <span className="text-xs text-emerald-700 dark:text-emerald-400 font-tajawal">
+                                            {language === 'ar'
+                                                ? '✅ كل الموديولات مفعلة • كل الصلاحيات مفعلة • كل الصلاحيات الخاصة مفعلة'
+                                                : '✅ All modules enabled • All permissions granted • All special permissions active'}
+                                        </span>
+                                    </div>
+                                )}
 
-                            {!editingRole && (
-                                <div className="space-y-2">
-                                    <Label className="font-tajawal">
-                                        {language === 'ar' ? 'الكود' : 'Code'}
-                                    </Label>
-                                    <Input
-                                        value={formData.code}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
-                                        placeholder="role_code"
-                                        className="font-mono"
-                                    />
-                                </div>
-                            )}
+                                <div className="space-y-6 py-6">
+                                    {/* Basic Info */}
+                                    <div className="space-y-4">
+                                        <h3 className="font-semibold font-tajawal text-sm text-gray-500">
+                                            {language === 'ar' ? 'المعلومات الأساسية' : 'Basic Information'}
+                                        </h3>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="font-tajawal">
-                                        {language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}
-                                    </Label>
-                                    <Input
-                                        value={formData.name_ar}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, name_ar: e.target.value }))}
-                                        placeholder="اسم الدور"
-                                        className="font-tajawal"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-tajawal">
-                                        {language === 'ar' ? 'الاسم بالإنجليزية' : 'English Name'}
-                                    </Label>
-                                    <Input
-                                        value={formData.name_en}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, name_en: e.target.value }))}
-                                        placeholder="Role Name"
-                                    />
-                                </div>
-                            </div>
+                                        {!editingRole && (
+                                            <div className="space-y-2">
+                                                <Label className="font-tajawal">
+                                                    {language === 'ar' ? 'الكود' : 'Code'}
+                                                </Label>
+                                                <Input
+                                                    value={formData.code}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                                                    placeholder="role_code"
+                                                    className="font-mono"
+                                                />
+                                            </div>
+                                        )}
 
-                            {!editingRole && (
-                                <div className="space-y-2">
-                                    <Label className="font-tajawal">
-                                        {language === 'ar' ? 'المستوى' : 'Level'}
-                                    </Label>
-                                    <Select
-                                        value={formData.level}
-                                        onValueChange={(value) => setFormData(prev => ({ ...prev, level: value }))}
-                                    >
-                                        <SelectTrigger className="font-tajawal">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {ROLE_LEVELS.map(level => (
-                                                <SelectItem key={level.value} value={level.value}>
-                                                    <span className="font-tajawal">
-                                                        {language === 'ar' ? level.labelAr : level.labelEn}
-                                                    </span>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Visible Modules */}
-                        <div className="space-y-4">
-                            <h3 className="font-semibold font-tajawal text-sm text-gray-500">
-                                {language === 'ar' ? 'الموديولات المرئية' : 'Visible Modules'}
-                            </h3>
-                            <p className="text-xs text-gray-400 font-tajawal">
-                                {language === 'ar'
-                                    ? 'اختر الموديولات التي ستظهر في الشريط الجانبي لهذا الدور'
-                                    : 'Select modules that will appear in sidebar for this role'}
-                            </p>
-                            <ScrollArea className="h-48 rounded-lg border p-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                    {AVAILABLE_MODULES.map(module => (
-                                        <div
-                                            key={module.code}
-                                            className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-                                        >
-                                            <Checkbox
-                                                id={`module-${module.code}`}
-                                                checked={formData.visible_modules.includes(module.code)}
-                                                onCheckedChange={() => toggleVisibleModule(module.code)}
-                                            />
-                                            <Label
-                                                htmlFor={`module-${module.code}`}
-                                                className="text-sm font-tajawal cursor-pointer"
-                                            >
-                                                {language === 'ar' ? module.name_ar : module.name_en}
-                                            </Label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label className="font-tajawal">
+                                                    {language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}
+                                                </Label>
+                                                <Input
+                                                    value={formData.name_ar}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, name_ar: e.target.value }))}
+                                                    placeholder="اسم الدور"
+                                                    className="font-tajawal"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="font-tajawal">
+                                                    {language === 'ar' ? 'الاسم بالإنجليزية' : 'English Name'}
+                                                </Label>
+                                                <Input
+                                                    value={formData.name_en}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, name_en: e.target.value }))}
+                                                    placeholder="Role Name"
+                                                />
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </ScrollArea>
-                        </div>
 
-                        {/* Permissions Matrix */}
-                        <div className="space-y-4">
-                            <h3 className="font-semibold font-tajawal text-sm text-gray-500">
-                                {language === 'ar' ? 'مصفوفة الصلاحيات' : 'Permissions Matrix'}
-                            </h3>
-                            <ScrollArea className="h-64 rounded-lg border">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="font-tajawal">
-                                                {language === 'ar' ? 'الموديول' : 'Module'}
-                                            </TableHead>
-                                            <TableHead className="text-center">
-                                                {language === 'ar' ? 'قراءة' : 'Read'}
-                                            </TableHead>
-                                            <TableHead className="text-center">
-                                                {language === 'ar' ? 'كتابة' : 'Write'}
-                                            </TableHead>
-                                            <TableHead className="text-center">
-                                                {language === 'ar' ? 'حذف' : 'Delete'}
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {AVAILABLE_MODULES.map(module => (
-                                            <TableRow key={module.code}>
-                                                <TableCell className="font-tajawal text-sm">
-                                                    {language === 'ar' ? module.name_ar : module.name_en}
-                                                </TableCell>
-                                                {PERMISSION_TYPES.map(perm => (
-                                                    <TableCell key={perm} className="text-center">
+                                        {!editingRole && (
+                                            <div className="space-y-2">
+                                                <Label className="font-tajawal">
+                                                    {language === 'ar' ? 'المستوى' : 'Level'}
+                                                </Label>
+                                                <Select
+                                                    value={formData.level}
+                                                    onValueChange={(value) => setFormData(prev => ({ ...prev, level: value }))}
+                                                >
+                                                    <SelectTrigger className="font-tajawal">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {ROLE_LEVELS.map(level => (
+                                                            <SelectItem key={level.value} value={level.value}>
+                                                                <span className="font-tajawal">
+                                                                    {language === 'ar' ? level.labelAr : level.labelEn}
+                                                                </span>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Visible Modules */}
+                                    <div className="space-y-4">
+                                        <h3 className="font-semibold font-tajawal text-sm text-gray-500">
+                                            {language === 'ar' ? 'الموديولات المرئية' : 'Visible Modules'}
+                                        </h3>
+                                        <p className="text-xs text-gray-400 font-tajawal">
+                                            {language === 'ar'
+                                                ? 'اختر الموديولات التي ستظهر في الشريط الجانبي لهذا الدور'
+                                                : 'Select modules that will appear in sidebar for this role'}
+                                        </p>
+                                        <ScrollArea className="h-48 rounded-lg border p-3">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {AVAILABLE_MODULES.map(module => (
+                                                    <div
+                                                        key={module.code}
+                                                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                    >
                                                         <Checkbox
-                                                            checked={(formData.permissions[module.code] || []).includes(perm)}
-                                                            onCheckedChange={() => togglePermission(module.code, perm)}
+                                                            id={`module-${module.code}`}
+                                                            checked={formData.visible_modules.includes(module.code)}
+                                                            onCheckedChange={() => toggleVisibleModule(module.code)}
+                                                            disabled={isProtectedRole}
                                                         />
-                                                    </TableCell>
+                                                        <Label
+                                                            htmlFor={`module-${module.code}`}
+                                                            className="text-sm font-tajawal cursor-pointer"
+                                                        >
+                                                            {language === 'ar' ? module.name_ar : module.name_en}
+                                                        </Label>
+                                                    </div>
                                                 ))}
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </ScrollArea>
-                        </div>
-                    </div>
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
 
-                    <SheetFooter className="gap-2">
-                        <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
-                            {language === 'ar' ? 'إلغاء' : 'Cancel'}
-                        </Button>
-                        <Button onClick={handleSaveRole} disabled={saving} className="gap-2">
-                            {saving ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Save className="w-4 h-4" />
-                            )}
-                            {language === 'ar' ? 'حفظ' : 'Save'}
-                        </Button>
-                    </SheetFooter>
+                                    {/* Permissions Matrix */}
+                                    <div className="space-y-4">
+                                        <h3 className="font-semibold font-tajawal text-sm text-gray-500">
+                                            {language === 'ar' ? 'مصفوفة الصلاحيات' : 'Permissions Matrix'}
+                                        </h3>
+                                        <ScrollArea className="h-64 rounded-lg border">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="font-tajawal">
+                                                            {language === 'ar' ? 'الموديول' : 'Module'}
+                                                        </TableHead>
+                                                        <TableHead className="text-center">
+                                                            {language === 'ar' ? 'قراءة' : 'Read'}
+                                                        </TableHead>
+                                                        <TableHead className="text-center">
+                                                            {language === 'ar' ? 'كتابة' : 'Write'}
+                                                        </TableHead>
+                                                        <TableHead className="text-center">
+                                                            {language === 'ar' ? 'حذف' : 'Delete'}
+                                                        </TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {AVAILABLE_MODULES.map(module => (
+                                                        <TableRow key={module.code}>
+                                                            <TableCell className="font-tajawal text-sm">
+                                                                {language === 'ar' ? module.name_ar : module.name_en}
+                                                            </TableCell>
+                                                            {PERMISSION_TYPES.map(perm => (
+                                                                <TableCell key={perm} className="text-center">
+                                                                    <Checkbox
+                                                                        checked={(formData.permissions[module.code] || []).includes(perm)}
+                                                                        onCheckedChange={() => togglePermission(module.code, perm)}
+                                                                        disabled={isProtectedRole}
+                                                                    />
+                                                                </TableCell>
+                                                            ))}
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </ScrollArea>
+                                    </div>
+
+                                    {/* ─── Special Permissions ─────────────────────── */}
+                                    <div className="space-y-4">
+                                        <h3 className="font-semibold font-tajawal text-sm text-gray-500 flex items-center gap-2">
+                                            <Zap className="w-4 h-4 text-amber-500" />
+                                            {language === 'ar' ? 'صلاحيات خاصة' : 'Special Permissions'}
+                                        </h3>
+                                        <p className="text-xs text-gray-400 font-tajawal">
+                                            {language === 'ar'
+                                                ? 'صلاحيات متقدمة للتحكم بعمليات حساسة مثل تعديل المرحّل وحذفه'
+                                                : 'Advanced permissions for sensitive operations like editing posted documents'}
+                                        </p>
+                                        <ScrollArea className="h-56 rounded-lg border p-3">
+                                            <div className="space-y-2">
+                                                {SPECIAL_PERMS_CONFIG.map(perm => (
+                                                    <div
+                                                        key={perm.key}
+                                                        className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                    >
+                                                        <Label
+                                                            htmlFor={`sp-${perm.key}`}
+                                                            className="text-sm font-tajawal cursor-pointer flex-1"
+                                                        >
+                                                            {language === 'ar' ? perm.labelAr : perm.labelEn}
+                                                        </Label>
+                                                        <Switch
+                                                            id={`sp-${perm.key}`}
+                                                            checked={formData.special_permissions[perm.key] === true}
+                                                            disabled={isProtectedRole}
+                                                            onCheckedChange={(checked) => {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    special_permissions: {
+                                                                        ...prev.special_permissions,
+                                                                        [perm.key]: checked,
+                                                                    },
+                                                                }));
+                                                            }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                </div>
+
+                                <SheetFooter className="gap-2">
+                                    <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
+                                        {isProtectedRole
+                                            ? (language === 'ar' ? 'إغلاق' : 'Close')
+                                            : (language === 'ar' ? 'إلغاء' : 'Cancel')}
+                                    </Button>
+                                    {!isProtectedRole && (
+                                        <Button onClick={handleSaveRole} disabled={saving} className="gap-2">
+                                            {saving ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Save className="w-4 h-4" />
+                                            )}
+                                            {language === 'ar' ? 'حفظ' : 'Save'}
+                                        </Button>
+                                    )}
+                                </SheetFooter>
+                            </>
+                        );
+                    })()}
                 </SheetContent>
             </Sheet>
         </Card>

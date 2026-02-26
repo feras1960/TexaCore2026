@@ -37,6 +37,7 @@ const Gold = React.lazy(() => import('@/features/gold/Gold'));
 const WarehouseModule = React.lazy(() => import('@/features/warehouse/WarehouseModule'));
 const Purchases = React.lazy(() => import('@/features/purchases/PurchasesPage'));
 const SystemConfigPage = React.lazy(() => import('@/features/settings/SystemConfigPage'));
+const UsersPermissionsPage = React.lazy(() => import('@/features/users-permissions/UsersPermissionsPage'));
 const Sales = React.lazy(() => import('@/features/sales/SalesPage'));
 const WorkflowCenter = React.lazy(() => import('@/features/workflow-center/WorkflowCenter'));
 
@@ -119,6 +120,7 @@ function AppRoutes() {
             <Route path="/ecommerce/*" element={<PlaceholderPage titleKey="navigation.ecommerce" />} />
             <Route path="/ai-analytics" element={<PlaceholderPage titleKey="navigation.aiAnalytics" />} />
             <Route path="/system-config/*" element={<SystemConfigPage />} />
+            <Route path="/users-permissions/*" element={<UsersPermissionsPage />} />
             <Route path="/workflows/*" element={<WorkflowCenter />} />
             <Route path="/activity-log" element={<ActivityLog />} />
             <Route path="/component-lab" element={<ComponentLab />} />

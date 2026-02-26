@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
     X,
+    Plus,
     BookOpen,
     Wallet,
     Users,
@@ -61,6 +62,7 @@ const colorMap: Partial<Record<UnifiedDocType, string>> = {
     materialGroup: 'text-indigo-600',
     warehouse: 'text-cyan-600',
     goods_receipt: 'text-emerald-600',
+    sales_delivery: 'text-rose-600',
 };
 
 interface MainDocumentTabsProps {
@@ -68,6 +70,7 @@ interface MainDocumentTabsProps {
     activeId: string;
     onTabChange: (id: string) => void;
     onTabClose: (id: string) => void;
+    onAddTab?: () => void;   // زر "+" لفتح مستند جديد
     className?: string;
 }
 
@@ -76,6 +79,7 @@ export function MainDocumentTabs({
     activeId,
     onTabChange,
     onTabClose,
+    onAddTab,
     className,
 }: MainDocumentTabsProps) {
     const { language, direction } = useLanguage();
@@ -142,6 +146,19 @@ export function MainDocumentTabs({
                             </div>
                         );
                     })}
+
+                    {/* ➕ Add new tab button */}
+                    {onAddTab && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-7 h-7 p-0 ms-1 text-gray-400 hover:text-erp-teal hover:bg-erp-teal/10 rounded-full shrink-0"
+                            title={language === 'ar' ? 'فتح مستند جديد' : 'Open new document'}
+                            onClick={onAddTab}
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </Button>
+                    )}
                 </div>
                 <ScrollBar orientation="horizontal" />
             </ScrollArea>

@@ -58,6 +58,7 @@ import {
 } from '@/components/ui/collapsible';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 // ═══ Types ═══
 interface CustomerAddress {
@@ -102,20 +103,28 @@ interface CustomerShippingTabProps {
 const DELIVERY_METHODS: DeliveryMethod[] = [
     {
         id: 'store_pickup',
-        label_ar: 'استلام من الفرع / المتجر',
-        label_en: 'Store / Branch Pickup',
+        label_ar: 'تسليم عبر الفرع',
+        label_en: 'Branch Delivery',
         icon: Building2,
-        description_ar: 'العميل يستلم البضاعة من الفرع أو المتجر',
-        description_en: 'Customer picks up from store or branch',
+        description_ar: 'إرسال البضاعة للفرع ثم تسليم العميل',
+        description_en: 'Ship to branch, then deliver to customer',
     },
     {
         id: 'direct_delivery',
-        label_ar: 'توصيل مباشر للعميل',
-        label_en: 'Direct Delivery',
+        label_ar: 'توصيل لعنوان العميل',
+        label_en: 'Customer Delivery',
         icon: Truck,
-        description_ar: 'نوصّل البضاعة مباشرة لعنوان العميل',
-        description_en: 'Delivered directly to customer address',
+        description_ar: 'سائق يوصّل البضاعة مباشرة لعنوان العميل',
+        description_en: 'Driver delivers directly to customer address',
         estimatedDays: '1-3',
+    },
+    {
+        id: 'direct_pickup',
+        label_ar: 'تسليم مباشر بالمستودع',
+        label_en: 'Warehouse Pickup',
+        icon: Package,
+        description_ar: 'العميل أو مندوبه يستلم مباشرة من المستودع',
+        description_en: 'Customer or representative picks up from warehouse',
     },
     {
         id: 'carrier',
@@ -238,9 +247,33 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
     const [npDeclaredCost, setNpDeclaredCost] = useState('');
     const citySearchTimer = useRef<NodeJS.Timeout | null>(null);
 
+    // ═══ Drivers list for dropdown ═══
+    const { companyId } = useAuth();
+    const [driversList, setDriversList] = useState<{ id: string; name_ar: string; name_en?: string; phone?: string; vehicle_number?: string }[]>([]);
+    const [driversLoading, setDriversLoading] = useState(false);
+
     const customerId = data?.customer_id;
     const selectedAddressId = data?.shipping_address_id;
     const selectedDeliveryMethod = data?.delivery_method || 'store_pickup';
+
+    // ═══ Fetch drivers ═══
+    useEffect(() => {
+        if (!companyId) return;
+        const fetchDrivers = async () => {
+            setDriversLoading(true);
+            try {
+                const { data: drv } = await supabase
+                    .from('drivers')
+                    .select('id, name_ar, name_en, phone, vehicle_number')
+                    .eq('company_id', companyId)
+                    .eq('status', 'active')
+                    .order('name_ar');
+                setDriversList(drv || []);
+            } catch { /* ignore */ }
+            finally { setDriversLoading(false); }
+        };
+        fetchDrivers();
+    }, [companyId]);
 
     // ═══ Fetch addresses ═══
     useEffect(() => {
@@ -739,6 +772,192 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
                     })}
                 </div>
             </div>
+
+            {/* ═══ Section 1.2: Direct Pickup Details (when direct_pickup selected) ═══ */}
+            {selectedDeliveryMethod === 'direct_pickup' && (
+                <div className="space-y-3 bg-amber-50/50 dark:bg-amber-900/10 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+                    <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                        <Package className="w-3.5 h-3.5" />
+                        {language === 'ar' ? 'بيانات المستلم والسيارة' : 'Pickup Person & Vehicle Details'}
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* اسم المستلم */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'اسم المستلم' : 'Recipient Name'}
+                            </Label>
+                            <Input
+                                value={data?.pickup_person_name || ''}
+                                onChange={e => onChange?.({ pickup_person_name: e.target.value })}
+                                placeholder={language === 'ar' ? 'اسم الشخص المستلم...' : 'Person picking up...'}
+                                disabled={!isEditable}
+                                className="h-9 text-sm"
+                            />
+                        </div>
+
+                        {/* رقم الهوية */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'رقم الهوية / الجواز' : 'ID / Passport Number'}
+                            </Label>
+                            <Input
+                                value={data?.pickup_person_id_number || ''}
+                                onChange={e => onChange?.({ pickup_person_id_number: e.target.value })}
+                                placeholder={language === 'ar' ? 'رقم الهوية...' : 'ID number...'}
+                                disabled={!isEditable}
+                                className="h-9 text-sm"
+                            />
+                        </div>
+
+                        {/* رقم السيارة */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'رقم السيارة' : 'Vehicle Number'}
+                            </Label>
+                            <Input
+                                value={data?.pickup_vehicle_number || ''}
+                                onChange={e => onChange?.({ pickup_vehicle_number: e.target.value })}
+                                placeholder={language === 'ar' ? 'مثال: AA 1234 BB' : 'e.g. AA 1234 BB'}
+                                disabled={!isEditable}
+                                className="h-9 text-sm font-mono"
+                            />
+                        </div>
+
+                        {/* نوع السيارة */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'نوع السيارة' : 'Vehicle Type'}
+                            </Label>
+                            <Input
+                                value={data?.pickup_vehicle_type || ''}
+                                onChange={e => onChange?.({ pickup_vehicle_type: e.target.value })}
+                                placeholder={language === 'ar' ? 'مثال: شاحنة صغيرة' : 'e.g. Van, Truck'}
+                                disabled={!isEditable}
+                                className="h-9 text-sm"
+                            />
+                        </div>
+
+                        {/* اسم سائق العميل */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'اسم السائق' : 'Driver Name'}
+                            </Label>
+                            <Input
+                                value={data?.pickup_driver_name || ''}
+                                onChange={e => onChange?.({ pickup_driver_name: e.target.value })}
+                                placeholder={language === 'ar' ? 'اسم سائق العميل...' : "Customer's driver name..."}
+                                disabled={!isEditable}
+                                className="h-9 text-sm"
+                            />
+                        </div>
+
+                        {/* هاتف السائق */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'هاتف السائق' : 'Driver Phone'}
+                            </Label>
+                            <Input
+                                value={data?.pickup_driver_phone || ''}
+                                onChange={e => onChange?.({ pickup_driver_phone: e.target.value })}
+                                placeholder={language === 'ar' ? '+380...' : '+380...'}
+                                disabled={!isEditable}
+                                className="h-9 text-sm font-mono"
+                                dir="ltr"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ Section 1.3: Driver Selection (for store_pickup & direct_delivery) ═══ */}
+            {(selectedDeliveryMethod === 'store_pickup' || selectedDeliveryMethod === 'direct_delivery') && (
+                <div className="space-y-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                    <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5" />
+                        {language === 'ar' ? 'بيانات السائق' : 'Driver Details'}
+                    </h4>
+
+                    <div className="grid grid-cols-1 gap-3">
+                        {/* اختيار السائق من القائمة */}
+                        <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'اختر السائق' : 'Select Driver'}
+                            </Label>
+                            <Select
+                                value={data?.driver_id || ''}
+                                onValueChange={(driverId) => {
+                                    const driver = driversList.find(d => d.id === driverId);
+                                    if (driver) {
+                                        onChange?.({
+                                            driver_id: driver.id,
+                                            driver_name: driver.name_ar,
+                                            driver_phone: driver.phone || '',
+                                        });
+                                    }
+                                }}
+                                disabled={!isEditable}
+                            >
+                                <SelectTrigger className="h-9 text-sm">
+                                    <SelectValue placeholder={language === 'ar' ? 'اختر سائقاً...' : 'Select a driver...'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {driversList.length === 0 ? (
+                                        <div className="py-3 px-4 text-xs text-gray-400 text-center">
+                                            {driversLoading
+                                                ? (language === 'ar' ? 'جاري التحميل...' : 'Loading...')
+                                                : (language === 'ar' ? 'لا يوجد سائقون. أضفهم من إدارة المستخدمين' : 'No drivers. Add from Users & Permissions')}
+                                        </div>
+                                    ) : driversList.map(drv => (
+                                        <SelectItem key={drv.id} value={drv.id}>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium">{drv.name_ar}</span>
+                                                {drv.vehicle_number && (
+                                                    <span className="text-[10px] text-gray-400 font-mono">({drv.vehicle_number})</span>
+                                                )}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* عرض بيانات السائق المختار */}
+                        {data?.driver_name && (
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-0.5">
+                                    <div className="text-[10px] text-gray-400">{language === 'ar' ? 'الاسم' : 'Name'}</div>
+                                    <div className="text-sm font-medium bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border">
+                                        {data.driver_name}
+                                    </div>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <div className="text-[10px] text-gray-400">{language === 'ar' ? 'الهاتف' : 'Phone'}</div>
+                                    <div className="text-sm font-mono bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border" dir="ltr">
+                                        {data.driver_phone || '—'}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* الفرع المستلم — فقط لسيناريو الفرع */}
+                    {selectedDeliveryMethod === 'store_pickup' && (
+                        <div className="space-y-1 mt-2">
+                            <Label className="text-xs text-gray-600">
+                                {language === 'ar' ? 'الفرع المستلم' : 'Receiving Branch'}
+                            </Label>
+                            <Input
+                                value={data?.receiving_branch_name || ''}
+                                onChange={e => onChange?.({ receiving_branch_name: e.target.value })}
+                                placeholder={language === 'ar' ? 'اسم الفرع المستلم...' : 'Receiving branch name...'}
+                                disabled={!isEditable}
+                                className="h-9 text-sm"
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ═══ Section 1.5: Carrier Selection (when carrier method selected) ═══ */}
             {selectedDeliveryMethod === 'carrier' && (

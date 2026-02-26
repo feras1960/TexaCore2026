@@ -40,6 +40,7 @@ import {
   Printer
 } from 'lucide-react';
 import NewJournalEntrySheet from './components/NewJournalEntrySheet';
+import { EnhancedPrintDialog } from '@/components/shared/print/EnhancedPrintDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -682,9 +683,7 @@ export default function Payments() {
               <Button variant="outline" size="sm" className="h-9 px-2.5" title="PDF">
                 <FileText className="w-3.5 h-3.5" />
               </Button>
-              <Button variant="outline" size="sm" className="h-9 px-2.5" title={language === 'ar' ? 'طباعة' : 'Print'}>
-                <Printer className="w-3.5 h-3.5" />
-              </Button>
+              <EnhancedPrintDialog docType="payment_voucher" docId="" variant="dropdown" size="sm" />
             </div>
           </div>
 

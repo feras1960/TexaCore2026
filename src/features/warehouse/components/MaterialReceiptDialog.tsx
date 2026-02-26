@@ -14,7 +14,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import type { UnifiedDocType } from '@/features/accounting/components/unified/types';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -32,9 +32,18 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import {
     ArrowDownToLine, Truck, RotateCcw, PackageCheck, Ship,
     Wifi, WifiOff, Warehouse, ShoppingCart, FileText,
-    ArrowLeftRight, Container,
+    ArrowLeftRight, Container, CheckCircle2, AlertTriangle,
 } from 'lucide-react';
 import {
     receiptLocalStore,
@@ -47,7 +56,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // ─── Receipt Type Definitions ────────────────────────────────
-type ReceiptType = 'purchase_local' | 'container' | 'transfer' | 'return' | 'stock_count';
+type ReceiptType = 'purchase_local' | 'container' | 'transfer' | 'return' | 'stock_count' | 'sales_delivery';
 
 interface ReceiptTypeDef {
     id: ReceiptType;
@@ -104,6 +113,15 @@ const RECEIPT_TYPES: ReceiptTypeDef[] = [
         color: 'text-cyan-600',
         bgColor: 'bg-cyan-100',
         billType: 'stock_count_receipt',
+    },
+    {
+        id: 'sales_delivery',
+        labelAr: 'تسليم مبيعات',
+        labelEn: 'Sales Delivery',
+        icon: Truck,
+        color: 'text-rose-600',
+        bgColor: 'bg-rose-100',
+        billType: 'sales_delivery',
     },
 ];
 
@@ -163,6 +181,18 @@ export function MaterialReceiptDialog({
     const [activeReceiptType, setActiveReceiptType] = useState<ReceiptType>(defaultBillType);
     const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
     const [selectedReference, setSelectedReference] = useState(defaultReference);
+
+    // 🔑 Sync props → state when dialog reopens with new defaults
+    useEffect(() => {
+        if (open && defaultReference) {
+            setSelectedReference(defaultReference);
+        }
+    }, [open, defaultReference]);
+    useEffect(() => {
+        if (open && defaultBillType) {
+            setActiveReceiptType(defaultBillType);
+        }
+    }, [open, defaultBillType]);
     const [session, setSession] = useState<ReceiptSession | null>(null);
     const [entryLocked, setEntryLocked] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -171,7 +201,11 @@ export function MaterialReceiptDialog({
     const [liveReceiptItems, setLiveReceiptItems] = useState<ReceiptItem[]>([]);
     // 🔑 Draft persistence: track the DB draft receipt ID
     const [draftReceiptId, setDraftReceiptId] = useState<string | null>(null);
+    // 🔑 Receipt confirmation dialog
+    const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
+    const [isCompleting, setIsCompleting] = useState(false);
     const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isDeletingRef = useRef(false);
 
     // ─── Online / Offline Listener ───────────────────────────
     useEffect(() => {
@@ -202,38 +236,50 @@ export function MaterialReceiptDialog({
         }
     }, [open, companyId, tenantId, selectedWarehouseId, activeReceiptType, warehouses, language]);
 
+
     // ─── Load Draft from DB on Open (resume after power/internet outage) ──
     useEffect(() => {
         if (!open || !selectedReference || !companyId) return;
 
         const loadDraft = async () => {
             try {
-                // Try invoice_id first, then order_id
+                const resolvedType = resolveSourceDocumentType();
+                console.log('🔍 [loadDraft] Searching for draft...', { selectedReference, companyId, activeReceiptType, resolvedType });
+
+                // 🔑 Search in the CORRECT column first based on activeReceiptType
                 let draft: any = null;
+                let foundVia = '';
 
-                const { data: invoiceDraft } = await supabase
-                    .from('purchase_receipts')
-                    .select('id, draft_data')
-                    .eq('company_id', companyId)
-                    .eq('invoice_id', selectedReference)
-                    .eq('status', 'draft')
-                    .maybeSingle();
+                // Determine primary search column based on receipt type
+                const searchOrder: Array<{ column: string; label: string }> =
+                    resolvedType === 'container'
+                        ? [{ column: 'container_id', label: 'container_id' }, { column: 'invoice_id', label: 'invoice_id' }]
+                        : resolvedType === 'purchase_order'
+                            ? [{ column: 'order_id', label: 'order_id' }, { column: 'invoice_id', label: 'invoice_id' }]
+                            : [{ column: 'invoice_id', label: 'invoice_id' }, { column: 'order_id', label: 'order_id' }, { column: 'container_id', label: 'container_id' }];
 
-                if (invoiceDraft) {
-                    draft = invoiceDraft;
-                } else {
-                    const { data: orderDraft } = await supabase
+                for (const { column, label } of searchOrder) {
+                    if (draft) break;
+                    const { data: found, error: err } = await supabase
                         .from('purchase_receipts')
-                        .select('id, draft_data')
+                        .select('id, draft_data, created_at')
                         .eq('company_id', companyId)
-                        .eq('order_id', selectedReference)
+                        .eq(column, selectedReference)
                         .eq('status', 'draft')
+                        .order('created_at', { ascending: false })
+                        .limit(1)
                         .maybeSingle();
-                    draft = orderDraft;
+
+                    if (err) console.warn(`🔍 [loadDraft] ${label} search error:`, err.message);
+                    if (found) {
+                        draft = found;
+                        foundVia = label;
+                    }
                 }
 
+                console.log('🔍 [loadDraft] Result:', { found: !!draft, foundVia, draftId: draft?.id, itemsCount: (draft?.draft_data as any)?.items?.length });
+
                 if (draft?.id && draft?.draft_data) {
-                    console.log('📂 Loading draft receipt:', draft.id, 'items:', (draft.draft_data as any)?.items?.length);
                     setDraftReceiptId(draft.id);
                     const items = (draft.draft_data as any)?.items || [];
                     if (items.length > 0) {
@@ -250,12 +296,12 @@ export function MaterialReceiptDialog({
                     setDraftReceiptId(null);
                 }
             } catch (err) {
-                console.error('Failed to load draft:', err);
+                console.error('❌ [loadDraft] Failed:', err);
             }
         };
 
         loadDraft();
-    }, [open, selectedReference, companyId, language]);
+    }, [open, selectedReference, companyId, language, activeReceiptType]);
 
 
 
@@ -267,14 +313,9 @@ export function MaterialReceiptDialog({
     }, [warehouses, selectedWarehouseId]);
 
     // ─── Reset reference when type changes (but not on first mount) ───
-    const isFirstMount = React.useRef(true);
-    useEffect(() => {
-        if (isFirstMount.current) {
-            isFirstMount.current = false;
-            return; // Don't clear defaultReference on initial mount
-        }
-        setSelectedReference('');
-    }, [activeReceiptType]);
+    // Removed buggy useEffect here. The reference should ONLY clear when the
+    // user manually changes the receipt type in the UI, not when React syncs
+    // the initial state from props (e.g., when opening a pending 'container' receipt).
 
     // ─── When reference changes, update warehouse from source doc ─
     useEffect(() => {
@@ -304,6 +345,20 @@ export function MaterialReceiptDialog({
         return selectedDocument?.label || '';
     }, [selectedDocument]);
 
+    // ─── Helper: Determine the correct source document type ─────
+    // Uses activeReceiptType (UI tab) as the primary source of truth,
+    // with selectedDocument?.type as a secondary fallback.
+    const resolveSourceDocumentType = useCallback((): 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'purchase_transaction' | 'container' => {
+        // Primary: UI tab selection (always reliable)
+        if (activeReceiptType === 'container') return 'container';
+        if (activeReceiptType === 'sales_delivery') return 'purchase_invoice'; // Reuse same structure
+        // Secondary: selected document type
+        const docType = selectedDocument?.type;
+        if (docType === 'purchase_order') return 'purchase_order';
+        if (docType === 'container') return 'container';
+        return 'purchase_invoice';
+    }, [activeReceiptType, selectedDocument?.type]);
+
     // ─── Auto-save Draft to DB when items change ─────────────
     useEffect(() => {
         if (!open || !selectedReference || !companyId || !tenantId) return;
@@ -321,14 +376,13 @@ export function MaterialReceiptDialog({
                     await warehouseService.updateDraftReceipt(draftReceiptId, liveReceiptItems);
                     console.log('💾 Draft auto-saved (update):', draftReceiptId);
                 } else {
-                    // Create new draft
+                    // Create new draft — use resolveSourceDocumentType for reliable type detection
                     const result = await warehouseService.createDraftReceipt({
                         tenantId,
                         companyId,
                         warehouseId: selectedWarehouseId,
                         sourceDocumentId: selectedReference,
-                        sourceDocumentType: selectedDocument?.type === 'purchase_order'
-                            ? 'purchase_order' : 'purchase_invoice',
+                        sourceDocumentType: resolveSourceDocumentType(),
                         supplierId: selectedDocument?.supplier_id,
                         items: liveReceiptItems,
                     });
@@ -347,7 +401,7 @@ export function MaterialReceiptDialog({
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [liveReceiptItems, open, selectedReference, companyId, tenantId, selectedWarehouseId, draftReceiptId, selectedDocument]);
+    }, [liveReceiptItems, open, selectedReference, companyId, tenantId, selectedWarehouseId, draftReceiptId, resolveSourceDocumentType, selectedDocument?.supplier_id]);
 
     // ─── Lock callback — passed to GoodsReceiptItemsTab via data ──
     const handleEntryStarted = useCallback(() => {
@@ -398,7 +452,137 @@ export function MaterialReceiptDialog({
         };
     }, [session, selectedWarehouseId, warehouses, language, activeReceiptType, currentTypeDef, selectedReference, getReferenceLabel, selectedDocument, handleEntryStarted, liveReceiptItems, handleReceiptDataChange]);
 
-    // ─── Handle Save ─────────────────────────────────────────
+    // ─── Handle Complete Receipt (called after confirmation) ─────
+    // NOTE: handleSave is defined below — we use a ref to avoid circular deps
+    const handleSaveRef = useRef<((data: any) => Promise<void>) | null>(null);
+    const handleCompleteReceipt = useCallback(async () => {
+        if (!session) {
+            toast.error(language === 'ar' ? 'لا توجد جلسة نشطة' : 'No active session');
+            return;
+        }
+        let items = liveReceiptItems.length > 0 ? liveReceiptItems : [];
+        if (items.length === 0) {
+            const currentSession = receiptLocalStore.getSession(session.sessionId);
+            items = currentSession?.items || [];
+        }
+        if (items.length === 0) {
+            toast.error(language === 'ar' ? 'لا توجد بنود للاستلام' : 'No items to receive');
+            return;
+        }
+        // Call via ref to avoid "used before declaration"
+        if (handleSaveRef.current) {
+            await handleSaveRef.current({});
+        }
+    }, [session, liveReceiptItems, language]);
+
+
+    // ─── Tolerance: per-document > company_settings > fallback 1% ───
+    // Priority:
+    //   1. selectedDocument.variance_tolerance_pct  (per-invoice/container override)
+    //   2. Company settings  receipt_variance_tolerance_pct  (TODO: wire from useCompanySettings)
+    //   3. Default: 1%
+    const VARIANCE_TOLERANCE_PCT = useMemo(() => {
+        const docTolerance = (selectedDocument as any)?.variance_tolerance_pct;
+        if (docTolerance != null && !isNaN(Number(docTolerance))) return Number(docTolerance);
+        // TODO: replace 1 with value from company settings when hook is available
+        return 1;
+    }, [selectedDocument]);
+
+    // ─── Build receipt summary for confirm dialog ────────────
+    // Groups by materialId ONLY — avoids color-ID mismatch issues
+    // Colors are collected as display metadata, not grouping keys
+    const receiptSummary = useMemo(() => {
+        if (!selectedDocument || liveReceiptItems.length === 0) return null;
+
+        const sourceItems = (selectedDocument.items as any[]) || [];
+
+        // SUM expected quantities by materialId (handles multiple source lines per material)
+        const sourceByMat: Record<string, number> = {};
+        for (const si of sourceItems) {
+            const matId = si.material_id || si.product_id || 'unknown';
+            sourceByMat[matId] = (sourceByMat[matId] || 0) + (Number(si.quantity) || 0);
+        }
+
+        // Group received items by materialId ONLY
+        const grouped: Record<string, {
+            name: string;
+            colors: string[];          // distinct color names for display
+            totalLength: number;
+            rolls: number;
+            sourceMeter: number;
+            diffPct: number;
+            withinTolerance: boolean;
+        }> = {};
+
+        for (const item of liveReceiptItems) {
+            const matId = item.materialId || 'unknown';
+            // Normalize color name from all possible fields
+            const colorName = (
+                (item as any).colorName
+                || (item as any).colour_name
+                || (item as any).color_name
+                || (item as any).color
+                || ''
+            ).trim();
+
+            if (!grouped[matId]) {
+                grouped[matId] = {
+                    name: item.materialName || matId.substring(0, 8),
+                    colors: [],
+                    totalLength: 0,
+                    rolls: 0,
+                    sourceMeter: sourceByMat[matId] ?? 0,
+                    diffPct: 0,
+                    withinTolerance: true,
+                };
+            }
+
+            grouped[matId].totalLength += item.rollLength || 0;
+            grouped[matId].rolls += 1;
+
+            // Collect distinct colors for display
+            if (colorName && !grouped[matId].colors.includes(colorName)) {
+                grouped[matId].colors.push(colorName);
+            }
+        }
+
+        // Calculate variance per material
+        for (const g of Object.values(grouped)) {
+            if (g.sourceMeter > 0) {
+                g.diffPct = ((g.totalLength - g.sourceMeter) / g.sourceMeter) * 100;
+                g.withinTolerance = Math.abs(g.diffPct) <= VARIANCE_TOLERANCE_PCT;
+            } else {
+                // Received material not in source document → unexpected excess
+                g.diffPct = 100;
+                g.withinTolerance = false;
+            }
+        }
+
+        const totalMeters = liveReceiptItems.reduce((s, i) => s + (i.rollLength || 0), 0);
+        const expectedMeters = sourceItems.reduce(
+            (s: number, si: any) => s + (Number(si.quantity) || 0), 0
+        );
+        const diff = Math.round((totalMeters - expectedMeters) * 1000) / 1000;
+        const overallPct = expectedMeters > 0
+            ? ((totalMeters - expectedMeters) / expectedMeters) * 100
+            : 0;
+        const overallWithinTolerance = Math.abs(overallPct) <= VARIANCE_TOLERANCE_PCT;
+        const hasOutOfTolerance = !overallWithinTolerance ||
+            Object.values(grouped).some(g => !g.withinTolerance);
+
+        return {
+            grouped,
+            totalMeters,
+            expectedMeters,
+            diff,
+            rollCount: liveReceiptItems.length,
+            overallPct: Math.round(overallPct * 10) / 10,
+            overallWithinTolerance,
+            hasOutOfTolerance,
+        };
+    }, [selectedDocument, liveReceiptItems, VARIANCE_TOLERANCE_PCT]);
+
+    // ─── Handle Save (legacy — called by UnifiedAccountingSheet) ─
     const handleSave = useCallback(async (data: any) => {
         if (!session) {
             toast.error(language === 'ar' ? 'لا توجد جلسة نشطة' : 'No active session');
@@ -418,13 +602,8 @@ export function MaterialReceiptDialog({
             return;
         }
 
-        // Determine source document type
-        let sourceDocType: 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' = 'purchase_invoice';
-        if (selectedDocument) {
-            if (selectedDocument.type === 'purchase_order') sourceDocType = 'purchase_order';
-            else if (selectedDocument.type === 'purchase_invoice_local') sourceDocType = 'purchase_invoice_local';
-            else sourceDocType = 'purchase_invoice';
-        }
+        // Determine source document type — use resolveSourceDocumentType for reliability
+        const sourceDocType = resolveSourceDocumentType() as 'purchase_order' | 'purchase_invoice' | 'purchase_invoice_local' | 'container';
 
         toast.loading(language === 'ar' ? 'جاري حفظ الاستلام...' : 'Saving receipt...');
 
@@ -462,6 +641,11 @@ export function MaterialReceiptDialog({
             sourceItems: selectedDocument?.items || [],
             notes: `Receipt via MaterialReceiptDialog`,
             createdBy: undefined, // Will be set by RLS
+            // 🔑 Variance tracking: saved in purchase_receipts for accountant review
+            varianceStatus: receiptSummary?.hasOutOfTolerance ? 'requires_review' : 'ok',
+            varianceAmount: receiptSummary?.diff ?? 0,
+            variancePct: receiptSummary?.overallPct ?? 0,
+            varianceTolerancePct: VARIANCE_TOLERANCE_PCT,
         });
 
         toast.dismiss();
@@ -470,9 +654,15 @@ export function MaterialReceiptDialog({
             // Complete local session
             receiptLocalStore.completeSession(session.sessionId);
 
+            const hasVariance = receiptSummary?.hasOutOfTolerance;
+            const varianceNote = hasVariance
+                ? (language === 'ar'
+                    ? `\n⚠️ فارق ${Math.abs(receiptSummary!.diff)}م (${Math.abs(receiptSummary!.overallPct)}%) — مُعلَّم للمراجعة`
+                    : `\n⚠️ Variance ${Math.abs(receiptSummary!.diff)}m (${Math.abs(receiptSummary!.overallPct)}%) — flagged for review`)
+                : '';
             const msg = language === 'ar'
-                ? `✅ تم الاستلام بنجاح\n📋 رقم الاستلام: ${result.receiptNumber}\n📦 البنود: ${result.details.receiptItemsCreated}\n🎲 الرولونات: ${result.details.fabricRollsSynced}\n${result.details.sourceUpdated ? '✅ تم تحديث حالة المستند' : '⚠️ لم يتم تحديث حالة المستند'}\n${result.details.journalEntryId ? '✅ تم إنشاء القيد المحاسبي' : '⚠️ لم يتم إنشاء القيد'}`
-                : `✅ Receipt completed\n📋 Receipt #: ${result.receiptNumber}\n📦 Items: ${result.details.receiptItemsCreated}\n🎲 Rolls: ${result.details.fabricRollsSynced}\n${result.details.sourceUpdated ? '✅ Source updated' : '⚠️ Source not updated'}\n${result.details.journalEntryId ? '✅ Journal entry created' : '⚠️ No journal entry'}`;
+                ? `✅ تم الاستلام بنجاح\n📋 رقم الاستلام: ${result.receiptNumber}\n📦 البنود: ${result.details.receiptItemsCreated}\n🎠 الرولونات: ${result.details.fabricRollsSynced}${varianceNote}`
+                : `✅ Receipt completed\n📋 Receipt #: ${result.receiptNumber}\n📦 Items: ${result.details.receiptItemsCreated}\n🎠 Rolls: ${result.details.fabricRollsSynced}${varianceNote}`;
 
             toast.success(msg, { duration: 6000 });
             onComplete?.();
@@ -487,33 +677,71 @@ export function MaterialReceiptDialog({
                 { duration: 8000 }
             );
         }
-    }, [session, selectedDocument, selectedReference, selectedWarehouseId, tenantId, companyId, language, onComplete]);
+    }, [session, selectedDocument, selectedReference, selectedWarehouseId, tenantId, companyId, language, onComplete, resolveSourceDocumentType, receiptSummary, VARIANCE_TOLERANCE_PCT]);
+    // 🔑 Wire the ref so handleCompleteReceipt can call handleSave without circular deps
+    handleSaveRef.current = handleSave;
 
     // ─── Handle Close (saves draft if items exist) ───────────
     const handleClose = async () => {
+        if (isDeletingRef.current) {
+            setOpen(false);
+            setSession(null);
+            setEntryLocked(false);
+            setLiveReceiptItems([]);
+            setDraftReceiptId(null);
+            return;
+        }
+
         // 🔑 Save draft to DB before closing if there are items
         if (liveReceiptItems.length > 0 && selectedReference && companyId && tenantId) {
+            // Determine sourceDocumentType — use resolveSourceDocumentType for reliability
+            const sourceDocumentType = resolveSourceDocumentType();
+
+            console.log('💾 [handleClose] Saving draft...', {
+                draftReceiptId,
+                selectedReference,
+                sourceDocumentType,
+                itemsCount: liveReceiptItems.length,
+                activeReceiptType,
+            });
+
             try {
+                let success = false;
                 if (draftReceiptId) {
-                    await warehouseService.updateDraftReceipt(draftReceiptId, liveReceiptItems);
+                    success = await warehouseService.updateDraftReceipt(draftReceiptId, liveReceiptItems);
+                    if (success) console.log('💾 [handleClose] Draft updated:', draftReceiptId);
                 } else {
-                    await warehouseService.createDraftReceipt({
+                    const result = await warehouseService.createDraftReceipt({
                         tenantId,
                         companyId,
                         warehouseId: selectedWarehouseId,
                         sourceDocumentId: selectedReference,
-                        sourceDocumentType: selectedDocument?.type === 'purchase_order'
-                            ? 'purchase_order' : 'purchase_invoice',
+                        sourceDocumentType,
                         supplierId: selectedDocument?.supplier_id,
                         items: liveReceiptItems,
                     });
+                    if (result) {
+                        success = true;
+                        console.log('💾 [handleClose] Draft created:', result);
+                        setDraftReceiptId(result.id);
+                    }
                 }
-                toast.info(
-                    language === 'ar'
-                        ? '💾 تم حفظ المسودة — يمكنك المتابعة لاحقاً'
-                        : '💾 Draft saved — you can continue later',
-                    { duration: 3000 }
-                );
+
+                if (success) {
+                    toast.info(
+                        language === 'ar'
+                            ? '💾 تم حفظ المسودة — يمكنك المتابعة لاحقاً'
+                            : '💾 Draft saved — you can continue later',
+                        { duration: 4000 }
+                    );
+                } else {
+                    toast.error(
+                        language === 'ar'
+                            ? '❌ فشل في حفظ المسودة'
+                            : '❌ Failed to save draft',
+                        { duration: 4000 }
+                    );
+                }
             } catch (err) {
                 console.error('Failed to save draft on close:', err);
             }
@@ -526,6 +754,36 @@ export function MaterialReceiptDialog({
         setDraftReceiptId(null);
     };
 
+    // ─── Handle Delete (حذف المسودة) ──────────────────────────
+    const handleDelete = useCallback(async () => {
+        if (!draftReceiptId) {
+            toast.info(
+                language === 'ar' ? 'لا توجد مسودة لحذفها' : 'No draft to delete'
+            );
+            return;
+        }
+
+        isDeletingRef.current = true;
+        // Note: useSheetActionHandler already shows window.confirm before calling onDelete
+        const success = await warehouseService.deleteDraftReceipt(draftReceiptId);
+        if (success) {
+            toast.success(
+                language === 'ar' ? '🗑️ تم حذف المسودة بنجاح' : '🗑️ Draft deleted successfully'
+            );
+            setLiveReceiptItems([]);
+            setDraftReceiptId(null);
+            setEntryLocked(false);
+            setOpen(false);
+            setSession(null);
+            onComplete?.();
+        } else {
+            toast.error(
+                language === 'ar' ? '❌ فشل حذف المسودة' : '❌ Failed to delete draft'
+            );
+        }
+        setTimeout(() => { isDeletingRef.current = false; }, 1000);
+    }, [draftReceiptId, language, onComplete]);
+
     // ─── Reference Placeholder Text ──────────────────────────
     const getReferencePlaceholder = () => {
         const map: Record<ReceiptType, { ar: string; en: string }> = {
@@ -534,6 +792,7 @@ export function MaterialReceiptDialog({
             transfer: { ar: 'اختر فاتورة المناقلة', en: 'Select transfer' },
             return: { ar: 'اختر فاتورة المرتجع', en: 'Select return' },
             stock_count: { ar: 'اختر الجرد المجدول', en: 'Select scheduled count' },
+            sales_delivery: { ar: 'اختر فاتورة المبيعات', en: 'Select sales invoice' },
         };
         const entry = map[activeReceiptType];
         return language === 'ar' ? entry.ar : entry.en;
@@ -547,6 +806,7 @@ export function MaterialReceiptDialog({
             transfer: { ar: 'رقم المناقلة:', en: 'Transfer #:' },
             return: { ar: 'رقم المرتجع:', en: 'Return #:' },
             stock_count: { ar: 'رقم الجرد:', en: 'Count #:' },
+            sales_delivery: { ar: 'رقم فاتورة المبيعات:', en: 'Sales Invoice #:' },
         };
         const entry = map[activeReceiptType];
         return language === 'ar' ? entry.ar : entry.en;
@@ -555,11 +815,39 @@ export function MaterialReceiptDialog({
     // ─── Receipt Progress ─────────────────────────────────────
     const receiptProgress = useMemo(() => {
         if (!selectedDocument) return { percent: 0, received: 0, total: 0, pending: 0 };
-        const totalItems = selectedDocument.items.length;
-        const receivedItems = (session?.items || []).length;
-        const percent = totalItems > 0 ? Math.min(100, (receivedItems / totalItems) * 100) : 0;
-        return { percent, received: receivedItems, total: totalItems, pending: totalItems - receivedItems };
-    }, [selectedDocument, session]);
+        // 🔑 FIX: Measure progress by METERS (not by item count vs roll count)
+        // Expected = sum of source item quantities (meters)
+        // Received = sum of received roll lengths (meters from liveReceiptItems)
+        const expectedMeters = (selectedDocument.items as any[]).reduce(
+            (s: number, si: any) => s + (Number(si.quantity) || 0), 0
+        );
+        const receivedMeters = liveReceiptItems.reduce(
+            (s, i) => s + (i.rollLength || 0), 0
+        );
+        const EPSILON = 0.001;
+        const effectiveReceived = Math.round(receivedMeters * 1000) / 1000;
+        const effectiveExpected = Math.round(expectedMeters * 1000) / 1000;
+        const percent = effectiveExpected > 0
+            ? Math.min(100, (effectiveReceived / effectiveExpected) * 100)
+            : 0;
+        // Count how many source items are ≥99% received
+        const receivedItems = (selectedDocument.items as any[]).filter((si: any) => {
+            const siMeters = Number(si.quantity) || 0;
+            const rollsForItem = liveReceiptItems.filter(r =>
+                r.sourceItemId === si.id ||
+                r.materialId === (si.material_id || si.product_id)
+            );
+            const receivedForItem = rollsForItem.reduce((s, r) => s + (r.rollLength || 0), 0);
+            return siMeters > 0 && receivedForItem >= siMeters * 0.99;
+        }).length;
+        return {
+            percent: Math.round(percent * 10) / 10,
+            received: receivedItems,
+            total: selectedDocument.items.length,
+            pending: selectedDocument.items.length - receivedItems,
+        };
+    }, [selectedDocument, liveReceiptItems]);
+
 
     // ─── Header Extra — below toolbar ────────────────────────
     const HeaderExtra = (
@@ -570,7 +858,10 @@ export function MaterialReceiptDialog({
                     {/* Receipt Type */}
                     <Select
                         value={activeReceiptType}
-                        onValueChange={(v) => setActiveReceiptType(v as ReceiptType)}
+                        onValueChange={(v) => {
+                            setActiveReceiptType(v as ReceiptType);
+                            setSelectedReference(''); // Only clear reference on manual user change
+                        }}
                         disabled={hasStartedEntry}
                     >
                         <SelectTrigger className={`h-9 w-[170px] gap-2 text-sm font-semibold ${currentTypeDef.color} bg-white dark:bg-slate-800 shadow-sm ${hasStartedEntry ? 'opacity-70 cursor-not-allowed' : ''}`}>
@@ -683,6 +974,25 @@ export function MaterialReceiptDialog({
                         {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                         {isOnline ? (isRTL ? 'متصل' : 'Online') : (isRTL ? 'غير متصل' : 'Offline')}
                     </div>
+
+                    {/* 🔑 RECEIVE BUTTON — primary action */}
+                    {liveReceiptItems.length > 0 && selectedReference && (
+                        <Button
+                            size="sm"
+                            onClick={() => setShowReceiptConfirm(true)}
+                            disabled={isCompleting}
+                            className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-lg shadow-emerald-500/30 shrink-0 px-4"
+                        >
+                            {isCompleting
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <PackageCheck className="h-4 w-4" />
+                            }
+                            {isRTL ? 'استلام' : 'Receive'}
+                            <span className="bg-emerald-800/30 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                                {liveReceiptItems.length}
+                            </span>
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -793,10 +1103,238 @@ export function MaterialReceiptDialog({
                 mode="create"
                 data={enhancedData}
                 onSave={handleSave}
+                onDelete={handleDelete}
                 headerExtra={HeaderExtra}
                 onRefresh={onComplete}
                 defaultTab="goods_receipt_items"
             />
+
+            {/* ─── Receipt Confirmation Dialog ─── */}
+            <Dialog open={showReceiptConfirm} onOpenChange={setShowReceiptConfirm}>
+                <DialogContent className="max-w-lg" dir={isRTL ? 'rtl' : 'ltr'}>
+                    <DialogHeader>
+                        <DialogTitle className={`flex items-center gap-2 ${receiptSummary?.hasOutOfTolerance ? 'text-amber-700' : 'text-emerald-700'}`}>
+                            {receiptSummary?.hasOutOfTolerance
+                                ? <AlertTriangle className="h-5 w-5" />
+                                : <PackageCheck className="h-5 w-5" />
+                            }
+                            {isRTL ? 'تأكيد الاستلام' : 'Confirm Receipt'}
+                            {receiptSummary?.hasOutOfTolerance && (
+                                <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-normal ms-1">
+                                    {isRTL ? 'يحتاج مراجعة' : 'Needs Review'}
+                                </span>
+                            )}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {isRTL
+                                ? 'راجع الكميات بدقة قبل تأكيد الاستلام وترحيل المواد إلى المستودع'
+                                : 'Review quantities carefully before confirming receipt and posting to warehouse'
+                            }
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {receiptSummary && (
+                        <div className="space-y-3">
+                            {/* Source Info */}
+                            <div className="flex items-center gap-2 text-sm font-medium bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
+                                <FileText className="h-4 w-4 text-blue-500" />
+                                <span className="text-blue-700 dark:text-blue-300">
+                                    {selectedDocument?.document_number} — {selectedDocument?.supplier_name}
+                                </span>
+                            </div>
+
+                            {/* Items Summary Table */}
+                            <div className="border rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 dark:bg-gray-800">
+                                        <tr>
+                                            <th className={`px-3 py-2 text-xs font-medium text-gray-500 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                                {isRTL ? 'المادة / اللون' : 'Material / Color'}
+                                            </th>
+                                            <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">
+                                                {isRTL ? 'رولونات' : 'Rolls'}
+                                            </th>
+                                            <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">
+                                                {isRTL ? 'مستلم (م)' : 'Recv (m)'}
+                                            </th>
+                                            <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">
+                                                {isRTL ? 'مطلوب (م)' : 'Exp (m)'}
+                                            </th>
+                                            <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">
+                                                {isRTL ? 'الفارق%' : 'Var%'}
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {Object.entries(receiptSummary.grouped).map(([key, g]) => {
+                                            const diff = Math.round((g.totalLength - g.sourceMeter) * 100) / 100;
+                                            const pctLabel = Math.abs(g.diffPct) > 0.05
+                                                ? `${g.diffPct > 0 ? '+' : ''}${g.diffPct.toFixed(1)}%`
+                                                : '—';
+                                            const isExact = Math.abs(diff) < 0.01;
+                                            return (
+                                                <tr key={key} className={`transition-colors ${!g.withinTolerance
+                                                    ? 'bg-amber-50/50 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
+                                                    {/* Material + Colors list */}
+                                                    <td className={`px-3 py-2.5 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                                        <div className="font-medium text-xs leading-tight">{g.name}</div>
+                                                        {g.colors.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {g.colors.map(c => (
+                                                                    <span key={c} className="inline-flex items-center gap-0.5 text-[9px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
+                                                                        {c}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    {/* Rolls */}
+                                                    <td className="px-3 py-2.5 text-center">
+                                                        <span className="inline-flex items-center justify-center text-xs font-bold text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300 rounded-full w-7 h-7 font-mono">
+                                                            {g.rolls}
+                                                        </span>
+                                                    </td>
+                                                    {/* Received */}
+                                                    <td className="px-3 py-2.5 text-center text-xs font-mono font-bold">
+                                                        {g.totalLength.toLocaleString()}
+                                                    </td>
+                                                    {/* Expected */}
+                                                    <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-500">
+                                                        {g.sourceMeter > 0 ? g.sourceMeter.toLocaleString() : '—'}
+                                                    </td>
+                                                    {/* Variance */}
+                                                    <td className="px-3 py-2.5 text-center">
+                                                        {g.withinTolerance ? (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium">
+                                                                ✓ {isExact ? (isRTL ? 'مطابق' : 'Exact') : pctLabel}
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${diff > 0
+                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                                                ⚠ {pctLabel}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot className="bg-gray-50 dark:bg-gray-800 border-t-2">
+                                        <tr>
+                                            <td className={`px-3 py-2 text-xs font-bold ${isRTL ? 'text-right' : 'text-left'}`}>
+                                                {isRTL ? 'الإجمالي' : 'Total'}
+                                            </td>
+                                            <td className="px-3 py-2 text-center text-xs font-bold text-blue-600">
+                                                {receiptSummary.rollCount}
+                                            </td>
+                                            <td className="px-3 py-2 text-center text-xs font-bold font-mono">
+                                                {receiptSummary.totalMeters.toLocaleString()}
+                                            </td>
+                                            <td className="px-3 py-2 text-center text-xs font-mono text-gray-500">
+                                                {receiptSummary.expectedMeters.toLocaleString()}
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                                {receiptSummary.overallWithinTolerance ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-green-600 mx-auto" />
+                                                ) : (
+                                                    <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />
+                                                )}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            {/* ── Variance Status Banner ─────────────────── */}
+                            {receiptSummary.hasOutOfTolerance ? (
+                                /* OUT-OF-TOLERANCE: warn clearly but don't block */
+                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-900/20 dark:border-amber-700">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <div className="space-y-1 min-w-0">
+                                        <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                                            {receiptSummary.diff > 0
+                                                ? (isRTL
+                                                    ? `زيادة ${Math.abs(receiptSummary.diff)}م (${Math.abs(receiptSummary.overallPct)}%) — تجاوز حد التسامح ${VARIANCE_TOLERANCE_PCT}%`
+                                                    : `Excess +${Math.abs(receiptSummary.diff)}m (${Math.abs(receiptSummary.overallPct)}%) — exceeds ${VARIANCE_TOLERANCE_PCT}% tolerance`)
+                                                : (isRTL
+                                                    ? `نقص ${Math.abs(receiptSummary.diff)}م (${Math.abs(receiptSummary.overallPct)}%) — تجاوز حد التسامح ${VARIANCE_TOLERANCE_PCT}%`
+                                                    : `Shortage ${Math.abs(receiptSummary.diff)}m (${Math.abs(receiptSummary.overallPct)}%) — exceeds ${VARIANCE_TOLERANCE_PCT}% tolerance`)
+                                            }
+                                        </p>
+                                        <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed">
+                                            {isRTL
+                                                ? `سيتم الاستلام والترحيل. سيُعلَّم الفارق للمراجعة من قِبل المحاسب أو المدير في سجل الحركات.`
+                                                : `Receipt will be posted. Variance will be flagged for accountant/manager review in inventory movements.`
+                                            }
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : receiptSummary.diff !== 0 ? (
+                                /* WITHIN-TOLERANCE: just info, no concern */
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                                        {isRTL
+                                            ? `فارق ${Math.abs(receiptSummary.overallPct)}% — ضمن حد التسامح المسموح (${VARIANCE_TOLERANCE_PCT}%) ✓`
+                                            : `${Math.abs(receiptSummary.overallPct)}% variance — within ${VARIANCE_TOLERANCE_PCT}% tolerance ✓`
+                                        }
+                                    </p>
+                                </div>
+                            ) : (
+                                /* PERFECT MATCH */
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                                        {isRTL ? '✓ الكميات مطابقة تماماً — جاهز للاستلام' : '✓ Quantities match exactly — ready to receive'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Warehouse destination */}
+                            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                                <Warehouse className="h-4 w-4 text-gray-400" />
+                                <span className="text-xs">{isRTL ? 'الوجهة:' : 'Destination:'}</span>
+                                <span className="text-xs font-semibold">
+                                    {warehouses.find(w => w.id === selectedWarehouseId)
+                                        ? (isRTL
+                                            ? (warehouses.find(w => w.id === selectedWarehouseId)?.name_ar || '')
+                                            : (warehouses.find(w => w.id === selectedWarehouseId)?.name_en || ''))
+                                        : selectedWarehouseId
+                                    }
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowReceiptConfirm(false)}
+                            disabled={isCompleting}
+                        >
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </Button>
+                        <Button
+                            onClick={async () => {
+                                setIsCompleting(true);
+                                setShowReceiptConfirm(false);
+                                await handleCompleteReceipt();
+                                setIsCompleting(false);
+                            }}
+                            disabled={isCompleting || liveReceiptItems.length === 0}
+                            className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold"
+                        >
+                            {isCompleting
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <PackageCheck className="h-4 w-4" />
+                            }
+                            {isRTL ? 'تأكيد الاستلام' : 'Confirm Receipt'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

@@ -44,12 +44,14 @@ import {
     ShieldCheck,
     Lock,
     PackageCheck,
+    LockKeyhole,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SheetMode, ActionConfig } from '../types';
 import { NavigationArrows } from './NavigationArrows';
 import { QRPopover } from './QRPopover';
 import { useTradePermissions } from '@/hooks/useTradePermissions';
+import { EnhancedPrintDialog } from '@/components/shared/print/EnhancedPrintDialog';
 
 // Document types that support posting (ترحيل)
 // Only documents with accounting/inventory impact should be postable
@@ -181,6 +183,13 @@ export function EnhancedActionToolbar({
     // Can post from confirmed / partially_received / received stages
     const canPostFromStage = isConfirmed || isPartiallyReceived || isFullyReceived;
 
+    // Container-specific flags
+    const isContainer = docType === 'trade_container';
+    const isContainerClosed = effectiveStatus === 'closed';
+    const canCloseContainer = isContainer && !isContainerClosed &&
+        (effectiveStatus === 'received' || effectiveStatus === 'fully_received' ||
+            effectiveStatus === 'completed');
+
     // RBAC permissions
     const { actions: perms } = useTradePermissions({
         tradeMode: tradeMode,
@@ -273,7 +282,8 @@ export function EnhancedActionToolbar({
             )}
 
             {/* ✅ Post Action — for confirmed / partially_received / received stages */}
-            {isViewMode && isPostable && canPostFromStage && !isPosted && (
+            {/* ⚠️ Hidden for sales invoices — posting is automatic after warehouse delivery */}
+            {isViewMode && isPostable && canPostFromStage && !isPosted && !(tradeMode === 'sales' && docType === 'trade_invoice') && (
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -300,27 +310,31 @@ export function EnhancedActionToolbar({
                 </TooltipProvider>
             )}
 
-            {/* ✅ Confirm & Send (for non-postable trade docs: orders, quotations) */}
-            {isViewMode && showConfirmAction && !isPostable && confirmationStatus !== 'confirmed' && (
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                size="sm"
-                                onClick={() => onAction('confirm')}
-                                disabled={disabled || loading}
-                                className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
-                            >
-                                <ShieldCheck className="w-4 h-4" />
-                                <span>{t('actions.confirm') || 'تأكيد وإرسال'}</span>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>{t('actions.confirmAndSend') || 'تأكيد المستند وإرساله للمستودع'}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            )}
+            {/* ✅ Confirm & Send (for non-postable trade docs: orders, quotations)
+                ❌ Hidden when: container is in_receiving / received / fully received
+                   — no point confirming after warehouse started receiving */}
+            {isViewMode && showConfirmAction && !isPostable && confirmationStatus !== 'confirmed'
+                && status !== 'in_receiving' && status !== 'received' && status !== 'closed' && !isFullyReceived && !isReceivedOrPartial
+                && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    size="sm"
+                                    onClick={() => onAction('confirm')}
+                                    disabled={disabled || loading}
+                                    className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                                >
+                                    <ShieldCheck className="w-4 h-4" />
+                                    <span>{t('actions.confirm') || 'تأكيد وإرسال'}</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{t('actions.confirmAndSend') || 'تأكيد المستند وإرساله للمستودع'}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
 
             {/* Already Confirmed Badge (for confirmed docs waiting for post) */}
             {isViewMode && isConfirmed && isPostable && !isReceivedOrPartial && (
@@ -335,6 +349,39 @@ export function EnhancedActionToolbar({
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                     <PackageCheck className="w-3.5 h-3.5" />
                     <span>{language === 'ar' ? 'مُستلم جزئياً' : 'Partially Received'}</span>
+                </div>
+            )}
+
+            {/* ═══ Container Close Button — for received containers ═══ */}
+            {isViewMode && canCloseContainer && (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                size="sm"
+                                onClick={() => onAction('close_container')}
+                                disabled={disabled || loading}
+                                className="gap-1.5 bg-gradient-to-r from-slate-600 to-gray-700 hover:from-slate-700 hover:to-gray-800 text-white font-semibold shadow-md shadow-slate-500/30"
+                            >
+                                <LockKeyhole className="w-4 h-4" />
+                                <span>{language === 'ar' ? 'إغلاق الحاوية' : 'Close Container'}</span>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{language === 'ar'
+                                ? 'إغلاق الحاوية نهائياً — تسكير دورة الحياة للمرجعية والتقارير'
+                                : 'Close container permanently — lock lifecycle for reference and reports'
+                            }</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )}
+
+            {/* Container Closed Badge */}
+            {isViewMode && isContainerClosed && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                    <LockKeyhole className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'مغلق — للمرجعية فقط' : 'Closed — Reference only'}</span>
                 </div>
             )}
 
@@ -361,37 +408,107 @@ export function EnhancedActionToolbar({
                 )
             }
 
-            {/* ✅ Save & Post / Save & Confirm — in edit/create mode */}
+            {/* ✅ Save & Confirm — ONLY for CREATE mode on draft invoices (workflow step 1) */}
+            {/* ✅ Save & Post — only for non-sales postable docs (purchases) */}
+            {/* ✅ Save Only — for EDIT mode on sales invoices (posting tied to warehouse) */}
             {
                 (isEditMode || isCreateMode) && isPostable && (() => {
-                    // Purchase invoices in draft: show "Save & Confirm" instead of "Save & Post"
-                    const isPurchaseInvoiceDraft = tradeMode === 'purchase' && docType === 'trade_invoice' && isDraft;
-                    const actionId = isPurchaseInvoiceDraft ? 'save_confirm' : 'save_post';
-                    const labelAr = isPurchaseInvoiceDraft ? 'حفظ وتأكيد' : 'حفظ وترحيل';
-                    const labelEn = isPurchaseInvoiceDraft ? 'Save & Confirm' : 'Save & Post';
-                    const tooltipAr = isPurchaseInvoiceDraft ? 'حفظ الفاتورة وتأكيدها — سيتم إشعار أمين المستودع' : 'حفظ المستند وترحيله فوراً';
-                    const tooltipEn = isPurchaseInvoiceDraft ? 'Save and confirm — warehouse keeper will be notified' : 'Save and post document immediately';
-                    const IconComp = isPurchaseInvoiceDraft ? ShieldCheck : CheckCircle;
-                    const gradientClass = isPurchaseInvoiceDraft
-                        ? 'gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20'
-                        : 'gap-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-sm';
+                    // Sales invoices in EDIT mode: just "Save" — posting is via warehouse
+                    const isSalesInvoice = tradeMode === 'sales' && docType === 'trade_invoice';
 
+                    if (isSalesInvoice && isEditMode) {
+                        // Edit mode for sales invoices: plain Save only
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onAction('save')}
+                                            disabled={disabled || loading}
+                                            className="gap-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-md shadow-blue-500/20"
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            <span>{language === 'ar' ? 'حفظ' : 'Save'}</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{language === 'ar' ? 'حفظ التعديلات — الترحيل يتم عبر التسليم من المستودع' : 'Save changes — posting happens via warehouse delivery'}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    }
+
+                    // Create mode for draft invoices: Save & Confirm
+                    const isInvoiceDraft = docType === 'trade_invoice' && isDraft;
+                    if (isInvoiceDraft && isCreateMode) {
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onAction('save_confirm')}
+                                            disabled={disabled || loading}
+                                            className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                                        >
+                                            <ShieldCheck className="w-4 h-4" />
+                                            <span>{language === 'ar' ? 'حفظ وتأكيد' : 'Save & Confirm'}</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{language === 'ar'
+                                            ? 'حفظ الفاتورة وتأكيدها — سيتم إشعار أمين المستودع لتجهيز الطلب'
+                                            : 'Save and confirm — warehouse keeper will be notified to prepare the order'
+                                        }</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    }
+
+                    // Non-sales postable docs (purchases): Save & Post
+                    if (!isSalesInvoice) {
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onAction('save_post')}
+                                            disabled={disabled || loading || !perms.canPost}
+                                            className="gap-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-sm"
+                                        >
+                                            <CheckCircle className="w-4 h-4" />
+                                            <span>{language === 'ar' ? 'حفظ وترحيل' : 'Save & Post'}</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{language === 'ar' ? 'حفظ المستند وترحيله فوراً' : 'Save and post document immediately'}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    }
+
+                    // Fallback for any other sales invoice state: plain Save
                     return (
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
                                         size="sm"
-                                        onClick={() => onAction(actionId)}
-                                        disabled={disabled || loading || (!isPurchaseInvoiceDraft && !perms.canPost)}
-                                        className={gradientClass}
+                                        onClick={() => onAction('save')}
+                                        disabled={disabled || loading}
+                                        className="gap-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-md shadow-blue-500/20"
                                     >
-                                        <IconComp className="w-4 h-4" />
-                                        <span>{language === 'ar' ? labelAr : labelEn}</span>
+                                        <Save className="w-4 h-4" />
+                                        <span>{language === 'ar' ? 'حفظ' : 'Save'}</span>
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>{language === 'ar' ? tooltipAr : tooltipEn}</p>
+                                    <p>{language === 'ar' ? 'حفظ المستند' : 'Save document'}</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -511,26 +628,8 @@ export function EnhancedActionToolbar({
                 </Tooltip>
             </TooltipProvider>
 
-            {/* Print */}
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onAction('print')}
-                            disabled={disabled || loading}
-                            className="gap-1.5 text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                            <Printer className="w-4 h-4" />
-                            <span className="hidden lg:inline">{t('common.print') || 'طباعة'}</span>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>{t('common.print') || 'طباعة'}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
+            {/* Print - Enhanced Dialog */}
+            <PrintDropdown docType={docType} docId={docId} disabled={disabled || loading} />
 
             {/* QR Popover */}
             <QRPopover
@@ -572,7 +671,7 @@ export function EnhancedActionToolbar({
                         </DropdownMenuItem>
                     )}
                     {/* Unconfirm Action — return confirmed doc to draft */}
-                    {isPostable && isConfirmed && !isReceivedOrPartial && tradeMode === 'purchase' && (
+                    {isPostable && isConfirmed && !isReceivedOrPartial && (
                         <DropdownMenuItem onClick={() => onAction('unconfirm')} className="gap-2 cursor-pointer text-amber-600">
                             <XCircle className="w-4 h-4" />
                             <span>{language === 'ar' ? 'إلغاء التأكيد' : 'Unconfirm'}</span>
@@ -799,3 +898,30 @@ export function QuickActionsBar({
 }
 
 export default ActionToolbar;
+
+// ─── Print Dropdown Wrapper ────────────────────────────────────
+// Maps internal document types to print template doc_types
+const DOC_TYPE_MAP: Record<string, string> = {
+    trade_invoice: 'sales_invoice',
+    trade_container: 'purchase_invoice',
+    trade_delivery: 'delivery_note',
+    trade_receipt: 'goods_receipt',
+    sales_delivery: 'delivery_note',
+    trade_return: 'sales_invoice',
+    trade_quotation: 'price_quote',
+    trade_order: 'sales_invoice',
+    journal: 'journal_entry',
+};
+
+function PrintDropdown({ docType, docId, disabled }: { docType: string; docId: string; disabled: boolean }) {
+    const printDocType = DOC_TYPE_MAP[docType] || docType;
+    return (
+        <EnhancedPrintDialog
+            docType={printDocType}
+            docId={docId}
+            variant="dropdown"
+            size="sm"
+            className={disabled ? 'opacity-50 pointer-events-none' : ''}
+        />
+    );
+}

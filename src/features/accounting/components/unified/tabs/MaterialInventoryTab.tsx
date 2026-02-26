@@ -85,6 +85,11 @@ interface RollDetail {
     reserved_length: number;
     available_length: number;
     status: string;
+    // ─ Color ─
+    color_id?: string;
+    color_name_ar?: string;
+    color_name_en?: string;
+    color_hex?: string;
     supplier_name?: string;
     received_date?: string;
     created_at: string;
@@ -128,6 +133,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
     const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<StockStatus>('all');
     const [showEmpty, setShowEmpty] = useState(false);
+    const [selectedColor, setSelectedColor] = useState<string>('all'); // ─ internal color filter
 
     // Expandable rows
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -227,6 +233,25 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
 
         return result;
     }, [inventoryData, allWarehouses, showEmpty, selectedWarehouse, statusFilter, getStockStatus]);
+
+    // ═══════════ Color options from this material's rolls ═══════════
+    // Collects unique colors from all cached rolls across all warehouses
+    const availableColors = useMemo(() => {
+        const colorMap = new Map<string, { id: string; name_ar?: string; name_en?: string; hex?: string }>();
+        for (const rolls of Object.values(rollsCache)) {
+            for (const roll of rolls) {
+                if (roll.color_id && !colorMap.has(roll.color_id)) {
+                    colorMap.set(roll.color_id, {
+                        id: roll.color_id,
+                        name_ar: roll.color_name_ar,
+                        name_en: roll.color_name_en,
+                        hex: roll.color_hex,
+                    });
+                }
+            }
+        }
+        return [...colorMap.values()];
+    }, [rollsCache]);
 
     // ═══════════ Totals ═══════════
     const totals = useMemo(() => inventoryData.reduce(
@@ -464,6 +489,31 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                 </SelectContent>
                             </Select>
 
+                            {/* Color Filter — colors from THIS material's rolls */}
+                            {availableColors.length > 0 && (
+                                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                                        <SelectValue placeholder={t('كل الألوان', 'All Colors')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">{t('🎨 كل الألوان', '🎨 All Colors')}</SelectItem>
+                                        {availableColors.map(c => (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                <span className="flex items-center gap-2">
+                                                    {c.hex && (
+                                                        <span
+                                                            className="w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"
+                                                            style={{ backgroundColor: c.hex }}
+                                                        />
+                                                    )}
+                                                    {isRTL ? c.name_ar : (c.name_en || c.name_ar)}
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+
                             {/* Show Empty Warehouses Toggle */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -485,7 +535,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                             </Tooltip>
 
                             {/* Reset Filters */}
-                            {(selectedWarehouse !== 'all' || statusFilter !== 'all' || showEmpty) && (
+                            {(selectedWarehouse !== 'all' || statusFilter !== 'all' || showEmpty || selectedColor !== 'all') && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -494,6 +544,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                         setSelectedWarehouse('all');
                                         setStatusFilter('all');
                                         setShowEmpty(false);
+                                        setSelectedColor('all');
                                     }}
                                 >
                                     {t('إعادة تعيين', 'Reset')}
@@ -559,6 +610,10 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                     const isExpanded = expandedRows.has(record.warehouse_id);
                                     const isRollsLoading = rollsLoading.has(record.warehouse_id);
                                     const rolls = rollsCache[record.warehouse_id] || [];
+                                    // ─── Apply internal color filter ───
+                                    const filteredRolls = selectedColor === 'all'
+                                        ? rolls
+                                        : rolls.filter(r => r.color_id === selectedColor);
                                     const isEmpty = record.roll_count === 0;
                                     const isInCart = cartActions.isInCart(data?.id, record.warehouse_id);
 
@@ -757,7 +812,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                         </div>
 
                                                                         {/* Roll Rows */}
-                                                                        {rolls.map((roll) => {
+                                                                        {filteredRolls.map((roll) => {
                                                                             const rStatus = getRollStatusLabel(roll.status);
                                                                             const usagePercent = roll.initial_length > 0
                                                                                 ? Math.round((1 - roll.current_length / roll.initial_length) * 100)
@@ -805,7 +860,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                                         </Tooltip>
                                                                                     </div>
 
-                                                                                    {/* Roll Number */}
+                                                                                    {/* Roll Number + Color */}
                                                                                     <div className="px-3 py-2 flex items-center gap-1.5">
                                                                                         <Scroll className="w-3 h-3 text-indigo-400 flex-shrink-0" />
                                                                                         <span className={cn(
@@ -818,6 +873,19 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                                             <Badge className="text-[9px] h-4 px-1 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40">
                                                                                                 {t('مفضل', '★')}
                                                                                             </Badge>
+                                                                                        )}
+                                                                                        {/* ─── Color badge ─── */}
+                                                                                        {roll.color_hex && (
+                                                                                            <div className="flex items-center gap-1 ms-1">
+                                                                                                <div
+                                                                                                    className="w-3 h-3 rounded-full border border-white dark:border-gray-700 shadow-sm flex-shrink-0"
+                                                                                                    style={{ backgroundColor: roll.color_hex }}
+                                                                                                    title={isRTL ? roll.color_name_ar : (roll.color_name_en || roll.color_name_ar)}
+                                                                                                />
+                                                                                                <span className="text-[10px] text-gray-400 truncate max-w-[60px]">
+                                                                                                    {isRTL ? roll.color_name_ar : (roll.color_name_en || roll.color_name_ar)}
+                                                                                                </span>
+                                                                                            </div>
                                                                                         )}
                                                                                     </div>
 

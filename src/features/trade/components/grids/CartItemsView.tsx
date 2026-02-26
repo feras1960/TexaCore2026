@@ -43,10 +43,13 @@ import {
     Tag,
     DollarSign,
     ArrowLeftRight,
+    ChevronDown,
+    ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PriceHistoryPopover } from '@/features/trade/components/PriceHistoryPopover';
+import { useNumberFormat } from '@/hooks/useNumberFormat';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -56,6 +59,10 @@ export interface InvoiceLineItem {
     material_code: string;
     material_name_ar: string;
     material_name_en?: string;
+    /** variant support — links to product_variants.id */
+    variant_id?: string;
+    variant_name_ar?: string;
+    variant_name_en?: string;
     quantity: number;
     unit: string;
     unit_price: number;
@@ -93,6 +100,8 @@ export interface CartItemsViewProps {
     showTax?: boolean;
     /** Customer ID for price history lookup */
     customerId?: string;
+    /** International purchase — tax is 0 on invoice, paid later via container */
+    isInternational?: boolean;
     /** Optional price resolver from customer pricing — applies smart pricing when qty changes */
     priceResolver?: (materialId: string, qty: number, baseSellPrice: number) => {
         unitPrice: number;
@@ -129,6 +138,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
     showDiscount = true,
     showTax = false,
     customerId,
+    isInternational = false,
     priceResolver,
 }) => {
     const { language, direction } = useLanguage();
@@ -137,6 +147,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
 
     const t = (ar: string, en: string) => isAr ? ar : en;
     const getName = (nameAr: string, nameEn?: string) => isAr ? nameAr : (nameEn || nameAr);
+    const { fmtAmount, fmtQty } = useNumberFormat();
 
     // ─── Editing State ───
     const [editingQty, setEditingQty] = useState<string | null>(null);
@@ -145,6 +156,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
     const [editingNotes, setEditingNotes] = useState<string | null>(null);
     const [editingCurrency, setEditingCurrency] = useState<string | null>(null);
     const [tempValue, setTempValue] = useState('');
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [tempCurrency, setTempCurrency] = useState('');
     const [tempExchangeRate, setTempExchangeRate] = useState('1');
 
@@ -207,18 +219,21 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
             }
 
             // Recalculate — use item's stored tax_rate (from material or company fallback)
+            // 🌍 International: force tax to 0
+            const effectiveTaxRate = isInternational ? 0 : (updated.tax_rate || 0);
             const discountAmount = (updated.discount_percent || 0) / 100 * updated.quantity * updated.unit_price;
             updated.discount_amount = discountAmount;
             updated.subtotal = updated.quantity * updated.unit_price;
             const netAfterDiscount = updated.subtotal - discountAmount;
-            updated.tax_amount = (updated.tax_rate && updated.tax_rate > 0 && netAfterDiscount > 0)
-                ? Math.round(netAfterDiscount * (updated.tax_rate / 100) * 100) / 100
+            updated.tax_rate = effectiveTaxRate;
+            updated.tax_amount = (effectiveTaxRate > 0 && netAfterDiscount > 0)
+                ? Math.round(netAfterDiscount * (effectiveTaxRate / 100) * 100) / 100
                 : 0;
             updated.total = netAfterDiscount + updated.tax_amount;
             return updated;
         });
         onItemsChange(newItems);
-    }, [items, onItemsChange, priceResolver]);
+    }, [items, onItemsChange, priceResolver, isInternational]);
 
     const removeItem = useCallback((id: string) => {
         onItemsChange(items.filter(i => i.id !== id));
@@ -309,21 +324,21 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                     />
                     <SummaryMiniCard
                         label={t('إجمالي الكمية', 'Total Qty')}
-                        value={grandTotals.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        value={fmtQty(grandTotals.quantity)}
                         icon={<Ruler className="w-4 h-4" />}
                         color="blue"
                     />
                     {showDiscount && grandTotals.discount > 0 && (
                         <SummaryMiniCard
                             label={t('الخصم', 'Discount')}
-                            value={`-${grandTotals.discount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                            value={`-${fmtAmount(grandTotals.discount)}`}
                             icon={<Tag className="w-4 h-4" />}
                             color="orange"
                         />
                     )}
                     <SummaryMiniCard
                         label={grandTotals.tax > 0 ? t('الإجمالي شامل الضريبة', 'Total incl. Tax') : t('الإجمالي', 'Total')}
-                        value={`${grandTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${currency}`}
+                        value={`${fmtAmount(grandTotals.total)} ${currency}`}
                         icon={<Check className="w-4 h-4" />}
                         color="green"
                     />
@@ -353,17 +368,18 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                 <span className="text-[11px] text-gray-500 font-mono">{group.materialCode}</span>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <Badge variant="outline" className="text-xs font-mono gap-1 bg-white dark:bg-gray-800">
                                                 <WarehouseIcon className="w-3 h-3" />
                                                 {group.items.length} {t('مستودع', 'wh')}
                                             </Badge>
                                             <Badge variant="outline" className="text-xs font-mono gap-1 bg-white dark:bg-gray-800">
                                                 <Ruler className="w-3 h-3" />
-                                                {group.groupQty.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                                {fmtQty(group.groupQty)}
                                             </Badge>
+
                                             <Badge className="text-xs font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                                {group.groupTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} {currency}
+                                                {fmtAmount(group.groupTotal)} {currency}
                                             </Badge>
                                         </div>
                                     </div>
@@ -419,7 +435,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                     <div className="px-2 py-3 flex items-center justify-center">
                                                         {readOnly ? (
                                                             <span className="text-sm font-mono font-bold">
-                                                                {item.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                                                {fmtQty(item.quantity)}
                                                                 <span className="text-[10px] text-gray-400 ms-1">{item.unit}</span>
                                                             </span>
                                                         ) : isQtyEdit ? (
@@ -453,7 +469,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                                             onClick={() => startEdit(item.id, 'qty', String(item.quantity))}
                                                                             className="text-sm font-mono font-bold min-w-[50px] text-center hover:text-emerald-600 hover:underline transition-colors cursor-text"
                                                                         >
-                                                                            {item.quantity.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                                                            {fmtQty(item.quantity)}
                                                                         </button>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent side="top" className="text-xs">
@@ -476,7 +492,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                     {/* Unit Price */}
                                                     <div className="px-2 py-3 text-center">
                                                         {readOnly ? (
-                                                            <span className="text-sm font-mono">{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                            <span className="text-sm font-mono">{fmtAmount(item.unit_price)}</span>
                                                         ) : isPriceEdit ? (
                                                             <div className="flex items-center gap-0.5">
                                                                 <Input
@@ -502,7 +518,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                                         onClick={() => startEdit(item.id, 'price', String(item.unit_price))}
                                                                         className="text-sm font-mono hover:text-emerald-600 hover:underline transition-colors cursor-text"
                                                                     >
-                                                                        {item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                                        {fmtAmount(item.unit_price)}
                                                                     </button>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent side="top" className="text-xs">
@@ -576,7 +592,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                     {/* Total (net after discount, before tax) */}
                                                     <div className="px-2 py-3 text-end">
                                                         <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                                                            {((item.subtotal || 0) - (item.discount_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                            {fmtAmount((item.subtotal || 0) - (item.discount_amount || 0))}
                                                         </span>
                                                     </div>
 
@@ -601,6 +617,8 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                         )}
                                                     </div>
                                                 </div>
+
+
 
                                                 {/* ── Preferred Rolls ── */}
                                                 {preferredCount > 0 && (
@@ -734,7 +752,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-gray-500">{t('المجموع الفرعي', 'Subtotal')}</span>
                                 <span className="font-mono font-semibold">
-                                    {grandTotals.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    {fmtAmount(grandTotals.subtotal)}
                                     <span className="text-xs text-gray-400 ms-1">{currency}</span>
                                 </span>
                             </div>
@@ -744,20 +762,29 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-amber-600">{t('إجمالي الخصم', 'Total Discount')}</span>
                                     <span className="font-mono font-semibold text-amber-600">
-                                        -{grandTotals.discount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                        -{fmtAmount(grandTotals.discount)}
                                     </span>
                                 </div>
                             )}
 
-                            {/* Tax line — show rate % */}
-                            {showTax && grandTotals.tax > 0 && (
+                            {/* Tax line — show rate % OR international notice */}
+                            {showTax && isInternational ? (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-amber-600 flex items-center gap-1.5">
+                                        🌍 {t('الضريبة عبر الكونتينر', 'Tax via Container')}
+                                    </span>
+                                    <span className="font-mono text-xs text-amber-500">
+                                        {t('تُدفع لاحقاً', 'Paid later')}
+                                    </span>
+                                </div>
+                            ) : showTax && grandTotals.tax > 0 && (
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-blue-600">
                                         {t('ضريبة القيمة المضافة', 'VAT')}
                                         {items[0]?.tax_rate ? ` (${items[0].tax_rate}%)` : ''}
                                     </span>
                                     <span className="font-mono font-semibold text-blue-600">
-                                        +{grandTotals.tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                        +{fmtAmount(grandTotals.tax)}
                                     </span>
                                 </div>
                             )}
@@ -771,7 +798,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                     )}
                                 </div>
                                 <span className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
-                                    {grandTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    {fmtAmount(grandTotals.total)}
                                     <span className="text-sm text-emerald-500 ms-1">{currency}</span>
                                 </span>
                             </div>
@@ -779,7 +806,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                     </CardContent>
                 </Card>
             </div>
-        </TooltipProvider>
+        </TooltipProvider >
     );
 };
 

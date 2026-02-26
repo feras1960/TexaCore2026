@@ -102,6 +102,15 @@ export const CONTAINER_STATUSES: ContainerStatus[] = [
         borderColor: 'border-emerald-300 dark:border-emerald-700',
     },
     {
+        key: 'in_receiving',
+        label_ar: 'قيد الاستلام',
+        label_en: 'Receiving',
+        icon: Warehouse,
+        color: 'bg-teal-50 dark:bg-teal-950/30',
+        textColor: 'text-teal-600 dark:text-teal-400',
+        borderColor: 'border-teal-300 dark:border-teal-700',
+    },
+    {
         key: 'received',
         label_ar: 'تم الاستلام',
         label_en: 'Received',
@@ -158,8 +167,29 @@ export const ContainerStatusStepper: React.FC<ContainerStatusStepperProps> = ({
     const currentIndex = getStatusIndex(currentStatus);
     const canEdit = mode === 'edit';
 
+    // Statuses that can ONLY be set automatically by the system
+    const AUTOMATED_STATUSES = ['in_receiving', 'received', 'closed'];
+
     const handleStatusChange = async (newStatus: string) => {
         if (!canEdit || updating) return;
+
+        // Block manual transition to automated statuses
+        if (AUTOMATED_STATUSES.includes(newStatus)) {
+            toast.warning(
+                isRTL
+                    ? newStatus === 'in_receiving'
+                        ? '⚠️ حالة "قيد الاستلام" تتغير تلقائياً عند بدء الاستلام الفعلي من المستودع'
+                        : newStatus === 'received'
+                            ? '⚠️ حالة "تم الاستلام" تتغير تلقائياً عند اكتمال استلام جميع البنود'
+                            : '⚠️ إغلاق الحاوية يتم من زر "إغلاق" بعد اكتمال الاستلام'
+                    : newStatus === 'in_receiving'
+                        ? '⚠️ "Receiving" status is set automatically when warehouse starts receiving'
+                        : newStatus === 'received'
+                            ? '⚠️ "Received" status is set automatically when all items are received'
+                            : '⚠️ Use the "Close" button after receiving is complete',
+            );
+            return;
+        }
 
         setUpdating(true);
         try {
@@ -213,7 +243,8 @@ export const ContainerStatusStepper: React.FC<ContainerStatusStepperProps> = ({
                     const isActive = index === currentIndex;
                     const isPast = index < currentIndex;
                     const isNext = index === currentIndex + 1;
-                    const canClick = canEdit && (isNext || index === currentIndex - 1);
+                    const isAutomatedStatus = AUTOMATED_STATUSES.includes(status.key);
+                    const canClick = canEdit && (isNext || index === currentIndex - 1) && !isAutomatedStatus;
 
                     return (
                         <React.Fragment key={status.key}>
@@ -269,46 +300,68 @@ export const ContainerStatusStepper: React.FC<ContainerStatusStepperProps> = ({
             </div>
 
             {/* Quick Action Buttons */}
-            {canEdit && !updating && (
-                <div className="flex items-center justify-center gap-2 mt-3">
-                    {currentIndex > 0 && (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusChange(CONTAINER_STATUSES[currentIndex - 1].key)}
-                            className="gap-1 text-xs h-7"
-                        >
-                            {isRTL ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                            {isRTL
-                                ? `الرجوع إلى: ${CONTAINER_STATUSES[currentIndex - 1].label_ar}`
-                                : `Back to: ${CONTAINER_STATUSES[currentIndex - 1].label_en}`
-                            }
-                        </Button>
-                    )}
-                    {currentIndex < CONTAINER_STATUSES.length - 1 && (
-                        <Button
-                            size="sm"
-                            onClick={() => handleStatusChange(CONTAINER_STATUSES[currentIndex + 1].key)}
-                            className={cn(
-                                'gap-1 text-xs h-7 text-white',
-                                CONTAINER_STATUSES[currentIndex + 1].borderColor.replace('border-', 'bg-').replace('-300', '-500').replace('-700', '-500'),
-                            )}
-                        >
-                            {isRTL
-                                ? `نقل إلى: ${CONTAINER_STATUSES[currentIndex + 1].label_ar}`
-                                : `Move to: ${CONTAINER_STATUSES[currentIndex + 1].label_en}`
-                            }
-                            {isRTL ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                        </Button>
-                    )}
-                </div>
-            )}
+            {canEdit && !updating && (() => {
+                const prevStatus = currentIndex > 0 ? CONTAINER_STATUSES[currentIndex - 1] : null;
+                const nextStatus = currentIndex < CONTAINER_STATUSES.length - 1 ? CONTAINER_STATUSES[currentIndex + 1] : null;
+                const canGoBack = prevStatus && !AUTOMATED_STATUSES.includes(prevStatus.key);
+                const canGoForward = nextStatus && !AUTOMATED_STATUSES.includes(nextStatus.key);
+
+                if (!canGoBack && !canGoForward) return null;
+
+                return (
+                    <div className="flex items-center justify-center gap-2 mt-3">
+                        {canGoBack && prevStatus && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStatusChange(prevStatus.key)}
+                                className="gap-1 text-xs h-7"
+                            >
+                                {isRTL ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+                                {isRTL
+                                    ? `الرجوع إلى: ${prevStatus.label_ar}`
+                                    : `Back to: ${prevStatus.label_en}`
+                                }
+                            </Button>
+                        )}
+                        {canGoForward && nextStatus && (
+                            <Button
+                                size="sm"
+                                onClick={() => handleStatusChange(nextStatus.key)}
+                                className={cn(
+                                    'gap-1 text-xs h-7 text-white',
+                                    nextStatus.borderColor.replace('border-', 'bg-').replace('-300', '-500').replace('-700', '-500'),
+                                )}
+                            >
+                                {isRTL
+                                    ? `نقل إلى: ${nextStatus.label_ar}`
+                                    : `Move to: ${nextStatus.label_en}`
+                                }
+                                {isRTL ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                            </Button>
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 };
 
 // ─── Status Badge (for inline use) ──────────────────────────────
 
-export const ContainerStatusBadge: React.FC<{ status: string }> = ({ status }) => {
-    return <ContainerStatusStepper containerId="" currentStatus={status} mode="view" compact />;
+export const ContainerStatusBadge: React.FC<{ status: string; varianceStatus?: string | null }> = ({ status, varianceStatus }) => {
+    const hasVariance = status === 'received' && varianceStatus === 'pending_review';
+
+    return (
+        <div className="inline-flex items-center gap-1.5">
+            <ContainerStatusStepper containerId="" currentStatus={status} mode="view" compact />
+            {hasVariance && (
+                <span className="relative flex items-center">
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 animate-pulse">
+                        ⚠️
+                    </span>
+                </span>
+            )}
+        </div>
+    );
 };

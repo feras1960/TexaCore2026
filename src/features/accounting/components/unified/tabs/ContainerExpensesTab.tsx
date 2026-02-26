@@ -2,7 +2,7 @@
  * ContainerExpensesTab — تبويب مصاريف الكونتينر (الإصدار المتقدم)
  *
  * ✅ يجلب المصاريف من DB مباشرة (Self-Fetching Pattern)
- * ✅ قسم المصاريف التقديرية — للتخطيط فقط (بدون أثر محاسبي)
+ * ✅ قسم المصاريف الأولية — للتخطيط فقط (بدون أثر محاسبي)
  * ✅ قسم المصاريف الفعلية — مستقل تماماً مع قيد فوري
  * ✅ يدعم RBAC — إخفاء المبالغ عن الأدوار غير المصرح لها
  * ✅ ملخص تكاليف في الأسفل مع Landed Cost المبدئي
@@ -30,7 +30,7 @@ import {
 import {
     Plus, Trash2, DollarSign, TrendingUp, TrendingDown, AlertCircle,
     Check, Clock, CreditCard, Save, Loader2, RefreshCw, Calculator,
-    Lock, Unlock, ChevronDown, ChevronUp, Package, BookOpen, Pencil
+    Lock, Unlock, ChevronDown, ChevronUp, Package, BookOpen, Pencil, ShieldCheck
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
@@ -124,6 +124,7 @@ interface ContainerExpensesTabProps {
 const EXPENSE_TYPES = [
     { value: 'freight', labelAr: 'الشحن البحري', labelEn: 'Ocean Freight', icon: '🚢' },
     { value: 'customs', labelAr: 'الرسوم الجمركية', labelEn: 'Customs Duties', icon: '🏛️' },
+    { value: 'tax', labelAr: 'ضريبة / VAT', labelEn: 'Tax / VAT', icon: '🧾' },
     { value: 'insurance', labelAr: 'التأمين', labelEn: 'Insurance', icon: '🛡️' },
     { value: 'handling', labelAr: 'مناولة', labelEn: 'Handling', icon: '📦' },
     { value: 'transport', labelAr: 'النقل الداخلي', labelEn: 'Inland Transport', icon: '🚛' },
@@ -160,7 +161,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
 }) => {
     const { t, isRTL, language } = useLanguage();
     const { companyId } = useCompany();
-    const { user, tenantId } = useAuth();
+    const { user, tenantId, isSuperAdmin } = useAuth();
     const { currencyCode: companyCurrency } = useCompanyCurrency();
     const { columns: colPerms } = useTradePermissions({ tradeMode: 'purchase' });
     const queryClient = useQueryClient();
@@ -182,7 +183,9 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
     const [finalizing, setFinalizing] = useState(false);
     const [allocationResult, setAllocationResult] = useState<any>(null);
     const [showAllocation, setShowAllocation] = useState(false);
+    const [showClosingDetails, setShowClosingDetails] = useState(false);
     const isFinalized = data?.is_cost_finalized === true;
+
 
     // ─── Expense Accounts & Currencies ───
     const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
@@ -239,7 +242,117 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
     const [showAddActualForm, setShowAddActualForm] = useState(false);
     const [actualSaving, setActualSaving] = useState(false);
 
-    // ── القائمة المؤقتة — مصاريف لم تُحفظ بعد (نظام الدفعات) ──
+    // ─── قيد الإقفال الحقيقي ───
+    const [closingJE, setClosingJE] = useState<{
+        entry_number: string;
+        entry_date: string;
+        total_debit: number;
+    } | null>(null);
+
+    // ─── حساب المخزون الحقيقي من CoA ───
+    const [inventoryAccount, setInventoryAccount] = useState<{
+        id: string;
+        account_code: string;
+        name_ar: string;
+        name_en: string;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!companyId) return;
+        const fetchInventoryAccount = async () => {
+            // ══ المصدر الرسمي: companies.accounting_settings.default_accounts ══
+            const { data: company } = await supabase
+                .from('companies')
+                .select('accounting_settings')
+                .eq('id', companyId)
+                .maybeSingle();
+
+            let accountId = company?.accounting_settings?.default_accounts?.inventory_account_id;
+
+            // ── fallback: ابحث مباشرة في CoA ──
+            if (!accountId) {
+                const { data: fallback } = await supabase
+                    .from('chart_of_accounts')
+                    .select('id')
+                    .eq('company_id', companyId)
+                    .or('account_code.like.1141%,name_ar.ilike.%بضاعة جاهزة%,name_ar.ilike.%مخزون%')
+                    .order('account_code')
+                    .limit(1)
+                    .maybeSingle();
+                accountId = fallback?.id;
+            }
+
+            if (!accountId) return;
+
+            const { data: acc } = await supabase
+                .from('chart_of_accounts')
+                .select('id, account_code, name_ar, name_en')
+                .eq('id', accountId)
+                .maybeSingle();
+
+            if (acc) setInventoryAccount(acc);
+        };
+        fetchInventoryAccount();
+    }, [companyId]);
+
+    // ─── حساب الكونتينر من CoA (لعرض الكود الحقيقي في قيد الإقفال) ───
+    const [containerCoaAccount, setContainerCoaAccount] = useState<{
+        account_code: string;
+        name_ar: string;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!data?.container_account_id) return;
+        supabase
+            .from('chart_of_accounts')
+            .select('account_code, name_ar')
+            .eq('id', data.container_account_id)
+            .maybeSingle()
+            .then(({ data: acc }) => { if (acc) setContainerCoaAccount(acc); });
+    }, [data?.container_account_id]);
+
+    useEffect(() => {
+        if (!containerId) return;
+        const fetchClosingJE = async () => {
+            // ── مصدر 1: من purchase_receipts ──
+            const { data: receipt } = await supabase
+                .from('purchase_receipts')
+                .select('journal_entry_id, status')
+                .eq('container_id', containerId)
+                .not('journal_entry_id', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (receipt?.journal_entry_id) {
+                const { data: je } = await supabase
+                    .from('journal_entries')
+                    .select('entry_number, entry_date, total_debit')
+                    .eq('id', receipt.journal_entry_id)
+                    .maybeSingle();
+                if (je) { setClosingJE(je); return; }
+            }
+
+            // ── مصدر 2: من journal_entries (بناءً على reference_id أو notes) ──
+            const { data: je2 } = await supabase
+                .from('journal_entries')
+                .select('entry_number, entry_date, total_debit')
+                .or(`reference_id.eq.${containerId},notes.ilike.%${containerId}%`)
+                .in('entry_type', ['goods_receipt', 'inventory_in', 'container_close'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (je2) { setClosingJE(je2); return; }
+
+            setClosingJE(null);
+        };
+        fetchClosingJE();
+    }, [containerId, data?.status]);
+
+    // ─── isClosed: كونتينر مغلق فعلياً ───
+    const isClosed = (data?.status === 'closed' || data?.status === 'received');
+
     const [pendingExpenses, setPendingExpenses] = useState<PendingExpenseItem[]>([]);
 
     // ── الحقول المؤقتة لنموذج الإضافة ──
@@ -264,7 +377,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                 .from('container_expenses')
                 .select('*')
                 .eq('container_id', containerId)
-                .not('expense_account_id', 'is', null) // فقط المصاريف الفعلية (لها حساب مصروف)
+                .not('vendor_account_id', 'is', null) // فقط المصاريف الفعلية (لها حساب مورد/مقدم خدمة)
                 .order('created_at', { ascending: true });
 
             if (error) throw error;
@@ -490,7 +603,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                 tax_amount: pe.tax_amount,
                 currency_code: pe.currency_code,
                 exchange_rate: pe.exchange_rate,
-                expense_account_id: pe.expense_account_id,
+                expense_account_id: pe.expense_account_id || null,
                 vendor_account_id: pe.vendor_account_id,  // حساب المورد الصحيح (الدائن)
                 journal_description: pe.description,
                 notes: pe.notes,
@@ -824,6 +937,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                 .from('container_expenses')
                 .select('*')
                 .eq('container_id', containerId)
+                .is('vendor_account_id', null)  // فقط المصاريف التقريبية (بدون حساب مورد = لم تُرحَّل)
                 .order('created_at', { ascending: true });
 
             if (error) throw error;
@@ -1049,7 +1163,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
         if (!containerId) return;
         setCalculating(true);
         try {
-            // توزيع المصاريف التقديرية → provisional_unit_cost
+            // توزيع المصاريف الأولية → provisional_unit_cost
             const result = await saveEstimatedDistribution(containerId);
 
             // توزيع المصاريف الفعلية → final_unit_cost
@@ -1061,7 +1175,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
             const estTotal = result.totalEstimatedExpenses || 0;
             const actTotal = result.totalActualExpenses || 0;
             toast.success(isRTL
-                ? `✅ تم التوزيع — تقديري: ${estTotal.toLocaleString()} | فعلي: ${actTotal.toLocaleString()}`
+                ? `✅ تم التوزيع — أولي: ${estTotal.toLocaleString()} | فعلي: ${actTotal.toLocaleString()}`
                 : `✅ Distributed — Estimated: ${estTotal.toLocaleString()} | Actual: ${actTotal.toLocaleString()}`
             );
             // تحديث بنود البضائع فوراً
@@ -1138,9 +1252,513 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
         }
     };
 
+    // ════════════════════════════════════════════
+    // ─── Section 3: الضريبة الجمركية (Customs Tax) ───
+    // ════════════════════════════════════════════
+
+    interface TaxItemRow {
+        id: string;
+        material_id: string | null;
+        material_code: string;
+        item_description: string;
+        color_name: string;
+        expected_quantity: number;
+        unit_cost: number;
+        total_cost: number;
+        customs_duty_rate: number;
+        customs_duty_amount: number;
+        customs_duty_per_unit: number;
+    }
+
+    const [taxItems, setTaxItems] = useState<TaxItemRow[]>([]);
+    const [taxLoading, setTaxLoading] = useState(false);
+    const [taxSaving, setTaxSaving] = useState(false);
+    const [taxPosting, setTaxPosting] = useState(false);
+    const [uniformTaxRate, setUniformTaxRate] = useState<number>(data?.customs_tax_rate || 0);
+    const [useUniformRate, setUseUniformRate] = useState(true);
+    const [taxAccountId, setTaxAccountId] = useState<string>('');
+    const [taxAccountName, setTaxAccountName] = useState<string>('');
+    const [taxAccountCode, setTaxAccountCode] = useState<string>('');
+    const [taxPaymentAccountId, setTaxPaymentAccountId] = useState<string>('');
+    const [taxPaymentAccountName, setTaxPaymentAccountName] = useState<string>('');
+    const [taxJournalEntryNumber, setTaxJournalEntryNumber] = useState<string>('');
+    const [taxEditMode, setTaxEditMode] = useState(false);
+    const isTaxPosted = data?.customs_tax_posted === true;
+    const [paymentAccounts, setPaymentAccounts] = useState<any[]>([]);
+
+    // ── جلب حسابات الدفع المتاحة (بنوك + ذمم دائنة) ──
+    useEffect(() => {
+        const fetchPaymentAccounts = async () => {
+            if (!companyId) return;
+            try {
+                const { data: accounts } = await supabase
+                    .from('chart_of_accounts')
+                    .select('id, account_code, name_ar, name_en')
+                    .eq('company_id', companyId)
+                    .eq('is_detail', true)
+                    .or('account_code.like.112%,account_code.like.111%,account_code.like.211%')
+                    .order('account_code');
+                setPaymentAccounts(accounts || []);
+            } catch { /* ignore */ }
+        };
+        fetchPaymentAccounts();
+    }, [companyId]);
+
+    // ── جلب حساب الضريبة من الإعدادات العامة تلقائياً + حساب الدفع من الكونتينر ──
+    useEffect(() => {
+        const fetchTaxAccount = async () => {
+            if (!companyId) return;
+            try {
+                const { data: settings } = await supabase
+                    .from('company_accounting_settings')
+                    .select('default_tax_input_account_id')
+                    .eq('company_id', companyId)
+                    .single();
+                if (settings?.default_tax_input_account_id) {
+                    setTaxAccountId(settings.default_tax_input_account_id);
+                    // جلب اسم ورقم الحساب للعرض
+                    const { data: acc } = await supabase
+                        .from('chart_of_accounts')
+                        .select('account_code, name_ar, name_en')
+                        .eq('id', settings.default_tax_input_account_id)
+                        .single();
+                    if (acc) {
+                        setTaxAccountCode(acc.account_code || '');
+                        setTaxAccountName(language === 'ar' ? acc.name_ar : (acc.name_en || acc.name_ar));
+                    }
+                    // جلب رقم القيد إن كان مُرحّلاً سابقاً
+                    if (data?.customs_tax_journal_id) {
+                        const { data: je } = await supabase
+                            .from('journal_entries')
+                            .select('entry_number')
+                            .eq('id', data.customs_tax_journal_id)
+                            .single();
+                        if (je) setTaxJournalEntryNumber(je.entry_number);
+                    }
+                }
+
+                // جلب حساب الدفع من الكونتينر
+                if (containerId && data?.customs_tax_payment_account_id) {
+                    setTaxPaymentAccountId(data.customs_tax_payment_account_id);
+                    const { data: payAcc } = await supabase
+                        .from('chart_of_accounts')
+                        .select('account_code, name_ar, name_en')
+                        .eq('id', data.customs_tax_payment_account_id)
+                        .single();
+                    if (payAcc) {
+                        setTaxPaymentAccountName(
+                            `${payAcc.account_code} — ${language === 'ar' ? payAcc.name_ar : (payAcc.name_en || payAcc.name_ar)}`
+                        );
+                    }
+                }
+            } catch { /* ignore */ }
+        };
+        fetchTaxAccount();
+    }, [companyId, language, containerId]);
+
+
+    // ── جلب بنود الكونتينر لقسم الضريبة ──
+    const fetchTaxItems = useCallback(async () => {
+        if (!containerId) return;
+        setTaxLoading(true);
+        try {
+            const { data: items, error } = await supabase
+                .from('container_items')
+                .select('id, material_id, material_code, item_description, color_name, expected_quantity, unit_cost, total_cost, customs_duty_rate, customs_duty_amount, customs_duty_per_unit')
+                .eq('container_id', containerId)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            setTaxItems((items || []).map((item: any) => ({
+                id: item.id,
+                material_id: item.material_id || null,
+                material_code: item.material_code || '',
+                item_description: item.item_description || '',
+                color_name: item.color_name || '',
+                expected_quantity: item.expected_quantity || 0,
+                unit_cost: item.unit_cost || 0,
+                total_cost: item.total_cost || (item.unit_cost || 0) * (item.expected_quantity || 0),
+                customs_duty_rate: item.customs_duty_rate || 0,
+                customs_duty_amount: item.customs_duty_amount || 0,
+                customs_duty_per_unit: item.customs_duty_per_unit || 0,
+            })));
+
+            // جلب النسبة العامة مباشرة من الكونتينر (DB — لتجنب closure قديمة)
+            const { data: containerData } = await supabase
+                .from('containers')
+                .select('customs_tax_rate')
+                .eq('id', containerId)
+                .single();
+            if (containerData?.customs_tax_rate) {
+                setUniformTaxRate(containerData.customs_tax_rate);
+            }
+        } catch (err) {
+            console.error('Error fetching tax items:', err);
+        } finally {
+            setTaxLoading(false);
+        }
+    }, [containerId]);
+
+    useEffect(() => {
+        if (containerId) fetchTaxItems();
+    }, [fetchTaxItems, containerId]);
+
+    // ── حساب إجماليات الضريبة ──
+    const taxTotals = useMemo(() => {
+        const totalValue = taxItems.reduce((sum, item) => sum + item.total_cost, 0);
+        const totalTax = taxItems.reduce((sum, item) => sum + item.customs_duty_amount, 0);
+        return { totalValue, totalTax, itemCount: taxItems.length };
+    }, [taxItems]);
+
+    // ── تطبيق نسبة موحدة على جميع البنود ──
+    const applyUniformTaxRate = (rate: number) => {
+        setUniformTaxRate(rate);
+        setTaxItems(prev => prev.map(item => {
+            const dutyAmount = item.total_cost * (rate / 100);
+            const dutyPerUnit = item.expected_quantity > 0 ? dutyAmount / item.expected_quantity : 0;
+            return {
+                ...item,
+                customs_duty_rate: rate,
+                customs_duty_amount: dutyAmount,
+                customs_duty_per_unit: dutyPerUnit,
+            };
+        }));
+    };
+
+    // ── تعديل نسبة بند منفرد ──
+    const updateItemTaxRate = (itemId: string, rate: number) => {
+        setTaxItems(prev => prev.map(item => {
+            if (item.id !== itemId) return item;
+            const dutyAmount = item.total_cost * (rate / 100);
+            const dutyPerUnit = item.expected_quantity > 0 ? dutyAmount / item.expected_quantity : 0;
+            return {
+                ...item,
+                customs_duty_rate: rate,
+                customs_duty_amount: dutyAmount,
+                customs_duty_per_unit: dutyPerUnit,
+            };
+        }));
+    };
+
+    // ── حفظ توزيع الضريبة في container_items ──
+    const handleSaveTaxDistribution = async () => {
+        if (!containerId) return;
+        setTaxSaving(true);
+        try {
+            for (const item of taxItems) {
+                await supabase
+                    .from('container_items')
+                    .update({
+                        customs_duty_rate: item.customs_duty_rate,
+                        customs_duty_amount: item.customs_duty_amount,
+                        customs_duty_per_unit: item.customs_duty_per_unit,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', item.id);
+            }
+
+            // حفظ النسبة العامة في الكونتينر
+            await supabase
+                .from('containers')
+                .update({
+                    customs_tax_rate: uniformTaxRate,
+                    customs_tax_total: taxTotals.totalTax,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', containerId);
+
+            toast.success(isRTL ? 'تم حفظ توزيع الضريبة بنجاح' : 'Tax distribution saved successfully');
+        } catch (err: any) {
+            console.error('Error saving tax distribution:', err);
+            toast.error(isRTL ? 'خطأ في حفظ توزيع الضريبة' : 'Error saving tax distribution');
+        } finally {
+            setTaxSaving(false);
+        }
+    };
+
+    // ── ترحيل قيد الضريبة الجمركية ──
+    // مدين: حساب ضريبة المدخلات (117) — taxAccountId
+    // دائن: حساب الدفع (بنك / مخلّص) — taxPaymentAccountId
+    // ⚠️ الضريبة المستردة لا تُحمّل على الكونتينر — هي أصل (حق استرداد)
+    const handlePostCustomsTax = async () => {
+        if (!containerId || !user?.id || !tenantId || !companyId) return;
+
+        if (taxTotals.totalTax <= 0) {
+            toast.error(isRTL ? 'مبلغ الضريبة صفر — لا يمكن إنشاء قيد' : 'Tax amount is zero — cannot create entry');
+            return;
+        }
+
+        if (!taxAccountId) {
+            toast.error(isRTL ? 'حساب ضريبة المدخلات غير محدد في الإعدادات' : 'Tax input account not configured in settings');
+            return;
+        }
+
+        if (!taxPaymentAccountId) {
+            toast.error(isRTL ? 'اختر حساب الدفع (بنك أو مخلّص جمركي)' : 'Select payment account (bank or customs agent)');
+            return;
+        }
+
+        // جلب رقم الكونتينر
+        const { data: containerDoc } = await supabase
+            .from('containers')
+            .select('container_number')
+            .eq('id', containerId)
+            .single();
+
+        setTaxPosting(true);
+        try {
+            // حفظ التوزيع أولاً
+            await handleSaveTaxDistribution();
+
+            // تحديث tax_rate في fabric_materials + inventory_stock لكل مادة
+            for (const item of taxItems) {
+                if (item.material_id && item.customs_duty_rate > 0) {
+                    // 1. تحديث بطاقة المادة
+                    await supabase
+                        .from('fabric_materials')
+                        .update({ tax_rate: item.customs_duty_rate })
+                        .eq('id', item.material_id);
+
+                    // 2. تحديث جميع دفعات المادة في المخزون
+                    await supabase
+                        .from('inventory_stock')
+                        .update({ tax_rate: item.customs_duty_rate })
+                        .eq('material_id', item.material_id)
+                        .eq('company_id', companyId);
+                }
+            }
+
+            // توليد رقم القيد (timestamp-based — مطابق للنمط الموجود)
+            const ts = Date.now();
+            const rand = Math.floor(1000 + Math.random() * 9000);
+            const entryNumber = `JE-${ts}-${rand}`;
+
+            const containerNum = containerDoc?.container_number || '';
+            const today = new Date().toISOString().slice(0, 10);
+            const totalTax = taxTotals.totalTax;
+
+            // إنشاء القيد
+            const { data: je, error: jeErr } = await supabase
+                .from('journal_entries')
+                .insert({
+                    tenant_id: tenantId,
+                    company_id: companyId,
+                    entry_number: entryNumber,
+                    entry_date: today,
+                    description: isRTL
+                        ? `ضريبة جمركية — كونتينر ${containerNum}`
+                        : `Customs Tax — Container ${containerNum}`,
+                    reference_type: 'container_tax',
+                    reference_id: containerId,
+                    status: 'posted',
+                    total_debit: totalTax,
+                    total_credit: totalTax,
+                    created_by: user.id,
+                })
+                .select()
+                .single();
+            if (jeErr) throw jeErr;
+
+            // إنشاء سطور القيد: Dr ضريبة مدخلات (117) / Cr حساب الدفع
+            const { error: lnErr } = await supabase
+                .from('journal_entry_lines')
+                .insert([
+                    {
+                        tenant_id: tenantId,
+                        entry_id: je.id,
+                        account_id: taxAccountId,
+                        debit: totalTax,
+                        credit: 0,
+                        description: isRTL
+                            ? `ضريبة جمركية مستردة — كونتينر ${containerNum}`
+                            : `Recoverable Customs VAT — Container ${containerNum}`,
+                        line_number: 1,
+                    },
+                    {
+                        tenant_id: tenantId,
+                        entry_id: je.id,
+                        account_id: taxPaymentAccountId,
+                        debit: 0,
+                        credit: totalTax,
+                        description: isRTL
+                            ? `دفع ضريبة جمركية — كونتينر ${containerNum}`
+                            : `Customs VAT Payment — Container ${containerNum}`,
+                        line_number: 2,
+                    },
+                ]);
+            if (lnErr) throw lnErr;
+
+            // تحديث الكونتينر
+            await supabase
+                .from('containers')
+                .update({
+                    customs_tax_posted: true,
+                    customs_tax_journal_id: je.id,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', containerId);
+
+            // ── تسجيل النشاط ──
+            await supabase.from('document_activity').insert({
+                tenant_id: tenantId,
+                entity_type: 'container',
+                entity_id: containerId,
+                activity_type: 'milestone',
+                content: isRTL
+                    ? `تم ترحيل قيد الضريبة الجمركية — ${entryNumber} — المبلغ: ${totalTax}`
+                    : `Customs tax entry posted — ${entryNumber} — Amount: ${totalTax}`,
+                event_code: 'tax_posted',
+                metadata: { entry_number: entryNumber, journal_id: je.id, total_tax: totalTax, tax_rate: uniformTaxRate },
+                created_by: user.id,
+            });
+
+            onChange({ customs_tax_posted: true, customs_tax_journal_id: je.id, _refresh: true });
+            setTaxJournalEntryNumber(entryNumber);
+            toast.success(isRTL
+                ? `✅ تم ترحيل قيد الضريبة الجمركية — ${entryNumber}`
+                : `✅ Customs tax entry posted — ${entryNumber}`
+            );
+        } catch (err: any) {
+            console.error('Error posting customs tax:', err);
+            toast.error(err.message || (isRTL ? 'خطأ في ترحيل قيد الضريبة' : 'Error posting customs tax entry'));
+        } finally {
+            setTaxPosting(false);
+        }
+    };
+
+    // ── تعديل قيد الضريبة — فتح وضع التعديل فقط ──
+    const handleEditCustomsTax = () => {
+        setTaxEditMode(true);
+        toast.info(isRTL
+            ? '📝 وضع التعديل — عدّل النسبة ثم اضغط حفظ'
+            : '📝 Edit mode — modify rates then click Save'
+        );
+    };
+
+    // ── حفظ التعديلات مباشرة على القيد الموجود (بدون حذف أو قيود عكسية) ──
+    const handleSaveEditedTax = async () => {
+        if (!containerId || !data?.customs_tax_journal_id || !companyId) return;
+
+        setTaxPosting(true);
+        try {
+            const journalId = data.customs_tax_journal_id;
+            const totalTax = taxTotals.totalTax;
+
+            // 1. حفظ التوزيع الجديد في container_items
+            await handleSaveTaxDistribution();
+
+            // 2. تحديث بطاقة المادة + المخزون
+            for (const item of taxItems) {
+                if (item.material_id && item.customs_duty_rate > 0) {
+                    await supabase
+                        .from('fabric_materials')
+                        .update({ tax_rate: item.customs_duty_rate })
+                        .eq('id', item.material_id);
+
+                    await supabase
+                        .from('inventory_stock')
+                        .update({ tax_rate: item.customs_duty_rate })
+                        .eq('material_id', item.material_id)
+                        .eq('company_id', companyId);
+                }
+            }
+
+            // 3. تحديث القيد المحاسبي مباشرة (UPDATE — بدون حذف)
+            await supabase
+                .from('journal_entries')
+                .update({
+                    total_debit: totalTax,
+                    total_credit: totalTax,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', journalId);
+
+            // 4. جلب حساب الكونتينر
+            const { data: containerDoc } = await supabase
+                .from('containers')
+                .select('container_account_id, container_number')
+                .eq('id', containerId)
+                .single();
+
+            const containerNum = containerDoc?.container_number || '';
+
+            // 5. تحديث سطور القيد (حذف + إعادة إدراج — لتجنب chk_balanced_entry مع التريقر)
+            await supabase
+                .from('journal_entry_lines')
+                .delete()
+                .eq('entry_id', journalId);
+
+            await supabase
+                .from('journal_entry_lines')
+                .insert([
+                    {
+                        tenant_id: tenantId,
+                        entry_id: journalId,
+                        account_id: taxAccountId,
+                        debit: totalTax,
+                        credit: 0,
+                        description: isRTL
+                            ? `ضريبة جمركية مستردة — كونتينر ${containerNum}`
+                            : `Recoverable Customs VAT — Container ${containerNum}`,
+                        line_number: 1,
+                    },
+                    {
+                        tenant_id: tenantId,
+                        entry_id: journalId,
+                        account_id: taxPaymentAccountId,
+                        debit: 0,
+                        credit: totalTax,
+                        description: isRTL
+                            ? `دفع ضريبة جمركية — كونتينر ${containerNum}`
+                            : `Customs VAT Payment — Container ${containerNum}`,
+                        line_number: 2,
+                    },
+                ]);
+
+            // 6. تحديث الكونتينر
+            await supabase
+                .from('containers')
+                .update({
+                    customs_tax_rate: uniformTaxRate,
+                    customs_tax_total: totalTax,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', containerId);
+
+            // ── تسجيل النشاط — سجل التعديل ──
+            await supabase.from('document_activity').insert({
+                tenant_id: tenantId,
+                entity_type: 'container',
+                entity_id: containerId,
+                activity_type: 'event',
+                content: isRTL
+                    ? `تم تعديل قيد الضريبة الجمركية — المبلغ الجديد: ${totalTax} — النسبة: ${uniformTaxRate}%`
+                    : `Customs tax entry edited — New amount: ${totalTax} — Rate: ${uniformTaxRate}%`,
+                event_code: 'tax_edited',
+                metadata: { journal_id: journalId, new_total_tax: totalTax, new_tax_rate: uniformTaxRate },
+                created_by: user?.id,
+            });
+
+            setTaxEditMode(false);
+            // تحديث البيانات محلياً فوراً — لتجنب عرض النسبة القديمة
+            setUniformTaxRate(uniformTaxRate);
+            onChange({ customs_tax_rate: uniformTaxRate, customs_tax_total: totalTax, _refresh: true });
+            toast.success(isRTL
+                ? '✅ تم تحديث قيد الضريبة الجمركية بنجاح'
+                : '✅ Customs tax entry updated successfully'
+            );
+        } catch (err: any) {
+            console.error('Error updating customs tax:', err);
+            toast.error(err.message || (isRTL ? 'خطأ في تحديث قيد الضريبة' : 'Error updating customs tax entry'));
+        } finally {
+            setTaxPosting(false);
+        }
+    };
+
     // ─── Calculations ───
     const totals = useMemo(() => {
-        // ─── المصاريف التقديرية (من expenses) ───
+        // ─── المصاريف الأولية (من expenses) ───
         const totalExpected = expenses.reduce((sum, e) => {
             if (e.currency_code === containerCurrency) return sum + (e.expected_amount || 0);
             return sum + ((e.expected_amount || 0) * (e.exchange_rate || 1));
@@ -1161,7 +1779,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
         const totalPaid = expenses.reduce((sum, e) => sum + (e.paid_amount || 0), 0);
         const variance = totalActual > 0 ? totalActual - totalExpected : 0;
         const goodsValue = data?.provisional_goods_cost || data?.total_value || 0;
-        // التكلفة الواصلة = قيمة البضاعة + (الفعلية إن وُجدت، وإلا التقديرية)
+        // التكلفة النهائية = قيمة البضاعة + (الفعلية إن وُجدت، وإلا الأولية)
         const landedCost = goodsValue + (totalActual > 0 ? totalActual : totalExpected);
 
         return { totalExpected, totalActual, totalActualWithTax, totalPaid, variance, goodsValue, landedCost };
@@ -1240,7 +1858,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
             </div>
 
             {/* ════════════════════════════════════════════════════════ */}
-            {/* ─── Section 1: المصاريف التقديرية (Estimated) ─── */}
+            {/* ─── Section 1: المصاريف الأولية (Preliminary) ─── */}
             {/* ─── مستقل تماماً — لا أثر محاسبي — حرية إضافة وحذف ─── */}
             {/* ════════════════════════════════════════════════════════ */}
             <Collapsible defaultOpen={false}>
@@ -1249,7 +1867,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                         <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-blue-600" />
                             <span className="font-semibold text-sm text-blue-800 dark:text-blue-200">
-                                {isRTL ? 'المصاريف التقديرية' : 'Estimated Expenses'}
+                                {isRTL ? 'المصاريف الأولية' : 'Preliminary Expenses'}
                             </span>
                             <Badge variant="secondary" className="text-[10px] px-1.5 bg-blue-100 text-blue-700">
                                 {expenses.length}
@@ -1335,7 +1953,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                             <TableCell colSpan={7} className="text-center py-8 text-gray-400">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <Clock className="w-6 h-6 text-gray-300" />
-                                                    <span className="text-sm">{isRTL ? 'لم تُضَف مصاريف تقديرية بعد' : 'No estimated expenses yet'}</span>
+                                                    <span className="text-sm">{isRTL ? 'لم تُضَف مصاريف أولية بعد' : 'No preliminary expenses yet'}</span>
                                                     {isEditable && (
                                                         <Button variant="outline" size="sm" onClick={handleAddExpense} className="mt-1 gap-1 text-xs">
                                                             <Plus className="w-3.5 h-3.5" />
@@ -1517,7 +2135,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                     <TableFooter>
                                         <TableRow className="bg-blue-50/60 dark:bg-blue-900/20 font-semibold">
                                             <TableCell className={cn(isRTL ? "text-right" : "text-left")}>
-                                                <span className="text-sm text-blue-700 dark:text-blue-300">{isRTL ? 'إجمالي التقديري' : 'Total Estimated'}</span>
+                                                <span className="text-sm text-blue-700 dark:text-blue-300">{isRTL ? 'إجمالي الأولي' : 'Total Preliminary'}</span>
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <span className="font-mono text-sm font-bold text-blue-700 dark:text-blue-300">
@@ -1537,7 +2155,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                             <div className="p-2 border-t">
                                 <Button variant="ghost" size="sm" onClick={handleAddExpense} className="gap-1 text-xs text-blue-600 hover:text-blue-700 w-full justify-center">
                                     <Plus className="w-3.5 h-3.5" />
-                                    {isRTL ? '+ إضافة مصروف تقديري' : '+ Add Estimated Expense'}
+                                    {isRTL ? '+ إضافة مصروف أولي' : '+ Add Preliminary Expense'}
                                 </Button>
                             </div>
                         )}
@@ -1549,7 +2167,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
             {/* ─── Section 2: المصاريف الفعلية (مستقلة تماماً) ─── */}
             {/* ═══ كل مصروف = حساب مصروف + حساب مورد + قيد فوري ═══ */}
             {/* ════════════════════════════════════════════════════════ */}
-            <Collapsible defaultOpen={true}>
+            <Collapsible defaultOpen={false}>
                 <CollapsibleTrigger asChild>
                     <div className="flex items-center justify-between p-3 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-lg border border-emerald-200/60 cursor-pointer hover:bg-emerald-100/60 transition-colors">
                         <div className="flex items-center gap-2">
@@ -1573,16 +2191,41 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                             )}
                         </div>
                         <div className="flex items-center gap-2">
-                            {isEditable && !isNewContainer && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-100"
-                                    onClick={(e) => { e.stopPropagation(); setShowAddActualForm(v => !v); }}
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    {isRTL ? 'مصروف فعلي' : 'Add Actual'}
-                                </Button>
+                            {/* ── زر إضافة مصروف ── */}
+                            {!isNewContainer && (
+                                <>
+                                    {/* مفتوح: إضافة عادية */}
+                                    {!isFinalized && !isClosed && isEditable && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 gap-1 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-100"
+                                            onClick={(e) => { e.stopPropagation(); setShowAddActualForm(v => !v); }}
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            {isRTL ? 'مصروف فعلي' : 'Add Actual'}
+                                        </Button>
+                                    )}
+                                    {/* مثبّت ولم يُغلق: مقفول - لا إضافة */}
+                                    {isFinalized && !isClosed && (
+                                        <span className="text-[10px] text-amber-600 flex items-center gap-1">
+                                            <Lock className="w-3 h-3" />
+                                            {isRTL ? 'مقفول' : 'Locked'}
+                                        </span>
+                                    )}
+                                    {/* مغلق: إضافة مصروف لاحق (تسوية تلقائية) */}
+                                    {isClosed && isEditable && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 gap-1 text-xs text-orange-700 border-orange-300 hover:bg-orange-50"
+                                            onClick={(e) => { e.stopPropagation(); setShowAddActualForm(v => !v); }}
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            {isRTL ? 'مصروف لاحق ↔ تسوية' : 'Post-Close Expense ↔ Settlement'}
+                                        </Button>
+                                    )}
+                                </>
                             )}
                             <ChevronDown className="w-4 h-4 text-emerald-500 transition-transform duration-200" />
                         </div>
@@ -2281,6 +2924,325 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                 </CollapsibleContent>
             </Collapsible>
 
+            {/* ════════════════════════════════════════════════════════ */}
+            {/* ─── Section 3: الضريبة الجمركية (Customs Tax) ─── */}
+            {/* ─── قسم منفصل — نسبة أو مبلغ على المواد — قيد مستقل ─── */}
+            {/* ════════════════════════════════════════════════════════ */}
+            {!isNewContainer && taxItems.length > 0 && (
+                <Collapsible defaultOpen={false}>
+                    <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between p-3 bg-rose-50/80 dark:bg-rose-950/30 rounded-lg border border-rose-200/60 cursor-pointer hover:bg-rose-100/60 transition-colors">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">🏛️</span>
+                                <span className="font-semibold text-sm text-rose-800 dark:text-rose-200">
+                                    {isRTL ? 'الضريبة الجمركية' : 'Customs Tax'}
+                                </span>
+                                <Badge variant="secondary" className="text-[10px] px-1.5 bg-rose-100 text-rose-700">
+                                    {taxItems.length} {isRTL ? 'مادة' : 'items'}
+                                </Badge>
+                                {canSeeAmounts && taxTotals.totalTax > 0 && (
+                                    <span className="font-mono text-xs text-rose-600 dark:text-rose-400 ms-2">
+                                        {fmtNum(taxTotals.totalTax)} {containerCurrency}
+                                    </span>
+                                )}
+                                {isTaxPosted && (
+                                    <Badge className="text-[9px] px-1.5 bg-green-100 text-green-700 border-green-300">
+                                        <Check className="w-3 h-3 me-0.5" />
+                                        {isRTL ? 'مُرحّل' : 'Posted'}
+                                    </Badge>
+                                )}
+                            </div>
+                            <ChevronDown className="w-4 h-4 text-rose-500 transition-transform duration-200" />
+                        </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <div className="bg-white dark:bg-gray-900 rounded-b-lg border border-t-0 p-4 space-y-4">
+
+                            {/* ── Controls: نسبة موحدة أو مختلفة ── */}
+                            <div className="flex flex-wrap items-center gap-4">
+                                {/* Toggle */}
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs font-medium text-gray-600">
+                                        {isRTL ? 'نسبة موحدة' : 'Uniform Rate'}
+                                    </label>
+                                    <button
+                                        onClick={() => setUseUniformRate(!useUniformRate)}
+                                        className={cn(
+                                            'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                                            useUniformRate ? 'bg-rose-500' : 'bg-gray-300 dark:bg-gray-600'
+                                        )}
+                                        disabled={isTaxPosted && !taxEditMode}
+                                    >
+                                        <span className={cn(
+                                            'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+                                            useUniformRate ? 'translate-x-4 rtl:-translate-x-4' : 'translate-x-1 rtl:-translate-x-1'
+                                        )} />
+                                    </button>
+                                </div>
+
+                                {/* Uniform Rate Input */}
+                                {useUniformRate && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500">{isRTL ? 'النسبة %' : 'Rate %'}</span>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            min={0}
+                                            max={100}
+                                            value={uniformTaxRate}
+                                            onChange={(e) => applyUniformTaxRate(parseFloat(e.target.value) || 0)}
+                                            className="w-24 h-8 text-center text-sm font-mono"
+                                            disabled={isTaxPosted && !taxEditMode}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Tax Account — يُجلب تلقائياً من الإعدادات العامة */}
+                                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                                    <span className="text-xs text-gray-500 whitespace-nowrap">
+                                        {isRTL ? 'حساب الضريبة:' : 'Tax Account:'}
+                                    </span>
+                                    {taxAccountId ? (
+                                        <Badge variant="outline" className="text-xs px-2 py-1 bg-rose-50 border-rose-200 text-rose-700 gap-1">
+                                            <BookOpen className="w-3 h-3" />
+                                            {taxAccountCode && <span className="font-mono font-bold">{taxAccountCode}</span>}
+                                            {taxAccountCode && ' — '}
+                                            {taxAccountName || taxAccountId}
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-xs text-amber-600 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3" />
+                                            {isRTL ? 'لم يتم تعريف حساب الضريبة في الإعدادات' : 'Tax account not configured in settings'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* حساب الدفع (بنك / مخلّص جمركي) — يختاره المستخدم */}
+                                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                                    <span className="text-xs text-gray-500 whitespace-nowrap">
+                                        {isRTL ? 'حساب الدفع:' : 'Payment:'}
+                                    </span>
+                                    {(!isTaxPosted || taxEditMode) ? (
+                                        <Select
+                                            value={taxPaymentAccountId}
+                                            onValueChange={async (val) => {
+                                                setTaxPaymentAccountId(val);
+                                                const acc = paymentAccounts.find((a: any) => a.id === val);
+                                                if (acc) {
+                                                    setTaxPaymentAccountName(`${acc.account_code} — ${language === 'ar' ? acc.name_ar : (acc.name_en || acc.name_ar)}`);
+                                                }
+                                                if (containerId) {
+                                                    await supabase
+                                                        .from('containers')
+                                                        .update({ customs_tax_payment_account_id: val, updated_at: new Date().toISOString() })
+                                                        .eq('id', containerId);
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger className="h-8 w-[220px] text-xs">
+                                                <SelectValue placeholder={isRTL ? 'اختر حساب الدفع...' : 'Select payment...'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {paymentAccounts.map((acc: any) => (
+                                                    <SelectItem key={acc.id} value={acc.id} className="text-xs">
+                                                        {acc.account_code} — {language === 'ar' ? acc.name_ar : (acc.name_en || acc.name_ar)}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : (
+                                        taxPaymentAccountName ? (
+                                            <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-50 border-blue-200 text-blue-700 gap-1">
+                                                <BookOpen className="w-3 h-3" />
+                                                {taxPaymentAccountName}
+                                            </Badge>
+                                        ) : (
+                                            <span className="text-xs text-amber-600 flex items-center gap-1">
+                                                <AlertCircle className="w-3 h-3" />
+                                                {isRTL ? 'لم يتم تحديد حساب الدفع' : 'Payment account not set'}
+                                            </span>
+                                        )
+                                    )}
+                                </div>
+
+                                {/* رقم القيد — يظهر بعد الترحيل */}
+                                {isTaxPosted && taxJournalEntryNumber && (
+                                    <div className="flex items-center gap-2">
+                                        <Badge className="text-xs px-2 py-1 bg-green-50 border-green-300 text-green-700 gap-1">
+                                            <Check className="w-3 h-3" />
+                                            {isRTL ? 'قيد رقم:' : 'JE #:'}
+                                            <span className="font-mono font-bold">{taxJournalEntryNumber}</span>
+                                        </Badge>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── جدول المواد والضريبة ── */}
+                            {taxLoading ? (
+                                <div className="flex items-center justify-center py-6">
+                                    <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
+                                    <span className="ms-2 text-sm text-gray-500">
+                                        {isRTL ? 'تحميل البنود...' : 'Loading items...'}
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border overflow-hidden">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-rose-50/50 dark:bg-rose-950/20">
+                                                <TableHead className="text-xs">#</TableHead>
+                                                <TableHead className="text-xs">{isRTL ? 'المادة' : 'Material'}</TableHead>
+                                                <TableHead className="text-xs">{isRTL ? 'اللون' : 'Color'}</TableHead>
+                                                <TableHead className="text-xs text-center">{isRTL ? 'الكمية' : 'Qty'}</TableHead>
+                                                <TableHead className="text-xs text-center">{isRTL ? 'سعر الوحدة' : 'Unit Price'}</TableHead>
+                                                <TableHead className="text-xs text-center">{isRTL ? 'القيمة' : 'Value'}</TableHead>
+                                                <TableHead className="text-xs text-center min-w-[80px]">{isRTL ? 'نسبة الضريبة %' : 'Tax Rate %'}</TableHead>
+                                                <TableHead className="text-xs text-center">{isRTL ? 'مبلغ الضريبة' : 'Tax Amount'}</TableHead>
+                                                <TableHead className="text-xs text-center">{isRTL ? 'الضريبة/وحدة' : 'Tax/Unit'}</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {taxItems.map((item, idx) => (
+                                                <TableRow key={item.id} className="hover:bg-rose-25/30">
+                                                    <TableCell className="text-xs text-gray-400">{idx + 1}</TableCell>
+                                                    <TableCell className="text-xs font-medium">
+                                                        <div>{item.item_description || item.material_code}</div>
+                                                        {item.material_code && item.item_description && (
+                                                            <div className="text-[10px] text-gray-400">{item.material_code}</div>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs">{item.color_name || '—'}</TableCell>
+                                                    <TableCell className="text-xs text-center font-mono">{fmtNum(item.expected_quantity)}</TableCell>
+                                                    <TableCell className="text-xs text-center font-mono">{fmtNum(item.unit_cost)}</TableCell>
+                                                    <TableCell className="text-xs text-center font-mono font-semibold">{fmtNum(item.total_cost)}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        {useUniformRate ? (
+                                                            <span className="text-xs font-mono text-rose-600">{item.customs_duty_rate}%</span>
+                                                        ) : (
+                                                            <Input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min={0}
+                                                                max={100}
+                                                                value={item.customs_duty_rate}
+                                                                onChange={(e) => updateItemTaxRate(item.id, parseFloat(e.target.value) || 0)}
+                                                                className="w-20 h-7 text-center text-xs font-mono"
+                                                                disabled={isTaxPosted && !taxEditMode}
+                                                            />
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-center font-mono text-rose-700 font-semibold">
+                                                        {fmtNum(item.customs_duty_amount)}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-center font-mono text-gray-500">
+                                                        {fmtNum(item.customs_duty_per_unit)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                        <TableFooter>
+                                            <TableRow className="bg-rose-100/60 dark:bg-rose-950/40 font-bold">
+                                                <TableCell colSpan={5} className="text-xs">
+                                                    {isRTL ? 'الإجمالي' : 'Total'}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-center font-mono">
+                                                    {fmtNum(taxTotals.totalValue)}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-center font-mono text-rose-600">
+                                                    {uniformTaxRate > 0 && `${uniformTaxRate}%`}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-center font-mono text-rose-700 font-bold">
+                                                    {fmtNum(taxTotals.totalTax)} {containerCurrency}
+                                                </TableCell>
+                                                <TableCell></TableCell>
+                                            </TableRow>
+                                        </TableFooter>
+                                    </Table>
+                                </div>
+                            )}
+
+                            {/* ── أزرار الحفظ والترحيل ── */}
+                            <div className="flex items-center justify-between pt-2">
+                                <div className="text-xs text-gray-500">
+                                    {isRTL
+                                        ? 'القيد: مدين 117 ضريبة مدخلات (مستردة) / دائن حساب الدفع (بنك / مخلّص)'
+                                        : 'Entry: Dr VAT Input (recoverable) / Cr Payment Account'
+                                    }
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {/* حالة 1: لم يُرحّل بعد */}
+                                    {!isTaxPosted && !taxEditMode && (
+                                        <>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleSaveTaxDistribution}
+                                                disabled={taxSaving || taxTotals.totalTax <= 0}
+                                                className="gap-1 text-xs"
+                                            >
+                                                {taxSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                {isRTL ? 'حفظ التوزيع' : 'Save Distribution'}
+                                            </Button>
+                                            <Button
+                                                variant="default"
+                                                size="sm"
+                                                onClick={handlePostCustomsTax}
+                                                disabled={taxPosting || taxTotals.totalTax <= 0 || !taxAccountId}
+                                                className="gap-1 text-xs bg-rose-600 hover:bg-rose-700"
+                                            >
+                                                {taxPosting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
+                                                {isRTL ? 'ترحيل قيد الضريبة' : 'Post Tax Entry'}
+                                            </Button>
+                                        </>
+                                    )}
+                                    {/* حالة 2: مُرحّل — عرض الشارة + زر تعديل */}
+                                    {isTaxPosted && !taxEditMode && (
+                                        <>
+                                            <Badge className="bg-green-100 text-green-700 border-green-300 gap-1 text-xs px-3 py-1">
+                                                <Check className="w-3 h-3" />
+                                                {isRTL ? 'تم ترحيل الضريبة' : 'Tax Posted'}
+                                            </Badge>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleEditCustomsTax}
+                                                className="gap-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                                {isRTL ? 'تعديل' : 'Edit'}
+                                            </Button>
+                                        </>
+                                    )}
+                                    {/* حالة 3: وضع التعديل — حفظ التعديلات + إلغاء */}
+                                    {taxEditMode && (
+                                        <>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setTaxEditMode(false)}
+                                                className="gap-1 text-xs"
+                                            >
+                                                {isRTL ? 'إلغاء' : 'Cancel'}
+                                            </Button>
+                                            <Button
+                                                variant="default"
+                                                size="sm"
+                                                onClick={handleSaveEditedTax}
+                                                disabled={taxPosting || taxTotals.totalTax <= 0}
+                                                className="gap-1 text-xs bg-amber-600 hover:bg-amber-700"
+                                            >
+                                                {taxPosting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                {isRTL ? 'حفظ التعديلات' : 'Save Changes'}
+                                            </Button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
+            )}
+
             {/* ─── Cost Summary Cards ─── */}
             {canSeeAmounts && (expenses.length > 0 || actualExpenses.length > 0) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -2295,9 +3257,9 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                     {/* Expenses: Estimated + Actual */}
                     <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 border border-amber-200/60">
                         <div className="text-xs text-amber-600 mb-1">{isRTL ? 'المصاريف' : 'Expenses'}</div>
-                        {/* التقديري */}
+                        {/* الأولي */}
                         <div className="flex items-baseline justify-between">
-                            <span className="text-[10px] text-gray-500">{isRTL ? 'تقديري:' : 'Est:'}</span>
+                            <span className="text-[10px] text-gray-500">{isRTL ? 'أولي:' : 'Prel:'}</span>
                             <span className={cn(
                                 "font-mono text-sm",
                                 totals.totalActual > 0 ? "text-gray-400 line-through" : "font-bold text-amber-800 dark:text-amber-300"
@@ -2324,11 +3286,11 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                     {/* Landed Cost */}
                     <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 border border-emerald-200/60">
                         <div className="text-xs text-emerald-600 mb-1">
-                            {isRTL ? 'التكلفة الواصلة' : 'Landed Cost'}
+                            {isRTL ? 'التكلفة النهائية' : 'Final Cost'}
                             <span className="text-[9px] ms-1 opacity-60">
                                 ({totals.totalActual > 0
                                     ? (isRTL ? 'فعلي' : 'actual')
-                                    : (isRTL ? 'تقديري' : 'est.')
+                                    : (isRTL ? 'أولي' : 'prel.')
                                 })
                             </span>
                         </div>
@@ -2363,45 +3325,127 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                 </div>
             )}
 
-            {/* ─── Landed Cost Actions ─── */}
+            {/* ═══════════════════════════════════════════════════════════════
+                🚦 STATE MACHINE — الحالة الحالية للكونتينر
+                [مفتوح] → [توزيع مثبّت] → [مغلق]
+            ═══════════════════════════════════════════════════════════════ */}
             {canSeeAmounts && containerId && !isNewContainer && (
                 <div className="space-y-3">
                     <Separator />
+
+                    {/* ── شريط الحالة ── */}
+                    <div className="flex items-center gap-2 text-xs">
+                        {/* Step 1 */}
+                        <div className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-full font-medium",
+                            !isFinalized && !isClosed
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 line-through"
+                        )}>
+                            {!isFinalized && !isClosed
+                                ? <span>●</span>
+                                : <Check className="w-3 h-3" />
+                            }
+                            {isRTL ? '١ · إضافة المصاريف' : '1 · Add Expenses'}
+                        </div>
+                        <span className="text-gray-300 dark:text-gray-600">→</span>
+
+                        {/* Step 2 */}
+                        <div className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-full font-medium",
+                            isFinalized && !isClosed
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                                : isFinalized && isClosed
+                                    ? "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 line-through"
+                                    : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                        )}>
+                            {isFinalized
+                                ? isClosed ? <Check className="w-3 h-3" /> : <Lock className="w-3 h-3" />
+                                : <span>●</span>
+                            }
+                            {isRTL ? '٢ · توزيع + تثبيت' : '2 · Distribute & Lock'}
+                        </div>
+                        <span className="text-gray-300 dark:text-gray-600">→</span>
+
+                        {/* Step 3 */}
+                        <div className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-full font-medium",
+                            isClosed
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                        )}>
+                            {isClosed ? <Check className="w-3 h-3" /> : <span>●</span>}
+                            {isRTL ? '٣ · إغلاق الكونتينر' : '3 · Close Container'}
+                        </div>
+                    </div>
+
+                    {/* ── أزرار الإجراءات حسب الحالة ── */}
                     <div className="flex items-center justify-between">
                         <h4 className="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
                             <Calculator className="w-4 h-4" />
-                            {isRTL ? 'التكلفة الواصلة (Landed Cost)' : 'Landed Cost'}
-                            {isFinalized && (
-                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 gap-1">
+                            {isRTL ? 'التكلفة النهائية (Final Cost)' : 'Final Cost'}
+                            {/* حالة الإغلاق */}
+                            {isClosed && (
+                                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 gap-1">
+                                    <Check className="w-3 h-3" />
+                                    {isRTL ? 'مغلق ومرحّل' : 'Closed & Posted'}
+                                </Badge>
+                            )}
+                            {/* حالة التثبيت فقط */}
+                            {isFinalized && !isClosed && (
+                                <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 gap-1">
                                     <Lock className="w-3 h-3" />
-                                    {isRTL ? 'مثبّت' : 'Finalized'}
+                                    {isRTL ? 'موزّع ومثبّت — جاهز للإغلاق' : 'Distributed & Locked — Ready to Close'}
                                 </Badge>
                             )}
                         </h4>
+
                         <div className="flex items-center gap-2">
-                            {/* Calculate button */}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleCalculateLandedCost}
-                                disabled={calculating || expenses.length === 0}
-                                className="gap-1 text-xs"
-                            >
-                                {calculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calculator className="w-3.5 h-3.5" />}
-                                {isRTL ? 'احسب التوزيع' : 'Calculate'}
-                            </Button>
-                            {/* Finalize button */}
-                            {!isFinalized && isEditable && (
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={handleFinalizeLandedCost}
-                                    disabled={finalizing || expenses.length === 0 || hasUnsaved}
-                                    className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-700"
-                                >
-                                    {finalizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-                                    {isRTL ? 'تثبيت التكاليف' : 'Finalize Costs'}
-                                </Button>
+                            {/* ── حالة OPEN: حساب + تثبيت ── */}
+                            {!isFinalized && !isClosed && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleCalculateLandedCost}
+                                        disabled={calculating || expenses.length === 0}
+                                        className="gap-1 text-xs"
+                                    >
+                                        {calculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calculator className="w-3.5 h-3.5" />}
+                                        {isRTL ? 'احسب التوزيع' : 'Calculate'}
+                                    </Button>
+                                    {isEditable && (
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            onClick={handleFinalizeLandedCost}
+                                            disabled={finalizing || expenses.length === 0 || hasUnsaved}
+                                            className="gap-1 text-xs bg-amber-600 hover:bg-amber-700"
+                                        >
+                                            {finalizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                                            {isRTL ? 'توزيع وتثبيت المصاريف' : 'Distribute & Lock'}
+                                        </Button>
+                                    )}
+                                </>
+                            )}
+
+                            {/* ── حالة FINALIZED: جاهز للإغلاق ── */}
+                            {isFinalized && !isClosed && (
+                                <div className="flex items-center gap-2">
+                                    {/* المصاريف مقفولة */}
+                                    <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <Lock className="w-3 h-3" />
+                                        {isRTL ? 'القيود مقفولة — الإغلاق سيرحل قيداً واحداً كاملاً' : 'Entries locked — Closing will post one full entry'}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* ── حالة CLOSED: عرض جاهز ── */}
+                            {isClosed && closingJE && (
+                                <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <Check className="w-3 h-3" />
+                                    {closingJE.entry_number}
+                                </span>
                             )}
                         </div>
                     </div>
@@ -2509,7 +3553,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                                 </TableCell>
                                                 <TableCell className="text-center font-mono text-xs font-bold text-amber-600">
                                                     <div>+{fmtNum(allocationResult.totalEstimatedExpenses || 0)}</div>
-                                                    <div className="text-[9px] text-gray-400">{isRTL ? 'تقديري' : 'Est.'}</div>
+                                                    <div className="text-[9px] text-gray-400">{isRTL ? 'أولي' : 'Prel.'}</div>
                                                 </TableCell>
                                                 <TableCell className="text-center font-mono text-xs font-bold text-emerald-700">
                                                     <div>+{fmtNum(allocationResult.totalActualExpenses || 0)}</div>
@@ -2535,9 +3579,112 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                             </span>
                         </div>
                     )}
+
+                    {/* ══════════════════════════════════════════════════════════════
+                        🔑 CLOSING ENTRY — قيد الإقفال (مبسّط)
+                        - بعد الإقفال: رسالة نجاح + كبسة تفاصيل للسوبر أدمن
+                        - قبل الإقفال: رسالة انتظار بسيطة
+                    ══════════════════════════════════════════════════════════════ */}
+                    {canSeeAmounts && (
+                        <div className="rounded-xl border overflow-hidden">
+                            {closingJE ? (
+                                <>
+                                    <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 dark:bg-emerald-950/20 border-b border-emerald-200">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="p-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                                                <Check className="w-4 h-4 text-emerald-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                                                    {isRTL
+                                                        ? 'تم إقفال الكونتينر وتوزيع المصاريف على المخزون'
+                                                        : 'Container closed — expenses distributed to inventory'}
+                                                </p>
+                                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                                    {isRTL
+                                                        ? `التكلفة النهائية: ${fmtNum(closingJE.total_debit)} ${containerCurrency} — تاريخ: ${closingJE.entry_date}`
+                                                        : `Landed cost: ${fmtNum(closingJE.total_debit)} ${containerCurrency} — Date: ${closingJE.entry_date}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className="font-mono text-xs text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full">
+                                            0.00 ✅
+                                        </span>
+                                    </div>
+
+                                    {isSuperAdmin && (
+                                        <div className="px-3 py-2 bg-white dark:bg-gray-950">
+                                            <button
+                                                className={cn(
+                                                    'w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[11px] border border-dashed transition-colors',
+                                                    showClosingDetails
+                                                        ? 'border-amber-300 bg-amber-50/50 text-amber-700 hover:bg-amber-50'
+                                                        : 'border-gray-200 text-gray-400 hover:text-amber-600 hover:border-amber-200'
+                                                )}
+                                                onClick={() => setShowClosingDetails(!showClosingDetails)}
+                                            >
+                                                <ShieldCheck className="w-3.5 h-3.5" />
+                                                {showClosingDetails
+                                                    ? (isRTL ? 'إخفاء تفاصيل القيد' : 'Hide Entry Details')
+                                                    : (isRTL ? 'عرض تفاصيل القيد (سوبر أدمن)' : 'Show Entry Details (Admin)')}
+                                            </button>
+
+                                            {showClosingDetails && (
+                                                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/30 overflow-hidden">
+                                                    <div className="px-3 py-1.5 bg-amber-100/50 border-b border-amber-200 flex items-center gap-2">
+                                                        <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                                                        <span className="text-[11px] font-semibold text-amber-700">
+                                                            {isRTL ? `قيد إقفال: ${closingJE.entry_number}` : `Closing JE: ${closingJE.entry_number}`}
+                                                        </span>
+                                                    </div>
+                                                    <div className="p-3 space-y-2">
+                                                        <div className="flex items-center justify-between py-1.5 px-3 rounded bg-white dark:bg-gray-900 border text-xs">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                                <span className="font-medium text-amber-800">
+                                                                    {isRTL
+                                                                        ? `مدين — ${inventoryAccount?.account_code || '1141'} ${inventoryAccount?.name_ar || 'بضاعة جاهزة'}`
+                                                                        : `Dr. — ${inventoryAccount?.account_code || '1141'} ${inventoryAccount?.name_en || inventoryAccount?.name_ar || 'Inventory'}`}
+                                                                </span>
+                                                            </div>
+                                                            <span className="font-mono font-bold text-emerald-600">
+                                                                {fmtNum(closingJE.total_debit)} {containerCurrency}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between py-1.5 px-3 rounded bg-white dark:bg-gray-900 border text-xs">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-2 h-2 rounded-full bg-red-400" />
+                                                                <span className="font-medium text-amber-800">
+                                                                    {isRTL
+                                                                        ? `دائن — ${containerCoaAccount?.account_code || ''} ${containerCoaAccount?.name_ar || data?.container_number || ''}`
+                                                                        : `Cr. — ${containerCoaAccount?.account_code || ''} ${containerCoaAccount?.name_ar || data?.container_number || ''}`}
+                                                                </span>
+                                                            </div>
+                                                            <span className="font-mono font-bold text-red-500">
+                                                                ({fmtNum(closingJE.total_debit)}) {containerCurrency}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50/50 dark:bg-blue-950/20">
+                                    <Lock className="w-4 h-4 text-blue-400 shrink-0" />
+                                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                                        {isRTL
+                                            ? 'سيتم إنشاء قيد الإقفال تلقائياً عند إغلاق الحاوية واستلام البضاعة'
+                                            : 'Closing entry created automatically when container is closed and goods received'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                 </div>
             )}
         </div>
-
     );
 };

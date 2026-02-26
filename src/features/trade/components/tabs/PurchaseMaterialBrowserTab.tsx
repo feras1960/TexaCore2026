@@ -17,7 +17,6 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
     useMaterialSearch,
     type MaterialSearchResult,
-    type MaterialColorVariant,
 } from '@/features/trade/hooks/useMaterialSearch';
 import { useBrowserFilterData } from '@/features/trade/hooks/useBrowserFilterData';
 import { useMaterialPriceHistory, type PriceHistoryRecord } from '@/features/trade/hooks/useMaterialPriceHistory';
@@ -54,9 +53,12 @@ import {
     TrendingUp,
     ChevronDown,
     ChevronUp,
-    Palette,
     Warehouse,
     RotateCcw,
+    Layers,
+    CheckSquare,
+    Square,
+    ListChecks,
 } from 'lucide-react';
 import type { InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
 
@@ -73,6 +75,8 @@ interface PurchaseMaterialBrowserTabProps {
     readOnly?: boolean;
     /** Supplier ID — for price history context */
     supplierId?: string;
+    /** Receipt mode — international purchases have no tax */
+    receiptMode?: 'direct' | 'international';
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -104,6 +108,7 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     currency = '',
     readOnly = false,
     supplierId,
+    receiptMode,
 }) => {
     const { language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
@@ -127,19 +132,22 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     const [inStockOnly, setInStockOnly] = useState(false);
     const [belowMinStock, setBelowMinStock] = useState(false);
 
-    // Expanded material (to show colors)
+    // Expanded material (to show variants or direct add)
     const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
-    // Color cache: materialId → colors
-    const [colorsCache, setColorsCache] = useState<Record<string, MaterialColorVariant[]>>({});
-    const [colorsLoading, setColorsLoading] = useState<Set<string>>(new Set());
+    // Variant children cache: parentMaterialId → variant materials
+    const [variantChildrenCache, setVariantChildrenCache] = useState<Record<string, MaterialSearchResult[]>>({});
+    const [variantChildrenLoading, setVariantChildrenLoading] = useState<Set<string>>(new Set());
 
     // Dialog state
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogMaterial, setDialogMaterial] = useState<MaterialSearchResult | null>(null);
-    const [dialogColor, setDialogColor] = useState<MaterialColorVariant | null>(null);
+
+    // Multi-select mode
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set());
 
     // ─── Data ───────────────────────────────────────────────────
-    const { materials, groups, isLoading, isSearching, totalCount, fetchMaterialColors } =
+    const { materials, groups, isLoading, isSearching, totalCount, fetchVariantChildren } =
         useMaterialSearch({
             search: searchText,
             groupId: selectedGroup,
@@ -156,17 +164,9 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     // Track which materials are already in the document
     const cartMaterialIds = useMemo(() => new Set(items.map(i => i.material_id)), [items]);
 
-    // Build a set of "materialId__colorId" keys for items in cart
-    const cartItemKeys = useMemo(() => {
-        return new Set(items.map(i => {
-            const colorId = (i as any).color_id || '';
-            return `${i.material_id}__${colorId}`;
-        }));
-    }, [items]);
-
     // ─── Handlers ───────────────────────────────────────────────
 
-    /** Toggle material expand → loads colors on demand */
+    /** Toggle material expand → loads variant children for parents */
     const toggleExpand = useCallback(async (materialId: string) => {
         if (expandedMaterial === materialId) {
             setExpandedMaterial(null);
@@ -174,30 +174,77 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
         }
         setExpandedMaterial(materialId);
 
-        // Fetch colors if not cached
-        if (!colorsCache[materialId]) {
-            setColorsLoading(prev => new Set(prev).add(materialId));
+        // Check if this is a variant parent
+        const material = materials.find(m => m.id === materialId);
+        const isParent = material?.is_variant_parent || material?.has_variants;
+
+        if (isParent && !variantChildrenCache[materialId]) {
+            // Fetch variant children if not cached
+            setVariantChildrenLoading(prev => new Set(prev).add(materialId));
             try {
-                const colors = await fetchMaterialColors(materialId);
-                setColorsCache(prev => ({ ...prev, [materialId]: colors }));
+                const children = await fetchVariantChildren(materialId);
+                setVariantChildrenCache(prev => ({ ...prev, [materialId]: children }));
             } catch {
-                setColorsCache(prev => ({ ...prev, [materialId]: [] }));
+                setVariantChildrenCache(prev => ({ ...prev, [materialId]: [] }));
             } finally {
-                setColorsLoading(prev => {
+                setVariantChildrenLoading(prev => {
                     const next = new Set(prev);
                     next.delete(materialId);
                     return next;
                 });
             }
         }
-    }, [expandedMaterial, colorsCache, fetchMaterialColors]);
+    }, [expandedMaterial, materials, variantChildrenCache, fetchVariantChildren]);
 
-    /** Open add dialog for a material (no color) */
-    const handleOpenDialog = useCallback((material: MaterialSearchResult, color?: MaterialColorVariant) => {
+    /** Open add dialog for a material */
+    const handleOpenDialog = useCallback((material: MaterialSearchResult) => {
         setDialogMaterial(material);
-        setDialogColor(color || null);
         setDialogOpen(true);
     }, []);
+
+    /** Toggle material selection in multi-select mode */
+    const toggleSelect = useCallback((materialId: string) => {
+        setSelectedMaterials(prev => {
+            const next = new Set(prev);
+            if (next.has(materialId)) {
+                next.delete(materialId);
+            } else {
+                next.add(materialId);
+            }
+            return next;
+        });
+    }, []);
+
+    /** Build a line item from material data */
+    const buildLineItem = useCallback((mat: { id: string; code: string; name_ar: string; name_en: string; unit: string; purchase_price: number; selling_price: number; tax_rate?: number | null }, qty: number, price: number) => {
+        const subtotal = qty * price;
+        const isInternational = receiptMode === 'international';
+        const resolved = isInternational
+            ? { rate: 0, source: 'international' as const }
+            : resolveItemTaxRate(mat.tax_rate, companyTaxRate, companyTaxEnabled);
+        const taxAmt = computeTaxAmount(subtotal, resolved.rate);
+
+        return {
+            id: generateLineItemId(),
+            material_id: mat.id,
+            material_code: mat.code,
+            material_name_ar: mat.name_ar,
+            material_name_en: mat.name_en,
+            quantity: qty,
+            unit: mat.unit || 'meter',
+            unit_price: price,
+            discount_percent: 0,
+            discount_amount: 0,
+            subtotal,
+            tax_rate: resolved.rate,
+            tax_amount: taxAmt,
+            total: subtotal + taxAmt,
+            currency: currency,
+            warehouse_id: '',
+            warehouse_name_ar: '',
+            notes: '',
+        } as any;
+    }, [companyTaxRate, companyTaxEnabled, receiptMode, currency]);
 
     /** Handle add from dialog */
     const handleAddLineItem = useCallback((data: {
@@ -209,53 +256,27 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
         unitPrice: number;
         unit: string;
         currency: string;
-        colorId?: string;
-        colorNameAr?: string;
-        colorNameEn?: string;
-        colorHex?: string;
         materialTaxRate?: number | null;
     }) => {
-        const subtotal = data.quantity * data.unitPrice;
-
-        // 🔑 القاعدة الذهبية: مادة → شركة → 0%
-        const resolved = resolveItemTaxRate(data.materialTaxRate, companyTaxRate, companyTaxEnabled);
-        const taxAmt = computeTaxAmount(subtotal, resolved.rate);
-
-        const newItem: InvoiceLineItem = {
-            id: generateLineItemId(),
-            material_id: data.materialId,
-            material_code: data.materialCode,
-            material_name_ar: data.colorNameAr
-                ? `${data.materialNameAr} — ${data.colorNameAr}`
-                : data.materialNameAr,
-            material_name_en: data.colorNameEn
-                ? `${data.materialNameEn} — ${data.colorNameEn}`
-                : data.materialNameEn,
-            quantity: data.quantity,
-            unit: data.unit,
-            unit_price: data.unitPrice,
-            discount_percent: 0,
-            discount_amount: 0,
-            subtotal,
-            tax_rate: resolved.rate,
-            tax_amount: taxAmt,
-            total: subtotal + taxAmt,
-            currency: data.currency,
-            warehouse_id: '',
-            warehouse_name_ar: '',
-            notes: '',
-            // Color tracking
-            ...(data.colorId ? {
-                color_id: data.colorId,
-                color_name_ar: data.colorNameAr,
-                color_name_en: data.colorNameEn,
-                color_hex: data.colorHex,
-            } : {}),
-        } as any;
-
-        onAddItem(newItem);
+        const item = buildLineItem(
+            { id: data.materialId, code: data.materialCode, name_ar: data.materialNameAr, name_en: data.materialNameEn, unit: data.unit, purchase_price: data.unitPrice, selling_price: 0, tax_rate: data.materialTaxRate },
+            data.quantity, data.unitPrice
+        );
+        onAddItem(item);
         setDialogOpen(false);
-    }, [onAddItem]);
+    }, [onAddItem, buildLineItem]);
+
+    /** Batch add all selected materials with qty=1 */
+    const handleBatchAdd = useCallback(() => {
+        const toAdd = materials.filter(m => selectedMaterials.has(m.id) && !cartMaterialIds.has(m.id));
+        for (const mat of toAdd) {
+            const price = mat.purchase_price || mat.selling_price || 0;
+            const item = buildLineItem(mat, 1, price);
+            onAddItem(item);
+        }
+        setSelectedMaterials(new Set());
+        setSelectMode(false);
+    }, [materials, selectedMaterials, cartMaterialIds, buildLineItem, onAddItem]);
 
     const clearFilters = useCallback(() => {
         setSearchText('');
@@ -453,6 +474,38 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                 </CardContent>
             </Card>
 
+            {/* ═══ Multi-select toolbar ═══ */}
+            {!readOnly && (
+                <div className="flex items-center justify-between mb-2">
+                    <Button
+                        variant={selectMode ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                            'h-7 text-xs gap-1.5 px-3',
+                            selectMode && 'bg-blue-600 hover:bg-blue-700 text-white',
+                        )}
+                        onClick={() => {
+                            setSelectMode(!selectMode);
+                            if (selectMode) setSelectedMaterials(new Set());
+                        }}
+                    >
+                        <ListChecks className="w-3.5 h-3.5" />
+                        {t('تحديد متعدد', 'Multi-Select')}
+                    </Button>
+
+                    {selectMode && selectedMaterials.size > 0 && (
+                        <Button
+                            size="sm"
+                            className="h-7 text-xs gap-1.5 px-4 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={handleBatchAdd}
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            {t(`إضافة ${selectedMaterials.size} مادة`, `Add ${selectedMaterials.size} materials`)}
+                        </Button>
+                    )}
+                </div>
+            )}
+
             {/* ═══ Results ═══ */}
             {isLoading ? (
                 <div className="flex items-center justify-center py-12">
@@ -478,9 +531,6 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                         const isInCart = cartMaterialIds.has(material.id);
                         const displayPrice = material.purchase_price || material.selling_price;
                         const isLowStock = material.stock_qty > 0 && material.stock_qty <= material.min_stock;
-                        const isColorLoading = colorsLoading.has(material.id);
-                        const colors = colorsCache[material.id] || [];
-                        const hasColors = colors.length > 0;
 
                         return (
                             <Card
@@ -496,8 +546,18 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                                     {/* ─── Main Row ─── */}
                                     <div
                                         className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
-                                        onClick={() => toggleExpand(material.id)}
+                                        onClick={() => selectMode ? toggleSelect(material.id) : toggleExpand(material.id)}
                                     >
+                                        {/* Multi-select checkbox */}
+                                        {selectMode && (
+                                            <div className="shrink-0" onClick={(e) => { e.stopPropagation(); toggleSelect(material.id); }}>
+                                                {selectedMaterials.has(material.id) ? (
+                                                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                                                ) : (
+                                                    <Square className="w-5 h-5 text-gray-400" />
+                                                )}
+                                            </div>
+                                        )}
                                         {/* Swatch / Icon */}
                                         <div className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
                                             {material.swatch_url ? (
@@ -520,6 +580,12 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                                                 {isInCart && (
                                                     <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300">
                                                         {t('مضاف', 'Added')}
+                                                    </Badge>
+                                                )}
+                                                {(material.is_variant_parent || material.has_variants) && (
+                                                    <Badge variant="outline" className="text-[10px] gap-0.5 bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300">
+                                                        <Layers className="w-2.5 h-2.5" />
+                                                        {t('أم', 'Parent')}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -571,6 +637,26 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                                             <div className="text-[10px] text-gray-400">{currency}</div>
                                         </div>
 
+                                        {/* Quick Add button — for all materials (parents expand, normal opens dialog) */}
+                                        {!readOnly && !selectMode && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/20 shrink-0"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const isParent = material.is_variant_parent || material.has_variants;
+                                                    if (isParent) {
+                                                        toggleExpand(material.id);
+                                                    } else {
+                                                        handleOpenDialog(material);
+                                                    }
+                                                }}
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </Button>
+                                        )}
+
                                         {/* Expand Arrow */}
                                         <div className="shrink-0">
                                             {isExpanded ? (
@@ -581,109 +667,157 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                                         </div>
                                     </div>
 
-                                    {/* ─── Expanded: Colors or Direct Add ─── */}
-                                    {isExpanded && (
-                                        <div className="border-t border-gray-100 dark:border-gray-800">
-                                            {isColorLoading ? (
-                                                <div className="flex items-center gap-2 justify-center py-4">
-                                                    <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
-                                                    <span className="text-xs text-gray-400">
-                                                        {t('تحميل الألوان...', 'Loading colors...')}
-                                                    </span>
-                                                </div>
-                                            ) : hasColors ? (
-                                                /* ─── Color Grid ─── */
-                                                <div className="p-3 space-y-1.5">
-                                                    <div className="flex items-center gap-1.5 mb-2">
-                                                        <Palette className="w-3.5 h-3.5 text-orange-500" />
-                                                        <span className="text-[11px] font-medium text-gray-500">
-                                                            {t('اختر اللون', 'Select Color')}
-                                                            <span className="text-gray-400 ms-1">({colors.length})</span>
-                                                        </span>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                                                        {colors.map((color) => {
-                                                            const colorKey = `${material.id}__${color.color_id}`;
-                                                            const colorInCart = cartItemKeys.has(colorKey);
-                                                            const colorPrice = color.price_override ?? displayPrice;
+                                    {/* ─── Expanded: Variants (new) or Colors (legacy) ─── */}
+                                    {isExpanded && (() => {
+                                        const isParent = material.is_variant_parent || material.has_variants;
+                                        const variantChildren = variantChildrenCache[material.id] || [];
+                                        const isVarLoading = variantChildrenLoading.has(material.id);
 
-                                                            return (
-                                                                <div
-                                                                    key={color.id}
-                                                                    onClick={() => !readOnly && color.is_available && handleOpenDialog(material, color)}
-                                                                    className={cn(
-                                                                        'flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer transition-all duration-150',
-                                                                        'hover:shadow-sm',
-                                                                        colorInCart
-                                                                            ? 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-900/20'
-                                                                            : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-600',
-                                                                        !color.is_available && 'opacity-50 cursor-not-allowed',
-                                                                    )}
-                                                                >
-                                                                    {/* Color swatch */}
-                                                                    <div
-                                                                        className="w-7 h-7 rounded-md border border-gray-200 dark:border-gray-600 shrink-0 shadow-inner"
-                                                                        style={{ backgroundColor: color.hex_color }}
-                                                                    />
+                                        // Group variant children by their group (design)
+                                        const variantGroups: { name_ar: string; name_en: string; items: MaterialSearchResult[] }[] = [];
+                                        if (isParent && variantChildren.length > 0) {
+                                            const groupMap = new Map<string, { name_ar: string; name_en: string; items: MaterialSearchResult[] }>();
+                                            for (const child of variantChildren) {
+                                                const gKey = child.group_id || 'ungrouped';
+                                                if (!groupMap.has(gKey)) {
+                                                    groupMap.set(gKey, {
+                                                        name_ar: child.group_name_ar || t('بدون مجموعة', 'Ungrouped'),
+                                                        name_en: child.group_name_en || 'Ungrouped',
+                                                        items: [],
+                                                    });
+                                                }
+                                                groupMap.get(gKey)!.items.push(child);
+                                            }
+                                            variantGroups.push(...Array.from(groupMap.values()));
+                                        }
 
-                                                                    {/* Color info */}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
-                                                                            {isRTL ? color.color_name_ar : (color.color_name_en || color.color_name_ar)}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <span className="text-[10px] font-mono text-gray-400">{color.color_code}</span>
-                                                                            {color.price_override != null && (
-                                                                                <span className="text-[10px] font-mono text-orange-600 dark:text-orange-400">
-                                                                                    {colorPrice.toFixed(2)}
-                                                                                </span>
-                                                                            )}
+                                        return (
+                                            <div className="border-t border-gray-100 dark:border-gray-800">
+                                                {isParent ? (
+                                                    /* ═══ VARIANT PARENT: Show grouped variant children ═══ */
+                                                    <div className="p-3 space-y-2">
+                                                        {/* Header */}
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <Layers className="w-4 h-4 text-purple-500" />
+                                                            <span className="font-medium text-purple-700 dark:text-purple-300">
+                                                                {t('المتغيرات', 'Variants')}
+                                                            </span>
+                                                            {!isVarLoading && (
+                                                                <Badge variant="outline" className="text-[9px] h-4 px-1.5">
+                                                                    {variantChildren.length}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        {isVarLoading ? (
+                                                            <div className="flex items-center gap-2 justify-center py-4">
+                                                                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                                                                <span className="text-xs text-gray-400">
+                                                                    {t('تحميل المتغيرات...', 'Loading variants...')}
+                                                                </span>
+                                                            </div>
+                                                        ) : variantChildren.length === 0 ? (
+                                                            <div className="text-center py-3">
+                                                                <span className="text-xs text-gray-400">
+                                                                    {t('لا توجد متغيرات', 'No variants found')}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-2">
+                                                                {variantGroups.map((group, gi) => (
+                                                                    <div key={gi}>
+                                                                        {/* Group header */}
+                                                                        {variantGroups.length > 1 && (
+                                                                            <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                                                                                <Package className="w-3 h-3" />
+                                                                                {isRTL ? group.name_ar : group.name_en}
+                                                                                <span className="text-gray-300">({group.items.length})</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {/* Variant items */}
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                                                            {group.items.map((variant) => {
+                                                                                const varInCart = cartMaterialIds.has(variant.id);
+                                                                                const varPrice = variant.purchase_price || variant.selling_price;
+                                                                                return (
+                                                                                    <div
+                                                                                        key={variant.id}
+                                                                                        onClick={() => !readOnly && handleOpenDialog(variant)}
+                                                                                        className={cn(
+                                                                                            'flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer transition-all duration-150 hover:shadow-sm',
+                                                                                            varInCart
+                                                                                                ? 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-900/20'
+                                                                                                : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600',
+                                                                                        )}
+                                                                                    >
+                                                                                        {/* Variant swatch */}
+                                                                                        <div className="w-7 h-7 rounded-md border border-gray-200 dark:border-gray-600 shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                                                                                            {variant.swatch_url ? (
+                                                                                                <img src={variant.swatch_url} alt="" className="w-full h-full object-cover" />
+                                                                                            ) : (
+                                                                                                <Layers className="w-3 h-3 text-gray-400" />
+                                                                                            )}
+                                                                                        </div>
+                                                                                        {/* Variant info */}
+                                                                                        <div className="flex-1 min-w-0">
+                                                                                            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+                                                                                                {isRTL ? variant.name_ar : (variant.name_en || variant.name_ar)}
+                                                                                            </div>
+                                                                                            <div className="flex items-center gap-1.5">
+                                                                                                <span className="text-[10px] font-mono text-gray-400">{variant.code}</span>
+                                                                                                {varPrice > 0 && (
+                                                                                                    <span className="text-[10px] font-mono text-purple-600 dark:text-purple-400">
+                                                                                                        {varPrice.toFixed(2)}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        {/* Stock */}
+                                                                                        <div className="text-end shrink-0">
+                                                                                            <div className="text-[10px] font-mono text-gray-500">
+                                                                                                {variant.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })} {variant.unit}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        {/* Status icon */}
+                                                                                        {varInCart ? (
+                                                                                            <Check className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                                                                        ) : !readOnly ? (
+                                                                                            <Plus className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                                                                                        ) : null}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
                                                                         </div>
                                                                     </div>
-
-                                                                    {/* Status */}
-                                                                    {colorInCart ? (
-                                                                        <Check className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                                                                    ) : !readOnly && color.is_available ? (
-                                                                        <Plus className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                                                                    ) : null}
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
-
-                                                    {/* Add without color (optional) */}
-                                                    {!readOnly && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="w-full h-7 text-[10px] text-gray-400 hover:text-gray-600 mt-1"
-                                                            onClick={() => handleOpenDialog(material)}
-                                                        >
-                                                            {t('إضافة بدون تحديد لون', 'Add without specific color')}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                /* ─── No colors → Direct add button ─── */
-                                                <div className="p-3 flex items-center justify-between">
-                                                    <span className="text-xs text-gray-400">
-                                                        {t('لا توجد ألوان محددة لهذه المادة', 'No colors defined for this material')}
-                                                    </span>
-                                                    {!readOnly && (
-                                                        <Button
-                                                            size="sm"
-                                                            className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white"
-                                                            onClick={() => handleOpenDialog(material)}
-                                                        >
-                                                            <Plus className="w-3 h-3" />
-                                                            {t('إضافة', 'Add')}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                ) : (
+                                                    /* ═══ NORMAL MATERIAL: Direct add ═══ */
+                                                    <div className="p-3 flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <Package className="w-4 h-4 text-gray-400" />
+                                                            <div>
+                                                                <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                                    {t('إضافة مباشرة', 'Direct Add')}
+                                                                </div>
+                                                                <div className="text-[10px] text-gray-400">
+                                                                    {t('هذه المادة ليس لها متغيرات', 'This material has no variants')}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {!readOnly && (
+                                                            <Button size="sm" className="h-7 text-xs gap-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={() => handleOpenDialog(material)}>
+                                                                <Plus className="w-3 h-3" />
+                                                                {t('إضافة', 'Add')}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </CardContent>
                             </Card>
                         );
@@ -698,10 +832,8 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                     onClose={() => {
                         setDialogOpen(false);
                         setDialogMaterial(null);
-                        setDialogColor(null);
                     }}
                     material={dialogMaterial}
-                    color={dialogColor}
                     currency={currency}
                     supplierId={supplierId}
                     onAdd={handleAddLineItem}
@@ -720,7 +852,6 @@ interface PurchaseAddDialogProps {
     open: boolean;
     onClose: () => void;
     material: MaterialSearchResult;
-    color: MaterialColorVariant | null;
     currency: string;
     supplierId?: string;
     canSeePurchasePrices: boolean;
@@ -733,10 +864,6 @@ interface PurchaseAddDialogProps {
         unitPrice: number;
         unit: string;
         currency: string;
-        colorId?: string;
-        colorNameAr?: string;
-        colorNameEn?: string;
-        colorHex?: string;
         materialTaxRate?: number | null;
     }) => void;
 }
@@ -745,7 +872,6 @@ function PurchaseAddDialog({
     open,
     onClose,
     material,
-    color,
     currency,
     supplierId,
     canSeePurchasePrices,
@@ -779,13 +905,10 @@ function PurchaseAddDialog({
     const unitLabel = unitLabels[unit] || unitLabels.meter;
 
     const matName = isAr ? material.name_ar : (material.name_en || material.name_ar);
-    const colorName = color
-        ? (isAr ? color.color_name_ar : (color.color_name_en || color.color_name_ar))
-        : null;
-    const displayName = colorName ? `${matName} — ${colorName}` : matName;
+    const displayName = matName;
 
-    // Use color price override if available
-    const basePrice = color?.price_override ?? material.purchase_price ?? material.selling_price ?? 0;
+    // Use material price directly
+    const basePrice = material.purchase_price ?? material.selling_price ?? 0;
 
     // Initialize on open
     useEffect(() => {
@@ -796,7 +919,7 @@ function PurchaseAddDialog({
             setShowPriceHistory(false);
             setTimeout(() => inputRef.current?.focus(), 100);
         }
-    }, [open, material.id, color?.color_id]);
+    }, [open, material.id]);
 
     // Fetch price history on demand
     const handleShowPriceHistory = useCallback(() => {
@@ -829,15 +952,9 @@ function PurchaseAddDialog({
             unitPrice: price,
             unit,
             currency,
-            ...(color ? {
-                colorId: color.color_id,
-                colorNameAr: color.color_name_ar,
-                colorNameEn: color.color_name_en,
-                colorHex: color.hex_color,
-            } : {}),
             materialTaxRate: material.tax_rate,
         });
-    }, [qty, price, material, color, unit, currency, validate, onAdd]);
+    }, [qty, price, material, unit, currency, validate, onAdd]);
 
     /** Keyboard shortcut: Enter → Add */
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -870,28 +987,20 @@ function PurchaseAddDialog({
                 </DialogHeader>
 
                 <div className="space-y-4 py-2">
-                    {/* Material + Color Info */}
+                    {/* Material Info */}
                     <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                        {/* Material swatch or color swatch */}
-                        <div className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-600 shrink-0 overflow-hidden flex items-center justify-center"
-                            style={color ? { backgroundColor: color.hex_color } : undefined}
-                        >
-                            {!color && (material.swatch_url ? (
+                        {/* Material swatch */}
+                        <div className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-600 shrink-0 overflow-hidden flex items-center justify-center">
+                            {material.swatch_url ? (
                                 <img src={material.swatch_url} alt="" className="w-full h-full object-cover" />
                             ) : (
                                 <Package className="h-5 w-5 text-gray-400" />
-                            ))}
+                            )}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm truncate">{displayName}</p>
                             <div className="flex items-center gap-2 text-[11px] text-gray-500">
                                 <span className="font-mono">{material.code}</span>
-                                {color && (
-                                    <>
-                                        <span>·</span>
-                                        <span className="font-mono">{color.color_code}</span>
-                                    </>
-                                )}
                                 <span>·</span>
                                 <span>{isAr ? material.group_name_ar : (material.group_name_en || material.group_name_ar)}</span>
                             </div>

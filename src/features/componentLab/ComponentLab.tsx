@@ -1272,6 +1272,16 @@ export default function ComponentLab() {
       route: '/kanban-lab',
       badge: '✅ Production',
     },
+    // NexaListTable — Rich List Table (طبق الأصل من دورة الشراء)
+    {
+      id: 'nexa-list-table',
+      nameKey: 'componentLab.popups.nexaListTable.name',
+      descriptionKey: 'componentLab.popups.nexaListTable.description',
+      type: 'sheet',
+      status: 'ready',
+      path: 'src/components/ui/nexa-list-table.tsx',
+      badge: '✅ Production',
+    },
   ];
 
   const columns: Column<PopupRegistry>[] = [

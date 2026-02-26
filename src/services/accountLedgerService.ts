@@ -12,7 +12,9 @@ export interface LedgerEntry {
   description: string;
   reference: string;
   referenceType: string;
+  referenceId?: string;
   entryId: string;
+  entryType?: string;
   entryNumber: string;
   lineNumber: number;
   debit: number;
@@ -107,6 +109,7 @@ export const accountLedgerService = {
           status,
           is_posted,
           reference_type,
+          reference_id,
           reference_number,
           entry_type,
           currency
@@ -127,7 +130,10 @@ export const accountLedgerService = {
       query = query.lte('journal_entries.entry_date', filters.dateTo);
     }
 
-    // Status filter
+    // Status filter — always exclude cancelled and voided entries
+    query = query.neq('journal_entries.status', 'cancelled');
+    query = query.neq('journal_entries.status', 'voided');
+
     if (filters.status && filters.status !== 'all') {
       if (filters.status === 'posted') {
         query = query.eq('journal_entries.is_posted', true);
@@ -153,10 +159,8 @@ export const accountLedgerService = {
       query = query.eq('project_id', filters.projectId);
     }
 
-    // Order by date and entry number
-    query = query.order('journal_entries(entry_date)', { ascending: true })
-      .order('journal_entries(entry_number)', { ascending: true })
-      .order('line_number', { ascending: true });
+    // Order by date (using created_at as reliable fallback)
+    query = query.order('created_at', { ascending: true });
 
     const { data, error } = await query;
 
@@ -170,13 +174,23 @@ export const accountLedgerService = {
       .from('chart_of_accounts')
       .select('opening_balance, current_balance')
       .eq('id', filters.accountId)
-      .single();
+      .maybeSingle();
 
     const openingBalance = accountData?.opening_balance || 0;
 
+    // Sort data by entry date (since ordering by referenced table can be unreliable)
+    const sortedData = (data || []).sort((a: any, b: any) => {
+      const dateA = a.journal_entries?.entry_date || '';
+      const dateB = b.journal_entries?.entry_date || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return (a.created_at || '').localeCompare(b.created_at || '');
+    });
+
+    console.log('[LedgerService] Raw query returned', sortedData.length, 'lines for account', filters.accountId);
+
     // Calculate running balance and transform data
     let runningBalance = openingBalance;
-    const entries: LedgerEntry[] = (data || []).map((line: any) => {
+    const entries: LedgerEntry[] = sortedData.map((line: any) => {
       const entry = line.journal_entries;
       const debit = line.debit || 0;
       const credit = line.credit || 0;
@@ -203,7 +217,9 @@ export const accountLedgerService = {
         description: line.description || entry.description,
         reference: entry.reference_number || entry.entry_number,
         referenceType: entry.reference_type || entry.entry_type || 'manual',
+        referenceId: entry.reference_id || line.reference_id || undefined,
         entryId: entry.id,
+        entryType: entry.entry_type || 'manual',
         entryNumber: entry.entry_number,
         lineNumber: line.line_number,
         debit,
@@ -259,7 +275,7 @@ export const accountLedgerService = {
       .from('chart_of_accounts')
       .select('opening_balance, current_balance')
       .eq('id', accountId)
-      .single();
+      .maybeSingle();
 
     // Get aggregated stats from journal entry lines
     let query = supabase

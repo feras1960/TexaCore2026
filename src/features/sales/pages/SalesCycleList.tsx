@@ -12,10 +12,20 @@ import {
     Filter,
     Package,
     LayoutGrid,
-    List
+    List,
+    MoreHorizontal,
+    Eye,
+    Send,
+    ArrowLeftRight,
+    Loader2,
+    Receipt,
+    BookOpen,
+    FilePlus,
+    User,
+    Clock
 } from 'lucide-react';
 import { NexaKanbanBoard } from '@/components/ui/nexa-kanban/NexaKanbanBoard';
-import { NexaSalesTable } from '@/features/sales/components/NexaSalesTable';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,34 +44,114 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 import type { DocType } from '@/components/sheets/configs/sheet.types';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfDay } from 'date-fns';
+import { startOfMonth, endOfDay, format, formatDistanceToNow } from 'date-fns';
+import { ar as arLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { validateTradeDocument } from '@/features/trade/utils/validateTradeDocument';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
 import { useCompanyCurrencies } from '@/hooks/useCompanyCurrencies';
 import { usePosting } from '@/hooks/usePosting';
+import { useNumberFormat } from '@/hooks/useNumberFormat';
+import { salesTransactionService } from '@/services/salesTransactionService';
+import { cn } from '@/lib/utils';
 
 // Define Types
-type CycleType = 'quotation' | 'order' | 'delivery' | 'invoice' | 'return' | 'reservation';
+type CycleType = 'quotation' | 'order' | 'delivery' | 'invoice' | 'return' | 'reservation' | 'draft' | 'confirmed' | 'posted';
+
+// Map stages to display cycle types
+const STAGE_TO_CYCLE: Record<string, CycleType> = {
+    draft: 'draft',
+    quotation: 'quotation',
+    reservation: 'reservation',
+    order: 'order',
+    confirmed: 'confirmed',
+    posted: 'invoice',
+    in_delivery: 'confirmed',
+    in_receiving: 'confirmed',
+    delivery: 'delivery',
+    delivered: 'delivery',
+    invoice: 'invoice',
+    invoiced: 'invoice',
+    partially_received: 'confirmed',
+    fully_received: 'confirmed',
+    completed: 'confirmed',
+    paid: 'confirmed',
+    partial_paid: 'confirmed',
+    partially_paid: 'confirmed',
+    cancelled: 'return',
+    return: 'return',
+    closed: 'confirmed',
+};
+
+// ─── Status Style Map ───
+const STAGE_STYLES: Record<string, {
+    bg: string; text: string; dot: string; labelAr: string; labelEn: string;
+}> = {
+    draft: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400', dot: 'bg-gray-400', labelAr: 'مسودة', labelEn: 'Draft' },
+    quotation: { bg: 'bg-purple-50 dark:bg-purple-950/30', text: 'text-purple-700 dark:text-purple-400', dot: 'bg-purple-500', labelAr: 'عرض سعر', labelEn: 'Quotation' },
+    reservation: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500', labelAr: 'حجز', labelEn: 'Reserved' },
+    order: { bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500', labelAr: 'أمر بيع', labelEn: 'Order' },
+    confirmed: { bg: 'bg-green-50 dark:bg-green-950/30', text: 'text-green-700 dark:text-green-400', dot: 'bg-green-500', labelAr: 'مؤكد', labelEn: 'Confirmed' },
+    posted: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', labelAr: 'مسلّمة ومرحّلة', labelEn: 'Delivered & Posted' },
+    in_delivery: { bg: 'bg-sky-50 dark:bg-sky-950/30', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500', labelAr: 'قيد التسليم', labelEn: 'In Delivery' },
+    in_receiving: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500', labelAr: 'قيد الاستلام', labelEn: 'In Receiving' },
+    delivery: { bg: 'bg-orange-50 dark:bg-orange-950/30', text: 'text-orange-700 dark:text-orange-400', dot: 'bg-orange-500', labelAr: 'تسليم', labelEn: 'Delivery' },
+    delivered: { bg: 'bg-teal-50 dark:bg-teal-950/30', text: 'text-teal-700 dark:text-teal-400', dot: 'bg-teal-500', labelAr: 'تم التسليم', labelEn: 'Delivered' },
+    invoice: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'فاتورة', labelEn: 'Invoice' },
+    invoiced: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'مفوتر', labelEn: 'Invoiced' },
+    paid: { bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-700 dark:text-blue-400', dot: 'bg-blue-500', labelAr: 'مدفوع', labelEn: 'Paid' },
+    partial_paid: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'مدفوع جزئياً', labelEn: 'Partially Paid' },
+    partially_paid: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'مدفوع جزئياً', labelEn: 'Partially Paid' },
+    partially_received: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-400', dot: 'bg-amber-500', labelAr: 'مستلم جزئياً', labelEn: 'Partially Received' },
+    fully_received: { bg: 'bg-green-50 dark:bg-green-950/30', text: 'text-green-700 dark:text-green-400', dot: 'bg-green-500', labelAr: 'مستلم بالكامل', labelEn: 'Fully Received' },
+    completed: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', labelAr: 'مكتمل', labelEn: 'Completed' },
+    cancelled: { bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500', labelAr: 'ملغى', labelEn: 'Cancelled' },
+    closed: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-500', labelAr: 'مغلق', labelEn: 'Closed' },
+    return: { bg: 'bg-rose-50 dark:bg-rose-950/30', text: 'text-rose-700 dark:text-rose-400', dot: 'bg-rose-500', labelAr: 'مرتجع', labelEn: 'Return' },
+};
+
+// ─── Row accent colors ───
+const STAGE_ACCENT: Record<string, string> = {
+    draft: 'border-s-gray-300',
+    quotation: 'border-s-purple-400',
+    reservation: 'border-s-cyan-400',
+    order: 'border-s-blue-400',
+    confirmed: 'border-s-green-400',
+    posted: 'border-s-emerald-400',
+    in_delivery: 'border-s-sky-400',
+    in_receiving: 'border-s-cyan-400',
+    delivery: 'border-s-orange-400',
+    delivered: 'border-s-teal-400',
+    invoice: 'border-s-indigo-400',
+    invoiced: 'border-s-indigo-400',
+    paid: 'border-s-blue-400',
+    partial_paid: 'border-s-indigo-300',
+    partially_paid: 'border-s-indigo-300',
+    cancelled: 'border-s-red-400',
+    return: 'border-s-rose-400',
+    completed: 'border-s-emerald-400',
+    closed: 'border-s-slate-400',
+};
 
 interface SalesDocument {
     id: string;
-    document_number: string; // Unified display ID
-    date: string; // Unified date
+    document_number: string;
+    date: string;
     type: CycleType;
     status: string;
-    total_amount: number; // 0 if not applicable
+    stage: string;
+    total_amount: number;
     customer_id?: string;
     customer_name?: string;
     currency: string;
     created_at: string;
+    delivered_at?: string;
+    posted_at?: string;
+    delivery_confirmed_at?: string;
     original_table: string;
-    // Specifics
     reservation_type?: 'stock' | 'transit';
-    source_ref?: string; // Shipment/Order ref
-    // Raw data from Supabase (including notes with items JSON)
+    source_ref?: string;
     _rawData?: any;
 }
 
@@ -69,6 +159,7 @@ export default function SalesCycleList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
     const { baseCurrency, supportedCurrencies } = useCompanyCurrencies();
+    const { fmtAmount } = useNumberFormat();
     const isRTL = direction === 'rtl';
     const queryClient = useQueryClient();
     const {
@@ -78,19 +169,7 @@ export default function SalesCycleList() {
         isPosting
     } = usePosting();
 
-    // 🔄 Realtime: auto-update when any user changes sales documents
-    useRealtimeInvalidation({
-        table: 'sales_orders',
-        companyId,
-        filter: companyId ? `company_id=eq.${companyId}` : undefined,
-        queryKeys: [['sales_cycle_full']],
-    });
-    useRealtimeInvalidation({
-        table: 'quotations',
-        companyId,
-        filter: companyId ? `company_id=eq.${companyId}` : undefined,
-        queryKeys: [['sales_cycle_full']],
-    });
+    // 🔄 Realtime: auto-update — single table
     useRealtimeInvalidation({
         table: 'sales_transactions',
         companyId,
@@ -115,7 +194,10 @@ export default function SalesCycleList() {
     const handleCurrencyChange = useCallback((cur: string) => {
         setSelectedCurrency(cur);
         try { localStorage.setItem('sales_cycle_currency', cur); } catch { }
-    }, []);
+        debouncedSavePreferences(VIEW_PREF_KEY, {
+            columnVisibility: { viewMode: viewMode as any, activeTab, currency: cur } as any
+        }, 500);
+    }, [viewMode, activeTab]);
 
     // Date Filter State
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -123,18 +205,38 @@ export default function SalesCycleList() {
         to: new Date()
     });
 
-    // ─── Persist view mode preference ───
+    // Search & Sort State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortField, setSortField] = useState('created_at');
+    const [sortAsc, setSortAsc] = useState(false);
+    const handleSort = useCallback((field: string) => {
+        if (sortField === field) {
+            setSortAsc(prev => !prev);
+        } else {
+            setSortField(field);
+            setSortAsc(false);
+        }
+    }, [sortField]);
+
+    // ─── Persist ALL preferences ───
     const VIEW_PREF_KEY = 'sales-cycle-view';
 
-    // Load saved view mode on mount
+    // Load saved preferences on mount
     useEffect(() => {
         getTablePreferences(VIEW_PREF_KEY).then((prefs) => {
-            if (prefs?.columnVisibility?.viewMode) {
-                const saved = prefs.columnVisibility.viewMode as unknown as string;
+            const vis = prefs?.columnVisibility as any;
+            if (vis?.viewMode) {
+                const saved = vis.viewMode as string;
                 if (saved === 'kanban' || saved === 'list') {
                     setViewMode(saved);
                     if (saved === 'kanban') setActiveTab('all');
                 }
+            }
+            if (vis?.activeTab && vis.activeTab !== 'all') {
+                setActiveTab(vis.activeTab);
+            }
+            if (vis?.currency) {
+                setSelectedCurrency(vis.currency);
             }
             setViewModeLoaded(true);
         }).catch(() => setViewModeLoaded(true));
@@ -145,9 +247,17 @@ export default function SalesCycleList() {
         setViewMode(mode);
         if (mode === 'kanban') setActiveTab('all');
         debouncedSavePreferences(VIEW_PREF_KEY, {
-            columnVisibility: { viewMode: mode as any }
+            columnVisibility: { viewMode: mode as any, activeTab: mode === 'kanban' ? 'all' : activeTab, currency: selectedCurrency } as any
         }, 500);
-    }, []);
+    }, [activeTab, selectedCurrency]);
+
+    // Save active tab when it changes
+    const handleTabChange = useCallback((tab: string) => {
+        setActiveTab(tab);
+        debouncedSavePreferences(VIEW_PREF_KEY, {
+            columnVisibility: { viewMode: viewMode as any, activeTab: tab, currency: selectedCurrency } as any
+        }, 500);
+    }, [viewMode, selectedCurrency]);
 
     // 1. Fetch Customers Map
     const { data: customersMap = {} } = useQuery({
@@ -173,93 +283,68 @@ export default function SalesCycleList() {
         staleTime: 60000
     });
 
-    // 2. Fetch Documents (Sales Cycle)
+    // 2. Fetch ALL Documents — always fetch everything, filter in frontend
     const { data: documents = [], isLoading, error, refetch } = useQuery({
-        queryKey: ['sales_cycle_full', companyId, activeTab, dateRange?.from, dateRange?.to],
+        queryKey: ['sales_cycle_full', companyId, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];
 
-            let allDocs: SalesDocument[] = [];
-            const fromISO = dateRange?.from ? dateRange.from.toISOString() : null;
-            const toISO = dateRange?.to ? endOfDay(dateRange.to).toISOString() : null;
+            const fromISO = dateRange?.from ? dateRange.from.toISOString().split('T')[0] : null;
+            const toISO = dateRange?.to ? endOfDay(dateRange.to).toISOString().split('T')[0] : null;
 
-            // Generic Helper
-            const fetchTable = async (table: string, type: CycleType, dateCol: string, numCol: string, amountCol?: string, extraProps: (item: any) => any = () => ({})) => {
-                let q = supabase
-                    .from(table)
-                    .select('*')
-                    .eq('company_id', companyId)
-                    .order(dateCol, { ascending: false });
+            let q = supabase
+                .from('sales_transactions')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .order('created_at', { ascending: false });
 
-                if (fromISO) q = q.gte(dateCol, fromISO);
-                if (toISO) q = q.lte(dateCol, toISO);
+            // Only filter by date — tabs and currency are filtered client-side
+            if (fromISO) q = q.gte('doc_date', fromISO);
+            if (toISO) q = q.lte('doc_date', toISO);
 
-                const { data, error } = await q;
+            const { data, error: fetchErr } = await q;
 
-                if (error) {
-                    console.warn(`Failed to fetch ${table}:`, error.message);
-                    return [];
-                }
+            if (fetchErr) {
+                console.error('Failed to fetch sales_transactions:', fetchErr.message);
+                return [];
+            }
 
-                return (data || []).map((item: any) => ({
+            return (data || []).map((item: any): SalesDocument => {
+                const stage = item.stage || 'draft';
+                const type = STAGE_TO_CYCLE[stage] || 'draft';
+
+                // Pick the best document number for current stage
+                const docNum = item.invoice_no || item.delivery_no || item.order_no
+                    || item.reservation_no || item.quotation_no || item.draft_no
+                    || item.id?.substring(0, 8);
+
+                // Pick the best date for current stage
+                const docDate = item.invoice_date || item.delivery_date || item.order_date
+                    || item.reservation_date || item.quotation_date || item.doc_date
+                    || item.created_at;
+
+                const exchangeRate = Number(item.exchange_rate || 1);
+
+                return {
                     id: item.id,
-                    document_number: item[numCol] || item.id.substring(0, 8),
-                    date: item[dateCol],
-                    type: type,
-                    status: item.stage || item.status || 'draft',
-                    total_amount: amountCol ? (item[amountCol] || 0) : 0,
+                    document_number: docNum,
+                    date: docDate,
+                    type,
+                    status: stage,
+                    stage,
+                    total_amount: Number(item.total_amount || 0),
                     customer_id: item.customer_id,
                     customer_name: item.customer_name,
-                    currency: item.currency || activeCurrency,
+                    currency: item.currency || baseCurrency,
                     created_at: item.created_at,
-                    original_table: table,
-                    _rawData: item, // Preserve raw data including notes JSON
-                    ...extraProps(item)
-                }));
-            };
-
-            // Parallel Fetches based on Active Tab
-            const fetchPromises = [];
-
-            // 1. Quotations
-            if (activeTab === 'all' || activeTab === 'quotation') {
-                fetchPromises.push(fetchTable('quotations', 'quotation', 'quotation_date', 'quotation_number', 'total_amount'));
-            }
-
-            // 2. Orders
-            if (activeTab === 'all' || activeTab === 'order') {
-                fetchPromises.push(fetchTable('sales_orders', 'order', 'order_date', 'order_number', 'total_amount'));
-            }
-
-            // 3. Deliveries (Delivery Notes)
-            if (activeTab === 'all' || activeTab === 'delivery') {
-                fetchPromises.push(fetchTable('sales_deliveries', 'delivery', 'delivery_date', 'delivery_number'));
-            }
-
-            // 4. Invoices
-            if (activeTab === 'all' || activeTab === 'invoice') {
-                fetchPromises.push(fetchTable('sales_transactions', 'invoice', 'doc_date', 'invoice_no', 'total_amount'));
-            }
-
-            // 5. Returns
-            if (activeTab === 'all' || activeTab === 'return') {
-                fetchPromises.push(fetchTable('sales_returns', 'return', 'return_date', 'return_number', 'total_amount'));
-            }
-
-            // 6. Reservations (Transit)
-            if (activeTab === 'all' || activeTab === 'reservation') {
-                fetchPromises.push(fetchTable('transit_reservations', 'reservation', 'reservation_date', 'reservation_number', undefined, (item: any) => ({
-                    reservation_type: 'transit',
-                    source_ref: item.shipment_id ? 'Shipment' : 'Unknown'
-                })));
-            }
-
-            // Execute all
-            const results = await Promise.all(fetchPromises);
-            results.forEach(docs => allDocs = [...allDocs, ...docs]);
-
-            // Final Sort
-            return allDocs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    delivered_at: item.delivered_at || item.delivery_confirmed_at || null,
+                    posted_at: item.posted_at || null,
+                    delivery_confirmed_at: item.delivery_confirmed_at || null,
+                    original_table: 'sales_transactions',
+                    _rawData: { ...item, exchange_rate: exchangeRate },
+                };
+            });
         },
         enabled: !!companyId
     });
@@ -268,15 +353,117 @@ export default function SalesCycleList() {
     const enrichedDocuments = useMemo(() => {
         return documents.map(doc => ({
             ...doc,
-            // Prioritize fetched map, fallback to stored name, fallback to Unknown
             customer_name_display: doc.customer_id ? (customersMap[doc.customer_id] || doc.customer_name || 'Unknown Client') : '-'
         })) as (SalesDocument & { customer_name_display: string })[];
     }, [documents, customersMap]);
+
+    // ─── Stage filter map (for tab filtering) ───
+    const STAGE_FILTER: Record<string, string[]> = useMemo(() => ({
+        draft: ['draft'],
+        quotation: ['quotation'],
+        reservation: ['reservation'],
+        order: ['order'],
+        confirmed: ['confirmed', 'in_delivery', 'in_receiving', 'partially_received', 'fully_received', 'completed'],
+        delivery: ['delivery', 'delivered'],
+        invoice: ['invoice', 'invoiced', 'posted', 'paid', 'partial_paid', 'partially_paid', 'closed'],
+        return: ['return', 'cancelled'],
+    }), []);
+
+    // ─── Counts per tab (from ALL documents — always visible) ───
+    const tabCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        enrichedDocuments.forEach(d => {
+            const cycle = STAGE_TO_CYCLE[d.stage] || 'draft';
+            counts[cycle] = (counts[cycle] || 0) + 1;
+        });
+        return counts;
+    }, [enrichedDocuments]);
+
+    // ─── Fetch exchange rates for currency conversion ───
+    const { data: exchangeRates = {} } = useQuery({
+        queryKey: ['exchange_rates', companyId],
+        queryFn: async () => {
+            const { data: user } = await supabase.auth.getUser();
+            const tenantId = user.user?.user_metadata?.tenant_id;
+            if (!tenantId) return {};
+
+            const { data, error } = await supabase
+                .from('exchange_rates')
+                .select('from_currency, to_currency, mid_rate')
+                .eq('tenant_id', tenantId)
+                .eq('is_active', true);
+
+            if (error || !data) return {};
+
+            // Build rate map: rates['USD->UAH'] = 42.811
+            const rateMap: Record<string, number> = {};
+            data.forEach((r: any) => {
+                rateMap[`${r.from_currency}->${r.to_currency}`] = Number(r.mid_rate);
+            });
+            return rateMap;
+        },
+        enabled: !!companyId,
+        staleTime: 300000, // 5 min cache
+    });
+
+    // ─── Currency conversion helper ───
+    const convertAmount = useCallback((amount: number, fromCurrency: string, toCurrency: string): number => {
+        if (!amount || fromCurrency === toCurrency) return amount;
+
+        // Direct rate
+        const directKey = `${fromCurrency}->${toCurrency}`;
+        if (exchangeRates[directKey]) {
+            return amount * exchangeRates[directKey];
+        }
+
+        // Inverse rate
+        const inverseKey = `${toCurrency}->${fromCurrency}`;
+        if (exchangeRates[inverseKey]) {
+            return amount / exchangeRates[inverseKey];
+        }
+
+        // Try via base currency (UAH usually)
+        if (baseCurrency) {
+            const toBase = exchangeRates[`${fromCurrency}->${baseCurrency}`];
+            const fromBase = exchangeRates[`${baseCurrency}->${toCurrency}`];
+            if (toBase && fromBase) {
+                return amount * toBase * fromBase;
+            }
+        }
+
+        return amount; // fallback: no conversion
+    }, [exchangeRates, baseCurrency]);
+
+    // ─── Filter documents for display (by tab only — currency is display, not filter) ───
+    const displayDocuments = useMemo(() => {
+        let filtered = enrichedDocuments;
+
+        // Filter by tab
+        if (activeTab !== 'all') {
+            const stages = STAGE_FILTER[activeTab] || [activeTab];
+            filtered = filtered.filter(d => stages.includes(d.stage));
+        }
+
+        return filtered;
+    }, [enrichedDocuments, activeTab, STAGE_FILTER]);
+
+    // ─── Converted total for footer (all amounts converted to display currency) ───
+    const displayTotal = useMemo(() => {
+        return displayDocuments.reduce((sum, doc) => {
+            const converted = convertAmount(Number(doc.total_amount || 0), doc.currency, activeCurrency);
+            return sum + converted;
+        }, 0);
+    }, [displayDocuments, convertAmount, activeCurrency]);
 
     // ─── Parse notes JSON to extract cart items ───
     const parseDocumentItems = useCallback((doc: SalesDocument): any[] => {
         try {
             const raw = doc._rawData;
+            // Priority 1: items array from fetchById (includes delivery_rolls)
+            if (raw?.items && Array.isArray(raw.items) && raw.items.length > 0) {
+                return raw.items;
+            }
+            // Priority 2: items serialized in notes JSON
             if (!raw?.notes) return [];
             const parsed = typeof raw.notes === 'string' ? JSON.parse(raw.notes) : raw.notes;
             if (parsed?._source === 'cart' && Array.isArray(parsed.items)) {
@@ -288,7 +475,20 @@ export default function SalesCycleList() {
         }
     }, []);
 
-    const handleRowClick = (row: SalesDocument) => {
+    const handleRowClick = async (row: SalesDocument) => {
+        // For delivered/posted invoices, fetch full data with delivery rolls
+        if (row.id && ['delivered', 'posted', 'in_delivery'].includes(row.stage || '')) {
+            const fullDoc = await salesTransactionService.fetchById(row.id);
+            if (fullDoc) {
+                setSelectedDoc({
+                    ...row,
+                    _rawData: { ...row._rawData, ...fullDoc, items: fullDoc.items },
+                });
+                setDocMode('view');
+                setIsSheetOpen(true);
+                return;
+            }
+        }
         setSelectedDoc(row);
         setDocMode('view');
         setIsSheetOpen(true);
@@ -301,261 +501,116 @@ export default function SalesCycleList() {
         setIsSheetOpen(true);
     };
 
-    // ─── Table map for reverse-lookup (CycleType → Supabase table config) ───
-    const TABLE_MAP_REVERSE: Record<CycleType, {
-        table: string;
-        dateCol: string;
-        numCol: string;
-        totalCol?: string;
-    }> = {
-        quotation: { table: 'quotations', dateCol: 'quotation_date', numCol: 'quotation_number', totalCol: 'total_amount' },
-        order: { table: 'sales_orders', dateCol: 'order_date', numCol: 'order_number', totalCol: 'total_amount' },
-        delivery: { table: 'sales_deliveries', dateCol: 'delivery_date', numCol: 'delivery_number' },
-        invoice: { table: 'sales_transactions', dateCol: 'doc_date', numCol: 'invoice_no', totalCol: 'total_amount' },
-        return: { table: 'sales_returns', dateCol: 'return_date', numCol: 'return_number', totalCol: 'total_amount' },
-        reservation: { table: 'transit_reservations', dateCol: 'reservation_date', numCol: 'reservation_number' },
-    };
+    // ─── All docs are in sales_transactions — no multi-table map needed ───
 
-    // ─── Save document to Supabase (on explicit Save button click) ───
+    // ─── Save (update) existing document in sales_transactions ───
     const handleDocumentSave = useCallback(async (docData: any) => {
-        if (!selectedDoc?.id || !selectedDoc?.type) {
+        if (!selectedDoc?.id) {
             toast.error(isRTL ? 'لا يمكن الحفظ — المستند غير محدد' : 'Cannot save — document not identified');
             return;
         }
 
-        // ─── Validation ───
+        // Validation
         const validation = validateTradeDocument({
-            data: docData,
-            mode: 'sales',
-            action: 'save',
-            creditLimit: docData._creditLimit,
-            balance: docData._balance,
+            data: docData, mode: 'sales', action: 'save',
+            creditLimit: docData._creditLimit, balance: docData._balance,
             isCreditExceeded: docData._isCreditExceeded,
         });
-
         if (!validation.isValid) {
-            validation.errors.forEach(err => {
-                toast.error(isRTL ? err.messageAr : err.messageEn);
-            });
+            validation.errors.forEach(err => toast.error(isRTL ? err.messageAr : err.messageEn));
             return;
         }
-
-        // Show warnings as info toasts (non-blocking)
-        validation.warnings.forEach(warn => {
-            toast.warning(isRTL ? warn.messageAr : warn.messageEn);
-        });
-
-        const originalType = selectedDoc.type;
-        const newType = (docData.subType || docData.type || originalType) as CycleType;
-        const isTypeChanged = newType !== originalType && TABLE_MAP_REVERSE[newType];
-
-        const targetConfig = TABLE_MAP_REVERSE[isTypeChanged ? newType : originalType];
-        if (!targetConfig) {
-            toast.error(isRTL ? 'نوع مستند غير مدعوم' : 'Unsupported document type');
-            return;
-        }
+        validation.warnings.forEach(warn => toast.warning(isRTL ? warn.messageAr : warn.messageEn));
 
         try {
-            const targetTable = targetConfig.table;
-            const isTransaction = targetTable.includes('_transactions');
-            const payload: Record<string, any> = {
-                // For transaction tables use 'stage', for others use 'status'
-                ...(isTransaction
-                    ? { stage: docData.status || selectedDoc.status || 'saved' }
-                    : { status: docData.status || selectedDoc.status || 'saved' }),
-            };
+            const updates: Record<string, any> = {};
 
-            // Customer
-            if (docData.customer_id) {
-                payload.customer_id = docData.customer_id;
-            }
-            if (docData.customer_name) {
-                payload.customer_name = docData.customer_name;
-            }
+            if (docData.customer_id) updates.customer_id = docData.customer_id;
+            if (docData.customer_name) updates.customer_name = docData.customer_name;
+            if (docData.warehouse_id) updates.warehouse_id = docData.warehouse_id;
+            if (docData.currency) updates.currency = docData.currency;
+            if (docData.date) updates.doc_date = new Date(docData.date).toISOString().split('T')[0];
+            if (docData.due_date) updates.due_date = new Date(docData.due_date).toISOString().split('T')[0];
+            if (docData.salesperson_id !== undefined) updates.salesperson_id = docData.salesperson_id || null;
+            if (docData.exchange_rate != null) updates.exchange_rate = Number(docData.exchange_rate) || 1;
+            if (docData.payment_terms_days != null) updates.payment_terms_days = Number(docData.payment_terms_days) || 0;
+            if (docData.discount_percent != null) updates.discount_percent = Number(docData.discount_percent) || 0;
+            if (docData.total_amount != null) updates.total_amount = Number(docData.total_amount) || 0;
+            if (docData.notes != null) updates.notes = docData.notes;
+            if (docData.internal_notes != null) updates.internal_notes = docData.internal_notes;
 
-            // Warehouse (single)
-            if (docData.warehouse_id) {
-                payload.warehouse_id = docData.warehouse_id;
-            }
+            const result = await salesTransactionService.update(selectedDoc.id, updates);
+            if (!result) throw new Error('Update returned null');
 
-            // Total amount
-            if (targetConfig.totalCol && docData.total_amount != null) {
-                payload[targetConfig.totalCol] = docData.total_amount;
+            // Update items if provided
+            if (docData.items && Array.isArray(docData.items)) {
+                await salesTransactionService.replaceItems(selectedDoc.id, docData.items);
             }
 
-            // Currency
-            if (docData.currency) {
-                payload.currency = docData.currency;
-            }
-
-            // Date
-            if (docData.date) {
-                payload[targetConfig.dateCol] = new Date(docData.date).toISOString().split('T')[0];
-            }
-
-            // Reference number
-            if (docData.reference_number) {
-                payload.reference_number = docData.reference_number;
-            }
-
-            // ─── New Trade Fields ───
-            // Salesperson
-            if (docData.salesperson_id !== undefined) {
-                payload.salesperson_id = docData.salesperson_id || null;
-            }
-
-            // Due date
-            if (docData.due_date) {
-                payload.due_date = new Date(docData.due_date).toISOString().split('T')[0];
-            }
-
-            // Exchange rate
-            if (docData.exchange_rate != null) {
-                payload.exchange_rate = Number(docData.exchange_rate) || 1;
-            }
-
-            // Payment terms days
-            if (docData.payment_terms_days != null) {
-                payload.payment_terms_days = Number(docData.payment_terms_days) || 0;
-            }
-
-            // Document-level discount
-            if (docData.discount_percent != null) {
-                payload.discount_percent = Number(docData.discount_percent) || 0;
-            }
-
-            // Price list tracking
-            if (docData.price_list_id !== undefined) {
-                payload.price_list_id = docData.price_list_id || null;
-            }
-
-            // Re-serialize items back into notes JSON (with currency, exchange_rate, user_notes)
-            const notesPayload: Record<string, any> = {
-                _source: 'cart',
-            };
-
-            if (docData.items && docData.items.length > 0) {
-                notesPayload.items = docData.items.map((item: any) => ({
-                    material_id: item.material_id,
-                    material_code: item.material_code,
-                    material_name_ar: item.material_name_ar,
-                    material_name_en: item.material_name_en,
-                    quantity: item.quantity,
-                    unit: item.unit,
-                    unit_price: item.unit_price,
-                    subtotal: item.subtotal,
-                    total: item.total,
-                    discount_percent: item.discount_percent,
-                    discount_amount: item.discount_amount,
-                    currency: item.currency,
-                    exchange_rate: item.exchange_rate,
-                    warehouse_id: item.warehouse_id,
-                    warehouse_name_ar: item.warehouse_name_ar,
-                    warehouse_name_en: item.warehouse_name_en,
-                    preferred_rolls: item.preferred_rolls,
-                }));
-            }
-
-            // Attach user-facing notes inside the JSON
-            if (docData.user_notes != null) {
-                notesPayload.user_notes = docData.user_notes;
-            }
-
-            payload.notes = JSON.stringify(notesPayload);
-
-            if (isTypeChanged) {
-                // ═══ TYPE CONVERSION: Move document to new table ═══
-                // 1. Copy company_id + tenant_id + created_by from raw data (required for RLS)
-                payload.company_id = selectedDoc._rawData?.company_id || companyId;
-                payload.tenant_id = selectedDoc._rawData?.tenant_id;
-                payload.created_by = selectedDoc._rawData?.created_by;
-
-                // If tenant_id/created_by not in raw data, fetch from user metadata
-                if (!payload.tenant_id || !payload.created_by) {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (!payload.tenant_id) payload.tenant_id = user?.user_metadata?.tenant_id;
-                    if (!payload.created_by) payload.created_by = user?.id;
-                }
-
-                // 2. Generate the document number for the target table
-                const NUM_PREFIX: Record<CycleType, string> = {
-                    quotation: 'QTN',
-                    order: 'SO',
-                    delivery: 'DN',
-                    invoice: 'INV',
-                    return: 'RET',
-                    reservation: 'RSV',
-                };
-                const prefix = NUM_PREFIX[newType] || 'DOC';
-                const randomSuffix = crypto.randomUUID().substring(0, 8).toUpperCase();
-                payload[targetConfig.numCol] = `${prefix}-${randomSuffix}`;
-
-                // Remove the old table's number column if present (prevent unknown column error)
-                const oldConfig = TABLE_MAP_REVERSE[originalType];
-                if (oldConfig && oldConfig.numCol !== targetConfig.numCol) {
-                    delete payload[oldConfig.numCol];
-                }
-                // Also remove old date column if different
-                if (oldConfig && oldConfig.dateCol !== targetConfig.dateCol) {
-                    delete payload[oldConfig.dateCol];
-                }
-
-                // 3. Insert into new table
-                const { data: newRecord, error: insertErr } = await supabase
-                    .from(targetConfig.table)
-                    .insert(payload)
-                    .select('id')
-                    .single();
-
-                if (insertErr) throw insertErr;
-
-                // 4. Delete from old table
-                const oldTableConfig = TABLE_MAP_REVERSE[originalType];
-                if (oldTableConfig) {
-                    const { error: delErr } = await supabase
-                        .from(oldTableConfig.table)
-                        .delete()
-                        .eq('id', selectedDoc.id);
-
-                    if (delErr) {
-                        console.warn('Failed to remove old record:', delErr.message);
-                        // Not critical — the new record was already created
-                    }
-                }
-
-                toast.success(
-                    isRTL
-                        ? `تم تحويل المستند إلى ${newType === 'order' ? 'طلب' : newType === 'invoice' ? 'فاتورة' : newType} بنجاح ✅`
-                        : `Document converted to ${newType} successfully ✅`
-                );
-            } else {
-                // ═══ SAME TYPE: Just update in place ═══
-                const { error } = await supabase
-                    .from(targetConfig.table)
-                    .update(payload)
-                    .eq('id', selectedDoc.id);
-
-                if (error) throw error;
-
-                toast.success(isRTL ? 'تم حفظ المستند بنجاح ✅' : 'Document saved successfully ✅');
-            }
-
-            // Refresh the list
+            toast.success(isRTL ? 'تم حفظ المستند بنجاح ✅' : 'Document saved successfully ✅');
             queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
-
             setIsSheetOpen(false);
             setSelectedDoc(null);
         } catch (err: any) {
             console.error('Save error:', err);
             toast.error(isRTL ? `خطأ في الحفظ: ${err.message}` : `Save error: ${err.message}`);
         }
-    }, [selectedDoc, isRTL, queryClient, companyId]);
+    }, [selectedDoc, isRTL, queryClient]);
+
+    // ─── Create new document using salesTransactionService ───
+    const handleCreateSave = useCallback(async (docData: any) => {
+        if (!companyId) {
+            toast.error(isRTL ? 'لا يوجد شركة محددة' : 'No company selected');
+            return;
+        }
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const tenantId = user?.user_metadata?.tenant_id;
+
+            const transaction = await salesTransactionService.create({
+                tenant_id: tenantId!,
+                company_id: companyId,
+                customer_id: docData.customer_id || null,
+                customer_name: docData.customer_name || null,
+                salesperson_id: docData.salesperson_id || null,
+                salesperson_name: docData.salesperson_name || null,
+                warehouse_id: docData.warehouse_id || null,
+                currency: docData.currency || activeCurrency,
+                exchange_rate: docData.exchange_rate || 1,
+                doc_date: docData.date ? new Date(docData.date).toISOString().split('T')[0] : undefined,
+                due_date: docData.due_date ? new Date(docData.due_date).toISOString().split('T')[0] : undefined,
+                payment_terms_days: docData.payment_terms_days || 30,
+                is_pos: docData._posMode || false,
+                notes: docData.notes || docData.user_notes || null,
+                internal_notes: docData.internal_notes || null,
+                created_by: user?.id || null,
+                created_by_name: user?.user_metadata?.full_name || user?.email || null,
+                auto_update_stock: docData.auto_update_stock || false,
+                stock_warehouse_id: docData.stock_warehouse_id || null,
+            });
+
+            if (!transaction) throw new Error('فشل إنشاء المعاملة');
+
+            // Add items if provided
+            if (docData.items && docData.items.length > 0) {
+                await salesTransactionService.addItems(transaction.id, docData.items);
+            }
+
+            toast.success(isRTL ? 'تم إنشاء المستند بنجاح ✅' : 'Document created successfully ✅');
+            queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+            setIsSheetOpen(false);
+            setSelectedDoc(null);
+        } catch (err: any) {
+            console.error('Create error:', err);
+            toast.error(isRTL ? `خطأ في الإنشاء: ${err.message}` : `Create error: ${err.message}`);
+        }
+    }, [companyId, activeCurrency, isRTL, queryClient]);
 
     // ─── Auto-save as draft when closing the sheet ───
     const handleSheetClose = useCallback(async (open: boolean) => {
         if (!open && selectedDoc?.id && docMode !== 'create') {
-            // Keep status as-is (draft remains draft, saved remains saved)
-            // No need to auto-save on close for existing documents
+            // Keep status as-is
         }
         setIsSheetOpen(open);
         if (!open) setSelectedDoc(null);
@@ -576,8 +631,16 @@ export default function SalesCycleList() {
 
 
 
-    // Kanban column definitions (matching existing sub-tabs exactly)
+    // Kanban column definitions — matching pipeline tabs exactly
     const kanbanColumns = useMemo(() => [
+        {
+            id: 'draft',
+            title: isRTL ? 'مسودة' : 'Draft',
+            color: 'border-gray-400',
+            bgColor: 'bg-gray-50/40',
+            accentHex: '#9ca3af',
+            icon: <FileText className="w-4 h-4 text-gray-500" />,
+        },
         {
             id: 'quotation',
             title: isRTL ? 'عروض الأسعار' : 'Quotations',
@@ -603,8 +666,16 @@ export default function SalesCycleList() {
             icon: <ShoppingCart className="w-4 h-4 text-blue-600" />,
         },
         {
+            id: 'confirmed',
+            title: isRTL ? 'فاتورة مؤكدة' : 'Confirmed',
+            color: 'border-green-500',
+            bgColor: 'bg-green-50/40',
+            accentHex: '#16a34a',
+            icon: <CheckCircle className="w-4 h-4 text-green-600" />,
+        },
+        {
             id: 'delivery',
-            title: isRTL ? 'أذونات التسليم' : 'Deliveries',
+            title: isRTL ? 'تسليم' : 'Delivery',
             color: 'border-orange-500',
             bgColor: 'bg-orange-50/40',
             accentHex: '#ea580c',
@@ -612,7 +683,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'invoice',
-            title: isRTL ? 'فواتير المبيعات' : 'Invoices',
+            title: isRTL ? 'فاتورة' : 'Invoice',
             color: 'border-indigo-500',
             bgColor: 'bg-indigo-50/40',
             accentHex: '#4f46e5',
@@ -628,11 +699,11 @@ export default function SalesCycleList() {
         },
     ], [isRTL]);
 
-    // Kanban items
+    // Kanban items — use STAGE_TO_CYCLE for correct column placement
     const kanbanItems = useMemo(() =>
         enrichedDocuments.map(doc => ({
             id: doc.id,
-            columnId: doc.type,
+            columnId: STAGE_TO_CYCLE[doc.stage] || STAGE_TO_CYCLE[doc.status] || 'draft',  // kanban always shows all
             content: doc as Record<string, any>,
         }))
         , [enrichedDocuments]);
@@ -755,26 +826,25 @@ export default function SalesCycleList() {
                 {/* ─── Second Row: Tabs (list only) + Date Picker ─── */}
                 <div className="flex flex-wrap items-center gap-3 px-1">
                     {/* Tabs — only in list mode */}
-                    {viewMode === 'list' && (
-                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto" dir={direction}>
-                            <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
-                                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'الكل' : 'All'}</TabsTrigger>
-                                <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'عروض الأسعار' : 'Quotations'}</TabsTrigger>
-                                <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-cyan-600">{isRTL ? 'الحجوزات' : 'Reservations'}</TabsTrigger>
-                                <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'أوامر البيع' : 'Orders'}</TabsTrigger>
-                                <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-orange-600">{isRTL ? 'أذونات التسليم' : 'Deliveries'}</TabsTrigger>
-                                <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{isRTL ? 'فواتير المبيعات' : 'Invoices'}</TabsTrigger>
-                                <TabsTrigger value="return" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-rose-600">{isRTL ? 'المرتجعات' : 'Returns'}</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                    )}
+                    {viewMode === 'list' && (() => {
+                        const total = enrichedDocuments.length;
+                        const badge = (n: number) => n > 0 ? ` ${n}` : '';
 
-                    <DateRangePicker
-                        date={dateRange}
-                        setDate={setDateRange}
-                        className="w-full sm:w-[260px]"
-                        align={isRTL ? "end" : "start"}
-                    />
+                        return (
+                            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full sm:w-auto" dir={direction}>
+                                <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
+                                    <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'الكل' : 'All'}{badge(total)}</TabsTrigger>
+                                    <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'مسودة' : 'Draft'}{badge(tabCounts.draft || 0)}</TabsTrigger>
+                                    <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-purple-600">{isRTL ? 'عرض سعر' : 'Quotation'}{badge(tabCounts.quotation || 0)}</TabsTrigger>
+                                    <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-cyan-600">{isRTL ? 'حجز' : 'Reserved'}{badge(tabCounts.reservation || 0)}</TabsTrigger>
+                                    <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-blue-600">{isRTL ? 'أمر بيع' : 'Order'}{badge(tabCounts.order || 0)}</TabsTrigger>
+                                    <TabsTrigger value="confirmed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-green-600">{isRTL ? 'فاتورة مؤكدة' : 'Confirmed'}{badge(tabCounts.confirmed || 0)}</TabsTrigger>
+                                    <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-orange-600">{isRTL ? 'تسليم' : 'Delivery'}{badge(tabCounts.delivery || 0)}</TabsTrigger>
+                                    <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{isRTL ? 'فاتورة' : 'Invoice'}{badge(tabCounts.invoice || 0)}</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                        );
+                    })()}
 
                     {/* Currency Selector */}
                     {supportedCurrencies.length > 1 && (
@@ -796,24 +866,244 @@ export default function SalesCycleList() {
 
                 {/* ─── Content Area ─── */}
                 {viewMode === 'list' ? (
-                    <div className="flex-1 min-h-0 border rounded-xl bg-white dark:bg-gray-950 shadow-sm overflow-hidden">
-                        <NexaSalesTable
-                            data={enrichedDocuments}
-                            isLoading={isLoading}
-                            pageSize={15}
-                            onRowClick={handleRowClick}
-                            onPostInvoice={async (doc) => {
-                                await postSalesInvoice(doc.id);
-                            }}
-                            onPostReturn={async (doc) => {
-                                await postSalesReturn(doc.id);
-                            }}
-                            onConvertQuotation={async (doc) => {
-                                await convertQuotation(doc.id, 'sales');
-                            }}
-                            isPosting={isPosting}
-                        />
-                    </div>
+                    <NexaListTable<SalesDocument & { customer_name_display: string }>
+                        data={displayDocuments}
+                        columns={(() => {
+                            const cols: NexaListColumn<SalesDocument & { customer_name_display: string }>[] = [
+                                {
+                                    id: 'document_number',
+                                    header: isRTL ? 'رقم المستند' : 'Document #',
+                                    sortable: true,
+                                    sortKey: 'document_number',
+                                    cell: (row) => (
+                                        <div className="flex flex-col">
+                                            <span className="font-mono text-[13px] font-bold text-indigo-600 group-hover:text-indigo-700 leading-tight">
+                                                {row.document_number || '—'}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 font-mono mt-0.5">
+                                                {row.created_at ? formatDistanceToNow(new Date(row.created_at), {
+                                                    addSuffix: true,
+                                                    locale: isRTL ? arLocale : undefined
+                                                }) : ''}
+                                            </span>
+                                        </div>
+                                    ),
+                                },
+                                {
+                                    id: 'date',
+                                    header: isRTL ? 'التاريخ والوقت' : 'Date & Time',
+                                    sortable: true,
+                                    sortKey: 'created_at',
+                                    cell: (row) => {
+                                        const d = row.date || row.created_at;
+                                        if (!d) return <span className="text-[11px] text-gray-300">—</span>;
+                                        const dt = new Date(d);
+                                        return (
+                                            <div className="flex flex-col gap-0.5">
+                                                <div className="flex items-center gap-1.5 text-gray-600">
+                                                    <Calendar className="w-3 h-3 opacity-50" />
+                                                    <span className="text-[12px] font-mono font-medium">
+                                                        {format(dt, 'yyyy/MM/dd')}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[10px] text-gray-400 font-mono ps-[18px]">
+                                                    {format(new Date(row.created_at), 'HH:mm')}
+                                                </span>
+                                            </div>
+                                        );
+                                    },
+                                },
+                                {
+                                    id: 'customer',
+                                    header: isRTL ? 'العميل' : 'Customer',
+                                    cell: (row) => {
+                                        const name = row.customer_name_display || row.customer_name || (isRTL ? 'عميل غير محدد' : 'Unknown');
+                                        const initials = name === '-' ? '?' : name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+                                        return (
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0 shadow-sm">
+                                                    {initials}
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                                    {name}
+                                                </span>
+                                            </div>
+                                        );
+                                    },
+                                },
+                                {
+                                    id: 'total',
+                                    header: isRTL ? 'الإجمالي' : 'Total',
+                                    align: 'end',
+                                    sortable: true,
+                                    sortKey: 'total_amount',
+                                    cell: (row) => {
+                                        const amount = Number(row.total_amount || 0);
+                                        if (amount === 0) return <span className="text-[11px] text-gray-300 text-end block">—</span>;
+                                        const isSameCurrency = row.currency === activeCurrency;
+                                        const convertedAmount = isSameCurrency ? amount : convertAmount(amount, row.currency, activeCurrency);
+                                        const hasConversion = !isSameCurrency && convertedAmount !== amount;
+                                        return (
+                                            <div className="flex flex-col items-end">
+                                                <span className="font-mono font-bold text-[13px] text-gray-800 dark:text-gray-200 tracking-tight tabular-nums" dir="ltr">
+                                                    {fmtAmount(hasConversion ? convertedAmount : amount)}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 font-semibold">
+                                                    {hasConversion ? (
+                                                        <>{activeCurrency} <span className="text-gray-300">({fmtAmount(amount)} {row.currency})</span></>
+                                                    ) : (
+                                                        row.currency || activeCurrency
+                                                    )}
+                                                </span>
+                                            </div>
+                                        );
+                                    },
+                                },
+                                {
+                                    id: 'delivery',
+                                    header: isRTL ? 'التسليم' : 'Delivery',
+                                    cell: (row) => {
+                                        const delivered = row.delivered_at || row.delivery_confirmed_at;
+                                        const posted = row.posted_at;
+                                        if (!delivered && !posted) {
+                                            if (['in_delivery'].includes(row.stage)) {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] text-sky-600 font-medium">
+                                                        <Truck className="w-3 h-3" />
+                                                        {isRTL ? 'قيد التسليم' : 'In delivery'}
+                                                    </span>
+                                                );
+                                            }
+                                            return <span className="text-[11px] text-gray-300">—</span>;
+                                        }
+                                        return (
+                                            <div className="flex flex-col gap-0.5">
+                                                {delivered && (
+                                                    <div className="flex items-center gap-1 text-[10px] text-teal-600 font-medium">
+                                                        <Truck className="w-3 h-3" />
+                                                        {format(new Date(delivered), 'MM/dd HH:mm')}
+                                                    </div>
+                                                )}
+                                                {posted && (
+                                                    <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                                                        <CheckCircle className="w-3 h-3" />
+                                                        {format(new Date(posted), 'MM/dd HH:mm')}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    },
+                                },
+                                {
+                                    id: 'status',
+                                    header: isRTL ? 'الحالة' : 'Status',
+                                    cell: (row) => {
+                                        const style = STAGE_STYLES[row.stage] || STAGE_STYLES[row.status] || STAGE_STYLES.draft;
+                                        return (
+                                            <span className={cn(
+                                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap",
+                                                style.bg, style.text
+                                            )}>
+                                                <span className={cn("w-1.5 h-1.5 rounded-full", style.dot)} />
+                                                {isRTL ? style.labelAr : style.labelEn}
+                                            </span>
+                                        );
+                                    },
+                                },
+                            ];
+                            return cols;
+                        })()}
+
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        searchPlaceholder={isRTL ? 'بحث برقم الفاتورة...' : 'Search by invoice number...'}
+
+                        dateRange={dateRange}
+                        onDateRangeChange={setDateRange}
+
+                        totalCount={displayDocuments.length}
+                        countLabel={isRTL ? 'مستند' : 'documents'}
+
+                        sortField={sortField}
+                        sortAsc={sortAsc}
+                        onSort={handleSort}
+
+                        getRowAccent={(row) => STAGE_ACCENT[row.stage] || STAGE_ACCENT[row.status] || 'border-s-gray-300'}
+                        onRowClick={handleRowClick}
+                        getRowKey={(row) => row.id}
+
+                        isLoading={isLoading}
+
+                        emptyIcon={<FileText className="w-12 h-12 text-gray-300" />}
+                        emptyMessage={isRTL ? 'لا توجد مستندات مبيعات' : 'No sales documents found'}
+
+                        showFooter={true}
+                        footerLeftText={
+                            isRTL
+                                ? `عرض ${displayDocuments.length} مستند`
+                                : `Showing ${displayDocuments.length} documents`
+                        }
+                        footerRightContent={
+                            <div className="flex items-center gap-3">
+                                <span className="font-mono font-bold text-gray-700 dark:text-gray-300" dir="ltr">
+                                    {isRTL ? 'الإجمالي: ' : 'Total: '}
+                                    {fmtAmount(displayTotal)}
+                                    <span className="text-gray-400 ms-1 text-xs">{activeCurrency}</span>
+                                </span>
+                            </div>
+                        }
+
+                        renderActions={(row) => (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+                                        disabled={isPosting}
+                                    >
+                                        {isPosting ? <Loader2 className="h-4 w-4 animate-spin text-gray-400" /> : <MoreHorizontal className="h-4 w-4 text-gray-400" />}
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="min-w-[180px]">
+                                    <DropdownMenuLabel className="text-[11px] text-gray-400">{isRTL ? 'إجراءات' : 'Actions'}</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleRowClick(row)} className="gap-2 cursor-pointer">
+                                        <Eye className="w-4 h-4" /> {isRTL ? 'عرض التفاصيل' : 'View Details'}
+                                    </DropdownMenuItem>
+                                    {row.type === 'invoice' && !['posted', 'cancelled'].includes(row.status) && (
+                                        <DropdownMenuItem
+                                            onClick={() => postSalesInvoice(row.id)}
+                                            className="gap-2 cursor-pointer text-green-700 focus:text-green-800 focus:bg-green-50"
+                                            disabled={isPosting}
+                                        >
+                                            <Send className="w-4 h-4" /> {isRTL ? 'ترحيل الفاتورة' : 'Post Invoice'}
+                                        </DropdownMenuItem>
+                                    )}
+                                    {row.type === 'return' && !['posted', 'cancelled'].includes(row.status) && (
+                                        <DropdownMenuItem
+                                            onClick={() => postSalesReturn(row.id)}
+                                            className="gap-2 cursor-pointer text-orange-700 focus:text-orange-800 focus:bg-orange-50"
+                                            disabled={isPosting}
+                                        >
+                                            <RotateCcw className="w-4 h-4" /> {isRTL ? 'ترحيل المرتجع' : 'Post Return'}
+                                        </DropdownMenuItem>
+                                    )}
+                                    {row.type === 'quotation' && !['converted', 'cancelled'].includes(row.status) && (
+                                        <DropdownMenuItem
+                                            onClick={() => convertQuotation(row.id, 'sales')}
+                                            className="gap-2 cursor-pointer text-purple-700 focus:text-purple-800 focus:bg-purple-50"
+                                            disabled={isPosting}
+                                        >
+                                            <ArrowLeftRight className="w-4 h-4" /> {isRTL ? 'تحويل إلى أمر بيع' : 'Convert to Order'}
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
+                        isRTL={isRTL}
+                        direction={direction}
+                    />
                 ) : (
                     <div
                         className="overflow-hidden rounded-lg border bg-gradient-to-br from-gray-50 to-slate-50 shadow-sm"
@@ -828,46 +1118,48 @@ export default function SalesCycleList() {
                             isLoading={isLoading}
                             emptyText={isRTL ? 'لا توجد مستندات' : 'No documents'}
                             getItemValue={(content) => Number(content.total_amount || 0)}
-                            renderCard={(doc, _colId) => (
-                                <div
-                                    className="p-3.5 space-y-2.5 cursor-pointer"
-                                    onClick={() => handleRowClick(doc as any)}
-                                >
-                                    {/* Header: Doc # + Status */}
-                                    <div className="flex justify-between items-start">
-                                        <span className="font-mono text-xs font-bold text-gray-700 tracking-tight">
-                                            {doc.document_number || '-'}
-                                        </span>
-                                        <Badge
-                                            variant="outline"
-                                            className={`text-[10px] h-5 px-1.5 border capitalize ${['approved', 'confirmed', 'posted', 'delivered'].includes(doc.status)
-                                                ? 'bg-green-50 text-green-700 border-green-200'
-                                                : doc.status === 'cancelled'
-                                                    ? 'bg-red-50 text-red-700 border-red-200'
-                                                    : 'bg-gray-50 text-gray-600 border-gray-200'
-                                                }`}
-                                        >
-                                            {doc.status}
-                                        </Badge>
-                                    </div>
+                            renderCard={(doc, _colId) => {
+                                const stageStyle = STAGE_STYLES[doc.stage] || STAGE_STYLES[doc.status] || STAGE_STYLES.draft;
+                                return (
+                                    <div
+                                        className="p-3.5 space-y-2.5 cursor-pointer"
+                                        onClick={() => handleRowClick(doc as any)}
+                                    >
+                                        {/* Header: Doc # + Status */}
+                                        <div className="flex justify-between items-start">
+                                            <span className="font-mono text-xs font-bold text-gray-700 tracking-tight">
+                                                {doc.document_number || '-'}
+                                            </span>
+                                            <span className={cn(
+                                                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap",
+                                                stageStyle.bg, stageStyle.text
+                                            )}>
+                                                <span className={cn("w-1.5 h-1.5 rounded-full", stageStyle.dot)} />
+                                                {isRTL ? stageStyle.labelAr : stageStyle.labelEn}
+                                            </span>
+                                        </div>
 
-                                    {/* Customer Name */}
-                                    <p className="text-sm font-semibold text-gray-800 line-clamp-1" title={doc.customer_name_display || doc.customer_name}>
-                                        {doc.customer_name_display || doc.customer_name || (isRTL ? 'عميل غير محدد' : 'Unknown Client')}
-                                    </p>
+                                        {/* Customer Name */}
+                                        <p className="text-sm font-semibold text-gray-800 line-clamp-1" title={doc.customer_name_display || doc.customer_name}>
+                                            {doc.customer_name_display || doc.customer_name || (isRTL ? 'عميل غير محدد' : 'Unknown Client')}
+                                        </p>
 
-                                    {/* Footer: Date + Value */}
-                                    <div className="flex justify-between items-center pt-1 border-t border-gray-100/80">
-                                        <span className="text-[11px] text-gray-400 font-mono">
-                                            {doc.date ? new Date(doc.date).toLocaleDateString() : '-'}
-                                        </span>
-                                        <span className="font-mono text-sm font-bold text-erp-navy">
-                                            {Number(doc.total_amount || 0).toLocaleString()}{' '}
-                                            <span className="text-[10px] text-gray-400">{doc.currency || activeCurrency}</span>
-                                        </span>
+                                        {/* Footer: Date + Value */}
+                                        <div className="flex justify-between items-center pt-1.5 border-t border-gray-100/80">
+                                            <span className="text-[11px] text-gray-400 font-mono">
+                                                {doc.created_at ? formatDistanceToNow(new Date(doc.created_at), {
+                                                    addSuffix: true,
+                                                    locale: isRTL ? arLocale : undefined
+                                                }) : '-'}
+                                            </span>
+                                            <span className="font-mono text-sm font-bold text-erp-navy">
+                                                {fmtAmount(Number(doc.total_amount || 0))}{' '}
+                                                <span className="text-[10px] text-gray-400">{doc.currency || activeCurrency}</span>
+                                            </span>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            }}
                             onCardMove={(itemId, fromColumn, toColumn) => {
                                 console.log(`Move ${itemId} from ${fromColumn} to ${toColumn}`);
                                 toast.info(
@@ -885,7 +1177,7 @@ export default function SalesCycleList() {
                         open={isSheetOpen}
                         onOpenChange={handleSheetClose}
                         mode="sales"
-                        type={(docMode === 'create' ? newDocType : selectedDoc?.type) as any}
+                        type="invoice"
                         initialData={docMode === 'create'
                             ? { type: newDocType, status: 'draft', stage: 'draft', currency: activeCurrency, date: new Date().toISOString() }
                             : selectedDoc ? {
@@ -895,10 +1187,36 @@ export default function SalesCycleList() {
                                 type: selectedDoc.type,
                             } : selectedDoc
                         }
-                        onSave={selectedDoc?.id ? handleDocumentSave : undefined}
+                        onSave={docMode === 'create' ? handleCreateSave : (selectedDoc?.id ? handleDocumentSave : undefined)}
+                        companyId={companyId}
+                        currentStage={selectedDoc?.stage || (docMode === 'create' ? 'draft' : undefined)}
+                        onStageAdvance={selectedDoc?.id ? async (targetStage: string, notes?: string) => {
+                            try {
+                                const { data: { user } } = await supabase.auth.getUser();
+                                const result = await salesTransactionService.advanceStage({
+                                    transaction_id: selectedDoc.id,
+                                    transaction_type: 'sale',
+                                    new_stage: targetStage,
+                                    user_id: user?.id || '',
+                                    user_name: user?.user_metadata?.full_name || user?.email || '',
+                                    notes,
+                                });
+                                if (!result.success) {
+                                    toast.error(isRTL ? `خطأ في التحويل: ${result.error}` : `Stage error: ${result.error}`);
+                                    return;
+                                }
+                                toast.success(isRTL ? `تم التحويل إلى ${targetStage} ✅` : `Advanced to ${targetStage} ✅`);
+                                queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+                                setIsSheetOpen(false);
+                                setSelectedDoc(null);
+                            } catch (err: any) {
+                                toast.error(isRTL ? `خطأ: ${err.message}` : `Error: ${err.message}`);
+                            }
+                        } : undefined}
+                        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] })}
                     />
                 )}
             </div>
-        </div>
+        </div >
     );
 }

@@ -29,12 +29,7 @@ const MOCK_MATERIALS = [
     { id: 'mat-003', name: 'Polyester / بوليستر', code: 'MAT-PLY' },
 ];
 
-const MOCK_COLORS = [
-    { id: 'col-001', name: 'White / أبيض', hex: '#ffffff' },
-    { id: 'col-002', name: 'Black / أسود', hex: '#000000' },
-    { id: 'col-003', name: 'Red / أحمر', hex: '#ef4444' },
-    { id: 'col-004', name: 'Blue / أزرق', hex: '#3b82f6' },
-];
+
 
 export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = ({
     open,
@@ -54,7 +49,6 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
 
     // Form State
     const [materialId, setMaterialId] = useState(initialData?.item_id || '');
-    const [colorId, setColorId] = useState(initialData?.color_id || '');
     const [unitPrice, setUnitPrice] = useState(initialData?.unit_price || 0);
 
     // Simple Mode State
@@ -70,13 +64,11 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
         if (open) {
             if (initialData) {
                 setMaterialId(initialData.item_id);
-                setColorId(initialData.color_id || '');
                 setUnitPrice(initialData.unit_price);
                 setSimpleQuantity(initialData.quantity || 0);
                 // Rolls loading logic here if needed
             } else {
                 setMaterialId('');
-                setColorId('');
                 setUnitPrice(0);
                 setRolls([]);
                 setCurrentLength('');
@@ -92,7 +84,6 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
         const newRoll: GridRollItem = {
             id: Math.random().toString(36).substr(2, 9),
             material_id: materialId,
-            color_id: colorId,
             roll_length: length,
             is_saved: false // Local draft
         };
@@ -126,7 +117,6 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
         if (!materialId) return;
 
         const selectedMat = MOCK_MATERIALS.find(m => m.id === materialId);
-        const selectedCol = MOCK_COLORS.find(c => c.id === colorId);
 
         const newItem: TradeItem = {
             id: initialData?.id || Math.random().toString(36).substr(2, 9),
@@ -134,8 +124,6 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
             item_id: materialId,
             item_code: selectedMat?.code || '',
             item_name: selectedMat?.name || '',
-            color_id: colorId,
-            color_name: selectedCol?.name,
 
             quantity: totalQty,
             unit: 'meter',
@@ -196,25 +184,7 @@ export const MaterialFastEntryDialog: React.FC<MaterialFastEntryDialogProps> = (
                             </Select>
                         </div>
 
-                        {/* Color Select */}
-                        <div className="space-y-2">
-                            <Label>{isAr ? 'اللون' : 'Color'}</Label>
-                            <Select value={colorId} onValueChange={setColorId}>
-                                <SelectTrigger className="h-10 bg-white shadow-sm">
-                                    <SelectValue placeholder={isAr ? 'اختر اللون...' : 'Select Color...'} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {MOCK_COLORS.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: c.hex }} />
-                                                {c.name}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+
 
                         {/* SIMPLE MODE: Quantity Input */}
                         {entryType === 'simple' && (

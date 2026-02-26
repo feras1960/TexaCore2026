@@ -76,6 +76,7 @@ export function useAccountingSettings() {
         vatRate: settings?.vat_rate ?? 0,
         isVatEnabled: settings?.vat_enabled ?? false,
         baseCurrency: settings?.base_currency || '',
+        decimalPlaces: settings?.decimal_places ?? 2,
         dateFormat: settings?.date_format || 'DD/MM/YYYY',
         autoPost: settings?.auto_post_entries ?? false,
         requireApproval: settings?.require_approval ?? true,

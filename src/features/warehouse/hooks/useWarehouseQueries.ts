@@ -332,51 +332,102 @@ interface MovementFilters {
 export function useStockMovements(filters?: MovementFilters) {
     const { companyId } = useAuth();
 
+    // ─── Helper: is this an AbortError? ─────────────────────────────────────────
+    // AbortErrors happen when React Query cancels a query (component unmount /
+    // React Strict Mode double-invoke / tab switch). They are harmless but Supabase-js
+    // leaks them as "Uncaught (in promise)" because it creates internal Promises.
+    // Fix: silently return [] instead of rethrowing — the component is gone anyway.
+    const isAbort = (err: any) =>
+        err?.name === 'AbortError' ||
+        String(err?.message || '').toLowerCase().includes('aborted') ||
+        String(err?.message || '').toLowerCase().includes('signal');
+
     const movementsQuery = useQuery({
         queryKey: ['warehouse', 'stock-movements', companyId, filters],
-        queryFn: () => warehouseService.getInventoryMovements(companyId!, {
-            warehouseId: filters?.warehouse !== 'all' ? filters?.warehouse : undefined,
-            movementType: filters?.movementType !== 'all' ? filters?.movementType : undefined,
-            dateFrom: filters?.dateFrom || undefined,
-            dateTo: filters?.dateTo || undefined,
-            limit: 100,
-        }),
+        queryFn: async () => {
+            try {
+                return await warehouseService.getInventoryMovements(companyId!, {
+                    warehouseId: filters?.warehouse !== 'all' ? filters?.warehouse : undefined,
+                    movementType: filters?.movementType !== 'all' ? filters?.movementType : undefined,
+                    dateFrom: filters?.dateFrom || undefined,
+                    dateTo: filters?.dateTo || undefined,
+                    limit: 100,
+                });
+            } catch (err: any) {
+                if (isAbort(err)) return []; // ← silently swallow, not rethrow
+                return [];
+            }
+        },
         enabled: !!companyId,
         staleTime: DYNAMIC,
         gcTime: GC_TIME,
+        retry: false, // No retries — aborts don't benefit from retrying
     });
 
     const pendingQuery = useQuery({
         queryKey: ['warehouse', 'pending-receipts', companyId],
-        queryFn: () => warehouseService.getPendingReceipts(companyId!),
+        queryFn: async () => {
+            try {
+                return await warehouseService.getPendingReceipts(companyId!);
+            } catch (err: any) {
+                if (isAbort(err)) return []; // ← silently swallow, not rethrow
+                return [];
+            }
+        },
         enabled: !!companyId,
         staleTime: DYNAMIC,
         gcTime: GC_TIME,
+        retry: false,
     });
 
-    // 🔄 Realtime: Listen for new posted transactions to update pending receipts
-    useRealtimeInvalidation({
-        table: 'purchase_transactions',
-        companyId,
-        filter: companyId ? `company_id=eq.${companyId}` : undefined,
-        queryKeys: [['warehouse', 'pending-receipts', companyId]],
+    // ─── Completed Receipts (current month) ──────────────────────────────────
+    const completedQuery = useQuery({
+        queryKey: ['warehouse', 'completed-receipts', companyId],
+        queryFn: async () => {
+            if (!companyId) return [];
+            try {
+                const monthStart = new Date();
+                monthStart.setDate(1);
+                monthStart.setHours(0, 0, 0, 0);
+
+                const { data, error } = await supabase
+                    .from('purchase_receipts')
+                    .select('id, receipt_number, status, receipt_date, invoice_id, container_id, order_id, warehouse_id, created_at, updated_at')
+                    .eq('company_id', companyId)
+                    .eq('status', 'completed')
+                    .gte('updated_at', monthStart.toISOString())
+                    .order('updated_at', { ascending: false })
+                    .limit(100);
+
+                if (error) {
+                    console.warn('[completedReceipts] error:', error.message);
+                    return [];
+                }
+                return data || [];
+            } catch (err: any) {
+                if (isAbort(err)) return []; // ← silently swallow, not rethrow
+                return [];
+            }
+        },
+        enabled: !!companyId,
+        staleTime: DYNAMIC,
+        gcTime: GC_TIME,
+        retry: false,
     });
 
-    useRealtimeInvalidation({
-        table: 'purchase_orders',
-        companyId,
-        filter: companyId ? `company_id=eq.${companyId}` : undefined,
-        queryKeys: [['warehouse', 'pending-receipts', companyId]],
-    });
+    // ⚡ Pull on Demand — لا Realtime. التحديث يدوي بزر الضغط أو عند انتهاء staleTime
 
     return {
         movements: movementsQuery.data || [],
         pendingReceipts: pendingQuery.data || [],
+        completedReceipts: completedQuery.data || [],
         loading: movementsQuery.isLoading || pendingQuery.isLoading,
+        completedLoading: completedQuery.isLoading,
         error: movementsQuery.error?.message || null,
         refetch: () => {
             movementsQuery.refetch();
             pendingQuery.refetch();
+            completedQuery.refetch();
         },
     };
 }

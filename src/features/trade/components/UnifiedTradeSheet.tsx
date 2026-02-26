@@ -270,7 +270,7 @@ export const UnifiedTradeSheet: React.FC<UnifiedTradeSheetProps> = ({
 
     const containerNumber = initialData?.container_number;
     const containerStatus = initialData?.container_status;
-    const hasHeaderContent = (allowTypeSwitch && mode === 'sales');
+    const hasHeaderContent = (allowTypeSwitch && mode === 'sales') && !currentStage;
 
     const TypeSelectorHeader = hasHeaderContent ? (
         <div className="flex flex-col w-full">

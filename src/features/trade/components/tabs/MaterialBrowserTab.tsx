@@ -20,6 +20,7 @@ import {
     type MaterialSearchResult,
     type MaterialWarehouseStock,
     type MaterialRollDetail,
+    type VariantRollData,
 } from '@/features/trade/hooks/useMaterialSearch';
 import { useBrowserFilterData } from '@/features/trade/hooks/useBrowserFilterData';
 import { QuantityPricingCard } from '@/features/trade/components/cards/QuantityPricingCard';
@@ -120,7 +121,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
     const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
-    const [inStockOnly, setInStockOnly] = useState(false);
+    const [inStockOnly, setInStockOnly] = useState(true);
     const [belowMinStock, setBelowMinStock] = useState(false);
     const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
 
@@ -132,6 +133,16 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const [rollsLoading, setRollsLoading] = useState<Set<string>>(new Set());
     const [expandedWarehouses, setExpandedWarehouses] = useState<Set<string>>(new Set());
 
+    // Variant children state (for parent materials)
+    const [variantChildrenCache, setVariantChildrenCache] = useState<Record<string, MaterialSearchResult[]>>({});
+    const [variantChildrenLoading, setVariantChildrenLoading] = useState<Set<string>>(new Set());
+
+    // Variant hierarchy state
+    const [variantRollsCache, setVariantRollsCache] = useState<Record<string, VariantRollData[]>>({});
+    const [expandedVariantWarehouses, setExpandedVariantWarehouses] = useState<Set<string>>(new Set());
+    const [expandedVariantGroups, setExpandedVariantGroups] = useState<Set<string>>(new Set());
+    const [expandedVariantColors, setExpandedVariantColors] = useState<Set<string>>(new Set());
+
     // AddToCartDialog state
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogMaterial, setDialogMaterial] = useState<MaterialSearchResult | null>(null);
@@ -140,7 +151,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const [dialogRollsLoading, setDialogRollsLoading] = useState(false);
 
     // ─── Data ───────────────────────────────────────────────────
-    const { materials, groups, isLoading, isSearching, totalCount, fetchWarehouseStock, fetchRollDetails } =
+    const { materials, groups, isLoading, isSearching, totalCount, fetchWarehouseStock, fetchRollDetails, fetchVariantChildren, fetchVariantRolls } =
         useMaterialSearch({
             search: searchText,
             groupId: selectedGroup,
@@ -162,7 +173,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
 
     // ─── Handlers ───────────────────────────────────────────────
 
-    /** Toggle material expansion — loads warehouse stock breakdown */
+    /** Toggle material expansion — loads warehouse stock AND variant children */
     const toggleExpand = useCallback(async (materialId: string) => {
         if (expandedMaterial === materialId) {
             setExpandedMaterial(null);
@@ -170,8 +181,43 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         }
         setExpandedMaterial(materialId);
 
-        // Fetch warehouse stock if not cached
-        if (!warehouseStockCache[materialId]) {
+        // Check if this is a variant parent
+        const material = materials.find(m => m.id === materialId);
+        const isParent = material?.is_variant_parent || material?.has_variants;
+
+        // Fetch variant children + rolls if parent
+        if (isParent) {
+            setVariantChildrenLoading(prev => new Set(prev).add(materialId));
+            try {
+                // Fetch children if not cached
+                let children = variantChildrenCache[materialId];
+                if (!children) {
+                    children = await fetchVariantChildren(materialId);
+                    setVariantChildrenCache(prev => ({ ...prev, [materialId]: children! }));
+                }
+
+                // Fetch rolls for all children if not cached
+                if (!variantRollsCache[materialId] && children.length > 0) {
+                    const childIds = children.map(c => c.id);
+                    const rolls = await fetchVariantRolls(childIds);
+                    setVariantRollsCache(prev => ({ ...prev, [materialId]: rolls }));
+                }
+            } catch (err) {
+                if (!variantChildrenCache[materialId]) {
+                    setVariantChildrenCache(prev => ({ ...prev, [materialId]: [] }));
+                }
+                setVariantRollsCache(prev => ({ ...prev, [materialId]: [] }));
+            } finally {
+                setVariantChildrenLoading(prev => {
+                    const next = new Set(prev);
+                    next.delete(materialId);
+                    return next;
+                });
+            }
+        }
+
+        // Fetch warehouse stock if not cached (for non-parent materials)
+        if (!isParent && !warehouseStockCache[materialId]) {
             setWarehouseStockLoading(prev => new Set(prev).add(materialId));
             try {
                 const data = await fetchWarehouseStock(materialId);
@@ -186,7 +232,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                 });
             }
         }
-    }, [expandedMaterial, warehouseStockCache, fetchWarehouseStock]);
+    }, [expandedMaterial, warehouseStockCache, fetchWarehouseStock, materials, variantChildrenCache, fetchVariantChildren, variantRollsCache, fetchVariantRolls]);
 
     /** Toggle warehouse expansion — loads roll details */
     const toggleWarehouse = useCallback(async (materialId: string, warehouseId: string) => {
@@ -317,7 +363,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         };
 
         onAddItem(newItem);
-    }, [customerPricing, onAddItem]);
+    }, [customerPricing, onAddItem, companyTaxRate, companyTaxEnabled, materials, currency]);
 
     /** Quick add (for materials with no stock → no warehouse) */
     const handleQuickAdd = useCallback((material: MaterialSearchResult) => {
@@ -350,20 +396,20 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         setSelectedCategory('all');
         setSelectedSupplier('all');
         setSelectedWarehouse('all');
-        setInStockOnly(false);
+        setInStockOnly(true);
         setBelowMinStock(false);
     }, []);
 
     const hasActiveFilters = searchText || selectedGroup !== 'all' || selectedCategory !== 'all'
         || selectedSupplier !== 'all' || selectedWarehouse !== 'all'
-        || inStockOnly || belowMinStock;
+        || !inStockOnly || belowMinStock;
 
     const activeFilterCount = [
         selectedGroup !== 'all',
         selectedCategory !== 'all',
         selectedSupplier !== 'all',
         selectedWarehouse !== 'all',
-        inStockOnly,
+        !inStockOnly, // "عرض الكل" يعتبر فلتر نشط لأنه مختلف عن الافتراضي
         belowMinStock,
         !!searchText,
     ].filter(Boolean).length;
@@ -502,12 +548,17 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                     size="sm"
                                     className={cn(
                                         'h-7 text-[10px] px-2 gap-1',
-                                        inStockOnly && 'bg-green-600 hover:bg-green-700 text-white',
+                                        inStockOnly
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-300',
                                     )}
                                     onClick={() => setInStockOnly(!inStockOnly)}
                                 >
                                     <Package className="w-3 h-3" />
-                                    {t('متوفر', 'In Stock')}
+                                    {inStockOnly
+                                        ? t('عرض الكل', 'Show All')
+                                        : t('المتوفر فقط', 'In Stock Only')
+                                    }
                                 </Button>
 
                                 <Button
@@ -629,6 +680,12 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                         {t('في السلة', 'In Cart')}
                                                     </Badge>
                                                 )}
+                                                {(material.is_variant_parent || material.has_variants) && (
+                                                    <Badge variant="outline" className="text-[10px] gap-0.5 bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300">
+                                                        <Layers className="w-2.5 h-2.5" />
+                                                        {t('أم', 'Parent')}
+                                                    </Badge>
+                                                )}
                                                 {hasQtyBreaks && (
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -700,8 +757,8 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                             <div className="text-[10px] text-gray-400">{currency}</div>
                                         </div>
 
-                                        {/* Quick Add for zero stock */}
-                                        {!readOnly && material.stock_qty === 0 && (
+                                        {/* Quick Add for zero stock (not for variant parents) */}
+                                        {material.stock_qty === 0 && !(material.is_variant_parent || material.has_variants) && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -724,263 +781,610 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* ─── Expanded: Warehouse Stock Breakdown ─── */}
-                                    {isExpanded && (
-                                        <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-2 space-y-3">
+                                    {/* ─── Expanded Section ─── */}
+                                    {isExpanded && (() => {
+                                        const isParent = material.is_variant_parent || material.has_variants;
+                                        const variantChildren = variantChildrenCache[material.id] || [];
+                                        const variantRolls = variantRollsCache[material.id] || [];
+                                        const isVarLoading = variantChildrenLoading.has(material.id);
 
-                                            {/* Summary Cards */}
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
-                                                    <div className="text-[10px] text-gray-500">{t('الرولونات', 'Rolls')}</div>
-                                                    <div className="font-mono font-semibold text-sm text-indigo-600 dark:text-indigo-400">
-                                                        {material.roll_count}
-                                                    </div>
-                                                </div>
-                                                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
-                                                    <div className="text-[10px] text-gray-500">{t('المتاح', 'Available')}</div>
-                                                    <div className="font-mono font-semibold text-sm text-green-600 dark:text-green-400">
-                                                        {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                    </div>
-                                                </div>
-                                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2 text-center">
-                                                    <div className="text-[10px] text-gray-500">{t('السعر', 'Price')}</div>
-                                                    <div className="font-mono font-semibold text-sm">{displayPrice.toFixed(2)}</div>
-                                                </div>
-                                            </div>
+                                        // ═══ BUILD WAREHOUSE → GROUP → VARIANT HIERARCHY ═══
+                                        type VariantEntry = { material: MaterialSearchResult; qty: number; roll_count: number; rolls: VariantRollData[] };
+                                        type GroupEntry = { id: string; name_ar: string; name_en: string; variants: Map<string, VariantEntry> };
+                                        type WhEntry = { id: string; name_ar: string; name_en: string; total_qty: number; total_rolls: number; groups: Map<string, GroupEntry> };
 
-                                            {/* Warehouse Stock */}
-                                            {isStockLoading ? (
-                                                <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    <span className="text-sm">{t('تحميل المخزون...', 'Loading stock...')}</span>
-                                                </div>
-                                            ) : warehouseStock.length === 0 ? (
-                                                <div className="text-center py-4">
-                                                    <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                                    <p className="text-sm text-gray-400">
-                                                        {t('لا يوجد مخزون في المستودعات', 'No stock in warehouses')}
-                                                    </p>
-                                                    {!readOnly && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="mt-2 h-7 text-xs gap-1"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleQuickAdd(material);
-                                                            }}
-                                                        >
-                                                            <Plus className="w-3 h-3" />
-                                                            {t('إضافة بدون مستودع', 'Add without warehouse')}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="border rounded-lg overflow-hidden">
-                                                    {/* Table Header */}
-                                                    <div className="grid grid-cols-[1fr_0.6fr_0.8fr_0.6fr_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-[10px] font-medium text-gray-500 dark:text-gray-400">
-                                                        <div className="px-2.5 py-2">{t('المستودع', 'Warehouse')}</div>
-                                                        <div className="px-2.5 py-2 text-end">{t('رولونات', 'Rolls')}</div>
-                                                        <div className="px-2.5 py-2 text-end">{t('المتاح', 'Available')}</div>
-                                                        <div className="px-2.5 py-2 text-end">{t('المحجوز', 'Reserved')}</div>
-                                                        <div className="px-2.5 py-2 text-center w-20">{t('إضافة', 'Add')}</div>
-                                                    </div>
+                                        const warehouseHierarchy: WhEntry[] = [];
+                                        if (isParent && variantRolls.length > 0) {
+                                            const whMap = new Map<string, WhEntry>();
+                                            for (const roll of variantRolls) {
+                                                const child = variantChildren.find(c => c.id === roll.material_id);
+                                                if (!child) continue;
 
-                                                    {/* Warehouse Rows */}
-                                                    {warehouseStock.map((wh) => {
-                                                        const whKey = `${material.id}__${wh.warehouse_id}`;
-                                                        const isWhExpanded = expandedWarehouses.has(whKey);
-                                                        const isWhRollsLoading = rollsLoading.has(whKey);
-                                                        const whRolls = rollsCache[whKey] || [];
-                                                        const isWhInCart = cartItemKeys.has(`${material.id}__${wh.warehouse_id}`);
+                                                const whId = roll.warehouse_id;
+                                                if (!whMap.has(whId)) {
+                                                    const whInfo = warehousesList.find((w: any) => w.id === whId);
+                                                    whMap.set(whId, {
+                                                        id: whId,
+                                                        name_ar: whInfo?.name_ar || whId,
+                                                        name_en: whInfo?.name_en || whInfo?.name_ar || whId,
+                                                        total_qty: 0, total_rolls: 0,
+                                                        groups: new Map(),
+                                                    });
+                                                }
+                                                const wh = whMap.get(whId)!;
+                                                wh.total_qty += roll.available_length;
+                                                wh.total_rolls += 1;
 
-                                                        return (
-                                                            <React.Fragment key={wh.warehouse_id}>
-                                                                {/* Warehouse Row */}
-                                                                <div
-                                                                    className={cn(
-                                                                        'grid grid-cols-[1fr_0.6fr_0.8fr_0.6fr_auto] items-center border-b last:border-b-0 transition-colors text-xs',
-                                                                        isWhExpanded && 'bg-blue-50/50 dark:bg-blue-900/10',
-                                                                        isWhInCart && 'bg-emerald-50/40 dark:bg-emerald-900/10',
-                                                                        'hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer',
-                                                                    )}
-                                                                    onClick={() => toggleWarehouse(material.id, wh.warehouse_id)}
-                                                                >
-                                                                    {/* Name */}
-                                                                    <div className="px-2.5 py-2 flex items-center gap-1.5">
-                                                                        <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                                                        <span className="font-tajawal text-xs truncate">
-                                                                            {isRTL ? wh.warehouse_name_ar : (wh.warehouse_name_en || wh.warehouse_name_ar)}
-                                                                        </span>
-                                                                        {isWhInCart && (
-                                                                            <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                                                                        )}
-                                                                        <ChevronDown className={cn(
-                                                                            'w-3 h-3 text-gray-400 transition-transform flex-shrink-0',
-                                                                            isWhExpanded && 'rotate-180',
-                                                                        )} />
-                                                                    </div>
+                                                const grpId = child.group_id || 'ungrouped';
+                                                if (!wh.groups.has(grpId)) {
+                                                    wh.groups.set(grpId, {
+                                                        id: grpId,
+                                                        name_ar: child.group_name_ar || t('بدون مجموعة', 'Ungrouped'),
+                                                        name_en: child.group_name_en || 'Ungrouped',
+                                                        variants: new Map(),
+                                                    });
+                                                }
+                                                const grp = wh.groups.get(grpId)!;
+                                                if (!grp.variants.has(child.id)) {
+                                                    grp.variants.set(child.id, { material: child, qty: 0, roll_count: 0, rolls: [] });
+                                                }
+                                                const v = grp.variants.get(child.id)!;
+                                                v.qty += roll.available_length;
+                                                v.roll_count += 1;
+                                                v.rolls.push(roll);
+                                            }
+                                            warehouseHierarchy.push(...Array.from(whMap.values()));
+                                        }
 
-                                                                    {/* Rolls */}
-                                                                    <div className="px-2.5 py-2 text-end font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                                                                        {wh.roll_count}
-                                                                    </div>
-
-                                                                    {/* Available */}
-                                                                    <div className="px-2.5 py-2 text-end font-mono text-green-600 dark:text-green-400 font-semibold">
-                                                                        {wh.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                                    </div>
-
-                                                                    {/* Reserved */}
-                                                                    <div className="px-2.5 py-2 text-end font-mono text-orange-500 font-medium">
-                                                                        {wh.reserved_length > 0 ? wh.reserved_length.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
-                                                                    </div>
-
-                                                                    {/* Add Button → Opens AddToCartDialog */}
-                                                                    <div className="px-2 py-1.5 text-center w-20" onClick={(e) => e.stopPropagation()}>
-                                                                        {!readOnly && (
-                                                                            <Button
-                                                                                variant={isWhInCart ? 'default' : 'outline'}
-                                                                                size="sm"
-                                                                                className={cn(
-                                                                                    'h-7 gap-1 text-[10px] px-2',
-                                                                                    isWhInCart
-                                                                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                                                                        : 'hover:bg-green-50 hover:border-green-300 hover:text-green-600',
-                                                                                )}
-                                                                                onClick={() => handleOpenAddDialog(material, wh)}
-                                                                            >
-                                                                                <ShoppingCart className="w-3 h-3" />
-                                                                                {isWhInCart
-                                                                                    ? t('مضاف', 'Added')
-                                                                                    : t('إضافة', 'Add')
-                                                                                }
-                                                                            </Button>
-                                                                        )}
-                                                                    </div>
+                                        return (
+                                            <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-2 space-y-3">
+                                                {/* ═══ VARIANT PARENT: Hierarchical warehouse view ═══ */}
+                                                {isParent ? (
+                                                    <>
+                                                        {/* Summary */}
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('الرولونات', 'Rolls')}</div>
+                                                                <div className="font-mono font-semibold text-sm text-indigo-600 dark:text-indigo-400">
+                                                                    {material.roll_count}
                                                                 </div>
+                                                            </div>
+                                                            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('المتاح', 'Available')}</div>
+                                                                <div className="font-mono font-semibold text-sm text-green-600 dark:text-green-400">
+                                                                    {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('المتغيرات', 'Variants')}</div>
+                                                                <div className="font-mono font-semibold text-sm text-purple-600 dark:text-purple-400">
+                                                                    {variantChildren.length}
+                                                                </div>
+                                                            </div>
+                                                        </div>
 
-                                                                {/* ─── Expanded: Roll Details ─── */}
-                                                                {isWhExpanded && (
-                                                                    <div className="bg-blue-50/30 dark:bg-blue-900/5 border-b px-3 py-2">
-                                                                        {isWhRollsLoading ? (
-                                                                            <div className="flex items-center gap-2 justify-center py-3 text-gray-400">
-                                                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                                                <span className="text-xs">{t('تحميل الرولونات...', 'Loading rolls...')}</span>
+                                                        {isVarLoading ? (
+                                                            <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                                <span className="text-sm">{t('تحميل المتغيرات...', 'Loading variants...')}</span>
+                                                            </div>
+                                                        ) : warehouseHierarchy.length === 0 ? (
+                                                            <div className="text-center py-4 text-sm text-gray-400">
+                                                                <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                                                {t('لا يوجد مخزون للمتغيرات', 'No stock for variants')}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-2">
+                                                                {/* ─── Level 1: Warehouses ─── */}
+                                                                {warehouseHierarchy.map(wh => {
+                                                                    const whKey = `${material.id}__wh__${wh.id}`;
+                                                                    const isWhOpen = expandedVariantWarehouses.has(whKey);
+
+                                                                    return (
+                                                                        <div key={wh.id} className="border rounded-lg overflow-hidden">
+                                                                            {/* Warehouse Header */}
+                                                                            <div
+                                                                                className={cn(
+                                                                                    'flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors',
+                                                                                    isWhOpen ? 'bg-indigo-50/80 dark:bg-indigo-900/20' : 'bg-gray-50/80 dark:bg-gray-800/40 hover:bg-gray-100/80'
+                                                                                )}
+                                                                                onClick={() => {
+                                                                                    setExpandedVariantWarehouses(prev => {
+                                                                                        const next = new Set(prev);
+                                                                                        next.has(whKey) ? next.delete(whKey) : next.add(whKey);
+                                                                                        return next;
+                                                                                    });
+                                                                                }}
+                                                                            >
+                                                                                <Warehouse className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                                                                                <span className="text-xs font-medium flex-1">
+                                                                                    {isRTL ? wh.name_ar : wh.name_en}
+                                                                                </span>
+                                                                                <Badge variant="outline" className="text-[10px] h-5 bg-green-50 border-green-200 text-green-700">
+                                                                                    {wh.total_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })} {material.unit}
+                                                                                </Badge>
+                                                                                <Badge variant="outline" className="text-[9px] h-5">
+                                                                                    {wh.total_rolls} {t('رولون', 'rolls')}
+                                                                                </Badge>
+                                                                                <ChevronDown className={cn('w-3.5 h-3.5 text-gray-400 transition-transform', isWhOpen && 'rotate-180')} />
                                                                             </div>
-                                                                        ) : whRolls.length === 0 ? (
-                                                                            <div className="text-center py-3 text-xs text-gray-400">
-                                                                                {t('لا توجد رولونات', 'No rolls found')}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <>
-                                                                                <div className="flex items-center gap-2 mb-1.5">
-                                                                                    <Scroll className="w-3.5 h-3.5 text-blue-500" />
-                                                                                    <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">
-                                                                                        {t('تفاصيل الرولونات', 'Roll Details')}
-                                                                                    </span>
-                                                                                    <Badge variant="outline" className="text-[9px] h-4">
-                                                                                        {whRolls.length} {t('رولون', 'rolls')}
-                                                                                    </Badge>
-                                                                                    {/* Add with rolls button */}
-                                                                                    {!readOnly && (
-                                                                                        <Button
-                                                                                            variant="outline"
-                                                                                            size="sm"
-                                                                                            className="h-5 text-[9px] gap-1 ms-auto text-emerald-600 border-emerald-300 hover:bg-emerald-50 px-2"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                handleOpenAddDialog(material, wh);
-                                                                                            }}
-                                                                                        >
-                                                                                            <ShoppingCart className="w-2.5 h-2.5" />
-                                                                                            {t('إضافة مع اختيار الرولونات', 'Add with roll selection')}
-                                                                                        </Button>
-                                                                                    )}
-                                                                                </div>
-                                                                                <div className="border rounded-md overflow-hidden bg-white dark:bg-gray-900">
-                                                                                    {/* Rolls Header */}
-                                                                                    <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.8fr_0.7fr] bg-gray-50/80 dark:bg-gray-800/60 text-[9px] font-medium text-gray-500 border-b">
-                                                                                        <div className="px-2 py-1.5">{t('رقم الرولون', 'Roll #')}</div>
-                                                                                        <div className="px-2 py-1.5 text-end">{t('الحالي', 'Current')}</div>
-                                                                                        <div className="px-2 py-1.5 text-end">{t('المتاح', 'Available')}</div>
-                                                                                        <div className="px-2 py-1.5 text-end">{t('المحجوز', 'Reserved')}</div>
-                                                                                        <div className="px-2 py-1.5">{t('الحالة', 'Status')}</div>
-                                                                                    </div>
-                                                                                    {/* Roll Rows */}
-                                                                                    {whRolls.map((roll) => {
-                                                                                        const rStatus = getRollStatusLabel(roll.status);
+
+                                                                            {/* ─── Level 2: Design Groups inside warehouse ─── */}
+                                                                            {isWhOpen && (
+                                                                                <div className="border-t divide-y divide-gray-100 dark:divide-gray-800">
+                                                                                    {Array.from(wh.groups.values()).map(grp => {
+                                                                                        const grpKey = `${material.id}__wh__${wh.id}__grp__${grp.id}`;
+                                                                                        const isGrpOpen = expandedVariantGroups.has(grpKey);
+                                                                                        const grpVariants = Array.from(grp.variants.values()).filter(v => v.qty > 0);
+                                                                                        const grpTotalQty = grpVariants.reduce((sum, v) => sum + v.qty, 0);
+
+                                                                                        if (grpVariants.length === 0) return null;
+
                                                                                         return (
-                                                                                            <div
-                                                                                                key={roll.id}
-                                                                                                className="grid grid-cols-[1fr_0.8fr_0.8fr_0.8fr_0.7fr] items-center border-b last:border-b-0 text-[11px] hover:bg-gray-50 dark:hover:bg-gray-800/20"
-                                                                                            >
-                                                                                                <div className="px-2 py-1.5 font-mono text-blue-600 dark:text-blue-400 truncate">
-                                                                                                    {roll.roll_number}
-                                                                                                </div>
-                                                                                                <div className="px-2 py-1.5 text-end font-mono">
-                                                                                                    {roll.current_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                                                                </div>
-                                                                                                <div className="px-2 py-1.5 text-end font-mono text-green-600 dark:text-green-400 font-medium">
-                                                                                                    {roll.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                                                                </div>
-                                                                                                <div className="px-2 py-1.5 text-end font-mono text-orange-500">
-                                                                                                    {roll.reserved_length > 0 ? roll.reserved_length.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
-                                                                                                </div>
-                                                                                                <div className="px-2 py-1.5">
-                                                                                                    <span className={cn(
-                                                                                                        'inline-block px-1.5 py-0.5 rounded-full text-[9px] font-medium',
-                                                                                                        rStatus.color === 'green' && 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-                                                                                                        rStatus.color === 'orange' && 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-                                                                                                        rStatus.color === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-                                                                                                        rStatus.color === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-                                                                                                    )}>
-                                                                                                        {isRTL ? rStatus.ar : rStatus.en}
+                                                                                            <div key={grp.id}>
+                                                                                                {/* Group Header */}
+                                                                                                <div
+                                                                                                    className={cn(
+                                                                                                        'flex items-center gap-2 px-4 py-1.5 cursor-pointer transition-colors',
+                                                                                                        isGrpOpen ? 'bg-purple-50/60 dark:bg-purple-900/15' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
+                                                                                                    )}
+                                                                                                    onClick={() => {
+                                                                                                        setExpandedVariantGroups(prev => {
+                                                                                                            const next = new Set(prev);
+                                                                                                            next.has(grpKey) ? next.delete(grpKey) : next.add(grpKey);
+                                                                                                            return next;
+                                                                                                        });
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <Layers className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                                                                                    <span className="text-xs font-medium text-purple-700 dark:text-purple-300 flex-1">
+                                                                                                        {isRTL ? grp.name_ar : (grp.name_en || grp.name_ar)}
                                                                                                     </span>
+                                                                                                    <span className="text-[10px] font-mono text-gray-500">
+                                                                                                        {grpTotalQty.toLocaleString('en-US', { maximumFractionDigits: 1 })} {material.unit}
+                                                                                                    </span>
+                                                                                                    <Badge variant="outline" className="text-[9px] h-4">
+                                                                                                        {grpVariants.length}
+                                                                                                    </Badge>
+                                                                                                    <ChevronDown className={cn('w-3 h-3 text-gray-400 transition-transform', isGrpOpen && 'rotate-180')} />
                                                                                                 </div>
+
+                                                                                                {/* ─── Level 3: Color Variants inside group ─── */}
+                                                                                                {isGrpOpen && (
+                                                                                                    <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
+                                                                                                        {grpVariants.map(variant => {
+                                                                                                            const varKey = `${material.id}__wh__${wh.id}__var__${variant.material.id}`;
+                                                                                                            const isVarOpen = expandedVariantColors.has(varKey);
+                                                                                                            const varInCart = cartMaterialIds.has(variant.material.id);
+                                                                                                            const varName = isRTL ? variant.material.name_ar : (variant.material.name_en || variant.material.name_ar);
+                                                                                                            const shortName = varName
+                                                                                                                .replace(material.name_ar, '').replace(material.name_en || '', '')
+                                                                                                                .replace(/^\s*[-–—]\s*/, '').trim() || varName;
+
+                                                                                                            return (
+                                                                                                                <div key={variant.material.id}>
+                                                                                                                    {/* Color Row */}
+                                                                                                                    <div
+                                                                                                                        className={cn(
+                                                                                                                            'flex items-center gap-2 px-5 py-2 text-xs cursor-pointer transition-colors',
+                                                                                                                            isVarOpen && 'bg-blue-50/40 dark:bg-blue-900/10',
+                                                                                                                            varInCart && 'bg-emerald-50/30 dark:bg-emerald-900/10',
+                                                                                                                            !isVarOpen && !varInCart && 'hover:bg-gray-50 dark:hover:bg-gray-800/20'
+                                                                                                                        )}
+                                                                                                                        onClick={() => {
+                                                                                                                            setExpandedVariantColors(prev => {
+                                                                                                                                const next = new Set(prev);
+                                                                                                                                next.has(varKey) ? next.delete(varKey) : next.add(varKey);
+                                                                                                                                return next;
+                                                                                                                            });
+                                                                                                                        }}
+                                                                                                                    >
+                                                                                                                        <Package className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                                                                                        <span className="flex-1 font-tajawal truncate">{shortName}</span>
+                                                                                                                        <span className="text-[10px] font-mono text-green-600 dark:text-green-400 font-medium flex-shrink-0">
+                                                                                                                            {variant.qty.toLocaleString('en-US', { maximumFractionDigits: 1 })} {variant.material.unit}
+                                                                                                                        </span>
+                                                                                                                        <Badge variant="outline" className="text-[9px] h-4 flex-shrink-0">
+                                                                                                                            {variant.roll_count} {t('رولون', 'rolls')}
+                                                                                                                        </Badge>
+                                                                                                                        {varInCart && <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" />}
+                                                                                                                        <Button
+                                                                                                                            variant={varInCart ? 'default' : 'outline'}
+                                                                                                                            size="sm"
+                                                                                                                            className={cn(
+                                                                                                                                'h-6 text-[10px] px-2 gap-1 flex-shrink-0',
+                                                                                                                                varInCart
+                                                                                                                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                                                                                                    : 'hover:bg-green-50 hover:border-green-300 hover:text-green-600'
+                                                                                                                            )}
+                                                                                                                            onClick={(e) => {
+                                                                                                                                e.stopPropagation();
+                                                                                                                                // Open AddToCartDialog with correct warehouse + rolls
+                                                                                                                                setDialogMaterial(variant.material);
+                                                                                                                                setDialogWarehouse({
+                                                                                                                                    warehouse_id: wh.id,
+                                                                                                                                    warehouse_code: '',
+                                                                                                                                    warehouse_name_ar: wh.name_ar,
+                                                                                                                                    warehouse_name_en: wh.name_en,
+                                                                                                                                    roll_count: variant.roll_count,
+                                                                                                                                    total_length: variant.qty,
+                                                                                                                                    available_length: variant.qty,
+                                                                                                                                    reserved_length: 0,
+                                                                                                                                    last_updated: null,
+                                                                                                                                });
+                                                                                                                                setDialogRolls(variant.rolls.map(r => ({
+                                                                                                                                    id: r.id,
+                                                                                                                                    roll_number: r.roll_number,
+                                                                                                                                    current_length: r.current_length,
+                                                                                                                                    available_length: r.available_length,
+                                                                                                                                    reserved_length: r.reserved_length,
+                                                                                                                                    status: r.status,
+                                                                                                                                })));
+                                                                                                                                setDialogRollsLoading(false);
+                                                                                                                                setDialogOpen(true);
+                                                                                                                            }}
+                                                                                                                        >
+                                                                                                                            <ShoppingCart className="w-2.5 h-2.5" />
+                                                                                                                            {varInCart ? t('مضاف', '✓') : t('إضافة', 'Add')}
+                                                                                                                        </Button>
+                                                                                                                        <ChevronDown className={cn('w-3 h-3 text-gray-400 transition-transform flex-shrink-0', isVarOpen && 'rotate-180')} />
+                                                                                                                    </div>
+
+                                                                                                                    {/* ─── Level 4: Rolls inside color ─── */}
+                                                                                                                    {isVarOpen && variant.rolls.length > 0 && (
+                                                                                                                        <div className="bg-blue-50/30 dark:bg-blue-900/5 px-6 py-2">
+                                                                                                                            <div className="flex items-center gap-2 mb-1.5">
+                                                                                                                                <Scroll className="w-3.5 h-3.5 text-blue-500" />
+                                                                                                                                <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">
+                                                                                                                                    {t('تفاصيل الرولونات', 'Roll Details')}
+                                                                                                                                </span>
+                                                                                                                                <Badge variant="outline" className="text-[9px] h-4">
+                                                                                                                                    {variant.rolls.length} {t('رولون', 'rolls')}
+                                                                                                                                </Badge>
+                                                                                                                                <Button
+                                                                                                                                    variant="outline"
+                                                                                                                                    size="sm"
+                                                                                                                                    className="h-5 text-[9px] gap-1 ms-auto text-emerald-600 border-emerald-300 hover:bg-emerald-50 px-2"
+                                                                                                                                    onClick={(e) => {
+                                                                                                                                        e.stopPropagation();
+                                                                                                                                        setDialogMaterial(variant.material);
+                                                                                                                                        setDialogWarehouse({
+                                                                                                                                            warehouse_id: wh.id,
+                                                                                                                                            warehouse_code: '',
+                                                                                                                                            warehouse_name_ar: wh.name_ar,
+                                                                                                                                            warehouse_name_en: wh.name_en,
+                                                                                                                                            roll_count: variant.roll_count,
+                                                                                                                                            total_length: variant.qty,
+                                                                                                                                            available_length: variant.qty,
+                                                                                                                                            reserved_length: 0,
+                                                                                                                                            last_updated: null,
+                                                                                                                                        });
+                                                                                                                                        setDialogRolls(variant.rolls.map(r => ({
+                                                                                                                                            id: r.id,
+                                                                                                                                            roll_number: r.roll_number,
+                                                                                                                                            current_length: r.current_length,
+                                                                                                                                            available_length: r.available_length,
+                                                                                                                                            reserved_length: r.reserved_length,
+                                                                                                                                            status: r.status,
+                                                                                                                                        })));
+                                                                                                                                        setDialogRollsLoading(false);
+                                                                                                                                        setDialogOpen(true);
+                                                                                                                                    }}
+                                                                                                                                >
+                                                                                                                                    <ShoppingCart className="w-2.5 h-2.5" />
+                                                                                                                                    {t('إضافة مع اختيار الرولونات', 'Add with roll selection')}
+                                                                                                                                </Button>
+                                                                                                                            </div>
+                                                                                                                            <div className="border rounded-md overflow-hidden bg-white dark:bg-gray-900">
+                                                                                                                                {/* Rolls Header */}
+                                                                                                                                <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr] bg-gray-50/80 dark:bg-gray-800/60 text-[9px] font-medium text-gray-500 border-b">
+                                                                                                                                    <div className="px-2 py-1.5">{t('رقم الرولون', 'Roll #')}</div>
+                                                                                                                                    <div className="px-2 py-1.5 text-end">{t('الحالي', 'Current')}</div>
+                                                                                                                                    <div className="px-2 py-1.5 text-end">{t('المتاح', 'Available')}</div>
+                                                                                                                                    <div className="px-2 py-1.5">{t('الحالة', 'Status')}</div>
+                                                                                                                                </div>
+                                                                                                                                {/* Roll Rows */}
+                                                                                                                                {variant.rolls.map(roll => {
+                                                                                                                                    const rStatus = getRollStatusLabel(roll.status);
+                                                                                                                                    return (
+                                                                                                                                        <div
+                                                                                                                                            key={roll.id}
+                                                                                                                                            className="grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr] items-center border-b last:border-b-0 text-[11px] hover:bg-gray-50 dark:hover:bg-gray-800/20"
+                                                                                                                                        >
+                                                                                                                                            <div className="px-2 py-1.5 font-mono text-blue-600 dark:text-blue-400 truncate">
+                                                                                                                                                {roll.roll_number}
+                                                                                                                                            </div>
+                                                                                                                                            <div className="px-2 py-1.5 text-end font-mono">
+                                                                                                                                                {roll.current_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                                                                            </div>
+                                                                                                                                            <div className="px-2 py-1.5 text-end font-mono text-green-600 dark:text-green-400 font-medium">
+                                                                                                                                                {roll.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                                                                            </div>
+                                                                                                                                            <div className="px-2 py-1.5">
+                                                                                                                                                <span className={cn(
+                                                                                                                                                    'inline-block px-1.5 py-0.5 rounded-full text-[9px] font-medium',
+                                                                                                                                                    rStatus.color === 'green' && 'bg-green-100 text-green-700',
+                                                                                                                                                    rStatus.color === 'orange' && 'bg-orange-100 text-orange-700',
+                                                                                                                                                    rStatus.color === 'blue' && 'bg-blue-100 text-blue-700',
+                                                                                                                                                    rStatus.color === 'red' && 'bg-red-100 text-red-700',
+                                                                                                                                                )}>
+                                                                                                                                                    {isRTL ? rStatus.ar : rStatus.en}
+                                                                                                                                                </span>
+                                                                                                                                            </div>
+                                                                                                                                        </div>
+                                                                                                                                    );
+                                                                                                                                })}
+                                                                                                                            </div>
+                                                                                                                        </div>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            );
+                                                                                                        })}
+                                                                                                    </div>
+                                                                                                )}
                                                                                             </div>
                                                                                         );
                                                                                     })}
                                                                                 </div>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    /* ═══ NORMAL MATERIAL: Warehouse stock breakdown ═══ */
+                                                    <>
+                                                        {/* Summary Cards */}
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('الرولونات', 'Rolls')}</div>
+                                                                <div className="font-mono font-semibold text-sm text-indigo-600 dark:text-indigo-400">
+                                                                    {material.roll_count}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('المتاح', 'Available')}</div>
+                                                                <div className="font-mono font-semibold text-sm text-green-600 dark:text-green-400">
+                                                                    {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('السعر', 'Price')}</div>
+                                                                <div className="font-mono font-semibold text-sm">{displayPrice.toFixed(2)}</div>
+                                                            </div>
+                                                        </div>
 
-                                            {/* Quantity Break Pricing */}
-                                            {qtyBreaks.length > 0 && (
-                                                <QuantityPricingCard
-                                                    priceItems={qtyBreaks}
-                                                    baseSellPrice={material.selling_price}
-                                                    currentQty={1}
-                                                    currency={currency}
-                                                    discountPercent={customerPricing?.discountPercent || 0}
-                                                    priceListName={customerPricing?.priceListName}
-                                                />
-                                            )}
+                                                        {/* Warehouse Stock */}
+                                                        {isStockLoading ? (
+                                                            <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                                <span className="text-sm">{t('تحميل المخزون...', 'Loading stock...')}</span>
+                                                            </div>
+                                                        ) : warehouseStock.length === 0 ? (
+                                                            <div className="text-center py-4">
+                                                                <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                                                <p className="text-sm text-gray-400">
+                                                                    {t('لا يوجد مخزون في المستودعات', 'No stock in warehouses')}
+                                                                </p>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="mt-2 h-7 text-xs gap-1"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleQuickAdd(material);
+                                                                    }}
+                                                                >
+                                                                    <Plus className="w-3 h-3" />
+                                                                    {t('إضافة بدون مستودع', 'Add without warehouse')}
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="border rounded-lg overflow-hidden">
+                                                                {/* Table Header */}
+                                                                <div className="grid grid-cols-[1fr_0.6fr_0.8fr_0.6fr_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                                                                    <div className="px-2.5 py-2">{t('المستودع', 'Warehouse')}</div>
+                                                                    <div className="px-2.5 py-2 text-end">{t('رولونات', 'Rolls')}</div>
+                                                                    <div className="px-2.5 py-2 text-end">{t('المتاح', 'Available')}</div>
+                                                                    <div className="px-2.5 py-2 text-end">{t('المحجوز', 'Reserved')}</div>
+                                                                    <div className="px-2.5 py-2 text-center w-20">{t('إضافة', 'Add')}</div>
+                                                                </div>
 
-                                            {/* Material details */}
-                                            <div className="grid grid-cols-3 gap-2 text-xs">
-                                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
-                                                    <span className="text-gray-400 block">{t('العرض', 'Width')}</span>
-                                                    <span className="font-mono font-medium">{material.default_width} cm</span>
-                                                </div>
-                                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
-                                                    <span className="text-gray-400 block">{t('سعر الشراء', 'Purchase')}</span>
-                                                    <span className="font-mono font-medium">{material.purchase_price.toFixed(2)}</span>
-                                                </div>
-                                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
-                                                    <span className="text-gray-400 block">{t('الحد الأدنى', 'Min Stock')}</span>
-                                                    <span className="font-mono font-medium">{material.min_stock} {material.unit}</span>
-                                                </div>
+                                                                {/* Warehouse Rows */}
+                                                                {warehouseStock.map((wh) => {
+                                                                    const whKey = `${material.id}__${wh.warehouse_id}`;
+                                                                    const isWhExpanded = expandedWarehouses.has(whKey);
+                                                                    const isWhRollsLoading = rollsLoading.has(whKey);
+                                                                    const whRolls = rollsCache[whKey] || [];
+                                                                    const isWhInCart = cartItemKeys.has(`${material.id}__${wh.warehouse_id}`);
+
+                                                                    return (
+                                                                        <React.Fragment key={wh.warehouse_id}>
+                                                                            {/* Warehouse Row */}
+                                                                            <div
+                                                                                className={cn(
+                                                                                    'grid grid-cols-[1fr_0.6fr_0.8fr_0.6fr_auto] items-center border-b last:border-b-0 transition-colors text-xs',
+                                                                                    isWhExpanded && 'bg-blue-50/50 dark:bg-blue-900/10',
+                                                                                    isWhInCart && 'bg-emerald-50/40 dark:bg-emerald-900/10',
+                                                                                    'hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer',
+                                                                                )}
+                                                                                onClick={() => toggleWarehouse(material.id, wh.warehouse_id)}
+                                                                            >
+                                                                                {/* Name */}
+                                                                                <div className="px-2.5 py-2 flex items-center gap-1.5">
+                                                                                    <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                                                    <span className="font-tajawal text-xs truncate">
+                                                                                        {isRTL ? wh.warehouse_name_ar : (wh.warehouse_name_en || wh.warehouse_name_ar)}
+                                                                                    </span>
+                                                                                    {isWhInCart && (
+                                                                                        <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                                                                                    )}
+                                                                                    <ChevronDown className={cn(
+                                                                                        'w-3 h-3 text-gray-400 transition-transform flex-shrink-0',
+                                                                                        isWhExpanded && 'rotate-180',
+                                                                                    )} />
+                                                                                </div>
+
+                                                                                {/* Rolls */}
+                                                                                <div className="px-2.5 py-2 text-end font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                                                                                    {wh.roll_count}
+                                                                                </div>
+
+                                                                                {/* Available */}
+                                                                                <div className="px-2.5 py-2 text-end font-mono text-green-600 dark:text-green-400 font-semibold">
+                                                                                    {wh.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                </div>
+
+                                                                                {/* Reserved */}
+                                                                                <div className="px-2.5 py-2 text-end font-mono text-orange-500 font-medium">
+                                                                                    {wh.reserved_length > 0 ? wh.reserved_length.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
+                                                                                </div>
+
+                                                                                {/* Add Button → Opens AddToCartDialog */}
+                                                                                <div className="px-2 py-1.5 text-center w-20" onClick={(e) => e.stopPropagation()}>
+                                                                                    <Button
+                                                                                        variant={isWhInCart ? 'default' : 'outline'}
+                                                                                        size="sm"
+                                                                                        className={cn(
+                                                                                            'h-7 gap-1 text-[10px] px-2',
+                                                                                            isWhInCart
+                                                                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                                                                : 'hover:bg-green-50 hover:border-green-300 hover:text-green-600',
+                                                                                        )}
+                                                                                        onClick={() => handleOpenAddDialog(material, wh)}
+                                                                                    >
+                                                                                        <ShoppingCart className="w-3 h-3" />
+                                                                                        {isWhInCart
+                                                                                            ? t('مضاف', 'Added')
+                                                                                            : t('إضافة', 'Add')
+                                                                                        }
+                                                                                    </Button>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* ─── Expanded: Roll Details ─── */}
+                                                                            {isWhExpanded && (
+                                                                                <div className="bg-blue-50/30 dark:bg-blue-900/5 border-b px-3 py-2">
+                                                                                    {isWhRollsLoading ? (
+                                                                                        <div className="flex items-center gap-2 justify-center py-3 text-gray-400">
+                                                                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                                                            <span className="text-xs">{t('تحميل الرولونات...', 'Loading rolls...')}</span>
+                                                                                        </div>
+                                                                                    ) : whRolls.length === 0 ? (
+                                                                                        <div className="text-center py-3 text-xs text-gray-400">
+                                                                                            {t('لا توجد رولونات', 'No rolls found')}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            <div className="flex items-center gap-2 mb-1.5">
+                                                                                                <Scroll className="w-3.5 h-3.5 text-blue-500" />
+                                                                                                <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">
+                                                                                                    {t('تفاصيل الرولونات', 'Roll Details')}
+                                                                                                </span>
+                                                                                                <Badge variant="outline" className="text-[9px] h-4">
+                                                                                                    {whRolls.length} {t('رولون', 'rolls')}
+                                                                                                </Badge>
+                                                                                                <Button
+                                                                                                    variant="outline"
+                                                                                                    size="sm"
+                                                                                                    className="h-5 text-[9px] gap-1 ms-auto text-emerald-600 border-emerald-300 hover:bg-emerald-50 px-2"
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleOpenAddDialog(material, wh);
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <ShoppingCart className="w-2.5 h-2.5" />
+                                                                                                    {t('إضافة مع اختيار الرولونات', 'Add with roll selection')}
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                            <div className="border rounded-md overflow-hidden bg-white dark:bg-gray-900">
+                                                                                                {/* Rolls Header */}
+                                                                                                <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.8fr_0.7fr] bg-gray-50/80 dark:bg-gray-800/60 text-[9px] font-medium text-gray-500 border-b">
+                                                                                                    <div className="px-2 py-1.5">{t('رقم الرولون', 'Roll #')}</div>
+                                                                                                    <div className="px-2 py-1.5 text-end">{t('الحالي', 'Current')}</div>
+                                                                                                    <div className="px-2 py-1.5 text-end">{t('المتاح', 'Available')}</div>
+                                                                                                    <div className="px-2 py-1.5 text-end">{t('المحجوز', 'Reserved')}</div>
+                                                                                                    <div className="px-2 py-1.5">{t('الحالة', 'Status')}</div>
+                                                                                                </div>
+                                                                                                {/* Roll Rows */}
+                                                                                                {whRolls.map((roll) => {
+                                                                                                    const rStatus = getRollStatusLabel(roll.status);
+                                                                                                    return (
+                                                                                                        <div
+                                                                                                            key={roll.id}
+                                                                                                            className="grid grid-cols-[1fr_0.8fr_0.8fr_0.8fr_0.7fr] items-center border-b last:border-b-0 text-[11px] hover:bg-gray-50 dark:hover:bg-gray-800/20"
+                                                                                                        >
+                                                                                                            <div className="px-2 py-1.5 font-mono text-blue-600 dark:text-blue-400 truncate">
+                                                                                                                {roll.roll_number}
+                                                                                                            </div>
+                                                                                                            <div className="px-2 py-1.5 text-end font-mono">
+                                                                                                                {roll.current_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                                            </div>
+                                                                                                            <div className="px-2 py-1.5 text-end font-mono text-green-600 dark:text-green-400 font-medium">
+                                                                                                                {roll.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                                            </div>
+                                                                                                            <div className="px-2 py-1.5 text-end font-mono text-orange-500">
+                                                                                                                {roll.reserved_length > 0 ? roll.reserved_length.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
+                                                                                                            </div>
+                                                                                                            <div className="px-2 py-1.5">
+                                                                                                                <span className={cn(
+                                                                                                                    'inline-block px-1.5 py-0.5 rounded-full text-[9px] font-medium',
+                                                                                                                    rStatus.color === 'green' && 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+                                                                                                                    rStatus.color === 'orange' && 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+                                                                                                                    rStatus.color === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                                                                                                                    rStatus.color === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                                                                                                                )}>
+                                                                                                                    {isRTL ? rStatus.ar : rStatus.en}
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        </>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Quantity Break Pricing */}
+                                                        {qtyBreaks.length > 0 && (
+                                                            <QuantityPricingCard
+                                                                priceItems={qtyBreaks}
+                                                                baseSellPrice={material.selling_price}
+                                                                currentQty={1}
+                                                                currency={currency}
+                                                                discountPercent={customerPricing?.discountPercent || 0}
+                                                                priceListName={customerPricing?.priceListName}
+                                                            />
+                                                        )}
+
+                                                        {/* Material details */}
+                                                        <div className="grid grid-cols-3 gap-2 text-xs">
+                                                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
+                                                                <span className="text-gray-400 block">{t('العرض', 'Width')}</span>
+                                                                <span className="font-mono font-medium">{material.default_width} cm</span>
+                                                            </div>
+                                                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
+                                                                <span className="text-gray-400 block">{t('سعر الشراء', 'Purchase')}</span>
+                                                                <span className="font-mono font-medium">{material.purchase_price.toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
+                                                                <span className="text-gray-400 block">{t('الحد الأدنى', 'Min Stock')}</span>
+                                                                <span className="font-mono font-medium">{material.min_stock} {material.unit}</span>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
                                 </CardContent>
                             </Card>
                         );
