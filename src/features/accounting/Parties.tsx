@@ -123,6 +123,7 @@ export default function Parties() {
       })) as Party[];
     },
     enabled: !!companyId,
+    staleTime: 30_000,
   });
 
   // ─── Fetch Customers ─────────────────────────────────────────
@@ -143,6 +144,7 @@ export default function Parties() {
       })) as Party[];
     },
     enabled: !!companyId,
+    staleTime: 30_000,
   });
 
   // ─── Fetch Sub-Ledger Balances ───────────────────────────────

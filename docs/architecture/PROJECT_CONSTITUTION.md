@@ -82,29 +82,121 @@ try {
 
 ### 5️⃣ Performance (الأداء) - إلزامي 100%
 
-```typescript
-// ⚡ Keep-Mounted Pattern للتبويبات (بدون رمشة)
-// جميع التبويبات تُبنى مرة واحدة ويتم التحكم بالرؤية عبر CSS
+#### 5.1 نمط "Keep Visited Mounted" للتبويبات الرئيسية
 
+> **⚠️ إلزامي لكل أقسام التطبيق (محاسبة، مستودعات، مبيعات، مشتريات)**
+
+```typescript
+// ⚡ "Keep Visited Mounted" — النمط المعتمد الوحيد للتبويبات
+// التاب يُحمّل أول مرة فقط عند زيارته، ثم يبقى mounted في الـ DOM
+
+const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
+    () => new Set([getActiveTab()])
+);
+
+// عند تغيير التاب — سجّله كمزور
+const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setVisitedTabs(prev => {
+        if (prev.has(tabId)) return prev;
+        return new Set(prev).add(tabId);
+    });
+    navigate(path, { replace: true });
+};
+
+// في الـ render — فقط التابات المُزارة تعمل mount
+{tabs.map((tab) => {
+    if (!visitedTabs.has(tab.id)) return null; // ← لم يُزَر بعد = لا mount
+
+    return (
+        <div
+            key={tab.id}
+            className={activeTab === tab.id ? 'block' : 'hidden'}
+            style={{
+                contain: activeTab === tab.id ? 'none' : 'strict',
+                contentVisibility: activeTab === tab.id ? 'visible' : 'hidden',
+            }}
+        >
+            <TabComponent />
+        </div>
+    );
+})}
+```
+
+```typescript
+// ❌ ممنوع — switch/case + lazy (يسبب flicker و re-mount)
+const renderContent = () => {
+    switch (activeTab) {
+        case 'tab1': return <Tab1 />;
+        case 'tab2': return <Tab2 />;
+    }
+};
+<Suspense fallback={<Loader />}>{renderContent()}</Suspense>
+
+// ❌ ممنوع — mount الكل بدون visitedTabs (يُطلق كل الاستعلامات فوراً)
 {tabs.map((tab) => (
-  <div
-    key={tab.id}
-    className={activeTab === tab.id ? 'block' : 'hidden'}
-    style={{ 
-      contain: activeTab === tab.id ? 'none' : 'strict',
-      contentVisibility: activeTab === tab.id ? 'visible' : 'hidden'
-    }}
-  >
-    <TabComponent />
-  </div>
+    <div className={isActive ? 'block' : 'hidden'}>
+        <TabComponent />  {/* ← الكل يعمل mount معاً! */}
+    </div>
 ))}
 ```
 
-**📋 قواعد الأداء:**
-- [ ] استخدم Keep-Mounted للتبويبات (بدلاً من Lazy/Suspense)
+#### 5.2 الوصول لبيانات المستخدم — `useAuth()` فقط
+
+```typescript
+// ❌ ممنوع — supabase.auth.getUser() (network call بطيء: 2-5 ثوانٍ)
+const { data: { user } } = await supabase.auth.getUser();
+const tenantId = user?.user_metadata?.tenant_id;
+
+// ✅ صحيح — useAuth() (فوري من الكاش: 0ms)
+const { user, tenantId, companyId } = useAuth();
+```
+
+> **ملاحظة:** `supabase.auth.getUser()` يقوم بـ network call كل مرة!
+> `useAuth()` يقرأ من session المحفوظة في localStorage — فوري تماماً.
+
+#### 5.3 React Query — سياسة الكاش
+
+```typescript
+// ✅ كل useQuery يجب أن يحتوي على staleTime
+const query = useQuery({
+    queryKey: ['module', 'entity', companyId],
+    queryFn: () => service.getAll(companyId!),
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,  // ← إلزامي! (0 = refetch كل مرة)
+    gcTime: 30 * 60 * 1000,    // ← يحافظ على البيانات بعد unmount
+});
+```
+
+| نوع البيانات | staleTime | أمثلة |
+|---|---|---|
+| ثابتة | `Infinity` | branches, company settings |
+| شبه ثابتة | `10 min` | warehouses, materials, accounts |
+| ديناميكية | `2 min` | movements, transactions |
+| حيّة | `1 min` | dashboard stats |
+
+#### 5.4 Realtime — قواعد الاشتراك
+
+```typescript
+// ✅ صحيح — اشتراك واحد لكل جدول
+useRealtimeInvalidation({
+    table: 'table_name',
+    companyId,
+    queryKeys: [['module', 'entity', companyId]],
+});
+
+// ❌ ممنوع — اشتراكين على نفس الجدول في نفس الصفحة
+```
+
+**📋 قواعد الأداء الشاملة:**
+- [ ] استخدم `visitedTabs` pattern لكل صفحة رئيسية
+- [ ] لا تستخدم `supabase.auth.getUser()` — استخدم `useAuth()`
+- [ ] كل `useQuery` يحتوي على `staleTime` (default 0 = بطيء!)
+- [ ] لا تستخدم `Lazy/Suspense` للتبويبات الداخلية
+- [ ] استخدم `contain: strict` و `contentVisibility: hidden` للتابات المخفية
+- [ ] وحّد `queryKey` للبيانات المشتركة (مثل `dashboard-stats`)
+- [ ] استخدم `select('col1, col2')` بدل `select('*')` قدر الإمكان
 - [ ] استخدم `useMemo` و `useCallback` لمنع re-renders
-- [ ] استخدم `contain: strict` للعناصر المخفية
-- [ ] لا تستخدم Lazy Loading للتبويبات الداخلية
 
 ---
 
@@ -258,5 +350,5 @@ export default function MyComponent() {
 
 ---
 
-**آخر تحديث:** يناير 2026  
-**الإصدار:** 2.0.0
+**آخر تحديث:** فبراير 2026  
+**الإصدار:** 2.1.0 — إضافة نمط التحميل الموحد ومعايير الأداء

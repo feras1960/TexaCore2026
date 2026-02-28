@@ -304,7 +304,8 @@ export const documentActivityService = {
     // ─── إضافة ملاحظة أو حدث ────────────────────────────
     async addActivity(params: AddActivityParams): Promise<{ success: boolean; id?: string; error?: string }> {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
 
             const { data, error } = await supabase
                 .from('document_activity')

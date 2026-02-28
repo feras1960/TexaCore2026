@@ -81,7 +81,8 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
             const { data } = await supabase.from('suppliers').select('id, name_ar, name_en').eq('company_id', companyId);
             return data || [];
         },
-        enabled: open && !!companyId
+        enabled: open && !!companyId,
+        staleTime: 60_000,
     });
 
     // Fetch Available Invoices for Selected Supplier
@@ -100,7 +101,8 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                 .order('doc_date', { ascending: false });
             return data || [];
         },
-        enabled: open && !!formData.supplierId
+        enabled: open && !!formData.supplierId,
+        staleTime: 30_000,
     });
 
     const handleInputChange = (field: string, value: string) => {

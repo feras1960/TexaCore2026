@@ -35,6 +35,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB — ERP bundles are large
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Don't cache API calls by default - let them be handled by the app
         navigateFallback: 'index.html',

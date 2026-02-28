@@ -680,6 +680,7 @@
       "exchangeRate": "Exchange Rate",
       "amount": "Amount",
       "link": "Link",
+      "linkRef": "Reference",
       "invoice": "Invoice",
       "receipts": "Receipts",
       "payments": "Payments"
@@ -696,6 +697,8 @@
     "linkTypes": {
       "none": "None",
       "invoice": "Invoice",
+      "container": "Container",
+      "transfer": "Transfer",
       "employee": "Employee",
       "project": "Project",
       "salary": "Salary",
@@ -1504,6 +1507,23 @@
     "stage": "Stage",
     "tasks": "Tasks"
   },
+  "hr": {
+    "dashboard": "Dashboard",
+    "employees": "Employees",
+    "employee": "Employee",
+    "departments": "Departments",
+    "designations": "Designations",
+    "contracts": "Contracts",
+    "leaves": "Leaves",
+    "leave": "Leave",
+    "attendance": "Attendance",
+    "payroll": "Payroll",
+    "settings": "Settings",
+    "module": "Human Resources",
+    "performance": "Performance",
+    "recruitment": "Recruitment",
+    "training": "Training"
+  },
   "currencies": {
     "AED": "UAE Dirham",
     "BHD": "Bahraini Dinar",
@@ -2077,19 +2097,6 @@
     "quickAdd": "Quick Add",
     "search": "Search...",
     "theme": "Theme"
-  },
-  "hr": {
-    "attendance": "Attendance",
-    "departments": "Departments",
-    "designations": "Designations",
-    "employee": "Employee",
-    "employees": "Employees",
-    "leave": "Leave",
-    "module": "Human Resources",
-    "payroll": "Payroll",
-    "performance": "Performance",
-    "recruitment": "Recruitment",
-    "training": "Training"
   },
   "import": {
     "aiAnalysis": "AI Analysis",

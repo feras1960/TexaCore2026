@@ -67,7 +67,8 @@ function resolveActivityEntityType(docType: string, tradeMode?: string): string 
  */
 async function getCurrentUserName(): Promise<string> {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user?.id) return 'System';
         const { data: profile } = await supabase
             .from('user_profiles')

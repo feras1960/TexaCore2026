@@ -208,7 +208,8 @@ export const VarianceReviewPanel: React.FC<VarianceReviewPanelProps> = ({
 
         setSaving(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
 
             // Build items for the resolution service
             const varianceItems = itemsWithVariance.map(item => ({

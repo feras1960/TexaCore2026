@@ -163,6 +163,7 @@ export default function PaymentsList() {
             })) as PaymentVoucher[];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── Counts per tab ──────────────────────────────────────────

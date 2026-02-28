@@ -1,20 +1,30 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
+import { preloadAccounts } from '@/components/ui/InlineAccountCell';
 import { ColumnDef } from '@tanstack/react-table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
-import { SmartAccountSelector } from '../../shared/SmartAccountSelector';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
-import { toast } from 'sonner';
 import type { SheetMode } from '../types';
 import { useViewCurrency } from '../../../hooks/useViewCurrency';
-import { FileText, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useNumberFormat } from '@/hooks/useNumberFormat';
+import { CheckCircle2, Clock, AlertCircle, AlertTriangle, ArrowDownRight, ArrowUpRight, ArrowRightLeft, Wallet, TrendingUp, TrendingDown, ArrowRight, Hash, Calendar, FileText, AlignLeft, Equal, Layers } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { SmartAccountSelector } from '../../shared/SmartAccountSelector';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // Types
 interface JournalLineRow {
@@ -29,6 +39,10 @@ interface JournalLineRow {
     cost_center_name?: string;
     currency?: string;
     exchange_rate?: number;
+    link_type?: string;
+    invoice_id?: string;
+    invoice_number?: string;
+    current_balance?: number;
 }
 
 export interface JournalVoucherTabProps {
@@ -59,7 +73,12 @@ export function JournalVoucherTab({
 }: JournalVoucherTabProps) {
     const { currencyOptions } = useViewCurrency();
     const { currencyCode: companyCurrency } = useCompanyCurrency();
+    const { lookupRate } = useExchangeRateLookup();
+    const { fmtAmount } = useNumberFormat();
     const currencyList = useMemo(() => currencyOptions.map(c => ({ value: c, label: c })), [currencyOptions]);
+
+    const showFundAccount = docType === 'receipt' || docType === 'payment' || docType === 'cash';
+    const showLinkColumns = docType === 'receipt' || docType === 'payment' || docType === 'cash';
 
     const { t, language, direction } = useLanguage();
     const { companyId: hookCompanyId } = useCompany();
@@ -67,22 +86,28 @@ export function JournalVoucherTab({
     const isReadOnly = mode === 'view';
     const isCreate = mode === 'create';
 
+    // ═══ Preload accounts eagerly so dropdowns are instant ═══
+    const resolvedCid = propCompanyId || hookCompanyId;
+    useEffect(() => {
+        if (resolvedCid) preloadAccounts(resolvedCid);
+    }, [resolvedCid]);
+
     // Internal State
     const [entryDate, setEntryDate] = useState<Date>(new Date());
     const [reference, setReference] = useState('');
     const [description, setDescription] = useState('');
     const [voucherNo, setVoucherNo] = useState('');
     const [status, setStatus] = useState<string>('draft');
+    const [fundAccountId, setFundAccountId] = useState('');
     const [lines, setLines] = useState<JournalLineRow[]>([]);
+    const [costCenters, setCostCenters] = useState<{ value: string; label: string }[]>([]);
 
     // Load tracking
     const loadedIdRef = useRef<string | null>(null);
 
-    // Load Data - Optimized to prevent loops
+    // Load Data
     useEffect(() => {
         const incomingId = data?.id || 'new';
-
-        // Only load if ID changed or first load
         if (loadedIdRef.current !== incomingId) {
             if (data && (mode === 'edit' || mode === 'view')) {
                 setEntryDate(data.entry_date ? new Date(data.entry_date) : new Date());
@@ -90,7 +115,7 @@ export function JournalVoucherTab({
                 setDescription(data.description || '');
                 setVoucherNo(data.entry_number || '');
                 setStatus(data.status || 'draft');
-
+                setFundAccountId(data.fund_account_id || '');
                 const loadedLines = data.lines?.map((line: any) => ({
                     id: line.id || crypto.randomUUID(),
                     account_id: line.account_id || '',
@@ -103,21 +128,169 @@ export function JournalVoucherTab({
                     cost_center_name: line.cost_center?.name || '',
                     currency: line.currency || companyCurrency,
                     exchange_rate: Number(line.exchange_rate) || 1,
+                    link_type: line.link_type || 'none',
+                    invoice_id: line.invoice_id || '',
+                    invoice_number: line.invoice?.invoice_number || '',
                 })) || [];
-
                 setLines(loadedLines);
             } else if (isCreate) {
-                // New Entry
                 setEntryDate(new Date());
                 setReference('');
                 setDescription('');
                 setVoucherNo('');
                 setStatus('draft');
+                setFundAccountId('');
                 setLines([]);
             }
             loadedIdRef.current = incomingId;
         }
     }, [data?.id, mode, isCreate]);
+
+    // Load Cost Centers
+    useEffect(() => {
+        const cid = propCompanyId || hookCompanyId;
+        if (!cid) return;
+        supabase
+            .from('cost_centers')
+            .select('id, name_ar, name_en, code')
+            .eq('company_id', cid)
+            .eq('is_active', true)
+            .then(({ data: ccData }) => {
+                if (ccData) {
+                    setCostCenters(ccData.map(cc => ({
+                        value: cc.id,
+                        label: `${cc.code ? cc.code + ' - ' : ''}${language === 'ar' ? (cc.name_ar || cc.name_en) : (cc.name_en || cc.name_ar)}`
+                    })));
+                }
+            });
+    }, [propCompanyId, hookCompanyId, language]);
+
+    // Load Invoices & Containers for link reference
+    const [invoiceOptions, setInvoiceOptions] = useState<{ value: string; label: string; party_id?: string; type: 'sale' | 'purchase' }[]>([]);
+    const [containerOptions, setContainerOptions] = useState<{ value: string; label: string }[]>([]);
+    const [accountPartyMap, setAccountPartyMap] = useState<Map<string, { party_id: string; party_type: string }>>(new Map());
+
+    // Refs for fast cell display lookup (avoids re-rendering columns)
+    const invoiceLabelMapRef = useRef<Map<string, string>>(new Map());
+    const containerLabelMapRef = useRef<Map<string, string>>(new Map());
+
+    useEffect(() => {
+        if (!showLinkColumns) return;
+        const cid = propCompanyId || hookCompanyId;
+        if (!cid) return;
+
+        // Load party account mapping: account_id → { party_id, party_type }
+        supabase
+            .from('chart_of_accounts')
+            .select('id, party_id, party_type')
+            .eq('company_id', cid)
+            .eq('is_party_account', true)
+            .not('party_id', 'is', null)
+            .then(({ data }) => {
+                if (data) {
+                    const map = new Map<string, { party_id: string; party_type: string }>();
+                    data.forEach(acc => map.set(acc.id, { party_id: acc.party_id, party_type: acc.party_type || '' }));
+                    setAccountPartyMap(map);
+                }
+            });
+
+        // Load BOTH sales & purchase invoices with outstanding balance
+        Promise.all([
+            supabase
+                .from('sales_transactions')
+                .select('id, invoice_no, customer_name, customer_id, total_amount, balance, stage')
+                .eq('company_id', cid)
+                .in('stage', ['confirmed', 'delivered', 'posted'])
+                .gt('balance', 0)
+                .order('doc_date', { ascending: false })
+                .limit(200),
+            supabase
+                .from('purchase_transactions')
+                .select('id, invoice_no, supplier_name, supplier_id, total_amount, balance, stage')
+                .eq('company_id', cid)
+                .in('stage', ['confirmed', 'received', 'posted'])
+                .gt('balance', 0)
+                .order('doc_date', { ascending: false })
+                .limit(200),
+        ]).then(([salesRes, purchaseRes]) => {
+            const allInvoices: typeof invoiceOptions = [];
+            const labelMap = new Map<string, string>();
+            
+            if (salesRes.data) {
+                salesRes.data.forEach(inv => {
+                    const label = `📤 ${inv.invoice_no || '—'} | ${inv.customer_name || ''} | ${Number(inv.balance || 0).toLocaleString()}`;
+                    allInvoices.push({ value: inv.id, label, party_id: inv.customer_id, type: 'sale' });
+                    labelMap.set(inv.id, label);
+                });
+            }
+            if (purchaseRes.data) {
+                purchaseRes.data.forEach(inv => {
+                    const label = `📥 ${inv.invoice_no || '—'} | ${inv.supplier_name || ''} | ${Number(inv.balance || 0).toLocaleString()}`;
+                    allInvoices.push({ value: inv.id, label, party_id: inv.supplier_id, type: 'purchase' });
+                    labelMap.set(inv.id, label);
+                });
+            }
+            
+            invoiceLabelMapRef.current = labelMap;
+            setInvoiceOptions(allInvoices);
+        });
+
+        // Load containers for link reference
+        supabase
+            .from('containers')
+            .select('*')
+            .eq('company_id', cid)
+            .order('created_at', { ascending: false })
+            .limit(100)
+            .then(({ data: ctData, error: ctError }) => {
+                if (ctError) {
+                    console.warn('Containers fetch skipped:', ctError.message);
+                    return;
+                }
+                if (ctData) {
+                    const labelMap = new Map<string, string>();
+                    const opts = ctData.map(ct => {
+                        const label = `📦 ${ct.container_number || '—'} | ${ct.status}`;
+                        labelMap.set(ct.id, label);
+                        return { value: ct.id, label };
+                    });
+                    containerLabelMapRef.current = labelMap;
+                    setContainerOptions(opts);
+                }
+            });
+    }, [propCompanyId, hookCompanyId, showLinkColumns]);
+
+    // Dynamic options for link reference column based on link_type + account
+    const getLinkRefOptions = useCallback((row: any): { value: string; label: string }[] => {
+        const linkType = row?.link_type || 'none';
+        switch (linkType) {
+            case 'invoice': {
+                const accountId = row?.account_id;
+                if (!accountId) {
+                    return [{ value: '', label: isRTL ? 'اختر حساب أولاً' : 'Select account first' }];
+                }
+                const partyInfo = accountPartyMap.get(accountId);
+                if (!partyInfo) {
+                    return [{ value: '', label: isRTL ? 'الحساب غير مرتبط بعميل/مورد' : 'Account not linked to party' }];
+                }
+                const isCustomer = partyInfo.party_type === 'customer';
+                const filtered = invoiceOptions.filter(inv => 
+                    inv.party_id === partyInfo.party_id && 
+                    (isCustomer ? inv.type === 'sale' : inv.type === 'purchase')
+                );
+                if (filtered.length === 0) {
+                    return [{ value: '', label: isRTL ? 'لا توجد فواتير مفتوحة' : 'No open invoices' }];
+                }
+                return [{ value: '', label: '—' }, ...filtered];
+            }
+            case 'container':
+                return [{ value: '', label: '—' }, ...containerOptions];
+            case 'transfer':
+                return [{ value: '', label: isRTL ? 'أدخل رقم الحوالة...' : 'Enter transfer #...' }];
+            default:
+                return [{ value: '', label: '—' }];
+        }
+    }, [invoiceOptions, containerOptions, accountPartyMap, isRTL]);
 
     // Computed Totals
     const totals = useMemo(() => {
@@ -127,9 +300,15 @@ export function JournalVoucherTab({
         }), { debit: 0, credit: 0 });
     }, [lines]);
 
-    // Sync to Parent
+    const isBalanced = Math.abs(totals.debit - totals.credit) < 0.01;
+    const lineCount = lines.filter(r => r.account_id && (r.debit || r.credit)).length;
+
+    // Sync to Parent (debounced to avoid freezing on every keystroke)
+    const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
-        if (!isReadOnly) {
+        if (isReadOnly) return;
+        if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = setTimeout(() => {
             onChange({
                 entry_date: format(entryDate, 'yyyy-MM-dd'),
                 reference,
@@ -137,202 +316,774 @@ export function JournalVoucherTab({
                 entry_number: voucherNo,
                 entry_type: docType,
                 status,
+                fund_account_id: fundAccountId || undefined,
                 lines: lines.filter(r => r.account_id),
                 total_debit: totals.debit,
                 total_credit: totals.credit,
+                total_amount: docType === 'receipt' ? totals.credit : docType === 'payment' ? totals.debit : undefined,
             });
-        }
-    }, [lines, entryDate, reference, description, voucherNo, status, isReadOnly, docType]);
+        }, 300);
+        return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
+    }, [lines, entryDate, reference, description, voucherNo, status, fundAccountId, isReadOnly, docType]);
 
     // Handlers
     const handleNexaSave = useCallback(async (updatedData: JournalLineRow[]) => {
         setLines(updatedData);
     }, []);
 
-    const handleDataChange = useCallback((updatedData: JournalLineRow[]) => {
-        setLines(updatedData);
-    }, []);
+    // Ref to hold current lines for stable callback comparison
+    const linesRef = useRef(lines);
+    linesRef.current = lines;
 
+    // === Account Balance State ===
+    // For NEW entries: balance comes directly from row.current_balance (set by NexaDataTable
+    // when an account is selected from the cached getGridAccounts data) — instant, zero API calls.
+    // For EXISTING entries: rows loaded from DB don't have current_balance, so we do a single
+    // batch fetch for all missing accounts.
+    const [accountBalances, setAccountBalances] = useState<Map<string, number>>(new Map());
+    const batchFetchedRef = useRef(false);
+
+    // Sync balances from line rows
+    useEffect(() => {
+        let changed = false;
+        const next = new Map(accountBalances);
+        const missingIds: string[] = [];
+
+        for (const line of lines) {
+            if (!line.account_id) continue;
+            
+            // If the row already has current_balance (set when account was selected)
+            if (line.current_balance !== undefined && line.current_balance !== null) {
+                const existing = next.get(line.account_id);
+                const newBal = Number(line.current_balance) || 0;
+                if (existing === undefined || existing !== newBal) {
+                    next.set(line.account_id, newBal);
+                    changed = true;
+                }
+            } else if (!next.has(line.account_id)) {
+                // Loaded from DB without current_balance — need to fetch
+                missingIds.push(line.account_id);
+            }
+        }
+
+        if (changed) {
+            setAccountBalances(next);
+        }
+
+        // Batch fetch missing balances (once per document load)
+        if (missingIds.length > 0 && !batchFetchedRef.current) {
+            batchFetchedRef.current = true;
+            const uniqueIds = [...new Set(missingIds)];
+            supabase
+                .from('chart_of_accounts')
+                .select('id, current_balance')
+                .in('id', uniqueIds)
+                .then(({ data: rows }) => {
+                    if (rows && rows.length > 0) {
+                        setAccountBalances(prev => {
+                            const updated = new Map(prev);
+                            for (const row of rows) {
+                                updated.set(row.id, Number(row.current_balance) || 0);
+                            }
+                            return updated;
+                        });
+                    }
+                });
+        }
+    }, [lines]);
+
+    const handleDataChange = useCallback((updatedData: JournalLineRow[]) => {
+        const prevLines = linesRef.current;
+        let needsEnrich = false;
+        for (let i = 0; i < updatedData.length; i++) {
+            const oldRow = prevLines[i];
+            if (oldRow && updatedData[i].currency && updatedData[i].currency !== oldRow.currency) {
+                needsEnrich = true;
+                break;
+            }
+        }
+        if (needsEnrich) {
+            const enriched = updatedData.map((row, idx) => {
+                const oldRow = prevLines[idx];
+                if (oldRow && row.currency && row.currency !== oldRow.currency) {
+                    const rate = lookupRate(row.currency, companyCurrency);
+                    return { ...row, exchange_rate: rate };
+                }
+                return row;
+            });
+            setLines(enriched);
+        } else {
+            setLines(updatedData);
+        }
+    }, [lookupRate, companyCurrency]);
     const handleAddRow = useCallback(() => {
         const newRow = createEmptyRow(companyCurrency);
         setLines(prev => [...prev, newRow]);
         return newRow;
     }, [companyCurrency]);
 
-    // Columns Definition
+    const handleInsertRow = useCallback((index: number) => {
+        const newRow = createEmptyRow(companyCurrency);
+        setLines(prev => {
+            const copy = [...prev];
+            copy.splice(index + 1, 0, newRow);
+            return copy;
+        });
+        return newRow;
+    }, [companyCurrency]);
+
+    // Status helpers
+    const getStatusColor = (s: string) => {
+        switch (s) {
+            case 'posted': return 'bg-green-100 text-green-700 border-green-200';
+            case 'draft': return 'bg-gray-100 text-gray-700 border-gray-200';
+            default: return 'bg-blue-100 text-blue-700 border-blue-200';
+        }
+    };
+    const getStatusIcon = (s: string) => {
+        switch (s) {
+            case 'posted': return <CheckCircle2 className="w-3.5 h-3.5" />;
+            case 'draft': return <Clock className="w-3.5 h-3.5" />;
+            default: return <AlertCircle className="w-3.5 h-3.5" />;
+        }
+    };
+
+    // === Arabic Number to Words ===
+    const numberToArabicWords = useCallback((num: number): string => {
+        if (num === 0) return 'صفر';
+        const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة',
+            'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+        const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
+        const hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
+
+        const convertGroup = (n: number): string => {
+            if (n === 0) return '';
+            if (n < 20) return ones[n];
+            if (n < 100) {
+                const o = n % 10;
+                const t = Math.floor(n / 10);
+                return o ? `${ones[o]} و${tens[t]}` : tens[t];
+            }
+            const h = Math.floor(n / 100);
+            const rest = n % 100;
+            return rest ? `${hundreds[h]} و${convertGroup(rest)}` : hundreds[h];
+        };
+
+        const intPart = Math.floor(num);
+        const decPart = Math.round((num - intPart) * 100);
+
+        const parts: string[] = [];
+        if (intPart >= 1000000) {
+            const m = Math.floor(intPart / 1000000);
+            parts.push(`${convertGroup(m)} مليون`);
+        }
+        const remaining = intPart % 1000000;
+        if (remaining >= 1000) {
+            const th = Math.floor(remaining / 1000);
+            parts.push(`${th === 1 ? '' : convertGroup(th) + ' '}ألف`);
+        }
+        const last3 = remaining % 1000;
+        if (last3 > 0) parts.push(convertGroup(last3));
+
+        let result = parts.join(' و') || 'صفر';
+        if (decPart > 0) {
+            result += ` و${convertGroup(decPart)} هللة`;
+        }
+        return result + ' فقط لا غير';
+    }, []);
+
+    // === Duplicate Account Detection ===
+    const duplicateAccountIds = useMemo(() => {
+        const accountCounts = new Map<string, number>();
+        lines.forEach(row => {
+            if (row.account_id) {
+                accountCounts.set(row.account_id, (accountCounts.get(row.account_id) || 0) + 1);
+            }
+        });
+        const dups = new Set<string>();
+        accountCounts.forEach((count, id) => {
+            if (count > 1) dups.add(id);
+        });
+        return dups;
+    }, [lines]);
+
+    // Columns - dynamic based on docType
     const columns = useMemo((): ColumnDef<JournalLineRow>[] => {
-        return [
-            {
+        const cols: ColumnDef<JournalLineRow>[] = [];
+
+        // Debit column (shown for journal + cash + payment)
+        if (docType !== 'receipt') {
+            cols.push({
                 accessorKey: 'debit',
-                header: t('accounting.columns.debit'),
-                size: 105,
+                header: docType === 'payment' ? (t('accounting.columns.payments') || 'مدفوعات') 
+                       : docType === 'cash' ? (t('accounting.columns.payments') || 'مدفوعات')
+                       : t('accounting.columns.debit'),
+                size: 115,
                 enableHiding: false,
                 cell: ({ row }) => {
                     const val = Number(row.original.debit) || 0;
-                    return val > 0 ? <span className="font-mono text-sm text-green-700 font-medium">{val.toLocaleString()}</span> : <span className="text-muted-foreground text-xs">—</span>;
+                    return val > 0 ? <span className="font-mono text-xs text-green-700 font-medium px-1 py-0.5 bg-green-50 rounded">{fmtAmount(val)}</span> : <span className="text-muted-foreground text-xs">—</span>;
                 }
-            },
-            {
+            });
+        }
+
+        // Credit column (shown for journal + cash + receipt)
+        if (docType !== 'payment') {
+            cols.push({
                 accessorKey: 'credit',
-                header: t('accounting.columns.credit'),
-                size: 105,
+                header: docType === 'receipt' ? (t('accounting.columns.receipts') || 'مقبوضات')
+                       : docType === 'cash' ? (t('accounting.columns.receipts') || 'مقبوضات')
+                       : t('accounting.columns.credit'),
+                size: 115,
                 enableHiding: false,
                 cell: ({ row }) => {
                     const val = Number(row.original.credit) || 0;
-                    return val > 0 ? <span className="font-mono text-sm text-red-600 font-medium">{val.toLocaleString()}</span> : <span className="text-muted-foreground text-xs">—</span>;
+                    return val > 0 ? <span className="font-mono text-xs text-red-600 font-medium px-1 py-0.5 bg-red-50 rounded">{fmtAmount(val)}</span> : <span className="text-muted-foreground text-xs">—</span>;
                 }
-            },
-            {
-                accessorKey: 'account_id',
-                header: t('accounting.columns.account'),
-                size: 180,
-                enableHiding: false,
-                cell: ({ row }) => {
-                    const { account_name, account_code } = row.original;
-                    if (!account_name) return <span className="text-muted-foreground text-xs">—</span>;
-                    return (
-                        <div className="flex items-center gap-1.5">
-                            {account_code && <span className="font-mono text-xs text-muted-foreground">{account_code}</span>}
-                            <span className="text-sm truncate">{account_name}</span>
-                        </div>
-                    );
-                }
-            },
-            {
-                accessorKey: 'description',
-                header: t('accounting.columns.description'),
-                size: 300,
-            },
-            {
-                accessorKey: 'cost_center_id',
-                header: t('accounting.columns.costCenter'),
-                size: 100,
-                cell: ({ row }) => <span className="text-sm">{row.original.cost_center_name || '—'}</span>
-            },
-            {
-                accessorKey: 'currency',
-                header: t('accounting.columns.currency'),
-                size: 60,
-                cell: ({ row }) => <span className="font-mono text-xs">{row.original.currency || companyCurrency}</span>
-            },
-            {
-                accessorKey: 'exchange_rate',
-                header: t('accounting.columns.exchangeRate'),
-                size: 70,
-                cell: ({ row }) => <span className="font-mono text-xs">{row.original.exchange_rate?.toFixed(4)}</span>
+            });
+        }
+
+        // Account column (always)
+        cols.push({
+            accessorKey: 'account_id',
+            header: t('accounting.columns.account'),
+            size: 250,
+            enableHiding: false,
+            cell: ({ row }) => {
+                const { account_name, account_code, account_id } = row.original;
+                if (!account_name) return <span className="text-muted-foreground text-xs">—</span>;
+                const isDup = account_id && duplicateAccountIds.has(account_id);
+                const bal = account_id ? accountBalances.get(account_id) : undefined;
+                return (
+                    <div className="flex items-center gap-1">
+                        {account_code && <span className="font-mono text-[10px] text-muted-foreground">{account_code}</span>}
+                        <span className="text-xs truncate">{account_name}</span>
+                        {bal !== undefined && (
+                            <span className={cn(
+                                "font-mono text-[9px] px-1 rounded shrink-0 leading-tight",
+                                bal >= 0 ? "text-teal-700 bg-teal-50" : "text-rose-700 bg-rose-50"
+                            )}>
+                                {fmtAmount(Math.abs(bal))}
+                            </span>
+                        )}
+                        {isDup && (
+                            <TooltipProvider><Tooltip><TooltipTrigger>
+                                <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                            </TooltipTrigger><TooltipContent>
+                                <p className="text-xs">{isRTL ? 'حساب مكرر في القيد' : 'Duplicate account'}</p>
+                            </TooltipContent></Tooltip></TooltipProvider>
+                        )}
+                    </div>
+                );
             }
-        ];
-    }, [language]);
+        });
+
+        // Link columns for receipt/payment/cash
+        if (showLinkColumns) {
+            const linkLabels: Record<string, string> = {
+                none: '—', 
+                invoice: isRTL ? 'فاتورة' : 'Invoice',
+                container: isRTL ? 'كونتينر' : 'Container',
+                transfer: isRTL ? 'حوالة' : 'Transfer',
+            };
+            cols.push({
+                accessorKey: 'link_type',
+                header: t('accounting.columns.link') || 'الربط',
+                size: 85,
+                cell: ({ row }) => {
+                    const lt = row.original.link_type || 'none';
+                    return lt !== 'none' 
+                        ? <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{linkLabels[lt] || lt}</span>
+                        : <span className="text-muted-foreground text-xs">—</span>;
+                }
+            });
+            cols.push({
+                accessorKey: 'invoice_id',
+                header: t('accounting.columns.linkRef') || 'المرجع',
+                size: 160,
+                cell: ({ row }) => {
+                    const invId = row.original.invoice_id;
+                    if (!invId) return <span className="text-muted-foreground text-xs">—</span>;
+                    // Fast O(1) lookup from refs
+                    const label = invoiceLabelMapRef.current.get(invId) 
+                        || containerLabelMapRef.current.get(invId) 
+                        || row.original.invoice_number 
+                        || invId.slice(0, 8);
+                    return <span className="text-[11px] truncate max-w-[150px] block" title={label}>{label}</span>;
+                }
+            });
+        }
+
+        // Description (always)
+        cols.push({
+            accessorKey: 'description',
+            header: t('accounting.columns.description'),
+            size: 250,
+        });
+
+        // Cost Center (always)
+        cols.push({
+            accessorKey: 'cost_center_id',
+            header: t('accounting.columns.costCenter'),
+            size: 100,
+            cell: ({ row }) => <span className="text-xs">{row.original.cost_center_name || '—'}</span>
+        });
+
+        // Currency
+        cols.push({
+            accessorKey: 'currency',
+            header: t('accounting.columns.currency'),
+            size: 60,
+            cell: ({ row }) => <span className="font-mono text-[11px]">{row.original.currency || companyCurrency}</span>
+        });
+
+        // Exchange Rate
+        cols.push({
+            accessorKey: 'exchange_rate',
+            header: t('accounting.columns.exchangeRate'),
+            size: 70,
+            cell: ({ row }) => <span className="font-mono text-[11px]">{row.original.exchange_rate?.toFixed(4)}</span>
+        });
+
+        return cols;
+    }, [language, docType, duplicateAccountIds, showLinkColumns, accountBalances, fmtAmount]);
 
     // Edit Config
-    const editableColumns = useMemo(() => [
-        { key: 'debit', type: 'number' as const, min: 0 },
-        { key: 'credit', type: 'number' as const, min: 0 },
-        { key: 'account_id', type: 'account' as const, required: true },
-        { key: 'description', type: 'text' as const, placeholder: t('accounting.placeholders.descriptionDots') },
-        { key: 'cost_center_id', type: 'text' as const, placeholder: t('accounting.columns.costCenter') },
-        {
-            key: 'currency', type: 'select' as const, options: currencyList
+    const editableColumns = useMemo(() => {
+        const cols: any[] = [];
+
+        if (docType !== 'receipt') cols.push({ key: 'debit', type: 'number' as const, min: 0 });
+        if (docType !== 'payment') cols.push({ key: 'credit', type: 'number' as const, min: 0 });
+        cols.push({ key: 'account_id', type: 'account' as const, required: true });
+
+        if (showLinkColumns) {
+            const linkOptions = [
+                { value: 'none', label: t('accounting.linkTypes.none') || 'بدون' },
+                { value: 'invoice', label: t('accounting.linkTypes.invoice') || 'فاتورة' },
+                { value: 'container', label: t('accounting.linkTypes.container') || 'كونتينر' },
+                { value: 'transfer', label: t('accounting.linkTypes.transfer') || 'حوالة' },
+            ];
+            cols.push({ key: 'link_type', type: 'select' as const, options: linkOptions });
+            cols.push({ 
+                key: 'invoice_id', 
+                type: 'select' as const,
+                dynamicOptions: getLinkRefOptions,
+            });
+        }
+
+        cols.push({ key: 'description', type: 'text' as const, placeholder: t('accounting.placeholders.descriptionDots') });
+        cols.push({ key: 'cost_center_id', type: 'select' as const, options: [{ value: '', label: '—' }, ...costCenters] });
+        cols.push({ key: 'currency', type: 'select' as const, options: currencyList });
+        cols.push({ key: 'exchange_rate', type: 'number' as const, min: 0 });
+
+        return cols;
+    }, [language, currencyList, costCenters, docType, showLinkColumns, getLinkRefOptions]);
+
+    // Row coloring: completed rows get green tint
+    const getRowClassName = useCallback((row: JournalLineRow) => {
+        const hasAccount = !!row.account_id;
+        const hasAmount = (Number(row.debit) > 0) || (Number(row.credit) > 0);
+        if (hasAccount && hasAmount) return 'bg-emerald-50/40 dark:bg-emerald-950/20';
+        if (hasAmount && !hasAccount) return 'bg-amber-50/40 dark:bg-amber-950/20';
+        return '';
+    }, []);
+
+    // F9 auto-balance handler
+    const handleF9Balance = useCallback(() => {
+        const diff = totals.debit - totals.credit;
+        if (Math.abs(diff) < 0.01) {
+            toast.info(isRTL ? 'القيد متوازن بالفعل ✓' : 'Entry is already balanced ✓');
+            return;
+        }
+        // Find last row with an account but no amount, or first empty row
+        let targetIdx = lines.findIndex(r => r.account_id && !r.debit && !r.credit);
+        if (targetIdx === -1) {
+            targetIdx = lines.findIndex(r => !r.account_id && !r.debit && !r.credit);
+        }
+        if (targetIdx === -1) {
+            // Add a new row
+            const newRow = createEmptyRow(companyCurrency);
+            setLines(prev => [...prev, newRow]);
+            targetIdx = lines.length;
+        }
+        // Set the balancing amount
+        setLines(prev => {
+            const copy = [...prev];
+            if (diff > 0) {
+                copy[targetIdx] = { ...copy[targetIdx], credit: diff, debit: 0 };
+            } else {
+                copy[targetIdx] = { ...copy[targetIdx], debit: Math.abs(diff), credit: 0 };
+            }
+            return copy;
+        });
+        toast.success(isRTL ? `تمت الموازنة: ${Math.abs(diff).toLocaleString()}` : `Balanced: ${Math.abs(diff).toLocaleString()}`);
+    }, [totals, lines, companyCurrency, isRTL]);
+
+    // Save validation
+    const handleValidatedSave = useCallback(() => {
+        if (!isBalanced && lineCount > 0) {
+            toast.error(
+                isRTL
+                    ? `⚠️ القيد غير متوازن! الفرق: ${Math.abs(totals.debit - totals.credit).toLocaleString()}`
+                    : `⚠️ Entry is not balanced! Difference: ${Math.abs(totals.debit - totals.credit).toLocaleString()}`
+            );
+            return false;
+        }
+        return true;
+    }, [isBalanced, lineCount, totals, isRTL]);
+
+    // ═══ Fund Balance Query — fetches real balance from journal_entry_lines ═══
+    const { data: fundBalanceData } = useQuery({
+        queryKey: ['fund_balance', fundAccountId, resolvedCid],
+        queryFn: async () => {
+            if (!fundAccountId || !resolvedCid) return null;
+
+            // Fetch real balance from journal entries (debit-credit for assets)
+            const { data, error } = await supabase
+                .from('journal_entry_lines')
+                .select('debit, credit')
+                .eq('account_id', fundAccountId);
+
+            if (error) {
+                console.warn('Fund balance fetch error:', error);
+                return null;
+            }
+
+            const balance = (data || []).reduce((sum, line) => {
+                return sum + (Number(line.debit) || 0) - (Number(line.credit) || 0);
+            }, 0);
+
+            // Also get account name and currency
+            const { data: account } = await supabase
+                .from('chart_of_accounts')
+                .select('name_ar, name_en, currency, account_code, is_cash_account, is_bank_account')
+                .eq('id', fundAccountId)
+                .maybeSingle();
+
+            return {
+                balance,
+                name: isRTL ? (account?.name_ar || account?.name_en) : (account?.name_en || account?.name_ar),
+                code: account?.account_code || '',
+                currency: account?.currency || companyCurrency,
+                isCash: account?.is_cash_account || false,
+                isBank: account?.is_bank_account || false,
+            };
         },
-        { key: 'exchange_rate', type: 'number' as const, min: 0 }
-    ], [language, currencyList]);
+        enabled: !!fundAccountId && !!resolvedCid && showFundAccount,
+        staleTime: 30000,
+    });
+
+    // ═══ Calculate transaction impact on fund ═══
+    const fundImpact = useMemo(() => {
+        if (!fundBalanceData) return null;
+
+        const currentBalance = fundBalanceData.balance;
+        let transactionAmount = 0;
+
+        if (docType === 'receipt') {
+            // Receipt = money IN to fund → debit fund (increases balance)
+            transactionAmount = totals.credit; // credit side = the amount being received
+        } else if (docType === 'payment') {
+            // Payment = money OUT from fund → credit fund (decreases balance)
+            transactionAmount = -totals.debit; // debit side = the amount being paid
+        } else if (docType === 'cash') {
+            // Cash journal = net movement
+            transactionAmount = totals.debit - totals.credit;
+        }
+
+        const afterBalance = currentBalance + transactionAmount;
+        const willGoNegative = afterBalance < 0 && currentBalance >= 0;
+
+        return {
+            currentBalance,
+            transactionAmount,
+            afterBalance,
+            willGoNegative,
+            currency: fundBalanceData.currency,
+            fundName: fundBalanceData.name,
+            fundCode: fundBalanceData.code,
+            isCash: fundBalanceData.isCash,
+            isBank: fundBalanceData.isBank,
+        };
+    }, [fundBalanceData, totals, docType]);
 
     return (
-        <div className="flex flex-col gap-4 p-4">
-            {/* Header Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm bg-gray-50">
-                    <span className="font-bold text-sm capitalize">{status}</span>
-                    <span className="text-[10px] opacity-70">{t('accounting.entryStatus')}</span>
-                </Card>
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm">
-                    <div className="flex items-center gap-1.5 text-blue-600">
-                        <FileText className="w-4 h-4" />
-                        <span className="font-bold text-sm">{lines.length}</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">{t('accounting.lines')}</span>
-                </Card>
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm">
-                    <span className="font-bold text-sm text-green-600 font-mono">
-                        {totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">{t('accounting.debit')}</span>
-                </Card>
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm">
-                    <span className="font-bold text-sm text-red-600 font-mono">
-                        {totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">{t('accounting.credit')}</span>
-                </Card>
-            </div>
+        <div className="flex flex-col h-full overflow-hidden">
 
-            {/* Header Fields */}
-            <div className="grid grid-cols-12 gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                <div className="col-span-12 md:col-span-3">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.voucherNumber')}
-                    </Label>
-                    <Input
-                        value={voucherNo}
-                        onChange={(e) => setVoucherNo(e.target.value)}
-                        placeholder={t('accounting.placeholders.voucherAuto')}
-                        readOnly={isReadOnly}
-                        className="font-mono text-center bg-gray-50/50"
-                    />
+            {/* ─── Fund Account Selector with Balance Display ─── */}
+            {showFundAccount && (
+                <div className="shrink-0 border-b border-gray-100 dark:border-gray-700">
+                    {/* Top: Fund Selector */}
+                    <div className="px-4 py-2.5 bg-white dark:bg-gray-800">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                                {docType === 'receipt' && <ArrowDownRight className="w-4 h-4 text-green-500" />}
+                                {docType === 'payment' && <ArrowUpRight className="w-4 h-4 text-red-500" />}
+                                {docType === 'cash' && <ArrowRightLeft className="w-4 h-4 text-blue-500" />}
+                                <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                                    {docType === 'cash'
+                                        ? (t('accounting.cashFund') || 'حساب الصندوق')
+                                        : docType === 'receipt'
+                                        ? (t('accounting.receipt.fund') || 'حساب الصندوق')
+                                        : (t('accounting.payment.fund') || 'حساب الصندوق')}
+                                </Label>
+                            </div>
+                            <div className="flex-1 max-w-md">
+                                <SmartAccountSelector
+                                    value={fundAccountId}
+                                    onChange={(val) => setFundAccountId(val)}
+                                    type="all"
+                                    placeholder={isRTL ? 'اختر الصندوق/البنك...' : 'Select fund/bank...'}
+                                    disabled={isReadOnly}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom: Fund Balance Strip — only shows when fund is selected */}
+                    {fundAccountId && fundImpact && (
+                        <div className={cn(
+                            "px-4 py-2 flex items-center gap-3 text-xs transition-all duration-300",
+                            "bg-gradient-to-r",
+                            fundImpact.willGoNegative
+                                ? "from-red-50 via-red-50/50 to-orange-50/30 dark:from-red-950/30 dark:via-red-950/20 dark:to-orange-950/10"
+                                : docType === 'receipt'
+                                    ? "from-emerald-50 via-green-50/50 to-teal-50/30 dark:from-emerald-950/30 dark:via-green-950/20 dark:to-teal-950/10"
+                                    : docType === 'payment'
+                                        ? "from-blue-50 via-indigo-50/50 to-sky-50/30 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-sky-950/10"
+                                        : "from-gray-50 via-slate-50/50 to-gray-50/30 dark:from-gray-800 dark:via-gray-800/50 dark:to-gray-800/30",
+                        )}>
+                            {/* Fund icon */}
+                            <div className={cn(
+                                "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                                fundImpact.isCash
+                                    ? "bg-amber-100 dark:bg-amber-900/30"
+                                    : "bg-blue-100 dark:bg-blue-900/30"
+                            )}>
+                                <Wallet className={cn(
+                                    "w-3.5 h-3.5",
+                                    fundImpact.isCash ? "text-amber-600" : "text-blue-600"
+                                )} />
+                            </div>
+
+                            {/* Fund name */}
+                            <div className="min-w-0 shrink-0">
+                                <span className="font-semibold text-gray-700 dark:text-gray-300 font-tajawal truncate">
+                                    {fundImpact.fundName}
+                                </span>
+                                <span className="text-gray-400 ms-1 font-mono text-[10px]">
+                                    {fundImpact.fundCode}
+                                </span>
+                            </div>
+
+                            <div className="h-4 w-px bg-gray-200 dark:bg-gray-600 shrink-0" />
+
+                            {/* Current Balance */}
+                            <div className="flex flex-col items-center shrink-0">
+                                <span className="text-[10px] text-gray-400 leading-none mb-0.5">
+                                    {isRTL ? 'الرصيد الحالي' : 'Current'}
+                                </span>
+                                <span className={cn(
+                                    "font-mono font-bold text-[13px] leading-none",
+                                    fundImpact.currentBalance > 0 ? "text-emerald-600 dark:text-emerald-400"
+                                    : fundImpact.currentBalance < 0 ? "text-red-500 dark:text-red-400"
+                                    : "text-gray-500"
+                                )} dir="ltr">
+                                    {Math.abs(fundImpact.currentBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+
+                            {/* Arrow + Transaction Amount */}
+                            {fundImpact.transactionAmount !== 0 && (
+                                <>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        {fundImpact.transactionAmount > 0 ? (
+                                            <TrendingUp className="w-3.5 h-3.5 text-green-500" />
+                                        ) : (
+                                            <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                                        )}
+                                        <span className={cn(
+                                            "font-mono font-bold text-[12px]",
+                                            fundImpact.transactionAmount > 0 ? "text-green-600" : "text-red-500"
+                                        )} dir="ltr">
+                                            {fundImpact.transactionAmount > 0 ? '+' : ''}
+                                            {fundImpact.transactionAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+
+                                    <ArrowRight className="w-3 h-3 text-gray-300 dark:text-gray-500 shrink-0" />
+
+                                    {/* After Balance */}
+                                    <div className="flex flex-col items-center shrink-0">
+                                        <span className="text-[10px] text-gray-400 leading-none mb-0.5">
+                                            {isRTL ? 'بعد التسجيل' : 'After'}
+                                        </span>
+                                        <span className={cn(
+                                            "font-mono font-bold text-[13px] leading-none px-1.5 py-0.5 rounded",
+                                            fundImpact.willGoNegative
+                                                ? "text-red-600 bg-red-100/80 dark:bg-red-900/40 dark:text-red-400"
+                                                : fundImpact.afterBalance >= 0
+                                                    ? "text-emerald-700 bg-emerald-100/80 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                                    : "text-red-600 bg-red-100/80 dark:bg-red-900/40 dark:text-red-400"
+                                        )} dir="ltr">
+                                            {Math.abs(fundImpact.afterBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+
+                                    {/* Warning if will go negative */}
+                                    {fundImpact.willGoNegative && (
+                                        <div className="flex items-center gap-1 ms-1">
+                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold whitespace-nowrap">
+                                                {isRTL ? 'سيصبح سالب!' : 'Will go negative!'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Currency badge */}
+                            <span className="ms-auto text-[10px] font-mono font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded shrink-0">
+                                {fundImpact.currency}
+                            </span>
+                        </div>
+                    )}
                 </div>
-                <div className="col-span-12 md:col-span-3">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.entry.date')}
-                    </Label>
-                    <Input
-                        type="date"
-                        value={entryDate ? format(entryDate, 'yyyy-MM-dd') : ''}
-                        onChange={(e) => setEntryDate(new Date(e.target.value))}
-                        readOnly={isReadOnly}
-                    />
+            )}
+
+            {/* ─── Premium Header Bar ─── */}
+            <div className="shrink-0 px-4 py-3 bg-gradient-to-b from-white via-white to-gray-50/60 dark:from-gray-800 dark:via-gray-800 dark:to-gray-850/80 border-b border-gray-100/80 dark:border-gray-700/60">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* Status Badge */}
+                    <div className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold shadow-sm",
+                        getStatusColor(status)
+                    )}>
+                        {getStatusIcon(status)}
+                        <span className="capitalize">{status}</span>
+                    </div>
+
+                    <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-200 to-transparent dark:via-gray-600" />
+
+                    {/* Voucher Number */}
+                    <div className="flex items-center gap-1.5 bg-gray-50/80 dark:bg-gray-700/40 rounded-lg px-2.5 py-1">
+                        <Hash className="w-3 h-3 text-indigo-400" />
+                        {isReadOnly ? (
+                            <span className="font-mono text-sm font-bold text-gray-800 dark:text-gray-200">{voucherNo || '—'}</span>
+                        ) : (
+                            <Input
+                                value={voucherNo}
+                                onChange={(e) => setVoucherNo(e.target.value)}
+                                className="font-mono text-center w-24 h-6 text-xs bg-transparent border-dashed border-gray-300 dark:border-gray-600 focus:border-solid focus:border-indigo-400 rounded-md"
+                                placeholder="Auto"
+                            />
+                        )}
+                    </div>
+
+                    {/* Date */}
+                    <div className="flex items-center gap-1.5 bg-gray-50/80 dark:bg-gray-700/40 rounded-lg px-2.5 py-1">
+                        <Calendar className="w-3 h-3 text-blue-400" />
+                        <Input
+                            type="date"
+                            value={entryDate ? format(entryDate, 'yyyy-MM-dd') : ''}
+                            onChange={(e) => setEntryDate(new Date(e.target.value))}
+                            readOnly={isReadOnly}
+                            className="h-6 text-xs w-[125px] bg-transparent border-dashed border-gray-300 dark:border-gray-600 focus:border-solid focus:border-blue-400 rounded-md"
+                        />
+                    </div>
+
+                    {/* Reference */}
+                    <div className="flex items-center gap-1.5 bg-gray-50/80 dark:bg-gray-700/40 rounded-lg px-2.5 py-1 flex-1 min-w-[120px] max-w-[280px]">
+                        <FileText className="w-3 h-3 text-amber-400 shrink-0" />
+                        <Input
+                            value={reference}
+                            onChange={(e) => setReference(e.target.value)}
+                            placeholder={isRTL ? "فاتورة، شيك..." : "Invoice, check..."}
+                            readOnly={isReadOnly}
+                            className="bg-transparent h-6 text-xs border-dashed border-gray-300 dark:border-gray-600 focus:border-solid focus:border-amber-400 flex-1 rounded-md"
+                        />
+                    </div>
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Live Balance Strip */}
+                    <div className={cn(
+                        "flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg border transition-all duration-300",
+                        isBalanced && lineCount > 0
+                            ? "bg-emerald-50/80 border-emerald-200/60 dark:bg-emerald-900/20 dark:border-emerald-700/40 shadow-sm shadow-emerald-100 dark:shadow-emerald-900/30"
+                            : !isBalanced && lineCount > 0
+                                ? "bg-red-50/80 border-red-200/60 dark:bg-red-900/20 dark:border-red-700/40 shadow-sm shadow-red-100 dark:shadow-red-900/30 animate-pulse"
+                                : "bg-gray-50/60 border-gray-200/60 dark:bg-gray-700/30 dark:border-gray-600/40"
+                    )}>
+                        <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground">{t('accounting.debit') || 'م'}</span>
+                            <span className="font-bold text-teal-600 dark:text-teal-400">{totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <Equal className="w-3 h-3 text-gray-400" />
+                        <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground">{t('accounting.credit') || 'د'}</span>
+                            <span className="font-bold text-rose-600 dark:text-rose-400">{totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        {isBalanced && lineCount > 0 && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        )}
+                        {!isBalanced && lineCount > 0 && (
+                            <Badge variant="destructive" className="text-[10px] h-5 px-1.5 font-mono">
+                                {fmtAmount(Math.abs(totals.debit - totals.credit))}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
-                <div className="col-span-12 md:col-span-6">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.entry.reference')}
-                    </Label>
-                    <Input
-                        value={reference}
-                        onChange={(e) => setReference(e.target.value)}
-                        placeholder={t('accounting.placeholders.invoiceCheck')}
-                        readOnly={isReadOnly}
-                    />
-                </div>
-                <div className="col-span-12">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.entry.description')}
-                    </Label>
+
+                {/* Description Row */}
+                <div className="flex items-center gap-2 mt-2">
+                    <AlignLeft className="w-3 h-3 text-gray-400 shrink-0" />
                     <Input
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder={t('accounting.placeholders.entryDescription')}
+                        placeholder={isRTL ? 'بيان القيد...' : 'Entry description...'}
                         readOnly={isReadOnly}
+                        className={cn(
+                            "bg-transparent h-7 text-xs flex-1 rounded-md",
+                            "border-dashed border-gray-200 dark:border-gray-700 focus:border-solid focus:border-gray-400",
+                            description ? "font-medium text-gray-800 dark:text-gray-200" : "text-gray-400"
+                        )}
                     />
                 </div>
             </div>
 
-            {/* NexaDataTable */}
-            <div className="border rounded-xl shadow-sm bg-white dark:bg-gray-800 overflow-hidden">
+            {/* ─── NexaDataTable Grid ─── */}
+            <div
+                className="flex-1 min-h-0 overflow-auto"
+                onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        e.preventDefault();
+                        if (!handleValidatedSave()) return;
+                    }
+                    // F9 = Auto-balance
+                    if (e.key === 'F9') {
+                        e.preventDefault();
+                        handleF9Balance();
+                    }
+                }}
+            >
                 <NexaDataTable
-                    key="journal-grid-v1"
+                    key={`${docType}-grid-v3`}
                     data={lines}
                     columns={columns}
                     isRTL={isRTL}
-                    persistKey="accounting-journal-lines-v5"
+                    persistKey={`accounting-${docType}-lines-v7`}
 
                     enableExcelMode={true}
                     enablePagination={false}
-                    maxHeight="500px"
+                    maxHeight="none"
 
-                    showTotalsFooter={true}
+                    showTotalsFooter={false}
                     debitKey="debit"
                     creditKey="credit"
-                    showAmountInWords={true}
                     enableSequenceNumber={true}
+                    getRowClassName={getRowClassName}
 
                     enableEditMode={!isReadOnly}
                     enableInstantEdit={!isReadOnly}
@@ -340,11 +1091,121 @@ export function JournalVoucherTab({
                     onSave={handleNexaSave}
                     onDataChange={handleDataChange}
                     onAddRow={handleAddRow}
+                    onInsertRow={handleInsertRow}
                     initialEmptyRows={isCreate ? 8 : 0}
+                    emptyRowsThreshold={3}
+                    autoAddRowsCount={3}
                     cleanEmptyRowsOnSave={true}
                     canDeleteRows={!isReadOnly}
-                    enableBalanceShortcut={true}
+                    enableBalanceShortcut={docType === 'journal' || docType === 'cash'}
+                    renderAccountBalance={(accountId) => {
+                        const bal = accountBalances.get(accountId);
+                        if (bal === undefined) {
+                            return null;
+                        }
+                        return (
+                            <span className={`text-[10px] tabular-nums font-mono px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                bal >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                            }`}>
+                                {fmtAmount(Math.abs(bal))}
+                            </span>
+                        );
+                    }}
+                    showKeyboardHelp={!isReadOnly}
                 />
+            </div>
+
+            {/* ─── Premium Totals Footer ─── */}
+            <div
+                className="shrink-0 z-20 relative overflow-hidden"
+                style={{
+                    background: 'linear-gradient(135deg, #0c1929 0%, #152642 40%, #0f1f36 70%, #0c1929 100%)',
+                }}
+            >
+                {/* Subtle top highlight */}
+                <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-teal-500/30 to-transparent" />
+
+                <div className={cn(
+                    "flex items-center gap-5 px-4 py-3",
+                    isRTL ? "flex-row justify-start" : "flex-row-reverse justify-start"
+                )}>
+                    {/* Line Count */}
+                    <div className="flex items-center gap-2">
+                        <Layers className="w-3.5 h-3.5 text-slate-500" />
+                        <span className="text-xs text-slate-400">{t('accounting.lines') || 'البنود'}</span>
+                        <span className="font-bold text-sm text-slate-200 tabular-nums bg-slate-800/50 px-2 py-0.5 rounded-md">{lineCount}</span>
+                    </div>
+
+                    <div className="h-5 w-px bg-gradient-to-b from-transparent via-slate-600 to-transparent" />
+
+                    {/* Total Debit */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">{t('accounting.debit') || 'مدين'}</span>
+                        <span className="font-bold text-sm text-teal-400 tabular-nums">
+                            {fmtAmount(totals.debit)}
+                        </span>
+                    </div>
+
+                    <div className="h-5 w-px bg-gradient-to-b from-transparent via-slate-600 to-transparent" />
+
+                    {/* Total Credit */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">{t('accounting.credit') || 'دائن'}</span>
+                        <span className="font-bold text-sm text-rose-400 tabular-nums">
+                            {fmtAmount(totals.credit)}
+                        </span>
+                    </div>
+
+                    <div className="h-5 w-px bg-gradient-to-b from-transparent via-slate-600 to-transparent" />
+
+                    {/* Balance — with glow effect */}
+                    <div className={cn(
+                        "flex items-center gap-2 px-3 py-1 rounded-lg transition-all duration-500",
+                        isBalanced && lineCount > 0
+                            ? "bg-emerald-500/10 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-500/10"
+                            : !isBalanced && lineCount > 0
+                                ? "bg-red-500/10 ring-1 ring-red-500/30 shadow-lg shadow-red-500/10"
+                                : "bg-slate-800/30"
+                    )}>
+                        <span className="text-xs text-slate-400">{t('common.balance') || 'الرصيد'}</span>
+                        <span className={cn(
+                            "font-bold text-sm tabular-nums",
+                            isBalanced ? "text-emerald-400" : "text-red-400"
+                        )}>
+                            {fmtAmount(Math.abs(totals.debit - totals.credit))}
+                        </span>
+                        {isBalanced && lineCount > 0 && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        )}
+                        {!isBalanced && lineCount > 0 && (
+                            <AlertCircle className="w-4 h-4 text-red-400 animate-pulse" />
+                        )}
+                    </div>
+
+                    {/* Duplicate Account Warning */}
+                    {duplicateAccountIds.size > 0 && (
+                        <>
+                            <div className="h-5 w-px bg-gradient-to-b from-transparent via-slate-600 to-transparent" />
+                            <div className="flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-1 rounded-lg ring-1 ring-amber-500/20">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                                <span className="text-xs text-amber-400 font-semibold">
+                                    {isRTL ? `${duplicateAccountIds.size} حساب مكرر` : `${duplicateAccountIds.size} duplicate`}
+                                </span>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Amount in Words */}
+                {lineCount > 0 && totals.debit > 0 && (
+                    <div className={cn(
+                        "px-4 py-1.5 text-xs text-slate-400/80 border-t border-slate-700/30 truncate font-tajawal",
+                        isRTL ? "text-right" : "text-left"
+                    )}>
+                        <span className="text-slate-500 me-1">💬</span>
+                        المبلغ: {numberToArabicWords(totals.debit)}
+                    </div>
+                )}
             </div>
         </div>
     );

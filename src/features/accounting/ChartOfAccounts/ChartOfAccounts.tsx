@@ -853,6 +853,7 @@ export function ChartOfAccounts() {
           onAddChild={handleAddChild}
           expandAll={expandAll}
           collapseAll={collapseAll}
+          searchQuery={searchQuery}
           onExpandStateChange={() => {
             setExpandAll(undefined);
             setCollapseAll(undefined);

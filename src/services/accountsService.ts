@@ -136,9 +136,12 @@ const mapAccount = (record: any): Account => ({
 export const accountsService = {
   /**
    * Get all accounts for a company
+   * @param companyId - Company ID
+   * @param options.includePartyAccounts - Include customer/supplier/container sub-accounts (default: false)
    */
-  async getAll(companyId: string): Promise<Account[]> {
-    const tenantId = await getCurrentTenantIdAsync();
+  async getAll(companyId: string, options?: { includePartyAccounts?: boolean }): Promise<Account[]> {
+    // Note: No need for tenant_id — company_id + RLS handle isolation.
+    // Removed getCurrentTenantIdAsync() which was making an extra network call but never used.
 
     // Build query with join to account_types to get code
     let query = supabase
@@ -152,13 +155,13 @@ export const accountsService = {
         )
       `)
       .eq('company_id', companyId)
-      .eq('is_active', true)
-      .or('is_party_account.is.null,is_party_account.eq.false');  // Hide party sub-accounts from tree
+      .eq('is_active', true);
 
-    // Add tenant filter if available (for multi-tenant support)
-    // Note: We rely on company_id and RLS for security. 
-    // We do NOT filter by tenant_id explicitly here because it breaks visibility 
-    // for Super Admins viewing other tenants' companies.
+    // Hide party sub-accounts from tree view by default
+    // But include them when selecting accounts for journal entries
+    if (!options?.includePartyAccounts) {
+      query = query.or('is_party_account.is.null,is_party_account.eq.false');
+    }
 
     const { data, error } = await query.order('account_code', { ascending: true });
 
@@ -178,6 +181,25 @@ export const accountsService = {
         account_type_code: accountType?.code,
       });
     });
+  },
+
+  /**
+   * Get lightweight accounts for Grid/Dropdown optimization
+   */
+  async getGridAccounts(companyId: string): Promise<Account[]> {
+    const { data, error } = await supabase
+      .from('chart_of_accounts')
+      .select('id, company_id, account_code, name_ar, name_en, is_group, currency, current_balance')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .order('account_code', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching grid accounts:', error);
+      throw error;
+    }
+
+    return (data || []).map(record => mapAccount(record));
   },
 
   /**

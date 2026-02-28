@@ -13,7 +13,10 @@
  */
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useCompany } from '@/hooks/useCompany';
+import { InlineAccountCell } from '@/components/ui/InlineAccountCell';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 import { numberToWords } from '@/utils/numberToWords';
 import {
     useReactTable,
@@ -114,6 +117,7 @@ export interface EditableColumnConfig {
     key: string;
     type: 'text' | 'number' | 'select' | 'date' | 'account';
     options?: { value: string; label: string }[];  // for select type
+    dynamicOptions?: (row: any) => { value: string; label: string }[];  // dynamic options based on row data
     required?: boolean;
     min?: number;
     max?: number;
@@ -156,6 +160,7 @@ export interface NexaDataTableProps<TData> {
     onInsertRow?: (atIndex: number) => TData;  // إدراج صف في موضع معين
     canAddRows?: boolean;               // السماح بإضافة صفوف
     canDeleteRows?: boolean;            // السماح بحذف صفوف
+    renderAccountBalance?: (accountId: string, rowIndex: number) => React.ReactNode; // Callback for account balance rendering
 
     // === Auto-Rows Management ===
     initialEmptyRows?: number;          // الأسطر الفارغة الابتدائية (افتراضي: 0 - عند التفعيل: 20)
@@ -288,6 +293,7 @@ function SortableHeaderCell({
 }
 
 // === Editable Cell Component ===
+
 interface EditableCellProps {
     value: unknown;
     rowIndex: number;
@@ -302,10 +308,15 @@ interface EditableCellProps {
     onBalance?: (rowIndex: number, colKey: string) => number | undefined;  // حساب الموازنة
     onInsertRowBelow?: (rowIndex: number) => void;  // إدراج صف تحت الحالي
     onDeleteCell?: () => void;  // مسح محتوى الخلية
+    onSwapDebitCredit?: (rowIndex: number, colKey: string) => void;  // نقل الرقم بين المدين والدائن
+    onDuplicateRow?: (rowIndex: number) => void;  // نسخ الصف بالكامل
     isRTL: boolean;
     totalRows: number;
     totalCols: number;
     enableBalanceShortcut?: boolean;  // تفعيل اختصار الموازنة
+    companyId?: string; // For account selector
+    rowData?: Record<string, unknown>; // Full row data for context
+    renderAccountBalance?: (accountId: string, rowIndex: number) => React.ReactNode;
 }
 
 function EditableCell({
@@ -322,13 +333,20 @@ function EditableCell({
     onBalance,
     onInsertRowBelow,
     onDeleteCell,
+    onSwapDebitCredit,
+    onDuplicateRow,
     isRTL,
     totalRows,
     totalCols,
     enableBalanceShortcut,
+    companyId,
+    rowData,
+    renderAccountBalance,
 }: EditableCellProps) {
     const [localValue, setLocalValue] = useState(value);
+    const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
+    const { decimalPlaces } = useAccountingSettings();
 
     useEffect(() => {
         setLocalValue(value);
@@ -349,8 +367,35 @@ function EditableCell({
         onChange(rowIndex, colKey, newValue);
     };
 
-    // === Double-click للموازنة السريعة ===
+    // For text fields: update local only, commit on blur
+    const handleTextLocalChange = (newValue: string) => {
+        setLocalValue(newValue);
+    };
+    
+    const commitLocalValue = () => {
+        if (config.type === 'number') {
+            const parsed = parseFloat(String(localValue)) || 0;
+            const rounded = Number(parsed.toFixed(decimalPlaces ?? 2));
+            if (rounded !== value) {
+                setLocalValue(rounded);
+                onChange(rowIndex, colKey, rounded);
+            }
+        } else {
+            if (localValue !== value) {
+                onChange(rowIndex, colKey, localValue);
+            }
+        }
+    };
+
+    // === Double-click: swap debit/credit OR balance shortcut ===
     const handleDoubleClick = () => {
+        // If this is a debit or credit cell with a value, swap it
+        if (onSwapDebitCredit && (colKey === 'debit' || colKey === 'credit') && Number(localValue) > 0) {
+            onSwapDebitCredit(rowIndex, colKey);
+            setLocalValue(0);
+            return;
+        }
+        // Otherwise, use balance shortcut if enabled
         if (enableBalanceShortcut && onBalance) {
             const balanceValue = onBalance(rowIndex, colKey);
             if (balanceValue !== undefined) {
@@ -420,39 +465,33 @@ function EditableCell({
                 break;
 
             case 'ArrowLeft':
-                // في RTL: السهم الأيسر = للأمام (يمين منطقياً)
-                if (e.ctrlKey || e.metaKey) {
-                    e.preventDefault();
-                    onNavigate?.(isRTL ? 'right' : 'left');
-                }
+                // التنقل للخلية السابقة
+                e.preventDefault();
+                onNavigate?.(isRTL ? 'right' : 'left');
                 break;
 
             case 'ArrowRight':
-                // في RTL: السهم الأيمن = للخلف (يسار منطقياً)
-                if (e.ctrlKey || e.metaKey) {
-                    e.preventDefault();
-                    onNavigate?.(isRTL ? 'left' : 'right');
-                }
+                // التنقل للخلية التالية
+                e.preventDefault();
+                onNavigate?.(isRTL ? 'left' : 'right');
                 break;
 
             case 'Tab':
                 e.preventDefault();
+                commitLocalValue(); // flush any pending text edits
                 if (e.shiftKey) {
-                    // Shift+Tab = الرجوع للخلف (العمود السابق)
                     onNavigate?.('left');
                 } else {
-                    // Tab = التقدم للأمام (العمود التالي)
                     onNavigate?.('right');
                 }
                 break;
 
             case 'Enter':
                 e.preventDefault();
+                commitLocalValue(); // flush any pending text edits
                 if (e.shiftKey) {
-                    // Shift+Enter = الذهاب لأعلى
                     onNavigate?.('up');
                 } else {
-                    // Enter = الذهاب لأسفل
                     onNavigate?.('down');
                 }
                 break;
@@ -489,10 +528,15 @@ function EditableCell({
 
             case 'd':
             case 'D':
-                // Ctrl+D = نسخ من الخلية التي فوق (Excel standard)
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
-                    onCopyFromAbove?.(rowIndex, colKey);
+                    if (e.shiftKey) {
+                        // Ctrl+Shift+D = نسخ الصف بالكامل
+                        onDuplicateRow?.(rowIndex);
+                    } else {
+                        // Ctrl+D = نسخ من الخلية التي فوق (Excel standard)
+                        onCopyFromAbove?.(rowIndex, colKey);
+                    }
                 }
                 break;
 
@@ -525,7 +569,7 @@ function EditableCell({
         'focus:bg-blue-50/50 focus:ring-2 focus:ring-blue-400 focus:ring-inset',
         'transition-colors duration-150',
         'text-sm',
-        config.type === 'number' && 'text-center font-mono'
+        config.type === 'number' && 'text-center font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
     );
 
     // Render based on type
@@ -534,9 +578,25 @@ function EditableCell({
             return (
                 <input
                     ref={inputRef as React.RefObject<HTMLInputElement>}
-                    type="number"
-                    value={localValue as number || ''}
-                    onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
+                    type={isFocused ? "number" : "text"}
+                    value={
+                        isFocused
+                            ? (localValue !== undefined && localValue !== null ? String(localValue) : '')
+                            : (localValue !== undefined && localValue !== null && !isNaN(Number(localValue)) ? Number(localValue).toFixed(decimalPlaces) : '')
+                    }
+                    onFocus={(e) => {
+                        setIsFocused(true);
+                        // Optional: select all text when focusing a number (ERP standard UX)
+                        setTimeout(() => e.target.select(), 10);
+                    }}
+                    onBlur={() => {
+                        setIsFocused(false);
+                        const parsed = parseFloat(String(localValue)) || 0;
+                        const rounded = Number(parsed.toFixed(decimalPlaces));
+                        setLocalValue(rounded);
+                        onChange(rowIndex, colKey, rounded);
+                    }}
+                    onChange={(e) => setLocalValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onDoubleClick={handleDoubleClick}
                     min={config.min}
@@ -546,7 +606,8 @@ function EditableCell({
                     data-cell-id={`${rowIndex}-${colKey}`}
                 />
             );
-        case 'select':
+        case 'select': {
+            const selectOptions = config.dynamicOptions ? config.dynamicOptions(rowData) : config.options;
             return (
                 <select
                     ref={inputRef as React.RefObject<HTMLSelectElement>}
@@ -557,13 +618,14 @@ function EditableCell({
                     data-cell-id={`${rowIndex}-${colKey}`}
                 >
                     <option value="">{isRTL ? 'اختر...' : 'Select...'}</option>
-                    {config.options?.map((opt) => (
+                    {selectOptions?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                             {opt.label}
                         </option>
                     ))}
                 </select>
             );
+        }
         case 'date':
             return (
                 <input
@@ -576,13 +638,38 @@ function EditableCell({
                     data-cell-id={`${rowIndex}-${colKey}`}
                 />
             );
+        case 'account':
+            return (
+                <InlineAccountCell
+                    value={localValue as string || ''}
+                    companyId={companyId}
+                    onChange={(accountId, account) => {
+                        handleChange(accountId);
+                        // Also update account_name, account_code, and current_balance on the row
+                        if (account) {
+                            onChange(rowIndex, 'account_name', account.name_ar || account.name_en || '');
+                            onChange(rowIndex, 'account_code', account.code || '');
+                            // Push balance directly from cached account data
+                            onChange(rowIndex, 'current_balance', account.current_balance ?? 0);
+                        }
+                    }}
+                    onNavigate={onNavigate}
+                    onCopyFromAbove={() => onCopyFromAbove?.(rowIndex, colKey)}
+                    isRTL={isRTL}
+                    cellId={`${rowIndex}-${colKey}`}
+                    displayName={rowData?.account_name as string}
+                    displayCode={rowData?.account_code as string}
+                    balanceElement={renderAccountBalance ? renderAccountBalance(localValue as string, rowIndex) : undefined}
+                />
+            );
         default: // text
             return (
                 <input
                     ref={inputRef as React.RefObject<HTMLInputElement>}
                     type="text"
                     value={localValue as string || ''}
-                    onChange={(e) => handleChange(e.target.value)}
+                    onChange={(e) => handleTextLocalChange(e.target.value)}
+                    onBlur={commitLocalValue}
                     onKeyDown={handleKeyDown}
                     onDoubleClick={handleDoubleClick}
                     placeholder={config.placeholder}
@@ -641,6 +728,7 @@ export function NexaDataTable<TData>({
     enableInstantEdit = false,
     canAddRows = false, // Default to false - auto-expand makes this unnecessary
     canDeleteRows = true,
+    renderAccountBalance,
     // Auto-Rows Props
     initialEmptyRows = 0,
     emptyRowsThreshold = 5,
@@ -653,7 +741,12 @@ export function NexaDataTable<TData>({
     showKeyboardHelp = true,
     // Persistence Props
     persistKey,
-}: NexaDataTableProps<TData>) {
+    // Row styling
+    getRowClassName,
+}: NexaDataTableProps<TData> & { getRowClassName?: (row: TData) => string }) {
+    // === Company context for account selectors ===
+    const { companyId: hookCompanyId } = useCompany();
+
     // === Default texts based on RTL ===
     const defaultSearchPlaceholder = isRTL ? 'بحث...' : 'Search...';
     const defaultEmptyMessage = isRTL ? 'لا توجد بيانات' : 'No data';
@@ -853,21 +946,37 @@ export function NexaDataTable<TData>({
     }, [originalData, onCancel]);
 
     // تغيير قيمة خلية
+    const [cellChangeCounter, setCellChangeCounter] = useState(0);
+    
     const handleCellChange = useCallback((rowIndex: number, colKey: string, value: unknown) => {
         setEditedData(prev => {
             const newData = [...prev];
             newData[rowIndex] = { ...newData[rowIndex], [colKey]: value };
 
-            // If Instant Edit, propagate immediately
-            if (enableInstantEdit && onDataChange) {
-                // We need to pass the FULL new array, so we must use the result of this operation
-                // Use setTimeout to avoid render loop if needed, or call directly
-                onDataChange(newData);
+            // Debit/Credit mutual exclusivity:
+            const dk = debitKey || 'debit';
+            const ck = creditKey || 'credit';
+            const numVal = Number(value);
+            if (colKey === dk && numVal > 0) {
+                newData[rowIndex] = { ...newData[rowIndex], [dk]: value, [ck]: 0 };
+            } else if (colKey === ck && numVal > 0) {
+                newData[rowIndex] = { ...newData[rowIndex], [ck]: value, [dk]: 0 };
             }
 
             return newData;
         });
-    }, [enableInstantEdit, onDataChange]);
+        // Signal that data changed (useEffect will propagate to parent)
+        if (enableInstantEdit) {
+            setCellChangeCounter(c => c + 1);
+        }
+    }, [enableInstantEdit, debitKey, creditKey]);
+
+    // Propagate cell changes to parent AFTER render (React 18 safe)
+    useEffect(() => {
+        if (cellChangeCounter > 0 && onDataChange) {
+            onDataChange(editedData as TData[]);
+        }
+    }, [cellChangeCounter]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // إضافة صف جديد
     const handleAddRow = useCallback(() => {
@@ -904,6 +1013,20 @@ export function NexaDataTable<TData>({
             });
         }
     }, [onInsertRow, onAddRow]);
+
+    // === نسخ صف بالكامل ===
+    const handleDuplicateRow = useCallback((rowIndex: number) => {
+        const sourceRow = editedData[rowIndex] as Record<string, unknown>;
+        const clonedRow = { ...sourceRow, id: `dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` } as TData;
+        setEditedData(prev => {
+            const newData = [...prev];
+            newData.splice(rowIndex + 1, 0, clonedRow);
+            if (enableInstantEdit && onDataChange) {
+                onDataChange(newData);
+            }
+            return newData;
+        });
+    }, [editedData, enableInstantEdit, onDataChange]);
 
     // === حساب الموازنة للقيود المحاسبية ===
     const handleBalance = useCallback((rowIndex: number, colKey: string): number | undefined => {
@@ -973,11 +1096,30 @@ export function NexaDataTable<TData>({
         }
     }, [isEditing, onAddRow, remainingEmptyRows, emptyRowsThreshold, autoAddRowsCount]);
 
+    // === Swap debit/credit on double-click ===
+    const handleSwapDebitCredit = useCallback((rowIndex: number, colKey: string) => {
+        const dk = debitKey || 'debit';
+        const ck = creditKey || 'credit';
+        const row = editedData[rowIndex] as Record<string, unknown>;
+        const currentVal = Number(row[colKey]) || 0;
+        if (currentVal > 0) {
+            const targetKey = colKey === dk ? ck : dk;
+            handleCellChange(rowIndex, colKey, 0);
+            handleCellChange(rowIndex, targetKey, currentVal);
+        }
+    }, [editedData, handleCellChange, debitKey, creditKey]);
+
     // نسخ القيم من الصف السابق
     const handleCopyFromAbove = useCallback((rowIndex: number, colKey: string) => {
         if (rowIndex > 0) {
-            const prevValue = (editedData[rowIndex - 1] as Record<string, unknown>)[colKey];
+            const prevRow = editedData[rowIndex - 1] as Record<string, unknown>;
+            const prevValue = prevRow[colKey];
             handleCellChange(rowIndex, colKey, prevValue);
+            // If copying an account, also copy the display fields
+            if (colKey === 'account_id') {
+                if (prevRow['account_name']) handleCellChange(rowIndex, 'account_name', prevRow['account_name']);
+                if (prevRow['account_code']) handleCellChange(rowIndex, 'account_code', prevRow['account_code']);
+            }
         }
     }, [editedData, handleCellChange]);
 
@@ -1042,7 +1184,14 @@ export function NexaDataTable<TData>({
             ) as HTMLInputElement;
             if (cellInput) {
                 cellInput.focus();
-                cellInput.select();
+                // For number inputs, select all (user typically wants to replace)
+                // For text inputs, place cursor at end (user typically wants to continue typing)
+                if (cellInput.type === 'number') {
+                    cellInput.select();
+                } else {
+                    const len = cellInput.value?.length || 0;
+                    cellInput.setSelectionRange(len, len);
+                }
             }
         }, 50);
     }, [editableColumnKeys, editedData.length, onAddRow, handleAddRow]);
@@ -1303,6 +1452,7 @@ export function NexaDataTable<TData>({
             });
         }
     };
+
 
     return (
         <div className={cn('space-y-4', className)} dir={isRTL ? 'rtl' : 'ltr'}>
@@ -1655,11 +1805,13 @@ export function NexaDataTable<TData>({
             )}
 
             {/* === Table Container === */}
-            <div className="rounded-lg border border-border overflow-hidden bg-background flex flex-col">
+            <div
+                className="rounded-lg border border-border overflow-hidden bg-background flex flex-col"
+                style={{ maxHeight: enableExcelMode ? maxHeight : undefined }}
+            >
                 {/* Scrollable Data Area */}
                 <div
-                    className="overflow-auto"
-                    style={{ maxHeight: enableExcelMode ? maxHeight : undefined }}
+                    className="overflow-auto flex-1 min-h-0"
                 >
                     <DndContext
                         sensors={sensors}
@@ -1736,7 +1888,8 @@ export function NexaDataTable<TData>({
                                                     'group border-b border-border last:border-b-0',
                                                     'transition-colors',
                                                     onRowClick && 'cursor-pointer',
-                                                    !markerColor && 'hover:bg-muted/50'
+                                                    !markerColor && 'hover:bg-muted/50',
+                                                    getRowClassName?.(row.original)
                                                 )}
                                                 style={{
                                                     backgroundColor: bgColor,
@@ -1800,7 +1953,7 @@ export function NexaDataTable<TData>({
                                                                 // إخفاء الحد الأخير
                                                                 cellIndex === row.getVisibleCells().length - 1 && !isEditing && 'border-l-0 border-r-0',
                                                                 // Edit mode cell highlight
-                                                                isEditing && editConfig && 'bg-white hover:bg-blue-50/30 transition-colors'
+                                                                isEditing && editConfig && 'bg-inherit hover:bg-blue-50/30 transition-colors'
                                                             )}
                                                             style={{ width: cell.column.getSize() }}
                                                         >
@@ -1818,10 +1971,15 @@ export function NexaDataTable<TData>({
                                                                     onCopyAndMove={(ri, ck, dir) => handleCopyAndMove(ri, ck, dir)}
                                                                     onBalance={enableBalanceShortcut ? handleBalance : undefined}
                                                                     onInsertRowBelow={handleInsertRowAt}
+                                                                    onSwapDebitCredit={handleSwapDebitCredit}
+                                                                    onDuplicateRow={handleDuplicateRow}
                                                                     enableBalanceShortcut={enableBalanceShortcut}
                                                                     isRTL={isRTL}
                                                                     totalRows={displayData.length}
                                                                     totalCols={editableColumns.length}
+                                                                    companyId={hookCompanyId}
+                                                                    rowData={row.original as Record<string, unknown>}
+                                                                    renderAccountBalance={renderAccountBalance}
                                                                 />
                                                             ) : (
                                                                 flexRender(cell.column.columnDef.cell, cell.getContext())
@@ -1865,7 +2023,7 @@ export function NexaDataTable<TData>({
             {/* === Totals Footer (Sticky) === */}
             {showTotalsFooter && (
                 <div
-                    className="sticky bottom-0 z-20 overflow-hidden"
+                    className="shrink-0 z-20 overflow-hidden"
                     style={{
                         background: 'linear-gradient(90deg, #0a1628 0%, #132238 50%, #0a1628 100%)',
                     }}

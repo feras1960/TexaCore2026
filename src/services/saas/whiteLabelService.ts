@@ -115,7 +115,8 @@ class WhiteLabelService {
    * Activate White Label after payment
    */
   async activate(agentId: string, paymentId: string): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       throw new Error('User not authenticated');
     }

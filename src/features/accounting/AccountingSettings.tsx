@@ -14,7 +14,7 @@ import {
   Settings, Save, Building2, DollarSign, Calendar, FileText,
   Globe, Wallet, Hash, AlertTriangle, CheckCircle2, Loader2,
   ChevronRight, RefreshCw, Edit2, Lock, Info, AlertCircle,
-  Link2, Unlink, Percent, Receipt
+  Link2, Unlink, Percent, Receipt, Landmark, Plus, Trash2, Pencil, X
 } from 'lucide-react';
 // UserPermissionsTab removed — now in SystemConfigPage
 import { supabase } from '@/lib/supabase';
@@ -153,6 +153,13 @@ export default function AccountingSettings() {
   const [currencySearch, setCurrencySearch] = useState('');
   const [hasJournalEntries, setHasJournalEntries] = useState(false);
 
+  // Cost Centers State
+  const [costCentersList, setCostCentersList] = useState<any[]>([]);
+  const [editingCC, setEditingCC] = useState<any | null>(null);
+  const [newCC, setNewCC] = useState({ code: '', name_ar: '', name_en: '', is_active: true });
+  const [showAddCC, setShowAddCC] = useState(false);
+  const [savingCC, setSavingCC] = useState(false);
+
   // Edit & Fiscal Year Settings
   const [editSettings, setEditSettings] = useState<AccountingEditSettings>({
     fiscal_year_mode: 'independent',
@@ -286,6 +293,15 @@ export default function AccountingSettings() {
         });
         setCurrencies(Array.from(uniqueCurrencies.values()));
       }
+
+      // Load cost centers
+      const { data: ccData } = await supabase
+        .from('cost_centers')
+        .select('*')
+        .eq('company_id', currentCompanyId)
+        .order('code');
+      if (ccData) setCostCentersList(ccData);
+
     } catch (error) {
       // Silently handle - Don't show toast since Keep All Mounted loads this even when tab isn't visible
       console.warn('Settings load issue:', error);
@@ -426,7 +442,7 @@ export default function AccountingSettings() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
+        <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-flex">
           <TabsTrigger value="general" className="gap-2">
             <Building2 className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ar' ? 'عام' : 'General'}</span>
@@ -454,6 +470,10 @@ export default function AccountingSettings() {
           <TabsTrigger value="editSettings" className="gap-2">
             <Edit2 className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ar' ? 'التعديلات' : 'Edit Rules'}</span>
+          </TabsTrigger>
+          <TabsTrigger value="costCenters" className="gap-2">
+            <Landmark className="w-4 h-4" />
+            <span className="hidden sm:inline">{language === 'ar' ? 'مراكز التكلفة' : 'Cost Centers'}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1856,6 +1876,200 @@ export default function AccountingSettings() {
                   />
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══ Cost Centers Tab ═══ */}
+        <TabsContent value="costCenters" className="mt-6 space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Landmark className="w-5 h-5 text-erp-teal" />
+                    {language === 'ar' ? 'إدارة مراكز التكلفة' : 'Cost Center Management'}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'ar'
+                      ? 'إضافة وتعديل وحذف مراكز التكلفة المستخدمة في القيود اليومية'
+                      : 'Add, edit and delete cost centers used in journal entries'}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={async () => {
+                    const cid = companyId;
+                    if (!cid) return;
+                    const { data } = await supabase
+                      .from('cost_centers')
+                      .select('*')
+                      .eq('company_id', cid)
+                      .order('code');
+                    if (data) setCostCentersList(data);
+                  }}>
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                  <Button size="sm" className="gap-1 bg-erp-teal hover:bg-erp-teal/90" onClick={() => {
+                    setShowAddCC(true);
+                    setNewCC({ code: '', name_ar: '', name_en: '', is_active: true });
+                  }}>
+                    <Plus className="w-4 h-4" />
+                    {language === 'ar' ? 'إضافة' : 'Add'}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add New Row */}
+              {showAddCC && (
+                <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <Input
+                    placeholder={language === 'ar' ? 'الرمز' : 'Code'}
+                    value={newCC.code}
+                    onChange={(e) => setNewCC(p => ({ ...p, code: e.target.value }))}
+                    className="w-24"
+                  />
+                  <Input
+                    placeholder={language === 'ar' ? 'الاسم بالعربية' : 'Name (Arabic)'}
+                    value={newCC.name_ar}
+                    onChange={(e) => setNewCC(p => ({ ...p, name_ar: e.target.value }))}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder={language === 'ar' ? 'الاسم بالإنجليزية' : 'Name (English)'}
+                    value={newCC.name_en}
+                    onChange={(e) => setNewCC(p => ({ ...p, name_en: e.target.value }))}
+                    className="flex-1"
+                  />
+                  <Button size="sm" disabled={savingCC || !newCC.code || !newCC.name_ar} onClick={async () => {
+                    setSavingCC(true);
+                    try {
+                      const { error } = await supabase.from('cost_centers').insert({
+                        company_id: companyId,
+                        code: newCC.code,
+                        name_ar: newCC.name_ar,
+                        name_en: newCC.name_en || newCC.name_ar,
+                        is_active: true,
+                      });
+                      if (error) throw error;
+                      toast({ title: language === 'ar' ? 'تمت الإضافة' : 'Added', description: newCC.name_ar });
+                      setShowAddCC(false);
+                      // Refresh
+                      const { data } = await supabase.from('cost_centers').select('*').eq('company_id', companyId).order('code');
+                      if (data) setCostCentersList(data);
+                    } catch (err: any) {
+                      toast({ title: language === 'ar' ? 'خطأ' : 'Error', description: err.message, variant: 'destructive' });
+                    } finally {
+                      setSavingCC(false);
+                    }
+                  }} className="bg-emerald-600 hover:bg-emerald-700">
+                    {savingCC ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowAddCC(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="px-4 py-2.5 text-start font-medium w-24">{language === 'ar' ? 'الرمز' : 'Code'}</th>
+                      <th className="px-4 py-2.5 text-start font-medium">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</th>
+                      <th className="px-4 py-2.5 text-start font-medium">{language === 'ar' ? 'الاسم بالإنجليزية' : 'English Name'}</th>
+                      <th className="px-4 py-2.5 text-center font-medium w-24">{language === 'ar' ? 'الحالة' : 'Status'}</th>
+                      <th className="px-4 py-2.5 text-center font-medium w-24">{language === 'ar' ? 'إجراءات' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costCentersList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                          {language === 'ar' ? 'لا توجد مراكز تكلفة. اضغط "إضافة" لإنشاء مركز تكلفة جديد.' : 'No cost centers. Click "Add" to create one.'}
+                        </td>
+                      </tr>
+                    ) : costCentersList.map((cc) => (
+                      <tr key={cc.id} className="border-t hover:bg-muted/30 transition-colors">
+                        {editingCC?.id === cc.id ? (
+                          <>
+                            <td className="px-3 py-1.5">
+                              <Input value={editingCC.code} onChange={(e) => setEditingCC((p: any) => ({ ...p, code: e.target.value }))} className="h-8 text-sm" />
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <Input value={editingCC.name_ar} onChange={(e) => setEditingCC((p: any) => ({ ...p, name_ar: e.target.value }))} className="h-8 text-sm" />
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <Input value={editingCC.name_en} onChange={(e) => setEditingCC((p: any) => ({ ...p, name_en: e.target.value }))} className="h-8 text-sm" />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <Switch checked={editingCC.is_active} onCheckedChange={(v) => setEditingCC((p: any) => ({ ...p, is_active: v }))} />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <div className="flex gap-1 justify-center">
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600" onClick={async () => {
+                                  const { error } = await supabase.from('cost_centers').update({
+                                    code: editingCC.code,
+                                    name_ar: editingCC.name_ar,
+                                    name_en: editingCC.name_en,
+                                    is_active: editingCC.is_active,
+                                  }).eq('id', editingCC.id);
+                                  if (!error) {
+                                    toast({ title: language === 'ar' ? 'تم التحديث' : 'Updated' });
+                                    setEditingCC(null);
+                                    const { data } = await supabase.from('cost_centers').select('*').eq('company_id', companyId).order('code');
+                                    if (data) setCostCentersList(data);
+                                  }
+                                }}>
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingCC(null)}>
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-2.5 font-mono text-xs">{cc.code}</td>
+                            <td className="px-4 py-2.5">{cc.name_ar}</td>
+                            <td className="px-4 py-2.5">{cc.name_en}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              <Badge variant={cc.is_active ? 'default' : 'secondary'} className="text-[10px]">
+                                {cc.is_active ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'معطل' : 'Inactive')}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <div className="flex gap-1 justify-center">
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingCC({ ...cc })}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={async () => {
+                                  if (!confirm(language === 'ar' ? 'هل أنت متأكد من الحذف؟' : 'Are you sure?')) return;
+                                  const { error } = await supabase.from('cost_centers').delete().eq('id', cc.id);
+                                  if (!error) {
+                                    setCostCentersList(prev => prev.filter(c => c.id !== cc.id));
+                                    toast({ title: language === 'ar' ? 'تم الحذف' : 'Deleted' });
+                                  }
+                                }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {language === 'ar'
+                  ? `إجمالي مراكز التكلفة: ${costCentersList.length}`
+                  : `Total cost centers: ${costCentersList.length}`}
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

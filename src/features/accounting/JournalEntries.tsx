@@ -20,7 +20,8 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
-import NewJournalEntrySheet from './components/NewJournalEntrySheet';
+import { UnifiedAccountingSheet } from './components/unified/UnifiedAccountingSheet';
+import type { UnifiedDocType } from './components/unified/types';
 import AutomaticEntriesTab from './components/AutomaticEntriesTab';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { ImportWizard } from '@/features/import';
@@ -34,7 +35,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { toast } from 'sonner';
 
-type TabType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchange';
+// Maps to UnifiedAccountingSheet docType
+type AccountingDocType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchange';
 
 export default function JournalEntries() {
   const { t, language, direction } = useLanguage();
@@ -69,10 +71,11 @@ export default function JournalEntries() {
   // ─── Sheet state ───
   const [selectedEntryForDetails, setSelectedEntryForDetails] = useState<JournalEntryData | null>(null);
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
-  const [defaultTab, setDefaultTab] = useState<TabType>('journal');
+  const [newEntryDocType, setNewEntryDocType] = useState<AccountingDocType>('journal');
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [sheetInitialData, setSheetInitialData] = useState<any>(null);
 
   // ─── Trade Sheet state (for opening source documents) ───
   const [tradeSheetOpen, setTradeSheetOpen] = useState(false);
@@ -566,15 +569,15 @@ export default function JournalEntries() {
             <Upload className="w-4 h-4" />
             {t('common.import')}
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => { setDefaultTab('transfer'); setIsNewEntryOpen(true); }}>
+          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => { setNewEntryDocType('transfer'); setSheetInitialData(null); setIsEditMode(false); setEditEntryId(null); setIsNewEntryOpen(true); }}>
             <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" />
             {isRTL ? 'تحويل' : 'Transfer'}
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => { setDefaultTab('exchange'); setIsNewEntryOpen(true); }}>
+          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => { setNewEntryDocType('exchange'); setSheetInitialData(null); setIsEditMode(false); setEditEntryId(null); setIsNewEntryOpen(true); }}>
             <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
             {isRTL ? 'صرافة' : 'Exchange'}
           </Button>
-          <Button size="sm" className="bg-erp-primary hover:bg-erp-primary/90 text-white gap-1.5 h-9 px-4 shadow-sm" onClick={() => { setDefaultTab('journal'); setIsNewEntryOpen(true); }}>
+          <Button size="sm" className="bg-erp-primary hover:bg-erp-primary/90 text-white gap-1.5 h-9 px-4 shadow-sm" onClick={() => { setNewEntryDocType('journal'); setSheetInitialData(null); setIsEditMode(false); setEditEntryId(null); setIsNewEntryOpen(true); }}>
             <Plus className="w-4 h-4" />
             {isRTL ? 'قيد محاسبي' : 'Journal Entry'}
           </Button>
@@ -691,20 +694,24 @@ export default function JournalEntries() {
         direction={direction}
       />
 
-      {/* ─── Sheets ─── */}
-      <NewJournalEntrySheet
-        open={isNewEntryOpen}
-        onOpenChange={(open) => {
-          setIsNewEntryOpen(open);
-          if (!open) {
-            setIsEditMode(false);
-            setEditEntryId(null);
-          }
+      {/* ─── Unified Accounting Sheet (replaces legacy NewJournalEntrySheet) ─── */}
+      <UnifiedAccountingSheet
+        isOpen={isNewEntryOpen}
+        onClose={() => {
+          setIsNewEntryOpen(false);
+          setIsEditMode(false);
+          setEditEntryId(null);
+          setSheetInitialData(null);
+          invalidateEntries();
         }}
-        defaultTab={defaultTab}
-        editMode={isEditMode}
-        entryId={editEntryId}
-        onUpdate={() => {
+        docType={newEntryDocType as UnifiedDocType}
+        mode={isEditMode ? 'edit' : 'create'}
+        data={sheetInitialData}
+        documentId={editEntryId || undefined}
+        onSave={async () => {
+          invalidateEntries();
+        }}
+        onRefresh={() => {
           invalidateEntries();
         }}
       />

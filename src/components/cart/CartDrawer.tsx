@@ -271,8 +271,8 @@ export function CartDrawer() {
             const docNumber = `${config.numPrefix}-${Date.now().toString(36).toUpperCase()}`;
 
             // Get tenant_id from the authenticated user
-            const { data: authData } = await supabase.auth.getUser();
-            const tenantId = authData?.user?.user_metadata?.tenant_id;
+            const { data: { session } } = await supabase.auth.getSession();
+            const tenantId = session?.user?.user_metadata?.tenant_id;
 
             // Serialize items into notes (all tables have text/notes column)
             const itemsJson = JSON.stringify({

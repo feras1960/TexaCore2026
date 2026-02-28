@@ -1042,27 +1042,7 @@ export default function RegistrationWizard() {
               </p>
             </button>
 
-            {/* شجرة الأقمشة - تظهر فقط لتجارة الأقمشة */}
-            {formData.businessType === 'fabric' && (
-              <button
-                type="button"
-                onClick={() => handleChange('chartTemplate', 'fabric_extended')}
-                className={cn(
-                  "p-4 rounded-xl border-2 transition-all text-start col-span-1 md:col-span-2",
-                  formData.chartTemplate === 'fabric_extended'
-                    ? "border-purple-600 bg-purple-50"
-                    : "border-gray-200 hover:border-purple-200"
-                )}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-purple-900">{t('wizard.chartFabric') || 'شجرة الأقمشة المتخصصة 🧵'}</span>
-                  {formData.chartTemplate === 'fabric_extended' && <Check className="w-4 h-4 text-purple-600" />}
-                </div>
-                <p className="text-sm text-gray-600">
-                  {t('wizard.chartFabricDesc') || 'خصيصاً لشركات الأقمشة. تشمل تفاصيل: المخزون (خام/تام)، الإكسسوارات، الآلات، والهالِك.'}
-                </p>
-              </button>
-            )}
+
           </div>
         </div>
       </div>
@@ -1106,7 +1086,6 @@ export default function RegistrationWizard() {
             <span className="font-medium">
               {formData.chartTemplate === 'simple' && (t('wizard.chartSimple') || 'القياسية')}
               {formData.chartTemplate === 'extended' && (t('wizard.chartExtended') || 'الموسعة')}
-              {formData.chartTemplate === 'fabric_extended' && (t('wizard.chartFabric') || 'الأقمشة')}
             </span>
           </div>
         </CardContent>

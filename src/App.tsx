@@ -26,6 +26,7 @@ const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
 const KanbanLabPage = React.lazy(() => import('@/pages/KanbanLabPage'));
 const AdvancedQRScannerPage = React.lazy(() => import('@/pages/advanced/AdvancedQRScannerPage'));
 const CRM = React.lazy(() => import('@/features/crm/CRM'));
+const HR = React.lazy(() => import('@/features/hr/HR'));
 
 const Fabrics = React.lazy(() => import('@/features/fabrics/Fabrics')); // Keep file name as is for now, but route is /fabric
 const Pharmacy = React.lazy(() => import('@/features/pharmacy/Pharmacy'));
@@ -40,6 +41,7 @@ const SystemConfigPage = React.lazy(() => import('@/features/settings/SystemConf
 const UsersPermissionsPage = React.lazy(() => import('@/features/users-permissions/UsersPermissionsPage'));
 const Sales = React.lazy(() => import('@/features/sales/SalesPage'));
 const WorkflowCenter = React.lazy(() => import('@/features/workflow-center/WorkflowCenter'));
+const EcommercePage = React.lazy(() => import('@/features/ecommerce/EcommercePage'));
 
 // Public Route Guard (redirects to home if already authenticated)
 // Reserved for future use when public routes are needed
@@ -116,8 +118,8 @@ function AppRoutes() {
             <Route path="/exchange/*" element={<PlaceholderPage titleKey="navigation.exchange" />} />
             <Route path="/real-estate/*" element={<PlaceholderPage titleKey="navigation.realEstate" />} />
             <Route path="/manufacturing/*" element={<PlaceholderPage titleKey="navigation.manufacturing" />} />
-            <Route path="/hr/*" element={<PlaceholderPage titleKey="navigation.hr" />} />
-            <Route path="/ecommerce/*" element={<PlaceholderPage titleKey="navigation.ecommerce" />} />
+            <Route path="/hr/*" element={<HR />} />
+            <Route path="/ecommerce/*" element={<EcommercePage />} />
             <Route path="/ai-analytics" element={<PlaceholderPage titleKey="navigation.aiAnalytics" />} />
             <Route path="/system-config/*" element={<SystemConfigPage />} />
             <Route path="/users-permissions/*" element={<UsersPermissionsPage />} />

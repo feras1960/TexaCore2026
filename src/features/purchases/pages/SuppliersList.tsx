@@ -127,6 +127,7 @@ export default function SuppliersList() {
             })) as Supplier[];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── Fetch Purchase Stats per Supplier ────────────────────────

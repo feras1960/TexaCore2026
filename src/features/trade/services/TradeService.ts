@@ -192,7 +192,8 @@ export const TradeService = {
         }
 
         // Resolve tenant_id from auth user
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const authUser = session?.user;
         const tenantId = authUser?.user_metadata?.tenant_id || authUser?.app_metadata?.tenant_id;
 
         if (!tenantId) {
@@ -752,7 +753,8 @@ export const TradeService = {
         const itemsTable = transactionType === 'purchase' ? 'purchase_transaction_items' : 'sales_transaction_items';
 
         // Resolve auth
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const authUser = session?.user;
         if (!authUser) throw new Error('User not authenticated');
 
         const tenantId = authUser.user_metadata?.tenant_id || authUser.app_metadata?.tenant_id;

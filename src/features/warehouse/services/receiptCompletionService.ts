@@ -911,7 +911,8 @@ async function createInventoryMovements(
     receiptNumber: string
 ): Promise<number> {
     // Get current user ID for created_by (required NOT NULL column)
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     const currentUserId = user?.id;
 
     if (!currentUserId) {
@@ -1002,7 +1003,8 @@ async function handleAccountingEntry(
 ): Promise<string | null> {
     try {
         // Get current user for created_by
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         const currentUserId = user?.id || null;
 
         // Get Supplier ID for Entity Linking
@@ -1396,7 +1398,8 @@ async function recordActivityLog(
                     : 'purchase_invoices';
 
         // Get current user for created_by
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         const currentUserId = user?.id || params.createdBy || null;
 
         // Build activity entries — using `document_activity` table schema:

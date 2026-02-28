@@ -45,19 +45,27 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
     queryFn: async (): Promise<Company | null> => {
       let targetCompanyId: string | null = null;
 
-      // Try to get company from user profile if authenticated
       if (isAuthenticated && user) {
-        try {
-          const profile = await userProfilesService.getByUserId(user.id);
-          if (profile?.company_id) {
-            targetCompanyId = profile.company_id;
+        // ⚡ FAST PATH: company_id is already in user_metadata (set at login)
+        // This avoids an extra network call to user_profiles
+        targetCompanyId = user.user_metadata?.company_id 
+          || user.app_metadata?.company_id 
+          || null;
+
+        // Fallback: query user_profiles only if metadata is missing
+        if (!targetCompanyId) {
+          try {
+            const profile = await userProfilesService.getByUserId(user.id);
+            if (profile?.company_id) {
+              targetCompanyId = profile.company_id;
+            }
+          } catch {
+            // Ignore profile errors, fall back to first company
           }
-        } catch {
-          // Ignore profile errors, fall back to first company
         }
       }
 
-      // If we have companyId from profile, fetch that company
+      // If we have companyId, fetch that company
       if (targetCompanyId) {
         const data = await companiesService.getById(targetCompanyId);
         if (data) return data;

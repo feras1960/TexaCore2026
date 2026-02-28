@@ -98,7 +98,8 @@ export default function SalesInvoicesList() {
             if (error) throw error;
             return data;
         },
-        enabled: !!companyId
+        enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // Fetch Customers Map

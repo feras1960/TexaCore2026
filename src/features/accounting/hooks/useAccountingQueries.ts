@@ -21,7 +21,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
-import { accountsService } from '@/services/accountsService';
+// accountsService no longer needed — useFunds queries Supabase directly
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 
 // ═══════════════════════════════════════════════
@@ -143,12 +143,21 @@ export function useFunds() {
         queryKey: ['accounting', 'funds', companyId],
         queryFn: async () => {
             if (!companyId) return [];
-            const allAccounts = await accountsService.getAll(companyId);
-            // Filter for Cash and Bank accounts
-            return allAccounts.filter((acc: any) =>
-                acc.is_cash_account || acc.is_bank_account ||
-                acc.account_type_code === 'CASH' || acc.account_type_code === 'BANK'
-            );
+            // ⚡ Direct lightweight query — only fetch cash/bank accounts
+            // Old code used accountsService.getAll() which fetches ALL accounts + JOINs
+            const { data, error } = await supabase
+                .from('chart_of_accounts')
+                .select('id, account_code, name_ar, name_en, current_balance, is_cash_account, is_bank_account, is_group, currency')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .or('is_cash_account.eq.true,is_bank_account.eq.true')
+                .order('account_code', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching funds:', error);
+                return [];
+            }
+            return data || [];
         },
         enabled: !!companyId,
         staleTime: SEMI_STATIC,

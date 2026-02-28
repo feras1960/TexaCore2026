@@ -143,7 +143,8 @@ export function UniversalDetailHeader({
 
     try {
       // 1. Verify password by signing in (re-auth)
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user || !user.email) {
         throw new Error(t('auth.userNotFound'));
       }

@@ -55,7 +55,8 @@ export type AttachmentEntityType =
     | 'company'
     | 'purchase_order'
     | 'sales_order'
-    | 'quotation';
+    | 'quotation'
+    | 'employee';
 
 /** تصنيفات المرفقات */
 export type AttachmentCategory =
@@ -121,6 +122,7 @@ export function resolveEntityType(docType: string, tradeMode?: string): Attachme
         'customer': 'customer',
         'company': 'company',
         'goods_receipt': 'purchase_invoice',
+        'employee': 'employee',
     };
 
     return directMap[docType] || 'container';
@@ -421,7 +423,8 @@ export const attachmentService = {
             }
 
             // 4. الحصول على المستخدم الحالي
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
 
             // 5. تسجيل في جدول documents
             const { data: doc, error: dbError } = await supabase
@@ -777,7 +780,8 @@ export const attachmentService = {
                 };
             }
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
 
             const { data: doc, error: dbError } = await supabase
                 .from('documents')

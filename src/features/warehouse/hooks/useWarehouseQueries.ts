@@ -123,7 +123,6 @@ export function useMaterials(options?: UseMaterialsOptions) {
         queryKeys: [
             ['warehouse', 'materials'],
             ['warehouse', 'dashboard-stats', companyId],
-            ['warehouse', 'inventory-stats', companyId],
         ],
     });
 
@@ -236,7 +235,6 @@ export function useWarehouseDashboard() {
             ['warehouse', 'dashboard-stats', companyId],
             ['warehouse', 'low-stock', companyId],
             ['warehouse', 'capacity', companyId],
-            ['warehouse', 'inventory-stats', companyId],
         ],
     });
 
@@ -279,7 +277,8 @@ export function useInventory() {
     const { companyId } = useAuth();
 
     const statsQuery = useQuery({
-        queryKey: ['warehouse', 'inventory-stats', companyId],
+        // ⚡ Share same queryKey as useWarehouseDashboard → no duplicate fetch
+        queryKey: ['warehouse', 'dashboard-stats', companyId],
         queryFn: () => warehouseService.getDashboardStats(companyId!),
         enabled: !!companyId,
         staleTime: DYNAMIC,

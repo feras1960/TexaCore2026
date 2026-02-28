@@ -39,7 +39,8 @@ import {
   FileSpreadsheet,
   Printer
 } from 'lucide-react';
-import NewJournalEntrySheet from './components/NewJournalEntrySheet';
+import { UnifiedAccountingSheet } from './components/unified/UnifiedAccountingSheet';
+import type { UnifiedDocType } from './components/unified/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,14 +92,14 @@ interface FilterState {
   datePreset: string;
 }
 
-type TabType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchange';
+type AccountingDocType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchange';
 
 export default function CashJournal() {
   const { t, language, direction } = useLanguage();
   const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [selectedEntryForDetails, setSelectedEntryForDetails] = useState<any>(null);
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
-  const [defaultTab, setDefaultTab] = useState<TabType>('cash');
+  const [defaultTab, setDefaultTab] = useState<AccountingDocType>('cash');
   const [showFilters, setShowFilters] = useState(false);
 
   // Marker Colors - using unified ColorMarkerPalette with fixed meanings
@@ -958,10 +959,11 @@ export default function CashJournal() {
         </div>
       </div>
 
-      <NewJournalEntrySheet
-        open={isNewEntryOpen}
-        onOpenChange={setIsNewEntryOpen}
-        defaultTab={defaultTab}
+      <UnifiedAccountingSheet
+        isOpen={isNewEntryOpen}
+        onClose={() => setIsNewEntryOpen(false)}
+        docType={defaultTab as UnifiedDocType}
+        mode="create"
       />
 
       {/* Journal Entry Details Sheet */}

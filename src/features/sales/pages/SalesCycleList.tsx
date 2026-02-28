@@ -28,6 +28,7 @@ import { NexaKanbanBoard } from '@/components/ui/nexa-kanban/NexaKanbanBoard';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
@@ -158,6 +159,7 @@ interface SalesDocument {
 export default function SalesCycleList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
+    const { user, tenantId } = useAuth();
     const { baseCurrency, supportedCurrencies } = useCompanyCurrencies();
     const { fmtAmount } = useNumberFormat();
     const isRTL = direction === 'rtl';
@@ -264,10 +266,12 @@ export default function SalesCycleList() {
         queryKey: ['customers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};
+            // ⚡ Use tenantId from useAuth() — no network call needed
+            if (!tenantId) return {};
             const { data, error } = await supabase
                 .from('customers')
                 .select('id, name_ar, name_en')
-                .eq('tenant_id', (await supabase.auth.getUser()).data.user?.user_metadata?.tenant_id); // Use safer tenant check
+                .eq('tenant_id', tenantId);
 
             if (error) {
                 console.warn('Customers fetch failed', error);
@@ -346,7 +350,8 @@ export default function SalesCycleList() {
                 };
             });
         },
-        enabled: !!companyId
+        enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // Combine Data with Customer Names
@@ -383,8 +388,7 @@ export default function SalesCycleList() {
     const { data: exchangeRates = {} } = useQuery({
         queryKey: ['exchange_rates', companyId],
         queryFn: async () => {
-            const { data: user } = await supabase.auth.getUser();
-            const tenantId = user.user?.user_metadata?.tenant_id;
+            // ⚡ Use tenantId from useAuth() — no network call needed
             if (!tenantId) return {};
 
             const { data, error } = await supabase
@@ -565,8 +569,7 @@ export default function SalesCycleList() {
         }
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            const tenantId = user?.user_metadata?.tenant_id;
+            // ⚡ Use user/tenantId from useAuth() — no network call needed
 
             const transaction = await salesTransactionService.create({
                 tenant_id: tenantId!,
@@ -1192,7 +1195,7 @@ export default function SalesCycleList() {
                         currentStage={selectedDoc?.stage || (docMode === 'create' ? 'draft' : undefined)}
                         onStageAdvance={selectedDoc?.id ? async (targetStage: string, notes?: string) => {
                             try {
-                                const { data: { user } } = await supabase.auth.getUser();
+                                // ⚡ Use user from useAuth() — no network call
                                 const result = await salesTransactionService.advanceStage({
                                     transaction_id: selectedDoc.id,
                                     transaction_type: 'sale',

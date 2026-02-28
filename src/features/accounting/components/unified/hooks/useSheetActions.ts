@@ -260,7 +260,8 @@ export function useTradeSave(
                 throw new Error(language === 'ar' ? 'رقم الكونتينر مطلوب' : 'Container number is required');
             }
 
-            const { data: { user: authUser } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const authUser = session?.user;
             let tenantId = authUser?.user_metadata?.tenant_id || authUser?.app_metadata?.tenant_id;
 
             if (!tenantId && authUser?.id) {
@@ -686,7 +687,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             const docId = savedResult?.id || data?.id || documentId;
                             if (!docId) throw new Error('Document ID not found after save');
 
-                            const { data: { user } } = await supabase.auth.getUser();
+                            const { data: { session } } = await supabase.auth.getSession();
+                            const user = session?.user;
                             if (user) {
                                 const modeKey = tradeMode || 'sales';
 
@@ -1117,7 +1119,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 // Smart Posting for Purchase Invoices
                                 if (modeKey === 'purchase' && docType === 'trade_invoice') {
                                     try {
-                                        const { data: { user } } = await supabase.auth.getUser();
+                                        const { data: { session } } = await supabase.auth.getSession();
+                                        const user = session?.user;
                                         if (user) {
                                             const currentStage = data?.stage || 'confirmed';
                                             const { purchaseAccountingService } = await import('@/services/purchaseAccountingService');
@@ -1319,7 +1322,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                     setLoading(true);
                     try {
-                        const { data: { user: authUser } } = await supabase.auth.getUser();
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const authUser = session?.user;
 
                         // ══════════════════════════════════════════
                         // 🛡️ Race Condition Guard (B.5)
@@ -1601,7 +1605,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     if (tradeMode === 'purchase') {
                         setLoading(true);
                         try {
-                            const { data: { user } } = await supabase.auth.getUser();
+                            const { data: { session } } = await supabase.auth.getSession();
+                            const user = session?.user;
                             if (!user) {
                                 toast.error(language === 'ar' ? 'لم يتم التعرف على المستخدم' : 'User not found');
                                 break;

@@ -329,7 +329,8 @@ export default function PurchaseCycleList() {
 
             return allDocs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         },
-        enabled: !!companyId
+        enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // Combine Data with Supplier Names (container info already in query via join)

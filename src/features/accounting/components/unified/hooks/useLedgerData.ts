@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { accountLedgerService, LedgerEntry, AccountStats, LedgerFilters } from '@/services/accountLedgerService';
-import { supabase, getCurrentTenantIdAsync } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 // ═══ Counter Account Info ═══
 export interface CounterAccountInfo {

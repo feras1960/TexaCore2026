@@ -113,7 +113,8 @@ export function useStageTransition({
             const tableName = getTableName(tradeMode, currentData);
 
             // 1. Get current user
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             if (!user) throw new Error('Not authenticated');
 
             // 2. Generate stage number (e.g., PQ-2026-001)

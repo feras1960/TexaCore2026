@@ -1,0 +1,24 @@
+-- ═══════════════════════════════════════════════════════════════
+-- ⚠️ DEPRECATED — V4 Chart Templates (2026-02-17)
+-- ═══════════════════════════════════════════════════════════════
+-- تم إلغاء هذه الملفات واستبدالها بـ V5 (2026-02-26)
+--
+-- السبب:
+-- 1. توحيد ترقيم الشجرة القياسية (Simple) ليتوافق مع Extended
+-- 2. حذف شجرة الأقمشة (fabric_extended) لمنع تضارب الأكواد
+-- 3. تبسيط auto_set_default_accounts
+--
+-- الملفات المؤرشفة:
+-- • 20260214_auto_set_default_accounts.sql    ← V3
+-- • 20260214_chart_templates_v3_dynamic_currency.sql  ← V3
+-- • 20260217_v4_chart_templates.sql           ← V4 Simple (ترقيم 4 أرقام)
+-- • 20260217_v4_extended_chart.sql            ← V4 Extended
+-- • 20260217_v4_fabric_extended_chart.sql     ← V4 Fabric (محذوف)
+-- • 20260217_v4_auto_set_defaults.sql         ← V4 Defaults (3 شجرات)
+--
+-- الملفات البديلة النشطة في /supabase/migrations/:
+-- • 20260226_v5_simple_chart.sql              ← V5 Simple (ترقيم موحد 54 حساب)
+-- • 20260226_fix_nexrev_and_v5_defaults.sql   ← V5 auto_set_default_accounts (شجرتين فقط)
+--
+-- ⚠️ لا تُنفذ هذه الملفات — للمراجعة والأرشفة فقط
+-- ═══════════════════════════════════════════════════════════════

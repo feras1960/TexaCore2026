@@ -705,6 +705,7 @@
       "exchangeRate": "سعر الصرف",
       "amount": "المبلغ",
       "link": "الربط",
+      "linkRef": "المرجع",
       "invoice": "الفاتورة",
       "receipts": "مقبوضات",
       "payments": "مدفوعات"
@@ -721,6 +722,8 @@
     "linkTypes": {
       "none": "بدون",
       "invoice": "فاتورة",
+      "container": "كونتينر",
+      "transfer": "حوالة",
       "employee": "موظف",
       "project": "مشروع",
       "salary": "راتب",
@@ -1609,6 +1612,23 @@
     "stage": "المرحلة",
     "tasks": "المهام"
   },
+  "hr": {
+    "dashboard": "لوحة المعلومات",
+    "employees": "الموظفين",
+    "employee": "موظف",
+    "departments": "الأقسام",
+    "designations": "المسميات الوظيفية",
+    "contracts": "العقود",
+    "leaves": "الإجازات",
+    "leave": "الإجازات",
+    "attendance": "الحضور",
+    "payroll": "الرواتب",
+    "settings": "الإعدادات",
+    "module": "الموارد البشرية",
+    "performance": "الأداء",
+    "recruitment": "التوظيف",
+    "training": "التدريب"
+  },
   "currencies": {
     "AED": "درهم إماراتي",
     "BHD": "دينار بحريني",
@@ -2189,19 +2209,6 @@
     "quickAdd": "إضافة سريعة",
     "search": "بحث...",
     "theme": "المظهر"
-  },
-  "hr": {
-    "attendance": "الحضور",
-    "departments": "الأقسام",
-    "designations": "المسميات الوظيفية",
-    "employee": "موظف",
-    "employees": "الموظفين",
-    "leave": "الإجازات",
-    "module": "الموارد البشرية",
-    "payroll": "الرواتب",
-    "performance": "الأداء",
-    "recruitment": "التوظيف",
-    "training": "التدريب"
   },
   "import": {
     "aiAnalysis": "تحليل AI",

@@ -60,4 +60,26 @@ Thumbs.db
 backups/
 .env.local
 .env
+.env.local.backup
 .pgpass
+
+# ═══ Security: Dev scripts with hardcoded credentials ═══
+audit_coa_system.js
+audit_coa.ts
+check_tables.ts
+check_invoice_status.js
+test-backend.js
+test-useModules.js
+test_drafts.js
+rewrite_receipts.js
+split.js
+scripts/debug-*.ts
+scripts/verify-*.ts
+scripts/check_*.ts
+
+# ═══ AI/Agent directories ═══
+.gemini/
+.cursor/
+
+# ═══ n8n workflows (may contain API keys) ═══
+n8n-workflows/

@@ -35,8 +35,8 @@ import { toast } from 'sonner';
 
 
 const chartTemplates = [
-    { id: 'simple', name: 'شجرة الحسابات البسيطة', description: 'حسابات مبسطة تناسب المحلات الصغيرة (~40 حساب)' },
-    { id: 'fabric_extended', name: 'شجرة الأقمشة الموسعة', description: 'هيكل حسابات كامل للمصانع والشركات الكبيرة (80 حساب)' }
+    { id: 'simple', name: 'شجرة الحسابات البسيطة', description: 'حسابات مبسطة تناسب المحلات الصغيرة (~54 حساب)' },
+    { id: 'extended', name: 'شجرة الحسابات الموسعة', description: 'هيكل حسابات كامل للشركات الكبيرة والتجارة الدولية (~79 حساب)' }
 ];
 
 export default function FabricRegistrationWizard() {
@@ -62,7 +62,7 @@ export default function FabricRegistrationWizard() {
         localCurrency: '',
         mainCurrency: 'USD',
         fiscalYearStart: 1,
-        chartTemplate: 'fabric_extended'
+        chartTemplate: 'extended'
     });
 
     // Check for local storage data from Register page
@@ -177,7 +177,7 @@ export default function FabricRegistrationWizard() {
 
     const chartTemplates = [
         { id: 'simple', name: t('wizard.labels.chartTemplateSimple'), description: t('wizard.labels.chartTemplateSimpleDesc') },
-        { id: 'fabric_extended', name: t('wizard.labels.chartTemplateExtended'), description: t('wizard.labels.chartTemplateExtendedDesc') }
+        { id: 'extended', name: t('wizard.labels.chartTemplateExtended'), description: t('wizard.labels.chartTemplateExtendedDesc') }
     ];
 
     const currencies = [

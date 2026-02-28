@@ -1,38 +1,45 @@
 /**
- * Sales Module Main Page
- * Matches the exact styling and structure of Accounting/Inventory/Purchases modules.
+ * ════════════════════════════════════════════════════════════════
+ * 🛒 Sales Module Main Page
+ * ════════════════════════════════════════════════════════════════
+ *
+ * ⚡ PERFORMANCE PATTERN: "Keep Visited Mounted"
+ *
+ * Tabs are only mounted the FIRST TIME the user visits them.
+ * After that, they stay in the DOM (hidden via CSS) for instant switching.
+ * This eliminates the flicker caused by lazy load + Suspense fallback.
+ *
+ * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import SectionLoader from '@/components/common/SectionLoader';
 import {
     LayoutDashboard,
     Users,
     ShoppingCart,
-    FileText,
     CreditCard,
     BarChart3,
     Settings,
 } from 'lucide-react';
 
-// Lazy load components
-const SalesDashboard = lazy(() => import('./pages/SalesDashboard'));
-const CustomersList = lazy(() => import('./pages/CustomersList'));
-const SalesInvoicesList = lazy(() => import('./pages/SalesInvoicesList'));
-const SalesCycleList = lazy(() => import('./pages/SalesCycleList'));
-const SalesPaymentsList = lazy(() => import('./pages/SalesPaymentsList'));
-// Reports and Settings
-const SalesReports = lazy(() => import('./pages/SalesReportsPage'));
-const SalesSettings = lazy(() => import('./pages/SalesWorkflowSettings'));
+// Direct imports (no lazy loading) for instant switching
+import SalesDashboard from './pages/SalesDashboard';
+import CustomersList from './pages/CustomersList';
+import SalesCycleList from './pages/SalesCycleList';
+import SalesPaymentsList from './pages/SalesPaymentsList';
+import SalesReports from './pages/SalesReportsPage';
+import SalesSettings from './pages/SalesWorkflowSettings';
 
-
-// Loading component
-const TabContentLoader = () => (
-    <SectionLoader variant="dashboard" showTabs={false} />
-);
+// Tab configuration type
+interface TabConfig {
+    id: string;
+    labelKey: string;
+    icon: React.ComponentType<{ className?: string }>;
+    component: React.ComponentType;
+}
 
 export default function SalesPage() {
     const { t } = useLanguage();
@@ -40,7 +47,7 @@ export default function SalesPage() {
     const navigate = useNavigate();
 
     // Determine active tab from route
-    const getActiveTab = () => {
+    const getActiveTab = useCallback(() => {
         const path = location.pathname;
         if (path.includes('/sales')) {
             if (path.includes('/customers')) return 'customers';
@@ -52,86 +59,122 @@ export default function SalesPage() {
             return 'dashboard';
         }
         return 'dashboard';
-    };
+    }, [location.pathname]);
 
-    const [activeTab, setActiveTab] = useState(getActiveTab());
+    const [activeTab, setActiveTab] = useState(getActiveTab);
+
+    // ⚡ PERFORMANCE: Track which tabs have been visited
+    // Only visited tabs get mounted — prevents unnecessary queries
+    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
 
     // Update active tab when location changes
     useEffect(() => {
-        setActiveTab(getActiveTab());
-    }, [location.pathname]);
+        const newTab = getActiveTab();
+        setActiveTab(newTab);
+        setVisitedTabs(prev => {
+            if (prev.has(newTab)) return prev;
+            return new Set(prev).add(newTab);
+        });
+    }, [getActiveTab]);
 
-    const tabs = [
+    // Tab configuration
+    const tabs: TabConfig[] = useMemo(() => [
         {
             id: 'dashboard',
             labelKey: 'sales.dashboard',
             icon: LayoutDashboard,
+            component: SalesDashboard,
         },
         {
             id: 'customers',
             labelKey: 'sales.customers',
             icon: Users,
+            component: CustomersList,
         },
         {
             id: 'cycle',
             labelKey: 'sales.cycle',
             icon: ShoppingCart,
+            component: SalesCycleList,
         },
         {
             id: 'payments',
-            labelKey: 'sales.payments', // Or sales.receipts
+            labelKey: 'sales.payments',
             icon: CreditCard,
+            component: SalesPaymentsList,
         },
         {
             id: 'reports',
             labelKey: 'sales.reports',
             icon: BarChart3,
+            component: SalesReports,
         },
         {
             id: 'settings',
             labelKey: 'sales.settings',
             icon: Settings,
+            component: SalesSettings,
         },
-    ];
+    ], []);
 
-    const handleTabChange = (tabId: string) => {
-        setActiveTab(tabId);
-        // Add navigation to enable deep linking
-        const path = tabId === 'dashboard' ? '/sales' : `/sales/${tabId}`;
-        navigate(path);
-    };
-
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'dashboard':
-                return <SalesDashboard />;
-            case 'customers':
-                return <CustomersList />;
-            case 'cycle':
-                return <SalesCycleList />;
-            case 'payments':
-                return <SalesPaymentsList />;
-            case 'reports':
-                return <SalesReports />;
-            case 'settings':
-                return <SalesSettings />;
-            default:
-                return <SalesDashboard />;
+    // Handle tab change
+    const handleTabChange = useCallback((tabId: string) => {
+        if (tabId !== activeTab) {
+            setActiveTab(tabId);
+            setVisitedTabs(prev => {
+                if (prev.has(tabId)) return prev;
+                return new Set(prev).add(tabId);
+            });
+            const path = tabId === 'dashboard' ? '/sales' : `/sales/${tabId}`;
+            navigate(path, { replace: true });
         }
-    };
+    }, [activeTab, navigate]);
+
+    // Tabs data for MainTabsBar
+    const tabsForBar = useMemo(() =>
+        tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })) as { id: string; labelKey: string; icon?: any }[],
+        [tabs]
+    );
 
     return (
         <div className="space-y-6">
             <MainTabsBar
-                tabs={tabs}
+                tabs={tabsForBar}
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
                 variant="underline"
             />
 
-            <Suspense fallback={<TabContentLoader />}>
-                {renderContent()}
-            </Suspense>
+            {/* 
+                ⚡ PERFORMANCE: Keep Visited Mounted Pattern
+                Only tabs that have been visited are rendered.
+                After first visit, they stay in DOM for instant switching.
+            */}
+            <div className="relative">
+                {tabs.map((tab) => {
+                    const TabComponent = tab.component;
+                    const isActive = activeTab === tab.id;
+                    const wasVisited = visitedTabs.has(tab.id);
+
+                    if (!wasVisited) return null;
+
+                    return (
+                        <div
+                            key={tab.id}
+                            role="tabpanel"
+                            aria-labelledby={`tab-${tab.id}`}
+                            aria-hidden={!isActive}
+                            className={isActive ? 'block' : 'hidden'}
+                            style={{
+                                contain: isActive ? 'none' : 'strict',
+                                contentVisibility: isActive ? 'visible' : 'hidden',
+                            }}
+                        >
+                            <TabComponent />
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

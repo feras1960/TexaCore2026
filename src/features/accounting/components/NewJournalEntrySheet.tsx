@@ -120,7 +120,8 @@ export default function NewJournalEntrySheet({
     const handlePost = async () => {
         try {
             if (!entryId) return;
-            const { data: { user } } = await (await import('@/lib/supabase')).supabase.auth.getUser();
+            const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession();
+            const user = session?.user;
             if (!user) {
                 toast.error('User not found');
                 return;

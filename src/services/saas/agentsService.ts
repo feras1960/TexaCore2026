@@ -77,7 +77,8 @@ class AgentsService {
 
     // Check if user is super admin - they see all agents
     // 🛡️ SECURITY: استدعاء الدالة الآمنة بدلاً من قراءة user_metadata
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     let isSuperAdmin = false;
     if (user) {
       const { data: superAdminCheck } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
@@ -193,7 +194,8 @@ class AgentsService {
    * Approve agent
    */
   async approve(agentId: string, freePlanCode: string = 'professional'): Promise<Agent> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       throw new Error('User not authenticated');
     }

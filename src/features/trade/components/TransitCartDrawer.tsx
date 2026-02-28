@@ -161,7 +161,8 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
         setIsSubmitting(true);
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             const reservationNumber = await generateReservationNumber();
 
             // Create one reservation per cart item → container_reservations (unified)

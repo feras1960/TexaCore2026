@@ -54,79 +54,101 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session - use both getSession and getUser for reliability
+    // Get initial session - FAST path: use getSession (reads localStorage)
+    // then verify with getUser in background
     const initializeAuth = async () => {
-      // Skip if component unmounted
       if (!mounted) return;
 
       try {
-        // 🚀 PERFORMANCE: Run session + user verification in parallel instead of sequential
-        const [sessionResult, userResult] = await Promise.all([
-          getSession(),
-          getCurrentUser(),
-        ]);
-
-        const { session: storedSession, error: sessionError } = sessionResult;
-        const { user: currentUser, error: userError } = userResult;
-
-        // Skip if unmounted during async operation
+        // 🚀 FAST: getSession() reads from localStorage (instant)
+        const { session: storedSession, error: sessionError } = await getSession();
+        
         if (!mounted) return;
 
-        // Only log session errors if there's actually a session issue (not just missing session or connection error)
+        // If we have a stored session, use it IMMEDIATELY to unblock the UI
+        if (storedSession?.user) {
+          // Build authUser from session data (no network call needed)
+          const sessionUser = storedSession.user;
+          const authUser: AuthUser = {
+            id: sessionUser.id,
+            email: sessionUser.email || '',
+            tenant_id: sessionUser.user_metadata?.tenant_id || sessionUser.app_metadata?.tenant_id || null,
+            company_id: sessionUser.user_metadata?.company_id || sessionUser.app_metadata?.company_id || null,
+            is_super_admin: sessionUser.user_metadata?.is_super_admin || false,
+            user_metadata: sessionUser.user_metadata || {},
+          };
+
+          // Set state IMMEDIATELY — unblocks useCompany and all downstream hooks
+          setState({
+            session: storedSession,
+            user: sessionUser,
+            authUser,
+            loading: false,
+            error: null,
+          });
+
+          // 🔄 BACKGROUND: Verify user and enrich metadata (non-blocking)
+          setTimeout(async () => {
+            if (!mounted) return;
+            try {
+              const updatedAuthUser = await getCurrentUserWithMetadata();
+              if (updatedAuthUser && mounted) {
+                setState(prev => ({
+                  ...prev,
+                  authUser: updatedAuthUser,
+                }));
+              }
+            } catch {
+              // Ignore — cached values are sufficient
+            }
+          }, 100);
+
+          return;
+        }
+
+        // No stored session — try getCurrentUser as fallback
+        const { user: currentUser, error: userError } = await getCurrentUser();
+        if (!mounted) return;
+
         if (sessionError && !isConnectionError(sessionError) && sessionError.message !== 'Auth session missing!') {
           console.error('Session error:', sessionError);
         }
-
-        // Only log user errors if user is expected but missing (not just no user logged in or connection error)
-        if (userError && !isConnectionError(userError) && storedSession && userError.message !== 'Auth session missing!') {
+        if (userError && !isConnectionError(userError) && userError.message !== 'Auth session missing!') {
           console.error('User verification error:', userError);
         }
 
-        // If we have a session but no user (or vice versa), try to refresh
+        // Try session refresh if needed
         if (storedSession && !currentUser && mounted) {
-          // Try to refresh the session
           try {
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession(storedSession);
             if (!refreshError && refreshData.session && mounted) {
               setState({
                 session: refreshData.session,
                 user: refreshData.session.user,
-                authUser: null, // Will be populated later
+                authUser: null,
                 loading: false,
                 error: null,
               });
               return;
             }
           } catch {
-            // Ignore refresh errors - just continue
+            // Ignore refresh errors
           }
         }
 
-        // Skip if unmounted during async operation
         if (!mounted) return;
 
-        // Get extended user with metadata
-        let authUser = null;
-        if (currentUser || storedSession?.user) {
-          try {
-            authUser = await getCurrentUserWithMetadata();
-          } catch (metadataErr) {
-            // Ignore metadata fetch errors silently
-          }
-        }
-
+        // No session at all — set as unauthenticated
         if (mounted) {
           setState({
             session: storedSession || null,
             user: currentUser || storedSession?.user || null,
-            authUser: authUser,
+            authUser: null,
             loading: false,
-            // Don't show connection/timeout errors during initial load - user can still try to login
             error: shouldShowErrorToUser(sessionError?.message) || shouldShowErrorToUser(userError?.message) || null,
           });
         }
       } catch (err: any) {
-        // Silently ignore AbortError and connection errors
         if (isConnectionError(err)) {
           if (mounted) {
             setState(prev => ({
@@ -138,7 +160,6 @@ export function useAuth() {
           return;
         }
 
-        // Log errors except "Auth session missing"
         const errorMessage = err?.message || '';
         if (!errorMessage.includes('Auth session missing')) {
           console.error('Auth initialization error:', err);
@@ -146,7 +167,6 @@ export function useAuth() {
 
         if (mounted) {
           const displayError = shouldShowErrorToUser(err?.message);
-
           setState(prev => ({
             ...prev,
             loading: false,

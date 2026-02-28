@@ -7,8 +7,10 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { Account, accountsService } from "@/services/accountsService";
+import { Account } from "@/services/accountsService";
 import { useLanguage } from "@/app/providers/LanguageProvider";
+import { getAccountsAsync, getCachedAccounts, getCompanyIdFromCache } from "@/components/ui/InlineAccountCell";
+import { useCompany } from "@/hooks/useCompany";
 
 interface SmartAccountSelectorProps {
     value?: string;
@@ -19,9 +21,7 @@ interface SmartAccountSelectorProps {
     error?: boolean;
     type?: 'all' | 'fund' | 'customer' | 'vendor' | string;
     disabled?: boolean;
-    /** إظهار المجموعات أيضاً — افتراضياً false = حسابات تفصيلية فقط */
     showGroups?: boolean;
-    /** فلترة بالكود — مثال: '58' لإظهار حسابات 58xx فقط، أو ['58','211'] لعدة أكواد */
     filterByCodePrefix?: string | string[];
 }
 
@@ -37,32 +37,40 @@ export function SmartAccountSelector({
     filterByCodePrefix,
 }: SmartAccountSelectorProps) {
     const { t, language } = useLanguage();
+    const { companyId: hookCompanyId } = useCompany();
+    // Resolve companyId: prop → hook → localStorage cache (instant, no network)
+    const resolvedCompanyId = companyId || hookCompanyId || getCompanyIdFromCache();
+
     const [open, setOpen] = useState(false);
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [loading, setLoading] = useState(false);
+    // Initialize from global cache if already loaded (instant on re-mount)
+    const [accounts, setAccounts] = useState<Account[]>(getCachedAccounts() || []);
+    const [loading, setLoading] = useState(!getCachedAccounts());
     const [selectedAccount, setSelectedAccount] = useState<Account | undefined>(undefined);
     const [inputValue, setInputValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
 
-    // Initial Load
+    // Load from shared cache — no duplicate API calls
     useEffect(() => {
-        if (!companyId) return;
+        if (!resolvedCompanyId) return;
 
-        const loadAccounts = async () => {
-            setLoading(true);
-            try {
-                const data = await accountsService.getAll(companyId);
-                setAccounts(data || []);
-            } catch (err) {
-                console.error("Failed to load accounts", err);
-            } finally {
-                setLoading(false);
-            }
-        };
+        // Already cached? Use instantly
+        const cached = getCachedAccounts();
+        if (cached && cached.length > 0) {
+            setAccounts(cached);
+            setLoading(false);
+            return;
+        }
 
-        loadAccounts();
-    }, [companyId]);
+        // Wait for shared loading promise (from auto-preload)
+        setLoading(true);
+        getAccountsAsync(resolvedCompanyId).then(data => {
+            setAccounts(data || []);
+            setLoading(false);
+        }).catch(() => {
+            setLoading(false);
+        });
+    }, [resolvedCompanyId]);
 
     // Update selected object when value changes
     useEffect(() => {
@@ -170,7 +178,6 @@ export function SmartAccountSelector({
                         WebkitOverflowScrolling: 'touch',
                     }}
                     onWheel={(e) => {
-                        // منع Radix من اعتراض حدث السكرول
                         e.stopPropagation();
                     }}
                 >

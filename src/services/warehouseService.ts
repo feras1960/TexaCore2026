@@ -1557,7 +1557,8 @@ export const warehouseService = {
             }
 
             // Get user
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
 
             // Create reversal entry
             const reversalNumber = `REV-${origEntry.entry_number}`;

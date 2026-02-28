@@ -165,9 +165,17 @@ export default function SystemConfigPage() {
 
     const [activeTab, setActiveTab] = useState(getActiveTab);
 
+    // ⚡ PERFORMANCE: Only mount tabs when first visited
+    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
+
     // Sync tab with URL changes
     useEffect(() => {
-        setActiveTab(getActiveTab());
+        const newTab = getActiveTab();
+        setActiveTab(newTab);
+        setVisitedTabs(prev => {
+            if (prev.has(newTab)) return prev;
+            return new Set(prev).add(newTab);
+        });
     }, [getActiveTab]);
 
     // ─── Filter tabs by role ─────────────────────────────────────
@@ -187,6 +195,10 @@ export default function SystemConfigPage() {
     const handleTabChange = useCallback((tabId: string) => {
         if (tabId !== activeTab) {
             setActiveTab(tabId);
+            setVisitedTabs(prev => {
+                if (prev.has(tabId)) return prev;
+                return new Set(prev).add(tabId);
+            });
             const path = tabId === 'company'
                 ? '/system-config'
                 : `/system-config/${tabId}`;
@@ -232,15 +244,16 @@ export default function SystemConfigPage() {
             />
 
             {/* 
-              ⚡ PERFORMANCE: Keep All Mounted Pattern
-              All tab panels are rendered once and kept in DOM.
-              CSS visibility controls which panel is shown.
-              This matches Accounting, Warehouse, Sales modules.
+              ⚡ PERFORMANCE: Keep Visited Mounted Pattern
+              Only tabs visited at least once are rendered.
             */}
             <div className="relative">
                 {visibleTabs.map((tab) => {
                     const TabComponent = tab.component;
                     const isActive = activeTab === tab.id;
+                    const wasVisited = visitedTabs.has(tab.id);
+
+                    if (!wasVisited) return null;
 
                     return (
                         <div

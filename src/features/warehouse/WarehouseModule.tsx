@@ -3,14 +3,16 @@
  * 🏭 Warehouse Module Main Page
  * ════════════════════════════════════════════════════════════════
  * 
- * ⚡ PERFORMANCE PATTERN: "Keep All Mounted"
+ * ⚡ PERFORMANCE PATTERN: "Keep Visited Mounted"
  * 
- * Instead of lazy loading and unmounting tabs on switch, we:
- * 1. Render ALL tab content once on mount
- * 2. Use CSS (display: none) to hide inactive tabs
- * 3. Result: INSTANT tab switching with ZERO flicker
+ * Tabs are only mounted the FIRST TIME the user visits them.
+ * After that, they stay in the DOM (hidden via CSS) for instant switching.
+ * This means:
+ *   - Opening /warehouse → only Dashboard mounts (4 queries)
+ *   - Switching to Materials → Materials mounts + Dashboard stays
+ *   - Switching back to Dashboard → INSTANT (already mounted)
  * 
- * This matches the Accounting module's smooth experience.
+ * Before this fix: all 11 tabs mounted at once → ~26 queries!
  * 
  * ════════════════════════════════════════════════════════════════
  */
@@ -88,9 +90,18 @@ export default function WarehouseModule() {
 
     const [activeTab, setActiveTab] = useState(getActiveTab);
 
+    // ⚡ PERFORMANCE: Track which tabs have been visited
+    // Only visited tabs get mounted — prevents ~26 queries on initial load
+    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
+
     // Update active tab when location changes
     useEffect(() => {
-        setActiveTab(getActiveTab());
+        const newTab = getActiveTab();
+        setActiveTab(newTab);
+        setVisitedTabs(prev => {
+            if (prev.has(newTab)) return prev;
+            return new Set(prev).add(newTab);
+        });
     }, [getActiveTab]);
 
     // Tab configuration - memoized to prevent re-renders
@@ -168,6 +179,11 @@ export default function WarehouseModule() {
     const handleTabChange = useCallback((tabId: string) => {
         if (tabId !== activeTab) {
             setActiveTab(tabId);
+            // Mark as visited so it mounts
+            setVisitedTabs(prev => {
+                if (prev.has(tabId)) return prev;
+                return new Set(prev).add(tabId);
+            });
             // Navigate to the correct URL so refresh preserves state
             const path = tabId === 'dashboard' ? '/warehouse' : `/warehouse/${tabId}`;
             navigate(path, { replace: true });
@@ -176,7 +192,7 @@ export default function WarehouseModule() {
 
     // Tabs data for MainTabsBar (without component property)
     const tabsForBar = useMemo(() =>
-        tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })),
+        tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })) as { id: string; labelKey: string; icon?: any }[],
         [tabs]
     );
 
@@ -191,16 +207,20 @@ export default function WarehouseModule() {
             />
 
             {/* 
-        ⚡ PERFORMANCE: Keep All Mounted Pattern
+        ⚡ PERFORMANCE: Keep Visited Mounted Pattern
         
-        All tab panels are rendered once and kept in DOM.
-        We use CSS to control visibility instead of conditional rendering.
-        This eliminates the flicker caused by mounting/unmounting.
+        Only tabs that have been visited at least once are rendered.
+        After first visit, they stay in DOM (hidden via CSS) for instant switching.
+        This prevents ~26 queries from firing on initial page load.
       */}
             <div className="relative">
                 {tabs.map((tab) => {
                     const TabComponent = tab.component;
                     const isActive = activeTab === tab.id;
+                    const wasVisited = visitedTabs.has(tab.id);
+
+                    // Only mount the component after the tab has been visited
+                    if (!wasVisited) return null;
 
                     return (
                         <div

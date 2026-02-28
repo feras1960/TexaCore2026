@@ -30,7 +30,7 @@ export interface Company {
   zakat_calculation_method?: string;
   zakat_rate?: number;
   inventory_valuation_method: string;
-  chart_type?: string; // نوع شجرة الحسابات: simple, extended, fabric_extended
+  chart_type?: string; // نوع شجرة الحسابات: simple, extended
   status?: 'active' | 'suspended' | 'deleted';
   created_at: string;
   updated_at: string;

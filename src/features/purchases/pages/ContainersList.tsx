@@ -265,6 +265,7 @@ export default function ContainersList() {
             }) as ContainerRow[];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── Fetch linked invoice counts per container ───────────────
@@ -291,6 +292,7 @@ export default function ContainersList() {
             return counts;
         },
         enabled: !!companyId,
+        staleTime: 60_000,
     });
 
     // ─── Fetch total tax per container (from actual posted expenses) ───
@@ -311,6 +313,7 @@ export default function ContainersList() {
             return map;
         },
         enabled: !!companyId,
+        staleTime: 60_000,
     });
 
     // ─── Status Counts ───────────────────────────────────────────

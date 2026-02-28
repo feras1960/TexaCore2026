@@ -42,7 +42,8 @@ export async function getTablePreferences(tableKey: string): Promise<TablePrefer
         }
 
         // 2. Try Supabase in background (don't block rendering)
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
 
         if (user) {
             const { data, error } = await supabase
@@ -88,7 +89,8 @@ export async function saveTablePreferences(
     preferences: Partial<TablePreferences>
 ): Promise<boolean> {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
 
         if (!user) {
             // Save to localStorage only if not authenticated
@@ -165,7 +167,8 @@ export async function resetTablePreferences(tableKey: string): Promise<boolean> 
     try {
         localStorage.removeItem(CACHE_PREFIX + tableKey);
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
 
         if (user) {
             const { error } = await supabase

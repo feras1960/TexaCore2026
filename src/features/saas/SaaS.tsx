@@ -1,9 +1,15 @@
 /**
- * SaaS Management Module Main Page
- * Main page with tabs for all SaaS management features
+ * ════════════════════════════════════════════════════════════════
+ * 🏢 SaaS Management Module Main Page
+ * ════════════════════════════════════════════════════════════════
+ *
+ * ⚡ PERFORMANCE PATTERN: "Keep Visited Mounted"
+ * Only visited tabs get mounted. After first visit, they stay in DOM.
+ *
+ * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -16,21 +22,16 @@ import {
   Building2,
   CreditCard,
   Settings,
-  FileText,
   BarChart3,
   UserCog,
   Globe,
   Ticket,
-  Bell,
   Gift,
-  Share2,
-  Webhook,
-  TrendingUp,
   Crown,
   Boxes
 } from 'lucide-react';
 
-// Import components
+// Direct imports for instant switching
 import Agents from './Agents';
 import Subscribers from './Subscribers';
 import { Companies } from './Companies';
@@ -44,19 +45,25 @@ import Reports from './Reports';
 import SaaSSettings from './Settings';
 import Modules from './Modules';
 
+interface TabConfig {
+    id: string;
+    labelKey: string;
+    icon: React.ComponentType<{ className?: string }>;
+    component: React.ComponentType;
+}
+
 export default function SaaS() {
   const { t, language } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const { isSuperAdmin, loading: authLoading } = useAuth();
 
-  // Determine active tab from route
-  const getActiveTab = () => {
+  const getActiveTab = useCallback(() => {
     const path = location.pathname;
     if (path.startsWith('/saas')) {
       if (path === '/saas' || path === '/saas/') return 'dashboard';
       if (path.includes('/subscribers')) return 'subscribers';
-      if (path.includes('/companies')) return 'companies'; // New Tab
+      if (path.includes('/companies')) return 'companies';
       if (path.includes('/packages')) return 'packages';
       if (path.includes('/modules')) return 'modules';
       if (path.includes('/agents')) return 'agents';
@@ -69,122 +76,52 @@ export default function SaaS() {
       return 'dashboard';
     }
     return 'dashboard';
-  };
-
-  const [activeTab, setActiveTab] = useState(getActiveTab());
-
-  // Update active tab when location changes
-  useEffect(() => {
-    setActiveTab(getActiveTab());
   }, [location.pathname]);
 
-  // Tabs configuration
-  const tabs = [
-    {
-      id: 'dashboard',
-      labelKey: 'saas.dashboard.label',
-      icon: LayoutDashboard,
-    },
-    {
-      id: 'subscribers',
-      labelKey: 'saas.subscribers',
-      icon: Building2,
-    },
-    {
-      id: 'companies',
-      labelKey: 'saas.companies', // Need to add translation key
-      icon: Building2,
-    },
-    {
-      id: 'packages',
-      labelKey: 'saas.packages',
-      icon: Package,
-    },
-    {
-      id: 'modules',
-      labelKey: 'saas.modules', // Need to add translation key
-      icon: Boxes,
-    },
-    {
-      id: 'agents',
-      labelKey: 'saas.agents',
-      icon: UserCog,
-    },
-    {
-      id: 'white-label',
-      labelKey: 'saas.whiteLabel',
-      icon: Globe,
-    },
-    {
-      id: 'payments',
-      labelKey: 'saas.payments',
-      icon: CreditCard,
-    },
-    {
-      id: 'support',
-      labelKey: 'saas.support',
-      icon: Ticket,
-    },
-    {
-      id: 'marketing',
-      labelKey: 'saas.marketing',
-      icon: Gift,
-    },
-    {
-      id: 'reports',
-      labelKey: 'saas.reports',
-      icon: BarChart3,
-    },
-    {
-      id: 'settings',
-      labelKey: 'saas.settings',
-      icon: Settings,
-    },
-  ];
+  const [activeTab, setActiveTab] = useState(getActiveTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
 
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    // Navigate to route
-    if (tabId === 'dashboard') {
-      navigate('/saas');
-    } else {
-      navigate(`/saas/${tabId}`);
+  useEffect(() => {
+    const newTab = getActiveTab();
+    setActiveTab(newTab);
+    setVisitedTabs(prev => {
+      if (prev.has(newTab)) return prev;
+      return new Set(prev).add(newTab);
+    });
+  }, [getActiveTab]);
+
+  const tabs: TabConfig[] = useMemo(() => [
+    { id: 'dashboard', labelKey: 'saas.dashboard.label', icon: LayoutDashboard, component: SaaSDashboard },
+    { id: 'subscribers', labelKey: 'saas.subscribers', icon: Building2, component: Subscribers },
+    { id: 'companies', labelKey: 'saas.companies', icon: Building2, component: Companies },
+    { id: 'packages', labelKey: 'saas.packages', icon: Package, component: Packages },
+    { id: 'modules', labelKey: 'saas.modules', icon: Boxes, component: Modules },
+    { id: 'agents', labelKey: 'saas.agents', icon: UserCog, component: Agents },
+    { id: 'white-label', labelKey: 'saas.whiteLabel', icon: Globe, component: WhiteLabel },
+    { id: 'payments', labelKey: 'saas.payments', icon: CreditCard, component: Payments },
+    { id: 'support', labelKey: 'saas.support', icon: Ticket, component: Support },
+    { id: 'marketing', labelKey: 'saas.marketing', icon: Gift, component: Marketing },
+    { id: 'reports', labelKey: 'saas.reports', icon: BarChart3, component: Reports },
+    { id: 'settings', labelKey: 'saas.settings', icon: Settings, component: SaaSSettings },
+  ], []);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    if (tabId !== activeTab) {
+      setActiveTab(tabId);
+      setVisitedTabs(prev => {
+        if (prev.has(tabId)) return prev;
+        return new Set(prev).add(tabId);
+      });
+      const path = tabId === 'dashboard' ? '/saas' : `/saas/${tabId}`;
+      navigate(path, { replace: true });
     }
-  };
+  }, [activeTab, navigate]);
 
-  // Render content based on active tab
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <SaaSDashboard />;
-      case 'subscribers':
-        return <Subscribers />;
-      case 'companies':
-        return <Companies />;
-      case 'packages':
-        return <Packages />;
-      case 'modules':
-        return <Modules />;
-      case 'agents':
-        return <Agents />;
-      case 'white-label':
-        return <WhiteLabel />;
-      case 'payments':
-        return <Payments />;
-      case 'support':
-        return <Support />;
-      case 'marketing':
-        return <Marketing />;
-      case 'reports':
-        return <Reports />;
-      case 'settings':
-        return <SaaSSettings />;
-      default:
-        return <SaaSDashboard />;
-    }
-  };
+  const tabsForBar = useMemo(() =>
+    tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })) as { id: string; labelKey: string; icon?: any }[],
+    [tabs]
+  );
 
-  // Show loading state
   if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -194,7 +131,6 @@ export default function SaaS() {
     );
   }
 
-  // Check Super Admin permission
   if (!isSuperAdmin) {
     return (
       <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -209,10 +145,7 @@ export default function SaaS() {
             ? 'عذراً، لا تمتلك صلاحيات المدير العام للوصول إلى إدارة النظام. يرجى التواصل مع الإدارة.'
             : 'Sorry, you do not have Super Admin permissions to access the SaaS management section. Please contact administration.'}
         </p>
-        <Button
-          className="mt-6 bg-erp-navy hover:bg-erp-navy/90"
-          onClick={() => navigate('/')}
-        >
+        <Button className="mt-6 bg-erp-navy hover:bg-erp-navy/90" onClick={() => navigate('/')}>
           {language === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
         </Button>
       </div>
@@ -221,16 +154,37 @@ export default function SaaS() {
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
       <MainTabsBar
-        tabs={tabs}
+        tabs={tabsForBar}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         variant="underline"
       />
 
-      {/* Content */}
-      {renderContent()}
+      <div className="relative">
+        {tabs.map((tab) => {
+          const TabComponent = tab.component;
+          const isActive = activeTab === tab.id;
+          const wasVisited = visitedTabs.has(tab.id);
+
+          if (!wasVisited) return null;
+
+          return (
+            <div
+              key={tab.id}
+              role="tabpanel"
+              aria-hidden={!isActive}
+              className={isActive ? 'block' : 'hidden'}
+              style={{
+                contain: isActive ? 'none' : 'strict',
+                contentVisibility: isActive ? 'visible' : 'hidden',
+              }}
+            >
+              <TabComponent />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

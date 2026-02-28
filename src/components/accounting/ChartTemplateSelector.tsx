@@ -110,8 +110,6 @@ export function ChartTemplateSelector({
 
   const getTemplateIcon = (chartType: string) => {
     switch (chartType) {
-      case 'fabric_extended':
-        return FileText;
       case 'extended':
         return Database;
       default:
@@ -142,7 +140,7 @@ export function ChartTemplateSelector({
         <div className="py-4">
           {loading ? (
             <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => (
+              {[1, 2].map((i) => (
                 <Skeleton key={i} className="h-24 w-full" />
               ))}
             </div>

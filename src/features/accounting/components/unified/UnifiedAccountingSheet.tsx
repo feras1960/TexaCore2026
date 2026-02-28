@@ -18,8 +18,18 @@ import { Sheet, SheetContent, SheetHeader as UiSheetHeader, SheetTitle, SheetDes
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Loader2, Anchor, Ship, ExternalLink } from 'lucide-react';
+import { Loader2, Anchor, Ship, ExternalLink, AlertTriangle, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 
 // Import components
 import { SheetHeader } from './components/SheetHeader';
@@ -148,6 +158,9 @@ export function UnifiedAccountingSheet({
     const [confirmValidation, setConfirmValidation] = useState<ValidationResult | null>(null);
     const [confirmSettings, setConfirmSettings] = useState<WorkflowSettings | null>(null);
     const [confirmNeedsApproval, setConfirmNeedsApproval] = useState(false);
+
+    // ═══ Unsaved Changes Guard ═══
+    const [showUnsavedGuard, setShowUnsavedGuard] = useState(false);
 
     // Is this a trade document type?
     const isTradeDocType = useMemo(() =>
@@ -654,14 +667,50 @@ export function UnifiedAccountingSheet({
         stats: config.stats,
     });
 
+    // ═══ Close with Unsaved Changes Guard ═══
+    const handleCloseAttempt = useCallback(() => {
+        // Only guard if there are unsaved changes and we're in edit/create mode
+        const isEditing = mode === 'edit' || mode === 'create';
+        if (isEditing && hasChanges) {
+            setShowUnsavedGuard(true);
+            return;
+        }
+        onClose();
+    }, [mode, hasChanges, onClose]);
+
+    const handleDiscardAndClose = useCallback(() => {
+        setShowUnsavedGuard(false);
+        setHasChanges(false);
+        onClose();
+    }, [onClose]);
+
+    const handleSaveAsDraft = useCallback(async () => {
+        setShowUnsavedGuard(false);
+        try {
+            if (isAccountingDocType) {
+                await handleAction('save');
+            } else if (isTradeDocType) {
+                await handleAction('save');
+            }
+            toast.success(
+                language === 'ar' ? '✅ تم الحفظ كمسودة' : '✅ Saved as draft'
+            );
+            onClose();
+        } catch (err) {
+            toast.error(
+                language === 'ar' ? '❌ فشل الحفظ' : '❌ Save failed'
+            );
+        }
+    }, [isAccountingDocType, isTradeDocType, handleAction, language, onClose]);
+
     return (
         <>
-            <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <Sheet open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
                 <SheetContent
                     className={cn(
                         docType === 'materialGroup'
                             ? "!w-[38vw] !max-w-[38vw] p-0 flex flex-col h-full"
-                            : "!w-[60vw] !max-w-[60vw] p-0 flex flex-col h-full",
+                            : "!w-[70vw] !max-w-[70vw] p-0 flex flex-col h-full",
                         "bg-gray-50 dark:bg-gray-900"
                     )}
                     side={isRTL ? 'left' : 'right'}
@@ -899,7 +948,7 @@ export function UnifiedAccountingSheet({
 
                                     {/* Close Button — Compact */}
                                     <button
-                                        onClick={onClose}
+                                        onClick={handleCloseAttempt}
                                         className="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0"
                                     >
                                         <span className="text-sm text-gray-600 dark:text-gray-300">✕</span>
@@ -1031,19 +1080,34 @@ export function UnifiedAccountingSheet({
                                     mode={mode}
                                     variant="default"
                                 >
-                                    <ScrollArea className="flex-1 h-full">
-                                        <div className="p-4">
+                                    {/* Entry/Form tabs manage their own scroll — no ScrollArea wrapper */}
+                                    {(activeTab === 'entry' || activeTab === 'form') ? (
+                                        <div className="flex-1 h-full overflow-hidden">
                                             {visibleTabs.map((tab) => (
                                                 <TabsContent
                                                     key={tab.id}
                                                     value={tab.id}
-                                                    className="m-0 outline-none"
+                                                    className="m-0 outline-none h-full"
                                                 >
                                                     {activeTab === tab.id && renderTabContent(tab.id)}
                                                 </TabsContent>
                                             ))}
                                         </div>
-                                    </ScrollArea>
+                                    ) : (
+                                        <ScrollArea className="flex-1 h-full">
+                                            <div className="p-4">
+                                                {visibleTabs.map((tab) => (
+                                                    <TabsContent
+                                                        key={tab.id}
+                                                        value={tab.id}
+                                                        className="m-0 outline-none"
+                                                    >
+                                                        {activeTab === tab.id && renderTabContent(tab.id)}
+                                                    </TabsContent>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    )}
                                 </SheetTabs>
                             )}
                         </div>
@@ -1108,7 +1172,8 @@ export function UnifiedAccountingSheet({
 
                     const confDocType = resolveConfDocType(docType, tradeMode);
 
-                    const { data: { user } } = await supabase.auth.getUser();
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const user = session?.user;
                     if (!user) return;
 
                     const result = await confirmationService.confirmDocument(
@@ -1139,7 +1204,8 @@ export function UnifiedAccountingSheet({
 
                     const confDocType = resolveConfDocType(docType, tradeMode);
 
-                    const { data: { user } } = await supabase.auth.getUser();
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const user = session?.user;
                     if (!user) return;
 
                     const result = await confirmationService.requestApproval(
@@ -1172,6 +1238,58 @@ export function UnifiedAccountingSheet({
                 loading={loading}
                 needsApproval={confirmNeedsApproval}
             />
+
+            {/* ═══ Unsaved Changes Guard Dialog ═══ */}
+            <AlertDialog open={showUnsavedGuard} onOpenChange={setShowUnsavedGuard}>
+                <AlertDialogContent className="max-w-md" dir={isRTL ? 'rtl' : 'ltr'}>
+                    <AlertDialogHeader>
+                        <div className="flex items-center gap-3 mb-1">
+                            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <div>
+                                <AlertDialogTitle className="text-base font-bold font-tajawal">
+                                    {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved Changes'}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                    {language === 'ar'
+                                        ? 'لديك تغييرات لم يتم حفظها. ماذا تريد أن تفعل؟'
+                                        : 'You have unsaved changes. What would you like to do?'}
+                                </AlertDialogDescription>
+                            </div>
+                        </div>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex gap-2 sm:gap-2 mt-4">
+                        {/* Discard */}
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleDiscardAndClose}
+                            className="gap-1.5"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            {language === 'ar' ? 'تجاهل والخروج' : 'Discard & Close'}
+                        </Button>
+
+                        {/* Save as Draft */}
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={handleSaveAsDraft}
+                            className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+                        >
+                            <Save className="w-3.5 h-3.5" />
+                            {language === 'ar' ? 'حفظ كمسودة' : 'Save as Draft'}
+                        </Button>
+
+                        {/* Cancel (stay) */}
+                        <AlertDialogCancel className="gap-1.5 mt-0">
+                            <X className="w-3.5 h-3.5" />
+                            {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                        </AlertDialogCancel>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }

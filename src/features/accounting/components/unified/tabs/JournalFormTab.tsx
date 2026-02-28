@@ -26,7 +26,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
+
 import { Badge } from '@/components/ui/badge';
 import {
     Popover,
@@ -485,7 +485,7 @@ export function JournalFormTab({
         cols.push({
             accessorKey: 'account_id',
             header: language === 'ar' ? 'الحساب' : 'Account',
-            size: 180,
+            size: 200,
             enableHiding: false,
             cell: ({ row }) => renderAccountCell(row.original),
         });
@@ -537,12 +537,12 @@ export function JournalFormTab({
             {
                 accessorKey: 'description',
                 header: language === 'ar' ? 'البيان' : 'Description',
-                size: 300,
+                size: 220,
             },
             {
                 accessorKey: 'cost_center_id',
                 header: language === 'ar' ? 'م.التكلفة' : 'Cost Center',
-                size: 100,
+                size: 80,
                 cell: ({ row }) => {
                     const name = row.original.cost_center_name;
                     return name ? <span className="text-sm">{name}</span> : <span className="text-muted-foreground text-xs">—</span>;
@@ -551,7 +551,7 @@ export function JournalFormTab({
             {
                 accessorKey: 'currency',
                 header: language === 'ar' ? 'العملة' : 'Curr',
-                size: 60,
+                size: 55,
                 cell: ({ row }) => {
                     const curr = row.original.currency || companyCurrency;
                     return <span className="font-mono text-xs font-medium">{curr}</span>;
@@ -560,7 +560,7 @@ export function JournalFormTab({
             {
                 accessorKey: 'exchange_rate',
                 header: language === 'ar' ? 'سعر الصرف' : 'Rate',
-                size: 70,
+                size: 60,
                 cell: ({ row }) => {
                     const rate = row.original.exchange_rate ?? 1;
                     return (
@@ -573,7 +573,7 @@ export function JournalFormTab({
             {
                 id: 'base_equivalent',
                 header: language === 'ar' ? `المعادل (${companyCurrency})` : `Equiv (${companyCurrency})`,
-                size: 100,
+                size: 85,
                 cell: ({ row }) => {
                     const rate = row.original.exchange_rate ?? 1;
                     const amount = row.original.debit || row.original.credit || 0;
@@ -720,49 +720,135 @@ export function JournalFormTab({
     // ═══════════════════════════════════════
 
     return (
-        <div className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col h-full overflow-hidden">
 
-            {/* ─── 1. Dashboard Cards ─── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {/* Status */}
-                <Card className={cn("p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm", getStatusColor(status))}>
-                    <div className="flex items-center gap-1.5">
+            {/* ─── 1. Compact Header Bar ─── */}
+            <div className="shrink-0 px-4 py-2.5 bg-gradient-to-b from-white to-gray-50/80 dark:from-gray-800 dark:to-gray-850 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-3 flex-wrap">
+                    {/* Status Badge */}
+                    <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", getStatusColor(status))}>
                         {getStatusIcon(status)}
-                        <span className="font-bold text-sm capitalize">{status}</span>
+                        <span className="capitalize">{status}</span>
                     </div>
-                    <span className="text-[10px] opacity-70">{t('accounting.entryStatus') || 'الحالة'}</span>
-                </Card>
 
-                {/* Line Count */}
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm bg-white dark:bg-gray-800">
-                    <div className="flex items-center gap-1.5 text-blue-600">
-                        <FileText className="w-4 h-4" />
-                        <span className="font-bold text-sm">{lineCount}</span>
+                    <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
+
+                    {/* Voucher Number */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{t('accounting.voucherNumber') || '#'}</span>
+                        {isReadOnly ? (
+                            <span className="font-mono text-sm font-bold text-gray-800 dark:text-gray-200">{voucherNo || '—'}</span>
+                        ) : (
+                            <Input
+                                value={voucherNo}
+                                onChange={(e) => setVoucherNo(e.target.value)}
+                                className="font-mono text-center w-24 h-7 text-xs bg-gray-50/50 border-dashed focus:border-solid"
+                                placeholder="Auto"
+                            />
+                        )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{t('accounting.lines') || 'البنود'}</span>
-                </Card>
 
-                {/* Total Debit */}
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm bg-white dark:bg-gray-800">
-                    <span className="font-bold text-sm text-green-600 font-mono">
-                        {totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">{t('accounting.debit') || 'مدين'}</span>
-                </Card>
+                    <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
 
-                {/* Total Credit */}
-                <Card className="p-3 flex flex-col items-center justify-center gap-1.5 border shadow-sm bg-white dark:bg-gray-800">
-                    <span className="font-bold text-sm text-red-600 font-mono">
-                        {totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">{t('accounting.credit') || 'دائن'}</span>
-                </Card>
+                    {/* Date */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{t('accounting.entry.date') || 'التاريخ'}</span>
+                        <Popover>
+                            <PopoverTrigger asChild disabled={isReadOnly}>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "justify-start text-left font-normal h-7 text-xs bg-gray-50/30 px-2.5",
+                                        !entryDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-1.5 h-3 w-3 opacity-50" />
+                                    {entryDate
+                                        ? format(entryDate, "dd/MM/yyyy")
+                                        : <span>{t('common.selectDate') || 'اختر'}</span>
+                                    }
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={entryDate}
+                                    onSelect={(d) => d && setEntryDate(d)}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
+
+                    {/* Reference */}
+                    <div className="flex items-center gap-1.5 flex-1 min-w-[120px] max-w-[250px]">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider shrink-0">{t('accounting.entry.reference') || 'مرجع'}</span>
+                        <Input
+                            value={reference}
+                            onChange={(e) => setReference(e.target.value)}
+                            placeholder={isRTL ? "فاتورة، شيك..." : "Invoice, check..."}
+                            readOnly={isReadOnly}
+                            className="bg-gray-50/30 h-7 text-xs flex-1"
+                        />
+                    </div>
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Live Balance Summary */}
+                    <div className="flex items-center gap-3 text-xs font-mono">
+                        <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground">{t('accounting.debit') || 'م'}</span>
+                            <span className="font-bold text-green-600">{totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground">{t('accounting.credit') || 'د'}</span>
+                            <span className="font-bold text-red-600">{totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        {!isBalanced && !isReadOnly ? (
+                            <Badge variant="destructive" className="animate-pulse text-[10px] h-5 px-1.5">
+                                {Math.abs(totals.debit - totals.credit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </Badge>
+                        ) : lineCount > 0 ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] h-5 px-1.5">✓</Badge>
+                        ) : null}
+                    </div>
+
+                    {/* Draft Status */}
+                    {!isReadOnly && draftStatus !== 'idle' && (
+                        <Badge
+                            variant="outline"
+                            className={cn(
+                                "text-[10px] gap-1 h-5",
+                                draftStatus === 'saved' && "bg-blue-50 text-blue-600 border-blue-200",
+                                draftStatus === 'restored' && "bg-amber-50 text-amber-600 border-amber-200",
+                            )}
+                        >
+                            {draftStatus === 'saved' && <><Save className="w-2.5 h-2.5" /> {isRTL ? 'مسودة' : 'Draft'}</>}
+                            {draftStatus === 'restored' && <><RotateCcw className="w-2.5 h-2.5" /> {isRTL ? 'استعادة' : 'Restored'}</>}
+                        </Badge>
+                    )}
+                </div>
+
+                {/* Description Row (compact) */}
+                <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider shrink-0">{t('accounting.entry.description') || 'البيان'}</span>
+                    <Input
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder={isRTL ? 'بيان القيد...' : 'Entry description...'}
+                        readOnly={isReadOnly}
+                        className={cn("bg-transparent h-7 text-xs border-dashed border-gray-200 dark:border-gray-700 focus:border-solid flex-1", description ? "font-medium" : "")}
+                    />
+                </div>
             </div>
 
             {/* ─── 2. Voucher Type Selector (Create mode only) ─── */}
             {isCreate && (
-                <div className="flex justify-center w-full mb-6">
-                    <div className="flex items-center p-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm w-full max-w-4xl">
+                <div className="shrink-0 px-4 py-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
+                    <div className="flex items-center p-0.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm w-full max-w-4xl mx-auto">
                         {availableVoucherTypes.map((type) => {
                             const Icon = type.icon;
                             const isSelected = voucherType === type.value;
@@ -771,13 +857,13 @@ export function JournalFormTab({
                                     key={type.value}
                                     onClick={() => setVoucherType(type.value)}
                                     className={cn(
-                                        "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                                        "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors",
                                         isSelected
                                             ? cn("shadow-sm ring-1 ring-black/5", type.color)
                                             : "text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                                     )}
                                 >
-                                    <Icon className={cn("w-3.5 h-3.5", isSelected ? "opacity-100" : "opacity-70")} />
+                                    <Icon className={cn("w-3 h-3", isSelected ? "opacity-100" : "opacity-70")} />
                                     <span>{isRTL ? type.labelAr : type.labelEn}</span>
                                 </button>
                             );
@@ -786,126 +872,40 @@ export function JournalFormTab({
                 </div>
             )}
 
-            {/* ─── 3. Header Fields ─── */}
-            <div className="grid grid-cols-12 gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                {/* Voucher Number */}
-                <div className="col-span-12 md:col-span-3">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.voucherNumber') || 'رقم القيد'}
-                    </Label>
-                    {isReadOnly ? (
-                        <div className="font-mono text-sm font-bold bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-md border text-center">
-                            {voucherNo || 'تلقائي'}
-                        </div>
-                    ) : (
-                        <Input
-                            value={voucherNo}
-                            onChange={(e) => setVoucherNo(e.target.value)}
-                            className="font-mono text-center bg-gray-50/50 border-dashed focus:border-solid"
-                            placeholder="Auto"
-                        />
-                    )}
-                </div>
-
-                {/* Date */}
-                <div className="col-span-12 md:col-span-3">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.entry.date') || 'التاريخ'}
-                    </Label>
-                    <Popover>
-                        <PopoverTrigger asChild disabled={isReadOnly}>
-                            <Button
-                                variant="outline"
-                                className={cn(
-                                    "w-full justify-start text-left font-normal h-9 bg-gray-50/30",
-                                    !entryDate && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
-                                {entryDate
-                                    ? format(entryDate, "PPP", { locale: language === 'ar' ? ar : undefined })
-                                    : <span>{t('common.selectDate') || 'اختر التاريخ'}</span>
-                                }
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                            <Calendar
-                                mode="single"
-                                selected={entryDate}
-                                onSelect={(d) => d && setEntryDate(d)}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
-                </div>
-
-                {/* Dynamic: Fund Account for Receipt/Payment/Cash */}
-                {(voucherType === 'receipt' || voucherType === 'payment' || voucherType === 'cash') && (
-                    <div className="col-span-12 md:col-span-6 animate-in fade-in zoom-in-95 duration-200">
-                        <Label className="text-xs text-muted-foreground mb-1 block flex items-center gap-1">
+            {/* ─── 3. Fund Account (Receipt/Payment/Cash) ─── */}
+            {(voucherType === 'receipt' || voucherType === 'payment' || voucherType === 'cash') && (
+                <div className="shrink-0 px-4 py-2 border-b border-yellow-100 dark:border-yellow-900/30 bg-yellow-50/30 dark:bg-yellow-950/10">
+                    <div className="flex items-center gap-3">
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                             {voucherType === 'receipt'
-                                ? <><ArrowDownRight className="w-3 h-3 text-green-500" /> {t('accounting.receipt.fund') || 'إيداع في (الصندوق/البنك)'}</>
+                                ? <><ArrowDownRight className="w-3 h-3 text-green-500" /> {t('accounting.receipt.fund') || 'إيداع في'}</>
                                 : voucherType === 'payment'
-                                    ? <><ArrowUpRight className="w-3 h-3 text-red-500" /> {t('accounting.payment.fund') || 'الصرف من (الصندوق/البنك)'}</>
-                                    : <><ArrowRightLeft className="w-3 h-3 text-blue-500" /> {t('accounting.cash.fund') || 'الصندوق/البنك المسؤول'}</>
+                                    ? <><ArrowUpRight className="w-3 h-3 text-red-500" /> {t('accounting.payment.fund') || 'الصرف من'}</>
+                                    : <><ArrowRightLeft className="w-3 h-3 text-blue-500" /> {t('accounting.cash.fund') || 'الصندوق'}</>
                             }
                         </Label>
                         {!isReadOnly ? (
-                            <SmartAccountSelector
-                                value={headerAccountId}
-                                onChange={(id) => setHeaderAccountId(id)}
-                                placeholder="اختر حساب الصندوق أو البنك..."
-                                className="bg-yellow-50/50 border-yellow-200 focus:ring-yellow-200"
-                            />
-                        ) : (
-                            <div className="h-9 border rounded-md px-3 flex items-center bg-gray-50 text-sm">
-                                {headerAccountId || '—'}
+                            <div className="flex-1 max-w-md">
+                                <SmartAccountSelector
+                                    value={headerAccountId}
+                                    onChange={(id) => setHeaderAccountId(id)}
+                                    placeholder={isRTL ? "اختر حساب الصندوق أو البنك..." : "Select fund account..."}
+                                    className="bg-yellow-50/50 border-yellow-200 focus:ring-yellow-200 h-8 text-xs"
+                                />
                             </div>
+                        ) : (
+                            <span className="text-sm font-medium">{headerAccountId || '—'}</span>
                         )}
                     </div>
-                )}
-
-                {/* Reference */}
-                <div className={cn(
-                    "col-span-12",
-                    (voucherType === 'receipt' || voucherType === 'payment' || voucherType === 'cash') ? "md:col-span-3" : "md:col-span-6"
-                )}>
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.entry.reference') || 'المرجع'}
-                    </Label>
-                    <Input
-                        value={reference}
-                        onChange={(e) => setReference(e.target.value)}
-                        placeholder="رقم الفاتورة، شيك..."
-                        readOnly={isReadOnly}
-                        className="bg-gray-50/30 h-9"
-                    />
                 </div>
+            )}
 
-                {/* Description */}
-                <div className="col-span-12">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                        {t('accounting.entry.description') || 'البيان'}
-                    </Label>
-                    <Input
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder={t('accounting.entry.description') || 'البيان'}
-                        readOnly={isReadOnly}
-                        className={cn("bg-gray-50/30 h-9", description ? "font-medium" : "")}
-                    />
-                </div>
-            </div>
-
-            {/* ─── 4. NexaDataTable Grid ─── */}
+            {/* ─── 4. NexaDataTable Grid (fills remaining space) ─── */}
             <div
-                className="border rounded-xl shadow-sm bg-white dark:bg-gray-800 overflow-hidden"
+                className="flex-1 min-h-0"
                 onKeyDown={(e) => {
-                    // Ctrl+S / Cmd+S → trigger parent save
                     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                         e.preventDefault();
-                        // The save is handled by UnifiedAccountingSheet's ActionToolbar
-                        // We just prevent the browser's default save dialog
                     }
                 }}
             >
@@ -919,7 +919,7 @@ export function JournalFormTab({
                     // Excel Mode - no pagination, scrollable
                     enableExcelMode={true}
                     enablePagination={false}
-                    maxHeight="400px"
+                    maxHeight="100%"
 
                     // Totals Footer
                     showTotalsFooter={true}
@@ -930,7 +930,7 @@ export function JournalFormTab({
                     // Sequence Number
                     enableSequenceNumber={true}
 
-                    // Edit Mode - Instant edit for create/edit, no internal save buttons
+                    // Edit Mode
                     enableEditMode={!isReadOnly}
                     enableInstantEdit={!isReadOnly}
                     editableColumns={editableColumns}
@@ -945,10 +945,10 @@ export function JournalFormTab({
                     cleanEmptyRowsOnSave={true}
                     canDeleteRows={!isReadOnly}
 
-                    // Accounting Balance Shortcut (* + Enter, double-click)
+                    // Accounting Balance Shortcut
                     enableBalanceShortcut={true}
 
-                    // Keyboard Help Panel (shows shortcuts: =, *, Ctrl+D, etc.)
+                    // Keyboard Help Panel
                     showKeyboardHelp={!isReadOnly}
 
                     // Search & Export (view mode only)
@@ -960,49 +960,9 @@ export function JournalFormTab({
                 />
             </div>
 
-            {/* ─── 5. Balance Status + Draft Indicator ─── */}
-            <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-4 text-sm font-mono">
-                    <span className="text-green-600 font-bold">
-                        {t('accounting.debit') || 'مدين'}: {totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-gray-400">/</span>
-                    <span className="text-red-600 font-bold">
-                        {t('accounting.credit') || 'دائن'}: {totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                </div>
-                <div className="flex items-center gap-2">
-                    {/* Draft Status Indicator */}
-                    {!isReadOnly && draftStatus !== 'idle' && (
-                        <Badge
-                            variant="outline"
-                            className={cn(
-                                "text-[10px] gap-1 transition-all duration-300",
-                                draftStatus === 'saved' && "bg-blue-50 text-blue-600 border-blue-200",
-                                draftStatus === 'restored' && "bg-amber-50 text-amber-600 border-amber-200",
-                            )}
-                        >
-                            {draftStatus === 'saved' && <><Save className="w-3 h-3" /> {isRTL ? 'مسودة محفوظة' : 'Draft saved'}</>}
-                            {draftStatus === 'restored' && <><RotateCcw className="w-3 h-3" /> {isRTL ? 'تم الاستعادة' : 'Restored'}</>}
-                        </Badge>
-                    )}
-
-                    {/* Balance Status */}
-                    {!isBalanced && !isReadOnly ? (
-                        <Badge variant="destructive" className="animate-pulse text-xs">
-                            {t('accounting.notBalanced') || 'غير متوازن'}: {Math.abs(totals.debit - totals.credit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </Badge>
-                    ) : lineCount > 0 ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
-                            ✓ {t('accounting.balanced') || 'متوازن'}
-                        </Badge>
-                    ) : null}
-                </div>
-            </div>
-
-            {/* ─── 6. Meta Info (View Mode) ─── */}
+            {/* ─── 5. Meta Info (View Mode) ─── */}
             {isReadOnly && metaData.created_at && (
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground px-2 pt-2 border-t">
+                <div className="shrink-0 flex items-center justify-between text-[10px] text-muted-foreground px-4 py-1.5 border-t bg-gray-50/50 dark:bg-gray-900/50">
                     <span>{t('common.createdAt') || 'تاريخ الإنشاء'}: {format(new Date(metaData.created_at), 'dd/MM/yyyy HH:mm')}</span>
                     {metaData.created_by_user?.name && (
                         <span>{t('common.by') || 'بواسطة'}: {metaData.created_by_user.name}</span>

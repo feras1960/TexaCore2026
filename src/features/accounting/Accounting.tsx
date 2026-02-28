@@ -20,6 +20,8 @@ import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
+import { preloadAccounts } from '@/components/ui/InlineAccountCell';
 import {
   LayoutDashboard,
   BookOpen,
@@ -59,6 +61,12 @@ export default function Accounting() {
   const { t: _t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
+  const { companyId } = useCompany();
+
+  // ═══ Preload accounts as soon as accounting module opens ═══
+  useEffect(() => {
+    if (companyId) preloadAccounts(companyId);
+  }, [companyId]);
 
   // Determine active tab from route
   const getActiveTab = useCallback(() => {

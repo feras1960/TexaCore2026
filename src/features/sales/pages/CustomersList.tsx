@@ -117,6 +117,7 @@ export default function CustomersList() {
             })) as Customer[];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── Fetch Sales Stats per Customer ────────────────────────

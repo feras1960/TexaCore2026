@@ -11,7 +11,7 @@ export interface ChartTemplate {
   template_code: string;
   template_name_ar: string;
   template_name_en?: string;
-  chart_type: 'simple' | 'extended' | 'fabric_extended';
+  chart_type: 'simple' | 'extended';
   include_demo_data: boolean;
   is_active: boolean;
   description_ar?: string;

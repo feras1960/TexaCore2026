@@ -30,40 +30,50 @@ export const notificationService = {
         limit?: number;
         unreadOnly?: boolean;
     }): Promise<Notification[]> {
-        const limit = options?.limit ?? 50;
+        try {
+            const limit = options?.limit ?? 50;
 
-        let query = supabase
-            .from('notifications')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(limit);
+            let query = supabase
+                .from('notifications')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
 
-        if (options?.unreadOnly) {
-            query = query.eq('is_read', false);
-        }
+            if (options?.unreadOnly) {
+                query = query.eq('is_read', false);
+            }
 
-        const { data, error } = await query;
-        if (error) {
-            console.error('[notificationService] getAll error:', error);
+            const { data, error } = await query;
+            if (error) {
+                console.warn('[notificationService] getAll error:', error);
+                return [];
+            }
+            return (data || []) as Notification[];
+        } catch (e) {
+            console.warn('[notificationService] getAll fetch exception:', e);
             return [];
         }
-        return (data || []) as Notification[];
     },
 
     /**
      * Get unread count for the current user
      */
     async getUnreadCount(): Promise<number> {
-        const { count, error } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_read', false);
+        try {
+            const { count, error } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('is_read', false);
 
-        if (error) {
-            console.error('[notificationService] getUnreadCount error:', error);
+            if (error) {
+                console.warn('[notificationService] getUnreadCount error:', error);
+                return 0;
+            }
+            return count ?? 0;
+        } catch (e) {
+            console.warn('[notificationService] getUnreadCount fetch exception:', e);
             return 0;
         }
-        return count ?? 0;
     },
 
     /**

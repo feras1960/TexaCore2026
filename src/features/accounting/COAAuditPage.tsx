@@ -201,7 +201,7 @@ export function COAAuditPage() {
                 <Info className="h-4 w-4" />
                 <AlertDescription>
                     <strong>ملاحظة:</strong> هذا التدقيق يعرض بيانات الشركة النشطة حالياً ({results.companyStats?.name_ar || '...'}).
-                    لمعاينة القوالب المتاحة (simple, extended, fabric_extended) قبل تطبيقها، اضغط على زر "معاينة" بجانب كل قالب.
+                    لمعاينة القوالب المتاحة (simple, extended) قبل تطبيقها، اضغط على زر "معاينة" بجانب كل قالب.
                 </AlertDescription>
             </Alert>
 
