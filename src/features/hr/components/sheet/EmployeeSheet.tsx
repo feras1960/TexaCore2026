@@ -433,13 +433,13 @@ export default function EmployeeSheet({
                                                 <EmpLedgerTab data={data} isRTL={isRTL} />
                                             </TabsContent>
                                             <TabsContent value="performance" className="mt-0 focus-visible:outline-none">
-                                                <EmpPerformanceTab employeeId={data.id} data={data} isRTL={isRTL} />
+                                                <EmpPerformanceTab employeeId={data.id} data={data} isRTL={isRTL} mode={mode} />
                                             </TabsContent>
                                             <TabsContent value="contracts" className="mt-0 focus-visible:outline-none">
                                                 <EmpContractsDocsTab employeeId={data.id} isRTL={isRTL} mode={mode} />
                                             </TabsContent>
                                             <TabsContent value="leaves" className="mt-0 focus-visible:outline-none">
-                                                <EmpLeavesTab employeeId={data.id} isRTL={isRTL} />
+                                                <EmpLeavesTab employeeId={data.id} isRTL={isRTL} mode={mode} />
                                             </TabsContent>
                                             <TabsContent value="attachments" className="mt-0 focus-visible:outline-none">
                                                 <DocumentAttachmentsTab data={data} mode={mode} docType="employee" onChange={handleChange} />

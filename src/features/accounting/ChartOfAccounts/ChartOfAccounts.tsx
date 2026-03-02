@@ -26,11 +26,20 @@ import {
   Download,
   Filter,
   X,
-  Globe
+  Globe,
+  Eye,
+  EyeOff,
+  Lock,
+  Shield,
+  TrendingUp,
+  TrendingDown,
+  Scale,
 } from 'lucide-react';
 import { AddAccountSheet } from './AddAccountSheet';
 import { AccountTreeView } from './AccountTreeView';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
+import { SummaryAccountSheet } from '@/features/accounting/components/summary/SummaryAccountSheet';
+import type { SummaryAccountData } from '@/features/accounting/components/summary/SummaryAccountSheet';
 import { ImportWizard } from '@/features/import';
 import { ChartTemplateSelector } from '@/components/accounting/ChartTemplateSelector';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -43,6 +52,11 @@ import type { Account, CreateAccountInput, SupportedLanguage } from '@/services/
 import { getAccountName } from '@/services/accountsService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useRBAC } from '@/hooks/useRBAC';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 interface AccountTreeNode extends Account {
   children?: AccountTreeNode[];
@@ -52,6 +66,8 @@ type ViewMode = 'tree' | 'table';
 
 export function ChartOfAccounts() {
   const { t, language, direction } = useLanguage();
+  const { isTenantOwner, hasAnyRole } = useRBAC();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParent, setSelectedParent] = useState<Account | null>(null);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -86,6 +102,10 @@ export function ChartOfAccounts() {
   // Chart template selector state
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
+  // Summary Account Sheet state
+  const [summarySheetOpen, setSummarySheetOpen] = useState(false);
+  const [summarySheetData, setSummarySheetData] = useState<SummaryAccountData | null>(null);
+
   // ═══ Helper: resolve account_type_id from parent hierarchy ═══
   const resolveAccountTypeFromParent = useCallback((parentId: string): string | null => {
     const parent = accounts.find(a => a.id === parentId);
@@ -107,7 +127,23 @@ export function ChartOfAccounts() {
   };
 
   const handleAccountClick = (account: Account) => {
-    // فتح popup لكل أنواع الحسابات (المجموعات والتفصيلية)
+    // اعتراض: إذا كان حساب ملخص → فتح SummaryAccountSheet
+    if ((account as any).is_summary_account) {
+      setSummarySheetData({
+        id: account.id,
+        account_code: account.code || account.account_code || '',
+        name_ar: account.name_ar || '',
+        name_en: account.name_en || '',
+        summary_party_type: (account as any).summary_party_type || 'employee',
+        parent_id: account.parent_id || '',
+        current_balance: account.current_balance || 0,
+        company_id: (account as any).company_id || companyId || '',
+        tenant_id: (account as any).tenant_id || '',
+      });
+      setSummarySheetOpen(true);
+      return;
+    }
+    // فتح popup عادي
     setSelectedAccountForDetails(account);
     setIsAccountDetailsOpen(true);
   };
@@ -214,8 +250,119 @@ export function ChartOfAccounts() {
   // Calculate stats
   const totalAccounts = accounts.length;
   const activeAccounts = accounts.filter((a) => a.is_active).length;
-  const totalBalance = accounts.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
   const groupsCount = accounts.filter((a) => a.is_group).length;
+
+  // ═══ Financial Stats (by account_code prefix) ═══
+  // SUM accounts (e.g. 1131-SUM, 2111-SUM) carry aggregated party balances,
+  // so financialStats using `accounts` (without party) is correct.
+  const financialStats = useMemo(() => {
+    // Helper: get root code prefix (first digit of account_code)
+    const getRootCode = (account: Account): string => {
+      const code = account.code || (account as any).account_code || '';
+      return code.charAt(0);
+    };
+
+    // Only leaf accounts (non-group) to avoid double-counting
+    const leafAccounts = accounts.filter(a => !a.is_group);
+
+    // DB stores Net (Dr-Cr):
+    //   Assets/Expenses = positive (debit-normal)
+    //   Liabilities/Equity/Revenue = negative (credit-normal)
+    const totalAssets = leafAccounts
+      .filter(a => getRootCode(a) === '1')
+      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+
+    const totalLiabilities = leafAccounts
+      .filter(a => getRootCode(a) === '2')
+      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+    // totalLiabilities is NEGATIVE in DB (e.g. -31,227.88)
+
+    const totalEquity = leafAccounts
+      .filter(a => getRootCode(a) === '3')
+      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+
+    const totalRevenue = leafAccounts
+      .filter(a => getRootCode(a) === '4')
+      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+    // totalRevenue is NEGATIVE in DB (e.g. -8,557.58)
+
+    const totalExpenses = leafAccounts
+      .filter(a => getRootCode(a) === '5')
+      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+
+    // Net profit = |Revenue| - Expenses  (Revenue is negative in DB, so negate it)
+    // e.g. -(-8,557.58) - 2,357.12 = 6,200.46
+    const netProfit = -totalRevenue - totalExpenses;
+
+    // Trial Balance: Since DB stores Net(Dr-Cr), the sum of ALL should = 0
+    // Assets(+) + Expenses(+) + Liabilities(-) + Equity(-) + Revenue(-) = 0
+    const totalAll = totalAssets + totalExpenses + totalLiabilities + totalEquity + totalRevenue;
+    const balanceDiff = Math.abs(totalAll);
+    const isBalanced = balanceDiff < 0.02; // tolerance for rounding
+
+    // For display: Debit side = Assets + Expenses, Credit side = |Liabilities + Equity + Revenue|
+    const debitSide = totalAssets + totalExpenses;
+    const creditSide = -(totalLiabilities + totalEquity + totalRevenue); // negate to show as positive
+    const liabilitiesAndEquity = totalLiabilities + totalEquity; // negative in DB
+
+    return {
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      totalRevenue,
+      totalExpenses,
+      netProfit,
+      liabilitiesAndEquity,
+      debitSide,
+      creditSide,
+      balanceDiff,
+      isBalanced,
+    };
+  }, [accounts]);
+
+  // ═══ Net Profit Protection: hidden + password ═══
+  const canSeeProfitCard = hasAnyRole(['super_admin', 'tenant_owner', 'company_owner']);
+  const [profitRevealed, setProfitRevealed] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Reset profit visibility when leaving page
+  useEffect(() => {
+    return () => setProfitRevealed(false);
+  }, []);
+
+  const handleProfitCardClick = () => {
+    if (profitRevealed) {
+      setProfitRevealed(false);
+      return;
+    }
+    setPasswordInput('');
+    setPasswordDialogOpen(true);
+  };
+
+  const verifyPasswordAndReveal = async () => {
+    if (!user?.email || !passwordInput) return;
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwordInput,
+      });
+      if (error) {
+        toast.error(language === 'ar' ? 'كلمة السر غير صحيحة' : 'Incorrect password');
+      } else {
+        setProfitRevealed(true);
+        setPasswordDialogOpen(false);
+        toast.success(language === 'ar' ? 'تم التحقق بنجاح' : 'Verified successfully');
+      }
+    } catch {
+      toast.error(language === 'ar' ? 'خطأ في التحقق' : 'Verification error');
+    } finally {
+      setPasswordLoading(false);
+      setPasswordInput('');
+    }
+  };
 
   // Export to CSV
   const generateCSV = () => {
@@ -551,29 +698,239 @@ export function ChartOfAccounts() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats — Financial Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* 1. Total Accounts */}
         <StatCard
           label={t('accounting.totalAccounts')}
           value={totalAccounts}
           icon={BarChart3}
         />
-        <StatCard
-          label={t('accounting.activeAccounts')}
-          value={activeAccounts}
-          icon={CheckCircle2}
-        />
+        {/* 2. Groups */}
         <StatCard
           label={t('accounting.groupsCount')}
           value={groupsCount}
           icon={Folder}
         />
+        {/* 3. Active Accounts */}
         <StatCard
-          label={t('accounting.totalBalance')}
-          value={totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          icon={DollarSign}
+          label={t('accounting.activeAccounts')}
+          value={activeAccounts}
+          icon={CheckCircle2}
         />
+        {/* 4. Total Assets — with tooltip */}
+        <div className="relative group/tip">
+          <StatCard
+            label={language === 'ar' ? 'إجمالي الأصول' : 'Total Assets'}
+            value={financialStats.totalAssets.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            icon={TrendingUp}
+            type="positive"
+            prefix="$"
+          />
+          <div className="absolute top-2 end-2 opacity-0 group-hover/tip:opacity-100 transition-opacity">
+            <div className="relative group/help">
+              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-500 dark:text-gray-300">?</div>
+              <div className="absolute bottom-full mb-2 end-0 w-56 p-2.5 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none">
+                {language === 'ar'
+                  ? 'مجموع أرصدة كل حسابات الأصول (كود 1xx). يشمل: نقد، بنوك، مدينون، مخزون، أصول ثابتة'
+                  : 'Sum of all asset account balances (code 1xx). Includes: cash, banks, receivables, inventory, fixed assets'
+                }
+                <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* 5. Total Liabilities + Equity — with tooltip */}
+        <div className="relative group/tip">
+          <StatCard
+            label={language === 'ar' ? 'الخصوم + حقوق الملكية' : 'Liabilities + Equity'}
+            value={financialStats.liabilitiesAndEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            icon={Scale}
+            type="info"
+            prefix="$"
+          />
+          <div className="absolute top-2 end-2 opacity-0 group-hover/tip:opacity-100 transition-opacity">
+            <div className="relative group/help">
+              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-500 dark:text-gray-300">?</div>
+              <div className="absolute bottom-full mb-2 end-0 w-56 p-2.5 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none">
+                {language === 'ar'
+                  ? 'مجموع الخصوم (كود 2xx) + حقوق الملكية (كود 3xx). يجب أن يتساوى مع الأصول في نظام متوازن'
+                  : 'Sum of liabilities (code 2xx) + equity (code 3xx). Should equal assets in a balanced system'
+                }
+                <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* 6. Balance Check (Trial Balance) — with tooltip */}
+        <div className="relative group/tip">
+          <StatCard
+            label={language === 'ar' ? 'ميزان المراجعة' : 'Trial Balance'}
+            value={financialStats.isBalanced
+              ? (language === 'ar' ? '✅ متوازن' : '✅ Balanced')
+              : `❌ ${language === 'ar' ? 'فرق' : 'Diff'}: ${financialStats.balanceDiff.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+            }
+            icon={Shield}
+            type={financialStats.isBalanced ? 'positive' : 'warning'}
+          />
+          <div className="absolute top-2 end-2 opacity-0 group-hover/tip:opacity-100 transition-opacity">
+            <div className="relative group/help">
+              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-500 dark:text-gray-300">?</div>
+              <div className="absolute bottom-full mb-2 end-0 w-72 p-3 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none">
+                {language === 'ar'
+                  ? `ميزان المراجعة يقارن:\n• الجانب المدين: الأصول + المصروفات = ${financialStats.debitSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• الجانب الدائن: الخصوم + حقوق الملكية + الإيرادات = ${financialStats.creditSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n✅ متوازن = النظام المحاسبي سليم`
+                  : `Trial Balance compares:\n• Debit Side: Assets + Expenses = ${financialStats.debitSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• Credit Side: Liabilities + Equity + Revenue = ${financialStats.creditSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n✅ Balanced = accounting system is correct`
+                }
+                <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Net Profit Card — Owner Only + Password Protected */}
+      {canSeeProfitCard && (
+        <div
+          className={cn(
+            'mt-3 rounded-xl border p-4 cursor-pointer select-none transition-all duration-300 hover:shadow-lg',
+            'bg-gradient-to-r',
+            profitRevealed
+              ? financialStats.netProfit >= 0
+                ? 'from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border-emerald-200 dark:border-emerald-800'
+                : 'from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border-red-200 dark:border-red-800'
+              : 'from-gray-50 to-slate-50 dark:from-gray-800/50 dark:to-slate-800/50 border-gray-200 dark:border-gray-700',
+          )}
+          onClick={handleProfitCardClick}
+          title={language === 'ar' ? 'اضغط لعرض/إخفاء صافي الربح' : 'Click to show/hide net profit'}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                'w-10 h-10 rounded-lg flex items-center justify-center',
+                profitRevealed
+                  ? financialStats.netProfit >= 0
+                    ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                    : 'bg-red-100 dark:bg-red-900/40'
+                  : 'bg-gray-100 dark:bg-gray-700',
+              )}>
+                {profitRevealed ? (
+                  financialStats.netProfit >= 0
+                    ? <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    : <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
+                ) : (
+                  <Lock className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {language === 'ar' ? 'صافي الربح / الخسارة' : 'Net Profit / Loss'}
+                </p>
+                <p className={cn(
+                  'text-2xl font-bold font-cairo transition-all duration-500',
+                  profitRevealed
+                    ? financialStats.netProfit >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-red-600 dark:text-red-400'
+                    : 'text-gray-400 dark:text-gray-500 blur-sm select-none',
+                )}>
+                  {profitRevealed
+                    ? `$ ${Math.abs(financialStats.netProfit).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                    : '$ ••••••••'
+                  }
+                </p>
+                {profitRevealed && (
+                  <p className={cn('text-xs font-medium mt-0.5',
+                    financialStats.netProfit >= 0 ? 'text-emerald-500' : 'text-red-500'
+                  )}>
+                    {financialStats.netProfit >= 0
+                      ? (language === 'ar' ? '↗ ربح' : '↗ Profit')
+                      : (language === 'ar' ? '↘ خسارة' : '↘ Loss')
+                    }
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Help tooltip */}
+              <div className="relative group/help" onClick={(e) => e.stopPropagation()}>
+                <div className="w-5 h-5 rounded-full bg-white/50 dark:bg-gray-600/50 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-400 dark:text-gray-300">?</div>
+                <div className={cn(
+                  "absolute bottom-full mb-2 w-56 p-2.5 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none",
+                  direction === 'rtl' ? 'start-0' : 'end-0'
+                )}>
+                  {language === 'ar'
+                    ? 'صافي الربح = الإيرادات (كود 4xx) - المصروفات (كود 5xx). محمي بكلمة السر ومتاح فقط لصاحب الشركة'
+                    : 'Net Profit = Revenue (4xx) - Expenses (5xx). Password protected, owner access only'
+                  }
+                  <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
+                </div>
+              </div>
+              {profitRevealed ? (
+                <EyeOff className="w-5 h-5 text-gray-400" />
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <Eye className="w-4 h-4" />
+                  <span>{language === 'ar' ? 'اضغط للعرض' : 'Click to reveal'}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Verification Dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]" dir={direction}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-cairo">
+              <Lock className="w-5 h-5 text-erp-primary" />
+              {language === 'ar' ? 'تحقق من الهوية' : 'Identity Verification'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {language === 'ar'
+                ? 'ادخل كلمة سر حسابك لعرض صافي الربح / الخسارة'
+                : 'Enter your account password to reveal net profit / loss'
+              }
+            </p>
+            <div className="space-y-2">
+              <Label>{language === 'ar' ? 'كلمة السر' : 'Password'}</Label>
+              <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); verifyPasswordAndReveal(); }}>
+                {/* Hidden username field to absorb autofill */}
+                <input type="text" name="username" autoComplete="username" className="hidden" tabIndex={-1} aria-hidden="true" />
+                <Input
+                  type="password"
+                  name="profit-verify-password"
+                  autoComplete="current-password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder={language === 'ar' ? 'أدخل كلمة السر' : 'Enter your password'}
+                  onKeyDown={(e) => e.key === 'Enter' && verifyPasswordAndReveal()}
+                  autoFocus
+                />
+              </form>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={verifyPasswordAndReveal}
+              disabled={!passwordInput || passwordLoading}
+              className="gap-2"
+            >
+              {passwordLoading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+              {language === 'ar' ? 'تحقق وعرض' : 'Verify & Reveal'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Search, Filters, and View Controls - في صف واحد */}
       <div className="space-y-3">
@@ -589,6 +946,8 @@ export function ChartOfAccounts() {
               className="ps-9 bg-gray-50 dark:bg-gray-800 border-none text-gray-900 dark:text-gray-100"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              autoComplete="off"
+              name="coa-search"
             />
           </div>
 
@@ -945,6 +1304,18 @@ export function ChartOfAccounts() {
             setIsCreateSheetOpen(true);
           }
         }}
+      />
+
+      {/* ═══ Summary Account Sheet — حسابات ملخصة (موظفين/عملاء/موردين) ═══ */}
+      <SummaryAccountSheet
+        isOpen={summarySheetOpen}
+        onClose={() => {
+          setSummarySheetOpen(false);
+          setSummarySheetData(null);
+        }}
+        data={summarySheetData}
+        companyId={companyId || undefined}
+        onRefresh={refetch}
       />
 
       {/* Import Wizard */}

@@ -983,6 +983,7 @@ export async function finalizeLandedCost(
               reference_type: 'container_close',
               reference_id: containerId,
               status: 'posted',
+              is_posted: true,
               total_debit: containerBalance,
               total_credit: containerBalance,
               created_by: userId,

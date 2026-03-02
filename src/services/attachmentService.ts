@@ -56,7 +56,8 @@ export type AttachmentEntityType =
     | 'purchase_order'
     | 'sales_order'
     | 'quotation'
-    | 'employee';
+    | 'employee'
+    | 'summary_account';
 
 /** تصنيفات المرفقات */
 export type AttachmentCategory =
@@ -123,6 +124,7 @@ export function resolveEntityType(docType: string, tradeMode?: string): Attachme
         'company': 'company',
         'goods_receipt': 'purchase_invoice',
         'employee': 'employee',
+        'summary_account': 'summary_account',
     };
 
     return directMap[docType] || 'container';

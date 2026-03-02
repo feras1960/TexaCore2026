@@ -89,6 +89,8 @@ function TreeNode({
   const isFocused = focusedNodeId === node.id;
 
   // حساب مجموع أرصدة كل الأبناء التفصيلية (recursively)
+  // DB تخزن Net (Dr-Cr) = سالب للخصوم/الإيرادات، موجب للأصول/المصروفات
+  // لا نقلب الإشارة — نعرض كما هو
   const aggregateBalance = useMemo(() => {
     if (!node.is_group || !node.children || node.children.length === 0) {
       return node.current_balance || 0;
@@ -580,6 +582,7 @@ export function AccountTreeView({
     const totalChildren = rightPanelAccounts.length;
     const groupsCount = rightPanelAccounts.filter(a => a.is_group).length;
     const accountsCount = rightPanelAccounts.filter(a => !a.is_group).length;
+    // DB تخزن Net (Dr-Cr) — نجمع مباشرة بدون قلب إشارة
     const totalBalance = rightPanelAccounts.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
     const activeCount = rightPanelAccounts.filter(a => a.is_active).length;
 
@@ -918,7 +921,7 @@ export function AccountTreeView({
                                   : account.account_type || '-'}
                               </TableCell>
                               <TableCell className="font-mono text-gray-900 dark:text-gray-100 text-end">
-                                {account.current_balance.toLocaleString('en-US', {
+                                {(account.current_balance || 0).toLocaleString('en-US', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}

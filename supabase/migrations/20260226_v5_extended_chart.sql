@@ -41,7 +41,10 @@ DECLARE
     v_payable_grp UUID;
     v_logistics_grp UUID;
     v_longterm_liab UUID;
+    v_emp_payable_grp UUID;
     v_equity_id UUID;
+    v_capital_grp UUID;
+    v_partner_current_grp UUID;
     v_revenue_id UUID;
     v_expenses_id UUID;
     v_cogs_grp UUID;
@@ -97,6 +100,9 @@ BEGIN
         (v_tenant_id, p_company_id, '1131', 'ذمم الجملة', 'Wholesale Receivables', v_asset_type, v_recv_grp, true, true, true),
         (v_tenant_id, p_company_id, '1132', 'ذمم التجزئة', 'Retail Receivables', v_asset_type, v_recv_grp, true, true, true),
         (v_tenant_id, p_company_id, '1133', 'أوراق القبض', 'Notes Receivable', v_asset_type, v_recv_grp, true, true, true);
+    -- 📊 حساب ملخص العملاء (ظاهر في الشجرة → يفتح شيت قائمة العملاء)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_summary_account, summary_party_type, is_system)
+    VALUES (v_tenant_id, p_company_id, '1131-SUM', 'إجمالي ذمم العملاء', 'Total Customer Receivables', v_asset_type, v_recv_grp, true, true, true, 'customer', true);
 
     -- المخزون (114)
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
@@ -145,6 +151,9 @@ BEGIN
     VALUES
         (v_tenant_id, p_company_id, '2111', 'دين الموردين - رئيسي', 'Main Suppliers Payable', v_liability_type, v_payable_grp, true, true, true),
         (v_tenant_id, p_company_id, '2112', 'دين الموردين - أخرى', 'Other Suppliers Payable', v_liability_type, v_payable_grp, true, true, true);
+    -- 📊 حساب ملخص الموردين
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_summary_account, summary_party_type, is_system)
+    VALUES (v_tenant_id, p_company_id, '2111-SUM', 'إجمالي ذمم الموردين', 'Total Supplier Payables', v_liability_type, v_payable_grp, true, true, true, 'supplier', true);
 
     -- مقدمو خدمات الشحن والتوريد (212) ← V5 NEW POSITION
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
@@ -163,10 +172,16 @@ BEGIN
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_group, is_detail, is_active)
     VALUES (v_tenant_id, p_company_id, '21261', 'شركة صرافة - عام', 'General Exchange Company', v_liability_type, v_exchange_grp, false, true, true);
 
+    -- مستحقات الموظفين (213) — V5.3: محوّل لمجموعة مع حساب ملخص
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_group)
+    VALUES (v_tenant_id, p_company_id, '213', 'مستحقات الموظفين', 'Employee Payables', v_liability_type, v_current_liab, false, true, true) RETURNING id INTO v_emp_payable_grp;
+    -- 📊 حساب ملخص الموظفين
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active, is_summary_account, summary_party_type, is_system)
+    VALUES (v_tenant_id, p_company_id, '213-SUM', 'مستحقات الموظفين', 'Employee Payables Summary', v_liability_type, v_emp_payable_grp, true, true, true, 'employee', true);
+
     -- باقي الخصوم المتداولة
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
     VALUES
-        (v_tenant_id, p_company_id, '213', 'الرواتب المستحقة', 'Accrued Salaries', v_liability_type, v_current_liab, true, true),
         (v_tenant_id, p_company_id, '214', 'ضريبة القيمة المضافة - مخرجات', 'VAT Output', v_liability_type, v_current_liab, true, true),
         (v_tenant_id, p_company_id, '215', 'الدفعات المقدمة من العملاء', 'Customer Advances', v_liability_type, v_current_liab, true, true),
         (v_tenant_id, p_company_id, '216', 'الضرائب المستحقة', 'Taxes Payable', v_liability_type, v_current_liab, true, true),
@@ -185,13 +200,32 @@ BEGIN
     -- ═══════════════════════════════════════════════════════
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, is_detail, is_active)
     VALUES (v_tenant_id, p_company_id, '3', 'حقوق الملكية', 'Equity', v_equity_type, false, true) RETURNING id INTO v_equity_id;
+
+    -- 31 رأس المال (GROUP → 311 حصص الشركاء + SUM)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '31', 'رأس المال', 'Capital', v_equity_type, v_equity_id, false, true) RETURNING id INTO v_capital_grp;
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '311', 'حصص الشركاء', 'Partners Capital', v_equity_type, v_capital_grp, false, true) RETURNING id INTO v_capital_grp;
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '311-SUM', 'إجمالي حصص الشركاء', 'Total Partners Capital', v_equity_type, v_capital_grp, true, true);
+
+    -- 32-33 حسابات مستقلة
     INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
     VALUES
-        (v_tenant_id, p_company_id, '31', 'رأس المال', 'Capital', v_equity_type, v_equity_id, true, true),
         (v_tenant_id, p_company_id, '32', 'الأرباح المحتجزة', 'Retained Earnings', v_equity_type, v_equity_id, true, true),
-        (v_tenant_id, p_company_id, '33', 'أرباح/خسائر العام', 'Current Year P/L', v_equity_type, v_equity_id, true, true),
-        (v_tenant_id, p_company_id, '34', 'احتياطيات', 'Reserves', v_equity_type, v_equity_id, true, true),
-        (v_tenant_id, p_company_id, '35', 'أرصدة افتتاحية', 'Opening Balance Equity', v_equity_type, v_equity_id, true, true);
+        (v_tenant_id, p_company_id, '33', 'أرباح/خسائر العام', 'Current Year P/L', v_equity_type, v_equity_id, true, true);
+
+    -- 34 جاري الشركاء (GROUP → 341 + SUM)
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '34', 'جاري الشركاء', 'Partners Current Accounts', v_equity_type, v_equity_id, false, true) RETURNING id INTO v_partner_current_grp;
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '341', 'حسابات جارية للشركاء', 'Partners Running Accounts', v_equity_type, v_partner_current_grp, false, true) RETURNING id INTO v_partner_current_grp;
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '341-SUM', 'إجمالي جاري الشركاء', 'Total Partners Current', v_equity_type, v_partner_current_grp, true, true);
+
+    -- 35 أرصدة افتتاحية
+    INSERT INTO chart_of_accounts (tenant_id, company_id, account_code, name_ar, name_en, account_type_id, parent_id, is_detail, is_active)
+    VALUES (v_tenant_id, p_company_id, '35', 'أرصدة افتتاحية', 'Opening Balance Equity', v_equity_type, v_equity_id, true, true);
 
     -- ═══════════════════════════════════════════════════════
     -- 4️⃣ الإيرادات (4)

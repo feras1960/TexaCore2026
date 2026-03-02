@@ -1,0 +1,372 @@
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 📊 SummaryAccountSheet — شيت الحساب الملخص
+ * ════════════════════════════════════════════════════════════════
+ * يُفتح عند الضغط على حساب ملخص (is_summary_account) من الشجرة المحاسبية
+ * يعرض: نظرة عامة / الحسابات / الحركات / النشاط / المرفقات
+ * 
+ * يعمل لجميع الفئات: employee | customer | supplier
+ * يتبع نفس نمط UnifiedAccountingSheet
+ * ════════════════════════════════════════════════════════════════
+ */
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
+import {
+    Sheet, SheetContent,
+    SheetHeader as UiSheetHeader, SheetTitle, SheetDescription,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Loader2, X, Users, UserCheck, Truck, BarChart3 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+
+// Tabs
+import { SummaryOverviewTab } from './tabs/SummaryOverviewTab';
+import { SummaryAccountsTab } from './tabs/SummaryAccountsTab';
+import { SummaryTransactionsTab } from './tabs/SummaryTransactionsTab';
+
+// Shared tabs (same as UnifiedAccountingSheet)
+import { ActivityTab } from '@/features/accounting/components/unified/tabs/ActivityTab';
+import { DocumentAttachmentsTab } from '@/features/trade/components/tabs/DocumentAttachmentsTab';
+import { attachmentService } from '@/services/attachmentService';
+
+// ═══════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════
+
+export interface SummaryAccountData {
+    id: string;
+    account_code: string;
+    name_ar: string;
+    name_en?: string;
+    summary_party_type: 'employee' | 'customer' | 'supplier';
+    parent_id: string;
+    current_balance: number;
+    company_id: string;
+    tenant_id: string;
+}
+
+export interface PartySubAccount {
+    id: string;
+    account_code: string;
+    name_ar: string;
+    name_en?: string;
+    party_id: string;
+    party_type: string;
+    current_balance: number;
+    is_active: boolean;
+    created_at: string;
+    last_activity?: string;
+    total_debit?: number;
+    total_credit?: number;
+    transaction_count?: number;
+}
+
+interface SummaryAccountSheetProps {
+    isOpen: boolean;
+    onClose: () => void;
+    data: SummaryAccountData | null;
+    companyId?: string;
+    onRefresh?: () => void;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Tab Config
+// ═══════════════════════════════════════════════════════════════
+
+type TabId = 'overview' | 'accounts' | 'transactions' | 'activity' | 'attachments';
+
+interface TabConfig {
+    id: TabId;
+    labelKey: string;
+    icon: string;
+}
+
+const TABS: TabConfig[] = [
+    { id: 'overview', labelKey: 'accounting.summarySheet.tabs.overview', icon: '📊' },
+    { id: 'accounts', labelKey: 'accounting.summarySheet.tabs.accounts', icon: '📋' },
+    { id: 'transactions', labelKey: 'accounting.summarySheet.tabs.transactions', icon: '💰' },
+    { id: 'activity', labelKey: 'accounting.summarySheet.tabs.activity', icon: '📝' },
+    { id: 'attachments', labelKey: 'accounting.summarySheet.tabs.attachments', icon: '📎' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════
+
+const getPartyIcon = (type: string) => {
+    switch (type) {
+        case 'employee': return Users;
+        case 'customer': return UserCheck;
+        case 'supplier': return Truck;
+        default: return BarChart3;
+    }
+};
+
+const getPartyColor = (type: string) => {
+    switch (type) {
+        case 'employee': return 'from-indigo-500 to-violet-600';
+        case 'customer': return 'from-emerald-500 to-teal-600';
+        case 'supplier': return 'from-amber-500 to-orange-600';
+        default: return 'from-gray-500 to-gray-600';
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Component
+// ═══════════════════════════════════════════════════════════════
+
+export function SummaryAccountSheet({
+    isOpen,
+    onClose,
+    data,
+    companyId: propCompanyId,
+    onRefresh,
+}: SummaryAccountSheetProps) {
+    const { t, direction, language } = useLanguage();
+    const isRTL = direction === 'rtl';
+    const { companyId: hookCompanyId } = useCompany();
+    const resolvedCompanyId = propCompanyId || hookCompanyId;
+
+    // State
+    const [activeTab, setActiveTab] = useState<TabId>('overview');
+    const [loading, setLoading] = useState(false);
+    const [subAccounts, setSubAccounts] = useState<PartySubAccount[]>([]);
+    const [attachmentCount, setAttachmentCount] = useState(0);
+    const [activityCount, setActivityCount] = useState(0);
+
+    const partyType = data?.summary_party_type || 'employee';
+    const PartyIcon = getPartyIcon(partyType);
+    const partyColor = getPartyColor(partyType);
+
+    // ═══ Fetch sub-accounts for this group ═══
+    const fetchSubAccounts = useCallback(async () => {
+        if (!data?.parent_id) return;
+        setLoading(true);
+        try {
+            const { data: accounts, error } = await supabase
+                .from('chart_of_accounts')
+                .select('*')
+                .eq('parent_id', data.parent_id)
+                .eq('is_party_account', true)
+                .order('account_code');
+
+            if (error) throw error;
+            // DB تخزن Net (Dr-Cr) — الأرصدة سالبة للخصوم وموجبة للأصول
+            // نعرضها كما هي بدون أي تحويل
+            setSubAccounts(accounts || []);
+        } catch (err) {
+            console.error('[SummaryAccountSheet] fetch error:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [data?.parent_id]);
+
+    useEffect(() => {
+        if (isOpen && data) {
+            fetchSubAccounts();
+            setActiveTab('overview');
+            // Fetch attachment count
+            attachmentService.getEntityAttachmentCount('summary_account', data.id)
+                .then(count => setAttachmentCount(count))
+                .catch(() => setAttachmentCount(0));
+        }
+    }, [isOpen, data, fetchSubAccounts]);
+
+    // ═══ Computed stats ═══
+    const stats = useMemo(() => {
+        const total = subAccounts.length;
+        const active = subAccounts.filter(a => a.is_active).length;
+        const totalDebit = subAccounts.reduce((s, a) => s + (a.total_debit || 0), 0);
+        const totalCredit = subAccounts.reduce((s, a) => s + (a.total_credit || 0), 0);
+        const totalBalance = subAccounts.reduce((s, a) => s + (a.current_balance || 0), 0);
+        const maxBalance = subAccounts.length > 0
+            ? Math.max(...subAccounts.map(a => Math.abs(a.current_balance || 0)))
+            : 0;
+
+        return { total, active, totalDebit, totalCredit, totalBalance, maxBalance };
+    }, [subAccounts]);
+
+    // ═══ Title ═══
+    const sheetTitle = useMemo(() => {
+        if (!data) return '';
+        return language === 'ar' ? data.name_ar : (data.name_en || data.name_ar);
+    }, [data, language]);
+
+    return (
+        <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <SheetContent
+                className={cn(
+                    '!w-[70vw] !max-w-[70vw] p-0 flex flex-col h-full',
+                    'bg-gray-50 dark:bg-gray-900',
+                )}
+                side={isRTL ? 'left' : 'right'}
+            >
+                <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
+                    {/* Accessibility */}
+                    <UiSheetHeader className="sr-only">
+                        <SheetTitle>{sheetTitle}</SheetTitle>
+                        <SheetDescription>
+                            {t('accounting.summarySheet.description')}
+                        </SheetDescription>
+                    </UiSheetHeader>
+
+                    {/* Loading */}
+                    {loading && (
+                        <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 z-50 flex items-center justify-center">
+                            <Loader2 className="w-8 h-8 animate-spin text-erp-primary" />
+                        </div>
+                    )}
+
+                    {/* ═══ Header ═══ */}
+                    <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b">
+                        <div className="flex items-center justify-between gap-3">
+                            {/* Left: Icon + Title */}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className={cn(
+                                    'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br text-white',
+                                    partyColor,
+                                )}>
+                                    <PartyIcon className="w-5 h-5" />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-base font-bold text-gray-900 dark:text-white truncate font-cairo">
+                                            {sheetTitle}
+                                        </h2>
+                                        <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                                            {data?.account_code}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-tajawal">
+                                        {t(`accounting.summarySheet.partyType.${partyType}`)}
+                                        {' • '}
+                                        {stats.total} {t('accounting.summarySheet.accountsCount')}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Right: Close */}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={onClose}
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* ═══ Tabs Bar ═══ */}
+                    <div className="border-b bg-white dark:bg-gray-900">
+                        <ScrollArea
+                            className="w-full"
+                            dir={isRTL ? 'rtl' : 'ltr'}
+                        >
+                            <div className={cn(
+                                'flex gap-0 px-2',
+                                isRTL ? '!justify-start' : '',
+                            )}>
+                                {TABS.map((tab) => {
+                                    const badge = tab.id === 'attachments' && attachmentCount > 0
+                                        ? attachmentCount
+                                        : tab.id === 'activity' && activityCount > 0
+                                            ? activityCount
+                                            : 0;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={cn(
+                                                'px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-all border-b-2 relative',
+                                                activeTab === tab.id
+                                                    ? 'border-erp-primary text-erp-primary dark:text-erp-accent font-semibold'
+                                                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
+                                            )}
+                                        >
+                                            <span className="me-1.5">{tab.icon}</span>
+                                            {t(tab.labelKey)}
+                                            {badge > 0 && (
+                                                <span className="ms-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-erp-primary/15 text-erp-primary text-[10px] font-bold">
+                                                    {badge}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </ScrollArea>
+                    </div>
+
+                    {/* ═══ Tab Content — Keep-Mounted Pattern ═══ */}
+                    <ScrollArea className="flex-1">
+                        <div className="p-4">
+                            {/* Overview */}
+                            <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
+                                <SummaryOverviewTab
+                                    data={data}
+                                    subAccounts={subAccounts}
+                                    stats={stats}
+                                    partyType={partyType}
+                                    isRTL={isRTL}
+                                />
+                            </div>
+
+                            {/* Accounts */}
+                            <div className={activeTab === 'accounts' ? 'block' : 'hidden'}>
+                                <SummaryAccountsTab
+                                    subAccounts={subAccounts}
+                                    partyType={partyType}
+                                    isRTL={isRTL}
+                                    companyId={resolvedCompanyId}
+                                />
+                            </div>
+
+                            {/* Transactions */}
+                            <div className={activeTab === 'transactions' ? 'block' : 'hidden'}>
+                                <SummaryTransactionsTab
+                                    subAccounts={subAccounts}
+                                    partyType={partyType}
+                                    isRTL={isRTL}
+                                    parentAccountId={data?.parent_id || ''}
+                                />
+                            </div>
+
+                            {/* Activity — same ActivityTab as UnifiedAccountingSheet */}
+                            <div className={activeTab === 'activity' ? 'block' : 'hidden'}>
+                                {data?.id && (
+                                    <ActivityTab
+                                        documentId={data.id}
+                                        entityType="chart_of_accounts"
+                                    />
+                                )}
+                            </div>
+
+                            {/* Attachments — same DocumentAttachmentsTab as UnifiedAccountingSheet */}
+                            <div className={activeTab === 'attachments' ? 'block' : 'hidden'}>
+                                {data?.id && (
+                                    <DocumentAttachmentsTab
+                                        data={data}
+                                        mode="view"
+                                        docType="summary_account"
+                                        onChange={(updates: any) => {
+                                            if (typeof updates?.attachments_count === 'number') {
+                                                setAttachmentCount(updates.attachments_count);
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </ScrollArea>
+                </div>
+            </SheetContent>
+        </Sheet>
+    );
+}
+
+export default SummaryAccountSheet;

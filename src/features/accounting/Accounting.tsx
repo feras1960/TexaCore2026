@@ -34,6 +34,7 @@ import {
   PieChart,
   RefreshCw,
   Scale,
+  Handshake,
 } from 'lucide-react';
 
 // Direct imports (no lazy loading) for instant switching
@@ -47,6 +48,7 @@ import Parties from './Parties';
 import AccountingSettings from './AccountingSettings';
 import BudgetPage from './BudgetPage';
 import VATSettlement from './VATSettlement';
+import EquityPartnersPage from './EquityPartnersPage';
 const RecurringEntriesPage = lazy(() => import('./RecurringEntriesPage'));
 
 // Tab configuration type
@@ -77,6 +79,7 @@ export default function Accounting() {
       if (path.includes('/general-ledger')) return 'general-ledger';
       if (path.includes('/funds')) return 'funds';
       if (path.includes('/parties')) return 'parties';
+      if (path.includes('/equity-partners')) return 'equity-partners';
       if (path.includes('/budget')) return 'budget';
       if (path.includes('/vat-settlement')) return 'vat-settlement';
       if (path.includes('/recurring')) return 'recurring';
@@ -141,6 +144,12 @@ export default function Accounting() {
       labelKey: 'parties.title',
       icon: Users,
       component: Parties,
+    },
+    {
+      id: 'equity-partners',
+      labelKey: 'accounting.equityPartners',
+      icon: Handshake,
+      component: EquityPartnersPage,
     },
     {
       id: 'budget',

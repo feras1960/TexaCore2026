@@ -1322,6 +1322,7 @@ async function handleAccountingEntry(
                 reference_type: 'goods_receipt',
                 reference_id: receiptId,
                 status: 'posted', // 🔑 Always posted — accountant adjusts entry if needed
+                is_posted: true,
                 total_debit: lines.reduce((s, l) => s + (l.debit || 0), 0),
                 total_credit: lines.reduce((s, l) => s + (l.credit || 0), 0),
                 created_by: currentUserId,

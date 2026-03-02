@@ -12,7 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn, formatNumber } from '@/lib/utils';
-import { Loader2, ExternalLink, CreditCard, ArrowRightLeft, FileText, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Loader2, ExternalLink, CreditCard, ArrowRightLeft, FileText, CheckCircle2, AlertCircle, Clock, Package, Ship, Truck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { ExtendedLedgerEntry } from '../hooks/useLedgerData';
 
@@ -74,6 +74,8 @@ interface InvoiceSummary {
     currency: string;
     stage: string;
     notes?: string;
+    container_id?: string;
+    container_number?: string;
 }
 
 // ═══ Payment Status ═══
@@ -208,6 +210,7 @@ export function PartyLedgerExpandedRow({
                                 currency: pi.currency || currency,
                                 stage: pi.document_stage || pi.status || '',
                                 notes: pi.notes || '',
+                                container_id: pi.container_id || undefined,
                             };
                         } else {
                             // Legacy fallback summary
@@ -224,8 +227,17 @@ export function PartyLedgerExpandedRow({
                                         currency: pt.currency || currency,
                                         stage: pt.stage || '',
                                         notes: pt.notes || '',
+                                        container_id: pt.container_id || undefined,
                                     };
                                 }
+                            } catch { /* ignore */ }
+                        }
+
+                        // Fetch container number if linked
+                        if (summaryData?.container_id) {
+                            try {
+                                const { data: ctn } = await supabase.from('containers').select('container_number').eq('id', summaryData.container_id).maybeSingle();
+                                if (ctn) summaryData.container_number = ctn.container_number;
                             } catch { /* ignore */ }
                         }
                     }
@@ -392,6 +404,37 @@ export function PartyLedgerExpandedRow({
         ? getPaymentStatus(invoiceSummary.total_amount, invoiceSummary.paid_amount)
         : null;
 
+    // Stage labels for display
+    const stageLabelMap: Record<string, { ar: string; en: string; color: string; icon: React.ReactNode }> = {
+        draft: { ar: 'مسودة', en: 'Draft', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: <Clock className="w-3 h-3" /> },
+        confirmed: { ar: 'مؤكدة', en: 'Confirmed', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: <CheckCircle2 className="w-3 h-3" /> },
+        posted: { ar: 'مرحّلة', en: 'Posted', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <CheckCircle2 className="w-3 h-3" /> },
+        received: { ar: 'مستلمة', en: 'Received', color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300', icon: <Package className="w-3 h-3" /> },
+        fully_received: { ar: 'مستلمة بالكامل', en: 'Fully Received', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <Package className="w-3 h-3" /> },
+        partially_received: { ar: 'مستلمة جزئياً', en: 'Partially Received', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: <Package className="w-3 h-3" /> },
+        in_receiving: { ar: 'جاري الاستلام', en: 'In Receiving', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', icon: <Truck className="w-3 h-3" /> },
+        in_delivery: { ar: 'قيد التسليم', en: 'In Delivery', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300', icon: <Truck className="w-3 h-3" /> },
+        delivered: { ar: 'تم التسليم', en: 'Delivered', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <Package className="w-3 h-3" /> },
+        completed: { ar: 'مكتملة', en: 'Completed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <CheckCircle2 className="w-3 h-3" /> },
+        cancelled: { ar: 'ملغاة', en: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', icon: <AlertCircle className="w-3 h-3" /> },
+        paid: { ar: 'مدفوعة', en: 'Paid', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', icon: <CheckCircle2 className="w-3 h-3" /> },
+        partial_paid: { ar: 'مدفوعة جزئياً', en: 'Partially Paid', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300', icon: <Clock className="w-3 h-3" /> },
+    };
+
+    // Handle container click — opens container in MDI tab
+    const handleContainerClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!onOpenEntry || !invoiceSummary?.container_id) return;
+        // Create a synthetic entry for the container
+        onOpenEntry({
+            ...entry,
+            referenceType: 'container',
+            referenceId: invoiceSummary.container_id,
+            type: 'journal' as any, // Will trigger container detection in handler
+            entryId: entry.entryId,
+        });
+    };
+
     return (
         <div className="px-3 py-3 space-y-2" dir={direction}>
             {/* ═══ Header ═══ */}
@@ -409,6 +452,27 @@ export function PartyLedgerExpandedRow({
                             {/* Payment Status Badge for invoices */}
                             {invoicePaymentStatus && (
                                 <PaymentStatusBadge status={invoicePaymentStatus} isRTL={isRTL} />
+                            )}
+                            {/* Stage/Delivery Status Badge */}
+                            {invoiceSummary?.stage && invoiceSummary.stage !== 'draft' && (
+                                <span className={cn(
+                                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
+                                    stageLabelMap[invoiceSummary.stage]?.color || 'bg-gray-100 text-gray-600'
+                                )}>
+                                    {stageLabelMap[invoiceSummary.stage]?.icon}
+                                    {isRTL ? (stageLabelMap[invoiceSummary.stage]?.ar || invoiceSummary.stage) : (stageLabelMap[invoiceSummary.stage]?.en || invoiceSummary.stage)}
+                                </span>
+                            )}
+                            {/* Container Link Badge */}
+                            {invoiceSummary?.container_id && (
+                                <button
+                                    onClick={handleContainerClick}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 hover:bg-cyan-200 dark:hover:bg-cyan-800/50 transition-colors cursor-pointer"
+                                    title={isRTL ? 'فتح الكونتينر' : 'Open Container'}
+                                >
+                                    <Ship className="w-3 h-3" />
+                                    {invoiceSummary.container_number || (isRTL ? 'كونتينر' : 'Container')}
+                                </button>
                             )}
                         </div>
                         <div className="text-xs text-gray-400 mt-0.5">

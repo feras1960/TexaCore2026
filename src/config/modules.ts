@@ -21,6 +21,7 @@ import {
   Stethoscope,
   GitBranch,
   ShieldCheck,
+  PanelTop,
 } from 'lucide-react';
 
 export interface StaticModule {
@@ -213,6 +214,16 @@ export const STATIC_MODULES: StaticModule[] = [
     name_en: 'E-Commerce',
     icon: Globe,
     path: '/ecommerce',
+    is_enabled: true,
+    requires_upgrade: false,
+    is_core: false
+  },
+  {
+    code: 'website',
+    name_ar: 'إدارة المواقع',
+    name_en: 'Website Manager',
+    icon: PanelTop,
+    path: '/website',
     is_enabled: true,
     requires_upgrade: false,
     is_core: false

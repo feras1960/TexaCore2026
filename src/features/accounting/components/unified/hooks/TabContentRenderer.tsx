@@ -5,7 +5,7 @@
  * code-splitting via React.lazy for faster initial load.
  */
 
-import React, { lazy, Suspense, useCallback } from 'react';
+import React, { lazy, Suspense, useCallback, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -111,6 +111,7 @@ export interface TabContentRendererProps {
     openDocs: OpenDocument[];
     setOpenDocs: React.Dispatch<React.SetStateAction<OpenDocument[]>>;
     setActiveDocId: React.Dispatch<React.SetStateAction<string>>;
+    activeTab?: string; // Current active tab — needed to save before switching to sub-doc
     // Config
     stats?: any;
 }
@@ -130,10 +131,15 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
         currentStage, options, useArabicNumerals,
         setData, setHasChanges, onClose, onRefresh,
         openDocs, setOpenDocs, setActiveDocId,
+        activeTab: currentActiveTab,
         stats,
     } = props;
 
     const onChange = useCallback(makeOnChange(setData, setHasChanges), [setData, setHasChanges]);
+
+    // Track activeTab in a ref to avoid stale closures inside useCallback
+    const activeTabRef = useRef(currentActiveTab);
+    activeTabRef.current = currentActiveTab;
 
     const renderTabContent = useCallback((tabId: string): React.ReactNode => {
         const content = renderTabContentInner(tabId);
@@ -244,6 +250,235 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         ? (data?.receivable_account_id || '')
                         : (data?.payable_account_id || '');
                 }
+
+                // ═══ MDI Document Open Handler — shared between LedgerTab and PartyLedgerExpandedRow ═══
+                const handleEntryOpen = async (entry: any) => {
+                    // Determine the correct document type and ID to open
+                    let refType = entry.referenceType || '';
+                    const entryType = (entry as any).entryType || entry.type || '';
+                    let refId = entry.referenceId;
+
+                    // Map reference_type to document type for MDI
+                    let mdiDocType: string = 'journal';
+                    let tradeModeExt: 'sales' | 'purchase' | undefined = undefined;
+                    let lastActiveTabExt: string | undefined = undefined;
+                    let docId = entry.entryId;
+                    let docTitle = entry.entryNumber || entry.description || 'Entry';
+                    let typeIcon = '📋';
+
+                    // ═══ Reverse Lookup: when refId is missing, find the original document via journal_entry_id ═══
+                    if (!refId && entry.entryId) {
+                        // Check entry_type or entryType to determine which table to reverse-lookup
+                        const jeType = entryType || '';
+
+                        if (jeType.includes('purchase') || jeType === 'invoice') {
+                            // Reverse lookup: purchase_transactions → journal_entry_id
+                            const { data: ptRow } = await supabase
+                                .from('purchase_transactions')
+                                .select('id, invoice_no, stage, container_id')
+                                .eq('journal_entry_id', entry.entryId)
+                                .maybeSingle();
+                            if (ptRow) {
+                                refId = ptRow.id;
+                                refType = 'purchase_invoice';
+                                mdiDocType = 'trade_invoice';
+                                tradeModeExt = 'purchase';
+                                docId = ptRow.id;
+                                typeIcon = '📦';
+                                docTitle = language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice';
+                            }
+                        }
+
+                        if (!refId && (jeType.includes('sales') || jeType === 'invoice')) {
+                            // Reverse lookup: sales_transactions → journal_entry_id
+                            const { data: stRow } = await supabase
+                                .from('sales_transactions')
+                                .select('id, invoice_no, stage')
+                                .eq('journal_entry_id', entry.entryId)
+                                .maybeSingle();
+                            if (stRow) {
+                                refId = stRow.id;
+                                refType = 'sales_invoice';
+                                mdiDocType = 'trade_invoice';
+                                tradeModeExt = 'sales';
+                                docId = stRow.id;
+                                typeIcon = '🧾';
+                                docTitle = language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice';
+                            }
+                        }
+
+                        if (!refId && jeType.includes('container')) {
+                            // Reverse lookup: containers
+                            const { data: cRow } = await supabase
+                                .from('containers')
+                                .select('id, container_number')
+                                .eq('journal_entry_id', entry.entryId)
+                                .maybeSingle();
+                            if (cRow) {
+                                refId = cRow.id;
+                                refType = 'container';
+                                mdiDocType = 'trade_container';
+                                docId = cRow.id;
+                                typeIcon = '🚢';
+                                docTitle = language === 'ar' ? 'كونتينر' : 'Container';
+                            }
+                        }
+                    }
+
+                    if (refId) {
+                        if (mdiDocType === 'journal') {
+                            // Only re-detect if not already set by reverse lookup
+                            if (refType.includes('sales_invoice') || refType === 'sales' || refType.includes('sales_order')) {
+                                mdiDocType = 'trade_invoice';
+                                tradeModeExt = 'sales';
+                                docId = refId;
+                                typeIcon = '🧾';
+                                docTitle = `${language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice'}`;
+                                if (refType.includes('order')) {
+                                    mdiDocType = 'trade_order';
+                                    docTitle = `${language === 'ar' ? 'أمر بيع' : 'Sales Order'}`;
+                                }
+                            } else if (refType.includes('purchase_invoice') || refType === 'purchase' || refType.includes('purchase_order')) {
+                                mdiDocType = 'trade_invoice';
+                                tradeModeExt = 'purchase';
+                                docId = refId;
+                                typeIcon = '📦';
+                                docTitle = `${language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice'}`;
+                                if (refType.includes('order')) {
+                                    mdiDocType = 'trade_order';
+                                    docTitle = `${language === 'ar' ? 'أمر شراء' : 'Purchase Order'}`;
+                                }
+                            } else if (refType.includes('payment') || refType === 'PAY') {
+                                mdiDocType = 'payment';
+                                docId = refId;
+                                typeIcon = '💸';
+                                docTitle = `${language === 'ar' ? 'سند صرف' : 'Payment'}`;
+                            } else if (refType.includes('receipt') || refType === 'RCT') {
+                                mdiDocType = 'receipt';
+                                docId = refId;
+                                typeIcon = '💰';
+                                docTitle = `${language === 'ar' ? 'سند قبض' : 'Receipt'}`;
+                            } else if (refType.includes('container') || refType.includes('shipment')) {
+                                mdiDocType = 'trade_container';
+                                docId = refId;
+                                typeIcon = '🚢';
+                                docTitle = `${language === 'ar' ? 'كونتينر' : 'Container'}`;
+                                if (refType.includes('expense') || refType.includes('tax') || entryType === 'container_expense') {
+                                    lastActiveTabExt = 'expenses';
+                                }
+                            } else if (refType.includes('expense') || entryType.includes('expense')) {
+                                mdiDocType = 'expense';
+                                docId = refId;
+                                typeIcon = '💳';
+                                docTitle = `${language === 'ar' ? 'مصروف' : 'Expense'}`;
+                            } else if (refType.includes('transfer') || refType === 'TRF') {
+                                mdiDocType = 'transfer';
+                                docId = refId;
+                                typeIcon = '🔄';
+                                docTitle = `${language === 'ar' ? 'تحويل' : 'Transfer'}`;
+                            }
+                        }
+                    }
+
+                    // Check if already open
+                    const existingDoc = openDocs.find(d => d.id === docId);
+                    if (existingDoc) {
+                        setActiveDocId(docId);
+                        return;
+                    }
+
+                    try {
+                        let docData: any = null;
+
+                        if (mdiDocType === 'trade_invoice' || mdiDocType === 'trade_order' || mdiDocType === 'trade_delivery') {
+                            // Map to correct DOC_TYPE_TABLE_MAP key:
+                            // purchase → 'purchase_invoice', sales → 'invoice'
+                            const baseDocType = mdiDocType.replace('trade_', '');
+                            const tradeDocType = tradeModeExt === 'purchase' ? `purchase_${baseDocType}` : baseDocType;
+                            const { header, items } = await TradeService.getTradeDocumentWithItems(docId, tradeDocType);
+                            docData = {
+                                ...header,
+                                items,
+                                _sourceEntryId: entry.entryId,
+                                // Match UnifiedTradeSheet enhancedData format
+                                type: tradeModeExt || 'sales',
+                                subType: baseDocType,
+                                status: header?.status || header?.stage || 'draft',
+                            };
+                            if (!docData.invoice_no && docData.number) docData.invoice_no = docData.number;
+                        } else if (mdiDocType === 'trade_container') {
+                            // Fetch container header + items + linked invoices in parallel
+                            const [containerResult, itemsResult, linkedInvoicesResult] = await Promise.all([
+                                supabase.from('containers').select('*').eq('id', docId).single(),
+                                supabase.from('container_items').select('*').eq('container_id', docId),
+                                supabase.from('purchase_transactions').select('id, invoice_no, total_amount, stage, supplier_name').eq('container_id', docId),
+                            ]);
+                            if (containerResult.error) throw containerResult.error;
+                            const containerItems = itemsResult.data || [];
+                            const linkedInvoices = linkedInvoicesResult.data || [];
+                            docData = {
+                                ...containerResult.data,
+                                items: containerItems,
+                                linked_invoices: linkedInvoices,
+                                _sourceEntryId: entry.entryId,
+                                // Match UnifiedTradeSheet enhancedData format
+                                type: 'purchase',
+                                subType: 'container',
+                                party_id: containerResult.data.supplier_id,
+                                status: containerResult.data.status || 'draft',
+                            };
+                        } else if (mdiDocType === 'receipt') {
+                            const { data: receiptData, error } = await supabase.from('cash_receipts').select('*').eq('id', docId).single();
+                            if (error) throw error;
+                            docData = { ...receiptData, _sourceEntryId: entry.entryId };
+                        } else if (mdiDocType === 'payment') {
+                            const { data: paymentData, error } = await supabase.from('payment_transactions').select('*').eq('id', docId).single();
+                            if (error) throw error;
+                            docData = { ...paymentData, _sourceEntryId: entry.entryId };
+                        } else {
+                            // Fallback: journal entry
+                            docData = await journalEntriesService.getById(entry.entryId);
+                            if (refId) {
+                                docData._sourceRefId = refId;
+                                docData._sourceRefType = refType;
+                            }
+                        }
+
+                        // Save the current tab in the primary document before switching
+                        setOpenDocs(prev => {
+                            const savedTab = activeTabRef.current;
+                            console.log('[MDI] Saving primary lastActiveTab:', savedTab);
+                            const updated = prev.map(d =>
+                                d.id === prev[0]?.id
+                                    ? { ...d, lastActiveTab: savedTab || d.lastActiveTab, data: data }
+                                    : d
+                            );
+                            return [...updated, {
+                                id: docId,
+                                type: mdiDocType as any,
+                                title: `${typeIcon} ${docTitle}`,
+                                titleAr: docTitle,
+                                code: docData?.invoice_no || docData?.number || docData?.container_number || docData?.receipt_number || docData?.payment_number || entry.entryNumber,
+                                data: docData,
+                                isClosable: true,
+                                tradeMode: tradeModeExt,
+                                // Set the correct default tab for each document type
+                                lastActiveTab: lastActiveTabExt || (
+                                    mdiDocType === 'trade_container' ? 'trade_details' :
+                                        mdiDocType === 'trade_invoice' || mdiDocType === 'trade_order' ? 'trade_details' :
+                                            undefined
+                                ),
+                            }];
+                        });
+                        // Update data state so all tabs render with the new document
+                        setData((prev: any) => docData);
+                        // Auto-activate the opened document tab
+                        setActiveDocId(docId);
+                    } catch (err) {
+                        console.error('Error opening document:', err);
+                    }
+                };
+
                 return (
                     <LedgerTab
                         accountId={ledgerAccountId}
@@ -255,132 +490,11 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 <PartyLedgerExpandedRow
                                     entry={row}
                                     currency={data?.currency || ''}
-                                    onOpenEntry={async (entry) => {
-                                        // Simplified for now - just delegate to the parent's onEntryOpen
-                                    }}
+                                    onOpenEntry={handleEntryOpen}
                                 />
                             </Suspense>
                         )}
-                        onEntryOpen={async (entry) => {
-                            // Determine the correct document type and ID to open
-                            const refType = entry.referenceType || '';
-                            const entryType = (entry as any).entryType || '';
-                            const refId = entry.referenceId;
-
-                            // Map reference_type to document type for MDI
-                            let docType: string = 'journal';
-                            let tradeModeExt: 'sales' | 'purchase' | undefined = undefined;
-                            let lastActiveTabExt: string | undefined = undefined;
-                            let docId = entry.entryId;
-                            let docTitle = entry.entryNumber || entry.description || 'Entry';
-                            let typeIcon = '📋';
-
-                            if (refId) {
-                                if (refType.includes('sales_invoice') || refType === 'sales' || refType.includes('sales_order')) {
-                                    docType = 'trade_invoice';
-                                    tradeModeExt = 'sales';
-                                    docId = refId;
-                                    typeIcon = '🧾';
-                                    docTitle = `${language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice'}`;
-                                    if (refType.includes('order')) {
-                                        docType = 'trade_order';
-                                        docTitle = `${language === 'ar' ? 'أمر بيع' : 'Sales Order'}`;
-                                    }
-                                } else if (refType.includes('purchase_invoice') || refType === 'purchase' || refType.includes('purchase_order')) {
-                                    docType = 'trade_invoice';
-                                    tradeModeExt = 'purchase';
-                                    docId = refId;
-                                    typeIcon = '📦';
-                                    docTitle = `${language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice'}`;
-                                    if (refType.includes('order')) {
-                                        docType = 'trade_order';
-                                        docTitle = `${language === 'ar' ? 'أمر شراء' : 'Purchase Order'}`;
-                                    }
-                                } else if (refType.includes('payment') || refType === 'PAY') {
-                                    docType = 'payment';
-                                    docId = refId;
-                                    typeIcon = '💸';
-                                    docTitle = `${language === 'ar' ? 'سند صرف' : 'Payment'}`;
-                                } else if (refType.includes('receipt') || refType === 'RCT') {
-                                    docType = 'receipt';
-                                    docId = refId;
-                                    typeIcon = '💰';
-                                    docTitle = `${language === 'ar' ? 'سند قبض' : 'Receipt'}`;
-                                } else if (refType.includes('container') || refType.includes('shipment')) {
-                                    docType = 'trade_container';
-                                    docId = refId;
-                                    typeIcon = '🚢';
-                                    docTitle = `${language === 'ar' ? 'كونتينر' : 'Container'}`;
-                                    if (refType.includes('expense') || refType.includes('tax') || entryType === 'container_expense') {
-                                        lastActiveTabExt = 'expenses';
-                                    }
-                                } else if (refType.includes('expense') || entryType.includes('expense')) {
-                                    docType = 'expense';
-                                    docId = refId;
-                                    typeIcon = '💳';
-                                    docTitle = `${language === 'ar' ? 'مصروف' : 'Expense'}`;
-                                } else if (refType.includes('transfer') || refType === 'TRF') {
-                                    docType = 'transfer';
-                                    docId = refId;
-                                    typeIcon = '🔄';
-                                    docTitle = `${language === 'ar' ? 'تحويل' : 'Transfer'}`;
-                                }
-                            }
-
-                            // Check if already open
-                            const existingDoc = openDocs.find(d => d.id === docId);
-                            if (existingDoc) {
-                                setActiveDocId(docId);
-                                return;
-                            }
-
-                            try {
-                                let docData: any = null;
-
-                                if (docType === 'journal' || !refId) {
-                                    docData = await journalEntriesService.getById(entry.entryId);
-                                } else if (docType === 'trade_invoice' || docType === 'trade_order' || docType === 'trade_delivery') {
-                                    // Fetch trade document — strip 'trade_' prefix for TradeService mapping
-                                    const tradeDocType = docType.replace('trade_', '');
-                                    const { header, items } = await TradeService.getTradeDocumentWithItems(refId, tradeDocType);
-                                    docData = { ...header, items, _sourceEntryId: entry.entryId };
-                                    if (!docData.invoice_no && docData.number) docData.invoice_no = docData.number; // Compatibility
-                                } else if (docType === 'trade_container') {
-                                    const { data, error } = await supabase.from('containers').select('*').eq('id', refId).single();
-                                    if (error) throw error;
-                                    docData = { ...data, _sourceEntryId: entry.entryId };
-                                } else if (docType === 'receipt') {
-                                    const { data, error } = await supabase.from('cash_receipts').select('*').eq('id', refId).single();
-                                    if (error) throw error;
-                                    docData = { ...data, _sourceEntryId: entry.entryId };
-                                } else if (docType === 'payment') {
-                                    const { data, error } = await supabase.from('payment_transactions').select('*').eq('id', refId).single();
-                                    if (error) throw error;
-                                    docData = { ...data, _sourceEntryId: entry.entryId };
-                                } else {
-                                    // Fallback to journal entry if type is unrecognized but we have a ref
-                                    docData = await journalEntriesService.getById(entry.entryId);
-                                    docData._sourceRefId = refId;
-                                    docData._sourceRefType = refType;
-                                }
-
-                                setOpenDocs(prev => [...prev, {
-                                    id: docId,
-                                    type: docType as any,
-                                    title: `${typeIcon} ${docTitle}`,
-                                    titleAr: docTitle,
-                                    code: docData?.invoice_no || docData?.number || docData?.container_number || docData?.receipt_number || docData?.payment_number || entry.entryNumber,
-                                    data: docData,
-                                    isClosable: true,
-                                    tradeMode: tradeModeExt,
-                                    lastActiveTab: lastActiveTabExt,
-                                }]);
-                                // Don't auto-activate: let user click the tab to switch
-                                // setActiveDocId(docId);
-                            } catch (err) {
-                                console.error('Error opening document:', err);
-                            }
-                        }}
+                        onEntryOpen={handleEntryOpen}
                     />
                 );
             }

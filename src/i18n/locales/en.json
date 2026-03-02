@@ -507,6 +507,7 @@
     "budget": "Budget",
     "recurring": "Recurring Entries",
     "vatSettlement": "VAT Settlement",
+    "equityPartners": "Partners",
     "payment": {
       "amount": "Amount",
       "date": "Payment Date",
@@ -736,6 +737,65 @@
       "toFund": "To Fund / Bank",
       "reference": "Exchange Reference",
       "date": "Exchange Date"
+    },
+    "summarySheet": {
+      "description": "View summary account group details",
+      "tabs": {
+        "overview": "Overview",
+        "accounts": "Accounts",
+        "transactions": "Transactions",
+        "activity": "Activity Log",
+        "attachments": "Attachments"
+      },
+      "partyType": {
+        "employee": "Employee Accounts",
+        "customer": "Customer Accounts",
+        "supplier": "Supplier Accounts"
+      },
+      "accountsCount": "accounts",
+      "overview": {
+        "totalAccounts": "Total Accounts",
+        "activeAccounts": "Active Accounts",
+        "totalDebit": "Total Debit",
+        "totalCredit": "Total Credit",
+        "netBalance": "Net Balance",
+        "debit": "Debit",
+        "credit": "Credit",
+        "topAccounts": "Top Accounts by Balance",
+        "noAccounts": "No sub-accounts yet"
+      },
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "balance": "Balance",
+        "totalDebit": "Total Debit",
+        "totalCredit": "Total Credit",
+        "status": "Status",
+        "date": "Date",
+        "type": "Type",
+        "reference": "Reference",
+        "account": "Account",
+        "description": "Description",
+        "debit": "Debit",
+        "credit": "Credit"
+      },
+      "searchAccounts": "Search accounts...",
+      "searchTransactions": "Search transactions...",
+      "noAccountsTitle": "No sub-accounts found",
+      "noTransactionsTitle": "No transactions found",
+      "totalLabel": "Total",
+      "transactionsCount": "transactions",
+      "filters": {
+        "txType": "Transaction Type"
+      },
+      "txType": {
+        "journal": "Journal Entry",
+        "receipt": "Receipt",
+        "payment": "Payment",
+        "invoice": "Invoice"
+      },
+      "activityComingSoon": "Activity log coming soon...",
+      "attachmentsComingSoon": "Attachments coming soon..."
     }
   },
   "accounts": "Accounts",

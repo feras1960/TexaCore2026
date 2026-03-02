@@ -8,6 +8,12 @@
 		},
 		{
 			"path": "../../../texacore-store"
+		},
+		{
+			"path": "../../../erp_texa_fab-26-01-2026"
+		},
+		{
+			"path": "../../../texacore-astro"
 		}
 	],
 	"settings": {}

@@ -88,7 +88,7 @@ export default function JournalEntries() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
+    from: new Date(new Date().getFullYear(), 0, 1), // أول السنة المالية
     to: new Date()
   });
 

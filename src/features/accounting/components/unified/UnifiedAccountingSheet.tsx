@@ -224,6 +224,41 @@ export function UnifiedAccountingSheet({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data, documentId, docType]);
 
+    // ═══ Reset MDI when a DIFFERENT document is opened ═══
+    // When the sheet is reused for a different party/document, clear all sub-tabs
+    // IMPORTANT: Only track `documentId` prop (external), NOT `data?.id` (changes with MDI sub-tabs)
+    const prevDocIdRef = useRef(documentId || initialData?.id);
+    useEffect(() => {
+        const currentPrimaryId = documentId || initialData?.id;
+        if (!currentPrimaryId) return;
+
+        // If the primary document has changed (new party/document opened)
+        if (prevDocIdRef.current && prevDocIdRef.current !== currentPrimaryId) {
+            console.log('[MDI] Document changed from', prevDocIdRef.current, 'to', currentPrimaryId, '— resetting tabs');
+            // Use initialData (new party) — NOT data (old party state)
+            const newData = initialData || {};
+            const newPrimary: OpenDocument = {
+                id: currentPrimaryId,
+                type: docType,
+                title: newData.name || newData.entry_number || newData.name_en || 'Document',
+                titleAr: newData.name_ar || newData.name,
+                code: newData.code || newData.account_code || newData.entry_number,
+                data: newData,
+                isClosable: false,
+                lastActiveTab: defaultTab || config.defaultTab,
+                tradeMode: tradeMode as any,
+            };
+            setOpenDocs([newPrimary]);
+            setActiveDocId(currentPrimaryId);
+            setActiveTab(defaultTab || config.defaultTab);
+            // Fully reset all state to new party
+            setData(newData);
+            setMode(initialMode);
+            setHasChanges(false);
+        }
+        prevDocIdRef.current = currentPrimaryId;
+    }, [documentId, initialData?.id]);
+
     // Effective docType: changes based on active document type (for MDI cross-type navigation)
     const effectiveDocType = useMemo(() => {
         const activeDoc = openDocs.find(d => d.id === activeDocId);
@@ -232,8 +267,25 @@ export function UnifiedAccountingSheet({
 
     const effectiveTradeMode = useMemo(() => {
         const activeDoc = openDocs.find(d => d.id === activeDocId);
-        return activeDoc?.tradeMode || tradeMode || 'sales'; // Default to sales if purely undefined to prevent config breaks
+        return activeDoc?.tradeMode || tradeMode || 'sales';
     }, [activeDocId, openDocs, tradeMode]);
+
+    // Effective data: when viewing a sub-document (MDI tab), use its pre-fetched data
+    const effectiveData = useMemo(() => {
+        const activeDoc = openDocs.find(d => d.id === activeDocId);
+        // If the active doc is a closable sub-tab with its own data, use that data
+        if (activeDoc?.isClosable && activeDoc?.data) {
+            return activeDoc.data;
+        }
+        return data;
+    }, [activeDocId, openDocs, data]);
+
+    // Effective documentId: changes when viewing sub-documents
+    const effectiveDocumentId = useMemo(() => {
+        const activeDoc = openDocs.find(d => d.id === activeDocId);
+        if (activeDoc?.isClosable) return activeDoc.id;
+        return documentId;
+    }, [activeDocId, openDocs, documentId]);
 
     const effectiveConfig = useMemo(() => getDocumentConfig(effectiveDocType, effectiveTradeMode as any), [effectiveDocType, effectiveTradeMode]);
 
@@ -247,6 +299,14 @@ export function UnifiedAccountingSheet({
     useEffect(() => {
         if (initialData) {
             setData((prev: any) => {
+                // ═══ If the document ID changed, do a FULL REPLACE (not merge) ═══
+                // This prevents data from one party leaking into another
+                const currentPrimaryId = documentId || initialData?.id;
+                if (prev?.id && currentPrimaryId && prev.id !== currentPrimaryId) {
+                    console.log('[Data Sync] Document changed — full replace');
+                    return initialData;
+                }
+
                 // ═══ Guard: If we already saved (prev has id) but parent still sends
                 // create-mode skeleton (initialData has no id), skip the merge entirely.
                 // This prevents stale parent props from overwriting locally-saved data.
@@ -492,6 +552,16 @@ export function UnifiedAccountingSheet({
         setActiveTab(defaultTab || config.defaultTab);
     }, [docType, defaultTab, config.defaultTab]);
 
+    // When MDI active document changes, switch to that document's saved tab
+    useEffect(() => {
+        const activeDoc = openDocs.find(d => d.id === activeDocId);
+        if (activeDoc?.isClosable) {
+            // Sub-document: use its saved tab or the effective config default
+            const docConfig = getDocumentConfig(activeDoc.type, (activeDoc.tradeMode || tradeMode || 'sales') as any);
+            setActiveTab(activeDoc.lastActiveTab || docConfig.defaultTab);
+        }
+    }, [activeDocId]);
+
     // Set hasChanges to true in create mode to enable Save button
     useEffect(() => {
         if (mode === 'create') {
@@ -659,11 +729,12 @@ export function UnifiedAccountingSheet({
 
     // ═══ Lazy-loaded Tab Content Renderer (extracted to reduce file size) ═══
     const renderTabContent = useTabContentRenderer({
-        data, mode, docType: effectiveDocType, tradeMode: effectiveTradeMode as any, loading,
-        companyId: resolvedCompanyId, documentId, currentStage, options,
+        data: effectiveData, mode, docType: effectiveDocType, tradeMode: effectiveTradeMode as any, loading,
+        companyId: resolvedCompanyId, documentId: effectiveDocumentId, currentStage, options,
         useArabicNumerals,
         setData, setHasChanges, onClose, onRefresh,
         openDocs, setOpenDocs, setActiveDocId,
+        activeTab,
         stats: config.stats,
     });
 
@@ -1022,7 +1093,7 @@ export function UnifiedAccountingSheet({
                                 // 1. Save current active document's data AND active tab back into openDocs
                                 setOpenDocs(prevDocs => {
                                     const updatedDocs = prevDocs.map(d =>
-                                        d.id === activeDocId ? { ...d, data: data, lastActiveTab: activeTab } : d
+                                        d.id === activeDocId ? { ...d, data: effectiveData, lastActiveTab: activeTab } : d
                                     );
 
                                     // 2. Find the target document we are switching to
@@ -1048,10 +1119,12 @@ export function UnifiedAccountingSheet({
                                 if (id === activeDocId && remaining.length > 0) {
                                     // Switch to primary (first) tab
                                     const primary = remaining[0];
+                                    console.log('[MDI] onTabClose → restoring primary. lastActiveTab:', primary.lastActiveTab);
                                     setActiveDocId(primary.id);
                                     setData(primary.data);
                                     const newConfig = getDocumentConfig(primary.type, (primary.tradeMode || tradeMode || 'sales') as any);
-                                    setActiveTab(newConfig.defaultTab);
+                                    // Restore the saved tab (e.g. 'ledger') instead of default ('overview')
+                                    setActiveTab(primary.lastActiveTab || newConfig.defaultTab);
                                 }
                                 onCloseDocument?.(id);
                             }}
@@ -1076,7 +1149,13 @@ export function UnifiedAccountingSheet({
                                 <SheetTabs
                                     tabs={visibleTabs}
                                     activeTab={activeTab}
-                                    onTabChange={setActiveTab}
+                                    onTabChange={(tab) => {
+                                        setActiveTab(tab);
+                                        // Also save this tab as the document's lastActiveTab so MDI restore works
+                                        setOpenDocs(prev => prev.map(d =>
+                                            d.id === activeDocId ? { ...d, lastActiveTab: tab } : d
+                                        ));
+                                    }}
                                     mode={mode}
                                     variant="default"
                                 >

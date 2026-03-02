@@ -509,6 +509,7 @@
     "budget": "الموازنة",
     "recurring": "القيود المتكررة",
     "vatSettlement": "التسوية الضريبية",
+    "equityPartners": "الشركاء",
     "payment": {
       "amount": "المبلغ",
       "date": "تاريخ السند",
@@ -761,6 +762,65 @@
       "toFund": "إلى صندوق / بنك",
       "reference": "مرجع الصرافة",
       "date": "تاريخ الصرف"
+    },
+    "summarySheet": {
+      "description": "عرض تفاصيل مجموعة الحسابات",
+      "tabs": {
+        "overview": "نظرة عامة",
+        "accounts": "الحسابات",
+        "transactions": "الحركات",
+        "activity": "سجل النشاط",
+        "attachments": "المرفقات"
+      },
+      "partyType": {
+        "employee": "حسابات الموظفين",
+        "customer": "حسابات العملاء",
+        "supplier": "حسابات الموردين"
+      },
+      "accountsCount": "حساب",
+      "overview": {
+        "totalAccounts": "إجمالي الحسابات",
+        "activeAccounts": "الحسابات النشطة",
+        "totalDebit": "إجمالي المدين",
+        "totalCredit": "إجمالي الدائن",
+        "netBalance": "صافي الرصيد",
+        "debit": "مدين",
+        "credit": "دائن",
+        "topAccounts": "أعلى الحسابات رصيداً",
+        "noAccounts": "لا توجد حسابات فرعية بعد"
+      },
+      "columns": {
+        "code": "الكود",
+        "name": "الاسم",
+        "balance": "الرصيد",
+        "totalDebit": "إجمالي المدين",
+        "totalCredit": "إجمالي الدائن",
+        "status": "الحالة",
+        "date": "التاريخ",
+        "type": "النوع",
+        "reference": "المرجع",
+        "account": "الحساب",
+        "description": "البيان",
+        "debit": "مدين",
+        "credit": "دائن"
+      },
+      "searchAccounts": "بحث في الحسابات...",
+      "searchTransactions": "بحث في الحركات...",
+      "noAccountsTitle": "لا توجد حسابات فرعية",
+      "noTransactionsTitle": "لا توجد حركات",
+      "totalLabel": "الإجمالي",
+      "transactionsCount": "حركة",
+      "filters": {
+        "txType": "نوع الحركة"
+      },
+      "txType": {
+        "journal": "قيد محاسبي",
+        "receipt": "مقبوضات",
+        "payment": "مدفوعات",
+        "invoice": "فاتورة"
+      },
+      "activityComingSoon": "سجل النشاط قريباً...",
+      "attachmentsComingSoon": "المرفقات قريباً..."
     }
   },
   "accounts": "الحسابات",
