@@ -939,124 +939,83 @@ export const warehouseService = {
             }
         }
 
-        // ─── إثراء بأسماء الجهات: مورد للمشتريات، عميل للمبيعات ────────
-        // استراتيجية: البحث بـ reference_number (دائماً موجود) لتفادي reference_id الفارغة
+        // ─── إثراء بأسماء الجهات ────────────────────────────────────────────
+        // مبيعات: reference_id → sales_transactions.id → customer_name
+        // شراء/كونتينر: reference_id → purchase_receipts.id → supplier
 
-        const saleMovTypes = ['sale', 'sale_invoice', 'issue', 'delivery'];
-        const receiptMovTypes = ['receipt', 'purchase', 'container_receipt', 'goods_receipt', 'container'];
+        const saleTypes = ['sale', 'sale_invoice', 'issue', 'delivery'];
+        const purTypes = ['receipt', 'purchase', 'container_receipt', 'goods_receipt', 'container'];
 
-        // ── أ) مبيعات: reference_number = invoice_no → sales_transactions.customer_name ──
-        const saleRefNums = [...new Set(
+        // ── أ) مبيعات: UUID مباشر ──
+        const saleRefIds = [...new Set(
             allData
-                .filter((m: any) => saleMovTypes.some(t => m.movement_type === t))
-                .map((m: any) => m.reference_number)
-                .filter(Boolean)
-        )] as string[];
-
-        // Map: reference_number → customer_name
-        const salesPartyMap: Record<string, string> = {};
-        if (saleRefNums.length > 0) {
-            const { data: salesTx } = await supabase
-                .from('sales_transactions')
-                .select('invoice_no, customer_name')
-                .in('invoice_no', saleRefNums);
-            if (salesTx) {
-                salesTx.forEach((tx: any) => {
-                    if (tx.invoice_no) salesPartyMap[tx.invoice_no] = tx.customer_name || '';
-                });
-            }
-        }
-
-        // ── ب) مشتريات/كونتينر: عبر reference_id → purchase_receipts → supplier ──
-        const receiptRefIds = [...new Set(
-            allData
-                .filter((m: any) => receiptMovTypes.some(t => m.movement_type === t || m.reference_type === t))
+                .filter((m: any) => saleTypes.includes(m.movement_type))
                 .map((m: any) => m.reference_id)
                 .filter(Boolean)
         )] as string[];
 
-        const receiptPartyMap: Record<string, string> = {};
-        if (receiptRefIds.length > 0) {
-            // مسار 1: purchase_receipts.supplier_id → parties.name
-            const { data: receipts } = await supabase
-                .from('purchase_receipts')
-                .select('id, supplier_id, invoice_id')
-                .in('id', receiptRefIds);
-            if (receipts && receipts.length > 0) {
-                const supplierIds = [...new Set(receipts.map((r: any) => r.supplier_id).filter(Boolean))] as string[];
-                const invoiceIds = [...new Set(receipts.map((r: any) => r.invoice_id).filter(Boolean))] as string[];
-                let supplierMap: Record<string, string> = {};
-
-                if (supplierIds.length > 0) {
-                    const { data: parties } = await supabase
-                        .from('parties')
-                        .select('id, name_ar, name_en')
-                        .in('id', supplierIds);
-                    if (parties) {
-                        parties.forEach((p: any) => { supplierMap[p.id] = p.name_ar || p.name_en || ''; });
-                    }
-                }
-                // مسار 2 fallback: invoice_id → purchase_invoices.supplier_name
-                let invoiceSupplierMap: Record<string, string> = {};
-                if (invoiceIds.length > 0) {
-                    const { data: invs } = await supabase
-                        .from('purchase_invoices')
-                        .select('id, supplier_name')
-                        .in('id', invoiceIds);
-                    if (invs) invs.forEach((inv: any) => { invoiceSupplierMap[inv.id] = inv.supplier_name || ''; });
-                    const { data: legacyInvs } = await supabase
-                        .from('purchase_transactions')
-                        .select('id, supplier_name')
-                        .in('id', invoiceIds);
-                    if (legacyInvs) legacyInvs.forEach((inv: any) => { if (!invoiceSupplierMap[inv.id]) invoiceSupplierMap[inv.id] = inv.supplier_name || ''; });
-                }
-
-                receipts.forEach((r: any) => {
-                    receiptPartyMap[r.id] =
-                        supplierMap[r.supplier_id] ||
-                        invoiceSupplierMap[r.invoice_id] ||
-                        '';
-                });
-            }
+        const salesPartyMap: Record<string, string> = {};
+        if (saleRefIds.length > 0) {
+            const { data: stx } = await supabase
+                .from('sales_transactions')
+                .select('id, customer_name')
+                .in('id', saleRefIds);
+            if (stx) stx.forEach((s: any) => { salesPartyMap[s.id] = s.customer_name || ''; });
         }
 
-        // ── ج) fallback: reference_number → purchase_invoices/transactions.supplier_name ──
-        const purchaseRefNums = [...new Set(
+        // ── ب) شراء/كونتينر: UUID → purchase_receipts ──
+        const purRefIds = [...new Set(
             allData
-                .filter((m: any) => receiptMovTypes.some(t => m.movement_type === t) && !receiptPartyMap[m.reference_id])
-                .map((m: any) => m.reference_number)
+                .filter((m: any) => purTypes.includes(m.movement_type) || purTypes.includes(m.reference_type))
+                .map((m: any) => m.reference_id)
                 .filter(Boolean)
         )] as string[];
 
-        const refNumPartyMap: Record<string, string> = {};
-        if (purchaseRefNums.length > 0) {
-            const { data: pinvs } = await supabase
-                .from('purchase_invoices')
-                .select('invoice_number, supplier_name')
-                .in('invoice_number', purchaseRefNums);
-            if (pinvs) pinvs.forEach((inv: any) => { refNumPartyMap[inv.invoice_number] = inv.supplier_name || ''; });
+        const purPartyMap: Record<string, string> = {};
+        if (purRefIds.length > 0) {
+            const { data: rcpts } = await supabase
+                .from('purchase_receipts')
+                .select('id, supplier_id, invoice_id')
+                .in('id', purRefIds);
 
-            const { data: plegacy } = await supabase
-                .from('purchase_transactions')
-                .select('invoice_no, supplier_name')
-                .in('invoice_no', purchaseRefNums);
-            if (plegacy) plegacy.forEach((inv: any) => { if (!refNumPartyMap[inv.invoice_no]) refNumPartyMap[inv.invoice_no] = inv.supplier_name || ''; });
+            if (rcpts && rcpts.length > 0) {
+                // جلب أسماء المورّدين من جدول parties
+                const sidList = [...new Set(rcpts.map((r: any) => r.supplier_id).filter(Boolean))] as string[];
+                const iidList = [...new Set(rcpts.map((r: any) => r.invoice_id).filter(Boolean))] as string[];
+
+                const supplierByPartyId: Record<string, string> = {};
+                if (sidList.length > 0) {
+                    const { data: parties } = await supabase
+                        .from('parties').select('id, name_ar, name_en').in('id', sidList);
+                    if (parties) parties.forEach((p: any) => { supplierByPartyId[p.id] = p.name_ar || p.name_en || ''; });
+                }
+
+                // fallback: invoice_id → purchase_invoices أو purchase_transactions
+                const supplierByInvId: Record<string, string> = {};
+                if (iidList.length > 0) {
+                    const { data: pi } = await supabase.from('purchase_invoices').select('id, supplier_name').in('id', iidList);
+                    if (pi) pi.forEach((r: any) => { supplierByInvId[r.id] = r.supplier_name || ''; });
+                    const { data: pt } = await supabase.from('purchase_transactions').select('id, supplier_name').in('id', iidList);
+                    if (pt) pt.forEach((r: any) => { if (!supplierByInvId[r.id]) supplierByInvId[r.id] = r.supplier_name || ''; });
+                }
+
+                rcpts.forEach((r: any) => {
+                    purPartyMap[r.id] = supplierByPartyId[r.supplier_id] || supplierByInvId[r.invoice_id] || '';
+                });
+            }
         }
 
         return allData.map((m: any) => ({
             ...m,
             from_warehouse_name: m.from_warehouse?.name_ar ?? m.from_warehouse?.name_en ?? null,
             to_warehouse_name: m.to_warehouse?.name_ar ?? m.to_warehouse?.name_en ?? null,
-            warehouse_name: m.to_warehouse?.name_ar ?? m.to_warehouse?.name_en ?? m.from_warehouse?.name_ar ?? m.from_warehouse?.name_en ?? null,
+            warehouse_name: m.to_warehouse?.name_ar ?? m.to_warehouse?.name_en ??
+                m.from_warehouse?.name_ar ?? m.from_warehouse?.name_en ?? null,
             material_name_ar: materialsMap[m.material_id || m.product_id]?.name_ar || null,
             material_name_en: materialsMap[m.material_id || m.product_id]?.name_en || null,
             material_code: materialsMap[m.material_id || m.product_id]?.code || null,
-            // 🔑 Party name: مبيعات → customer, مشتريات → supplier
-            party_name:
-                salesPartyMap[m.reference_number] ||
-                receiptPartyMap[m.reference_id] ||
-                refNumPartyMap[m.reference_number] ||
-                '',
+            // 🔑 اسم الجهة: عميل للمبيعات، مورّد للمشتريات
+            party_name: salesPartyMap[m.reference_id] || purPartyMap[m.reference_id] || '',
         }));
     },
 
