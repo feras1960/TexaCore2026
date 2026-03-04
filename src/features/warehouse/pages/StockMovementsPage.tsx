@@ -222,7 +222,31 @@ export default function StockMovementsPage() {
         return `${diffDays} ${isRTL ? 'يوم' : 'd'}`;
     };
 
+    // خريطة ثابتة لأنواع الحركات — بديل للمفاتيح غير المترجمة
+    const movementTypeLabels: Record<string, { ar: string; en: string }> = {
+        'sale': { ar: 'مبيعات', en: 'Sale' },
+        'sale_invoice': { ar: 'فاتورة مبيعات', en: 'Sales Invoice' },
+        'issue': { ar: 'صرف بضاعة', en: 'Issue' },
+        'delivery': { ar: 'تسليم', en: 'Delivery' },
+        'receipt': { ar: 'استلام', en: 'Receipt' },
+        'purchase': { ar: 'مشتريات', en: 'Purchase' },
+        'purchase_invoice': { ar: 'فاتورة شراء', en: 'Purchase Invoice' },
+        'return': { ar: 'مرتجع', en: 'Return' },
+        'container': { ar: 'كونتينر', en: 'Container' },
+        'container_receipt': { ar: 'استلام كونتينر', en: 'Container Receipt' },
+        'goods_receipt': { ar: 'إذن استلام', en: 'GRN' },
+        'transfer': { ar: 'مناقلة', en: 'Transfer' },
+        'transfer_in': { ar: 'مناقلة واردة', en: 'Transfer In' },
+        'transfer_out': { ar: 'مناقلة صادرة', en: 'Transfer Out' },
+        'adjustment': { ar: 'تسوية', en: 'Adjustment' },
+        'adjustment_in': { ar: 'تسوية واردة', en: 'Adj. In' },
+        'adjustment_out': { ar: 'تسوية صادرة', en: 'Adj. Out' },
+    };
+
     const getMovementTypeLabel = (type: string) => {
+        const entry = movementTypeLabels[type];
+        if (entry) return isRTL ? entry.ar : entry.en;
+        // fallback: محاولة ترجمة من i18n
         const key = `warehouse.stockMovements.types.${type}`;
         const translated = t(key);
         return translated !== key ? translated : type;
