@@ -14,7 +14,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { useStockMovements } from '../hooks/useWarehouseQueries';
+import { useStockMovements, useWarehouses } from '../hooks/useWarehouseQueries';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 import { SalesDeliveryDialog } from '../components/SalesDeliveryDialog';
 import { MaterialReceiptDialog } from '../components/MaterialReceiptDialog';
@@ -22,6 +22,16 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import type { DateRange } from 'react-day-picker';
+import { format } from 'date-fns';
 import {
     ArrowDownToLine,
     ArrowUpFromLine,
@@ -33,8 +43,10 @@ import {
     ShoppingCart,
     RefreshCw,
     X,
+    Warehouse,
+    User,
+    Building2,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
 
@@ -61,8 +73,13 @@ export default function StockMovementsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortField, setSortField] = useState<string>('date');
     const [sortAsc, setSortAsc] = useState<boolean>(false);
-    const [dateFrom, setDateFrom] = useState<string>('');
-    const [dateTo, setDateTo] = useState<string>('');
+    // 📅 فلتر التاريخ — يستخدم DateRangePicker المشترك
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    // 🏗️ فلتر المستودع (all = كل المستودعات)
+    const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
+
+    // قائمة المستودعات للفلتر
+    const { warehouses } = useWarehouses();
 
     // ═══ State for opening linked documents ═══
     const [linkedInvoiceSheet, setLinkedInvoiceSheet] = useState<{ open: boolean; invoiceData: any }>({ open: false, invoiceData: null });
@@ -85,7 +102,11 @@ export default function StockMovementsPage() {
         loading,
         error,
         refetch: refetchMovements,
-    } = useStockMovements({ dateFrom: dateFrom || undefined, dateTo: dateTo || undefined });
+    } = useStockMovements({
+        dateFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
+        dateTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
+        warehouse: selectedWarehouse !== 'all' ? selectedWarehouse : undefined,
+    });
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
     const handleManualRefresh = useCallback(() => {
@@ -389,13 +410,13 @@ export default function StockMovementsPage() {
             sortable: true,
             sortKey: 'date',
             cell: (m: any) => (
-                <div className="flex flex-col gap-0.5 font-mono text-xs">
-                    <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <div className="flex items-center gap-1.5 whitespace-nowrap font-mono text-gray-700 dark:text-gray-300">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                         {formatDate(m.movement_date || m.created_at)}
                     </div>
-                    <span className="text-[10px] text-muted-foreground ms-5 flex items-center gap-0.5" title={isRTL ? 'الوقت المنقضي منذ العملية' : 'Elapsed time'}>
-                        <Clock className="w-2.5 h-2.5 opacity-50" />
+                    <span className="text-[10px] text-muted-foreground ms-5 flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
                         {isRTL ? 'منذ ' : ''}{getElapsedTime(m.created_at || m.movement_date)}{!isRTL ? ' ago' : ''}
                     </span>
                 </div>
@@ -414,6 +435,89 @@ export default function StockMovementsPage() {
             )
         },
         {
+            // عمود الجهة الذكي: من → إلى حسب نوع الحركة
+            id: 'flow',
+            header: isRTL ? 'الجهة (من → إلى)' : 'Flow (From → To)',
+            cell: (m: any) => {
+                const isSales = salesTypes.includes(m.movement_type);
+                const isContainer = containerTypes.includes(m.movement_type);
+                const isPurchase = purchasesTypes.includes(m.movement_type);
+                const isTransfer = transferTypes.includes(m.movement_type);
+
+                // من طرف
+                let fromNode: React.ReactNode = null;
+                if (isSales) {
+                    // مبيعات: المستودع هو المصدر
+                    const wName = m.from_warehouse_name || m.warehouse_name || '—';
+                    fromNode = (
+                        <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                            <Warehouse className="h-3 w-3 flex-shrink-0 text-blue-400" />
+                            <span className="truncate max-w-[110px]" title={wName}>{wName}</span>
+                        </div>
+                    );
+                } else if (isContainer) {
+                    // كونتينر: رقم الكونتينر أو المورد هو المصدر
+                    const src = m.party_name || m.reference_number || '—';
+                    fromNode = (
+                        <div className="flex items-center gap-1 text-cyan-700 dark:text-cyan-400">
+                            <Package className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[110px] font-mono text-[11px]" title={src}>{src}</span>
+                        </div>
+                    );
+                } else if (isPurchase) {
+                    // شراء: المورد هو المصدر
+                    const supplier = m.party_name || '—';
+                    fromNode = (
+                        <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                            <Building2 className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[110px]" title={supplier}>{supplier}</span>
+                        </div>
+                    );
+                } else if (isTransfer) {
+                    // مناقلة: مستودع المصدر
+                    const wName = m.from_warehouse_name || '—';
+                    fromNode = (
+                        <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                            <Warehouse className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[110px]" title={wName}>{wName}</span>
+                        </div>
+                    );
+                }
+
+                // إلى طرف
+                let toNode: React.ReactNode = null;
+                if (isSales) {
+                    // مبيعات: العميل هو الوجهة
+                    const customer = m.party_name || '—';
+                    toNode = (
+                        <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                            <User className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate max-w-[110px] font-semibold" title={customer}>{customer}</span>
+                        </div>
+                    );
+                } else {
+                    // شراء/كونتينر/مناقلة: المستودع هو الوجهة
+                    const dest = m.to_warehouse_name || m.warehouse_name || '—';
+                    toNode = (
+                        <div className="flex items-center gap-1 text-gray-700 dark:text-gray-300 font-medium">
+                            <Warehouse className="h-3 w-3 flex-shrink-0 text-emerald-500" />
+                            <span className="truncate max-w-[110px]" title={dest}>{dest}</span>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="flex flex-col gap-0.5 text-xs min-w-[160px]">
+                        {fromNode}
+                        <div className="flex items-center gap-1 text-gray-300 dark:text-gray-600 ms-1">
+                            <ArrowDownToLine className="h-2.5 w-2.5" />
+                        </div>
+                        {toNode}
+                    </div>
+                );
+            }
+        },
+        {
             id: 'material',
             header: isRTL ? 'المحتويات' : 'Contents',
             sortable: true,
@@ -423,7 +527,7 @@ export default function StockMovementsPage() {
                 const displayName = names.length > 0 ? names[0] : '—';
                 return (
                     <div className="flex flex-col">
-                        <span className="font-semibold font-cairo text-sm">
+                        <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
                             {m.items_count > 1
                                 ? (isRTL ? `${m.items_count} مادة` : `${m.items_count} items`)
                                 : displayName}
@@ -439,50 +543,29 @@ export default function StockMovementsPage() {
         },
         {
             id: 'quantity',
-            header: isRTL ? 'الكمية الإجمالية' : 'Total Quantity',
+            header: isRTL ? 'الكمية' : 'Quantity',
             sortable: true,
             sortKey: 'quantity',
             cell: (m: any) => (
-                <span className="font-mono font-medium text-sm">
-                    {Number(m.total_quantity || m.quantity || 0).toLocaleString('en-US')} {m.unit || (isRTL ? 'م' : 'm')}
+                <span className="font-mono font-semibold text-sm tabular-nums text-gray-800 dark:text-gray-200">
+                    {Number(m.total_quantity || m.quantity || 0).toLocaleString('en-US')}
+                    <span className="text-[10px] text-muted-foreground font-normal ms-1">{m.unit || (isRTL ? 'م' : 'm')}</span>
                 </span>
             )
         },
         {
-            id: 'warehouse',
-            header: isRTL ? 'المستودع (من ← إلى)' : 'Warehouse (From ← To)',
-            cell: (m: any) => (
-                <div className="flex flex-col gap-1 text-xs">
-                    {m.from_warehouse_name && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <ArrowUpFromLine className="h-3 w-3 text-red-400" />
-                            <span>{m.from_warehouse_name}</span>
-                        </div>
-                    )}
-                    {(m.to_warehouse_name || m.warehouse_name) && (
-                        <div className="flex items-center gap-1.5 font-medium">
-                            <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
-                            <span>{m.to_warehouse_name || m.warehouse_name}</span>
-                        </div>
-                    )}
-                </div>
-            )
-        },
-        {
             id: 'reference',
-            header: isRTL ? 'المرجع الفني' : 'Reference',
+            header: isRTL ? 'المرجع' : 'Reference',
             sortable: true,
             sortKey: 'reference',
             cell: (m: any) => (
-                <div className="flex flex-col items-start gap-1">
-                    <span className="text-erp-navy font-semibold font-mono text-sm">
+                <div className="flex flex-col items-start gap-0.5">
+                    <span className="text-erp-navy dark:text-blue-300 font-semibold font-mono text-sm tracking-wide">
                         {m.reference_number || m.id?.substring(0, 8)}
                     </span>
-                    {m.reference_type === 'goods_receipt' && (
-                        <span className="text-[10px] text-indigo-500 font-mono">
-                            {isRTL ? '(انقر لعرض الفاتورة)' : '(click to view invoice)'}
-                        </span>
-                    )}
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                        {m.reference_type || m.movement_type}
+                    </span>
                 </div>
             )
         },
@@ -493,17 +576,20 @@ export default function StockMovementsPage() {
             sortKey: 'status',
             cell: (m: any) => {
                 const status = m.status || 'completed';
-                const statusKey = `warehouse.stockMovements.statuses.${status}`;
-                const translated = t(statusKey);
-                const label = translated !== statusKey ? translated : (status === 'completed' ? (isRTL ? 'مكتمل' : 'Completed') : status);
+                const label = status === 'completed' ? (isRTL ? 'مكتمل' : 'Completed')
+                    : status === 'pending' ? (isRTL ? 'معلق' : 'Pending')
+                        : status;
                 return (
-                    <Badge variant={status === 'completed' ? 'default' : 'secondary'} className="font-tajawal text-xs px-2">
+                    <Badge
+                        variant={status === 'completed' ? 'default' : 'secondary'}
+                        className="text-xs px-2"
+                    >
                         {label}
                     </Badge>
                 );
             }
         },
-    ], [isRTL, language, t]);
+    ], [isRTL, language, t, salesTypes, containerTypes, purchasesTypes, transferTypes]);
 
     return (
         <div className="flex flex-col space-y-3" dir={direction}>
@@ -522,45 +608,51 @@ export default function StockMovementsPage() {
                         </p>
                     </div>
                 </div>
-                {/* Date Range Filter + Refresh */}
+                {/* ─── Filters Bar: Warehouse + Date Range + Refresh ─── */}
                 <div className="flex items-center gap-2 flex-wrap">
+                    {/* فلتر المستودع */}
                     <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-xs text-gray-500">{isRTL ? 'من' : 'From'}:</span>
-                        <Input
-                            type="date"
-                            value={dateFrom}
-                            onChange={e => { setDateFrom(e.target.value); }}
-                            className="h-8 text-xs w-[130px] font-mono"
-                        />
+                        <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+                            <SelectTrigger className="h-9 text-xs w-[160px] border-gray-200">
+                                <SelectValue placeholder={isRTL ? 'كل المستودعات' : 'All Warehouses'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{isRTL ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
+                                {warehouses.map((w: any) => (
+                                    <SelectItem key={w.id} value={w.id}>
+                                        {isRTL ? (w.name_ar || w.name_en) : (w.name_en || w.name_ar)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-gray-500">{isRTL ? 'إلى' : 'To'}:</span>
-                        <Input
-                            type="date"
-                            value={dateTo}
-                            onChange={e => { setDateTo(e.target.value); }}
-                            className="h-8 text-xs w-[130px] font-mono"
-                        />
-                    </div>
-                    {(dateFrom || dateTo) && (
+
+                    {/* فلتر التاريخ — المكوّن المشترك */}
+                    <DateRangePicker
+                        date={dateRange}
+                        setDate={setDateRange}
+                        align={isRTL ? 'end' : 'start'}
+                    />
+                    {dateRange && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-xs text-gray-500 hover:text-red-500"
-                            onClick={() => { setDateFrom(''); setDateTo(''); }}
+                            className="h-9 px-2 text-xs text-gray-400 hover:text-red-500"
+                            onClick={() => setDateRange(undefined)}
                         >
-                            <X className="w-3.5 h-3.5 me-1" />
-                            {isRTL ? 'مسح' : 'Clear'}
+                            <X className="w-3.5 h-3.5" />
                         </Button>
                     )}
-                    <span className="text-[10px] text-gray-400 font-mono hidden sm:block">
+
+                    {/* آخر تحديث + زر التحديث */}
+                    <span className="text-[10px] text-gray-400 font-mono hidden lg:block">
                         {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-1.5 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                        className="h-9 gap-1.5 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
                         onClick={handleManualRefresh}
                         disabled={loading}
                     >

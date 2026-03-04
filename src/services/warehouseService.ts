@@ -926,10 +926,9 @@ export const warehouseService = {
         const allData = data || [];
         if (allData.length === 0) return [];
 
-        // إثراء بأسماء المواد (batch lookup)
+        // ─── إثراء بأسماء المواد (batch lookup) ─────────────────────────
         const materialIds = [...new Set(allData.map((m: any) => m.material_id || m.product_id).filter(Boolean))];
         let materialsMap: Record<string, any> = {};
-
         if (materialIds.length > 0) {
             const { data: materials } = await supabase
                 .from('fabric_materials')
@@ -937,6 +936,64 @@ export const warehouseService = {
                 .in('id', materialIds);
             if (materials) {
                 materials.forEach((mat: any) => { materialsMap[mat.id] = mat; });
+            }
+        }
+
+        // ─── إثراء بأسماء الجهات: مورد للمشتريات، عميل للمبيعات ────────
+        const receiptTypes = ['goods_receipt', 'container_receipt', 'receipt', 'purchase'];
+        const salesTypeList = ['sale', 'issue', 'delivery'];
+
+        // 1) شراء/كونتينر: reference_id → purchase_receipts → supplier
+        const receiptIds = [...new Set(
+            allData
+                .filter((m: any) => receiptTypes.some(t => m.reference_type?.includes(t) || m.movement_type?.includes(t)))
+                .map((m: any) => m.reference_id)
+                .filter(Boolean)
+        )] as string[];
+
+        let receiptPartyMap: Record<string, string> = {};
+        if (receiptIds.length > 0) {
+            const { data: receipts } = await supabase
+                .from('purchase_receipts')
+                .select('id, supplier_id')
+                .in('id', receiptIds);
+            if (receipts && receipts.length > 0) {
+                // Batch supplier names from parties table
+                const supplierIds = [...new Set(receipts.map((r: any) => r.supplier_id).filter(Boolean))] as string[];
+                let supplierMap: Record<string, string> = {};
+                if (supplierIds.length > 0) {
+                    const { data: parties } = await supabase
+                        .from('parties')
+                        .select('id, name_ar, name_en')
+                        .in('id', supplierIds);
+                    if (parties) {
+                        parties.forEach((p: any) => { supplierMap[p.id] = p.name_ar || p.name_en || ''; });
+                    }
+                }
+                receipts.forEach((r: any) => {
+                    receiptPartyMap[r.id] = supplierMap[r.supplier_id] || '';
+                });
+            }
+        }
+
+        // 2) مبيعات: reference_id → sales_transactions → customer_name
+        const salesIds = [...new Set(
+            allData
+                .filter((m: any) => salesTypeList.some(t => m.movement_type?.includes(t)))
+                .map((m: any) => m.reference_id)
+                .filter(Boolean)
+        )] as string[];
+
+        let salesPartyMap: Record<string, string> = {};
+        if (salesIds.length > 0) {
+            const { data: salesTx } = await supabase
+                .from('sales_transactions')
+                .select('id, customer_name')
+                .in('id', salesIds);
+            if (salesTx) {
+                salesTx.forEach((tx: any) => {
+                    salesPartyMap[tx.id] = tx.customer_name || '';
+                });
             }
         }
 
@@ -948,6 +1005,8 @@ export const warehouseService = {
             material_name_ar: materialsMap[m.material_id || m.product_id]?.name_ar || null,
             material_name_en: materialsMap[m.material_id || m.product_id]?.name_en || null,
             material_code: materialsMap[m.material_id || m.product_id]?.code || null,
+            // 🔑 Party name for flow column
+            party_name: receiptPartyMap[m.reference_id] || salesPartyMap[m.reference_id] || '',
         }));
     },
 
