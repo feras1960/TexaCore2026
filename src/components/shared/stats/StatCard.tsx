@@ -10,6 +10,7 @@ interface StatCardProps {
   type?: StatType;
   suffix?: string;
   prefix?: string;
+  subLabel?: string;          // secondary text shown below value (e.g. rolls count)
   change?: number;
   changeLabel?: string;
   icon?: React.ElementType;
@@ -51,6 +52,7 @@ export function StatCard({
   type = 'neutral',
   suffix,
   prefix,
+  subLabel,
   change,
   changeLabel,
   icon: Icon,
@@ -58,18 +60,18 @@ export function StatCard({
   formatValue,
 }: StatCardProps) {
   const styles = TYPE_STYLES[type];
-  const displayValue = formatValue ? formatValue(value) : value;
+  const displayValue = formatValue ? formatValue(value as string | number) : value;
 
   const renderChange = () => {
     if (change === undefined) return null;
-    
+
     const isPositive = change > 0;
     const isNegative = change < 0;
     const TrendIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
-    const changeColor = isPositive 
-      ? 'text-green-600 dark:text-green-400' 
-      : isNegative 
-        ? 'text-red-600 dark:text-red-400' 
+    const changeColor = isPositive
+      ? 'text-green-600 dark:text-green-400'
+      : isNegative
+        ? 'text-red-600 dark:text-red-400'
         : 'text-gray-500';
 
     return (
@@ -98,7 +100,7 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
-          <motion.p 
+          <motion.p
             className={cn('text-2xl font-bold font-cairo', styles.text)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -108,10 +110,13 @@ export function StatCard({
             {displayValue}
             {suffix && <span className="text-sm font-normal ms-1">{suffix}</span>}
           </motion.p>
+          {subLabel && (
+            <span className="text-xs font-medium text-purple-600 dark:text-purple-400">{subLabel}</span>
+          )}
           {renderChange()}
         </div>
         {Icon && (
-          <motion.div 
+          <motion.div
             className={cn('p-2 rounded-lg', styles.bg)}
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}

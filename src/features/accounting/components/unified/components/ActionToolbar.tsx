@@ -903,7 +903,7 @@ export default ActionToolbar;
 // Maps internal document types to print template doc_types
 const DOC_TYPE_MAP: Record<string, string> = {
     trade_invoice: 'sales_invoice',
-    trade_container: 'purchase_invoice',
+    trade_container: 'container_label',   // ✅ إصلاح: كان 'purchase_invoice' يسبب 406
     trade_delivery: 'delivery_note',
     trade_receipt: 'goods_receipt',
     sales_delivery: 'delivery_note',

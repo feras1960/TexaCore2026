@@ -278,13 +278,28 @@ async function fetchSalesInvoice(id: string): Promise<any> {
 
 
 async function fetchPurchaseInvoice(id: string): Promise<any> {
-    const { data, error } = await supabase
-        .from('purchase_invoices')
-        .select('*, supplier:suppliers(*), items:purchase_invoice_items(*)')
-        .eq('id', id)
-        .single();
-    if (error) throw error;
-    return data;
+    // جلب من purchase_transactions أولاً (الجدول الموحد)
+    try {
+        const { data, error } = await supabase
+            .from('purchase_transactions')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+        if (!error && data) return data;
+    } catch { /* fall through */ }
+
+    // جلب من purchase_invoices (الجدول القديم)
+    try {
+        const { data, error } = await supabase
+            .from('purchase_invoices')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+        if (!error && data) return data;
+    } catch { /* fall through */ }
+
+    console.warn('[usePrintData] fetchPurchaseInvoice: not found in either table:', id);
+    return null;
 }
 
 async function fetchVoucher(type: string, id: string): Promise<any> {
@@ -336,17 +351,39 @@ async function fetchRollData(id: string): Promise<any> {
 }
 
 async function fetchContainerData(id: string): Promise<any> {
+    // جلب بيانات الكونتينر بدون join (PostgREST لا يجد العلاقة مع suppliers)
     const { data, error } = await supabase
         .from('containers')
-        .select(`
-            *,
-            supplier:suppliers(name_ar, name_en, name),
-            items:container_items(count)
-        `)
+        .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
     if (error) throw error;
-    return data;
+    if (!data) return null;
+
+    // جلب اسم المورد منفصلاً إذا كان موجوداً
+    let supplier = null;
+    if (data.supplier_id) {
+        try {
+            const { data: sup } = await supabase
+                .from('suppliers')
+                .select('name_ar, name_en, name')
+                .eq('id', data.supplier_id)
+                .maybeSingle();
+            supplier = sup;
+        } catch { /* تجاهل أخطاء المورد */ }
+    }
+
+    // جلب عدد البنود منفصلاً
+    let itemsCount = 0;
+    try {
+        const { count } = await supabase
+            .from('container_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('container_id', id);
+        itemsCount = count || 0;
+    } catch { /* تجاهل */ }
+
+    return { ...data, supplier, items: [{ count: itemsCount }] };
 }
 
 // ═══════════════════════════════════════════════════════════════

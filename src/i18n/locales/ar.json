@@ -3865,7 +3865,7 @@
       "dashboard": "لوحة التحكم",
       "warehouses": "المستودعات",
       "warehousesAndLocations": "المستودعات والمواقع",
-      "locations": "المواقع",
+      "locations": "مواقع التخزين",
       "materials": "المواد",
       "rolls": "الرولونات",
       "inventory": "المخزون",
@@ -4039,6 +4039,21 @@
         "receive": "استلام رولونات جديدة",
         "transfer": "نقل بين المستودعات",
         "dyeLot": "تتبع Dye Lot والظل"
+      }
+    },
+    "roll": {
+      "title": "شيت الرولون",
+      "subtitle": "تفاصيل الرولون ومساره وموقعه",
+      "tabs": {
+        "overview": "نظرة عامة",
+        "movements": "الحركات والتاريخ",
+        "location": "الموقع الحالي"
+      },
+      "stats": {
+        "currentLength": "الطول الحالي",
+        "available": "المتاح",
+        "reserved": "المحجوز",
+        "costPerMeter": "التكلفة/م"
       }
     },
     "inventory": {

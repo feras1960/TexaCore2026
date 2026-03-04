@@ -57,10 +57,12 @@ interface DeliveryOutputViewProps {
     items: DeliveryLineItem[];
     currency: string;
     tradeMode?: 'sales' | 'purchase';
+    defaultWarehouseNameAr?: string;
+    defaultWarehouseNameEn?: string;
 }
 
 // ── Component ──
-export function DeliveryOutputView({ items, currency, tradeMode = 'sales' }: DeliveryOutputViewProps) {
+export function DeliveryOutputView({ items, currency, tradeMode = 'sales', defaultWarehouseNameAr, defaultWarehouseNameEn }: DeliveryOutputViewProps) {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
     const t = (ar: string, en: string) => isRTL ? ar : en;
@@ -193,7 +195,7 @@ export function DeliveryOutputView({ items, currency, tradeMode = 'sales' }: Del
                     return (
                         <div key={group.materialId} className="rounded-lg border overflow-hidden">
                             {group.items.map((item, idx) => {
-                                const whName = getName(item.warehouse_name_ar, item.warehouse_name_en);
+                                const whName = getName(item.warehouse_name_ar || defaultWarehouseNameAr, item.warehouse_name_en || defaultWarehouseNameEn);
                                 const hasRolls = (item.delivery_rolls?.length || 0) > 0;
                                 const isExpanded = expandedItems.has(item.id);
                                 // Recalculate based on delivered qty

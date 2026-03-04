@@ -3,13 +3,11 @@
  * 📤 SalesDeliveryItemsTab — تبويب اختيار الرولونات للتسليم
  * ════════════════════════════════════════════════════════════════
  *
- * التصميم المحسّن (v2):
+ * التصميم المحسّن (v3):
+ *  ─ يدعم viewMode: عرض الرولونات المسلّمة للقراءة فقط
  *  ─ صفحة واحدة شاملة (لا حاجة لتبويب ملخص منفصل)
- *  ─ شريط مسح QR/RFID/باركود في الأعلى
- *  ─ سطر مطوي لكل مادة → ينفتح لعرض:
- *     • الرولونات المطلوبة (من الفاتورة) — للمرجع
- *     • الرولونات المُسلّمة فعلياً — قابلة للحذف
- *  ─ شريط تقدم لكل مادة + إجمالي
+ *  ─ شريط مسح QR/RFID/باركود في الأعلى (مخفي في viewMode)
+ *  ─ سطر مطوي لكل مادة → ينفتح لعرض الرولونات
  *  ─ دعم التسليم الجزئي
  *
  * ════════════════════════════════════════════════════════════════
@@ -28,8 +26,7 @@ import {
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
-// 🔍 RollBrowser — متصفح الرولونات بنفس نمط فاتورة المبيعات
-// المادة (من الفاتورة) → اللون → الرولونات
+// 🔍 RollBrowser — متصفح الرولونات المتاحة (for edit mode only)
 // ═══════════════════════════════════════════════════════════════
 
 interface RollBrowserProps {
@@ -46,7 +43,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
     const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
     const [expandedColors, setExpandedColors] = React.useState<Set<string>>(new Set());
 
-    // ─── Group rolls by color ───
     const colorGroups = React.useMemo(() => {
         const groups: Record<string, { color_id: string; color_name: string; rolls: FabricRoll[]; totalLength: number }> = {};
         for (const roll of materialRolls) {
@@ -65,7 +61,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
         return Object.values(groups);
     }, [materialRolls, tl]);
 
-    // ─── Filter by search & color ───
     const filteredGroups = React.useMemo(() => {
         return colorGroups
             .filter(g => !selectedColor || g.color_id === selectedColor)
@@ -83,7 +78,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
         s + g.rolls.filter(r => !selectedRolls.some(sr => sr.id === r.id)).length, 0
     );
 
-    // ─── Toggle color expansion ───
     const toggleColor = (colorId: string) => {
         setExpandedColors(prev => {
             const next = new Set(prev);
@@ -92,7 +86,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
         });
     };
 
-    // ─── Add all filtered non-added rolls ───
     const addAllFiltered = () => {
         for (const g of filteredGroups) {
             for (const roll of g.rolls) {
@@ -123,7 +116,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
 
     return (
         <div className="px-4 py-3 space-y-2.5" dir={isRTL ? 'rtl' : 'ltr'}>
-            {/* ─── Header with title + stats ─── */}
             <div className="flex items-center gap-2">
                 <Package className="w-3.5 h-3.5 text-blue-500" />
                 <h5 className="text-xs font-bold text-blue-700 dark:text-blue-400 flex-1">
@@ -134,7 +126,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
                 </Badge>
             </div>
 
-            {/* ─── Color filter chips ─── */}
             {colorGroups.length > 1 && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                     <Palette className="w-3 h-3 text-gray-400 shrink-0" />
@@ -162,7 +153,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
                 </div>
             )}
 
-            {/* ─── Search + Add All ─── */}
             <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
                     <Search className="w-3.5 h-3.5 absolute start-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -186,7 +176,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
                 )}
             </div>
 
-            {/* ─── Color → Rolls Hierarchy ─── */}
             <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
                 {filteredGroups.map(colorGroup => {
                     const isOpen = expandedColors.has(colorGroup.color_id) || filteredGroups.length === 1;
@@ -195,7 +184,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
 
                     return (
                         <div key={colorGroup.color_id} className="border rounded-lg overflow-hidden bg-white dark:bg-slate-900">
-                            {/* Color Header */}
                             <button
                                 onClick={() => toggleColor(colorGroup.color_id)}
                                 className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${isOpen
@@ -208,8 +196,7 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
                                 <span className="text-[10px] font-mono text-green-600 dark:text-green-400 shrink-0">
                                     {colorGroup.totalLength.toFixed(1)} {tl('م', 'm')}
                                 </span>
-                                <Badge variant="outline" className={`text-[9px] h-4 shrink-0 ${allAdded ? 'bg-green-50 text-green-600 border-green-200' : ''
-                                    }`}>
+                                <Badge variant="outline" className={`text-[9px] h-4 shrink-0 ${allAdded ? 'bg-green-50 text-green-600 border-green-200' : ''}`}>
                                     {allAdded ? tl('✓ مضاف', '✓ Added') : `${colorGroup.rolls.length} ${tl('رولون', 'rolls')}`}
                                 </Badge>
                                 {addedInGroup > 0 && !allAdded && (
@@ -220,7 +207,6 @@ function RollBrowser({ materialRolls, isLoading, selectedRolls, onAddRoll, tl, i
                                 <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {/* Rolls List */}
                             {isOpen && (
                                 <div className="border-t divide-y divide-gray-100 dark:divide-gray-800">
                                     {colorGroup.rolls.map(roll => {
@@ -297,7 +283,7 @@ interface FabricRoll {
     current_length: number;
     available_length: number;
     initial_length: number;
-    net_length: number; // alias for current_length
+    net_length: number;
     status: string;
     warehouse_id: string;
     qr_code?: string;
@@ -309,6 +295,8 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const { language, isRTL } = useLanguage();
     const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
 
+    const isViewMode = !!(data?.view_mode);
+
     // ═══ State ═══
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     const [availableRolls, setAvailableRolls] = useState<Record<string, FabricRoll[]>>({});
@@ -318,11 +306,11 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const [scanLoading, setScanLoading] = useState(false);
     const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-    // ═══ Sync selectedRolls when parent restores draft ═══
+    // ═══ Sync selectedRolls when parent restores draft OR delivered rolls ═══
     useEffect(() => {
         const parentRolls = data?.selected_rolls;
         if (parentRolls && parentRolls.length > 0 && selectedRolls.length === 0) {
-            console.log(`[ItemsTab] 📂 Syncing ${parentRolls.length} restored rolls from parent`);
+            console.log(`[ItemsTab] 📂 Syncing ${parentRolls.length} rolls from parent`);
             setSelectedRolls(parentRolls);
         }
     }, [data?.selected_rolls]);
@@ -334,9 +322,9 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
 
     const warehouseId = data?.warehouse_id;
 
-    // ═══ Fetch available rolls for a material ═══
+    // ═══ Fetch available rolls for a material (only in edit mode) ═══
     const fetchRollsForMaterial = useCallback(async (materialId: string) => {
-        if (!materialId || !warehouseId) return;
+        if (!materialId || !warehouseId || isViewMode) return;
         setLoadingRolls(prev => ({ ...prev, [materialId]: true }));
 
         try {
@@ -351,7 +339,6 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             if (error) {
                 console.warn('fetchRollsForMaterial error:', error.message);
             } else {
-                // Map to FabricRoll with color_name and net_length alias
                 const mapped = (rolls || []).map((r: any) => ({
                     ...r,
                     color_name: r.fabric_colors?.name_ar || r.fabric_colors?.name_en || '',
@@ -365,7 +352,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
         } finally {
             setLoadingRolls(prev => ({ ...prev, [materialId]: false }));
         }
-    }, [warehouseId]);
+    }, [warehouseId, isViewMode]);
 
     // ═══ Toggle item expansion ═══
     const toggleItem = useCallback((item: InvoiceItem) => {
@@ -374,15 +361,15 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             setExpandedItemId(null);
         } else {
             setExpandedItemId(item.id);
-            if (!availableRolls[key]) {
+            if (!availableRolls[key] && !isViewMode) {
                 fetchRollsForMaterial(key);
             }
         }
-    }, [expandedItemId, availableRolls, fetchRollsForMaterial]);
+    }, [expandedItemId, availableRolls, fetchRollsForMaterial, isViewMode]);
 
     // ═══ Add roll to selection ═══
     const addRoll = useCallback((roll: FabricRoll) => {
-        if (selectedRolls.some(r => r.id === roll.id)) return; // already added
+        if (selectedRolls.some(r => r.id === roll.id)) return;
         const updated = [...selectedRolls, roll];
         setSelectedRolls(updated);
         notifyParent(updated);
@@ -404,16 +391,10 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             rolls_count: rolls.length,
             total_length: rolls.reduce((s, r) => s + (r.net_length || r.current_length || 0), 0),
         };
-        // 1. Update UnifiedAccountingSheet's internal data
         onChange(update);
 
-        // 2. Save directly to Supabase (no dependency on Dialog callback)
         const invoiceId = data?.id || data?.source_id || data?.transaction_id;
-        console.log('[DirectSave] invoiceId =', invoiceId, '| data keys:', data ? Object.keys(data).filter(k => data[k] != null).join(', ') : 'null');
-        if (!invoiceId) {
-            console.warn('[DirectSave] ⚠️ No invoiceId found in data — cannot save!');
-            return;
-        }
+        if (!invoiceId) return;
 
         const draft = {
             rolls: rolls.map(r => ({
@@ -433,27 +414,21 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             saved_at: new Date().toISOString(),
         };
 
-        // Save to localStorage (instant, survives page reload)
         try {
             localStorage.setItem(`delivery_draft_${invoiceId}`, JSON.stringify(draft));
         } catch { /* ignore */ }
 
-        // Save to Supabase
         const updates: any = {
             delivery_draft: rolls.length > 0 ? draft : null,
             updated_at: new Date().toISOString(),
         };
 
-        // First roll added → in_delivery
         if (rolls.length > 0 && prevRollCountRef.current === 0) {
             updates.stage = 'in_delivery';
-            console.log('[DirectSave] 📦 Stage → in_delivery');
         }
-        // All rolls removed → confirmed
         if (rolls.length === 0 && prevRollCountRef.current > 0) {
             updates.stage = 'confirmed';
             updates.delivery_draft = null;
-            console.log('[DirectSave] ↩️ Stage → confirmed');
         }
 
         prevRollCountRef.current = rolls.length;
@@ -463,11 +438,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             .update(updates)
             .eq('id', invoiceId)
             .then(({ error }) => {
-                if (error) {
-                    console.warn('[DirectSave] Error:', error.message);
-                } else {
-                    console.log(`[DirectSave] ✅ Saved: ${rolls.length} rolls`);
-                }
+                if (error) console.warn('[DirectSave] Error:', error.message);
             });
     }, [onChange, data?.id, warehouseId]);
 
@@ -513,7 +484,6 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                 return;
             }
 
-            // Validate: roll material must match one of the invoice items
             const matchingItem = sourceItems.find(si => si.material_id === roll!.material_id);
             if (!matchingItem) {
                 setScanMessage({ type: 'error', text: tl('❌ هذا الرولون لا ينتمي لأي مادة في الفاتورة', '❌ This roll does not match any material in the invoice') });
@@ -523,8 +493,6 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             addRoll(roll);
             setScanInput('');
             setScanMessage({ type: 'success', text: tl(`✅ تم إضافة ${roll.roll_number} (${roll.net_length} م)`, `✅ Added ${roll.roll_number} (${roll.net_length}m)`) });
-
-            // Auto-clear success message
             setTimeout(() => setScanMessage(null), 3000);
         } catch (err) {
             console.error('Scan error:', err);
@@ -534,7 +502,6 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
         }
     }, [scanInput, warehouseId, selectedRolls, sourceItems, addRoll, tl]);
 
-    // ═══ Key press handler ═══
     const handleScanKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -569,39 +536,52 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     return (
         <div className="flex flex-col h-full" dir={isRTL ? 'rtl' : 'ltr'}>
 
-            {/* ═══ 1. Scanner Bar ═══ */}
-            <div className="px-4 py-3 bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-950/20 dark:to-orange-950/20 border-b">
-                <div className="flex items-center gap-2">
-                    <ScanLine className="w-5 h-5 text-rose-500 shrink-0" />
-                    <Input
-                        value={scanInput}
-                        onChange={(e) => setScanInput(e.target.value)}
-                        onKeyDown={handleScanKeyDown}
-                        placeholder={tl('امسح الباركود أو أدخل رقم الرولون...', 'Scan barcode or enter roll number...')}
-                        className="flex-1 h-9 text-sm bg-white dark:bg-slate-800"
-                        autoFocus
-                    />
-                    <Button
-                        size="sm"
-                        onClick={handleScan}
-                        disabled={scanLoading || !scanInput.trim()}
-                        className="h-9 gap-1.5 bg-rose-500 hover:bg-rose-600 text-white"
-                    >
-                        {scanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                        {tl('بحث', 'Search')}
-                    </Button>
-                </div>
-
-                {/* Scan feedback message */}
-                {scanMessage && (
-                    <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-medium ${scanMessage.type === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        scanMessage.type === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                            'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                        }`}>
-                        {scanMessage.text}
+            {/* ═══ 1. Scanner Bar — hidden in viewMode ═══ */}
+            {!isViewMode && (
+                <div className="px-4 py-3 bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-950/20 dark:to-orange-950/20 border-b">
+                    <div className="flex items-center gap-2">
+                        <ScanLine className="w-5 h-5 text-rose-500 shrink-0" />
+                        <Input
+                            value={scanInput}
+                            onChange={(e) => setScanInput(e.target.value)}
+                            onKeyDown={handleScanKeyDown}
+                            placeholder={tl('امسح الباركود أو أدخل رقم الرولون...', 'Scan barcode or enter roll number...')}
+                            className="flex-1 h-9 text-sm bg-white dark:bg-slate-800"
+                            autoFocus
+                        />
+                        <Button
+                            size="sm"
+                            onClick={handleScan}
+                            disabled={scanLoading || !scanInput.trim()}
+                            className="h-9 gap-1.5 bg-rose-500 hover:bg-rose-600 text-white"
+                        >
+                            {scanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                            {tl('بحث', 'Search')}
+                        </Button>
                     </div>
-                )}
-            </div>
+                    {scanMessage && (
+                        <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-medium ${scanMessage.type === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                            scanMessage.type === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}>
+                            {scanMessage.text}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ═══ viewMode: Delivered banner ═══ */}
+            {isViewMode && (
+                <div className="px-4 py-2.5 bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20 border-b border-teal-100 dark:border-teal-900 flex items-center gap-2">
+                    <PackageCheck className="w-4 h-4 text-teal-600" />
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-300">
+                        {tl('وضع العرض — الرولونات المسلّمة فعلياً', 'View Mode — Actually Delivered Rolls')}
+                    </span>
+                    <Badge className="ms-auto text-[10px] bg-teal-100 text-teal-700 border-teal-200">
+                        {selectedRolls.length} {tl('رولون', 'rolls')}
+                    </Badge>
+                </div>
+            )}
 
             {/* ═══ 1.5 Invoice Summary (compact) ═══ */}
             {data && (
@@ -627,16 +607,6 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                             <span className="font-mono font-bold text-blue-600">{Number(data.grand_total).toLocaleString()}</span>
                         </>
                     )}
-                    {data.delivery_method && (
-                        <>
-                            <span className="text-gray-300">|</span>
-                            <Badge variant="outline" className="text-[9px] h-4">
-                                {data.delivery_method === 'pickup' ? tl('استلام', 'Pickup') :
-                                    data.delivery_method === 'delivery' ? tl('توصيل', 'Delivery') :
-                                        tl('شحن', 'Shipping')}
-                            </Badge>
-                        </>
-                    )}
                 </div>
             )}
 
@@ -660,109 +630,84 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                         const isFulfilled = fulfillmentPct >= 99;
 
                         return (
-                            <div key={item.id} className={`border rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm transition-all ${isExpanded ? 'ring-2 ring-rose-200 dark:ring-rose-800' : ''
-                                }`}>
-                                {/* ─── Material Header (clickable) ─── */}
+                            <div key={item.id} className={`border rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm transition-all ${isExpanded ? 'ring-2 ring-rose-200 dark:ring-rose-800' : ''}`}>
+                                {/* Material Header */}
                                 <button
                                     onClick={() => toggleItem(item)}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/80 dark:hover:bg-slate-800/50 transition-colors text-start"
                                 >
-                                    {/* Status icon */}
                                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isFulfilled ? 'bg-green-100 dark:bg-green-900/30 text-green-600' :
                                         deliveredRolls.length > 0 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' :
                                             'bg-gray-100 dark:bg-gray-800 text-gray-400'
                                         }`}>
-                                        {isFulfilled
-                                            ? <CheckCircle2 className="w-5 h-5" />
-                                            : <Package className="w-5 h-5" />
-                                        }
+                                        {isFulfilled ? <CheckCircle2 className="w-5 h-5" /> : <Package className="w-5 h-5" />}
                                     </div>
 
-                                    {/* Material info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm truncate">
                                             {item.material_name_ar || item.material_name || item.description || item.id?.substring(0, 8)}
                                         </div>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            {item.color_name && (
-                                                <Badge variant="outline" className="h-4 text-[9px] px-1.5 bg-gray-50">
-                                                    {item.color_name}
-                                                </Badge>
-                                            )}
-                                        </div>
+                                        {item.color_name && (
+                                            <Badge variant="outline" className="h-4 text-[9px] px-1.5 bg-gray-50 mt-0.5">
+                                                {item.color_name}
+                                            </Badge>
+                                        )}
                                     </div>
 
-                                    {/* Stats */}
                                     <div className="flex items-center gap-3 shrink-0 text-xs">
                                         <div className="text-center min-w-[50px]">
                                             <div className="text-[10px] text-gray-400 uppercase">{tl('المطلوب', 'Required')}</div>
-                                            <div className="font-bold font-mono text-sm text-gray-800 dark:text-gray-200">{item.quantity} <span className="text-[10px] text-gray-400">م</span></div>
+                                            <div className="font-bold font-mono text-sm text-gray-800 dark:text-gray-200">
+                                                {item.quantity} <span className="text-[10px] text-gray-400">م</span>
+                                            </div>
                                         </div>
                                         <div className="text-center min-w-[50px]">
                                             <div className="text-[10px] text-gray-400 uppercase">{tl('المسلّم', 'Delivered')}</div>
-                                            <div className={`font-bold font-mono text-sm ${isFulfilled ? 'text-green-600' :
-                                                deliveredRolls.length > 0 ? 'text-amber-600' : 'text-gray-300'
-                                                }`}>
+                                            <div className={`font-bold font-mono text-sm ${isFulfilled ? 'text-green-600' : deliveredRolls.length > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
                                                 {deliveredLength.toFixed(1)} <span className="text-[10px] text-gray-400">م</span>
                                             </div>
                                         </div>
-                                        <Badge variant="outline" className={`text-[10px] ${isFulfilled ? 'bg-green-50 text-green-600 border-green-200' :
-                                            deliveredRolls.length > 0 ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                                                'text-gray-400'
-                                            }`}>
+                                        <Badge variant="outline" className={`text-[10px] ${isFulfilled ? 'bg-green-50 text-green-600 border-green-200' : deliveredRolls.length > 0 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'text-gray-400'}`}>
                                             <Cylinder className="w-3 h-3 me-0.5" />
                                             {deliveredRolls.length}
                                         </Badge>
                                     </div>
 
-                                    {/* Expand arrow */}
-                                    {isExpanded
-                                        ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
-                                        : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-                                    }
+                                    {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
                                 </button>
 
-                                {/* ─── Progress Bar ─── */}
+                                {/* Progress Bar */}
                                 <div className="px-4 pb-1">
                                     <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full transition-all duration-700 ease-out ${isFulfilled
-                                                ? 'bg-gradient-to-r from-green-400 to-emerald-500'
-                                                : deliveredRolls.length > 0
-                                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500'
-                                                    : 'bg-gray-200 dark:bg-gray-700'
-                                                }`}
+                                            className={`h-full rounded-full transition-all duration-700 ease-out ${isFulfilled ? 'bg-gradient-to-r from-green-400 to-emerald-500' : deliveredRolls.length > 0 ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}
                                             style={{ width: `${Math.min(fulfillmentPct, 100)}%` }}
                                         />
                                     </div>
-                                    <div className="text-[10px] text-gray-400 mt-0.5 text-end font-mono">
-                                        {fulfillmentPct.toFixed(0)}%
-                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-0.5 text-end font-mono">{fulfillmentPct.toFixed(0)}%</div>
                                 </div>
 
-                                {/* ─── Inline Roll Chips (always visible) ─── */}
+                                {/* Roll Chips */}
                                 {deliveredRolls.length > 0 && (
                                     <div className="px-4 pb-3">
                                         <div className="flex items-center gap-1.5 mb-1.5">
                                             <PackageCheck className="w-3 h-3 text-green-500" />
                                             <span className="text-[10px] font-medium text-green-700 dark:text-green-400">
-                                                {tl('رولونات مُختارة', 'Selected Rolls')}
+                                                {isViewMode ? tl('رولونات مُسلّمة', 'Delivered Rolls') : tl('رولونات مُختارة', 'Selected Rolls')}
                                             </span>
                                             <Badge variant="outline" className="text-[9px] h-4 bg-green-50 text-green-600 border-green-200">
                                                 {deliveredRolls.length}
                                             </Badge>
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {deliveredRolls.map(roll => {
-                                                // Show short roll number: last part after last dash
-                                                const shortNum = roll.roll_number?.split('-').slice(-1)[0] || roll.roll_number;
-                                                return (
-                                                    <div
-                                                        key={roll.id}
-                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 hover:border-green-300 transition-colors group"
-                                                    >
-                                                        <span className="font-mono font-bold">({(roll.net_length || 0).toFixed(1)})</span>
-                                                        <span className="font-mono">{roll.roll_number}</span>
+                                            {deliveredRolls.map(roll => (
+                                                <div
+                                                    key={roll.id}
+                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 transition-colors group"
+                                                >
+                                                    <span className="font-mono font-bold">({(roll.net_length || 0).toFixed(1)})</span>
+                                                    <span className="font-mono">{roll.roll_number}</span>
+                                                    {!isViewMode && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); removeRoll(roll.id); }}
                                                             className="w-3.5 h-3.5 flex items-center justify-center rounded-full text-green-500 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors opacity-60 group-hover:opacity-100"
@@ -770,15 +715,15 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                                         >
                                                             ✕
                                                         </button>
-                                                    </div>
-                                                );
-                                            })}
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* ─── Expanded: Roll Browser Only ─── */}
-                                {isExpanded && (
+                                {/* Roll Browser (edit mode only) */}
+                                {isExpanded && !isViewMode && (
                                     <div className="border-t bg-gray-50/50 dark:bg-slate-800/30">
                                         <RollBrowser
                                             materialRolls={materialRolls}
@@ -798,29 +743,19 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
 
             {/* ═══ 3. Bottom Summary Bar ═══ */}
             <div className="border-t px-4 py-3 bg-gradient-to-r from-white to-gray-50 dark:from-slate-900 dark:to-slate-800">
-                {/* Progress bar */}
                 <div className="flex items-center gap-3 mb-2">
-                    <span className="text-[10px] text-gray-500 font-medium shrink-0 w-16">
-                        {tl('التقدم', 'Progress')}
-                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium shrink-0 w-16">{tl('التقدم', 'Progress')}</span>
                     <div className="flex-1 h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
-                            className={`h-full rounded-full transition-all duration-700 ease-out ${totalStats.isComplete
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                : totalStats.rollCount > 0
-                                    ? 'bg-gradient-to-r from-rose-500 to-orange-500'
-                                    : 'bg-gray-300 dark:bg-gray-600'
-                                }`}
+                            className={`h-full rounded-full transition-all duration-700 ease-out ${totalStats.isComplete ? 'bg-gradient-to-r from-green-500 to-emerald-500' : totalStats.rollCount > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                             style={{ width: `${totalStats.percent}%` }}
                         />
                     </div>
-                    <span className={`text-sm font-bold font-mono min-w-[40px] text-end ${totalStats.isComplete ? 'text-green-600' : 'text-rose-600'
-                        }`}>
+                    <span className={`text-sm font-bold font-mono min-w-[40px] text-end ${totalStats.isComplete ? 'text-green-600' : 'text-rose-600'}`}>
                         {totalStats.percent.toFixed(0)}%
                     </span>
                 </div>
 
-                {/* Stats row */}
                 <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5">
@@ -836,7 +771,6 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                         </div>
                     </div>
 
-                    {/* Partial delivery indicator */}
                     {totalStats.rollCount > 0 && !totalStats.isComplete && (
                         <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-600 border-amber-200 gap-1">
                             <Info className="w-3 h-3" />

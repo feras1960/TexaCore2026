@@ -50,6 +50,7 @@ import {
     ShoppingCart,
     Check,
     Heart,
+    MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -93,6 +94,10 @@ interface RollDetail {
     supplier_name?: string;
     received_date?: string;
     created_at: string;
+    // ─ Location ─
+    bin_location_id?: string;
+    bin_location_code?: string;
+    bin_location_name?: string;
 }
 
 interface WarehouseBasic {
@@ -108,13 +113,15 @@ interface MaterialInventoryTabProps {
     data: any;
     /** Called when user wants to close the material sheet (e.g. to open cart) */
     onClose?: () => void;
+    /** Called when user clicks a roll to open its detail sheet as MDI tab */
+    onOpenRoll?: (roll: any) => void;
 }
 
 // ════════════════════════════════════════════════════
 // Component
 // ════════════════════════════════════════════════════
 
-export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProps) {
+export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInventoryTabProps) {
     const { language } = useLanguage();
     const { companyId } = useCompany();
     const { actions: cartActions } = useCart();
@@ -377,34 +384,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
     // ═══════════ Render ═══════════
     return (
         <TooltipProvider delayDuration={300}>
-            <div className="space-y-5 p-6" dir={isRTL ? 'rtl' : 'ltr'}>
-                {/* ═══════════ Summary Cards ═══════════ */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <SummaryCard
-                        label={t('عدد الرولونات', 'Total Rolls')}
-                        value={loading ? '...' : totals.rolls.toLocaleString('en-US')}
-                        icon={<Layers className="w-5 h-5" />}
-                        color="indigo"
-                    />
-                    <SummaryCard
-                        label={t(`إجمالي المخزون (${unitLabel.ar})`, `Total Stock (${unitLabel.en})`)}
-                        value={loading ? '...' : totals.total.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                        icon={<Ruler className="w-5 h-5" />}
-                        color="blue"
-                    />
-                    <SummaryCard
-                        label={t('المخزون المتاح', 'Available Stock')}
-                        value={loading ? '...' : totals.available.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                        icon={<CheckCircle2 className="w-5 h-5" />}
-                        color="green"
-                    />
-                    <SummaryCard
-                        label={t('المخزون المحجوز', 'Reserved Stock')}
-                        value={loading ? '...' : totals.reserved.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                        icon={<Lock className="w-5 h-5" />}
-                        color="orange"
-                    />
-                </div>
+            <div className="space-y-4 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
 
                 {/* ═══════════ Error Message ═══════════ */}
                 {error && (
@@ -798,11 +778,15 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                     {/* Rolls Mini Table */}
                                                                     <div className="border rounded-md overflow-hidden bg-white dark:bg-gray-900">
                                                                         {/* Header */}
-                                                                        <div className="grid grid-cols-[auto_1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.7fr_0.9fr] bg-gray-50 dark:bg-gray-800/60 text-[10px] font-medium text-gray-500 border-b">
+                                                                        <div className="grid grid-cols-[auto_1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.7fr_0.9fr] bg-gray-50 dark:bg-gray-800/60 text-[10px] font-medium text-gray-500 border-b">
                                                                             <div className="px-2 py-2 text-center w-10">
                                                                                 <Heart className="w-3 h-3 mx-auto" />
                                                                             </div>
                                                                             <div className="px-3 py-2">{t('رقم الرولون', 'Roll #')}</div>
+                                                                            <div className="px-3 py-2 flex items-center gap-1">
+                                                                                <MapPin className="w-3 h-3" />
+                                                                                {t('الموقع', 'Location')}
+                                                                            </div>
                                                                             <div className="px-3 py-2 text-end">{t('الطول الأصلي', 'Initial')}</div>
                                                                             <div className="px-3 py-2 text-end">{t('الطول الحالي', 'Current')}</div>
                                                                             <div className="px-3 py-2 text-end">{t('المتاح', 'Available')}</div>
@@ -810,6 +794,7 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                             <div className="px-3 py-2">{t('الحالة', 'Status')}</div>
                                                                             <div className="px-3 py-2">{t('تاريخ الاستلام', 'Received')}</div>
                                                                         </div>
+
 
                                                                         {/* Roll Rows */}
                                                                         {filteredRolls.map((roll) => {
@@ -823,9 +808,13 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                                 <div
                                                                                     key={roll.id}
                                                                                     className={cn(
-                                                                                        "grid grid-cols-[auto_1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.7fr_0.9fr] items-center border-b last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-800/20 text-xs transition-colors",
-                                                                                        isPreferred && "bg-emerald-50/60 dark:bg-emerald-900/15 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                                                                        "grid grid-cols-[auto_1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.7fr_0.9fr] items-center border-b last:border-b-0 text-xs transition-colors",
+                                                                                        onOpenRoll ? "cursor-pointer" : "",
+                                                                                        isPreferred
+                                                                                            ? "bg-emerald-50/60 dark:bg-emerald-900/15 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/25"
+                                                                                            : "hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10"
                                                                                     )}
+                                                                                    onClick={() => onOpenRoll?.(roll)}
                                                                                 >
                                                                                     {/* Preferred Toggle */}
                                                                                     <div className="px-2 py-2 text-center w-10">
@@ -863,12 +852,23 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                                     {/* Roll Number + Color */}
                                                                                     <div className="px-3 py-2 flex items-center gap-1.5">
                                                                                         <Scroll className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                                                                                        <span className={cn(
-                                                                                            "font-mono font-medium",
-                                                                                            isPreferred ? "text-emerald-700 dark:text-emerald-300" : "text-gray-700 dark:text-gray-200"
-                                                                                        )}>
+                                                                                        <button
+                                                                                            className={cn(
+                                                                                                "font-mono font-medium hover:underline transition-colors group flex items-center gap-1",
+                                                                                                onOpenRoll ? "cursor-pointer hover:text-amber-600 dark:hover:text-amber-400" : "cursor-default",
+                                                                                                isPreferred ? "text-emerald-700 dark:text-emerald-300" : "text-gray-700 dark:text-gray-200"
+                                                                                            )}
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                onOpenRoll?.(roll);
+                                                                                            }}
+                                                                                            title={onOpenRoll ? (language === 'ar' ? 'فتح تفاصيل الرولون' : 'Open roll details') : undefined}
+                                                                                        >
                                                                                             {roll.roll_number}
-                                                                                        </span>
+                                                                                            {onOpenRoll && (
+                                                                                                <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
+                                                                                            )}
+                                                                                        </button>
                                                                                         {isPreferred && (
                                                                                             <Badge className="text-[9px] h-4 px-1 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40">
                                                                                                 {t('مفضل', '★')}
@@ -886,6 +886,25 @@ export function MaterialInventoryTab({ data, onClose }: MaterialInventoryTabProp
                                                                                                     {isRTL ? roll.color_name_ar : (roll.color_name_en || roll.color_name_ar)}
                                                                                                 </span>
                                                                                             </div>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    {/* 📍 Storage Location */}
+                                                                                    <div className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                                                                                        {roll.bin_location_code ? (
+                                                                                            <Tooltip>
+                                                                                                <TooltipTrigger asChild>
+                                                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 text-[10px] font-mono font-semibold text-violet-700 dark:text-violet-300 cursor-default">
+                                                                                                        <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+                                                                                                        {roll.bin_location_code}
+                                                                                                    </span>
+                                                                                                </TooltipTrigger>
+                                                                                                <TooltipContent side="top" className="text-xs">
+                                                                                                    {roll.bin_location_name || roll.bin_location_code}
+                                                                                                </TooltipContent>
+                                                                                            </Tooltip>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-300 dark:text-gray-600 text-[10px]">—</span>
                                                                                         )}
                                                                                     </div>
 

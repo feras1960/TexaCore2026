@@ -823,7 +823,7 @@ export const materialConfig: DocumentConfig = {
     subtitleKey: 'warehouse.material.subtitle',
     icon: 'Package',
     iconColor: 'bg-teal-600',
-    defaultTab: 'overview',
+    defaultTab: 'inventory',
     supportsModes: ['view', 'edit', 'create'],
     headerFields: ['code', 'name_ar', 'category', 'is_active'],
     tabs: [
@@ -870,6 +870,14 @@ export const materialConfig: DocumentConfig = {
             component: 'MaterialAnalyticsTab',
             showInModes: ['view'],
         },
+        {
+            id: 'ecommerce',
+            labelKey: 'warehouse.tabs.ecommerce',
+            icon: 'Store',
+            component: 'MaterialEcommerceTab',
+            showInModes: ['view'],
+            badge: 'New',
+        },
 
         // === Create/Edit Mode Tabs ===
         {
@@ -913,6 +921,15 @@ export const materialConfig: DocumentConfig = {
             icon: 'Info',
             component: 'MaterialAdditionalInfoTab',
             showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'createEcommerce',
+            labelKey: 'warehouse.tabs.ecommerce', // Fallback mapped in UI
+            icon: 'Store',
+            component: 'MaterialEcommerceTab',
+            showInModes: ['create', 'edit'],
+            badge: 'New',
+            badgeClass: 'bg-erp-teal',
         },
     ],
     actions: [
@@ -1232,6 +1249,89 @@ export const documentConfigs: Record<string, DocumentConfig> = {
     goods_receipt: goodsReceiptConfig,
     sales_delivery: salesDeliveryConfig,
 };
+
+// ═══════════════════════════════════════════════════════════
+// Roll Config — شيت الرولون
+// ═══════════════════════════════════════════════════════════
+export const rollConfig: DocumentConfig = {
+    type: 'roll',
+    titleKey: 'warehouse.roll.title',
+    subtitleKey: 'warehouse.roll.subtitle',
+    icon: 'Layers',
+    iconColor: 'bg-amber-600',
+    defaultTab: 'roll_overview',
+    supportsModes: ['view'],
+    headerFields: ['roll_number', 'status', 'warehouse'],
+    tabs: [
+        {
+            id: 'roll_overview',
+            labelKey: 'warehouse.roll.tabs.overview',
+            icon: 'Layers',
+            component: 'RollOverviewTab',
+            showInModes: ['view'],
+        },
+        {
+            id: 'roll_movements',
+            labelKey: 'warehouse.roll.tabs.movements',
+            icon: 'TrendingUp',
+            component: 'RollMovementsTab',
+            showInModes: ['view'],
+        },
+        {
+            id: 'roll_location',
+            labelKey: 'warehouse.roll.tabs.location',
+            icon: 'MapPin',
+            component: 'RollLocationTab',
+            showInModes: ['view'],
+        },
+    ],
+    actions: [
+        {
+            id: 'print',
+            labelKey: 'actions.print',
+            icon: 'Printer',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+    ],
+    stats: [
+        {
+            id: 'current_length',
+            labelKey: 'warehouse.roll.stats.currentLength',
+            valueKey: 'current_length',
+            icon: 'Ruler',
+            format: 'number',
+            colorClass: 'text-blue-600',
+        },
+        {
+            id: 'available_length',
+            labelKey: 'warehouse.roll.stats.available',
+            valueKey: 'available_length',
+            icon: 'CheckCircle',
+            format: 'number',
+            colorClass: 'text-emerald-600',
+        },
+        {
+            id: 'reserved_length',
+            labelKey: 'warehouse.roll.stats.reserved',
+            valueKey: 'reserved_length',
+            icon: 'Lock',
+            format: 'number',
+            colorClass: 'text-amber-600',
+        },
+        {
+            id: 'cost_per_meter',
+            labelKey: 'warehouse.roll.stats.costPerMeter',
+            valueKey: 'cost_per_meter',
+            icon: 'DollarSign',
+            format: 'number',
+            colorClass: 'text-purple-600',
+        },
+    ],
+};
+
+// Add roll to main config map
+(documentConfigs as any)['roll'] = rollConfig;
 
 // Get config by type — with optional tradeMode for smart tab selection
 export function getDocumentConfig(type: string, tradeMode?: 'sales' | 'purchase'): DocumentConfig {

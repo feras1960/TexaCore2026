@@ -681,12 +681,6 @@ export const goodsReceiptConfig: DocumentConfig = {
             icon: 'ScanLine',
             component: 'GoodsReceiptItemsTab',
         },
-        {
-            id: 'receipt_summary',
-            labelKey: 'warehouse.goodsReceipt.tabs.summary',
-            icon: 'ClipboardCheck',
-            component: 'ReceiptSummaryTab',
-        },
         TAB.attachments,
     ],
     actions: [

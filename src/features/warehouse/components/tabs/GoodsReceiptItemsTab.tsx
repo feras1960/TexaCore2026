@@ -497,13 +497,36 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
     const overallDiscrepancy = useMemo(() => {
         if (stats.expectedTotal === 0) return { type: 'none', amount: 0 };
         const rawDiff = stats.totalLength - stats.expectedTotal;
-        // 🔑 Round to 3 decimal places to avoid floating-point ghosts (e.g. 1.82e-14)
-        const EPSILON = 0.001; // 1mm tolerance
+        const EPSILON = 0.001;
         const diff = Math.abs(rawDiff) < EPSILON ? 0 : rawDiff;
         if (diff === 0) return { type: 'none' as const, amount: 0 };
         if (diff > 0) return { type: 'excess' as const, amount: Math.round(diff * 1000) / 1000 };
         return { type: 'shortage' as const, amount: Math.round(Math.abs(diff) * 1000) / 1000 };
     }, [stats]);
+
+    // ─── Grouped by Material (for accordion view in readOnly mode) ────────
+    const [expandedMaterials, setExpandedMaterials] = useState<Record<string, boolean>>({});
+    const toggleMaterial = (matId: string) =>
+        setExpandedMaterials(prev => ({ ...prev, [matId]: !prev[matId] }));
+
+    const groupedByMaterial = useMemo(() => {
+        const groups: Record<string, {
+            materialId: string;
+            materialName: string;
+            rolls: ReceiptItem[];
+            totalLength: number;
+        }> = {};
+        for (const item of items) {
+            const matId = item.materialId || 'unknown';
+            const matName = item.materialName || getMaterialName(item.materialId);
+            if (!groups[matId]) {
+                groups[matId] = { materialId: matId, materialName: matName, rolls: [], totalLength: 0 };
+            }
+            groups[matId].rolls.push(item);
+            groups[matId].totalLength += item.rollLength || 0;
+        }
+        return Object.values(groups);
+    }, [items, getMaterialName]);
 
     // ════════════════════════════════════════════════════════════
     // 🎨 RENDER
@@ -930,27 +953,99 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                     )}
                 </div>
 
-                {filteredItems.length === 0 ? (
+                {items.length === 0 ? (
                     <div className="text-center py-10 text-muted-foreground">
                         <Boxes className="h-12 w-12 mx-auto mb-3 opacity-30" />
                         <p className="text-sm font-medium">
-                            {language === 'ar'
-                                ? 'لم يتم إضافة أي بنود بعد'
-                                : 'No items added yet'
-                            }
-                        </p>
-                        <p className="text-xs mt-1">
-                            {sourceItems.length > 0
-                                ? (language === 'ar'
-                                    ? 'اختر بند من المستند المصدر أعلاه ثم أدخل تفاصيل الرولون'
-                                    : 'Select an item from source document above, then enter roll details')
-                                : (language === 'ar'
-                                    ? 'اختر المادة واللون والطول ثم اضغط +'
-                                    : 'Select material, color, and length then press +')
-                            }
+                            {language === 'ar' ? 'لم يتم إضافة أي بنود بعد' : 'No items added yet'}
                         </p>
                     </div>
+                ) : readOnly ? (
+                    /* ═══ VIEW MODE: Accordion grouped by material ═══ */
+                    <div className="space-y-2">
+                        {groupedByMaterial.map(group => (
+                            <div key={group.materialId} className="border rounded-lg overflow-hidden shadow-sm">
+                                {/* Material Header Row */}
+                                <button
+                                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    onClick={() => toggleMaterial(group.materialId)}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                                            <Package className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        </div>
+                                        <div className="text-start">
+                                            <div className="text-sm font-semibold text-gray-800 dark:text-white">
+                                                {group.materialName}
+                                            </div>
+                                            <div className="text-[11px] text-muted-foreground">
+                                                {group.rolls.length} {language === 'ar' ? 'رولون' : 'rolls'}
+                                                {' • '}
+                                                <span className="font-mono font-medium text-emerald-600">
+                                                    {group.totalLength.toLocaleString()} {language === 'ar' ? 'م' : 'm'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                            {group.rolls.length}
+                                        </Badge>
+                                        {expandedMaterials[group.materialId]
+                                            ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                                            : <ChevronDown className="h-4 w-4 text-gray-400" />
+                                        }
+                                    </div>
+                                </button>
+
+                                {/* Rolls Table (expandable) */}
+                                {expandedMaterials[group.materialId] && (
+                                    <div className="border-t">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-muted/30">
+                                                <tr>
+                                                    <th className="px-4 py-1.5 text-start font-medium text-muted-foreground">
+                                                        {language === 'ar' ? 'رقم الرولون' : 'Roll #'}
+                                                    </th>
+                                                    <th className="px-4 py-1.5 text-start font-medium text-muted-foreground">
+                                                        {language === 'ar' ? 'اللون' : 'Color'}
+                                                    </th>
+                                                    <th className="px-4 py-1.5 text-start font-medium text-muted-foreground">
+                                                        {language === 'ar' ? 'الطول' : 'Length'}
+                                                    </th>
+                                                    <th className="px-4 py-1.5 text-start font-medium text-muted-foreground">
+                                                        {language === 'ar' ? 'الحالة' : 'Status'}
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {group.rolls.map(roll => (
+                                                    <tr key={roll.id} className="border-t hover:bg-muted/20 transition-colors">
+                                                        <td className="px-4 py-2">
+                                                            <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                                                                {roll.rollNumber}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-2 text-muted-foreground">
+                                                            {roll.colorName || '—'}
+                                                        </td>
+                                                        <td className="px-4 py-2 font-mono font-medium">
+                                                            {roll.rollLength} <span className="text-muted-foreground">{language === 'ar' ? 'م' : 'm'}</span>
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            {getSyncBadge(roll.syncStatus)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 ) : (
+                    /* ═══ EDIT/CREATE MODE: Flat list ═══ */
                     <div className="border rounded-lg overflow-hidden">
                         <div className="max-h-[350px] overflow-auto">
                             <table className="w-full text-sm">
@@ -983,8 +1078,7 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                                         return (
                                             <tr
                                                 key={item.id}
-                                                className={`border-t hover:bg-muted/30 transition-colors ${idx === 0 ? 'animate-in fade-in slide-in-from-top-2 duration-300' : ''
-                                                    }`}
+                                                className={`border-t hover:bg-muted/30 transition-colors ${idx === 0 ? 'animate-in fade-in slide-in-from-top-2 duration-300' : ''}`}
                                             >
                                                 <td className="p-2">
                                                     <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">

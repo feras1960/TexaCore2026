@@ -5,14 +5,16 @@
  * لأن العميل أو المورد يحتاج رؤية محتوى الفاتورة للمطابقة وليس بنود القيد
  * 
  * ✅ يعرض الكمية المسلّمة (delivered_qty) بدلاً من الكمية الأصلية (quantity)
- * ✅ يعرض حالة الدفع (مدفوعة/جزئي/غير مدفوعة) 
+ * ✅ يعرض حالة الدفع (مدفوعة/جزئي/غير مدفوعة)
+ * ✅ يعرض حالة الترحيل (مرحّل/غير مرحّل) بناءً على journal_entry_id/posted_at
+ * ✅ يعرض حالة التسليم (مسلّم/جزئي/لم يُسلَّم) بناءً على stage/delivered_at
  * ✅ يعرض تفاصيل سندات القبض/الصرف مع ربط بالفاتورة
  */
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn, formatNumber } from '@/lib/utils';
-import { Loader2, ExternalLink, CreditCard, ArrowRightLeft, FileText, CheckCircle2, AlertCircle, Clock, Package, Ship, Truck } from 'lucide-react';
+import { Loader2, ExternalLink, CreditCard, ArrowRightLeft, FileText, CheckCircle2, AlertCircle, Clock, Package, Ship, Truck, BookOpen, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { ExtendedLedgerEntry } from '../hooks/useLedgerData';
 
@@ -76,10 +78,30 @@ interface InvoiceSummary {
     notes?: string;
     container_id?: string;
     container_number?: string;
+    // حالة الترحيل
+    journal_entry_id?: string | null;
+    posted_at?: string | null;
+    // حالة التسليم
+    delivered_at?: string | null;
+    delivery_confirmed_at?: string | null;
+    delivery_no?: string | null;
+    // معلومات المستودع
+    warehouse_id?: string | null;
+    warehouse_name_ar?: string | null;
+    warehouse_name_en?: string | null;
+    stock_warehouse_id?: string | null;
+    stock_warehouse_name_ar?: string | null;
+    stock_warehouse_name_en?: string | null;
 }
 
 // ═══ Payment Status ═══
 type PaymentStatus = 'paid' | 'partial' | 'unpaid';
+
+// ═══ Posting Status ═══
+type PostingStatus = 'posted' | 'unposted';
+
+// ═══ Delivery Status ═══
+type DeliveryStatus = 'delivered' | 'partial' | 'pending';
 
 function getPaymentStatus(totalAmount: number, paidAmount: number): PaymentStatus {
     if (paidAmount >= totalAmount && totalAmount > 0) return 'paid';
@@ -87,31 +109,111 @@ function getPaymentStatus(totalAmount: number, paidAmount: number): PaymentStatu
     return 'unpaid';
 }
 
+function getPostingStatus(summary: InvoiceSummary): PostingStatus {
+    if (summary.journal_entry_id || summary.posted_at) return 'posted';
+    // Check stage as fallback
+    const postedStages = ['posted', 'delivered', 'completed', 'paid', 'fully_received', 'partially_received', 'received'];
+    if (postedStages.includes(summary.stage)) return 'posted';
+    return 'unposted';
+}
+
+function getDeliveryStatus(summary: InvoiceSummary): DeliveryStatus {
+    if (summary.delivered_at || summary.delivery_confirmed_at || summary.stage === 'delivered' || summary.stage === 'completed') return 'delivered';
+    if (summary.delivery_no || summary.stage === 'in_delivery') return 'partial';
+    if (summary.stage === 'partially_received' || summary.stage === 'in_receiving') return 'partial';
+    return 'pending';
+}
+
 function PaymentStatusBadge({ status, isRTL }: { status: PaymentStatus; isRTL: boolean }) {
     const config = {
         paid: {
-            label_ar: 'مدفوعة',
-            label_en: 'Paid',
+            label_ar: 'مدفوعة ✓',
+            label_en: 'Paid ✓',
             icon: <CheckCircle2 className="w-3 h-3" />,
-            className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+            className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800',
         },
         partial: {
-            label_ar: 'مدفوعة جزئياً',
-            label_en: 'Partially Paid',
+            label_ar: 'جزئي الدفع',
+            label_en: 'Part. Paid',
             icon: <Clock className="w-3 h-3" />,
-            className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+            className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800',
         },
         unpaid: {
             label_ar: 'غير مدفوعة',
             label_en: 'Unpaid',
-            icon: <AlertCircle className="w-3 h-3" />,
-            className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            icon: <XCircle className="w-3 h-3" />,
+            className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800',
         },
     };
 
     const c = config[status];
     return (
         <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", c.className)}>
+            {c.icon}
+            {isRTL ? c.label_ar : c.label_en}
+        </span>
+    );
+}
+
+function PostingStatusBadge({ status, postedAt, isRTL }: { status: PostingStatus; postedAt?: string | null; isRTL: boolean }) {
+    const config = {
+        posted: {
+            label_ar: 'مرحَّل ✓',
+            label_en: 'Posted ✓',
+            icon: <BookOpen className="w-3 h-3" />,
+            className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800',
+        },
+        unposted: {
+            label_ar: 'غير مرحَّل',
+            label_en: 'Not Posted',
+            icon: <AlertCircle className="w-3 h-3" />,
+            className: 'bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400 border border-gray-200 dark:border-gray-700',
+        },
+    };
+
+    const c = config[status];
+    return (
+        <span
+            className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", c.className)}
+            title={postedAt ? `${isRTL ? 'تاريخ الترحيل: ' : 'Posted: '}${postedAt}` : undefined}
+        >
+            {c.icon}
+            {isRTL ? c.label_ar : c.label_en}
+        </span>
+    );
+}
+
+function DeliveryStatusBadge({ status, deliveredAt, deliveryNo, isRTL }: { status: DeliveryStatus; deliveredAt?: string | null; deliveryNo?: string | null; isRTL: boolean }) {
+    const config = {
+        delivered: {
+            label_ar: 'مُسلَّم ✓',
+            label_en: 'Delivered ✓',
+            icon: <Truck className="w-3 h-3" />,
+            className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800',
+        },
+        partial: {
+            label_ar: 'تسليم جزئي',
+            label_en: 'Part. Delivered',
+            icon: <Package className="w-3 h-3" />,
+            className: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 border border-sky-200 dark:border-sky-800',
+        },
+        pending: {
+            label_ar: 'لم يُسلَّم',
+            label_en: 'Not Delivered',
+            icon: <Clock className="w-3 h-3" />,
+            className: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800',
+        },
+    };
+
+    const c = config[status];
+    const titleParts = [];
+    if (deliveredAt) titleParts.push(`${isRTL ? 'تاريخ التسليم: ' : 'Delivered: '}${deliveredAt}`);
+    if (deliveryNo) titleParts.push(`${isRTL ? 'أمر التسليم: ' : 'Delivery Note: '}${deliveryNo}`);
+    return (
+        <span
+            className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", c.className)}
+            title={titleParts.join(' | ') || undefined}
+        >
             {c.icon}
             {isRTL ? c.label_ar : c.label_en}
         </span>
@@ -137,6 +239,12 @@ export function PartyLedgerExpandedRow({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary | null>(null);
+    // حركات الرولونات في المستودع
+    const [rollMovements, setRollMovements] = useState<{ total: number; movementRef?: string } | null>(null);
+    // رولونات كل مادة: material_id → Roll[]
+    const [itemRollsMap, setItemRollsMap] = useState<Record<string, { roll_id: string; roll_number: string; length: number; status: string; color_name?: string }[]>>({});
+    // السطر المنفتح من بنود الفاتورة
+    const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
     // Entry type info
     const typeConfig = ENTRY_TYPE_CONFIG[entry.type] || ENTRY_TYPE_CONFIG.journal;
@@ -211,6 +319,13 @@ export function PartyLedgerExpandedRow({
                                 stage: pi.document_stage || pi.status || '',
                                 notes: pi.notes || '',
                                 container_id: pi.container_id || undefined,
+                                // ترحيل
+                                journal_entry_id: pi.journal_entry_id || null,
+                                posted_at: pi.posted_at || null,
+                                // تسليم/استلام
+                                delivered_at: pi.received_at || pi.delivered_at || null,
+                                delivery_confirmed_at: pi.delivery_confirmed_at || null,
+                                delivery_no: pi.delivery_no || null,
                             };
                         } else {
                             // Legacy fallback summary
@@ -228,6 +343,11 @@ export function PartyLedgerExpandedRow({
                                         stage: pt.stage || '',
                                         notes: pt.notes || '',
                                         container_id: pt.container_id || undefined,
+                                        journal_entry_id: pt.journal_entry_id || null,
+                                        posted_at: pt.posted_at || null,
+                                        delivered_at: pt.delivered_at || null,
+                                        delivery_confirmed_at: pt.delivery_confirmed_at || null,
+                                        delivery_no: pt.delivery_no || null,
                                     };
                                 }
                             } catch { /* ignore */ }
@@ -266,6 +386,16 @@ export function PartyLedgerExpandedRow({
                                 currency: txn.currency || currency,
                                 stage: txn.stage || '',
                                 notes: txn.notes || '',
+                                // ترحيل
+                                journal_entry_id: txn.journal_entry_id || null,
+                                posted_at: txn.posted_at || null,
+                                // تسليم
+                                delivered_at: txn.delivered_at || txn.delivery_confirmed_at || null,
+                                delivery_confirmed_at: txn.delivery_confirmed_at || null,
+                                delivery_no: txn.delivery_no || null,
+                                // مستودع
+                                warehouse_id: txn.warehouse_id || null,
+                                stock_warehouse_id: txn.stock_warehouse_id || null,
                             };
                         }
                     }
@@ -288,8 +418,74 @@ export function PartyLedgerExpandedRow({
                             unit: item.unit || item.uom || '',
                             colorName: item.color_name || undefined,
                             rollsCount: item.rolls_count || undefined,
+                            // نحتفظ material_id للربط بالرولونات
+                            material_id: item.material_id || undefined,
                         })));
-                        setInvoiceSummary(summaryData);
+
+                        // ═══ جلب اسم المستودع ═══
+                        if (summaryData) {
+                            const whId = summaryData.warehouse_id || summaryData.stock_warehouse_id;
+                            if (whId) {
+                                try {
+                                    const { data: wh } = await supabase
+                                        .from('warehouses')
+                                        .select('id, name_ar, name_en')
+                                        .eq('id', whId)
+                                        .maybeSingle();
+                                    if (wh && !cancelled) {
+                                        summaryData.warehouse_name_ar = wh.name_ar || null;
+                                        summaryData.warehouse_name_en = wh.name_en || null;
+                                    }
+                                } catch { /* تجاهل */ }
+                            }
+                            setInvoiceSummary({ ...summaryData });
+                        } else {
+                            setInvoiceSummary(summaryData);
+                        }
+
+                        // ═══ جلب حركات المخزون في المستودع ═══
+                        if (refId) {
+                            try {
+                                // inventory_movements has reference_id but no roll_id column
+                                const { count: movCount } = await supabase
+                                    .from('inventory_movements')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('reference_id', refId);
+                                if (!cancelled) setRollMovements({ total: movCount || 0 });
+                            } catch { /* تجاهل */ }
+                        }
+
+                        // ═══ جلب رولونات كل مادة (للسطر المنفتح) ═══
+                        const fetchedItems = (items || []);
+                        const materialIds = [...new Set(
+                            fetchedItems.map((i: any) => i.material_id).filter(Boolean)
+                        )] as string[];
+
+                        if (materialIds.length > 0 && summaryData) {
+                            // جلب الرولونات المبيعة (حالة sold) مرتبطة بالمواد
+                            try {
+                                const { data: rollsData } = await supabase
+                                    .from('fabric_rolls')
+                                    .select('id, roll_number, current_length, status, material_id, color_name')
+                                    .in('material_id', materialIds)
+                                    .in('status', ['sold', 'delivered']);
+
+                                if (rollsData && rollsData.length > 0 && !cancelled) {
+                                    const rollMap: Record<string, any[]> = {};
+                                    for (const r of rollsData) {
+                                        if (!rollMap[r.material_id]) rollMap[r.material_id] = [];
+                                        rollMap[r.material_id].push({
+                                            roll_id: r.id,
+                                            roll_number: r.roll_number,
+                                            length: r.current_length || 0,
+                                            status: r.status,
+                                            color_name: r.color_name || undefined,
+                                        });
+                                    }
+                                    setItemRollsMap(rollMap);
+                                }
+                            } catch { /* تجاهل */ }
+                        }
                     }
 
                 } else if ((entry.type === 'payment' || entry.type === 'receipt') && refId) {
@@ -404,6 +600,12 @@ export function PartyLedgerExpandedRow({
         ? getPaymentStatus(invoiceSummary.total_amount, invoiceSummary.paid_amount)
         : null;
 
+    // Posting status
+    const invoicePostingStatus = invoiceSummary ? getPostingStatus(invoiceSummary) : null;
+
+    // Delivery status
+    const invoiceDeliveryStatus = invoiceSummary ? getDeliveryStatus(invoiceSummary) : null;
+
     // Stage labels for display
     const stageLabelMap: Record<string, { ar: string; en: string; color: string; icon: React.ReactNode }> = {
         draft: { ar: 'مسودة', en: 'Draft', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: <Clock className="w-3 h-3" /> },
@@ -449,20 +651,6 @@ export function PartyLedgerExpandedRow({
                             <span className="text-xs font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded">
                                 {invoiceSummary?.invoice_no || entry.entryNumber}
                             </span>
-                            {/* Payment Status Badge for invoices */}
-                            {invoicePaymentStatus && (
-                                <PaymentStatusBadge status={invoicePaymentStatus} isRTL={isRTL} />
-                            )}
-                            {/* Stage/Delivery Status Badge */}
-                            {invoiceSummary?.stage && invoiceSummary.stage !== 'draft' && (
-                                <span className={cn(
-                                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
-                                    stageLabelMap[invoiceSummary.stage]?.color || 'bg-gray-100 text-gray-600'
-                                )}>
-                                    {stageLabelMap[invoiceSummary.stage]?.icon}
-                                    {isRTL ? (stageLabelMap[invoiceSummary.stage]?.ar || invoiceSummary.stage) : (stageLabelMap[invoiceSummary.stage]?.en || invoiceSummary.stage)}
-                                </span>
-                            )}
                             {/* Container Link Badge */}
                             {invoiceSummary?.container_id && (
                                 <button
@@ -495,6 +683,139 @@ export function PartyLedgerExpandedRow({
                     </button>
                 )}
             </div>
+
+            {/* ═══ STATUS BAR — للفواتير فقط ═══ */}
+            {entry.type === 'invoice' && invoiceSummary && !loading && (
+                <div className="flex items-center gap-2 flex-wrap bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-100 dark:border-gray-700">
+                    {/* عنوان */}
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        {isRTL ? 'الحالات:' : 'Status:'}
+                    </span>
+
+                    {/* ── حالة الدفع ── */}
+                    <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-gray-400">{isRTL ? 'الدفع' : 'Payment'}</span>
+                        {invoicePaymentStatus && (
+                            <PaymentStatusBadge status={invoicePaymentStatus} isRTL={isRTL} />
+                        )}
+                    </div>
+
+                    <span className="text-gray-300 dark:text-gray-600 text-xs">•</span>
+
+                    {/* ── حالة الترحيل + رقم القيد معاً ── */}
+                    <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-gray-400">{isRTL ? 'الترحيل' : 'Posting'}</span>
+                        {invoicePostingStatus === 'posted' ? (
+                            // مرحَّل: نعرض البادج + رقم القيد معاً
+                            <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"
+                                title={invoiceSummary.posted_at ? `${isRTL ? 'تاريخ الترحيل: ' : 'Posted: '}${invoiceSummary.posted_at}` : undefined}
+                            >
+                                <BookOpen className="w-3 h-3" />
+                                {isRTL ? 'مرحَّل ✓' : 'Posted ✓'}
+                                {invoiceSummary.journal_entry_id && (
+                                    <span className="font-mono opacity-70 text-[9px] ms-0.5">
+                                        #{invoiceSummary.journal_entry_id.substring(0, 6)}
+                                    </span>
+                                )}
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                                <AlertCircle className="w-3 h-3" />
+                                {isRTL ? 'غير مرحَّل' : 'Not Posted'}
+                            </span>
+                        )}
+                    </div>
+
+                    <span className="text-gray-300 dark:text-gray-600 text-xs">•</span>
+
+                    {/* ── حالة التسليم ── */}
+                    <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-gray-400">{isRTL ? 'التسليم' : 'Delivery'}</span>
+                        {invoiceDeliveryStatus && (
+                            <DeliveryStatusBadge
+                                status={invoiceDeliveryStatus}
+                                deliveredAt={invoiceSummary.delivered_at || invoiceSummary.delivery_confirmed_at}
+                                deliveryNo={invoiceSummary.delivery_no}
+                                isRTL={isRTL}
+                            />
+                        )}
+                    </div>
+
+                    {/* ── المستودع ── */}
+                    {(invoiceSummary.warehouse_name_ar || invoiceSummary.warehouse_name_en) && (
+                        <>
+                            <span className="text-gray-300 dark:text-gray-600 text-xs">•</span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-[9px] text-gray-400">{isRTL ? 'المستودع' : 'Warehouse'}</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800">
+                                    🏭
+                                    {isRTL
+                                        ? (invoiceSummary.warehouse_name_ar || invoiceSummary.warehouse_name_en)
+                                        : (invoiceSummary.warehouse_name_en || invoiceSummary.warehouse_name_ar)}
+                                </span>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ── المرحلة الكاملة (فقط للحالات غير المكررة) ── */}
+                    {invoiceSummary.stage &&
+                        !['draft', 'posted', 'paid'].includes(invoiceSummary.stage) && (
+                            <>
+                                <span className="text-gray-300 dark:text-gray-600 text-xs">•</span>
+                                <span className={cn(
+                                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
+                                    stageLabelMap[invoiceSummary.stage]?.color || 'bg-gray-100 text-gray-600'
+                                )}>
+                                    {stageLabelMap[invoiceSummary.stage]?.icon}
+                                    {isRTL ? (stageLabelMap[invoiceSummary.stage]?.ar || invoiceSummary.stage) : (stageLabelMap[invoiceSummary.stage]?.en || invoiceSummary.stage)}
+                                </span>
+                            </>
+                        )}
+                </div>
+            )}
+
+            {/* ═══ WAREHOUSE ROLLS VERIFICATION — للفواتير فقط ═══ */}
+            {entry.type === 'invoice' && invoiceSummary && !loading && rollMovements !== null && (
+                <div className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg border text-xs",
+                    rollMovements.total > 0
+                        ? "bg-emerald-50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/40"
+                        : "bg-orange-50 dark:bg-orange-950/10 border-orange-200 dark:border-orange-800/40"
+                )}>
+                    {/* أيقونة */}
+                    <span className="text-base">{rollMovements.total > 0 ? '📦' : '⚠️'}</span>
+                    {/* معلومات المستودع */}
+                    <div className="flex items-center gap-2 flex-1">
+                        <span className={cn(
+                            "font-semibold text-[11px]",
+                            rollMovements.total > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"
+                        )}>
+                            {isRTL ? 'المستودع / الرولونات:' : 'Warehouse / Rolls:'}
+                        </span>
+                        {rollMovements.total > 0 ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-200 dark:border-emerald-800">
+                                <CheckCircle2 className="w-3 h-3" />
+                                {isRTL
+                                    ? `تم ترحيل ${rollMovements.total} حركة في المستودع ✓`
+                                    : `${rollMovements.total} warehouse movement(s) posted ✓`}
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full text-[10px] font-bold border border-orange-200 dark:border-orange-800">
+                                <AlertCircle className="w-3 h-3" />
+                                {isRTL ? 'لا توجد حركات مستودعية مسجّلة' : 'No warehouse movements recorded'}
+                            </span>
+                        )}
+                    </div>
+                    {/* مؤشر إجمالي الرولونات في الفاتورة */}
+                    {invoiceItems.some(i => (i.rollsCount || 0) > 0) && (
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
+                            {isRTL ? 'الفاتورة: ' : 'Invoice: '}
+                            {invoiceItems.reduce((s, i) => s + (i.rollsCount || 0), 0)} {isRTL ? 'رول' : 'rolls'}
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* ═══ Detail Content ═══ */}
             {loading ? (
@@ -538,74 +859,139 @@ export function PartyLedgerExpandedRow({
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                         {invoiceItems.map((item) => {
-                                            // Use delivered quantity if available, otherwise original quantity
                                             const displayQty = item.deliveredQty > 0 ? item.deliveredQty : item.quantity;
                                             const qtyDiffers = item.deliveredQty > 0 && Math.abs(item.deliveredQty - item.quantity) > 0.001;
+                                            // الرولونات لهذه المادة
+                                            const itemRolls = (item as any).material_id
+                                                ? (itemRollsMap[(item as any).material_id] || [])
+                                                : [];
+                                            const isItemExpanded = expandedItemId === item.id;
+                                            const hasRolls = itemRolls.length > 0;
 
                                             return (
-                                                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                                    <td className="px-3 py-2 text-xs text-gray-400 font-mono">{item.lineNumber}</td>
-                                                    <td className="px-3 py-2">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">
-                                                                {isRTL ? (item.descriptionAr || item.description) : item.description}
-                                                            </span>
-                                                            <div className="flex items-center gap-2">
-                                                                {item.itemCode && (
-                                                                    <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                                                                        {item.itemCode}
-                                                                    </span>
-                                                                )}
-                                                                {item.colorName && (
-                                                                    <span className="text-[10px] text-purple-500">
-                                                                        🎨 {item.colorName}
-                                                                    </span>
-                                                                )}
-                                                                {item.rollsCount && item.rollsCount > 0 && (
-                                                                    <span className="text-[10px] text-blue-500">
-                                                                        📦 {item.rollsCount} {isRTL ? 'رول' : 'rolls'}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center font-mono text-sm">
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="text-gray-800 dark:text-gray-200 font-medium">
-                                                                {formatNumber(displayQty)}
-                                                            </span>
-                                                            {qtyDiffers && (
-                                                                <span className="text-[9px] text-gray-400 line-through">
-                                                                    {isRTL ? 'طلب' : 'ord'}: {formatNumber(item.quantity)}
-                                                                </span>
+                                                <React.Fragment key={item.id}>
+                                                    {/* ── سطر المادة الرئيسي ── */}
+                                                    <tr
+                                                        className={cn(
+                                                            "transition-colors",
+                                                            hasRolls
+                                                                ? "cursor-pointer hover:bg-teal-50/60 dark:hover:bg-teal-950/20"
+                                                                : "hover:bg-gray-50 dark:hover:bg-gray-800/50",
+                                                            isItemExpanded && "bg-teal-50/40 dark:bg-teal-950/10"
+                                                        )}
+                                                        onClick={() => hasRolls && setExpandedItemId(isItemExpanded ? null : item.id)}
+                                                    >
+                                                        {/* # */}
+                                                        <td className="px-3 py-2 text-xs text-gray-400 font-mono">
+                                                            {hasRolls && (
+                                                                <span className={cn(
+                                                                    "inline-block w-3 h-3 me-1 text-teal-500 transition-transform duration-200",
+                                                                    isItemExpanded ? "rotate-90" : ""
+                                                                )}>▶</span>
                                                             )}
-                                                            {item.unit && <span className="text-[10px] text-gray-400">{item.unit}</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-3 py-2 text-end font-mono text-sm text-gray-600 dark:text-gray-300">
-                                                        {formatNumber(item.unitPrice)}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-end font-mono text-sm">
-                                                        {item.discount > 0 ? (
-                                                            <span className="text-orange-500">{formatNumber(item.discount)}</span>
-                                                        ) : (
-                                                            <span className="text-gray-300 dark:text-gray-600">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-end font-mono text-sm">
-                                                        {item.taxAmount > 0 ? (
-                                                            <span className="text-violet-500">
-                                                                {formatNumber(item.taxAmount)}
-                                                                <span className="text-[9px] ms-0.5 opacity-60">{item.taxRate}%</span>
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-gray-300 dark:text-gray-600">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-end font-mono text-sm font-semibold text-gray-800 dark:text-gray-200">
-                                                        {formatNumber(item.total)}
-                                                    </td>
-                                                </tr>
+                                                            {item.lineNumber}
+                                                        </td>
+                                                        {/* البند */}
+                                                        <td className="px-3 py-2">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">
+                                                                    {isRTL ? (item.descriptionAr || item.description) : item.description}
+                                                                </span>
+                                                                <div className="flex items-center gap-2">
+                                                                    {item.itemCode && (
+                                                                        <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                                                                            {item.itemCode}
+                                                                        </span>
+                                                                    )}
+                                                                    {item.colorName && (
+                                                                        <span className="text-[10px] text-purple-500">🎨 {item.colorName}</span>
+                                                                    )}
+                                                                    {/* عدد الرولونات المسلّمة */}
+                                                                    {hasRolls ? (
+                                                                        <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/20 px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                                                                            📦 {itemRolls.length} {isRTL ? 'رول مُسلَّم' : 'rolls delivered'}
+                                                                        </span>
+                                                                    ) : item.rollsCount && item.rollsCount > 0 ? (
+                                                                        <span className="text-[10px] text-blue-500">
+                                                                            📦 {item.rollsCount} {isRTL ? 'رول' : 'rolls'}
+                                                                        </span>
+                                                                    ) : null}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        {/* الكمية */}
+                                                        <td className="px-3 py-2 text-center font-mono text-sm">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-gray-800 dark:text-gray-200 font-medium">{formatNumber(displayQty)}</span>
+                                                                {qtyDiffers && (
+                                                                    <span className="text-[9px] text-gray-400 line-through">
+                                                                        {isRTL ? 'طلب' : 'ord'}: {formatNumber(item.quantity)}
+                                                                    </span>
+                                                                )}
+                                                                {item.unit && <span className="text-[10px] text-gray-400">{item.unit}</span>}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-end font-mono text-sm text-gray-600 dark:text-gray-300">{formatNumber(item.unitPrice)}</td>
+                                                        <td className="px-3 py-2 text-end font-mono text-sm">
+                                                            {item.discount > 0 ? <span className="text-orange-500">{formatNumber(item.discount)}</span> : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-end font-mono text-sm">
+                                                            {item.taxAmount > 0 ? (
+                                                                <span className="text-violet-500">
+                                                                    {formatNumber(item.taxAmount)}
+                                                                    <span className="text-[9px] ms-0.5 opacity-60">{item.taxRate}%</span>
+                                                                </span>
+                                                            ) : <span className="text-gray-300 dark:text-gray-600">-</span>}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-end font-mono text-sm font-semibold text-gray-800 dark:text-gray-200">{formatNumber(item.total)}</td>
+                                                    </tr>
+
+                                                    {/* ── السطر المنفتح: قائمة الرولونات المسلّمة ── */}
+                                                    {isItemExpanded && hasRolls && (
+                                                        <tr className="bg-teal-50/30 dark:bg-teal-950/10">
+                                                            <td colSpan={7} className="px-4 py-3">
+                                                                <div className="space-y-1">
+                                                                    {/* عنوان */}
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <Truck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                                                                        <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                                                                            {isRTL ? `الرولونات المسلّمة (${itemRolls.length} رول)` : `Delivered Rolls (${itemRolls.length})`}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-teal-500 font-mono">
+                                                                            {isRTL ? 'إجمالي: ' : 'Total: '}
+                                                                            {formatNumber(itemRolls.reduce((s, r) => s + (r.length || 0), 0))}
+                                                                            {item.unit ? ` ${item.unit}` : 'm'}
+                                                                        </span>
+                                                                    </div>
+                                                                    {/* شبكة الرولونات */}
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+                                                                        {itemRolls.map((roll, ridx) => (
+                                                                            <div
+                                                                                key={roll.roll_id || ridx}
+                                                                                className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-800/50 rounded-lg px-2.5 py-1.5"
+                                                                            >
+                                                                                <span className="text-teal-500 text-xs">📦</span>
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-xs font-bold font-mono text-gray-700 dark:text-gray-300">
+                                                                                        {roll.roll_number || `R-${ridx + 1}`}
+                                                                                    </span>
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        <span className="text-[10px] font-mono text-teal-600 dark:text-teal-400 font-semibold">
+                                                                                            {formatNumber(roll.length)}{item.unit || 'm'}
+                                                                                        </span>
+                                                                                        {roll.color_name && (
+                                                                                            <span className="text-[9px] text-purple-500">🎨 {roll.color_name}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
                                             );
                                         })}
                                     </tbody>

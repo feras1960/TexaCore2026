@@ -19,6 +19,7 @@ import {
     BookMarked,
     Package,
     Warehouse,
+    Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { OpenDocument, UnifiedDocType } from '../types';
@@ -35,6 +36,7 @@ const iconMap: Record<string, any> = {
     BookMarked,
     Package,
     Warehouse,
+    Layers,
     account: BookOpen,
     fund: Wallet,
     party: Users,
@@ -45,6 +47,7 @@ const iconMap: Record<string, any> = {
     transaction: FileText,
     material: Package,
     warehouse: Warehouse,
+    roll: Layers,
 };
 
 // Color mapping for doc types
@@ -63,6 +66,7 @@ const colorMap: Partial<Record<UnifiedDocType, string>> = {
     warehouse: 'text-cyan-600',
     goods_receipt: 'text-emerald-600',
     sales_delivery: 'text-rose-600',
+    roll: 'text-amber-600',
 };
 
 interface MainDocumentTabsProps {

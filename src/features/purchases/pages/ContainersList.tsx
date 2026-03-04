@@ -24,6 +24,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
+import { MaterialReceiptDialog } from '@/features/warehouse/components/MaterialReceiptDialog';
 import {
     ContainerStatusBadge,
     getStatusDef,
@@ -49,6 +50,7 @@ import {
     ArrowRightLeft,
     FileText,
     Warehouse,
+    ArrowDownToLine,
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -199,6 +201,9 @@ export default function ContainersList() {
     const [isUnifiedSheetOpen, setIsUnifiedSheetOpen] = useState(false);
     const [selectedContainer, setSelectedContainer] = useState<any>(null);
     const [sheetMode, setSheetMode] = useState<'create' | 'edit' | 'view'>('create');
+
+    // ✅ حالة MaterialReceiptDialog السريع
+    const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; containerId?: string }>({ open: false });
 
     // ─── Persist view mode preference ────────────────────────────
     const VIEW_PREF_KEY = 'containers-view';
@@ -784,6 +789,16 @@ export default function ContainersList() {
                         </Button>
                     </div>
 
+                    {/* ✅ زر استلام مواد سريع */}
+                    <Button
+                        onClick={() => setReceiptDialog({ open: true })}
+                        variant="outline"
+                        className="gap-2 px-4 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-400 shadow-sm"
+                    >
+                        <ArrowDownToLine className="w-4 h-4" />
+                        {isRTL ? 'استلام مواد' : 'Receive Goods'}
+                    </Button>
+
                     {/* Create Button */}
                     <Button
                         onClick={handleCreate}
@@ -998,6 +1013,22 @@ export default function ContainersList() {
                     companyId={companyId}
                 />
             )}
+
+            {/* ✅ MaterialReceiptDialog — استلام سريع */}
+            <MaterialReceiptDialog
+                isOpen={receiptDialog.open}
+                onOpenChange={(open) => {
+                    setReceiptDialog({ open });
+                    if (!open) {
+                        queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+                    }
+                }}
+                defaultBillType="container"
+                onComplete={() => {
+                    setReceiptDialog({ open: false });
+                    queryClient.invalidateQueries({ queryKey: ['containers_list'] });
+                }}
+            />
         </div>
     );
 }

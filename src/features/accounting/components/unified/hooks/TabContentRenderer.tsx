@@ -42,6 +42,7 @@ const MaterialRollsTab = lazy(() => import('../tabs').then(m => ({ default: m.Ma
 const MaterialBasicInfoTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialBasicInfoTab })));
 const MaterialSpecsTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialSpecsTab })));
 const MaterialImagesTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialImagesTab })));
+const MaterialEcommerceTab = lazy(() => import('../tabs/MaterialEcommerceTab').then(m => ({ default: m.MaterialEcommerceTab })));
 const MaterialAdditionalInfoTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialAdditionalInfoTab })));
 const MaterialGroupInfoTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialGroupInfoTab })));
 
@@ -81,6 +82,11 @@ const ContactOverviewTab = lazy(() => import('../tabs/ContactOverviewTab').then(
 const ContactInteractionsTab = lazy(() => import('../tabs/ContactInteractionsTab').then(m => ({ default: m.ContactInteractionsTab })));
 const ContactCallsTab = lazy(() => import('../tabs/ContactCallsTab').then(m => ({ default: m.ContactCallsTab })));
 const ContactNotesTab = lazy(() => import('../tabs/ContactNotesTab').then(m => ({ default: m.ContactNotesTab })));
+
+// Roll — شيت الرولون
+const RollOverviewTab = lazy(() => import('../tabs/RollOverviewTab').then(m => ({ default: m.RollOverviewTab })));
+const RollMovementsTab = lazy(() => import('../tabs/RollMovementsTab').then(m => ({ default: m.RollMovementsTab })));
+const RollLocationTab = lazy(() => import('../tabs/RollLocationTab').then(m => ({ default: m.RollLocationTab })));
 
 // ═══ Loading fallback ═══
 function TabLoading() {
@@ -162,7 +168,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                             mode={mode}
                             docType={docType as any}
                             onChange={onChange}
-                            onSaveComplete={() => console.log('Entry saved successfully')}
+                            onSaveComplete={() => { /* entry saved */ }}
                             companyId={companyId}
                         />
                     );
@@ -217,12 +223,144 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'inventory':
                 if (docType === 'material') {
-                    return <MaterialInventoryTab data={data} onClose={onClose} />;
+                    // ── MDI handler: open a roll as a new document tab ──
+                    const handleRollOpen = async (roll: any) => {
+                        const rollId = roll.id;
+                        if (!rollId) return;
+
+                        // If already open, just activate
+                        const existingDoc = openDocs.find(d => d.id === rollId);
+                        if (existingDoc) {
+                            setActiveDocId(rollId);
+                            return;
+                        }
+
+                        // Fetch full roll details with warehouse/color joins
+                        const { data: fullRoll, error } = await supabase
+                            .from('fabric_rolls')
+                            .select(`
+                                *,
+                                warehouse:warehouses!left(id, name_ar, name_en, code),
+                                color:fabric_colors!left(id, name_ar, name_en, hex_code)
+                            `)
+                            .eq('id', rollId)
+                            .single();
+
+                        if (error || !fullRoll) {
+                            console.warn('[Roll MDI] fetch error:', error?.message);
+                            return;
+                        }
+
+                        const rollData = {
+                            ...fullRoll,
+                            warehouse_name_ar: fullRoll.warehouse?.name_ar,
+                            warehouse_name_en: fullRoll.warehouse?.name_en,
+                            material_name_ar: data?.name_ar || data?.name,
+                        };
+
+                        // Save current tab in active doc, then push roll as new MDI doc
+                        setOpenDocs(prev => {
+                            const savedTab = activeTabRef.current;
+                            const updated = prev.map(d =>
+                                d.id === (documentId || data?.id)
+                                    ? { ...d, lastActiveTab: savedTab || d.lastActiveTab }
+                                    : d
+                            );
+                            return [...updated, {
+                                id: rollId,
+                                type: 'roll' as any,
+                                title: `🧻 ${fullRoll.roll_number}`,
+                                titleAr: `رولون ${fullRoll.roll_number}`,
+                                code: fullRoll.roll_number,
+                                data: rollData,
+                                isClosable: true,
+                                lastActiveTab: 'roll_overview',
+                            }];
+                        });
+                        // NOTE: No setData — each doc's data lives in openDocs[].data
+                        setActiveDocId(rollId);
+                    };
+
+                    return <MaterialInventoryTab data={data} onClose={onClose} onOpenRoll={handleRollOpen} />;
                 }
                 break;
 
             case 'movements':
-                if (docType === 'material') return <MaterialMovementsTab data={data} />;
+                if (docType === 'material') {
+                    const handleMovDoc = async (movDocType: string, movDocId: string) => {
+                        const existingDoc = openDocs.find(d => d.id === movDocId);
+                        if (existingDoc) { setActiveDocId(movDocId); return; }
+
+                        try {
+                            let mdiType = 'trade_invoice';
+                            let tradeM: 'sales' | 'purchase' | undefined;
+                            let typeIcon = '📋';
+                            let docTitle = '';
+                            let docData: any = null;
+
+                            if (movDocType === 'sale_invoice') {
+                                mdiType = 'trade_invoice'; tradeM = 'sales'; typeIcon = '🧾';
+                                docTitle = language === 'ar' ? 'فاتورة مبيعات' : 'Sales Invoice';
+                                const { header, items } = await TradeService.getTradeDocumentWithItems(movDocId, 'invoice');
+                                docData = { ...header, items, type: 'sales', subType: 'invoice', status: header?.status || 'draft' };
+                            } else if (movDocType === 'purchase_invoice') {
+                                mdiType = 'trade_invoice'; tradeM = 'purchase'; typeIcon = '📦';
+                                docTitle = language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice';
+                                const { header, items } = await TradeService.getTradeDocumentWithItems(movDocId, 'purchase_invoice');
+                                docData = { ...header, items, type: 'purchase', subType: 'invoice', status: header?.status || 'draft' };
+                            } else if (movDocType === 'container') {
+                                mdiType = 'trade_container'; typeIcon = '🚢';
+                                docTitle = language === 'ar' ? 'كونتينر' : 'Container';
+                                const [cRes, iRes] = await Promise.all([
+                                    supabase.from('containers').select('*').eq('id', movDocId).single(),
+                                    supabase.from('container_items').select('*').eq('container_id', movDocId),
+                                ]);
+                                docData = { ...cRes.data, items: iRes.data || [], type: 'purchase', subType: 'container', status: cRes.data?.status || 'draft' };
+                            } else if (movDocType === 'party_customer') {
+                                mdiType = 'party'; typeIcon = '👤';
+                                docTitle = language === 'ar' ? 'كشف حساب عميل' : 'Customer Account';
+                                const { data: cust } = await supabase.from('customers').select('*').eq('id', movDocId).single();
+                                // _partyType is used by ledger case to pick receivable_account_id
+                                docData = { ...cust, _partyType: 'customer', partyType: 'customer', type: 'party', status: 'active', id: movDocId };
+                                docTitle = cust?.name_ar || cust?.name_en || docTitle;
+                            } else if (movDocType === 'party_supplier') {
+                                mdiType = 'party'; typeIcon = '🏢';
+                                docTitle = language === 'ar' ? 'كشف حساب مورد' : 'Supplier Account';
+                                const { data: supp } = await supabase.from('suppliers').select('*').eq('id', movDocId).single();
+                                // _partyType is used by ledger case to pick payable_account_id
+                                docData = { ...supp, _partyType: 'supplier', partyType: 'supplier', type: 'party', status: 'active', id: movDocId };
+                                docTitle = supp?.name_ar || supp?.name_en || supp?.company_name || docTitle;
+                            } else {
+                                mdiType = 'trade_invoice'; tradeM = 'purchase'; typeIcon = '📦';
+                                docTitle = language === 'ar' ? 'فاتورة مشتريات' : 'Purchase Invoice';
+                                const { header, items } = await TradeService.getTradeDocumentWithItems(movDocId, 'purchase_invoice');
+                                docData = { ...header, items, type: 'purchase', subType: 'invoice', status: header?.status || 'draft' };
+                            }
+
+                            setOpenDocs(prev => {
+                                const savedTab = activeTabRef.current;
+                                const updated = prev.map(d => d.id === (documentId || data?.id) ? { ...d, lastActiveTab: savedTab || d.lastActiveTab } : d);
+                                const isParty = movDocType === 'party_customer' || movDocType === 'party_supplier';
+                                const defaultTab = isParty ? 'overview' : 'trade_details';
+                                const codeVal = isParty
+                                    ? (docData?.name_ar || docData?.name_en || docData?.company_name || movDocId.slice(0, 8))
+                                    : (docData?.invoice_no || docData?.container_number || movDocId.slice(0, 8));
+                                return [...updated, {
+                                    id: movDocId, type: mdiType as any,
+                                    title: `${typeIcon} ${docTitle}`, titleAr: docTitle,
+                                    code: codeVal,
+                                    data: docData, isClosable: true, tradeMode: tradeM,
+                                    lastActiveTab: defaultTab,
+                                }];
+                            });
+                            // NOTE: Do NOT call setData here — it would overwrite
+                            // the original material sheet's data with the new doc's data.
+                            // The new doc's data is already inside openDocs[].data
+                            setActiveDocId(movDocId);
+                        } catch (err) { console.error('[movements MDI] open doc error:', err); }
+                    };
+                    return <MaterialMovementsTab data={data} onOpenDocument={handleMovDoc} />;
+                }
                 break;
 
             case 'pricing':
@@ -240,6 +378,16 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
             case 'analytics':
                 if (docType === 'material') return <MaterialAnalyticsTab data={data} />;
                 break;
+
+            // ═══ Roll Tabs ═══
+            case 'roll_overview':
+                return <RollOverviewTab data={data} language={language} />;
+
+            case 'roll_movements':
+                return <RollMovementsTab data={data} language={language} />;
+
+            case 'roll_location':
+                return <RollLocationTab data={data} language={language} />;
 
             case 'ledger': {
                 // For parties, use their accounting sub-account ID
@@ -444,13 +592,14 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                             }
                         }
 
-                        // Save the current tab in the primary document before switching
+                        // Save active tab in the current doc (not just prev[0])
+                        // CRITICAL: preserve each doc's OWN data, do NOT overwrite with shared 'data'
                         setOpenDocs(prev => {
                             const savedTab = activeTabRef.current;
-                            console.log('[MDI] Saving primary lastActiveTab:', savedTab);
+                            // savedTab preserved per document
                             const updated = prev.map(d =>
-                                d.id === prev[0]?.id
-                                    ? { ...d, lastActiveTab: savedTab || d.lastActiveTab, data: data }
+                                d.id === (documentId || data?.id)
+                                    ? { ...d, lastActiveTab: savedTab || d.lastActiveTab }
                                     : d
                             );
                             return [...updated, {
@@ -462,7 +611,6 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 data: docData,
                                 isClosable: true,
                                 tradeMode: tradeModeExt,
-                                // Set the correct default tab for each document type
                                 lastActiveTab: lastActiveTabExt || (
                                     mdiDocType === 'trade_container' ? 'trade_details' :
                                         mdiDocType === 'trade_invoice' || mdiDocType === 'trade_order' ? 'trade_details' :
@@ -470,8 +618,8 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 ),
                             }];
                         });
-                        // Update data state so all tabs render with the new document
-                        setData((prev: any) => docData);
+                        // NOTE: Do NOT call setData here — it would corrupt other open documents.
+                        // Each document's data lives inside its openDocs[].data entry.
                         // Auto-activate the opened document tab
                         setActiveDocId(docId);
                     } catch (err) {
@@ -535,6 +683,11 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'createPricing':
                 if (docType === 'material') return <MaterialPricingTab data={data} mode={mode} onChange={onChange} />;
+                break;
+
+            case 'ecommerce':
+            case 'createEcommerce':
+                if (docType === 'material') return <MaterialEcommerceTab data={data} mode={mode} onChange={onChange} />;
                 break;
 
             case 'additionalInfo':
@@ -728,6 +881,31 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'contactNotes':
                 if (docType === 'contact') return <ContactNotesTab data={data} mode={mode} onChange={onChange} />;
+                break;
+
+            // ═══ Roll Detail Sheet Tabs ═══
+            case 'roll_overview':
+                if (docType === 'roll') return (
+                    <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>}>
+                        <RollOverviewTab data={data} />
+                    </Suspense>
+                );
+                break;
+
+            case 'roll_movements':
+                if (docType === 'roll') return (
+                    <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>}>
+                        <RollMovementsTab data={data} />
+                    </Suspense>
+                );
+                break;
+
+            case 'roll_location':
+                if (docType === 'roll') return (
+                    <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /></div>}>
+                        <RollLocationTab data={data} />
+                    </Suspense>
+                );
                 break;
 
             default:

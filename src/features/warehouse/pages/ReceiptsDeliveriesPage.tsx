@@ -29,7 +29,9 @@ import {
     CheckCircle2,
     ClipboardList,
     RefreshCw,
+    MapPin,
 } from 'lucide-react';
+import { RollBinAssignDialog } from '../components/RollBinAssignDialog';
 
 export default function ReceiptsDeliveriesPage() {
     const { language, isRTL, direction } = useLanguage();
@@ -54,6 +56,14 @@ export default function ReceiptsDeliveriesPage() {
 
     // Sales delivery dialog (uses UnifiedAccountingSheet like receipt dialog)
     const [salesDeliveryDialog, setSalesDeliveryDialog] = useState<{ open: boolean; salesInvoice: any; }>({ open: false, salesInvoice: null });
+
+    // Bin location assignment dialog — opened after receipt completion
+    const [binAssignDialog, setBinAssignDialog] = useState<{
+        open: boolean;
+        rolls: Array<{ id: string; roll_number: string }>;
+        warehouseId: string;
+        warehouseName: string;
+    }>({ open: false, rolls: [], warehouseId: '', warehouseName: '' });
 
     // ⚡ React Query — Pull on Demand (no Realtime)
     const { pendingReceipts, completedReceipts, completedLoading, refetch: refetchMovements, loading: receiptsLoading } = useStockMovements({});
@@ -584,9 +594,18 @@ export default function ReceiptsDeliveriesPage() {
                     onOpenChange={(open) => setReceiptDialog(prev => ({ ...prev, open }))}
                     defaultBillType={receiptDialog.type}
                     defaultReference={receiptDialog.reference}
-                    onComplete={() => {
+                    onComplete={(result?: any) => {
                         refetchMovements();
                         setReceiptDialog(prev => ({ ...prev, open: false }));
+                        // If receipt returned roll data → open bin assignment dialog
+                        if (result?.rolls?.length > 0) {
+                            setBinAssignDialog({
+                                open: true,
+                                rolls: result.rolls,
+                                warehouseId: result.warehouseId || '',
+                                warehouseName: result.warehouseName || '',
+                            });
+                        }
                     }}
                 />
             )}
@@ -627,6 +646,18 @@ export default function ReceiptsDeliveriesPage() {
                     }}
                 />
             )}
+            {/* Bin Location Assignment Dialog */}
+            <RollBinAssignDialog
+                open={binAssignDialog.open}
+                onClose={() => setBinAssignDialog(prev => ({ ...prev, open: false }))}
+                rolls={binAssignDialog.rolls}
+                warehouseId={binAssignDialog.warehouseId}
+                warehouseName={binAssignDialog.warehouseName}
+                onAssigned={() => {
+                    setBinAssignDialog(prev => ({ ...prev, open: false }));
+                    refetchMovements();
+                }}
+            />
         </div>
     );
 }

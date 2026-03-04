@@ -3668,7 +3668,7 @@
       "dashboard": "Dashboard",
       "warehouses": "Warehouses",
       "warehousesAndLocations": "Warehouses & Locations",
-      "locations": "Locations",
+      "locations": "Storage Locations",
       "materials": "Materials",
       "rolls": "Rolls",
       "inventory": "Inventory",
@@ -3776,6 +3776,21 @@
     },
     "details": "Warehouse Details",
     "manageWarehouse": "Manage warehouse data and contents",
+    "roll": {
+      "title": "Roll Detail Sheet",
+      "subtitle": "Roll details, history, and location",
+      "tabs": {
+        "overview": "Overview",
+        "movements": "History & Movements",
+        "location": "Current Location"
+      },
+      "stats": {
+        "currentLength": "Current Length",
+        "available": "Available",
+        "reserved": "Reserved",
+        "costPerMeter": "Cost/m"
+      }
+    },
     "goodsReceipt": {
       "title": "Goods Receipt",
       "subtitle": "Receive and register incoming materials",

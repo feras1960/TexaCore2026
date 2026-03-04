@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import {
     FileText, Plus, LayoutGrid, List, MoreHorizontal,
     Flag, FileSearch, Package, RotateCcw, XCircle,
-    CheckCircle2, Clock, Eye, Edit, Search, ArrowUpDown, Calendar, User
+    CheckCircle2, Clock, Eye, Edit, Search, ArrowUpDown, Calendar, User, ArrowDownToLine
 } from 'lucide-react';
 import { NexaKanbanBoard, type KanbanColumnDef, type KanbanItem } from '@/components/ui/nexa-kanban';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
+import { MaterialReceiptDialog } from '@/features/warehouse/components/MaterialReceiptDialog';
 // StatusDropdown removed — stage is now shown as inline badge
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
@@ -81,6 +82,9 @@ export default function PurchaseInvoicesList() {
     const [filterAmountMax, setFilterAmountMax] = useState<string>('');
     const [filterPayment, setFilterPayment] = useState<string>('');
     const [filterDelivery, setFilterDelivery] = useState<string>('');
+
+    // ✅ حالة MaterialReceiptDialog السريع
+    const [receiptDialog, setReceiptDialog] = useState<{ open: boolean; sourceDocId?: string }>({ open: false });
 
     // ─── Persist view mode preference ───
     const VIEW_PREF_KEY = 'purchase-invoices-view';
@@ -495,6 +499,16 @@ export default function PurchaseInvoicesList() {
                     <Button onClick={handleCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm h-9 px-4 gap-2">
                         <Plus className="w-4 h-4" />
                         {isRTL ? createButtonLabel.ar : createButtonLabel.en}
+                    </Button>
+
+                    {/* ✅ زر استلام مواد سريع */}
+                    <Button
+                        onClick={() => setReceiptDialog({ open: true })}
+                        variant="outline"
+                        className="gap-2 h-9 px-4 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-400 shadow-sm"
+                    >
+                        <ArrowDownToLine className="w-4 h-4" />
+                        {isRTL ? 'استلام مواد' : 'Receive Goods'}
                     </Button>
                 </div>
             </div>
@@ -1133,6 +1147,37 @@ export default function PurchaseInvoicesList() {
                     />
                 )
             }
+
+            {/* ✅ MaterialReceiptDialog — استلام سريع من صفحة المشتريات */}
+            <MaterialReceiptDialog
+                isOpen={receiptDialog.open}
+                onOpenChange={(open) => {
+                    setReceiptDialog({ open });
+                    if (!open) {
+                        queryClient.invalidateQueries({ queryKey: ['purchase_transactions_recent'] });
+                        queryClient.invalidateQueries({ queryKey: ['purchase_transactions_full'] });
+                    }
+                }}
+                defaultBillType="purchase_local"
+                defaultReference={receiptDialog.sourceDocId || ''}
+                onComplete={() => {
+                    setReceiptDialog({ open: false });
+                    queryClient.invalidateQueries({ queryKey: ['purchase_transactions_recent'] });
+                    queryClient.invalidateQueries({ queryKey: ['purchase_transactions_full'] });
+                }}
+                onOpenSourceDocument={(sourceId) => {
+                    // فتح الفاتورة المصدر في الشيت
+                    const found = filteredInvoices.find((d: any) => d.id === sourceId);
+                    if (found) {
+                        setReceiptDialog({ open: false });
+                        setTimeout(() => {
+                            setSelectedDoc(found);
+                            setDocMode('view');
+                            setIsSheetOpen(true);
+                        }, 300);
+                    }
+                }}
+            />
         </div >
     );
 }

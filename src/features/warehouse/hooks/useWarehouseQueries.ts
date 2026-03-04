@@ -483,3 +483,82 @@ export function useDefaultBranch() {
         loading: query.isLoading,
     };
 }
+
+// ═══════════════════════════════════════════════
+// 8. Branches with Warehouses (for Tree View)
+// ═══════════════════════════════════════════════
+export function useBranchesWithWarehouses() {
+    const { companyId } = useAuth();
+    const queryClient = useQueryClient();
+
+    const query = useQuery({
+        queryKey: ['warehouse', 'tree', companyId],
+        queryFn: async () => {
+            if (!companyId) return { branches: [], warehousesWithStats: [] };
+
+            // ── 1. جلب الفروع ──────────────────────────────────────
+            const { data: branchesData } = await supabase
+                .from('branches')
+                .select('id, code, name_ar, name_en, city, branch_type, is_main, is_active')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .order('is_main', { ascending: false });
+
+            // ── 2. جلب المستودعات ──────────────────────────────────
+            const { data: warehousesData, error: whError } = await supabase
+                .from('warehouses')
+                .select('id, code, name_ar, name_en, warehouse_type, branch_id, is_active')
+                .eq('company_id', companyId)
+                .order('code');
+            if (whError) console.error('[useBranchesWithWarehouses] warehouses error:', whError);
+
+
+            // ── 3. جلب عدد المواقع لكل مستودع ──────────────────────
+            const { data: binStats } = await supabase
+                .from('bin_locations')
+                .select('warehouse_id')
+                .eq('company_id', companyId);
+
+            // Build locations count map
+            const locationsCountMap: Record<string, number> = {};
+            (binStats || []).forEach((b: any) => {
+                if (b.warehouse_id) {
+                    locationsCountMap[b.warehouse_id] = (locationsCountMap[b.warehouse_id] || 0) + 1;
+                }
+            });
+
+            // Enrich warehouses with locations count
+            const warehousesWithStats = (warehousesData || []).map((w: any) => ({
+                ...w,
+                locations_count: locationsCountMap[w.id] || 0,
+            }));
+
+            return {
+                branches: branchesData || [],
+                warehousesWithStats,
+            };
+        },
+        enabled: !!companyId,
+        staleTime: SEMI_STATIC,
+        gcTime: GC_TIME,
+    });
+
+    // 🔄 Realtime — يتحدث عند تغيير المستودعات أو المواقع
+    useRealtimeInvalidation({
+        table: 'warehouses',
+        companyId,
+        queryKeys: [['warehouse', 'tree', companyId]],
+    });
+
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ['warehouse', 'tree', companyId] });
+    };
+
+    return {
+        branches: query.data?.branches || [],
+        warehousesWithStats: query.data?.warehousesWithStats || [],
+        loading: query.isLoading,
+        refetch: query.refetch,
+        invalidate,
+    };
+}

@@ -97,32 +97,114 @@ export const salesTransactionService = {
             return null;
         }
 
-        // Enrich items with delivery rolls (for delivered/posted invoices)
-        if (data && data.items?.length > 0 && ['delivered', 'posted', 'in_delivery'].includes(data.stage)) {
-            const materialIds = [...new Set(data.items.map((i: any) => i.material_id).filter(Boolean))];
-            if (materialIds.length > 0) {
-                const { data: rolls } = await supabase
-                    .from('fabric_rolls')
-                    .select('id, roll_number, current_length, status, material_id')
-                    .in('material_id', materialIds)
-                    .eq('status', 'sold');
+        // Enrich items with delivery rolls + warehouse name
+        if (data && data.items?.length > 0 && ['delivered', 'posted', 'in_delivery', 'completed', 'confirmed'].includes(data.stage)) {
+            let rollsByMat: Record<string, any[]> = {};
+            let deliveryWarehouseId: string | null = null;
+            let deliveryWarehouseNameAr: string | null = null;
+            let deliveryWarehouseNameEn: string | null = null;
 
-                if (rolls && rolls.length > 0) {
-                    const rollsByMat: Record<string, any[]> = {};
-                    for (const r of rolls) {
-                        if (!rollsByMat[r.material_id]) rollsByMat[r.material_id] = [];
-                        rollsByMat[r.material_id].push({
-                            roll_id: r.id,
-                            roll_number: r.roll_number,
-                            length: r.current_length,
-                            status: r.status,
-                        });
+            // ── الطريقة 1: عبر delivery_notes + delivery_note_items (بدون embed — استعلامات منفصلة) ──
+            try {
+                const { data: deliveryNotes } = await supabase
+                    .from('delivery_notes')
+                    .select('id, warehouse_id')
+                    .eq('sales_order_id', id);
+
+                if (deliveryNotes && deliveryNotes.length > 0) {
+                    // اسم المستودع من أول إذن تسليم
+                    const firstDn = deliveryNotes[0];
+                    if (firstDn.warehouse_id) {
+                        deliveryWarehouseId = firstDn.warehouse_id;
+                        const { data: wh } = await supabase
+                            .from('warehouses').select('name_ar, name_en')
+                            .eq('id', firstDn.warehouse_id).maybeSingle();
+                        deliveryWarehouseNameAr = wh?.name_ar || null;
+                        deliveryWarehouseNameEn = wh?.name_en || null;
                     }
-                    data.items = data.items.map((item: any) => ({
-                        ...item,
-                        delivery_rolls: rollsByMat[item.material_id] || [],
-                    }));
+
+                    // جلب بنود إذونات التسليم
+                    const dnIds = deliveryNotes.map((d: any) => d.id);
+                    const { data: dnItems } = await supabase
+                        .from('delivery_note_items')
+                        .select('roll_id, material_id, quantity_delivered')
+                        .in('delivery_note_id', dnIds)
+                        .not('roll_id', 'is', null);
+
+                    if (dnItems && dnItems.length > 0) {
+                        const rollIds = dnItems.map((d: any) => d.roll_id).filter(Boolean);
+                        const { data: rollsData } = await supabase
+                            .from('fabric_rolls')
+                            .select('id, roll_number, current_length, status, color_name')
+                            .in('id', rollIds);
+                        const rollMap = new Map((rollsData || []).map((r: any) => [r.id, r]));
+
+                        for (const di of dnItems) {
+                            if (!di.material_id || !di.roll_id) continue;
+                            const roll = rollMap.get(di.roll_id);
+                            if (!roll) continue;
+                            if (!rollsByMat[di.material_id]) rollsByMat[di.material_id] = [];
+                            rollsByMat[di.material_id].push({
+                                roll_id: roll.id,
+                                roll_number: roll.roll_number,
+                                length: di.quantity_delivered || roll.current_length,
+                                status: roll.status,
+                                color_name: roll.color_name || undefined,
+                            });
+                        }
+                    }
                 }
+            } catch { /* ignore */ }
+
+            // الطريقة 2: (inventory_movements لا تحتوي على roll_id) — تُحذف
+
+            // ── الطريقة 3 (fallback): fabric_rolls بحالة sold للمواد ──
+            if (Object.keys(rollsByMat).length === 0) {
+                const materialIds = [...new Set(data.items.map((i: any) => i.material_id).filter(Boolean))];
+                if (materialIds.length > 0) {
+                    const { data: rolls } = await supabase
+                        .from('fabric_rolls')
+                        .select('id, roll_number, current_length, status, material_id, color_name')
+                        .in('material_id', materialIds)
+                        .in('status', ['sold', 'delivered']);
+                    if (rolls && rolls.length > 0) {
+                        for (const r of rolls) {
+                            if (!rollsByMat[r.material_id]) rollsByMat[r.material_id] = [];
+                            rollsByMat[r.material_id].push({
+                                roll_id: r.id,
+                                roll_number: r.roll_number,
+                                length: r.current_length,
+                                status: r.status,
+                                color_name: r.color_name || undefined,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // ── جلب اسم المستودع إن لم يُجلب بعد ──
+            if (deliveryWarehouseId && !deliveryWarehouseNameAr) {
+                try {
+                    const { data: wh } = await supabase
+                        .from('warehouses').select('name_ar, name_en').eq('id', deliveryWarehouseId).maybeSingle();
+                    if (wh) { deliveryWarehouseNameAr = wh.name_ar; deliveryWarehouseNameEn = wh.name_en; }
+                } catch { /* ignore */ }
+            }
+
+            // ── تطبيق البيانات على البنود ──
+            data.items = data.items.map((item: any) => ({
+                ...item,
+                delivery_rolls: rollsByMat[item.material_id] || [],
+                // نُعيّن اسم المستودع من إذن التسليم (الأدق) أو المعاملة
+                warehouse_name_ar: deliveryWarehouseNameAr || item.warehouse_name_ar || null,
+                warehouse_name_en: deliveryWarehouseNameEn || item.warehouse_name_en || null,
+            }));
+
+            // تحديث اسم مستودع المعاملة الرئيسي أيضاً
+            if (deliveryWarehouseNameAr) {
+                (data as any).delivery_warehouse_name_ar = deliveryWarehouseNameAr;
+                (data as any).delivery_warehouse_name_en = deliveryWarehouseNameEn;
+                (data as any).delivery_warehouse_id = deliveryWarehouseId;
             }
         }
 

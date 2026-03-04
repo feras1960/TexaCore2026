@@ -5,8 +5,8 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { MaterialTree } from '../components/MaterialTree';
-import React, { useState, useMemo, useCallback } from 'react';
+import { MaterialTree, getGroupAggregate } from '../components/MaterialTree';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { warehouseService } from '@/services/warehouseService';
@@ -21,6 +21,7 @@ import type { SheetMode } from '@/features/accounting/components/unified/types';
 import { StatCard } from '@/components/shared/stats/StatCard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
     Package,
@@ -83,13 +84,37 @@ export default function MaterialsPage() {
     const { companyId, user } = useAuth();
 
     // State
-    const [viewMode, setViewMode] = useState<ViewMode>('table');
+    const [viewMode, setViewMode] = useState<ViewMode>(() => {
+        const saved = localStorage.getItem('materials_view_mode');
+        return (saved as ViewMode) || 'tree';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('materials_view_mode', viewMode);
+    }, [viewMode]);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+
+    // Filter preferences
+    const [hideZeroStock, setHideZeroStock] = useState(() => {
+        const saved = localStorage.getItem('materials_hide_zero');
+        return saved ? saved === 'true' : true; // Default true
+    });
+    const [lowStockOnly, setLowStockOnly] = useState(() => {
+        const saved = localStorage.getItem('materials_low_stock');
+        return saved === 'true'; // Default false
+    });
+
+    useEffect(() => {
+        localStorage.setItem('materials_hide_zero', String(hideZeroStock));
+        localStorage.setItem('materials_low_stock', String(lowStockOnly));
+    }, [hideZeroStock, lowStockOnly]);
+
     const [showFilters, setShowFilters] = useState(false);
-    const [expandAll, setExpandAll] = useState<boolean | undefined>(undefined);
-    const [collapseAll, setCollapseAll] = useState<boolean | undefined>(undefined);
+    // Use counter-based triggers so each button press always triggers useEffect in MaterialTree
+    const [expandAllCount, setExpandAllCount] = useState(0);
+    const [collapseAllCount, setCollapseAllCount] = useState(0);
 
     // ⚡ React Query: cached data, instant tab switching
     const { materials, loading, refetch: refetchMaterials, invalidate: invalidateMaterials } = useMaterials({
@@ -132,9 +157,10 @@ export default function MaterialsPage() {
     };
 
     const handleAddChild = (parent: Material) => {
+        // Here `parent` is a group object. We want to auto-select this group in the form.
         setSheetOpen(false);
         setTimeout(() => {
-            setSelectedParent(parent);
+            setSelectedParent(parent); // Set parent material/group here
             setSelectedMaterial(null);
             setIsGroupMode(false);
             setSheetMode('create');
@@ -321,8 +347,28 @@ export default function MaterialsPage() {
             );
         }
 
+        // Zero stock filter
+        if (hideZeroStock) {
+            filtered = filtered.filter(m => {
+                if (m.is_group) return true; // Keep groups, empty ones will be pruned in buildTree
+                const stock = m.current_stock || m.rolls_total_length || 0;
+                const rolls = m.rolls_count || 0;
+                return stock > 0 || rolls > 0;
+            });
+        }
+
+        // Low stock filter
+        if (lowStockOnly) {
+            filtered = filtered.filter(m => {
+                if (m.is_group) return true;
+                const stock = m.current_stock || m.rolls_total_length || 0;
+                const minStock = Number(m.min_stock || m.min_stock_level || 0);
+                return minStock > 0 && stock <= minStock;
+            });
+        }
+
         return filtered;
-    }, [materials, searchQuery, categoryFilter, statusFilter]);
+    }, [materials, groups, searchQuery, categoryFilter, statusFilter, hideZeroStock, lowStockOnly, language]);
 
     // Build tree structure
     const buildTree = useCallback((mats: Material[]): MaterialTreeNode[] => {
@@ -369,15 +415,45 @@ export default function MaterialsPage() {
                 }));
         };
 
-        return sortNodes(rootNodes);
-    }, []);
+        // Post-prune empty groups if filtering is active
+        const tree = sortNodes(rootNodes);
+
+        if (searchQuery || hideZeroStock || lowStockOnly) {
+            const prune = (nodes: MaterialTreeNode[]): MaterialTreeNode[] => {
+                return nodes.filter(node => {
+                    if (node.is_group) {
+                        if (node.children) {
+                            node.children = prune(node.children);
+                            return node.children.length > 0;
+                        }
+                        return false;
+                    }
+                    return true;
+                });
+            };
+            return prune(tree);
+        }
+
+        return tree;
+    }, [searchQuery, hideZeroStock, lowStockOnly]);
 
     // Flatten tree for table view
-    const flattenTree = useCallback((tree: MaterialTreeNode[], level = 0): (Material & { level: number })[] => {
-        let result: (Material & { level: number })[] = [];
+    const flattenTree = useCallback((tree: MaterialTreeNode[], level = 0): any[] => {
+        let result: any[] = [];
         tree.forEach((node) => {
             const { children, ...material } = node;
-            result.push({ ...material, level } as Material & { level: number });
+            const aggregate = node.is_group ? getGroupAggregate(children) : null;
+            // A leaf group directly contains materials (no sub-group children)
+            const isLeafGroup = node.is_group && children
+                ? !children.some(c => c.is_group)
+                : false;
+            result.push({
+                ...material,
+                level,
+                aggregateStock: aggregate?.stock,
+                aggregateRolls: aggregate?.rolls,
+                isLeafGroup,
+            });
             if (children && children.length > 0) {
                 result = [...result, ...flattenTree(children, level + 1)];
             }
@@ -394,20 +470,26 @@ export default function MaterialsPage() {
         return flattenTree(treeData);
     }, [treeData, flattenTree]);
 
-    // Calculate stats
+    // Calculate stats — treat null/undefined is_active as active (default)
     const totalMaterials = materials.length;
-    const activeMaterials = materials.filter((m) => m.is_active).length;
-    const groupsCount = materials.filter((m) => m.is_group).length;
-    const totalStock = 0; // TODO: Calculate from inventory
+    const activeMaterials = materials.filter((m) => m.is_active !== false).length;
+    const groupsCount = groups.length;
+    // Calculate total stock and rolls safely
+    const totalStock = useMemo(() => {
+        return materials.reduce((acc, m: any) => acc + (m.current_stock || m.rolls_total_length || 0), 0);
+    }, [materials]);
+    const totalRolls = useMemo(() => {
+        return materials.reduce((acc, m: any) => acc + (m.rolls_count || 0), 0);
+    }, [materials]);
 
     // Table columns
-    const tableColumns: Column<Material & { level?: number }>[] = [
+    const tableColumns: Column<any>[] = [
         {
             key: 'code',
             title: 'warehouse.material.code',
             align: 'start',
-            render: (value, row) => (
-                <div className="flex items-center gap-2" style={{ paddingInlineStart: `${(row.level || 0) * 24}px` }}>
+            render: (value) => (
+                <div className="flex items-center gap-2">
                     <span className="font-mono font-semibold text-erp-navy dark:text-white">{value}</span>
                 </div>
             ),
@@ -417,7 +499,7 @@ export default function MaterialsPage() {
             title: 'warehouse.material.name',
             align: 'start',
             render: (_value, row) => (
-                <div className="flex items-center gap-2" style={{ paddingInlineStart: `${(row.level || 0) * 8}px` }}>
+                <div className="flex items-center gap-2" style={{ paddingInlineStart: `${(row.level || 0) * 24}px` }}>
                     {row.is_group ? (
                         <Folder className="w-4 h-4 text-erp-teal flex-shrink-0" />
                     ) : row.is_variant_parent ? (
@@ -437,6 +519,64 @@ export default function MaterialsPage() {
                     )}
                 </div>
             ),
+        },
+        {
+            key: 'current_stock',
+            title: language === 'ar' ? 'الرصيد الاجمالي' : 'Total Stock',
+            align: 'start',
+            render: (_, row) => {
+                const stock = row.is_group ? row.aggregateStock : (row.current_stock || row.rolls_total_length || 0);
+                const rolls = row.is_group ? row.aggregateRolls : (row.rolls_count || 0);
+
+                if (!stock && !rolls) return <span className="text-gray-400">-</span>;
+
+                // Use pre-computed isLeafGroup from flattenTree
+                if (row.is_group) {
+                    const isLeaf = row.isLeafGroup as boolean;
+                    return (
+                        <div className="flex items-center gap-1.5">
+                            {stock > 0 && (
+                                <span className={cn(
+                                    "text-[11px] font-mono font-bold px-1.5 py-0.5 rounded",
+                                    isLeaf
+                                        ? "text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40"
+                                        : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                )}>
+                                    {!isLeaf && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                    {Number(stock).toFixed(2)}
+                                </span>
+                            )}
+                            {rolls > 0 && (
+                                <span className={cn(
+                                    "text-[11px] font-mono font-bold px-1.5 py-0.5 rounded",
+                                    isLeaf
+                                        ? "text-purple-700 bg-purple-100 dark:text-purple-300 dark:bg-purple-900/40"
+                                        : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                )}>
+                                    {!isLeaf && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                    {rolls} {language === 'ar' ? 'رول' : 'R'}
+                                </span>
+                            )}
+                        </div>
+                    );
+                }
+
+                // Regular material: blue for meters, purple for rolls
+                return (
+                    <div className="flex items-center gap-1.5">
+                        {stock > 0 && (
+                            <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30">
+                                {Number(stock).toFixed(2)} {row.unit || ''}
+                            </span>
+                        )}
+                        {rolls > 0 && (
+                            <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30">
+                                {rolls} {language === 'ar' ? 'رول' : 'Rolls'}
+                            </span>
+                        )}
+                    </div>
+                );
+            }
         },
         {
             key: 'category',
@@ -553,6 +693,8 @@ export default function MaterialsPage() {
                 <StatCard
                     label={language === 'ar' ? 'إجمالي المخزون' : 'Total Stock'}
                     value={totalStock.toLocaleString('en-US')}
+                    suffix={language === 'ar' ? 'م' : 'm'}
+                    subLabel={`${totalRolls} ${language === 'ar' ? 'رول' : 'Rolls'}`}
                     icon={Database}
                 />
             </div>
@@ -583,9 +725,9 @@ export default function MaterialsPage() {
                     >
                         <Filter className="w-4 h-4 me-2" />
                         {t('common.filter')}
-                        {(categoryFilter !== 'all' || statusFilter !== 'all') && (
+                        {(categoryFilter !== 'all' || statusFilter !== 'all' || hideZeroStock || lowStockOnly) && (
                             <span className="ms-2 px-1.5 py-0.5 bg-erp-teal text-white text-xs rounded-full">
-                                {(categoryFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)}
+                                {(categoryFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (hideZeroStock ? 1 : 0) + (lowStockOnly ? 1 : 0)}
                             </span>
                         )}
                     </Button>
@@ -648,11 +790,7 @@ export default function MaterialsPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => {
-                                        setCollapseAll(undefined);
-                                        setExpandAll(true);
-                                        setTimeout(() => setExpandAll(undefined), 100);
-                                    }}
+                                    onClick={() => setExpandAllCount(c => c + 1)}
                                     className="h-8"
                                 >
                                     <ChevronsDownUp className="w-4 h-4 me-2" />
@@ -661,11 +799,7 @@ export default function MaterialsPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => {
-                                        setExpandAll(undefined);
-                                        setCollapseAll(true);
-                                        setTimeout(() => setCollapseAll(undefined), 100);
-                                    }}
+                                    onClick={() => setCollapseAllCount(c => c + 1)}
                                     className="h-8"
                                 >
                                     <ChevronsUpDown className="w-4 h-4 me-2" />
@@ -689,6 +823,8 @@ export default function MaterialsPage() {
                                 onClick={() => {
                                     setCategoryFilter('all');
                                     setStatusFilter('all');
+                                    setHideZeroStock(false);
+                                    setLowStockOnly(false);
                                 }}
                                 className="h-7 text-xs"
                             >
@@ -728,6 +864,30 @@ export default function MaterialsPage() {
                                         <SelectItem value="inactive">{t('common.status.inactive')}</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+
+                            {/* Additional Switches */}
+                            <div className="sm:col-span-2 flex flex-col sm:flex-row gap-4 pt-2 mt-2 border-t border-gray-100 dark:border-gray-700/50">
+                                <div className="flex items-center space-x-2 space-x-reverse">
+                                    <Switch
+                                        id="hide-zero"
+                                        checked={hideZeroStock}
+                                        onCheckedChange={setHideZeroStock}
+                                    />
+                                    <Label htmlFor="hide-zero" className="text-sm cursor-pointer">
+                                        {language === 'ar' ? 'إخفاء الأرصدة الصفرية' : 'Hide zero stock'}
+                                    </Label>
+                                </div>
+                                <div className="flex items-center space-x-2 space-x-reverse">
+                                    <Switch
+                                        id="low-stock"
+                                        checked={lowStockOnly}
+                                        onCheckedChange={setLowStockOnly}
+                                    />
+                                    <Label htmlFor="low-stock" className="text-sm cursor-pointer text-amber-600 dark:text-amber-500">
+                                        {language === 'ar' ? 'نواقص الحد الأدنى فقط' : 'Low stock only'}
+                                    </Label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -772,14 +932,21 @@ export default function MaterialsPage() {
             ) : viewMode === 'tree' ? (
                 <MaterialTree
                     data={treeData}
-                    onEdit={(node) => handleRowClick(node)}
-                    onAddChild={(node) => {
+                    onNodeClick={handleRowClick}
+                    onEdit={(node) => {
                         if (node.is_group) {
-                            // Pre-fill parent/group when adding child
-                            setSelectedParent(node);
-                            handleAddClick();
+                            // Edit group — open group sheet
+                            setSelectedGroup(node);
+                            setGroupSheetMode('edit');
+                            setGroupSheetOpen(true);
+                        } else {
+                            // Edit material — open material sheet in edit mode
+                            handleEdit(node);
                         }
                     }}
+                    onAddChild={(node) => node.is_group && handleAddChild(node)}
+                    expandAllCount={expandAllCount}
+                    collapseAllCount={collapseAllCount}
                     className="h-[calc(100vh-240px)]"
                 />
             ) : (
@@ -795,6 +962,7 @@ export default function MaterialsPage() {
 
             {/* Unified Material Sheet */}
             <UnifiedAccountingSheet
+                key={selectedMaterial?.id || (selectedParent?.id ? `new-in-${selectedParent.id}` : 'new-material')}
                 isOpen={sheetOpen}
                 onClose={() => setSheetOpen(false)}
                 docType="material"
@@ -812,7 +980,8 @@ export default function MaterialsPage() {
                     code: '',
                     name_ar: '',
                     is_active: true,
-                    parent_id: selectedParent?.id || null,
+                    group_id: selectedParent?.id || null, // For materials we use group_id
+                    category_id: selectedParent?.id || null, // category_id holds group_id
                     parent_name: selectedParent ? (language === 'ar' ? selectedParent.name_ar : (selectedParent.name_en || selectedParent.name_ar)) : null,
                 }}
                 onSave={handleSave}
@@ -833,6 +1002,7 @@ export default function MaterialsPage() {
 
             {/* Material Group Sheet */}
             <UnifiedAccountingSheet
+                key={selectedGroup?.id || 'new-group'}
                 isOpen={groupSheetOpen}
                 onClose={() => setGroupSheetOpen(false)}
                 docType="materialGroup"

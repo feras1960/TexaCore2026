@@ -41,6 +41,7 @@ import {
     FolderTree,
     FolderPlus,
     CheckCircle2,
+    MapPin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TabConfig, SheetMode } from '../types';
@@ -83,6 +84,7 @@ const tabIconMap: Record<string, any> = {
     FolderTree,
     FolderPlus,
     CheckCircle2,
+    MapPin,
 };
 
 interface SheetTabsProps {

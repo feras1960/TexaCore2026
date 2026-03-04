@@ -18,6 +18,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
+import { useRBAC } from '@/hooks/useRBAC';
 import { useWarehouses } from '@/features/warehouse/hooks/useWarehouseQueries';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -39,9 +40,11 @@ import {
 interface SalesDeliveryDialogProps {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
-    salesInvoice: any;           // من ReceiptsDeliveriesPage (pending receipt entry)
-    salesInvoiceId?: string;     // بديل: تمرير ID مباشر
+    salesInvoice: any;           // من ReceiptsDeliveriesPage
+    salesInvoiceId?: string;
     onComplete?: () => void;
+    onOpenInvoice?: (invoiceData: any) => void;
+    viewMode?: boolean;          // وضع العرض فقط (بعد التسليم)
 }
 
 export function SalesDeliveryDialog({
@@ -50,11 +53,29 @@ export function SalesDeliveryDialog({
     salesInvoice,
     salesInvoiceId,
     onComplete,
+    onOpenInvoice,
+    viewMode = false,
 }: SalesDeliveryDialogProps) {
     const { language, isRTL } = useLanguage();
     const { companyId, tenantId } = useAuth();
+    const { hasAnyRole } = useRBAC();
     const { warehouses } = useWarehouses();
     const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
+
+    // ═══ Edit mode toggle (internal) ═══
+    const [isEditing, setIsEditing] = useState(false);
+    // هل التسليم مكتمل? (يكتشفه من stage)
+    const [isDelivered, setIsDelivered] = useState(false);
+    // ✅ الأدوار المسموح لها بالتعديل: صاحب الاشتراك + المدير + المحاسب
+    const canEdit = hasAnyRole([
+        'super_admin',       // المشرف العام
+        'tenant_owner',     // صاحب الاشتراك
+        'company_owner',    // مالك الشركة
+        'company_admin',    // مدير الشركة
+        'accountant',       // المحاسب
+    ]);
+    // effectiveViewMode: عرض فقط = مكتمل + ليس في وضع تعديل
+    const effectiveViewMode = (viewMode || isDelivered) && !isEditing;
 
     // ═══ State ═══
     const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
@@ -73,13 +94,15 @@ export function SalesDeliveryDialog({
     // Get the invoice ID
     const invoiceId = salesInvoiceId || salesInvoice?.source_id || salesInvoice?.id;
 
-    // Debug: log what we received
+    // Reset isEditing + isDelivered when dialog closes
     useEffect(() => {
-        if (isOpen) {
-            console.log('[SalesDelivery] ── salesInvoice received:', salesInvoice);
-            console.log('[SalesDelivery] ── resolved invoiceId:', invoiceId);
+        if (!isOpen) {
+            setIsEditing(false);
+            setIsDelivered(false);
+            setSelectedRolls([]);
+            setDraftRestored(false);
         }
-    }, [isOpen, salesInvoice, invoiceId]);
+    }, [isOpen]);
 
     // ═══ Draft key for localStorage ═══
     const draftKey = `delivery_draft_${invoiceId}`;
@@ -88,13 +111,14 @@ export function SalesDeliveryDialog({
     // No auto-save here — avoids race condition where Dialog's empty selectedRolls
     // would overwrite the draft saved by the Items tab.
 
-    // ═══ Fetch invoice details + items + restore draft ═══
+    // ═══ Fetch invoice details + items + restore draft/delivered rolls ═══
     useEffect(() => {
         if (!invoiceId || !isOpen) return;
 
         const fetchData = async () => {
             setLoading(true);
             setDraftRestored(false);
+            setIsDelivered(false);
             try {
                 // 1. Fetch invoice header
                 const { data: inv, error: invErr } = await supabase
@@ -109,18 +133,15 @@ export function SalesDeliveryDialog({
                     if (inv.warehouse_id) setSelectedWarehouseId(inv.warehouse_id);
                 }
 
-                // 2. Fetch invoice items (plain select — no FK join)
+                // 2. Fetch invoice items
                 const { data: items, error: itemsErr } = await supabase
                     .from('sales_transaction_items')
                     .select('*')
                     .eq('transaction_id', invoiceId);
 
-                if (itemsErr) {
-                    console.warn('[SalesDelivery] items fetch error:', itemsErr.message);
-                }
+                if (itemsErr) console.warn('[SalesDelivery] items fetch error:', itemsErr.message);
 
                 if (items && items.length > 0) {
-                    // 3. Resolve material names from fabric_materials
                     const materialIds = [...new Set(items.map((i: any) => i.material_id).filter(Boolean))];
                     let materialsMap: Record<string, { name_ar: string; name_en: string }> = {};
 
@@ -152,18 +173,82 @@ export function SalesDeliveryDialog({
                             description: item.description,
                         };
                     }));
-
-                    console.log(`[SalesDelivery] ✅ Loaded ${items.length} items for invoice ${invoiceId}`);
                 } else {
-                    console.log(`[SalesDelivery] ⚠️ No items found for invoice ${invoiceId}`);
                     setSourceItems([]);
                 }
 
-                // 4. Restore draft (localStorage first, then Supabase)
+                // ═══ 3. AUTO-DETECT DELIVERED STATE ═══
+                // إذا كانت الفاتورة مسلّمة بالفعل ← جلب الرولونات من inventory_movements
+                const stageDelivered = ['delivered', 'partial_delivered', 'in_delivery'];
+                const isCompletedDelivery = inv && stageDelivered.includes(inv.stage);
+
+                if (isCompletedDelivery) {
+                    console.log('[SalesDelivery] 📦 Stage is', inv.stage, '| invoiceId:', invoiceId, '| invoice_no:', inv.invoice_no);
+
+                    // محاولة 1: البحث بـ reference_id
+                    let movements: any[] = [];
+                    const { data: byId, error: mvErr1 } = await supabase
+                        .from('inventory_movements')
+                        .select('roll_id, quantity, material_id, movement_type, reference_id, reference_number')
+                        .eq('reference_id', invoiceId);
+
+                    if (mvErr1) console.warn('[SalesDelivery] byId error:', mvErr1.message);
+                    console.log('[SalesDelivery] byId found:', byId?.length ?? 0, byId?.slice(0, 2));
+
+                    if (byId && byId.length > 0) {
+                        movements = byId;
+                    } else if (inv.invoice_no) {
+                        // محاولة 2: البحث بـ reference_number (لو reference_id مختلف)
+                        const { data: byNum, error: mvErr2 } = await supabase
+                            .from('inventory_movements')
+                            .select('roll_id, quantity, material_id, movement_type, reference_id, reference_number')
+                            .eq('reference_number', inv.invoice_no);
+                        if (mvErr2) console.warn('[SalesDelivery] byNum error:', mvErr2.message);
+                        console.log('[SalesDelivery] byNum found:', byNum?.length ?? 0, byNum?.slice(0, 2));
+                        movements = byNum || [];
+                    }
+
+                    // فلترة على movement_type بعد الجلب (لا نُقيّد في الاستعلام)
+                    const saleMovements = movements.filter((m: any) =>
+                        ['sale', 'issue', 'delivery'].includes(m.movement_type) || !m.movement_type
+                    );
+                    console.log('[SalesDelivery] sale movements after filter:', saleMovements.length);
+
+                    if (saleMovements.length > 0) {
+                        const rollIds = saleMovements.map((m: any) => m.roll_id).filter(Boolean);
+                        if (rollIds.length > 0) {
+                            const { data: rolls } = await supabase
+                                .from('fabric_rolls')
+                                .select('id, roll_number, material_id, current_length, color_id, color_name, status, warehouse_id')
+                                .in('id', rollIds);
+
+                            if (rolls && rolls.length > 0) {
+                                const mapped = rolls.map((r: any) => {
+                                    const mv = saleMovements.find((m: any) => m.roll_id === r.id);
+                                    return {
+                                        ...r,
+                                        net_length: mv?.quantity || r.current_length || 0,
+                                        color_name: r.color_name || '',
+                                        _delivered: true,
+                                    };
+                                });
+                                console.log('[SalesDelivery] ✅ Loaded', mapped.length, 'delivered rolls');
+                                setSelectedRolls(mapped);
+                                setDraftRestored(true);
+                                setIsDelivered(inv.stage === 'delivered');
+                                return;
+                            }
+                        }
+                    }
+                    // لا توجد حركات — الحالة مسلّمة لكن قد يكون البيانات قديمة
+                    if (inv.stage === 'delivered') setIsDelivered(true);
+                    return;
+                }
+
+                // ═══ 4. RESTORE DRAFT (for in-progress deliveries only) ═══
                 if (selectedRolls.length === 0 && !draftRestored) {
                     let restoredRolls: any[] | null = null;
 
-                    // Try localStorage first (fastest)
                     try {
                         const localDraft = localStorage.getItem(draftKey);
                         if (localDraft) {
@@ -175,7 +260,6 @@ export function SalesDeliveryDialog({
                         }
                     } catch (e) { /* ignore */ }
 
-                    // If no localStorage draft, try Supabase
                     if (!restoredRolls && inv?.delivery_draft?.rolls?.length > 0) {
                         restoredRolls = inv.delivery_draft.rolls;
                         console.log(`[Draft] ☁️ Restored ${restoredRolls!.length} rolls from Supabase`);
@@ -200,6 +284,107 @@ export function SalesDeliveryDialog({
         fetchData();
     }, [invoiceId, isOpen]);
 
+    // ═══ VIEW MODE / COMPLETED: جلب الرولونات المسلّمة ═══
+    useEffect(() => {
+        // يعمل عند: isDelivered (مكتشف تلقائياً) أو viewMode prop صريح
+        const shouldFetch = (isDelivered || viewMode) && invoiceId && isOpen;
+        if (!shouldFetch) return;
+        if (selectedRolls.length > 0 && draftRestored) return; // مُسبق التحميل في fetchData
+
+        const fetchDeliveredRolls = async () => {
+            console.log('[SalesDelivery] 📦 fetchDeliveredRolls — invoiceId:', invoiceId);
+
+            // ── مرحلة 1: جلب الحركات مع roll_id أو بدونه ──
+            const { data: movements, error: mvErr } = await supabase
+                .from('inventory_movements')
+                .select('roll_id, quantity, material_id, notes')
+                .eq('reference_id', invoiceId)
+                .in('movement_type', ['sale', 'issue']);
+
+            if (mvErr) console.warn('[SalesDelivery] movements error:', mvErr.message);
+            console.log('[SalesDelivery] movements found:', movements?.length ?? 0);
+
+            // ── مرحلة 2: محاولة بـ reference_number إذا فشل reference_id ──
+            let allMovements = movements || [];
+            if (allMovements.length === 0) {
+                const { data: mvByRef } = await supabase
+                    .from('inventory_movements')
+                    .select('roll_id, quantity, material_id, notes')
+                    .eq('reference_number', invoiceData?.invoice_no || '')
+                    .in('movement_type', ['sale', 'issue']);
+                allMovements = mvByRef || [];
+                console.log('[SalesDelivery] byRef found:', allMovements.length);
+            }
+
+            // ── مرحلة 3: جلب الرولونات المباشرة (لو roll_id موجود) ──
+            const rollIds = allMovements.map((m: any) => m.roll_id).filter(Boolean);
+            console.log('[SalesDelivery] roll_ids with value:', rollIds.length, '/ total:', allMovements.length);
+
+            if (rollIds.length > 0) {
+                const { data: rolls } = await supabase
+                    .from('fabric_rolls')
+                    .select('id, roll_number, material_id, current_length, color_id, color_name, status')
+                    .in('id', rollIds);
+
+                if (rolls && rolls.length > 0) {
+                    const mappedRolls = rolls.map((r: any) => {
+                        const mv = allMovements.find((m: any) => m.roll_id === r.id);
+                        return {
+                            ...r,
+                            net_length: mv?.quantity || r.current_length || 0,
+                            _viewOnly: true,
+                            color_name: r.color_name || '',
+                            _delivered: true,
+                        };
+                    });
+                    console.log('[SalesDelivery] ✅ loaded from inventory_movements:', mappedRolls.length);
+                    setSelectedRolls(mappedRolls);
+                    setIsDelivered(true);
+                    setDraftRestored(true);
+                    return;
+                }
+            }
+
+            // ── مرحلة 4: Fallback — لا roll_ids (تسليم قديم بالإجمالي)
+            // نعرض الرولونات المباعة من fabric_rolls للمواد في الفاتورة
+            console.log('[SalesDelivery] ⚠️ No roll_ids in movements — trying fabric_rolls[status=sold] for invoice materials');
+            const materialIds = sourceItems.map((i: any) => i.material_id).filter(Boolean);
+            if (materialIds.length > 0) {
+                const { data: soldRolls } = await supabase
+                    .from('fabric_rolls')
+                    .select('id, roll_number, material_id, current_length, color_id, color_name, status, warehouse_id')
+                    .in('material_id', materialIds)
+                    .eq('status', 'sold');
+
+                if (soldRolls && soldRolls.length > 0) {
+                    // ربط الكمية من الحركة الإجمالية للمادة
+                    const movByMat: Record<string, number> = {};
+                    allMovements.forEach((m: any) => {
+                        if (m.material_id) movByMat[m.material_id] = (movByMat[m.material_id] || 0) + (m.quantity || 0);
+                    });
+
+                    const mapped = soldRolls.map((r: any) => ({
+                        ...r,
+                        net_length: r.current_length || 0,
+                        _viewOnly: true,
+                        _delivered: true,
+                        color_name: r.color_name || '',
+                    }));
+                    console.log('[SalesDelivery] ✅ loaded from sold rolls:', mapped.length);
+                    setSelectedRolls(mapped);
+                    setIsDelivered(true);
+                    setDraftRestored(true);
+                    return;
+                }
+            }
+
+            // لا يوجد شيء — نضبط isDelivered فقط
+            console.log('[SalesDelivery] ⚠️ No rolls found — marking as delivered with no roll details');
+            setIsDelivered(true);
+        };
+        fetchDeliveredRolls();
+    }, [viewMode, isDelivered, invoiceId, isOpen]);
+
     // ═══ Stable callback ref for delivery data changes ═══
     const onDeliveryDataChangeRef = React.useRef<(updates: any) => void>(() => { });
     onDeliveryDataChangeRef.current = (updates: any) => {
@@ -216,9 +401,9 @@ export function SalesDeliveryDialog({
         selected_rolls: selectedRolls,
         rolls_count: selectedRolls.length,
         total_length: selectedRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0),
-        // Callback: stable ref — always current
+        view_mode: effectiveViewMode,  // ← يتغيّر ديناميكياً عند التبديل بين العرض والتعديل
         onDeliveryDataChange: (updates: any) => onDeliveryDataChangeRef.current(updates),
-    }), [invoiceData, sourceItems, selectedWarehouseId, selectedRolls]);
+    }), [invoiceData, sourceItems, selectedWarehouseId, selectedRolls, effectiveViewMode]);
 
     // ═══ Handle Save = "تحميل" (Start Loading) ═══
     const handleSave = useCallback(async (data: any) => {
@@ -369,50 +554,35 @@ export function SalesDeliveryDialog({
                 if (itemErr) console.warn(`Item ${item.id} update error:`, itemErr.message);
             }
 
-            // ── 4. Create stock movement ──
-            const totalDeliveredLength = selectedRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0);
+            // ── 4. Create inventory_movements (one per roll) ──
+            // stock_movements جدول غير موجود — نكتب في inventory_movements
+            const movNumber = `MV-SALE-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${invoiceData?.invoice_no?.slice(-6) || invoiceId?.slice(0, 6) || 'SALE'}`;
+            const movementRows = selectedRolls.map((roll: any, idx: number) => ({
+                tenant_id: tenantId,
+                company_id: companyId,
+                movement_number: `${movNumber}-${idx + 1}`,
+                movement_date: now.slice(0, 10), // date only
+                movement_type: 'sale',
+                material_id: roll.material_id || null,
+                color_id: roll.color_id || null,
+                roll_id: roll.id,
+                from_warehouse_id: selectedWarehouseId,
+                quantity: roll.net_length || roll.current_length || 0,
+                reference_type: 'sale_invoice',
+                reference_id: invoiceId,
+                reference_number: invoiceData?.invoice_no || invoiceData?.draft_no || '',
+                notes: tl(
+                    `تسليم مبيعات — رولون ${roll.roll_number || roll.id?.slice(0, 8)} (${(roll.net_length || roll.current_length || 0).toFixed(1)} م)${isPartialDelivery ? ' [جزئي]' : ' [كامل]'}`,
+                    `Sales delivery — roll ${roll.roll_number || roll.id?.slice(0, 8)} (${(roll.net_length || roll.current_length || 0).toFixed(1)}m)${isPartialDelivery ? ' [partial]' : ' [complete]'}`
+                ),
+            }));
 
-            const { data: movement, error: movError } = await supabase
-                .from('stock_movements')
-                .insert({
-                    company_id: companyId,
-                    tenant_id: tenantId,
-                    warehouse_id: selectedWarehouseId,
-                    movement_type: 'sale',
-                    source_type: 'sale_invoice',
-                    source_id: invoiceId,
-                    source_number: invoiceData?.invoice_no || invoiceData?.draft_no || '',
-                    total_items: selectedRolls.length,
-                    total_quantity: totalDeliveredLength,
-                    status: 'completed',
-                    notes: tl(
-                        `تسليم مبيعات — ${selectedRolls.length} رولون (${totalDeliveredLength.toFixed(1)} م)${isPartialDelivery ? ' [جزئي]' : ' [كامل]'}`,
-                        `Sales delivery — ${selectedRolls.length} rolls (${totalDeliveredLength.toFixed(1)}m)${isPartialDelivery ? ' [partial]' : ' [complete]'}`
-                    ),
-                    completed_at: now,
-                })
-                .select('id')
-                .maybeSingle();
+            const { error: movError } = await supabase
+                .from('inventory_movements')
+                .insert(movementRows);
 
-            if (movError) console.warn('Stock movement error:', movError.message);
+            if (movError) console.warn('inventory_movements insert error:', movError.message);
 
-            // ── 5. Create stock_movement_items (one per roll) ──
-            if (movement?.id) {
-                const movItems = selectedRolls.map((roll: any) => ({
-                    movement_id: movement.id,
-                    roll_id: roll.id,
-                    material_id: roll.material_id,
-                    color_id: roll.color_id || null,
-                    quantity: roll.net_length || roll.current_length || 0,
-                    tenant_id: tenantId,
-                }));
-
-                const { error: movItemsErr } = await supabase
-                    .from('stock_movement_items')
-                    .insert(movItems);
-
-                if (movItemsErr) console.warn('Movement items error:', movItemsErr.message);
-            }
 
             // ── 6. Determine stage: partial or complete ──
             const totalRequired = sourceItems.reduce((s, si) => s + (Number(si.quantity) || 0), 0);
@@ -470,6 +640,7 @@ export function SalesDeliveryDialog({
             }
 
             // ── 9. Success ──
+            const totalDeliveredLength = selectedRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0);
             toast.success(tl(
                 isFullyDelivered
                     ? `✅ تسليم كامل! ${selectedRolls.length} رولون — ${totalDeliveredLength.toFixed(1)} م — تم ترحيل الفاتورة`
@@ -499,75 +670,142 @@ export function SalesDeliveryDialog({
     const HeaderExtra = (
         <div className="flex flex-col gap-0 border-b">
             {/* Row 1: Warehouse + Invoice Info */}
-            <div className="px-4 py-2.5 bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-950/20 dark:to-orange-950/20 border-b">
+            <div className={`px-4 py-2.5 border-b bg-gradient-to-r ${effectiveViewMode
+                ? 'from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20'
+                : 'from-rose-50 to-orange-50 dark:from-rose-950/20 dark:to-orange-950/20'}`}>
                 <div className="flex items-center gap-4 flex-wrap">
                     {/* Delivery Type Badge */}
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 font-semibold text-sm">
-                        <div className="p-1 rounded-md bg-rose-200 dark:bg-rose-800">
-                            <Truck className="w-3.5 h-3.5" />
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold text-sm ${effectiveViewMode
+                        ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
+                        : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'}`}>
+                        <div className={`p-1 rounded-md ${effectiveViewMode ? 'bg-teal-200' : 'bg-rose-200 dark:bg-rose-800'}`}>
+                            {effectiveViewMode ? <PackageCheck className="w-3.5 h-3.5" /> : <Truck className="w-3.5 h-3.5" />}
                         </div>
-                        {tl('تسليم مبيعات', 'Sales Delivery')}
+                        {effectiveViewMode ? tl('تم التسليم ✅', 'Delivered ✅') : tl('تسليم مبيعات', 'Sales Delivery')}
                     </div>
 
-                    {/* Warehouse */}
-                    <div className="flex items-center gap-1.5">
-                        <Warehouse className="w-4 h-4 text-gray-400" />
-                        <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                            <SelectTrigger className="h-9 w-[170px] text-sm bg-white dark:bg-slate-800 shadow-sm">
-                                <SelectValue placeholder={tl('اختر المستودع', 'Select warehouse')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {warehouses.map(wh => (
-                                    <SelectItem key={wh.id} value={wh.id}>
-                                        {language === 'ar' ? (wh.name_ar || wh.name_en) : (wh.name_en || wh.name_ar)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {/* Warehouse — only in edit mode */}
+                    {!effectiveViewMode && (
+                        <div className="flex items-center gap-1.5">
+                            <Warehouse className="w-4 h-4 text-gray-400" />
+                            <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
+                                <SelectTrigger className="h-9 w-[170px] text-sm bg-white dark:bg-slate-800 shadow-sm">
+                                    <SelectValue placeholder={tl('اختر المستودع', 'Select warehouse')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {warehouses.map(wh => (
+                                        <SelectItem key={wh.id} value={wh.id}>
+                                            {language === 'ar' ? (wh.name_ar || wh.name_en) : (wh.name_en || wh.name_ar)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
                     <div className="w-px h-7 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
 
-                    {/* Invoice Info */}
+                    {/* Invoice Info + Customer */}
                     <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         <FileText className="w-4 h-4 shrink-0 text-rose-500" />
                         <span className="text-sm font-mono font-bold text-rose-600">
                             {invoiceData?.invoice_no || invoiceData?.draft_no || invoiceId?.substring(0, 8)}
                         </span>
                         {invoiceData?.customer_name && (
-                            <span className="text-sm text-gray-600 truncate">
-                                — {invoiceData.customer_name}
-                            </span>
+                            onOpenInvoice ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenInvoice(invoiceData)}
+                                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline truncate transition-colors font-medium"
+                                    title={tl('فتح الفاتورة المالية', 'Open Financial Invoice')}
+                                >
+                                    — {invoiceData.customer_name}
+                                </button>
+                            ) : (
+                                <span className="text-sm text-gray-600 truncate">
+                                    — {invoiceData.customer_name}
+                                </span>
+                            )
                         )}
                     </div>
 
-                    {/* Online Badge */}
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium shrink-0 ${navigator.onLine
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}>
-                        {navigator.onLine ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                        {navigator.onLine ? tl('متصل', 'Online') : tl('غير متصل', 'Offline')}
+                    {/* Right side actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {effectiveViewMode ? (
+                            <>
+                                {/* Rolls count */}
+                                <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-lg">
+                                    <PackageCheck className="w-3.5 h-3.5 text-teal-600" />
+                                    <span className="text-xs font-bold text-teal-700">
+                                        {selectedRolls.length} {tl('رولون مسلّم', 'rolls delivered')}
+                                    </span>
+                                </div>
+                                {/* Open Invoice button */}
+                                {onOpenInvoice && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => onOpenInvoice(invoiceData)}
+                                        className="gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs h-8"
+                                    >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        {tl('الفاتورة', 'Invoice')}
+                                    </Button>
+                                )}
+                                {/* Edit toggle — للمخوّلين فقط */}
+                                {canEdit && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setIsEditing(true)}
+                                        className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 text-xs h-8"
+                                    >
+                                        ✏️ {tl('تعديل', 'Edit')}
+                                    </Button>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {/* Online Badge */}
+                                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium ${navigator.onLine
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                    }`}>
+                                    {navigator.onLine ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                                    {navigator.onLine ? tl('متصل', 'Online') : tl('غير متصل', 'Offline')}
+                                </div>
+                                {/* Back to view mode if was viewMode originally */}
+                                {viewMode && isEditing && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setIsEditing(false)}
+                                        className="gap-1.5 text-teal-600 border-teal-200 hover:bg-teal-50 text-xs h-8"
+                                    >
+                                        👁 {tl('عرض', 'View')}
+                                    </Button>
+                                )}
+                                {/* Deliver Button */}
+                                {selectedRolls.length > 0 && (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => setShowConfirm(true)}
+                                        disabled={isCompleting}
+                                        className="gap-2 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white font-bold shadow-lg shadow-rose-500/30 px-4"
+                                    >
+                                        {isCompleting
+                                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                                            : <PackageCheck className="h-4 w-4" />
+                                        }
+                                        {tl('تسليم', 'Deliver')}
+                                        <span className="bg-rose-800/30 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                                            {selectedRolls.length}
+                                        </span>
+                                    </Button>
+                                )}
+                            </>
+                        )}
                     </div>
-
-                    {/* Deliver Button */}
-                    {selectedRolls.length > 0 && (
-                        <Button
-                            size="sm"
-                            onClick={() => setShowConfirm(true)}
-                            disabled={isCompleting}
-                            className="gap-2 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white font-bold shadow-lg shadow-rose-500/30 shrink-0 px-4"
-                        >
-                            {isCompleting
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <PackageCheck className="h-4 w-4" />
-                            }
-                            {tl('تسليم', 'Deliver')}
-                            <span className="bg-rose-800/30 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
-                                {selectedRolls.length}
-                            </span>
-                        </Button>
-                    )}
                 </div>
             </div>
 
@@ -639,9 +877,9 @@ export function SalesDeliveryDialog({
                 isOpen={isOpen}
                 onClose={handleClose}
                 docType={'sales_delivery' as UnifiedDocType}
-                mode="create"
+                mode={effectiveViewMode ? 'view' : 'create'}
                 data={enhancedData}
-                onSave={handleSave}
+                onSave={effectiveViewMode ? undefined : handleSave}
                 headerExtra={HeaderExtra}
                 onRefresh={onComplete}
                 defaultTab="sales_delivery_items"

@@ -13,12 +13,13 @@ import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { warehouseService } from '@/services/warehouseService';
-import { useWarehouses, useDefaultBranch } from '../hooks/useWarehouseQueries';
+import { useWarehouses, useDefaultBranch, useBranchesWithWarehouses } from '../hooks/useWarehouseQueries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -52,6 +53,10 @@ import { UnifiedAccountingSheet } from '@/features/accounting/components/unified
 import type { UnifiedDocType, SheetMode } from '@/features/accounting/components/unified/types'; // Correct import path assumption
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NexaTable, type Column } from '@/components/shared/tables/NexaTable';
+import { StatCard } from '@/components/shared/stats/StatCard';
+import { WarehouseTreeView, type BranchTreeItem } from '../components/WarehouseTreeView';
+import WarehouseLocationsPage from './WarehouseLocationsPage';
+import { TreePine, LayoutList, ChevronsDownUp, ChevronsUpDown, Building2, CheckCircle2, MapPinned, BarChart3 } from 'lucide-react';
 
 // Types
 interface WarehouseItem {
@@ -109,8 +114,29 @@ export default function WarehouseListPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [warehouseToDelete, setWarehouseToDelete] = useState<WarehouseItem | null>(null);
 
+    // Branch delete state
+    const [branchDeleteDialogOpen, setBranchDeleteDialogOpen] = useState(false);
+    const [branchToDelete, setBranchToDelete] = useState<string | null>(null);
+
     // Active sub-tab
     const [activeTab, setActiveTab] = useState('warehouses');
+
+    // Tree / Table toggle — matching MaterialsPage pattern
+    type ListMode = 'table' | 'tree';
+    const [listMode, setListMode] = useState<ListMode>(() =>
+        (localStorage.getItem('wh_list_mode') as ListMode) || 'tree'
+    );
+    const handleListModeChange = (m: ListMode) => {
+        setListMode(m);
+        localStorage.setItem('wh_list_mode', m);
+    };
+
+    // Expand / Collapse counters (Counter-Trigger pattern)
+    const [expandAllCount, setExpandAllCount] = useState(0);
+    const [collapseAllCount, setCollapseAllCount] = useState(0);
+
+    // Tree data
+    const { branches, warehousesWithStats, loading: treeLoading, invalidate: invalidateTree } = useBranchesWithWarehouses();
 
     // Filter states
     const [cityFilter, setCityFilter] = useState<string>('all');
@@ -123,23 +149,30 @@ export default function WarehouseListPage() {
     }, [warehouses]);
 
     // Filter warehouses
+    // ── Filter: uses warehousesWithStats for unified data source
     const filteredWarehouses = useMemo(() => {
-        return warehouses.filter(wh => {
+        return (warehousesWithStats as any[]).filter(wh => {
             const matchesSearch =
-                wh.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                wh.name_ar.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                wh.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                wh.name_ar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (wh.name_en && wh.name_en.toLowerCase().includes(searchTerm.toLowerCase()));
 
             const matchesCity = cityFilter === 'all' || wh.city === cityFilter;
             const matchesType = typeFilter === 'all' || wh.warehouse_type === typeFilter;
 
-            // Note: Company filter is implicit as we only load current company data
-
             return matchesSearch && matchesCity && matchesType;
         });
-    }, [warehouses, searchTerm, cityFilter, typeFilter]);
+    }, [warehousesWithStats, searchTerm, cityFilter, typeFilter]);
 
 
+
+    // Stats — use warehousesWithStats for consistency
+    const totalWarehouses = (warehousesWithStats as any[]).length;
+    const activeWarehouses = (warehousesWithStats as any[]).filter((w: any) => w.is_active !== false).length;
+    const totalBranches = branches.length;
+    const totalLocations = useMemo(() =>
+        warehousesWithStats.reduce((s: number, w: any) => s + (w.locations_count || 0), 0)
+        , [warehousesWithStats]);
 
     // Helpers
     const getWarehouseName = (wh: WarehouseItem) => {
@@ -147,15 +180,20 @@ export default function WarehouseListPage() {
     };
 
     const getTypeBadge = (type: string) => {
-        switch (type) {
-            case 'main': return <Badge variant="default">{t('warehouse.types.main')}</Badge>;
-            case 'branch': return <Badge variant="secondary">{t('warehouse.types.branch')}</Badge>;
-            case 'store': return <Badge variant="outline">{t('warehouse.types.store')}</Badge>;
-            case 'regular': return <Badge variant="default">{t('warehouse.types.regular') || 'مستودع عادي'}</Badge>;
-            case 'offline_market': return <Badge variant="secondary">{t('warehouse.types.offlineMarket') || 'سوق غير متصل'}</Badge>;
-            case 'van': return <Badge variant="outline">{t('warehouse.types.van') || 'شاحنة'}</Badge>;
-            default: return <Badge variant="outline">{type}</Badge>;
-        }
+        const badgeConfigs: Record<string, { label: string; cls: string }> = {
+            main: { label: t('warehouse.types.main') || 'رئيسي', cls: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },
+            branch: { label: t('warehouse.types.branch') || 'فرعي', cls: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
+            store: { label: t('warehouse.types.store') || 'متجر', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
+            regular: { label: t('warehouse.types.regular') || 'عادي', cls: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400' },
+            offline_market: { label: t('warehouse.types.offlineMarket') || 'سوق', cls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400' },
+            van: { label: t('warehouse.types.van') || 'شاحنة', cls: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400' },
+        };
+        const cfg = badgeConfigs[type] || { label: type, cls: 'bg-gray-100 text-gray-500 border-gray-200' };
+        return (
+            <span className={cn('inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border', cfg.cls)}>
+                {cfg.label}
+            </span>
+        );
     };
 
     // Handlers
@@ -216,8 +254,9 @@ export default function WarehouseListPage() {
                 await warehouseService.update(selectedWarehouse.id, coreData);
             }
 
-            // ⚡ Invalidate cache → triggers background refetch
+            // ⚡ Invalidate both caches → unified data source
             invalidate();
+            invalidateTree();
         } catch (error: any) {
             console.error('Save error:', error);
             throw new Error(error.message || t('errors.network.saveFailed'));
@@ -238,67 +277,123 @@ export default function WarehouseListPage() {
         }
     };
 
-    // Columns definition
-    const columns = useMemo<Column<WarehouseItem>[]>(() => [
+    // Branch delete handlers
+    const handleBranchDelete = (branchId: string) => {
+        setBranchToDelete(branchId);
+        setBranchDeleteDialogOpen(true);
+    };
+
+    const handleBranchDeleteConfirm = async () => {
+        if (!branchToDelete) return;
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { error } = await supabase.from('branches').delete().eq('id', branchToDelete);
+            if (error) throw error;
+            setBranchDeleteDialogOpen(false);
+            setBranchToDelete(null);
+            invalidateTree();
+        } catch (err) {
+            console.error('Error deleting branch:', err);
+        }
+    };
+
+    // ────────────────────────────────────────────────────────
+    // Table columns — matches MaterialsPage style
+    // ────────────────────────────────────────────────────────
+    const columns = useMemo<Column<any>[]>(() => [
         {
             title: 'warehouse.code',
             key: 'code',
             align: 'start',
-            width: '100px',
-            render: (_, row) => <span className="font-mono text-sm">{row.code}</span>
+            width: '110px',
+            render: (_, row) => (
+                <span className="font-mono font-semibold text-erp-navy dark:text-white">{row.code}</span>
+            )
         },
         {
             title: 'warehouse.name',
-            key: 'name_ar', // Virtual
+            key: 'name_ar',
             align: 'start',
-            render: (_, row) => (
-                <div className="flex flex-col">
-                    <span className="font-medium text-erp-navy dark:text-erp-blue">{getWarehouseName(row)}</span>
-                    {row.is_main && (
-                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded w-fit mt-0.5">
-                            {t('warehouse.types.main')}
-                        </span>
-                    )}
-                </div>
-            )
+            render: (_, row) => {
+                const name = language === 'ar' ? row.name_ar : (row.name_en || row.name_ar);
+                return (
+                    <div className="flex items-center gap-2">
+                        <span className="font-medium font-tajawal text-erp-navy dark:text-white">{name}</span>
+                        {row.is_main && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400">
+                                {isRTL ? 'رئيسي' : 'Main'}
+                            </span>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
+            title: isRTL ? 'الفرع' : 'Branch',
+            key: 'branch_id',
+            align: 'start',
+            width: '170px',
+            render: (_, row) => {
+                const branch = (branches as any[]).find(b => b.id === row.branch_id);
+                if (!branch) return <span className="text-gray-400 text-xs">{isRTL ? 'بدون فرع' : 'No branch'}</span>;
+                const branchName = language === 'ar' ? (branch.name_ar || branch.name_en) : (branch.name_en || branch.name_ar);
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-sm text-gray-800 dark:text-gray-200 font-tajawal truncate">{branchName}</span>
+                            {branch.city && (
+                                <span className="text-[10px] text-gray-400 truncate">{branch.city}</span>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
         },
         {
             title: 'warehouse.type',
             key: 'warehouse_type',
             align: 'center',
-            width: '130px',
+            width: '115px',
             render: (_, row) => getTypeBadge(row.warehouse_type)
         },
         {
-            title: 'warehouse.city',
-            key: 'city',
+            title: isRTL ? 'مواقع التخزين' : 'Storage Bins',
+            key: 'locations_count',
             align: 'center',
-            width: '120px',
-            render: (_, row) => row.city || '-'
-        },
-        {
-            title: 'warehouse.capacity',
-            key: 'capacity',
-            align: 'center',
-            width: '100px',
-            render: (_, row) => row.capacity ? row.capacity.toLocaleString() : '-'
+            width: '110px',
+            render: (_, row) => {
+                const count = row.locations_count ?? 0;
+                if (count === 0) return <span className="text-gray-400 text-sm">-</span>;
+                return (
+                    <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-full text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
+                        {count.toLocaleString()}
+                    </span>
+                );
+            }
         },
         {
             title: 'common.status._',
             key: 'is_active',
             align: 'center',
-            width: '100px',
-            render: (_, row) => (
-                <Badge variant={row.is_active ? "outline" : "destructive"} className="text-xs">
-                    {row.is_active ? t('common.active') : t('common.inactive')}
-                </Badge>
+            width: '95px',
+            render: (_, row) => row.is_active ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    {t('common.active')}
+                </span>
+            ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                    {t('common.inactive')}
+                </span>
             )
         },
         {
             title: 'common.actions',
             key: 'id',
             align: 'end',
-            width: '80px',
+            width: '70px',
             render: (_, row) => (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -306,13 +401,13 @@ export default function WarehouseListPage() {
                             <MoreVertical className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(row)} className="gap-2">
+                    <DropdownMenuContent align={isRTL ? 'start' : 'end'}>
+                        <DropdownMenuItem onClick={() => handleEdit(row as WarehouseItem)} className="gap-2">
                             <Edit className="h-4 w-4" />
                             {t('common.edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                            onClick={() => handleDeleteClick(row)}
+                            onClick={() => handleDeleteClick(row as WarehouseItem)}
                             className="text-red-600 focus:text-red-600 gap-2"
                         >
                             <Trash2 className="h-4 w-4" />
@@ -322,121 +417,198 @@ export default function WarehouseListPage() {
                 </DropdownMenu>
             )
         }
-    ], [t, language]);
+    ], [t, language, isRTL, branches]);
 
 
     return (
-        <div className="space-y-4" dir={isRTL ? 'rtl' : 'ltr'}>
-            {/* Sub-tabs: Warehouses / Locations */}
-            {/* Sub-tabs: Warehouses / Locations */}
-            {/* Header & Tabs */}
-            <div className="flex flex-col space-y-4">
-                <div className="flex justify-between items-center">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <div className="flex justify-between items-center mb-4">
-                            <TabsList className="justify-start w-full sm:w-auto h-auto p-1 bg-muted/50">
-                                <TabsTrigger value="warehouses" className="gap-2 px-4 py-2">
-                                    <Warehouse className="h-4 w-4" />
-                                    {t('warehouse.tabs.warehouses')}
-                                </TabsTrigger>
-                                <TabsTrigger value="locations" className="gap-2 px-4 py-2">
-                                    <MapPin className="h-4 w-4" />
-                                    {t('warehouse.tabs.locations')}
-                                </TabsTrigger>
-                            </TabsList>
+        <div className="space-y-6" dir={isRTL ? 'rtl' : 'ltr'}>
 
-                            {/* Add Action (Right/Left aligned opposite to tabs) */}
-                            {activeTab === 'warehouses' && (
-                                <Button onClick={handleAdd} className="gap-2 bg-erp-primary hover:bg-erp-primary/90">
-                                    <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                    {t('warehouse.add')}
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* Warehouses Tab Content */}
-                        <TabsContent value="warehouses" className="mt-0">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg border shadow-sm">
-                                {/* Filters Bar */}
-                                <div className="p-4 border-b space-y-4 sm:space-y-0 sm:flex sm:items-center sm:justify-between gap-4">
-
-                                    {/* Search */}
-                                    <div className="relative flex-1 max-w-sm">
-                                        <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder={t('warehouse.searchPlaceholder')}
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="ps-9 text-start bg-background"
-                                        />
-                                    </div>
-
-                                    {/* Dropdown Filters */}
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        {/* City Filter */}
-                                        <Select value={cityFilter} onValueChange={setCityFilter}>
-                                            <SelectTrigger className="w-[140px] bg-background">
-                                                <SelectValue placeholder={t('warehouse.city') || "المدينة"} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">{t('common.all') || "الكل"}</SelectItem>
-                                                {cities.map(city => (
-                                                    <SelectItem key={city} value={city}>{city}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-
-                                        {/* Type Filter */}
-                                        <Select value={typeFilter} onValueChange={setTypeFilter}>
-                                            <SelectTrigger className="w-[140px] bg-background">
-                                                <SelectValue placeholder={t('warehouse.type') || "النوع"} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">{t('common.all')}</SelectItem>
-                                                <SelectItem value="regular">{t('warehouse.types.regular') || 'مستودع عادي'}</SelectItem>
-                                                <SelectItem value="offline_market">{t('warehouse.types.offlineMarket') || 'سوق غير متصل'}</SelectItem>
-                                                <SelectItem value="van">{t('warehouse.types.van') || 'شاحنة'}</SelectItem>
-                                                <SelectItem value="main">{t('warehouse.types.main')}</SelectItem>
-                                                <SelectItem value="branch">{t('warehouse.types.branch')}</SelectItem>
-                                                <SelectItem value="store">{t('warehouse.types.store')}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-
-                                        {/* Refresh Button */}
-                                        <Button variant="outline" size="icon" onClick={() => refetchWarehouses()} disabled={loading} title={t('common.refresh')}>
-                                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                {/* Table */}
-                                <div className="p-0">
-                                    <NexaTable
-                                        data={filteredWarehouses}
-                                        columns={columns}
-                                        loading={loading}
-                                        onRowClick={handleRowClick}
-                                        bordered
-                                        striped
-                                        emptyMessage={t('warehouse.noWarehouses')}
-                                    />
-                                </div>
-                            </div>
-                        </TabsContent>
-
-                        {/* Locations Tab Content */}
-                        <TabsContent value="locations" className="mt-4">
-                            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white dark:bg-gray-800 rounded-lg border border-dashed">
-                                <MapPin className="h-12 w-12 mb-4 opacity-20" />
-                                <p>{t('common.comingSoon') || 'قريباً...'}</p>
-                            </div>
-                        </TabsContent>
-                    </Tabs>
+            {/* ── Header ──────────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
+                        {t('warehouse.tabs.warehouses') || (isRTL ? 'إدارة المستودعات' : 'Warehouses')}
+                    </h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
+                        {isRTL ? 'إدارة المستودعات والفروع والمواقع' : 'Manage warehouses, branches and storage locations'}
+                    </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Button variant="outline" onClick={() => { refetchWarehouses(); }} disabled={loading}>
+                        <RefreshCw className={cn('w-4 h-4 me-2', loading && 'animate-spin')} />
+                        {t('common.refresh')}
+                    </Button>
+                    <Button onClick={handleAdd} className="gap-2 bg-erp-primary hover:bg-erp-primary/90">
+                        <Plus className="h-4 w-4 me-2" />
+                        {t('warehouse.add')}
+                    </Button>
                 </div>
             </div>
 
-            {/* Add/Edit Warehouse Form */}
-            {/* Unified Warehouse Sheet */}
+            {/* ── Stats — same as MaterialsPage ────────────────── */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <StatCard
+                    label={isRTL ? 'إجمالي المستودعات' : 'Total Warehouses'}
+                    value={totalWarehouses}
+                    icon={Warehouse}
+                />
+                <StatCard
+                    label={isRTL ? 'المستودعات النشطة' : 'Active Warehouses'}
+                    value={activeWarehouses}
+                    icon={CheckCircle2}
+                />
+                <StatCard
+                    label={isRTL ? 'الفروع' : 'Branches'}
+                    value={totalBranches}
+                    icon={Building2}
+                />
+                <StatCard
+                    label={isRTL ? 'مواقع التخزين' : 'Storage Bins'}
+                    value={totalLocations}
+                    icon={MapPinned}
+                />
+            </div>
+
+            {/* ── Tabs: Warehouses / Locations ────────────────── */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={isRTL ? 'rtl' : 'ltr'}>
+                <div className="mb-4">
+                    <TabsList className="h-auto p-1 bg-muted/50">
+                        <TabsTrigger value="warehouses" className="gap-2 px-4 py-2">
+                            <Warehouse className="h-4 w-4" />
+                            {t('warehouse.tabs.warehouses')}
+                        </TabsTrigger>
+                        <TabsTrigger value="locations" className="gap-2 px-4 py-2">
+                            <MapPin className="h-4 w-4" />
+                            {t('warehouse.tabs.locations')}
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
+
+                {/* ── Warehouses Tab ───────────────────────────── */}
+                <TabsContent value="warehouses" className="mt-0">
+
+                    {/*
+                     * Filter bar: dir set explicitly here because TabsContent may not inherit
+                     * RTL order: [عرض الشجرة][عرض الجدول][فتح الكل][إغلاق الكل] ··· [مدينة][نوع] ··· [بحث]
+                     */}
+                    <div className="flex items-center gap-2 flex-wrap mb-4" dir={isRTL ? 'rtl' : 'ltr'}>
+
+                        {/* 1. Tree/Table toggle — FIRST → rightmost in RTL */}
+                        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                            <Button
+                                variant={listMode === 'tree' ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => handleListModeChange('tree')}
+                                className={cn('h-8 px-3', listMode === 'tree' ? 'bg-erp-navy text-white' : 'text-gray-600 dark:text-gray-400')}
+                            >
+                                <TreePine className="w-4 h-4 me-2" />
+                                {isRTL ? 'عرض الشجرة' : 'Tree View'}
+                            </Button>
+                            <Button
+                                variant={listMode === 'table' ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => handleListModeChange('table')}
+                                className={cn('h-8 px-3', listMode === 'table' ? 'bg-erp-navy text-white' : 'text-gray-600 dark:text-gray-400')}
+                            >
+                                <LayoutList className="w-4 h-4 me-2" />
+                                {isRTL ? 'عرض الجدول' : 'Table View'}
+                            </Button>
+                        </div>
+
+                        {/* 2. Expand/Collapse — tree only */}
+                        {listMode === 'tree' && (
+                            <>
+                                <Button variant="outline" size="sm" onClick={() => setExpandAllCount(c => c + 1)} className="h-8">
+                                    <ChevronsDownUp className="w-4 h-4 me-2" />
+                                    {isRTL ? 'فتح الكل' : 'Expand All'}
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setCollapseAllCount(c => c + 1)} className="h-8">
+                                    <ChevronsUpDown className="w-4 h-4 me-2" />
+                                    {isRTL ? 'إغلاق الكل' : 'Collapse All'}
+                                </Button>
+                            </>
+                        )}
+
+                        {/* 3. City filter */}
+                        <Select value={cityFilter} onValueChange={setCityFilter}>
+                            <SelectTrigger className="w-[130px] bg-background">
+                                <SelectValue placeholder={t('warehouse.city') || 'المدينة'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{t('common.all') || 'الكل'}</SelectItem>
+                                {cities.map(city => (
+                                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        {/* Type filter */}
+                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                            <SelectTrigger className="w-[130px] bg-background">
+                                <SelectValue placeholder={t('warehouse.type') || 'النوع'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{t('common.all')}</SelectItem>
+                                <SelectItem value="regular">{t('warehouse.types.regular') || 'عادي'}</SelectItem>
+                                <SelectItem value="main">{t('warehouse.types.main') || 'رئيسي'}</SelectItem>
+                                <SelectItem value="branch">{t('warehouse.types.branch') || 'فرعي'}</SelectItem>
+                                <SelectItem value="store">{t('warehouse.types.store') || 'متجر'}</SelectItem>
+                                <SelectItem value="offline_market">{t('warehouse.types.offlineMarket') || 'سوق'}</SelectItem>
+                                <SelectItem value="van">{t('warehouse.types.van') || 'شاحنة'}</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {/* 5. Search — LAST + flex-1 → leftmost in RTL */}
+                        <div className="relative flex-1 min-w-[180px]">
+                            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                            <Input
+                                placeholder={isRTL ? 'بحث بالاسم أو الكود...' : 'Search by name or code...'}
+                                className="ps-9 bg-gray-50 dark:bg-gray-800 border-none"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* ── Tree View ────────────────────────────── */}
+                    {listMode === 'tree' ? (
+                        <WarehouseTreeView
+                            warehouses={warehousesWithStats}
+                            branches={branches as BranchTreeItem[]}
+                            loading={treeLoading}
+                            onWarehouseEdit={handleEdit}
+                            onWarehouseClick={handleRowClick}
+                            onWarehouseAdd={(branchId) => {
+                                setSelectedWarehouse(null);
+                                setSheetMode('create');
+                                setFormOpen(true);
+                            }}
+                            onBranchDelete={handleBranchDelete}
+                            expandAllCount={expandAllCount}
+                            collapseAllCount={collapseAllCount}
+                            className="h-[calc(100vh-240px)]"
+                        />
+                    ) : (
+                        /* ── Table View ─────────────────────────── */
+                        <NexaTable
+                            data={filteredWarehouses}
+                            columns={columns}
+                            loading={loading}
+                            onRowClick={handleRowClick}
+                            showRowNumbers
+                            rowKey="id"
+                            emptyMessage={t('warehouse.noWarehouses')}
+                        />
+                    )}
+                </TabsContent>
+
+                {/* ── Locations Tab ────────────────────────────── */}
+                <TabsContent value="locations" className="mt-0">
+                    <WarehouseLocationsPage />
+                </TabsContent>
+            </Tabs>
+
+            {/* ── Warehouse Form Sheet ─────────────────────────── */}
             <UnifiedAccountingSheet
                 isOpen={formOpen}
                 onClose={() => setFormOpen(false)}
@@ -447,12 +619,11 @@ export default function WarehouseListPage() {
                     warehouse_type: 'regular',
                     is_active: true
                 }}
-
                 onSave={handleSave}
                 onModeChange={setSheetMode}
             />
 
-            {/* Delete Confirmation Dialog */}
+            {/* ── Delete Confirmation ──────────────────────────── */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -464,6 +635,31 @@ export default function WarehouseListPage() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                            {t('common.delete')}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* ── Branch Delete Confirmation ───────────────────── */}
+            <AlertDialog open={branchDeleteDialogOpen} onOpenChange={setBranchDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {isRTL ? 'حذف الفرع' : 'Delete Branch'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? 'هل أنت متأكد من حذف هذا الفرع؟ لا يمكن التراجع عن هذا الإجراء.'
+                                : 'Are you sure you want to delete this branch? This action cannot be undone.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleBranchDeleteConfirm}
+                            className="bg-destructive text-destructive-foreground"
+                        >
                             {t('common.delete')}
                         </AlertDialogAction>
                     </AlertDialogFooter>

@@ -16,6 +16,8 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useStockMovements } from '../hooks/useWarehouseQueries';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
+import { SalesDeliveryDialog } from '../components/SalesDeliveryDialog';
+import { MaterialReceiptDialog } from '../components/MaterialReceiptDialog';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +32,9 @@ import {
     Truck,
     ShoppingCart,
     RefreshCw,
+    X,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
 
@@ -50,17 +54,30 @@ const movementTypeColors: Record<string, string> = {
 
 export default function StockMovementsPage() {
     const { t, language, isRTL, direction } = useLanguage();
-    const { companyId } = useAuth();
+    const { companyId, isSuperAdmin } = useAuth();
 
     // ═══ Filters State ═══
     const [subFilter, setSubFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [sortField, setSortField] = useState<string>('date');
     const [sortAsc, setSortAsc] = useState<boolean>(false);
+    const [dateFrom, setDateFrom] = useState<string>('');
+    const [dateTo, setDateTo] = useState<string>('');
 
     // ═══ State for opening linked documents ═══
     const [linkedInvoiceSheet, setLinkedInvoiceSheet] = useState<{ open: boolean; invoiceData: any }>({ open: false, invoiceData: null });
     const [containerSheet, setContainerSheet] = useState<{ open: boolean; data: any }>({ open: false, data: null });
+    // ✅ إذن الاستلام (purchase/container) ← يفتح MaterialReceiptDialog في وضع العرض
+    const [receiptViewDialog, setReceiptViewDialog] = useState<{
+        open: boolean;
+        billType: 'purchase_local' | 'container';
+        reference: string;
+        receiptId?: string;
+    }>({ open: false, billType: 'purchase_local', reference: '' });
+    // ── Sales: يفتح SalesDeliveryDialog (إذن التسليم بتبويباته) ──
+    const [salesDeliveryDialog, setSalesDeliveryDialog] = useState<{ open: boolean; salesInvoice: any }>({ open: false, salesInvoice: null });
+    // ── داخل إذن التسليم: يفتح الفاتورة المالية عند الضغط على العميل ──
+    const [salesInvoiceSheet, setSalesInvoiceSheet] = useState<{ open: boolean; invoiceData: any }>({ open: false, invoiceData: null });
 
     // ⚡ React Query: cached data — Pull on Demand
     const {
@@ -68,7 +85,7 @@ export default function StockMovementsPage() {
         loading,
         error,
         refetch: refetchMovements,
-    } = useStockMovements({});
+    } = useStockMovements({ dateFrom: dateFrom || undefined, dateTo: dateTo || undefined });
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
     const handleManualRefresh = useCallback(() => {
@@ -233,30 +250,77 @@ export default function StockMovementsPage() {
         }
     }, [language]);
 
-    // ═══ Open linked document when clicking a movement row ═══
     const handleOpenDocument = useCallback(async (m: any) => {
         try {
-            // ── Helper: try to open invoice by ID ──
+            // ══ حركات المبيعات → فتح فاتورة المبيعات ══
+            const isSalesMovement = salesTypes.includes(m.movement_type);
+            if (isSalesMovement) {
+                // البحث عن فاتورة المبيعات عبر reference_id أو reference_number
+                let salesInvoice: any = null;
+
+                // محاولة 1: reference_id هو sales_transaction
+                if (m.reference_id) {
+                    const { data: st } = await supabase
+                        .from('sales_transactions')
+                        .select('*')
+                        .eq('id', m.reference_id)
+                        .maybeSingle();
+                    if (st) salesInvoice = st;
+                }
+
+                // محاولة 2: reference_number هو رقم الفاتورة
+                if (!salesInvoice && m.reference_number) {
+                    const { data: st } = await supabase
+                        .from('sales_transactions')
+                        .select('*')
+                        .or(`invoice_no.eq.${m.reference_number},delivery_no.eq.${m.reference_number},order_no.eq.${m.reference_number}`)
+                        .maybeSingle();
+                    if (st) salesInvoice = st;
+                }
+
+                if (salesInvoice) {
+                    // فتح SalesDeliveryDialog (إذن التسليم بتبويباته الكاملة)
+                    // يحتوي على: الرولونات، تفاصيل التسليم، وزر لفتح الفاتورة المالية
+                    setSalesDeliveryDialog({
+                        open: true,
+                        salesInvoice: {
+                            ...salesInvoice,
+                            // id مطلوب لـ SalesDeliveryDialog
+                            id: salesInvoice.id,
+                            source_id: salesInvoice.id,
+                        },
+                    });
+                    return;
+                }
+                toast.info(isRTL ? 'لم يتم العثور على فاتورة المبيعات المرتبطة' : 'No linked sales invoice found');
+                return;
+            }
+
+            // ── Helper: try to open receipt in viewMode ──
+            const openReceiptView = (billType: 'purchase_local' | 'container', reference: string, receiptId?: string) => {
+                setReceiptViewDialog({ open: true, billType, reference, receiptId });
+            };
+
+            // ── Helper: fallback - open purchase invoice directly ──
             const openById = async (id: string) => {
                 const { data: inv } = await supabase.from('purchase_invoices').select('*').eq('id', id).maybeSingle();
-                if (inv) { setLinkedInvoiceSheet({ open: true, invoiceData: inv }); return true; }
+                if (inv) { openReceiptView('purchase_local', inv.id); return true; }
                 const { data: leg } = await supabase.from('purchase_transactions').select('*').eq('id', id).maybeSingle();
-                if (leg) { setLinkedInvoiceSheet({ open: true, invoiceData: leg }); return true; }
+                if (leg) { openReceiptView('purchase_local', leg.id); return true; }
                 return false;
             };
 
-            // ── Helper: try to open invoice by number ──
+            // ── Helper: try to open by reference number ──
             const openByNumber = async (num: string) => {
-                const { data: inv } = await supabase.from('purchase_invoices').select('*').eq('invoice_number', num).maybeSingle();
-                if (inv) { setLinkedInvoiceSheet({ open: true, invoiceData: inv }); return true; }
-                const { data: leg } = await supabase.from('purchase_transactions').select('*').eq('invoice_no', num).maybeSingle();
-                if (leg) { setLinkedInvoiceSheet({ open: true, invoiceData: leg }); return true; }
+                const { data: inv } = await supabase.from('purchase_invoices').select('id').eq('invoice_number', num).maybeSingle();
+                if (inv) { openReceiptView('purchase_local', inv.id); return true; }
+                const { data: leg } = await supabase.from('purchase_transactions').select('id').eq('invoice_no', num).maybeSingle();
+                if (leg) { openReceiptView('purchase_local', leg.id); return true; }
                 return false;
             };
 
             // ══ Path 1: reference_id = purchase_receipts.id ══
             if (m.reference_id) {
-                // Fetch receipt with all linkage fields
                 const { data: receipt } = await supabase
                     .from('purchase_receipts')
                     .select('id, invoice_id, order_id, container_id')
@@ -264,37 +328,25 @@ export default function StockMovementsPage() {
                     .maybeSingle();
 
                 if (receipt) {
-                    // 1a. Invoice linked directly
-                    if (receipt.invoice_id) {
-                        const found = await openById(receipt.invoice_id);
-                        if (found) return;
-                    }
-                    // 1b. Container receipt → open container sheet
                     if (receipt.container_id) {
-                        const { data: container } = await supabase
-                            .from('containers')
-                            .select('*')
-                            .eq('id', receipt.container_id)
-                            .maybeSingle();
-                        if (container) {
-                            setContainerSheet({ open: true, data: { ...container, party_id: container.supplier_id } });
-                            return;
-                        }
+                        // ✅ كونتينر → MaterialReceiptDialog نوع container
+                        openReceiptView('container', receipt.container_id, receipt.id);
+                        return;
                     }
-                    // 1c. Order linked
+                    if (receipt.invoice_id) {
+                        // ✅ فاتورة شراء → MaterialReceiptDialog نوع purchase_local
+                        openReceiptView('purchase_local', receipt.invoice_id, receipt.id);
+                        return;
+                    }
                     if (receipt.order_id) {
-                        const { data: invByOrder } = await supabase
-                            .from('purchase_transactions').select('*')
-                            .eq('source_order_id', receipt.order_id).limit(1);
-                        if (invByOrder?.length) { setLinkedInvoiceSheet({ open: true, invoiceData: invByOrder[0] }); return; }
+                        openReceiptView('purchase_local', receipt.order_id, receipt.id);
+                        return;
                     }
-                    toast.info(language === 'ar'
-                        ? 'إذن الاستلام موجود لكن لا توجد وثيقة مرتبطة به'
-                        : 'Receipt found but no linked document');
+                    // إذن استلام بدون مرجع
+                    setReceiptViewDialog({ open: true, billType: 'purchase_local', reference: '', receiptId: receipt.id });
                     return;
                 }
 
-                // Fallback: maybe reference_id IS the invoice ID
                 const found = await openById(m.reference_id);
                 if (found) return;
             }
@@ -305,14 +357,14 @@ export default function StockMovementsPage() {
                 if (found) return;
             }
 
-            toast.info(language === 'ar'
+            toast.info(isRTL
                 ? 'لا توجد وثيقة مرتبطة بهذه الحركة'
                 : 'No linked document for this movement');
         } catch (err: any) {
             console.error('handleOpenDocument error:', err);
             toast.error(err.message);
         }
-    }, [language]);
+    }, [language, isRTL, salesTypes]);
 
     const counts = useMemo(() => {
         // Count unique reference_numbers (grouped documents), not individual material rows
@@ -470,8 +522,38 @@ export default function StockMovementsPage() {
                         </p>
                     </div>
                 </div>
-                {/* Manual Refresh Button */}
-                <div className="flex items-center gap-2">
+                {/* Date Range Filter + Refresh */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-xs text-gray-500">{isRTL ? 'من' : 'From'}:</span>
+                        <Input
+                            type="date"
+                            value={dateFrom}
+                            onChange={e => { setDateFrom(e.target.value); }}
+                            className="h-8 text-xs w-[130px] font-mono"
+                        />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-gray-500">{isRTL ? 'إلى' : 'To'}:</span>
+                        <Input
+                            type="date"
+                            value={dateTo}
+                            onChange={e => { setDateTo(e.target.value); }}
+                            className="h-8 text-xs w-[130px] font-mono"
+                        />
+                    </div>
+                    {(dateFrom || dateTo) && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-gray-500 hover:text-red-500"
+                            onClick={() => { setDateFrom(''); setDateTo(''); }}
+                        >
+                            <X className="w-3.5 h-3.5 me-1" />
+                            {isRTL ? 'مسح' : 'Clear'}
+                        </Button>
+                    )}
                     <span className="text-[10px] text-gray-400 font-mono hidden sm:block">
                         {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
@@ -571,7 +653,8 @@ export default function StockMovementsPage() {
                 />
             )}
 
-            {/* Linked Container Sheet */}
+
+            {/* Container Sheet — إذن استلام الكونتينر */}
             {containerSheet.open && containerSheet.data && (
                 <UnifiedTradeSheet
                     open={containerSheet.open}
@@ -583,6 +666,64 @@ export default function StockMovementsPage() {
                     onRefresh={() => { }}
                 />
             )}
+
+            {/* ✅ إذن الاستلام / الكونتينر — MaterialReceiptDialog في وضع العرض */}
+            {receiptViewDialog.open && (
+                <MaterialReceiptDialog
+                    isOpen={receiptViewDialog.open}
+                    onOpenChange={(open) => setReceiptViewDialog(prev => ({ ...prev, open }))}
+                    defaultBillType={receiptViewDialog.billType}
+                    defaultReference={receiptViewDialog.reference}
+                    receiptId={receiptViewDialog.receiptId}
+                    viewMode={true}
+                    onComplete={() => {
+                        setReceiptViewDialog(prev => ({ ...prev, open: false }));
+                        refetchMovements();
+                    }}
+                    onOpenSourceDocument={(sourceId, sourceType) => {
+                        // ✅ فتح الوثيقة الأم (فاتورة أو كونتينر)
+                        setReceiptViewDialog(prev => ({ ...prev, open: false }));
+                        setTimeout(() => {
+                            if (sourceType === 'container') {
+                                // فتح الكونتينر في UnifiedTradeSheet
+                                setContainerSheet({ open: true, data: { id: sourceId } });
+                            } else {
+                                // فتح فاتورة الشراء في UnifiedTradeSheet
+                                setLinkedInvoiceSheet({ open: true, invoiceData: { id: sourceId } });
+                            }
+                        }, 200);
+                    }}
+                />
+            )}
+
+            {/* Sales Delivery Dialog — إذن التسليم بتبويباته */}
+            {salesDeliveryDialog.open && salesDeliveryDialog.salesInvoice && (
+                <SalesDeliveryDialog
+                    isOpen={salesDeliveryDialog.open}
+                    onOpenChange={(open) => setSalesDeliveryDialog(prev => ({ ...prev, open }))}
+                    salesInvoice={salesDeliveryDialog.salesInvoice}
+                    viewMode={true}
+                    onOpenInvoice={(invData) => setSalesInvoiceSheet({ open: true, invoiceData: invData })}
+                    onComplete={() => {
+                        setSalesDeliveryDialog({ open: false, salesInvoice: null });
+                        refetchMovements();
+                    }}
+                />
+            )}
+
+            {/* Sales Invoice Sheet — الفاتورة المالية */}
+            {salesInvoiceSheet.open && salesInvoiceSheet.invoiceData && (
+                <UnifiedTradeSheet
+                    open={salesInvoiceSheet.open}
+                    onOpenChange={(open) => setSalesInvoiceSheet(prev => ({ ...prev, open }))}
+                    mode="sales"
+                    type="invoice"
+                    initialData={salesInvoiceSheet.invoiceData}
+                    companyId={companyId}
+                    onRefresh={() => { }}
+                />
+            )}
         </div>
     );
 }
+

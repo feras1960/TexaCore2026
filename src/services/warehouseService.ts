@@ -694,7 +694,8 @@ export const warehouseService = {
                     .from('fabric_rolls')
                     .select('material_id, current_length, status')
                     .in('material_id', materialIds)
-                    .neq('status', 'consumed');
+                    // ✅ إصلاح: نحسب فقط الرولونات المتاحة فعلياً (نستثني المباع، المستهلك، والملغي)
+                    .in('status', ['available', 'reserved', 'partial']);
 
                 if (!rollsError && rollsData) {
                     // Aggregate manually
@@ -871,7 +872,8 @@ export const warehouseService = {
 
     /**
      * Get inventory movements with comprehensive filters
-     * يشمل: أقمشة، رولونات، كونتينرات، مناقلات، إذون تسليم، فواتير
+     * يشمل: أقمشة، رولونات، كونتينرات، مناقلات، إذون تسليم، فواتير مبيعات
+     * ⚡ يجمع من جدولين: inventory_movements + stock_movements (تسليم المبيعات)
      */
     async getInventoryMovements(companyId: string, filters?: {
         warehouseId?: string;
@@ -916,18 +918,16 @@ export const warehouseService = {
         const { data, error } = await query;
 
         if (error) {
-            if (error.code === '42P01' || error.code === '42703' || error.message.includes('does not exist')) {
-                // Ignore missing columns/tables specifically for initial setup
-                return [];
+            if (error.code !== '42P01' && error.code !== '42703' && !error.message.includes('does not exist')) {
+                console.warn('getInventoryMovements error:', error.message);
             }
-            console.warn('getInventoryMovements error:', error.message);
-            return [];
         }
 
-        if (!data || data.length === 0) return [];
+        const allData = data || [];
+        if (allData.length === 0) return [];
 
-        // Enrich with material names (no FK exists, so we batch-lookup)
-        const materialIds = [...new Set(data.map((m: any) => m.material_id || m.product_id).filter(Boolean))];
+        // إثراء بأسماء المواد (batch lookup)
+        const materialIds = [...new Set(allData.map((m: any) => m.material_id || m.product_id).filter(Boolean))];
         let materialsMap: Record<string, any> = {};
 
         if (materialIds.length > 0) {
@@ -940,19 +940,17 @@ export const warehouseService = {
             }
         }
 
-        // Flatten joined data for easy consumption by UI
-        return data.map((m: any) => ({
+        return allData.map((m: any) => ({
             ...m,
-            // Warehouse display names
-            from_warehouse_name: m.from_warehouse?.name_ar || m.from_warehouse?.name_en || null,
-            to_warehouse_name: m.to_warehouse?.name_ar || m.to_warehouse?.name_en || null,
-            warehouse_name: m.to_warehouse?.name_ar || m.to_warehouse?.name_en || m.from_warehouse?.name_ar || m.from_warehouse?.name_en || null,
-            // Material display names
+            from_warehouse_name: m.from_warehouse?.name_ar ?? m.from_warehouse?.name_en ?? null,
+            to_warehouse_name: m.to_warehouse?.name_ar ?? m.to_warehouse?.name_en ?? null,
+            warehouse_name: m.to_warehouse?.name_ar ?? m.to_warehouse?.name_en ?? m.from_warehouse?.name_ar ?? m.from_warehouse?.name_en ?? null,
             material_name_ar: materialsMap[m.material_id || m.product_id]?.name_ar || null,
             material_name_en: materialsMap[m.material_id || m.product_id]?.name_en || null,
             material_code: materialsMap[m.material_id || m.product_id]?.code || null,
         }));
     },
+
 
     /**
      * Get pending receipts (posted invoices / confirmed orders awaiting receipt)
@@ -1961,6 +1959,10 @@ export const warehouseService = {
         supplier_name?: string;
         received_date?: string;
         created_at: string;
+        // ─── Location info ───
+        bin_location_id?: string;
+        bin_location_code?: string;
+        bin_location_name?: string;
     }[]> {
         try {
             let query = supabase
@@ -1969,6 +1971,7 @@ export const warehouseService = {
                     id,
                     roll_number,
                     warehouse_id,
+                    bin_location_id,
                     color_id,
                     initial_length,
                     current_length,
@@ -1978,7 +1981,8 @@ export const warehouseService = {
                     cost_per_meter,
                     created_at,
                     warehouse: warehouses!left(name_ar, name_en),
-                    color: fabric_colors!left(id, name_ar, name_en, hex_code)
+                    color: fabric_colors!left(id, name_ar, name_en, hex_code),
+                    bin_location: bin_locations!left(id, code, name_ar)
                     `)
                 .eq('company_id', companyId)
                 .eq('material_id', materialId)
@@ -2018,6 +2022,10 @@ export const warehouseService = {
                 supplier_name: undefined,
                 received_date: undefined,
                 created_at: roll.created_at,
+                // Location / Bin info
+                bin_location_id: roll.bin_location_id || undefined,
+                bin_location_code: roll.bin_location?.code || undefined,
+                bin_location_name: roll.bin_location?.name_ar || undefined,
             }));
         } catch (error: any) {
             console.error('getMaterialRollsDetail exception:', error);
@@ -2074,6 +2082,133 @@ export const warehouseService = {
         return capacityData;
     },
 
+    // ════════════════════════════════════════════════════
+    // Bin Location Management — إدارة مواقع التخزين
+    // ════════════════════════════════════════════════════
+
+    /** Get all bin locations for a warehouse */
+    async getBinLocations(companyId: string, warehouseId?: string): Promise<any[]> {
+        // Step 1: fetch bins
+        let q = supabase
+            .from('bin_locations')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+            .order('code', { ascending: true });
+        if (warehouseId) q = q.eq('warehouse_id', warehouseId);
+        const { data: bins, error } = await q;
+        if (error) {
+            console.warn('getBinLocations error:', error.message);
+            return [];
+        }
+        if (!bins || bins.length === 0) return [];
+
+        // Step 2: count rolls per bin (only active rolls)
+        const binIds = bins.map((b: any) => b.id);
+        const { data: rollCounts } = await supabase
+            .from('fabric_rolls')
+            .select('bin_location_id')
+            .in('bin_location_id', binIds)
+            .not('status', 'in', '(consumed,sold)');
+
+        // Build count map
+        const countMap: Record<string, number> = {};
+        (rollCounts || []).forEach((r: any) => {
+            if (r.bin_location_id) {
+                countMap[r.bin_location_id] = (countMap[r.bin_location_id] || 0) + 1;
+            }
+        });
+
+        // Step 3: merge count into each bin
+        return bins.map((bin: any) => ({
+            ...bin,
+            current_rolls_count: countMap[bin.id] ?? 0,
+        }));
+    },
+
+
+    /** Create a new bin location */
+    async createBinLocation(companyId: string, tenantId: string, input: {
+        warehouse_id: string;
+        code: string;
+        name?: string;
+        name_ar?: string;
+        name_en?: string;
+        row_code?: string;
+        column_code?: string;
+        shelf_code?: string;
+        capacity_rolls?: number;
+        description?: string;
+    }): Promise<any> {
+        const { data, error } = await supabase
+            .from('bin_locations')
+            .insert({
+                company_id: companyId,
+                tenant_id: tenantId,
+                ...input,
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    /** Assign a roll to a bin location */
+    async assignRollToBinLocation(rollId: string, binLocationId: string | null): Promise<boolean> {
+        const { error } = await supabase
+            .from('fabric_rolls')
+            .update({
+                bin_location_id: binLocationId,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', rollId);
+
+        if (error) {
+            console.error('assignRollToBinLocation error:', error.message);
+            return false;
+        }
+        return true;
+    },
+
+    /** Bulk assign multiple rolls to a bin location */
+    async bulkAssignRollsToBin(rollIds: string[], binLocationId: string | null): Promise<{ success: number; failed: number }> {
+        const { error, count } = await supabase
+            .from('fabric_rolls')
+            .update({
+                bin_location_id: binLocationId,
+                updated_at: new Date().toISOString(),
+            })
+            .in('id', rollIds);
+
+        if (error) {
+            console.error('bulkAssignRollsToBin error:', error.message);
+            return { success: 0, failed: rollIds.length };
+        }
+
+        return { success: count || rollIds.length, failed: 0 };
+    },
+
+    /** Get rolls in a specific bin location */
+    async getRollsInBin(companyId: string, binLocationId: string): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('fabric_rolls')
+            .select(`
+                id, roll_number, status, current_length, available_length, reserved_length,
+                material_id, color_id,
+                color:fabric_colors!left(id, name_ar, name_en, hex_code)
+            `)
+            .eq('company_id', companyId)
+            .eq('bin_location_id', binLocationId)
+            .not('status', 'in', '(consumed,sold)')
+            .order('roll_number', { ascending: true });
+
+        if (error) {
+            console.warn('getRollsInBin error:', error.message);
+            return [];
+        }
+        return data || [];
+    },
 
 };
 

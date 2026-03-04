@@ -32,7 +32,8 @@ export type UnifiedDocType =
     | 'debit_note'     // إشعار مدين
     | 'goods_receipt'  // استلام مواد مخزنية (Material/Goods Receipt)
     | 'sales_delivery' // تسليم مبيعات (Sales Delivery — roll picking)
-    | 'credit_note';   // إشعار دائن
+    | 'credit_note'   // إشعار دائن
+    | 'roll';          // رولون قماش (Fabric Roll)
 
 // Mode of the sheet
 export type SheetMode = 'view' | 'edit' | 'create';
@@ -45,6 +46,7 @@ export interface TabConfig {
     component: string;       // Component name to render
     showInModes?: SheetMode[];
     badge?: string;          // Optional badge (e.g., count)
+    badgeClass?: string;     // Optional CSS class for badge styling
     hidden?: boolean;
     // ═══ Stage Awareness (NEW) ═══
     visibleInStages?: string[];    // Show only in these stages (null/undefined = always visible)

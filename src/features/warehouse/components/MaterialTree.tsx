@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { ChevronRight, ChevronDown, Folder, Package, Plus, Trash2, MoreHorizontal, Layers, Archive, CheckCircle2, Box } from 'lucide-react';
@@ -52,11 +52,30 @@ interface MaterialTreeProps {
     onDelete?: (node: any) => void;
     className?: string;
     height?: string;
+    expandAllCount?: number;   // increment to expand all
+    collapseAllCount?: number; // increment to collapse all
 }
 
 // Helper to get name based on language
 const getName = (node: MaterialTreeNode, lang: string) => {
     return lang === 'ar' ? node.name_ar : (node.name_en || node.name_ar);
+};
+
+// Helper for group stock aggregation
+export const getGroupAggregate = (children?: MaterialTreeNode[]): { stock: number, rolls: number } => {
+    if (!children || children.length === 0) return { stock: 0, rolls: 0 };
+    return children.reduce((acc, child) => {
+        let childData = { stock: child.current_stock || child.rolls_total_length || 0, rolls: child.rolls_count || 0 };
+        if (child.is_group && child.children) {
+            const nested = getGroupAggregate(child.children);
+            childData.stock += nested.stock;
+            childData.rolls += nested.rolls;
+        }
+        return {
+            stock: acc.stock + childData.stock,
+            rolls: acc.rolls + childData.rolls
+        };
+    }, { stock: 0, rolls: 0 });
 };
 
 // TreeNode component
@@ -89,6 +108,18 @@ function TreeNode({
     const hasChildren = node.children && node.children.length > 0;
     const isSelected = selectedId === node.id;
     const displayName = getName(node, language);
+
+    // Aggregate values for groups
+    const aggregateData = useMemo(() => {
+        if (!node.is_group || !node.children) return { stock: 0, rolls: 0 };
+        return getGroupAggregate(node.children);
+    }, [node]);
+
+    // A "leaf group" is one that directly contains materials (no sub-groups among its children)
+    const isLeafGroup = useMemo(() => {
+        if (!node.is_group || !node.children) return false;
+        return !node.children.some(c => c.is_group);
+    }, [node]);
 
     return (
         <div className="select-none">
@@ -163,16 +194,74 @@ function TreeNode({
                         {displayName}
                     </span>
 
-                    {/* Group Count Badge */}
-                    {node.is_group && node.children && node.children.length > 0 && (
-                        <span className={cn(
-                            'text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0',
-                            isSelected
-                                ? 'bg-erp-teal/20 text-erp-teal dark:bg-erp-teal/30 dark:text-erp-teal'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                        )}>
-                            {node.children.length}
-                        </span>
+                    {/* Stock Display */}
+                    {!node.is_group && (
+                        <div className="flex gap-2 mx-2">
+                            {((node.current_stock || 0) > 0 || (node.rolls_total_length || 0) > 0) && (
+                                <span className={cn(
+                                    "text-xs font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
+                                    isSelected ? "text-blue-50 bg-blue-900/40" : "text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30"
+                                )}>
+                                    {Number(node.current_stock || node.rolls_total_length || 0).toFixed(2)} {node.unit || ''}
+                                </span>
+                            )}
+                            {(node.rolls_count || 0) > 0 && (
+                                <span className={cn(
+                                    "text-xs font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
+                                    isSelected ? "text-purple-50 bg-purple-900/40" : "text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30"
+                                )}>
+                                    {node.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Group Count Badge & Aggregates */}
+                    {node.is_group && (
+                        <div className="flex gap-1.5 mx-2 items-center">
+                            {aggregateData.stock > 0 && (
+                                <span className={cn(
+                                    "text-xs font-mono px-1.5 py-0.5 rounded transition-colors",
+                                    isLeafGroup
+                                        // Leaf group (direct materials): vivid green
+                                        ? isSelected
+                                            ? "text-emerald-50 bg-emerald-900/50 font-semibold"
+                                            : "text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 font-semibold"
+                                        // Parent group (rollup): muted gray with Σ
+                                        : isSelected
+                                            ? "text-gray-300 bg-gray-700/60"
+                                            : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                )}>
+                                    {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                    {Number(aggregateData.stock).toFixed(2)}
+                                </span>
+                            )}
+                            {aggregateData.rolls > 0 && (
+                                <span className={cn(
+                                    "text-xs font-mono px-1.5 py-0.5 rounded transition-colors",
+                                    isLeafGroup
+                                        ? isSelected
+                                            ? "text-purple-50 bg-purple-900/50 font-semibold"
+                                            : "text-purple-700 bg-purple-100 dark:text-purple-300 dark:bg-purple-900/40 font-semibold"
+                                        : isSelected
+                                            ? "text-gray-300 bg-gray-700/60"
+                                            : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                )}>
+                                    {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                    {aggregateData.rolls} {language === 'ar' ? 'رول' : 'R'}
+                                </span>
+                            )}
+                            {node.children && node.children.length > 0 && (
+                                <span className={cn(
+                                    'text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0',
+                                    isSelected
+                                        ? 'bg-erp-teal/20 text-erp-teal dark:bg-erp-teal/30 dark:text-erp-teal'
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                                )}>
+                                    {node.children.length}
+                                </span>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -261,19 +350,45 @@ export function MaterialTree({
     onDelete,
     className,
     height,
+    expandAllCount = 0,
+    collapseAllCount = 0,
 }: MaterialTreeProps) {
     const { t, direction, language } = useLanguage();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const initializedRef = useRef(false);
 
-    // Auto-expand first level
+    // Auto-expand first level ONCE on first load
     useEffect(() => {
-        const newExpanded = new Set<string>();
-        data.forEach(node => {
-            if (node.is_group) newExpanded.add(node.id);
-        });
-        setExpandedIds(newExpanded);
+        if (initializedRef.current) return;
+        if (data.length === 0) return;
+        initializedRef.current = true;
+        const firstLevel = new Set<string>();
+        data.forEach(node => { if (node.is_group) firstLevel.add(node.id); });
+        setExpandedIds(firstLevel);
     }, [data]);
+
+    // Expand ALL recursively — triggered by counter increment
+    useEffect(() => {
+        if (expandAllCount === 0) return;
+        const allGroupIds = new Set<string>();
+        const addGroupIds = (nodes: MaterialTreeNode[]) => {
+            nodes.forEach(node => {
+                if (node.is_group) {
+                    allGroupIds.add(node.id);
+                    if (node.children) addGroupIds(node.children);
+                }
+            });
+        };
+        addGroupIds(data);
+        setExpandedIds(allGroupIds);
+    }, [expandAllCount]); // do NOT add `data` — counter is the only trigger
+
+    // Collapse ALL — triggered by counter increment
+    useEffect(() => {
+        if (collapseAllCount === 0) return;
+        setExpandedIds(new Set());
+    }, [collapseAllCount]);
 
     const toggleExpand = (id: string) => {
         const newExpanded = new Set(expandedIds);
@@ -287,6 +402,14 @@ export function MaterialTree({
 
     const handleNodeSelect = (node: MaterialTreeNode) => {
         setSelectedId(node.id);
+        // For groups: select & expand in tree only — don't call onNodeClick (that opens material sheet)
+        if (node.is_group) {
+            if (!expandedIds.has(node.id) && node.children && node.children.length > 0) {
+                toggleExpand(node.id);
+            }
+            return;
+        }
+        // For materials: notify parent to open detail sheet
         if (onNodeClick) onNodeClick(node);
     };
 
@@ -311,9 +434,9 @@ export function MaterialTree({
 
     return (
         <div className={cn("rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-[calc(100vh-200px)]", className)}>
-            <ResizablePanelGroup direction="horizontal">
+            <ResizablePanelGroup direction="horizontal" autoSaveId="materials-tree-layout">
                 {/* Tree Panel */}
-                <ResizablePanel defaultSize={30} minSize={20} maxSize={50} className="border-e border-gray-100 dark:border-gray-800">
+                <ResizablePanel defaultSize={40} minSize={25} maxSize={60} className="border-e border-gray-100 dark:border-gray-800">
                     <div className="h-full overflow-y-auto p-2 bg-gray-50/50 dark:bg-gray-800/20" dir={direction}>
                         {data.length === 0 ? (
                             <div className="text-center py-10 text-gray-500">
@@ -342,7 +465,7 @@ export function MaterialTree({
                 <ResizableHandle />
 
                 {/* Details Panel */}
-                <ResizablePanel defaultSize={70}>
+                <ResizablePanel defaultSize={60}>
                     <div className="h-full overflow-y-auto bg-white dark:bg-gray-900 flex flex-col">
                         {selectedNode ? (
                             <div className="p-6">
@@ -365,7 +488,13 @@ export function MaterialTree({
                                             )}
                                         </div>
                                     </div>
-                                    <div className="ms-auto">
+                                    <div className="ms-auto flex items-center gap-2">
+                                        {isGroupSelected && onEdit && (
+                                            <Button variant="outline" onClick={() => onEdit(selectedNode)} className="gap-2">
+                                                <Layers className="w-4 h-4" />
+                                                {language === 'ar' ? 'تعديل' : 'Edit group'}
+                                            </Button>
+                                        )}
                                         {onAddChild && isGroupSelected && (
                                             <Button onClick={() => onAddChild(selectedNode)} className="gap-2">
                                                 <Plus className="w-4 h-4" />
@@ -386,7 +515,17 @@ export function MaterialTree({
                                             {rightPanelItems.length > 0 ? rightPanelItems.map(item => (
                                                 <div key={item.id}
                                                     className="flex items-center p-3 rounded-lg border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group"
-                                                    onClick={() => onEdit && onEdit(item)}
+                                                    onClick={() => {
+                                                        if (item.is_group) {
+                                                            handleNodeSelect(item);
+                                                            if (!expandedIds.has(item.id)) {
+                                                                toggleExpand(item.id);
+                                                            }
+                                                        } else {
+                                                            // Open material in VIEW mode (not edit)
+                                                            if (onNodeClick) onNodeClick(item);
+                                                        }
+                                                    }}
                                                 >
                                                     {item.is_group ? (
                                                         <Folder className="w-5 h-5 text-amber-400 me-3" />
@@ -408,24 +547,54 @@ export function MaterialTree({
                                                         </div>
                                                     </div>
 
-                                                    <div className="text-sm font-mono text-gray-600 dark:text-gray-400 px-4 flex flex-col gap-0.5">
-                                                        {/* Total Stock */}
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-bold">{item.current_stock || 0} {item.unit || '-'}</span>
-                                                            <span className="text-[10px] text-gray-400">({language === 'ar' ? 'إجمالي' : 'Total'})</span>
-                                                        </div>
-
-                                                        {/* Roll Breakdown (Only if rolls exist) */}
-                                                        {(item.rolls_count || 0) > 0 && (
-                                                            <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                                                                <span className="bg-blue-50 text-blue-600 px-1 rounded">
-                                                                    {item.rolls_total_length} {item.unit} / {item.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
-                                                                </span>
-                                                                {(item.loose_stock || 0) > 0 && (
-                                                                    <span className="bg-amber-50 text-amber-600 px-1 rounded">
-                                                                        {language === 'ar' ? 'سائب' : 'Loose'}: {item.loose_stock} {item.unit}
+                                                    <div className="text-sm font-mono text-gray-600 dark:text-gray-400 px-4 flex flex-col gap-1.5 justify-center">
+                                                        {item.is_group ? (() => {
+                                                            const stats = getGroupAggregate(item.children);
+                                                            if (stats.stock === 0 && stats.rolls === 0) return null;
+                                                            // Check if this group directly contains materials (leaf group)
+                                                            const isItemLeaf = item.children && !item.children.some((c: any) => c.is_group);
+                                                            return (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {stats.stock > 0 && (
+                                                                        <span className={cn(
+                                                                            "px-2 py-0.5 rounded text-xs font-bold",
+                                                                            isItemLeaf
+                                                                                ? "text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40"
+                                                                                : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                                                        )}>
+                                                                            {!isItemLeaf && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                                                            {stats.stock.toFixed(2)}
+                                                                        </span>
+                                                                    )}
+                                                                    {stats.rolls > 0 && (
+                                                                        <span className={cn(
+                                                                            "px-2 py-0.5 rounded text-xs font-bold",
+                                                                            isItemLeaf
+                                                                                ? "text-purple-700 bg-purple-100 dark:text-purple-300 dark:bg-purple-900/40"
+                                                                                : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                                                        )}>
+                                                                            {!isItemLeaf && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                                                            {stats.rolls} {language === 'ar' ? 'رول' : 'R'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })() : (item.rolls_count || 0) > 0 ? (
+                                                            <>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs">
+                                                                        {item.rolls_total_length || 0} {item.unit || '-'}
                                                                     </span>
-                                                                )}
+                                                                    <span className="font-bold text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30 px-2 py-0.5 rounded text-xs">
+                                                                        {item.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">
+                                                                    {item.current_stock || item.rolls_total_length || 0} {item.unit || '-'}
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -455,11 +624,28 @@ export function MaterialTree({
                                                     {language === 'ar' ? 'معلومات المخزون' : 'Stock Information'}
                                                 </h4>
                                                 <div className="space-y-3">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'الكمية الحالية' : 'Current Stock'}</span>
-                                                        <span className="font-mono font-medium">{selectedNode.current_stock || 0} {selectedNode.unit}</span>
+                                                    <div className="flex justify-between items-center py-1">
+                                                        <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'إجمالي الكمية' : 'Total Quantity'}</span>
+                                                        <span className="font-mono font-bold bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-800 dark:text-gray-200">
+                                                            {selectedNode.current_stock || selectedNode.rolls_total_length || 0} {selectedNode.unit}
+                                                        </span>
                                                     </div>
-                                                    {/* Add more details here */}
+                                                    {(selectedNode.rolls_count || 0) > 0 && (
+                                                        <div className="flex justify-between items-center py-1">
+                                                            <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'عدد الرولونات' : 'Rolls Count'}</span>
+                                                            <span className="font-mono font-bold bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded">
+                                                                {selectedNode.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {(selectedNode.loose_stock || 0) > 0 && (
+                                                        <div className="flex justify-between items-center py-1">
+                                                            <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'الكمية السائبة' : 'Loose Stock'}</span>
+                                                            <span className="font-mono font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded">
+                                                                {selectedNode.loose_stock} {selectedNode.unit}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -470,6 +656,38 @@ export function MaterialTree({
                                                 <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                                     {selectedNode.description || '-'}
                                                 </p>
+                                            </div>
+
+                                            {/* E-commerce Status Card */}
+                                            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800 md:col-span-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                                                            {language === 'ar' ? 'المتجر الإلكتروني' : 'E-commerce'}
+                                                        </h4>
+                                                        <div className="flex items-center gap-2">
+                                                            {(selectedNode as any).custom_fields?.ecommerce_published ? (
+                                                                <span className="flex items-center gap-1 text-sm text-green-600 font-medium">
+                                                                    <CheckCircle2 className="w-4 h-4" />
+                                                                    {language === 'ar' ? 'منشور في المتجر' : 'Published on Store'}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1 text-sm text-gray-500 font-medium">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                                                                    {language === 'ar' ? 'غير منشور' : 'Not Published'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {(selectedNode as any).custom_fields?.ecommerce_published && (
+                                                        <div className="text-end">
+                                                            <div className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'سعر البيع' : 'Selling Price'}</div>
+                                                            <div className="font-mono font-bold text-erp-navy dark:text-white">
+                                                                {(selectedNode as any).custom_fields?.ecommerce_price || 0}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 

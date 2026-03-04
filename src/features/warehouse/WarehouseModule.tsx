@@ -33,7 +33,7 @@ import {
     LayoutDashboard,
     ArrowLeftRight,
     ClipboardCheck,
-    Beaker
+    Beaker,
 } from 'lucide-react';
 
 // Direct imports (no lazy loading) for instant switching
@@ -74,6 +74,8 @@ export default function WarehouseModule() {
         if (path.includes('/stockMovements')) return 'stockMovements';
         if (path.includes('/stockCount')) return 'stockCount';
         if (path.includes('/inventory')) return 'inventory';
+        // /warehouse/locations now lives inside the warehouses sub-tab → redirect there
+        if (path.includes('/locations')) return 'warehouses';
 
         // Other tabs
         if (path.includes('/list') || path.includes('/warehouses')) return 'warehouses';

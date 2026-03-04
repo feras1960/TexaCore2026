@@ -452,6 +452,16 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     const docCurrency = data.currency || companyCurrency || '';
     const docTotal = Number(data.total_amount || data.grand_total || 0);
 
+    // ── اسم مستودع التسليم — يُحسب مرة واحدة ويُستخدم في STATUS BAR وDeliveryOutputView ──
+    const deliveryWhIdResolved = (data as any).delivery_warehouse_id || data.stock_warehouse_id || data.warehouse_id;
+    const deliveryWhObj = warehousesList.find((w: any) => w.id === deliveryWhIdResolved);
+    const resolvedDeliveryWhAr: string = (data as any).delivery_warehouse_name_ar || (isRTL ? deliveryWhObj?.name : '') || '';
+    const resolvedDeliveryWhEn: string = (data as any).delivery_warehouse_name_en || (!isRTL ? deliveryWhObj?.name : '') || '';
+    // اسم يُعرض في الـ UI حسب اللغة
+    const resolvedDeliveryWhName: string = isRTL
+        ? (resolvedDeliveryWhAr || resolvedDeliveryWhEn || deliveryWhObj?.name || '')
+        : (resolvedDeliveryWhEn || resolvedDeliveryWhAr || deliveryWhObj?.name || '');
+
     return (
         <div className="space-y-3" dir={isRTL ? "rtl" : "ltr"}>
             {/* ═══ Collapsible Header Section ═══ */}
@@ -670,7 +680,114 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 />
             )}
 
+            {/* ═══ STATUS BAR — حالات الفاتورة ═══ */}
+            {mode === 'view' && data.stage && data.stage !== 'draft' && (() => {
+                const totalAmt = Number(data.total_amount || data.grand_total || 0);
+                const paidAmt = Number(data.paid_amount || 0);
+                const payStatus: 'paid' | 'partial' | 'unpaid' =
+                    paidAmt >= totalAmt && totalAmt > 0 ? 'paid'
+                        : paidAmt > 0 ? 'partial'
+                            : 'unpaid';
 
+                const isPosted = !!(data.journal_entry_id || data.posted_at || data.is_posted || data.stage === 'posted');
+                const jeId = data.journal_entry_id as string | undefined;
+                const postedAt = data.posted_at as string | undefined;
+
+                const isDelivered = !!(data.delivered_at || data.delivery_confirmed_at || data.delivery_no
+                    || ['delivered', 'posted', 'completed'].includes(data.stage));
+                const deliveryNo = data.delivery_no as string | undefined;
+                const deliveredAt = data.delivered_at || data.delivery_confirmed_at;
+
+                // warehouse name — يستخدم المتغيرات المحسوبة مسبقاً
+                const warehouseName = resolvedDeliveryWhName;
+
+                const payBadge = {
+                    paid: { label: isRTL ? 'مدفوعة ✓' : 'Paid ✓', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' },
+                    partial: { label: isRTL ? 'مدفوعة جزئياً' : 'Partial', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800' },
+                    unpaid: { label: isRTL ? 'غير مدفوعة' : 'Unpaid', cls: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-800' },
+                }[payStatus];
+
+                return (
+                    <div className="flex items-center gap-2 flex-wrap bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-2.5 border border-gray-100 dark:border-gray-700 shadow-sm">
+                        {/* عنوان */}
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                            {isRTL ? 'الحالات:' : 'Status:'}
+                        </span>
+
+                        {/* ── حالة الدفع ── */}
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-400">{isRTL ? 'الدفع' : 'Payment'}</span>
+                            <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border', payBadge.cls)}>
+                                {payStatus === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : null}
+                                {payBadge.label}
+                                {payStatus !== 'unpaid' && paidAmt > 0 && (
+                                    <span className="font-mono opacity-70 text-[9px] ms-0.5">
+                                        {paidAmt.toLocaleString()} / {totalAmt.toLocaleString()}
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+
+                        <span className="text-gray-300 dark:text-gray-600">•</span>
+
+                        {/* ── حالة الترحيل + رقم القيد ── */}
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-400">{isRTL ? 'الترحيل' : 'Posting'}</span>
+                            {isPosted ? (
+                                <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"
+                                    title={postedAt ? `${isRTL ? 'تاريخ الترحيل: ' : 'Posted: '}${new Date(postedAt).toLocaleDateString()}` : undefined}
+                                >
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    {isRTL ? 'مرحَّل ✓' : 'Posted ✓'}
+                                    {jeId && (
+                                        <span className="font-mono opacity-70 text-[9px] ms-0.5">#{jeId.substring(0, 6)}</span>
+                                    )}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                                    {isRTL ? 'غير مرحَّل' : 'Not Posted'}
+                                </span>
+                            )}
+                        </div>
+
+                        <span className="text-gray-300 dark:text-gray-600">•</span>
+
+                        {/* ── حالة التسليم ── */}
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-400">{isRTL ? 'التسليم' : 'Delivery'}</span>
+                            {isDelivered ? (
+                                <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800"
+                                    title={deliveredAt ? `${isRTL ? 'تاريخ التسليم: ' : 'Delivered: '}${new Date(deliveredAt).toLocaleDateString()}` : undefined}
+                                >
+                                    <Truck className="w-3 h-3" />
+                                    {isRTL ? 'مُسلَّم ✓' : 'Delivered ✓'}
+                                    {deliveryNo && <span className="font-mono opacity-70 text-[9px] ms-0.5">#{deliveryNo}</span>}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                    {isRTL ? 'لم يُسلَّم' : 'Pending'}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* ── المستودع ── */}
+                        {warehouseName && (
+                            <>
+                                <span className="text-gray-300 dark:text-gray-600">•</span>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[9px] text-gray-400">{isRTL ? 'المستودع' : 'Warehouse'}</span>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800">
+                                        <Warehouse className="w-3 h-3" />
+                                        {warehouseName}
+                                    </span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* 3. Items Grid — CartItemsView + DeliveryOutputView */}
             <div className="mt-4 space-y-3">
@@ -709,6 +826,8 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                         }))}
                                         currency={data.currency || companyCurrency || 'SAR'}
                                         tradeMode={tradeMode as 'sales' | 'purchase'}
+                                        defaultWarehouseNameAr={resolvedDeliveryWhAr || undefined}
+                                        defaultWarehouseNameEn={resolvedDeliveryWhEn || undefined}
                                     />
                                 </CollapsibleContent>
                             </Collapsible>

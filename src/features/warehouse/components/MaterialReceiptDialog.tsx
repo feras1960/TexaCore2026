@@ -43,7 +43,7 @@ import { Separator } from '@/components/ui/separator';
 import {
     ArrowDownToLine, Truck, RotateCcw, PackageCheck, Ship,
     Wifi, WifiOff, Warehouse, ShoppingCart, FileText,
-    ArrowLeftRight, Container, CheckCircle2, AlertTriangle,
+    ArrowLeftRight, Container, CheckCircle2, AlertTriangle, ExternalLink,
 } from 'lucide-react';
 import {
     receiptLocalStore,
@@ -54,6 +54,7 @@ import { completeReceipt } from '../services/receiptCompletionService';
 import { warehouseService } from '@/services/warehouseService';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 
 // ─── Receipt Type Definitions ────────────────────────────────
 type ReceiptType = 'purchase_local' | 'container' | 'transfer' | 'return' | 'stock_count' | 'sales_delivery';
@@ -139,6 +140,12 @@ interface MaterialReceiptDialogProps {
     isOpen?: boolean;
     /** Controlled open change handler */
     onOpenChange?: (open: boolean) => void;
+    /** ✅ وضع العرض: يفتح إذن استلام مكتمل للعرض فقط */
+    viewMode?: boolean;
+    /** ✅ معرف إذن الاستلام المكتمل (purchase_receipts.id) */
+    receiptId?: string;
+    /** ✅ Callback عند الضغط على قفز الوثيقة الأم (اختياري) */
+    onOpenSourceDocument?: (sourceId: string, sourceType: string) => void;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -151,11 +158,18 @@ export function MaterialReceiptDialog({
     defaultReference = '',
     onComplete,
     isOpen,
-    onOpenChange
+    onOpenChange,
+    viewMode = false,
+    receiptId,
+    onOpenSourceDocument,
 }: MaterialReceiptDialogProps) {
     const { language, isRTL } = useLanguage();
     const { companyId, tenantId } = useAuth();
     const { warehouses } = useWarehouses();
+    // ✅ حالة التعديل في وضع العرض
+    const [isEditing, setIsEditing] = useState(false);
+    // وضع العرض الفعلي (viewMode prop + ليس في وضع تعديل)
+    const effectiveViewMode = viewMode && !isEditing;
 
     // ─── Real data from Supabase ─────────────────────────────
     const {
@@ -204,8 +218,22 @@ export function MaterialReceiptDialog({
     // 🔑 Receipt confirmation dialog
     const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
     const [isCompleting, setIsCompleting] = useState(false);
+    // 🔑 Completed receipt metadata (for view mode badge + status)
+    const [completedReceiptInfo, setCompletedReceiptInfo] = useState<{
+        id: string;
+        receiptNumber?: string;
+        completedAt?: string;
+    } | null>(null);
     const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const isDeletingRef = useRef(false);
+
+    // ✅ حالة فتح الوثيقة الأم (فاتورة أو كونتينر) فوق إذن الاستلام
+    const [sourceDocSheet, setSourceDocSheet] = React.useState<{
+        open: boolean;
+        type: 'invoice' | 'container' | 'transfer';
+        data: any;
+    } | null>(null);
+    const [loadingSourceDoc, setLoadingSourceDoc] = React.useState(false);
 
     // ─── Online / Offline Listener ───────────────────────────
     useEffect(() => {
@@ -219,8 +247,9 @@ export function MaterialReceiptDialog({
         };
     }, []);
 
-    // ─── Create/Restore Session on Open ──────────────────────
+    // ─── Create/Restore Session on Open (skip in viewMode) ───────────────
     useEffect(() => {
+        if (viewMode) return;  // لا تنشئ session في وضع العرض
         if (open && companyId && tenantId && selectedWarehouseId) {
             const wh = warehouses.find(w => w.id === selectedWarehouseId);
             const typeDef = RECEIPT_TYPES.find(t => t.id === activeReceiptType);
@@ -234,54 +263,166 @@ export function MaterialReceiptDialog({
             });
             setSession(newSession);
         }
-    }, [open, companyId, tenantId, selectedWarehouseId, activeReceiptType, warehouses, language]);
+    }, [open, companyId, tenantId, selectedWarehouseId, activeReceiptType, warehouses, language, viewMode]);
 
 
-    // ─── Load Draft from DB on Open (resume after power/internet outage) ──
+    // ─── Load Draft / Completed Receipt on Open ───────────────
     useEffect(() => {
         if (!open || !selectedReference || !companyId) return;
 
         const loadDraft = async () => {
             try {
                 const resolvedType = resolveSourceDocumentType();
-                console.log('🔍 [loadDraft] Searching for draft...', { selectedReference, companyId, activeReceiptType, resolvedType });
 
-                // 🔑 Search in the CORRECT column first based on activeReceiptType
-                let draft: any = null;
-                let foundVia = '';
+                // ══════════════════════════════════════════════════════════
+                // 🔑 HELPER: جلب الرولونات المستلمة لاستلام مكتمل
+                // الأولوية: container_id → notes 'GRN:' → receipt_items→material
+                // ══════════════════════════════════════════════════════════
+                const loadCompletedRolls = async (rec: { id: string; container_id?: string | null }): Promise<ReceiptItem[]> => {
+                    const rid = rec.id;
 
-                // Determine primary search column based on receipt type
-                const searchOrder: Array<{ column: string; label: string }> =
-                    resolvedType === 'container'
-                        ? [{ column: 'container_id', label: 'container_id' }, { column: 'invoice_id', label: 'invoice_id' }]
-                        : resolvedType === 'purchase_order'
-                            ? [{ column: 'order_id', label: 'order_id' }, { column: 'invoice_id', label: 'invoice_id' }]
-                            : [{ column: 'invoice_id', label: 'invoice_id' }, { column: 'order_id', label: 'order_id' }, { column: 'container_id', label: 'container_id' }];
-
-                for (const { column, label } of searchOrder) {
-                    if (draft) break;
-                    const { data: found, error: err } = await supabase
-                        .from('purchase_receipts')
-                        .select('id, draft_data, created_at')
-                        .eq('company_id', companyId)
-                        .eq(column, selectedReference)
-                        .eq('status', 'draft')
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-
-                    if (err) console.warn(`🔍 [loadDraft] ${label} search error:`, err.message);
-                    if (found) {
-                        draft = found;
-                        foundVia = label;
+                    // ── 1: كونتينر → fabric_rolls.container_id (ربط مباشر) ──
+                    if (rec.container_id) {
+                        const { data: rolls } = await supabase.from('fabric_rolls')
+                            .select('id, roll_number, material_id, current_length, color_id, color_name')
+                            .eq('container_id', rec.container_id);
+                        if (rolls && rolls.length > 0) {
+                            console.log('✅ [loadDraft] container_id rolls:', rolls.length);
+                            return rolls.map((r: any) => ({
+                                id: r.id, localId: `view-${r.id}`, batchId: '',
+                                materialId: r.material_id || '', materialName: '',
+                                rollNumber: r.roll_number || '', rollLength: r.current_length ?? 0,
+                                colorId: r.color_id || '', colorName: r.color_name || '',
+                                position: 0, timestamp: Date.now(),
+                                source: 'manual' as const, syncStatus: 'synced' as const,
+                                createdAt: new Date().toISOString(),
+                            } as ReceiptItem));
+                        }
                     }
+
+                    // ── 2: fabric_rolls.notes = 'GRN: {receiptId}' (مشتريات) ──
+                    const { data: byNote } = await supabase.from('fabric_rolls')
+                        .select('id, roll_number, material_id, current_length, color_id, color_name')
+                        .like('notes', `GRN: ${rid}%`);
+                    if (byNote && byNote.length > 0) {
+                        console.log('✅ [loadDraft] notes-GRN rolls:', byNote.length);
+                        return byNote.map((r: any) => ({
+                            id: r.id, localId: `view-${r.id}`, batchId: '',
+                            materialId: r.material_id || '', materialName: '',
+                            rollNumber: r.roll_number || '', rollLength: r.current_length ?? 0,
+                            colorId: r.color_id || '', colorName: r.color_name || '',
+                            position: 0, timestamp: Date.now(),
+                            source: 'manual' as const, syncStatus: 'synced' as const,
+                            createdAt: new Date().toISOString(),
+                        } as ReceiptItem));
+                    }
+
+                    // ── 3: Fallback — receipt_items → material_id → fabric_rolls ──
+                    const { data: receiptItems } = await supabase
+                        .from('purchase_receipt_items')
+                        .select('material_id, quantity_received')
+                        .eq('receipt_id', rid);
+                    if (receiptItems && receiptItems.length > 0) {
+                        const matIds = [...new Set(receiptItems.map((i: any) => i.material_id).filter(Boolean))] as string[];
+                        const { data: fr } = await supabase.from('fabric_rolls')
+                            .select('id, roll_number, material_id, current_length, color_id, color_name')
+                            .in('material_id', matIds)
+                            .in('status', ['in_stock', 'available', 'received', 'sold']);
+                        if (fr && fr.length > 0) {
+                            console.log('✅ [loadDraft] receipt_items→material rolls:', fr.length);
+                            return fr.map((r: any) => ({
+                                id: r.id, localId: `view-${r.id}`, batchId: '',
+                                materialId: r.material_id || '', materialName: '',
+                                rollNumber: r.roll_number || '', rollLength: r.current_length ?? 0,
+                                colorId: r.color_id || '', colorName: r.color_name || '',
+                                position: 0, timestamp: Date.now(),
+                                source: 'manual' as const, syncStatus: 'synced' as const,
+                                createdAt: new Date().toISOString(),
+                            } as ReceiptItem));
+                        }
+                    }
+                    console.log('⚠️ [loadDraft] No rolls found for receipt:', rid);
+                    return [];
+                };
+
+                // ══════════════════════════════════════════════════════════
+                // ✅ SHORTCUT: viewMode + receiptId مُعطى صراحةً من props
+                // ══════════════════════════════════════════════════════════
+                if (viewMode && receiptId) {
+                    console.log('🔍 [loadDraft] viewMode shortcut — receiptId:', receiptId);
+                    const { data: rec } = await supabase
+                        .from('purchase_receipts')
+                        .select('id, status, container_id, receipt_number, updated_at')
+                        .eq('id', receiptId)
+                        .maybeSingle();
+                    if (rec) {
+                        if (rec.status === 'completed') {
+                            setCompletedReceiptInfo({ id: rec.id, receiptNumber: rec.receipt_number, completedAt: rec.updated_at });
+                        }
+                        const viewItems = await loadCompletedRolls(rec);
+                        setLiveReceiptItems(viewItems);
+                        setEntryLocked(true);
+                    } else {
+                        setEntryLocked(true);
+                    }
+                    return;
                 }
 
-                console.log('🔍 [loadDraft] Result:', { found: !!draft, foundVia, draftId: draft?.id, itemsCount: (draft?.draft_data as any)?.items?.length });
+                // ══════════════════════════════════════════════════════════
+                // 🔍 SEARCH PATH: البحث بـ selectedReference
+                // ══════════════════════════════════════════════════════════
+                console.log('🔍 [loadDraft] Searching...', { selectedReference, resolvedType });
 
-                if (draft?.id && draft?.draft_data) {
-                    setDraftReceiptId(draft.id);
-                    const items = (draft.draft_data as any)?.items || [];
+                const searchOrder: Array<{ column: string }> =
+                    resolvedType === 'container'
+                        ? [{ column: 'container_id' }, { column: 'invoice_id' }]
+                        : resolvedType === 'purchase_order'
+                            ? [{ column: 'order_id' }, { column: 'invoice_id' }]
+                            : [{ column: 'invoice_id' }, { column: 'order_id' }, { column: 'container_id' }];
+
+                let foundReceipt: any = null;
+                let isCompleted = false;
+
+                for (const { column } of searchOrder) {
+                    if (foundReceipt) break;
+                    // 1. مسودة (draft)
+                    const { data: draftRec } = await supabase
+                        .from('purchase_receipts')
+                        .select('id, draft_data, container_id, status')
+                        .eq('company_id', companyId).eq(column, selectedReference)
+                        .eq('status', 'draft')
+                        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+                    if (draftRec) { foundReceipt = draftRec; isCompleted = false; break; }
+
+                    // 2. مكتمل (completed) — ⚠️ الحالة الفعلية في DB هي 'completed' لا 'received'
+                    const { data: completedRec } = await supabase
+                        .from('purchase_receipts')
+                        .select('id, container_id, status, receipt_number, updated_at')
+                        .eq('company_id', companyId).eq(column, selectedReference)
+                        .eq('status', 'completed')
+                        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+                    if (completedRec) { foundReceipt = completedRec; isCompleted = true; }
+                }
+
+                console.log('🔍 [loadDraft] Result:', { found: !!foundReceipt, isCompleted, id: foundReceipt?.id });
+
+                // ─── استلام مكتمل → عرض الرولونات ───
+                if (isCompleted && foundReceipt?.id) {
+                    setCompletedReceiptInfo({
+                        id: foundReceipt.id,
+                        receiptNumber: foundReceipt.receipt_number,
+                        completedAt: foundReceipt.updated_at,
+                    });
+                    const viewItems = await loadCompletedRolls(foundReceipt);
+                    setLiveReceiptItems(viewItems);
+                    setEntryLocked(true);
+                    return;
+                }
+
+                // ─── مسودة → تحميلها للاستكمال ───
+                if (foundReceipt?.id && foundReceipt?.draft_data && !isCompleted) {
+                    setDraftReceiptId(foundReceipt.id);
+                    const items = (foundReceipt.draft_data as any)?.items || [];
                     if (items.length > 0) {
                         setLiveReceiptItems(items);
                         setEntryLocked(true);
@@ -301,7 +442,7 @@ export function MaterialReceiptDialog({
         };
 
         loadDraft();
-    }, [open, selectedReference, companyId, language, activeReceiptType]);
+    }, [open, selectedReference, companyId, language, activeReceiptType, viewMode, receiptId]);
 
 
 
@@ -363,6 +504,8 @@ export function MaterialReceiptDialog({
     useEffect(() => {
         if (!open || !selectedReference || !companyId || !tenantId) return;
         if (liveReceiptItems.length === 0) return;
+        // 🔑 لا تحفظ مسودة في وضع العرض أو عند استلام مكتمل
+        if (viewMode || completedReceiptInfo) return;
 
         // Debounce: save after 5 seconds of no changes
         if (autoSaveTimerRef.current) {
@@ -425,8 +568,11 @@ export function MaterialReceiptDialog({
         return {
             // Session meta
             sessionId: session?.sessionId || '',
-            status: session?.status || 'draft',
-            date: new Date().toISOString().split('T')[0],
+            // ⚠️ استخدم 'received' للاستلامات المكتملة بدل 'draft'
+            status: completedReceiptInfo ? 'received' : (session?.status || 'draft'),
+            date: completedReceiptInfo?.completedAt
+                ? completedReceiptInfo.completedAt.split('T')[0]
+                : new Date().toISOString().split('T')[0],
             // Warehouse info
             warehouse_id: selectedWarehouseId,
             warehouse_name: wh ? (language === 'ar' ? (wh.name_ar || wh.name_en || '') : (wh.name_en || wh.name_ar || '')) : '',
@@ -692,8 +838,8 @@ export function MaterialReceiptDialog({
             return;
         }
 
-        // 🔑 Save draft to DB before closing if there are items
-        if (liveReceiptItems.length > 0 && selectedReference && companyId && tenantId) {
+        // 🔑 Save draft to DB before closing if there are items (skip in view mode)
+        if (!viewMode && !completedReceiptInfo && liveReceiptItems.length > 0 && selectedReference && companyId && tenantId) {
             // Determine sourceDocumentType — use resolveSourceDocumentType for reliability
             const sourceDocumentType = resolveSourceDocumentType();
 
@@ -975,8 +1121,8 @@ export function MaterialReceiptDialog({
                         {isOnline ? (isRTL ? 'متصل' : 'Online') : (isRTL ? 'غير متصل' : 'Offline')}
                     </div>
 
-                    {/* 🔑 RECEIVE BUTTON — primary action */}
-                    {liveReceiptItems.length > 0 && selectedReference && (
+                    {/* 🔑 RECEIVE BUTTON — في وضع الإنشاء فقط */}
+                    {!effectiveViewMode && liveReceiptItems.length > 0 && selectedReference && (
                         <Button
                             size="sm"
                             onClick={() => setShowReceiptConfirm(true)}
@@ -992,6 +1138,29 @@ export function MaterialReceiptDialog({
                                 {liveReceiptItems.length}
                             </span>
                         </Button>
+                    )}
+
+                    {/* ✅ STATUS BADGE — في وضع العرض للاستلامات المكتملة */}
+                    {effectiveViewMode && completedReceiptInfo && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg shrink-0">
+                            <PackageCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                                {isRTL ? 'مستلم' : 'Received'}
+                            </span>
+                            {completedReceiptInfo.completedAt && (
+                                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">
+                                    {new Date(completedReceiptInfo.completedAt).toLocaleDateString(
+                                        isRTL ? 'ar-SA' : 'en-US',
+                                        { year: 'numeric', month: 'short', day: 'numeric' }
+                                    )}
+                                </span>
+                            )}
+                            {completedReceiptInfo.receiptNumber && (
+                                <Badge variant="outline" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300">
+                                    {completedReceiptInfo.receiptNumber}
+                                </Badge>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -1014,6 +1183,83 @@ export function MaterialReceiptDialog({
                                     {selectedDocument.document_number}
                                 </div>
                             </div>
+                            {/* ✅ زر الوثيقة الأم */}
+                            {selectedReference && (
+                                <button
+                                    onClick={async () => {
+                                        if (loadingSourceDoc) return;
+                                        setLoadingSourceDoc(true);
+                                        try {
+                                            if (activeReceiptType === 'container') {
+                                                // جلب بيانات الكونتينر الكاملة (بدون join لتجنب مشاكل العلاقات)
+                                                const { data: container, error: cErr } = await supabase
+                                                    .from('containers')
+                                                    .select('*')
+                                                    .eq('id', selectedReference)
+                                                    .maybeSingle();
+                                                if (cErr) {
+                                                    console.error('Container fetch error:', cErr);
+                                                    toast.error(isRTL ? `خطأ: ${cErr.message}` : `Error: ${cErr.message}`);
+                                                } else if (container) {
+                                                    setSourceDocSheet({ open: true, type: 'container', data: { ...container, party_id: container.supplier_id } });
+                                                } else {
+                                                    toast.error(isRTL ? 'لم يتم العثور على الكونتينر' : 'Container not found');
+                                                }
+                                            } else if (activeReceiptType === 'transfer') {
+                                                // جلب بيانات المناقلة
+                                                const { data: tr } = await supabase
+                                                    .from('warehouse_transfers')
+                                                    .select('*')
+                                                    .eq('id', selectedReference)
+                                                    .maybeSingle();
+                                                if (tr) {
+                                                    setSourceDocSheet({ open: true, type: 'transfer', data: tr });
+                                                } else {
+                                                    toast.error(isRTL ? 'لم يتم العثور على المناقلة' : 'Transfer not found');
+                                                }
+                                            } else {
+                                                // فاتورة شراء — جلب من purchase_transactions
+                                                const { data: inv } = await supabase
+                                                    .from('purchase_transactions')
+                                                    .select('*')
+                                                    .eq('id', selectedReference)
+                                                    .maybeSingle();
+                                                if (!inv) {
+                                                    // تجريبة ثانية من purchase_invoices
+                                                    const { data: pinv } = await supabase
+                                                        .from('purchase_invoices')
+                                                        .select('*')
+                                                        .eq('id', selectedReference)
+                                                        .maybeSingle();
+                                                    if (pinv) {
+                                                        setSourceDocSheet({ open: true, type: 'invoice', data: pinv });
+                                                    } else {
+                                                        toast.error(isRTL ? 'لم يتم العثور على الفاتورة' : 'Invoice not found');
+                                                    }
+                                                } else {
+                                                    setSourceDocSheet({ open: true, type: 'invoice', data: inv });
+                                                }
+                                            }
+                                        } catch (err: any) {
+                                            toast.error(err.message);
+                                        } finally {
+                                            setLoadingSourceDoc(false);
+                                        }
+                                    }}
+                                    disabled={loadingSourceDoc}
+                                    className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded-lg transition-all shrink-0 disabled:opacity-50"
+                                    title={isRTL ? 'عرض الوثيقة الأصلية' : 'Open source document'}
+                                >
+                                    {loadingSourceDoc
+                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                        : <ExternalLink className="w-3 h-3" />
+                                    }
+                                    {isRTL
+                                        ? (activeReceiptType === 'container' ? 'عرض الكونتينر' : activeReceiptType === 'transfer' ? 'عرض المناقلة' : 'عرض الفاتورة')
+                                        : (activeReceiptType === 'container' ? 'View Container' : activeReceiptType === 'transfer' ? 'View Transfer' : 'View Invoice')
+                                    }
+                                </button>
+                            )}
                         </div>
 
                         {/* Stats Chips */}
@@ -1100,9 +1346,9 @@ export function MaterialReceiptDialog({
                 isOpen={open}
                 onClose={handleClose}
                 docType={'goods_receipt' as UnifiedDocType}
-                mode="create"
+                mode={effectiveViewMode ? 'view' : 'create'}
                 data={enhancedData}
-                onSave={handleSave}
+                onSave={effectiveViewMode ? undefined : handleSave}
                 onDelete={handleDelete}
                 headerExtra={HeaderExtra}
                 onRefresh={onComplete}
@@ -1335,6 +1581,19 @@ export function MaterialReceiptDialog({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* ✅ وثيقة الأم — تفتح فوق إذن الاستلام */}
+            {sourceDocSheet?.open && sourceDocSheet.data && (
+                <UnifiedTradeSheet
+                    open={sourceDocSheet.open}
+                    onOpenChange={(o) => setSourceDocSheet(prev => prev ? { ...prev, open: o } : null)}
+                    mode="purchase"
+                    type={sourceDocSheet.type === 'container' ? 'container' : 'invoice'}
+                    initialData={sourceDocSheet.data}
+                    companyId={companyId ?? undefined}
+                    onRefresh={() => { }}
+                />
+            )}
         </>
     );
 }

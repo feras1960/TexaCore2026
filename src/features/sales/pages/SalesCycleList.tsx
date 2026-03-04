@@ -46,7 +46,7 @@ import {
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 import type { DocType } from '@/components/sheets/configs/sheet.types';
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfDay, format, formatDistanceToNow } from 'date-fns';
+import { endOfDay, format, formatDistanceToNow } from 'date-fns';
 import { ar as arLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { validateTradeDocument } from '@/features/trade/utils/validateTradeDocument';
@@ -67,22 +67,22 @@ const STAGE_TO_CYCLE: Record<string, CycleType> = {
     reservation: 'reservation',
     order: 'order',
     confirmed: 'confirmed',
-    posted: 'invoice',
-    in_delivery: 'confirmed',
+    posted: 'delivery',         // مرحَّلة = مسلَّمة ومرحَّلة
+    in_delivery: 'delivery',    // قيد التسليم
     in_receiving: 'confirmed',
     delivery: 'delivery',
-    delivered: 'delivery',
+    delivered: 'delivery',      // تم التسليم
     invoice: 'invoice',
     invoiced: 'invoice',
     partially_received: 'confirmed',
     fully_received: 'confirmed',
-    completed: 'confirmed',
-    paid: 'confirmed',
-    partial_paid: 'confirmed',
-    partially_paid: 'confirmed',
+    completed: 'delivery',
+    paid: 'invoice',
+    partial_paid: 'invoice',
+    partially_paid: 'invoice',
     cancelled: 'return',
     return: 'return',
-    closed: 'confirmed',
+    closed: 'invoice',
 };
 
 // ─── Status Style Map ───
@@ -203,7 +203,7 @@ export default function SalesCycleList() {
 
     // Date Filter State
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: startOfMonth(new Date()),
+        from: new Date(new Date().getFullYear(), 0, 1), // بداية السنة الحالية
         to: new Date()
     });
 
@@ -368,9 +368,9 @@ export default function SalesCycleList() {
         quotation: ['quotation'],
         reservation: ['reservation'],
         order: ['order'],
-        confirmed: ['confirmed', 'in_delivery', 'in_receiving', 'partially_received', 'fully_received', 'completed'],
-        delivery: ['delivery', 'delivered'],
-        invoice: ['invoice', 'invoiced', 'posted', 'paid', 'partial_paid', 'partially_paid', 'closed'],
+        confirmed: ['confirmed', 'in_receiving', 'partially_received', 'fully_received'],
+        delivery: ['in_delivery', 'delivery', 'delivered', 'posted', 'completed'],
+        invoice: ['invoice', 'invoiced', 'paid', 'partial_paid', 'partially_paid', 'closed'],
         return: ['return', 'cancelled'],
     }), []);
 
@@ -481,7 +481,7 @@ export default function SalesCycleList() {
 
     const handleRowClick = async (row: SalesDocument) => {
         // For delivered/posted invoices, fetch full data with delivery rolls
-        if (row.id && ['delivered', 'posted', 'in_delivery'].includes(row.stage || '')) {
+        if (row.id && ['delivered', 'posted', 'in_delivery', 'completed'].includes(row.stage || '')) {
             const fullDoc = await salesTransactionService.fetchById(row.id);
             if (fullDoc) {
                 setSelectedDoc({
@@ -678,11 +678,11 @@ export default function SalesCycleList() {
         },
         {
             id: 'delivery',
-            title: isRTL ? 'تسليم' : 'Delivery',
-            color: 'border-orange-500',
-            bgColor: 'bg-orange-50/40',
-            accentHex: '#ea580c',
-            icon: <Truck className="w-4 h-4 text-orange-600" />,
+            title: isRTL ? 'المسلّمة' : 'Delivered',
+            color: 'border-teal-500',
+            bgColor: 'bg-teal-50/40',
+            accentHex: '#0d9488',
+            icon: <Truck className="w-4 h-4 text-teal-600" />,
         },
         {
             id: 'invoice',
@@ -842,7 +842,10 @@ export default function SalesCycleList() {
                                     <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-cyan-600">{isRTL ? 'حجز' : 'Reserved'}{badge(tabCounts.reservation || 0)}</TabsTrigger>
                                     <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-blue-600">{isRTL ? 'أمر بيع' : 'Order'}{badge(tabCounts.order || 0)}</TabsTrigger>
                                     <TabsTrigger value="confirmed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-green-600">{isRTL ? 'فاتورة مؤكدة' : 'Confirmed'}{badge(tabCounts.confirmed || 0)}</TabsTrigger>
-                                    <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-orange-600">{isRTL ? 'تسليم' : 'Delivery'}{badge(tabCounts.delivery || 0)}</TabsTrigger>
+                                    <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-teal-600">
+                                        <Truck className="w-3 h-3 me-1" />
+                                        {isRTL ? 'المسلّمة' : 'Delivered'}{badge(tabCounts.delivery || 0)}
+                                    </TabsTrigger>
                                     <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{isRTL ? 'فاتورة' : 'Invoice'}{badge(tabCounts.invoice || 0)}</TabsTrigger>
                                 </TabsList>
                             </Tabs>
