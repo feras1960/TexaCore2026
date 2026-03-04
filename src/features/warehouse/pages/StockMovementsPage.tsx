@@ -109,78 +109,93 @@ export default function StockMovementsPage() {
     });
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
-    // 🔑 إثراء أسماء الجهات (reference_id → عميل/مورد) — مستقل عن React Query
+    // 🔑 إثراء أسماء الجهات عبر reference_number (ظاهر ومؤكد في الجدول)
     const [partyNames, setPartyNames] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (!movements || movements.length === 0) return;
-        const saleTypes = ['sale', 'sale_invoice', 'issue', 'delivery'];
-        const purTypes = ['receipt', 'purchase', 'container_receipt', 'goods_receipt', 'container'];
 
         const fetchPartyNames = async () => {
             const result: Record<string, string> = {};
 
-            // أ) مبيعات: reference_id = sales_transactions.id
-            const saleRefIds = [...new Set(
-                movements
-                    .filter(m => saleTypes.includes(m.movement_type))
-                    .map(m => (m as any).reference_id)
-                    .filter(Boolean)
-            )] as string[];
+            // ══ أ) مبيعات: reference_number = invoice_no في sales_transactions ══
+            const saleMovs = movements.filter((m: any) =>
+                ['sale', 'sale_invoice', 'issue', 'delivery'].includes(m.movement_type)
+            );
+            const saleRefNums = [...new Set(saleMovs.map((m: any) => m.reference_number).filter(Boolean))] as string[];
+            const saleRefIds = [...new Set(saleMovs.map((m: any) => m.reference_id).filter(Boolean))] as string[];
 
-            if (saleRefIds.length > 0) {
-                const { data } = await supabase
+            // البحث بالـ invoice_no (reference_number) أولاً
+            if (saleRefNums.length > 0) {
+                const { data: byNum } = await supabase
                     .from('sales_transactions')
-                    .select('id, customer_name')
-                    .in('id', saleRefIds);
-                data?.forEach((s: any) => { if (s.id && s.customer_name) result[s.id] = s.customer_name; });
+                    .select('invoice_no, draft_no, customer_name')
+                    .or(`invoice_no.in.(${saleRefNums.map(n => `"${n}"`).join(',')}),draft_no.in.(${saleRefNums.map(n => `"${n}"`).join(',')})`);
+                byNum?.forEach((s: any) => {
+                    if (s.customer_name) {
+                        if (s.invoice_no) result[s.invoice_no] = s.customer_name;
+                        if (s.draft_no) result[s.draft_no] = s.customer_name;
+                    }
+                });
+            }
+            // fallback: البحث بالـ id (reference_id)
+            if (saleRefIds.length > 0) {
+                const needsLookup = saleRefIds.filter(id =>
+                    !saleMovs.some((m: any) => m.reference_id === id && result[m.reference_number])
+                );
+                if (needsLookup.length > 0) {
+                    const { data: byId } = await supabase
+                        .from('sales_transactions')
+                        .select('id, invoice_no, draft_no, customer_name')
+                        .in('id', needsLookup);
+                    byId?.forEach((s: any) => {
+                        if (s.customer_name) {
+                            // ربط بالـ reference_number للاستخدام في الجدول
+                            const relatedMovs = saleMovs.filter((m: any) => m.reference_id === s.id);
+                            relatedMovs.forEach((m: any) => {
+                                if (m.reference_number) result[m.reference_number] = s.customer_name;
+                            });
+                            if (s.invoice_no) result[s.invoice_no] = s.customer_name;
+                            if (s.draft_no) result[s.draft_no] = s.customer_name;
+                        }
+                    });
+                }
             }
 
-            // ب) شراء: reference_id = purchase_receipts.id → invoice_id → supplier_name
-            const purRefIds = [...new Set(
-                movements
-                    .filter(m => purTypes.includes(m.movement_type) || purTypes.includes((m as any).reference_type))
-                    .map(m => (m as any).reference_id)
-                    .filter(Boolean)
-            )] as string[];
-
-            if (purRefIds.length > 0) {
-                const { data: rcpts } = await supabase
-                    .from('purchase_receipts')
-                    .select('id, invoice_id, container_id')
-                    .in('id', purRefIds);
-
-                if (rcpts && rcpts.length > 0) {
-                    // مسار 1: invoice_id → purchase_invoices.supplier_name
-                    const iids = [...new Set(rcpts.map((r: any) => r.invoice_id).filter(Boolean))] as string[];
-                    if (iids.length > 0) {
-                        const { data: pi } = await supabase.from('purchase_invoices').select('id, supplier_name').in('id', iids);
-                        pi?.forEach((r: any) => { rcpts.forEach((rc: any) => { if (rc.invoice_id === r.id && r.supplier_name) result[rc.id] = r.supplier_name; }); });
-                        const { data: pt } = await supabase.from('purchase_transactions').select('id, supplier_name').in('id', iids);
-                        pt?.forEach((r: any) => { rcpts.forEach((rc: any) => { if (rc.invoice_id === r.id && r.supplier_name && !result[rc.id]) result[rc.id] = r.supplier_name; }); });
-                    }
-                    // مسار 2: container_id → containers.supplier_id → parties
-                    const cids = [...new Set(rcpts.filter((r: any) => !result[r.id]).map((r: any) => r.container_id).filter(Boolean))] as string[];
-                    if (cids.length > 0) {
-                        const { data: conts } = await supabase.from('containers').select('id, supplier_id').in('id', cids);
-                        if (conts && conts.length > 0) {
-                            const sids = [...new Set(conts.map((c: any) => c.supplier_id).filter(Boolean))] as string[];
-                            if (sids.length > 0) {
-                                const { data: parties } = await supabase.from('parties').select('id, name_ar, name_en').in('id', sids);
-                                const pm: Record<string, string> = {};
-                                parties?.forEach((p: any) => { pm[p.id] = p.name_ar || p.name_en || ''; });
-                                conts.forEach((c: any) => {
-                                    rcpts.filter((r: any) => r.container_id === c.id).forEach((r: any) => {
-                                        if (!result[r.id]) result[r.id] = pm[c.supplier_id] || '';
-                                    });
-                                });
-                            }
-                        }
+            // ══ ب) كونتينر: reference_number = container_number ══
+            const contMovs = movements.filter((m: any) =>
+                ['container_receipt', 'container'].includes(m.movement_type)
+            );
+            const contNums = [...new Set(contMovs.map((m: any) => m.reference_number).filter(Boolean))] as string[];
+            if (contNums.length > 0) {
+                const { data: conts } = await supabase
+                    .from('containers')
+                    .select('id, container_number, supplier_id')
+                    .in('container_number', contNums);
+                if (conts && conts.length > 0) {
+                    const supIds = [...new Set(conts.map((c: any) => c.supplier_id).filter(Boolean))] as string[];
+                    if (supIds.length > 0) {
+                        const { data: parties } = await supabase.from('parties').select('id, name_ar, name_en').in('id', supIds);
+                        const pm: Record<string, string> = {};
+                        parties?.forEach((p: any) => { pm[p.id] = p.name_ar || p.name_en || ''; });
+                        conts.forEach((c: any) => { if (c.container_number && pm[c.supplier_id]) result[c.container_number] = pm[c.supplier_id]; });
                     }
                 }
             }
 
-            setPartyNames(result);
+            // ══ ج) مشتريات: reference_number = invoice/GRN number ══
+            const purMovs = movements.filter((m: any) =>
+                ['receipt', 'purchase', 'goods_receipt'].includes(m.movement_type)
+            );
+            const purNums = [...new Set(purMovs.map((m: any) => m.reference_number).filter(Boolean))] as string[];
+            if (purNums.length > 0) {
+                const { data: pi } = await supabase.from('purchase_invoices').select('invoice_number, supplier_name').in('invoice_number', purNums);
+                pi?.forEach((r: any) => { if (r.invoice_number && r.supplier_name) result[r.invoice_number] = r.supplier_name; });
+                const { data: pt } = await supabase.from('purchase_transactions').select('invoice_no, supplier_name').in('invoice_no', purNums);
+                pt?.forEach((r: any) => { if (r.invoice_no && r.supplier_name && !result[r.invoice_no]) result[r.invoice_no] = r.supplier_name; });
+            }
+
+            if (Object.keys(result).length > 0) setPartyNames(result);
         };
 
         fetchPartyNames();
@@ -540,8 +555,8 @@ export default function StockMovementsPage() {
             id: 'flow',
             header: isRTL ? 'الجهة (من → إلى)' : 'Flow (From → To)',
             cell: (m: any) => {
-                // الجهة من state المحلي (partyNames) أو من service enrichment
-                const resolvedPartyName = partyNames[m.reference_id] || m.party_name || '';
+                // الجهة: من partyNames[reference_number] أو من service enrichment
+                const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
                 const isSales = salesTypes.includes(m.movement_type);
                 const isContainer = containerTypes.includes(m.movement_type);
                 const isPurchase = purchasesTypes.includes(m.movement_type);
