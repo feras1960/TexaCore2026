@@ -685,8 +685,8 @@ export function EnhancedActionToolbar({
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    {/* Delete Action */}
-                    {perms.canDelete && !isReceivedDoc && status !== 'posted' && (
+                    {/* Delete Action — hidden when: received, posted, or container is closed */}
+                    {perms.canDelete && !isContainerClosed && !isReceivedDoc && status !== 'posted' && (
                         <DropdownMenuItem
                             onClick={() => onAction('delete')}
                             className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
