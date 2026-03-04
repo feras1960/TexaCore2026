@@ -546,15 +546,20 @@ export function EnhancedActionToolbar({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => onModeChange?.('edit')}
-                                    disabled={disabled || loading || ((isReceivedDoc || isPosted) && !canEditReceived)}
+                                    disabled={disabled || loading || isContainerClosed || ((isReceivedDoc || isPosted) && !canEditReceived)}
                                     className={cn(
                                         "gap-1.5",
-                                        (isReceivedDoc || isPosted) && !canEditReceived
+                                        (isContainerClosed || ((isReceivedDoc || isPosted) && !canEditReceived))
                                             ? "text-gray-400 cursor-not-allowed opacity-50"
                                             : "text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
                                     )}
                                 >
-                                    {(isReceivedDoc || isPosted) && !canEditReceived ? (
+                                    {isContainerClosed ? (
+                                        <>
+                                            <Lock className="w-4 h-4" />
+                                            <span className="hidden lg:inline">{language === 'ar' ? 'مغلق نهائياً' : 'Locked'}</span>
+                                        </>
+                                    ) : (isReceivedDoc || isPosted) && !canEditReceived ? (
                                         <>
                                             <Lock className="w-4 h-4" />
                                             <span className="hidden lg:inline">{t('common.locked') || 'مقفل'}</span>
@@ -569,9 +574,11 @@ export function EnhancedActionToolbar({
                             </TooltipTrigger>
                             <TooltipContent>
                                 <p>
-                                    {(isReceivedDoc || isPosted) && !canEditReceived
-                                        ? (t('messages.docLocked') || 'المستند مقفل لا يمكن تعديله')
-                                        : (t('common.edit') || 'تعديل')
+                                    {isContainerClosed
+                                        ? (language === 'ar' ? 'الكونتينر مغلق — لا يمكن تعديل إذن الاستلام' : 'Container is closed — receipt is permanently locked')
+                                        : (isReceivedDoc || isPosted) && !canEditReceived
+                                            ? (t('messages.docLocked') || 'المستند مقفل لا يمكن تعديله')
+                                            : (t('common.edit') || 'تعديل')
                                     }
                                 </p>
                             </TooltipContent>

@@ -168,6 +168,8 @@ export function MaterialReceiptDialog({
     const { warehouses } = useWarehouses();
     // ✅ حالة التعديل في وضع العرض
     const [isEditing, setIsEditing] = useState(false);
+    // 🔒 تتبع حالة قفل الكونتينر (closed) — عند القفل لا يسمح بالتعديل نهائياً
+    const [isContainerClosed, setIsContainerClosed] = useState(false);
     // وضع العرض الفعلي (viewMode prop + ليس في وضع تعديل)
     const effectiveViewMode = viewMode && !isEditing;
 
@@ -358,6 +360,17 @@ export function MaterialReceiptDialog({
                     if (rec) {
                         if (rec.status === 'completed') {
                             setCompletedReceiptInfo({ id: rec.id, receiptNumber: rec.receipt_number, completedAt: rec.updated_at });
+                        }
+                        // 🔒 تحقق من حالة الكونتينر — إذا closed → لا تعديل
+                        if (rec.container_id) {
+                            const { data: container } = await supabase
+                                .from('containers')
+                                .select('status')
+                                .eq('id', rec.container_id)
+                                .maybeSingle();
+                            if (container?.status === 'closed') {
+                                setIsContainerClosed(true);
+                            }
                         }
                         const viewItems = await loadCompletedRolls(rec);
                         setLiveReceiptItems(viewItems);
@@ -569,7 +582,7 @@ export function MaterialReceiptDialog({
             // Session meta
             sessionId: session?.sessionId || '',
             // ⚠️ استخدم 'received' للاستلامات المكتملة بدل 'draft'
-            status: completedReceiptInfo ? 'received' : (session?.status || 'draft'),
+            status: isContainerClosed ? 'closed' : (completedReceiptInfo ? 'received' : (session?.status || 'draft')),
             date: completedReceiptInfo?.completedAt
                 ? completedReceiptInfo.completedAt.split('T')[0]
                 : new Date().toISOString().split('T')[0],
