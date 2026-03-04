@@ -941,7 +941,8 @@ export const warehouseService = {
 
         // ─── إثراء بأسماء الجهات ────────────────────────────────────────────
         // مبيعات: reference_id → sales_transactions.id → customer_name
-        // شراء/كونتينر: reference_id → purchase_receipts.id → supplier
+        // شراء:   reference_id → purchase_receipts.invoice_id → purchase_invoices.supplier_name
+        // كونتينر: reference_id → purchase_receipts.container_id → containers.supplier_id → parties
 
         const saleTypes = ['sale', 'sale_invoice', 'issue', 'delivery'];
         const purTypes = ['receipt', 'purchase', 'container_receipt', 'goods_receipt', 'container'];
@@ -973,34 +974,41 @@ export const warehouseService = {
 
         const purPartyMap: Record<string, string> = {};
         if (purRefIds.length > 0) {
+            // purchase_receipts: تحتوي invoice_id و container_id (ليس supplier_id مباشرة)
             const { data: rcpts } = await supabase
                 .from('purchase_receipts')
-                .select('id, supplier_id, invoice_id')
+                .select('id, invoice_id, container_id')
                 .in('id', purRefIds);
 
             if (rcpts && rcpts.length > 0) {
-                // جلب أسماء المورّدين من جدول parties
-                const sidList = [...new Set(rcpts.map((r: any) => r.supplier_id).filter(Boolean))] as string[];
+                // 1) invoice_id → purchase_invoices / purchase_transactions → supplier_name
                 const iidList = [...new Set(rcpts.map((r: any) => r.invoice_id).filter(Boolean))] as string[];
-
-                const supplierByPartyId: Record<string, string> = {};
-                if (sidList.length > 0) {
-                    const { data: parties } = await supabase
-                        .from('parties').select('id, name_ar, name_en').in('id', sidList);
-                    if (parties) parties.forEach((p: any) => { supplierByPartyId[p.id] = p.name_ar || p.name_en || ''; });
-                }
-
-                // fallback: invoice_id → purchase_invoices أو purchase_transactions
                 const supplierByInvId: Record<string, string> = {};
                 if (iidList.length > 0) {
                     const { data: pi } = await supabase.from('purchase_invoices').select('id, supplier_name').in('id', iidList);
-                    if (pi) pi.forEach((r: any) => { supplierByInvId[r.id] = r.supplier_name || ''; });
+                    pi?.forEach((r: any) => { supplierByInvId[r.id] = r.supplier_name || ''; });
                     const { data: pt } = await supabase.from('purchase_transactions').select('id, supplier_name').in('id', iidList);
-                    if (pt) pt.forEach((r: any) => { if (!supplierByInvId[r.id]) supplierByInvId[r.id] = r.supplier_name || ''; });
+                    pt?.forEach((r: any) => { if (!supplierByInvId[r.id]) supplierByInvId[r.id] = r.supplier_name || ''; });
+                }
+
+                // 2) container_id → containers.supplier_id → parties.name_ar
+                const cidList = [...new Set(rcpts.map((r: any) => r.container_id).filter(Boolean))] as string[];
+                const supplierByContId: Record<string, string> = {};
+                if (cidList.length > 0) {
+                    const { data: conts } = await supabase.from('containers').select('id, supplier_id').in('id', cidList);
+                    if (conts && conts.length > 0) {
+                        const supIds = [...new Set(conts.map((c: any) => c.supplier_id).filter(Boolean))] as string[];
+                        if (supIds.length > 0) {
+                            const { data: parties } = await supabase.from('parties').select('id, name_ar, name_en').in('id', supIds);
+                            const pm: Record<string, string> = {};
+                            parties?.forEach((p: any) => { pm[p.id] = p.name_ar || p.name_en || ''; });
+                            conts.forEach((c: any) => { supplierByContId[c.id] = pm[c.supplier_id] || ''; });
+                        }
+                    }
                 }
 
                 rcpts.forEach((r: any) => {
-                    purPartyMap[r.id] = supplierByPartyId[r.supplier_id] || supplierByInvId[r.invoice_id] || '';
+                    purPartyMap[r.id] = supplierByInvId[r.invoice_id] || supplierByContId[r.container_id] || '';
                 });
             }
         }
