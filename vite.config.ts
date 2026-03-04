@@ -8,6 +8,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // ⚡ Apply update immediately when new SW is available
+      injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'icon.svg', 'robots.txt'],
       manifest: {
         name: 'TexaCore ERP',
@@ -35,12 +37,28 @@ export default defineConfig({
         ]
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB — ERP bundles are large
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Don't cache API calls by default - let them be handled by the app
+        // ⚡ Take control immediately without waiting for old SW to die
+        skipWaiting: true,
+        clientsClaim: true,
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
+        // Exclude HTML from precache — always fetch fresh from network
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
+          {
+            // HTML navigation — Network First (always try server first)
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60, // 1 hour max
+              },
+            },
+          },
           {
             // Cache Supabase storage files (images, documents)
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
