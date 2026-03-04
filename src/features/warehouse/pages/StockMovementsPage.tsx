@@ -11,7 +11,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useStockMovements, useWarehouses } from '../hooks/useWarehouseQueries';
@@ -108,6 +108,83 @@ export default function StockMovementsPage() {
         warehouse: selectedWarehouse !== 'all' ? selectedWarehouse : undefined,
     });
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+
+    // 🔑 إثراء أسماء الجهات (reference_id → عميل/مورد) — مستقل عن React Query
+    const [partyNames, setPartyNames] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (!movements || movements.length === 0) return;
+        const saleTypes = ['sale', 'sale_invoice', 'issue', 'delivery'];
+        const purTypes = ['receipt', 'purchase', 'container_receipt', 'goods_receipt', 'container'];
+
+        const fetchPartyNames = async () => {
+            const result: Record<string, string> = {};
+
+            // أ) مبيعات: reference_id = sales_transactions.id
+            const saleRefIds = [...new Set(
+                movements
+                    .filter(m => saleTypes.includes(m.movement_type))
+                    .map(m => (m as any).reference_id)
+                    .filter(Boolean)
+            )] as string[];
+
+            if (saleRefIds.length > 0) {
+                const { data } = await supabase
+                    .from('sales_transactions')
+                    .select('id, customer_name')
+                    .in('id', saleRefIds);
+                data?.forEach((s: any) => { if (s.id && s.customer_name) result[s.id] = s.customer_name; });
+            }
+
+            // ب) شراء: reference_id = purchase_receipts.id → invoice_id → supplier_name
+            const purRefIds = [...new Set(
+                movements
+                    .filter(m => purTypes.includes(m.movement_type) || purTypes.includes((m as any).reference_type))
+                    .map(m => (m as any).reference_id)
+                    .filter(Boolean)
+            )] as string[];
+
+            if (purRefIds.length > 0) {
+                const { data: rcpts } = await supabase
+                    .from('purchase_receipts')
+                    .select('id, invoice_id, container_id')
+                    .in('id', purRefIds);
+
+                if (rcpts && rcpts.length > 0) {
+                    // مسار 1: invoice_id → purchase_invoices.supplier_name
+                    const iids = [...new Set(rcpts.map((r: any) => r.invoice_id).filter(Boolean))] as string[];
+                    if (iids.length > 0) {
+                        const { data: pi } = await supabase.from('purchase_invoices').select('id, supplier_name').in('id', iids);
+                        pi?.forEach((r: any) => { rcpts.forEach((rc: any) => { if (rc.invoice_id === r.id && r.supplier_name) result[rc.id] = r.supplier_name; }); });
+                        const { data: pt } = await supabase.from('purchase_transactions').select('id, supplier_name').in('id', iids);
+                        pt?.forEach((r: any) => { rcpts.forEach((rc: any) => { if (rc.invoice_id === r.id && r.supplier_name && !result[rc.id]) result[rc.id] = r.supplier_name; }); });
+                    }
+                    // مسار 2: container_id → containers.supplier_id → parties
+                    const cids = [...new Set(rcpts.filter((r: any) => !result[r.id]).map((r: any) => r.container_id).filter(Boolean))] as string[];
+                    if (cids.length > 0) {
+                        const { data: conts } = await supabase.from('containers').select('id, supplier_id').in('id', cids);
+                        if (conts && conts.length > 0) {
+                            const sids = [...new Set(conts.map((c: any) => c.supplier_id).filter(Boolean))] as string[];
+                            if (sids.length > 0) {
+                                const { data: parties } = await supabase.from('parties').select('id, name_ar, name_en').in('id', sids);
+                                const pm: Record<string, string> = {};
+                                parties?.forEach((p: any) => { pm[p.id] = p.name_ar || p.name_en || ''; });
+                                conts.forEach((c: any) => {
+                                    rcpts.filter((r: any) => r.container_id === c.id).forEach((r: any) => {
+                                        if (!result[r.id]) result[r.id] = pm[c.supplier_id] || '';
+                                    });
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            setPartyNames(result);
+        };
+
+        fetchPartyNames();
+    }, [movements]);
 
     const handleManualRefresh = useCallback(() => {
         refetchMovements();
@@ -463,6 +540,8 @@ export default function StockMovementsPage() {
             id: 'flow',
             header: isRTL ? 'الجهة (من → إلى)' : 'Flow (From → To)',
             cell: (m: any) => {
+                // الجهة من state المحلي (partyNames) أو من service enrichment
+                const resolvedPartyName = partyNames[m.reference_id] || m.party_name || '';
                 const isSales = salesTypes.includes(m.movement_type);
                 const isContainer = containerTypes.includes(m.movement_type);
                 const isPurchase = purchasesTypes.includes(m.movement_type);
@@ -480,8 +559,8 @@ export default function StockMovementsPage() {
                         </div>
                     );
                 } else if (isContainer) {
-                    // كونتينر: رقم الكونتينر أو المورد هو المصدر
-                    const src = m.party_name || m.reference_number || '—';
+                    // كونتينر: اسم المورد أو رقم الكونتينر هو المصدر
+                    const src = resolvedPartyName || m.reference_number || '—';
                     fromNode = (
                         <div className="flex items-center gap-1 text-cyan-700 dark:text-cyan-400">
                             <Package className="h-3 w-3 flex-shrink-0" />
@@ -490,7 +569,7 @@ export default function StockMovementsPage() {
                     );
                 } else if (isPurchase) {
                     // شراء: المورد هو المصدر
-                    const supplier = m.party_name || '—';
+                    const supplier = resolvedPartyName || '—';
                     fromNode = (
                         <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                             <Building2 className="h-3 w-3 flex-shrink-0" />
@@ -512,7 +591,7 @@ export default function StockMovementsPage() {
                 let toNode: React.ReactNode = null;
                 if (isSales) {
                     // مبيعات: العميل هو الوجهة
-                    const customer = m.party_name || '—';
+                    const customer = resolvedPartyName || '—';
                     toNode = (
                         <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
                             <User className="h-3 w-3 flex-shrink-0" />
@@ -613,7 +692,7 @@ export default function StockMovementsPage() {
                 );
             }
         },
-    ], [isRTL, language, t, salesTypes, containerTypes, purchasesTypes, transferTypes]);
+    ], [isRTL, language, t, salesTypes, containerTypes, purchasesTypes, transferTypes, partyNames]);
 
     return (
         <div className="flex flex-col space-y-3" dir={direction}>
