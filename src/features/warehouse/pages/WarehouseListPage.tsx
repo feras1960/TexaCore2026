@@ -121,14 +121,11 @@ export default function WarehouseListPage() {
     // Active sub-tab
     const [activeTab, setActiveTab] = useState('warehouses');
 
-    // Tree / Table toggle — matching MaterialsPage pattern
+    // Tree / Table toggle — Tree is always the default on page open
     type ListMode = 'table' | 'tree';
-    const [listMode, setListMode] = useState<ListMode>(() =>
-        (localStorage.getItem('wh_list_mode') as ListMode) || 'tree'
-    );
+    const [listMode, setListMode] = useState<ListMode>('tree');
     const handleListModeChange = (m: ListMode) => {
         setListMode(m);
-        localStorage.setItem('wh_list_mode', m);
     };
 
     // Expand / Collapse counters (Counter-Trigger pattern)
