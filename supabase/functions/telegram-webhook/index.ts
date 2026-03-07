@@ -475,6 +475,52 @@ serve(async (req: Request) => {
             })
         }
 
+        // ─── Dispatch notification by event type ────────────
+        if (body.action === 'dispatch_notification') {
+            const { company_id, event_type, message: notifMessage, html_message } = body
+            if (!company_id || !event_type || (!notifMessage && !html_message)) {
+                return new Response(JSON.stringify({ ok: false, error: 'Missing: company_id, event_type, message' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+            const dispatchConfig = await getBotConfig(supabase, company_id)
+            if (!dispatchConfig) {
+                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+
+            // Get all active private connections with their preferences
+            const { data: activeConns } = await supabase
+                .from('telegram_connections')
+                .select('telegram_chat_id, notification_preferences')
+                .eq('company_id', company_id)
+                .eq('is_active', true)
+                .eq('connection_type', 'private')
+
+            let sentCount = 0
+            let skippedCount = 0
+
+            if (activeConns) {
+                for (const conn of activeConns) {
+                    const prefs = conn.notification_preferences || {}
+                    // Opt-out model: send unless explicitly disabled (false)
+                    if (prefs[event_type] === false) {
+                        skippedCount++
+                        continue
+                    }
+                    const msgToSend = html_message || notifMessage
+                    const r = await sendMessage(dispatchConfig.botToken, conn.telegram_chat_id, msgToSend)
+                    if (r.ok) sentCount++
+                }
+            }
+
+            console.log(`[Dispatch] ${event_type}: sent=${sentCount}, skipped=${skippedCount}`)
+            return new Response(JSON.stringify({ ok: true, event_type, sent: sentCount, skipped: skippedCount }), {
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
+
         // ─── Bot token from URL parameter or body ───────────
         const url = new URL(req.url)
         const botTokenParam = url.searchParams.get('bot_token') || body.bot_token || ''

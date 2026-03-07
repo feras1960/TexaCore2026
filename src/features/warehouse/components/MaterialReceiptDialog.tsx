@@ -53,6 +53,7 @@ import {
 import { completeReceipt } from '../services/receiptCompletionService';
 import { warehouseService } from '@/services/warehouseService';
 import { supabase } from '@/lib/supabase';
+import { telegramNotify } from '@/services/telegramNotificationService';
 import { toast } from 'sonner';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 
@@ -824,6 +825,28 @@ export function MaterialReceiptDialog({
                 : `✅ Receipt completed\n📋 Receipt #: ${result.receiptNumber}\n📦 Items: ${result.details.receiptItemsCreated}\n🎠 Rolls: ${result.details.fabricRollsSynced}${varianceNote}`;
 
             toast.success(msg, { duration: 6000 });
+
+            // 🔔 Telegram notification (non-blocking)
+            if (companyId) {
+                const wh = warehouses.find(w => w.id === selectedWarehouseId);
+                const whName = wh ? (language === 'ar' ? (wh.name_ar || wh.name_en || '') : (wh.name_en || wh.name_ar || '')) : '';
+                // Group items by material for notification
+                const matMap: Record<string, { name: string; qty: number; rolls: number }> = {};
+                for (const item of items) {
+                    const id = item.materialId || 'unknown';
+                    if (!matMap[id]) matMap[id] = { name: item.materialName || id.substring(0, 8), qty: 0, rolls: 0 };
+                    matMap[id].qty += item.rollLength || 0;
+                    matMap[id].rolls += 1;
+                }
+                telegramNotify.receiptOrder(companyId, {
+                    orderNumber: result.receiptNumber || '',
+                    supplierName: selectedDocument?.supplier_name || '',
+                    warehouseName: whName,
+                    items: Object.values(matMap).map(m => ({ name: m.name, qty: Math.round(m.qty * 100) / 100, unit: 'م', rolls: m.rolls })),
+                    notes: hasVariance ? `⚠️ فارق ${Math.abs(receiptSummary!.overallPct)}%` : undefined,
+                }).catch(() => { }); // Don't block on notification failure
+            }
+
             onComplete?.();
             setOpen(false);
             setSession(null);
