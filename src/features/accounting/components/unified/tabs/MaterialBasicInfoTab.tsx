@@ -31,6 +31,7 @@ import {
     Info
 } from 'lucide-react';
 import type { SheetMode } from '../types';
+import { TranslateButton } from '@/components/ui/translate-button';
 
 interface MaterialBasicInfoTabProps {
     data: any;
@@ -243,18 +244,39 @@ export function MaterialBasicInfoTab({ data, mode, onChange, groups = [] }: Mate
                 </CardContent>
             </Card>
 
-            {/* Multi-language Names */}
+            {/* Multi-language Names — Manual + AI */}
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                        <Globe className="w-5 h-5 text-erp-primary" />
-                        {language === 'ar' ? 'الأسماء باللغات الأخرى' : 'Names in Other Languages'}
-                    </CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {language === 'ar'
-                            ? 'أضف ترجمات لاسم المادة لدعم اللغات المختلفة'
-                            : 'Add translations for the material name to support different languages'}
-                    </p>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Globe className="w-5 h-5 text-erp-primary" />
+                                {language === 'ar' ? 'الأسماء باللغات الأخرى' : 'Names in Other Languages'}
+                            </CardTitle>
+                            <p className="text-sm text-gray-500 mt-1">
+                                {language === 'ar'
+                                    ? 'أدخل الترجمات يدوياً أو استخدم وكيل نيكسا AI للترجمة التلقائية'
+                                    : 'Enter translations manually or use NexaAI Agent for auto-translation'}
+                            </p>
+                        </div>
+                        {!isReadOnly && (
+                            <TranslateButton
+                                sourceText={data?.name_ar || data?.name_en || ''}
+                                sourceLanguage={(data?.name_ar ? 'ar' : 'en') as any}
+                                context="product_name"
+                                onTranslated={(translations) => {
+                                    if (onChange) {
+                                        const updates: any = {};
+                                        for (const [lang, text] of Object.entries(translations)) {
+                                            updates[`name_${lang}`] = text;
+                                        }
+                                        onChange(updates);
+                                    }
+                                }}
+                                size="sm"
+                            />
+                        )}
+                    </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {supportedLanguages.filter(l => l.code !== 'ar' && l.code !== 'en').map((lang) => (

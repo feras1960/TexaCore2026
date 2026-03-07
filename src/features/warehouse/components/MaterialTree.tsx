@@ -62,20 +62,26 @@ const getName = (node: MaterialTreeNode, lang: string) => {
 };
 
 // Helper for group stock aggregation
-export const getGroupAggregate = (children?: MaterialTreeNode[]): { stock: number, rolls: number } => {
-    if (!children || children.length === 0) return { stock: 0, rolls: 0 };
+export const getGroupAggregate = (children?: MaterialTreeNode[]): { stock: number, rolls: number, loose: number } => {
+    if (!children || children.length === 0) return { stock: 0, rolls: 0, loose: 0 };
     return children.reduce((acc, child) => {
-        let childData = { stock: child.current_stock || child.rolls_total_length || 0, rolls: child.rolls_count || 0 };
+        let childData = {
+            stock: child.current_stock || child.rolls_total_length || 0,
+            rolls: child.rolls_count || 0,
+            loose: child.loose_stock || 0,
+        };
         if (child.is_group && child.children) {
             const nested = getGroupAggregate(child.children);
             childData.stock += nested.stock;
             childData.rolls += nested.rolls;
+            childData.loose += nested.loose;
         }
         return {
             stock: acc.stock + childData.stock,
-            rolls: acc.rolls + childData.rolls
+            rolls: acc.rolls + childData.rolls,
+            loose: acc.loose + childData.loose,
         };
-    }, { stock: 0, rolls: 0 });
+    }, { stock: 0, rolls: 0, loose: 0 });
 };
 
 // TreeNode component
@@ -196,7 +202,7 @@ function TreeNode({
 
                     {/* Stock Display */}
                     {!node.is_group && (
-                        <div className="flex gap-2 mx-2">
+                        <div className="flex gap-1.5 mx-2">
                             {((node.current_stock || 0) > 0 || (node.rolls_total_length || 0) > 0) && (
                                 <span className={cn(
                                     "text-xs font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
@@ -205,12 +211,20 @@ function TreeNode({
                                     {Number(node.current_stock || node.rolls_total_length || 0).toFixed(2)} {node.unit || ''}
                                 </span>
                             )}
+                            {(node.loose_stock || 0) > 0 && (
+                                <span className={cn(
+                                    "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
+                                    isSelected ? "text-amber-50 bg-amber-900/40" : "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30"
+                                )}>
+                                    {Number(node.loose_stock).toFixed(1)} {language === 'ar' ? 'سائب' : 'loose'}
+                                </span>
+                            )}
                             {(node.rolls_count || 0) > 0 && (
                                 <span className={cn(
                                     "text-xs font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
                                     isSelected ? "text-purple-50 bg-purple-900/40" : "text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30"
                                 )}>
-                                    {node.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                    {node.rolls_count} {language === 'ar' ? 'رول' : 'R'}
                                 </span>
                             )}
                         </div>
@@ -234,6 +248,21 @@ function TreeNode({
                                 )}>
                                     {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
                                     {Number(aggregateData.stock).toFixed(2)}
+                                </span>
+                            )}
+                            {aggregateData.loose > 0 && (
+                                <span className={cn(
+                                    "text-[10px] font-mono px-1.5 py-0.5 rounded transition-colors",
+                                    isLeafGroup
+                                        ? isSelected
+                                            ? "text-amber-50 bg-amber-900/50 font-semibold"
+                                            : "text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-900/40 font-semibold"
+                                        : isSelected
+                                            ? "text-gray-300 bg-gray-700/60"
+                                            : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
+                                )}>
+                                    {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
+                                    {Number(aggregateData.loose).toFixed(0)} {language === 'ar' ? 'سائب' : 'loose'}
                                 </span>
                             )}
                             {aggregateData.rolls > 0 && (
@@ -579,22 +608,23 @@ export function MaterialTree({
                                                                     )}
                                                                 </div>
                                                             );
-                                                        })() : (item.rolls_count || 0) > 0 ? (
-                                                            <>
-                                                                <div className="flex items-center gap-2">
+                                                        })() : (
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                {((item.current_stock || 0) > 0 || (item.rolls_total_length || 0) > 0) && (
                                                                     <span className="font-bold text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs">
-                                                                        {item.rolls_total_length || 0} {item.unit || '-'}
+                                                                        {item.current_stock || item.rolls_total_length || 0} {item.unit || '-'}
                                                                     </span>
+                                                                )}
+                                                                {(item.loose_stock || 0) > 0 && (
+                                                                    <span className="font-bold text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30 px-2 py-0.5 rounded text-xs">
+                                                                        {Number(item.loose_stock).toFixed(1)} {language === 'ar' ? 'سائب' : 'loose'}
+                                                                    </span>
+                                                                )}
+                                                                {(item.rolls_count || 0) > 0 && (
                                                                     <span className="font-bold text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30 px-2 py-0.5 rounded text-xs">
-                                                                        {item.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                                                        {item.rolls_count} {language === 'ar' ? 'رول' : 'R'}
                                                                     </span>
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-gray-700 bg-gray-100 dark:text-gray-300 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">
-                                                                    {item.current_stock || item.rolls_total_length || 0} {item.unit || '-'}
-                                                                </span>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>

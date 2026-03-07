@@ -319,6 +319,33 @@ const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
     ],
 };
 
+// ═══════════════════════════════════════════════════════════════
+// مراحل المناقلات — Transfer Stage Actions
+// ═══════════════════════════════════════════════════════════════
+
+const TRANSFER_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
+    draft: [
+        { id: 'confirm_transfer', labelAr: 'تأكيد طلب المناقلة', labelEn: 'Confirm Transfer Request', icon: '✅', targetStage: 'confirmed', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إرسال الطلب لأمين المستودع المصدر', confirmMessageEn: 'Request will be sent to source warehouse keeper' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    confirmed: [
+        { id: 'start_loading', labelAr: 'بدء التحميل', labelEn: 'Start Loading', icon: '📦', targetStage: 'loading', variant: 'default' },
+        { id: 'cancel', labelAr: 'إلغاء', labelEn: 'Cancel', icon: '❌', targetStage: 'cancelled', variant: 'destructive', requiresReason: true },
+    ],
+    loading: [
+        { id: 'ship', labelAr: 'إرسال البضاعة', labelEn: 'Ship Goods', icon: '🚚', targetStage: 'shipped', variant: 'success', requiresConfirm: true, confirmMessageAr: 'تأكيد إرسال البضاعة؟', confirmMessageEn: 'Confirm goods shipment?' },
+    ],
+    shipped: [
+        { id: 'receive', labelAr: 'تأكيد الاستلام', labelEn: 'Confirm Receipt', icon: '📥', targetStage: 'received', variant: 'success', requiresConfirm: true, confirmMessageAr: 'تأكيد استلام البضاعة في المستودع الوجهة؟', confirmMessageEn: 'Confirm goods received at destination warehouse?' },
+    ],
+    received: [],
+    cancelled: [
+        { id: 'reopen', labelAr: 'إعادة فتح', labelEn: 'Reopen', icon: '🔄', targetStage: 'draft', variant: 'outline', requiresConfirm: true, confirmMessageAr: 'إعادة فتح المناقلة كمسودة؟', confirmMessageEn: 'Reopen transfer as draft?' },
+    ],
+};
+
+const TRANSFER_STAGE_ORDER = ['draft', 'confirmed', 'loading', 'shipped', 'received'];
+
 // Stage order constants
 const PURCHASE_STAGE_ORDER = ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'];
 const SALES_STAGE_ORDER = ['draft', 'quotation', 'reservation', 'order', 'delivery', 'invoice', 'confirmed', 'sent_to_branch', 'in_delivery', 'delivered', 'posted', 'partial_paid', 'paid'];
@@ -884,6 +911,41 @@ export const tradeContainerConfig: DocumentConfig = {
 
 
 // ═══════════════════════════════════════════════════════════════
+// مناقلات — Transfer Configurations
+// ═══════════════════════════════════════════════════════════════
+
+// ── طلب مناقلة (Transfer Request / Invoice) ──
+// شبيه بفاتورة المبيعات لكن:
+// - بدون أسعار/ضرائب/خصومات/سداد
+// - بدل العميل → مستودع من + مستودع إلى
+export const transferInvoiceConfig: DocumentConfig = {
+    type: 'trade_invoice',
+    titleKey: 'warehouse.transfer.title',
+    subtitleKey: 'warehouse.transfer.subtitle',
+    icon: 'ArrowLeftRight',
+    iconColor: 'bg-blue-600',
+    defaultTab: 'trade_details',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['reference_number', 'from_warehouse', 'to_warehouse', 'date', 'status'],
+    tabs: [
+        STAGE_TAB.tradeDetailsStaged,
+        STAGE_TAB.materialBrowserStaged,
+        TAB.attachments,
+    ],
+    actions: TRADE_ACTIONS,
+    stats: [],
+    // ═══ Stage Awareness ═══
+    stageOrder: TRANSFER_STAGE_ORDER,
+    stageActions: TRANSFER_STAGE_ACTIONS,
+    editableStages: ['draft'],
+    lockedStages: ['received', 'cancelled'],
+};
+
+const TRANSFER_CONFIG_MAP: Partial<Record<string, DocumentConfig>> = {
+    trade_invoice: transferInvoiceConfig,
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Sales-mode configs (default) — backward compatible
 // ═══════════════════════════════════════════════════════════════
 export const tradeRequestConfig = purchaseRequestConfig;
@@ -917,12 +979,16 @@ const SALES_CONFIG_MAP: Partial<Record<string, DocumentConfig>> = {
 /**
  * Get trade document config based on docType and mode.
  * - If mode is 'purchase', returns purchase-specific config (different tabs)
+ * - If mode is 'transfer', returns transfer-specific config (no prices)
  * - If mode is 'sales' or undefined, returns sales config (default)
  */
 export function getTradeDocConfig(
     docType: string,
-    tradeMode?: 'sales' | 'purchase'
+    tradeMode?: 'sales' | 'purchase' | 'transfer'
 ): DocumentConfig | null {
+    if (tradeMode === 'transfer') {
+        return TRANSFER_CONFIG_MAP[docType] || null;
+    }
     if (tradeMode === 'purchase') {
         return PURCHASE_CONFIG_MAP[docType] || null;
     }

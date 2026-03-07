@@ -75,6 +75,10 @@ interface AddToCartDialogProps {
         name_ar: string;
         name_en?: string;
         available_length: number;
+        /** Loose stock (unrolled meters) — added to available_length for total */
+        loose_stock?: number;
+        /** Number of rolls in this warehouse */
+        roll_count?: number;
     };
     /** Optional: Available rolls to select from (V3) */
     rolls?: RollOption[];
@@ -87,6 +91,8 @@ interface AddToCartDialogProps {
      * Default: 'cart' (uses CartContext)
      */
     mode?: 'cart' | 'line';
+    /** Hide price/currency fields (e.g. for transfers) */
+    hidePrice?: boolean;
     /** Used in 'line' mode — called with the line item data */
     onAddLineItem?: (item: {
         material_id: string;
@@ -113,6 +119,7 @@ export function AddToCartDialog({
     rollsLoading = false,
     onLoadRolls,
     mode = 'cart',
+    hidePrice = false,
     onAddLineItem,
 }: AddToCartDialogProps) {
     const { language } = useLanguage();
@@ -129,9 +136,11 @@ export function AddToCartDialog({
     const [selectedRolls, setSelectedRolls] = useState<Set<string>>(new Set());
     const [showRolls, setShowRolls] = useState(true); // open by default — user can collapse
 
-    const max = warehouse.available_length || 0;
+    const rollsAvailable = warehouse.available_length || 0;
+    const looseAvailable = warehouse.loose_stock || 0;
+    const max = rollsAvailable + looseAvailable;
     const qty = parseFloat(quantity) || 0;
-    const price = parseFloat(unitPrice) || 0;
+    const price = hidePrice ? 1 : (parseFloat(unitPrice) || 0);
     const subtotal = qty * price;
     const usagePercent = max > 0 ? Math.min(100, (qty / max) * 100) : 0;
     const unit = material.unit || 'meter';
@@ -180,7 +189,7 @@ export function AddToCartDialog({
     const validate = useCallback(() => {
         if (qty <= 0) return t('أدخل كمية أكبر من صفر', 'Enter a quantity greater than 0');
         if (max > 0 && qty > max) return t(`الكمية تتجاوز المتاح (${max})`, `Quantity exceeds available (${max})`);
-        if (price <= 0) return t('أدخل سعر الوحدة', 'Enter unit price');
+        if (!hidePrice && price <= 0) return t('أدخل سعر الوحدة', 'Enter unit price');
         return '';
     }, [qty, max, price]);
 
@@ -247,7 +256,7 @@ export function AddToCartDialog({
                 warehouse_id: warehouse.id,
                 warehouse_name_ar: warehouse.name_ar,
                 preferred_rolls: preferredRolls,
-                currency: material.currency || 'SAR',
+                currency: material.currency || '',
             });
         } else {
             // Cart mode — use CartContext
@@ -264,7 +273,7 @@ export function AddToCartDialog({
                 available_stock: max,
                 preferred_rolls: preferredRolls,
                 unit_price: price,
-                currency: material.currency || 'SAR',
+                currency: material.currency || '',
             });
         }
 
@@ -360,6 +369,22 @@ export function AddToCartDialog({
                             {t('المتاح', 'Available')}: {max.toLocaleString('en-US')} {unitLabel[isAr ? 'ar' : 'en']}
                         </Badge>
                     </div>
+                    {/* Dual stock breakdown */}
+                    {(rollsAvailable > 0 || looseAvailable > 0) && (rollsAvailable > 0 && looseAvailable > 0) && (
+                        <div className="flex items-center gap-3 px-6 text-[10px]">
+                            <span className="text-indigo-500 flex items-center gap-0.5">
+                                <Scroll className="w-2.5 h-2.5" />
+                                {t('مجرود', 'Rolled')}: {rollsAvailable.toLocaleString('en-US')} {unitLabel[isAr ? 'ar' : 'en']}
+                                {warehouse.roll_count > 0 && (
+                                    <span className="text-gray-400 ms-0.5">({warehouse.roll_count} {t('رول', 'R')})</span>
+                                )}
+                            </span>
+                            <span className="text-amber-600 flex items-center gap-0.5">
+                                <Package className="w-2.5 h-2.5" />
+                                {t('سائب', 'Loose')}: {looseAvailable.toLocaleString('en-US')} {unitLabel[isAr ? 'ar' : 'en']}
+                            </span>
+                        </div>
+                    )}
 
                     {/* ─── Quantity Input ─── */}
                     <div className="space-y-2">
@@ -426,19 +451,21 @@ export function AddToCartDialog({
                         )}
                     </div>
 
-                    {/* ─── Unit Price ─── */}
-                    <div className="space-y-1.5">
-                        <Label>{t('سعر الوحدة', 'Unit Price')} ({material.currency || 'SAR'})</Label>
-                        <Input
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            value={unitPrice}
-                            onChange={(e) => setUnitPrice(e.target.value)}
-                            placeholder="0.00"
-                            className="font-mono"
-                        />
-                    </div>
+                    {/* ─── Unit Price (hidden for transfers) ─── */}
+                    {!hidePrice && (
+                        <div className="space-y-1.5">
+                            <Label>{t('سعر الوحدة', 'Unit Price')} ({material.currency || currency})</Label>
+                            <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                value={unitPrice}
+                                onChange={(e) => setUnitPrice(e.target.value)}
+                                placeholder="0.00"
+                                className="font-mono"
+                            />
+                        </div>
+                    )}
 
                     {/* ─── Roll Selection — Always Visible if rolls available ─── */}
                     {(hasRolls || rollsLoading || onLoadRolls) && (
@@ -626,7 +653,7 @@ export function AddToCartDialog({
                     )}
 
                     {/* ─── Subtotal Preview ─── */}
-                    {qty > 0 && price > 0 && !error && (
+                    {!hidePrice && qty > 0 && price > 0 && !error && (
                         <div className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
                             <div>
                                 <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
@@ -641,7 +668,7 @@ export function AddToCartDialog({
                             </div>
                             <span className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
                                 {subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                <span className="text-xs ms-1 font-normal text-emerald-500">{material.currency || 'SAR'}</span>
+                                <span className="text-xs ms-1 font-normal text-emerald-500">{material.currency || ''}</span>
                             </span>
                         </div>
                     )}
@@ -652,7 +679,7 @@ export function AddToCartDialog({
                     {/* Continue Browsing (Primary — Enter) */}
                     <Button
                         onClick={handleContinueBrowsing}
-                        disabled={qty <= 0 || price <= 0 || !!error}
+                        disabled={qty <= 0 || (!hidePrice && price <= 0) || !!error}
                         className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                     >
                         <Check className="h-4 w-4" />
@@ -667,7 +694,7 @@ export function AddToCartDialog({
                     <Button
                         variant="outline"
                         onClick={handleOpenCart}
-                        disabled={qty <= 0 || price <= 0 || !!error}
+                        disabled={qty <= 0 || (!hidePrice && price <= 0) || !!error}
                         className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300"
                     >
                         <ShoppingCart className="h-4 w-4" />

@@ -233,12 +233,20 @@ export default function MaterialsPage() {
             }
 
             // === Handle MATERIAL creation/update ===
-            const materialData = {
+            const materialData: Record<string, any> = {
                 tenant_id: user?.user_metadata?.tenant_id,
                 company_id: companyId,
                 code: data.code,
                 name_ar: data.name_ar,
                 name_en: data.name_en,
+                // ═══ Multi-language name translations ═══
+                name_ru: data.name_ru || null,
+                name_uk: data.name_uk || null,
+                name_tr: data.name_tr || null,
+                name_ro: data.name_ro || null,
+                name_pl: data.name_pl || null,
+                name_de: data.name_de || null,
+                name_it: data.name_it || null,
                 group_id: data.category_id || data.group_id,
                 composition: data.description || data.composition,
                 category: data.category || 'mixed',
@@ -249,6 +257,8 @@ export default function MaterialsPage() {
                     color_hex: data.color_hex,
                     sku: data.sku,
                     barcode: data.barcode,
+                    // ═══ E-commerce / SEO fields ═══
+                    ...(data.ecommerce ? { ecommerce: data.ecommerce } : {}),
                 },
                 min_stock: data.min_stock_level || data.min_stock || 0,
                 reorder_point: data.max_stock_level || data.reorder_point || 0,
@@ -481,6 +491,9 @@ export default function MaterialsPage() {
     const totalRolls = useMemo(() => {
         return materials.reduce((acc, m: any) => acc + (m.rolls_count || 0), 0);
     }, [materials]);
+    const totalLooseStock = useMemo(() => {
+        return materials.reduce((acc, m: any) => acc + (m.loose_stock || 0), 0);
+    }, [materials]);
 
     // Table columns
     const tableColumns: Column<any>[] = [
@@ -561,17 +574,22 @@ export default function MaterialsPage() {
                     );
                 }
 
-                // Regular material: blue for meters, purple for rolls
+                // Regular material: blue for meters, amber for loose, purple for rolls
                 return (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                         {stock > 0 && (
                             <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30">
                                 {Number(stock).toFixed(2)} {row.unit || ''}
                             </span>
                         )}
+                        {(row.loose_stock || 0) > 0 && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30">
+                                {Number(row.loose_stock).toFixed(1)} {language === 'ar' ? 'سائب' : 'loose'}
+                            </span>
+                        )}
                         {rolls > 0 && (
                             <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30">
-                                {rolls} {language === 'ar' ? 'رول' : 'Rolls'}
+                                {rolls} {language === 'ar' ? 'رول' : 'R'}
                             </span>
                         )}
                     </div>
@@ -674,7 +692,7 @@ export default function MaterialsPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <StatCard
                     label={language === 'ar' ? 'إجمالي المواد' : 'Total Materials'}
                     value={totalMaterials}
@@ -696,6 +714,12 @@ export default function MaterialsPage() {
                     suffix={language === 'ar' ? 'م' : 'm'}
                     subLabel={`${totalRolls} ${language === 'ar' ? 'رول' : 'Rolls'}`}
                     icon={Database}
+                />
+                <StatCard
+                    label={language === 'ar' ? 'المخزون السائب' : 'Loose Stock'}
+                    value={totalLooseStock.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                    suffix={language === 'ar' ? 'م' : 'm'}
+                    icon={Package}
                 />
             </div>
 

@@ -212,11 +212,14 @@ export default function SalesPaymentsList() {
             {/* Filters Area */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0 bg-gray-50/50 p-2 rounded-lg border border-gray-100">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto" dir={direction}>
-                    <TabsList className="flex flex-wrap h-auto justify-start">
-                        <TabsTrigger value="all">{t('status.all') || 'All'}</TabsTrigger>
-                        <TabsTrigger value="draft" className="text-yellow-600 data-[state=active]:text-yellow-700">{t('status.draft') || 'Draft'}</TabsTrigger>
-                        <TabsTrigger value="posted" className="text-blue-600 data-[state=active]:text-blue-700">{t('status.posted') || 'Posted'}</TabsTrigger>
-                        <TabsTrigger value="cancelled" className="text-red-600 data-[state=active]:text-red-700">{t('status.cancelled') || 'Cancelled'}</TabsTrigger>
+                    <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
+                        <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                            <CreditCard className="w-4 h-4 me-1.5" />
+                            {t('status.all') || 'All'}
+                        </TabsTrigger>
+                        <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-yellow-600 font-tajawal">{t('status.draft') || 'Draft'}</TabsTrigger>
+                        <TabsTrigger value="posted" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">{t('status.posted') || 'Posted'}</TabsTrigger>
+                        <TabsTrigger value="cancelled" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-red-600 font-tajawal">{t('status.cancelled') || 'Cancelled'}</TabsTrigger>
                     </TabsList>
                 </Tabs>
 

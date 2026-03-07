@@ -435,17 +435,19 @@ export default function CustomersList() {
                 <div className="flex flex-wrap items-center gap-3 px-1">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto" dir={direction}>
                         <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
-                            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 font-tajawal">
+                            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                                <Users className="w-4 h-4 me-1.5" />
                                 {isRTL ? 'الكل' : 'All'}
-                                <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-gray-200/60">{customers.length}</Badge>
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{customers.length}</Badge>
                             </TabsTrigger>
-                            <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-emerald-600 font-tajawal">
+                            <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
+                                <Star className="w-4 h-4 me-1.5" />
                                 {isRTL ? 'نشط' : 'Active'}
-                                <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-emerald-100/60 text-emerald-700">{customers.filter(c => c.status === 'active').length}</Badge>
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{customers.filter(c => c.status === 'active').length}</Badge>
                             </TabsTrigger>
-                            <TabsTrigger value="inactive" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-gray-500 font-tajawal">
+                            <TabsTrigger value="inactive" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-gray-500 font-tajawal">
                                 {isRTL ? 'غير نشط' : 'Inactive'}
-                                <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-gray-200/60">{customers.filter(c => c.status !== 'active').length}</Badge>
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{customers.filter(c => c.status !== 'active').length}</Badge>
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>

@@ -3876,7 +3876,9 @@
       "reports": "التقارير",
       "samples": "العينات",
       "settings": "الإعدادات",
-      "receiptsDeliveries": "أذون الاستلام والتسليم"
+      "receiptsDeliveries": "أذون الاستلام والتسليم",
+      "transfers": "المناقلات",
+      "ecommerce": "المتجر الإلكتروني"
     },
     "dashboard": {
       "title": "لوحة المستودعات",
@@ -4016,7 +4018,9 @@
         "rolls": "الرولونات",
         "basicInfo": "المعلومات الأساسية",
         "specs": "المواصفات",
-        "additionalInfo": "معلومات إضافية"
+        "additionalInfo": "معلومات إضافية",
+        "ecommerce": "المتجر الإلكتروني",
+        "details": "التفاصيل والمواصفات"
       },
       "stats": {
         "totalStock": "إجمالي المخزون",
@@ -4263,7 +4267,11 @@
       }
     },
     "details": "تفاصيل المستودع",
-    "manageWarehouse": "إدارة بيانات ومحتويات المستودع"
+    "manageWarehouse": "إدارة بيانات ومحتويات المستودع",
+    "transfer": {
+      "title": "مناقلة بين المستودعات",
+      "subtitle": "نقل المواد بين المستودعات"
+    }
   },
   "shipments": {
     "title": "إدارة الشحنات",

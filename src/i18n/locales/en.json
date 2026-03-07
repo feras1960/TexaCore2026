@@ -3679,7 +3679,9 @@
       "reports": "Reports",
       "samples": "Samples",
       "settings": "Settings",
-      "receiptsDeliveries": "Receipts & Deliveries"
+      "receiptsDeliveries": "Receipts & Deliveries",
+      "transfers": "Transfers",
+      "ecommerce": "E-Commerce"
     },
     "stockMovements": {
       "pendingReceipts": "Pending Receipts",
@@ -3764,7 +3766,9 @@
         "rolls": "Rolls",
         "basicInfo": "Basic Info",
         "specs": "Specifications",
-        "additionalInfo": "Additional Info"
+        "additionalInfo": "Additional Info",
+        "ecommerce": "E-Commerce",
+        "details": "Details & Specs"
       },
       "stats": {
         "totalStock": "Total Stock",

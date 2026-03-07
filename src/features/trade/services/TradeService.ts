@@ -127,6 +127,16 @@ const DOC_TYPE_TABLE_MAP: Record<string, {
         amountField: 'estimated_amount',
         foreignKey: 'request_id',
     },
+    // ═══ Stock Transfers ═══
+    stock_transfer: {
+        table: 'stock_transfers',
+        itemsTable: 'stock_transfer_items',
+        partyField: 'from_warehouse_id', // transfers use warehouses, not parties
+        dateField: 'transfer_date',
+        numberField: 'transfer_number',
+        amountField: 'total_meters',
+        foreignKey: 'transfer_id',
+    },
 };
 
 /**
@@ -226,26 +236,45 @@ export const TradeService = {
             'sales_orders', 'purchase_orders', 'purchase_transactions', 'sales_transactions', 'sales_deliveries',
             'purchase_receipts', 'purchase_returns', 'sales_returns'
         ];
+        const isTransfer = docType === 'stock_transfer';
+
         const headerPayload: Record<string, any> = {
             tenant_id: resolvedTenantId,
             ...(resolvedCompanyId ? { company_id: resolvedCompanyId } : {}),
             [mapping.numberField]: docNumber,
-            [mapping.partyField]: doc.party_id,
             [mapping.dateField]: doc.date || new Date().toISOString(),
-            currency: currency || doc.currency || '',
-            exchange_rate: doc.exchange_rate || 1,
             notes: doc.notes,
-            status: mapping.table.includes('_transactions') ? undefined : 'draft',
-            ...(mapping.table.includes('_transactions') ? { stage: 'draft' } : {}),
-            [mapping.amountField]: doc.grand_total || doc.subtotal || 0,
-            subtotal: doc.subtotal || 0,
-            tax_amount: doc.tax_total || 0,
+            status: 'draft',
             created_by: authUser?.id,
         };
 
-        // Only add warehouse_id for tables that have this column
-        if (TABLES_WITH_WAREHOUSE.includes(mapping.table) && doc.warehouse_id) {
-            headerPayload.warehouse_id = doc.warehouse_id;
+        if (isTransfer) {
+            // ═══ Transfer-specific fields ═══
+            const extra = doc as any;
+            const fromWh = extra.from_warehouse_id || doc.warehouse_id || extra.warehouse_id;
+            const toWh = extra.to_warehouse_id;
+            console.log('[TradeService] 🔄 Transfer create — from:', fromWh, 'to:', toWh, 'raw:', { from_warehouse_id: extra.from_warehouse_id, warehouse_id: doc.warehouse_id, to_warehouse_id: extra.to_warehouse_id });
+            headerPayload.from_warehouse_id = fromWh;
+            headerPayload.to_warehouse_id = toWh;
+            headerPayload.total_rolls = (doc.items || []).length;
+            headerPayload.total_meters = (doc.items || []).reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0);
+        } else {
+            // ═══ Standard trade fields ═══
+            headerPayload[mapping.partyField] = doc.party_id;
+            headerPayload.currency = currency || doc.currency || '';
+            headerPayload.exchange_rate = doc.exchange_rate || 1;
+            if (mapping.table.includes('_transactions')) {
+                headerPayload.status = undefined;
+                headerPayload.stage = 'draft';
+            }
+            headerPayload[mapping.amountField] = doc.grand_total || doc.subtotal || 0;
+            headerPayload.subtotal = doc.subtotal || 0;
+            headerPayload.tax_amount = doc.tax_total || 0;
+
+            // Only add warehouse_id for tables that have this column
+            if (TABLES_WITH_WAREHOUSE.includes(mapping.table) && doc.warehouse_id) {
+                headerPayload.warehouse_id = doc.warehouse_id;
+            }
         }
 
         // Purchase-specific fields
@@ -273,23 +302,41 @@ export const TradeService = {
 
         // 2. Insert Items
         if (doc.items && doc.items.length > 0) {
-            const itemsToInsert = doc.items.map((item: any, index: number) =>
-                buildItemRow(item, index, mapping.foreignKey, header.id)
-            );
-
-            const { error: itemsError } = await supabase
-                .from(mapping.itemsTable)
-                .insert(itemsToInsert);
-
-            if (itemsError && itemsError.message?.includes('material_id')) {
-                console.warn('[TradeService] material_id column not found, retrying without it...');
-                const fallbackItems = itemsToInsert.map(({ material_id, ...rest }: any) => rest);
-                const { error: retryError } = await supabase
+            if (isTransfer) {
+                // Transfer items have a different structure
+                const transferItems = doc.items.map((item: any) => ({
+                    transfer_id: header.id,
+                    material_id: item.material_id,
+                    roll_id: item.roll_id || null,
+                    quantity: Number(item.quantity) || 0,
+                    is_jit_roll: item.is_jit_roll || false,
+                    notes: item.notes || null,
+                }));
+                const { error: itemsError } = await supabase
                     .from(mapping.itemsTable)
-                    .insert(fallbackItems);
-                if (retryError) throw retryError;
-            } else if (itemsError) {
-                throw itemsError;
+                    .insert(transferItems);
+                if (itemsError) {
+                    console.error('[TradeService] Transfer items insert failed:', itemsError);
+                }
+            } else {
+                const itemsToInsert = doc.items.map((item: any, index: number) =>
+                    buildItemRow(item, index, mapping.foreignKey, header.id)
+                );
+
+                const { error: itemsError } = await supabase
+                    .from(mapping.itemsTable)
+                    .insert(itemsToInsert);
+
+                if (itemsError && itemsError.message?.includes('material_id')) {
+                    console.warn('[TradeService] material_id column not found, retrying without it...');
+                    const fallbackItems = itemsToInsert.map(({ material_id, ...rest }: any) => rest);
+                    const { error: retryError } = await supabase
+                        .from(mapping.itemsTable)
+                        .insert(fallbackItems);
+                    if (retryError) throw retryError;
+                } else if (itemsError) {
+                    throw itemsError;
+                }
             }
         }
 
@@ -468,42 +515,56 @@ export const TradeService = {
         if (!mapping) throw new Error(`Unknown document type: ${docType}`);
 
         // Build dynamic update payload — only include defined fields
+        const isTransfer = docType === 'stock_transfer';
         const payload: Record<string, any> = {
             updated_at: new Date().toISOString(),
         };
 
-        const TABLES_WITH_WAREHOUSE = ['sales_orders', 'purchase_orders', 'purchase_transactions', 'sales_transactions', 'sales_deliveries',
-            'purchase_receipts', 'purchase_returns', 'sales_returns'];
-        if (updates.party_id !== undefined) payload[mapping.partyField] = updates.party_id;
-        if (updates.warehouse_id !== undefined && TABLES_WITH_WAREHOUSE.includes(mapping.table)) {
-            payload.warehouse_id = updates.warehouse_id;
-        }
-        if (updates.date !== undefined) payload[mapping.dateField] = updates.date;
-        if (updates.currency !== undefined) payload.currency = updates.currency;
-        if (updates.exchange_rate !== undefined) payload.exchange_rate = updates.exchange_rate;
-        if (updates.notes !== undefined) payload.notes = updates.notes;
-        if (updates.grand_total !== undefined || updates.subtotal !== undefined) {
-            payload[mapping.amountField] = updates.grand_total || updates.subtotal;
-        }
-        if (updates.subtotal !== undefined) payload.subtotal = updates.subtotal;
-        if (updates.tax_total !== undefined) payload.tax_amount = updates.tax_total;
+        if (isTransfer) {
+            // ─── Transfer-specific fields ───
+            if (updates.from_warehouse_id !== undefined) payload.from_warehouse_id = updates.from_warehouse_id;
+            if (updates.to_warehouse_id !== undefined) payload.to_warehouse_id = updates.to_warehouse_id;
+            if (updates.notes !== undefined) payload.notes = updates.notes;
+            if (updates.date !== undefined) payload[mapping.dateField] = updates.date;
+            // Recalculate totals from items
+            if (updates.items) {
+                payload.total_rolls = updates.items.length;
+                payload.total_meters = updates.items.reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0);
+            }
+        } else {
+            const TABLES_WITH_WAREHOUSE = ['sales_orders', 'purchase_orders', 'purchase_transactions', 'sales_transactions', 'sales_deliveries',
+                'purchase_receipts', 'purchase_returns', 'sales_returns'];
+            if (updates.party_id !== undefined) payload[mapping.partyField] = updates.party_id;
+            if (updates.warehouse_id !== undefined && TABLES_WITH_WAREHOUSE.includes(mapping.table)) {
+                payload.warehouse_id = updates.warehouse_id;
+            }
+            if (updates.date !== undefined) payload[mapping.dateField] = updates.date;
+            if (updates.currency !== undefined) payload.currency = updates.currency;
+            if (updates.exchange_rate !== undefined) payload.exchange_rate = updates.exchange_rate;
+            if (updates.notes !== undefined) payload.notes = updates.notes;
+            if (updates.grand_total !== undefined || updates.subtotal !== undefined) {
+                payload[mapping.amountField] = updates.grand_total || updates.subtotal;
+            }
+            if (updates.subtotal !== undefined) payload.subtotal = updates.subtotal;
+            if (updates.tax_total !== undefined) payload.tax_amount = updates.tax_total;
 
-        // ─── Purchase-specific fields ───
-        if (updates.supplier_invoice_number !== undefined) payload.supplier_invoice_number = updates.supplier_invoice_number;
-        if (updates.supplier_invoice_date !== undefined) payload.supplier_invoice_date = updates.supplier_invoice_date;
-        if (updates.payment_terms !== undefined) payload.payment_terms_days = updates.payment_terms;
-        if (updates.due_date !== undefined) payload.due_date = updates.due_date;
-        if (updates.supplier_notes !== undefined) payload.supplier_notes = updates.supplier_notes;
-        if (updates.receipt_mode !== undefined) payload.receipt_mode = updates.receipt_mode;
+            // ─── Purchase-specific fields ───
+            if (updates.supplier_invoice_number !== undefined) payload.supplier_invoice_number = updates.supplier_invoice_number;
+            if (updates.supplier_invoice_date !== undefined) payload.supplier_invoice_date = updates.supplier_invoice_date;
+            if (updates.payment_terms !== undefined) payload.payment_terms_days = updates.payment_terms;
+            if (updates.due_date !== undefined) payload.due_date = updates.due_date;
+            if (updates.supplier_notes !== undefined) payload.supplier_notes = updates.supplier_notes;
+            if (updates.receipt_mode !== undefined) payload.receipt_mode = updates.receipt_mode;
 
-        // ─── JSONB fields ───
-        if (updates.expenses !== undefined) {
-            payload.expenses = updates.expenses;
-            payload.expenses_total = Array.isArray(updates.expenses)
-                ? updates.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0)
-                : 0;
+            // ─── JSONB fields ───
+            if (updates.expenses !== undefined) {
+                payload.expenses = updates.expenses;
+                payload.expenses_total = Array.isArray(updates.expenses)
+                    ? updates.expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0)
+                    : 0;
+            }
+            if (updates.attachments !== undefined) payload.attachments = updates.attachments;
         }
-        if (updates.attachments !== undefined) payload.attachments = updates.attachments;
 
         // 1. Update Header
         const { error } = await supabase
@@ -531,27 +592,44 @@ export const TradeService = {
 
             if (deleteError) {
                 console.error('[TradeService] Failed to delete old items:', deleteError);
-                // Don't throw — continue to try inserting
             }
 
-            // Insert new items using shared helper
-            const itemsToInsert = updates.items.map((item: any, index: number) =>
-                buildItemRow(item, index, mapping.foreignKey, id)
-            );
-
-            const { error: itemsError } = await supabase
-                .from(mapping.itemsTable)
-                .insert(itemsToInsert);
-
-            if (itemsError && itemsError.message?.includes('material_id')) {
-                console.warn('[TradeService] material_id column not found on update, retrying without it...');
-                const fallbackItems = itemsToInsert.map(({ material_id, ...rest }: any) => rest);
-                const { error: retryError } = await supabase
+            if (isTransfer) {
+                // Transfer items have a different structure
+                const transferItems = updates.items.map((item: any) => ({
+                    transfer_id: id,
+                    material_id: item.material_id,
+                    roll_id: item.roll_id || null,
+                    quantity: Number(item.quantity) || 0,
+                    is_jit_roll: item.is_jit_roll || false,
+                    notes: item.notes || null,
+                }));
+                const { error: itemsError } = await supabase
                     .from(mapping.itemsTable)
-                    .insert(fallbackItems);
-                if (retryError) console.error('[TradeService] Items update retry failed:', retryError);
-            } else if (itemsError) {
-                console.error('[TradeService] Items update failed:', itemsError);
+                    .insert(transferItems);
+                if (itemsError) {
+                    console.error('[TradeService] Transfer items update failed:', itemsError);
+                }
+            } else {
+                // Insert new items using shared helper
+                const itemsToInsert = updates.items.map((item: any, index: number) =>
+                    buildItemRow(item, index, mapping.foreignKey, id)
+                );
+
+                const { error: itemsError } = await supabase
+                    .from(mapping.itemsTable)
+                    .insert(itemsToInsert);
+
+                if (itemsError && itemsError.message?.includes('material_id')) {
+                    console.warn('[TradeService] material_id column not found on update, retrying without it...');
+                    const fallbackItems = itemsToInsert.map(({ material_id, ...rest }: any) => rest);
+                    const { error: retryError } = await supabase
+                        .from(mapping.itemsTable)
+                        .insert(fallbackItems);
+                    if (retryError) console.error('[TradeService] Items update retry failed:', retryError);
+                } else if (itemsError) {
+                    console.error('[TradeService] Items update failed:', itemsError);
+                }
             }
         }
     },
@@ -623,6 +701,7 @@ export const TradeService = {
             purchase_return: 'PR',
             purchase_request: 'REQ',
             sales_return: 'SR',
+            stock_transfer: 'ST',
         };
 
         const prefix = prefixes[docType] || 'DOC';
@@ -705,33 +784,62 @@ export const TradeService = {
 
         if (headerError) throw headerError;
 
-        // Fetch items - try with line_number ordering first, fallback to created_at
+        // Fetch items — tables without line_number go straight to created_at ordering
+        const TABLES_WITHOUT_LINE_NUMBER = new Set([
+            'stock_transfer_items',
+            'purchase_receipt_items',
+        ]);
+        const orderField = TABLES_WITHOUT_LINE_NUMBER.has(mapping.itemsTable)
+            ? 'created_at'
+            : 'line_number';
+
         let items: any[] = [];
         const { data: itemsData, error: itemsError } = await supabase
             .from(mapping.itemsTable)
             .select('*')
             .eq(mapping.foreignKey, docId)
-            .order('line_number', { ascending: true });
+            .order(orderField, { ascending: true });
 
-        if (itemsError) {
-            // line_number column might not exist (e.g., purchase_receipt_items)
-            if (itemsError.message?.includes('line_number') || itemsError.code === '42703') {
-                const { data: fallbackData, error: fallbackError } = await supabase
-                    .from(mapping.itemsTable)
-                    .select('*')
-                    .eq(mapping.foreignKey, docId)
-                    .order('created_at', { ascending: true });
+        if (itemsError && orderField === 'line_number') {
+            // Fallback to created_at if line_number doesn't exist
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from(mapping.itemsTable)
+                .select('*')
+                .eq(mapping.foreignKey, docId)
+                .order('created_at', { ascending: true });
 
-                if (fallbackError) {
-                    console.warn(`[TradeService] Failed to fetch items from ${mapping.itemsTable}:`, fallbackError.message);
-                } else {
-                    items = fallbackData || [];
-                }
+            if (fallbackError) {
+                console.warn(`[TradeService] Failed to fetch items from ${mapping.itemsTable}:`, fallbackError.message);
             } else {
-                console.warn(`[TradeService] Failed to fetch items from ${mapping.itemsTable}:`, itemsError.message);
+                items = fallbackData || [];
             }
+        } else if (itemsError) {
+            console.warn(`[TradeService] Failed to fetch items from ${mapping.itemsTable}:`, itemsError.message);
         } else {
             items = itemsData || [];
+        }
+
+        // ── إثراء بنود المناقلة بأسماء المواد (stock_transfer_items لا يحتوي على اسم المادة) ──
+        if (docType === 'stock_transfer' && items.length > 0) {
+            const materialIds = [...new Set(items.map((i: any) => i.material_id).filter(Boolean))];
+            if (materialIds.length > 0) {
+                const { data: materials } = await supabase
+                    .from('fabric_materials')
+                    .select('id, name_ar, name_en, code')
+                    .in('id', materialIds);
+
+                const matMap = new Map((materials || []).map((m: any) => [m.id, m]));
+                items = items.map((item: any) => {
+                    const mat = matMap.get(item.material_id);
+                    return {
+                        ...item,
+                        material_name_ar: mat?.name_ar || '',
+                        material_name_en: mat?.name_en || '',
+                        item_code: mat?.code || '',
+                        description: mat?.name_ar || '',
+                    };
+                });
+            }
         }
 
         // ── إثراء البنود بالرولونات واسم المستودع (فواتير المبيعات المسلَّمة) ──

@@ -13,16 +13,28 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useAuth } from '@/hooks/useAuth';
+import { autoRollService } from '@/features/warehouse/services/autoRollService';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import {
     Package, ChevronDown, ChevronUp, CheckCircle2,
     ScanLine, Trash2, Loader2, AlertTriangle, Search,
-    PackageCheck, Cylinder, Info, Plus, Palette, Filter,
+    PackageCheck, Cylinder, Info, Plus, Palette, Filter, Ruler,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
@@ -293,6 +305,7 @@ interface FabricRoll {
 
 export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryItemsTabProps) {
     const { language, isRTL } = useLanguage();
+    const { companyId, tenantId } = useAuth();
     const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
 
     const isViewMode = !!(data?.view_mode);
@@ -306,6 +319,47 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const [scanLoading, setScanLoading] = useState(false);
     const [scanMessage, setScanMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
+    // ═══ Loose Stock Entry State ═══
+    const [looseMatId, setLooseMatId] = useState('');
+    const [looseColorName, setLooseColorName] = useState('');
+    const [looseColorId, setLooseColorId] = useState('');
+    const [looseLength, setLooseLength] = useState('');
+    const [looseCreating, setLooseCreating] = useState(false);
+    const looseLengthRef = useRef<HTMLInputElement>(null);
+    const [looseMaterials, setLooseMaterials] = useState<Array<{ id: string; name_ar: string; name_en: string; loose_stock: number; current_stock: number }>>([]);
+    const [loadingLooseMats, setLoadingLooseMats] = useState(false);
+
+    // Source document items (declared early — used by useEffects below)
+    const sourceItems: InvoiceItem[] = useMemo(() => {
+        return data?.source_items || data?.source_document?.items || [];
+    }, [data?.source_items, data?.source_document?.items]);
+
+    const warehouseId = data?.warehouse_id;
+
+    // ═══ Fetch materials with loose stock ═══
+    useEffect(() => {
+        if (!companyId || isViewMode) return;
+        setLoadingLooseMats(true);
+        autoRollService.getMaterialsWithLooseStock(companyId, warehouseId)
+            .then(mats => {
+                setLooseMaterials(mats);
+                console.log(`[LooseStock] 📦 Found ${mats.length} materials with loose stock`);
+            })
+            .finally(() => setLoadingLooseMats(false));
+    }, [companyId, warehouseId, isViewMode]);
+
+    // Refresh loose materials list after creating a roll
+    const refreshLooseMaterials = useCallback(() => {
+        if (!companyId) return;
+        autoRollService.getMaterialsWithLooseStock(companyId, warehouseId)
+            .then(mats => setLooseMaterials(mats));
+    }, [companyId, warehouseId]);
+
+    // Selected loose material info (for displaying available stock)
+    const selectedLooseMat = useMemo(() => {
+        return looseMaterials.find(m => m.id === looseMatId) || null;
+    }, [looseMaterials, looseMatId]);
+
     // ═══ Sync selectedRolls when parent restores draft OR delivered rolls ═══
     useEffect(() => {
         const parentRolls = data?.selected_rolls;
@@ -315,12 +369,112 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
         }
     }, [data?.selected_rolls]);
 
-    // Source document items
-    const sourceItems: InvoiceItem[] = useMemo(() => {
-        return data?.source_items || data?.source_document?.items || [];
-    }, [data?.source_items, data?.source_document?.items]);
+    // ═══ Color options for selected loose material (from source items) ═══
+    const looseColorOptions = useMemo(() => {
+        if (!looseMatId || sourceItems.length === 0) return [];
+        const matItems = sourceItems.filter(si => si.material_id === looseMatId && (si.color_name || si.color_id));
+        const seen = new Set<string>();
+        const opts: Array<{ id?: string; name: string }> = [];
+        for (const si of matItems) {
+            const key = si.color_name || si.color_id || '';
+            if (key && !seen.has(key)) {
+                seen.add(key);
+                opts.push({ id: si.color_id, name: si.color_name || si.color_id || '' });
+            }
+        }
+        return opts;
+    }, [looseMatId, sourceItems]);
 
-    const warehouseId = data?.warehouse_id;
+    // Auto-select single color
+    useEffect(() => {
+        if (looseColorOptions.length === 1) {
+            setLooseColorName(looseColorOptions[0].name);
+            setLooseColorId(looseColorOptions[0].id || '');
+        } else if (looseColorOptions.length === 0) {
+            setLooseColorName('');
+            setLooseColorId('');
+        } else {
+            setLooseColorName('');
+            setLooseColorId('');
+        }
+    }, [looseMatId]);
+
+    // ═══ Create roll from loose stock (with validation) ═══
+    const handleCreateLooseRoll = useCallback(async () => {
+        if (!looseMatId || !looseLength || Number(looseLength) <= 0) return;
+        if (!tenantId || !companyId || !warehouseId) return;
+
+        setLooseCreating(true);
+        try {
+            const { roll, error, remainingLooseStock } = await autoRollService.createRollFromLooseStock({
+                tenantId,
+                companyId,
+                warehouseId,
+                materialId: looseMatId,
+                colorId: looseColorId || undefined,
+                colorName: looseColorName || undefined,
+                rollLength: Number(looseLength),
+                purpose: 'sales_delivery',
+                referenceNumber: data?.invoice_no || data?.draft_no || '',
+            });
+
+            if (error) {
+                // Handle specific errors
+                if (error === 'no_loose_stock') {
+                    toast.error(tl(
+                        '❌ هذه المادة ليس لها مخزون سائب — لا يمكن إنشاء رولون',
+                        '❌ This material has no loose stock — cannot create roll'
+                    ));
+                } else if (error === 'insufficient_loose_stock') {
+                    toast.error(tl(
+                        `❌ الكمية السائبة غير كافية — المتاح: ${remainingLooseStock?.toFixed(1)} م`,
+                        `❌ Insufficient loose stock — available: ${remainingLooseStock?.toFixed(1)}m`
+                    ));
+                } else if (error === 'material_not_found') {
+                    toast.error(tl('❌ المادة غير موجودة', '❌ Material not found'));
+                } else {
+                    toast.error(tl('❌ فشل إنشاء الرولون', '❌ Failed to create roll'));
+                }
+                return;
+            }
+
+            if (roll) {
+                const newRoll: FabricRoll = {
+                    id: roll.id,
+                    roll_number: roll.roll_number,
+                    material_id: roll.material_id,
+                    color_id: roll.color_id,
+                    color_name: roll.color_name,
+                    current_length: roll.current_length,
+                    available_length: roll.current_length,
+                    initial_length: roll.current_length,
+                    net_length: roll.net_length,
+                    status: roll.status,
+                    warehouse_id: roll.warehouse_id,
+                };
+                const updated = [...selectedRolls, newRoll];
+                setSelectedRolls(updated);
+                notifyParent(updated);
+
+                const mat = looseMaterials.find(m => m.id === looseMatId);
+                const matName = mat ? (language === 'ar' ? (mat.name_ar || mat.name_en) : (mat.name_en || mat.name_ar)) : '';
+                toast.success(tl(
+                    `✅ تم إنشاء رولون ${roll.roll_number} (${Number(looseLength).toFixed(1)} م) — ${matName} | المتبقي السائب: ${remainingLooseStock?.toFixed(1) || '?'} م`,
+                    `✅ Created ${roll.roll_number} (${Number(looseLength).toFixed(1)}m) — ${matName} | Remaining loose: ${remainingLooseStock?.toFixed(1) || '?'}m`
+                ));
+
+                setLooseLength('');
+                // Refresh loose materials list (loose_stock changed)
+                refreshLooseMaterials();
+                setTimeout(() => looseLengthRef.current?.focus(), 150);
+            }
+        } catch (err) {
+            console.error('[LooseStock] Error:', err);
+            toast.error(tl('❌ خطأ في إنشاء الرولون', '❌ Error creating roll'));
+        } finally {
+            setLooseCreating(false);
+        }
+    }, [looseMatId, looseColorId, looseColorName, looseLength, tenantId, companyId, warehouseId, selectedRolls, looseMaterials, language, data, tl, refreshLooseMaterials]);
 
     // ═══ Fetch available rolls for a material (only in edit mode) ═══
     const fetchRollsForMaterial = useCallback(async (materialId: string) => {
@@ -375,15 +529,33 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
         notifyParent(updated);
     }, [selectedRolls]);
 
-    // ═══ Remove roll from selection ═══
-    const removeRoll = useCallback((rollId: string) => {
+    // ═══ Remove roll from selection (with JIT DB cleanup) ═══
+    const removeRoll = useCallback(async (rollId: string) => {
+        const rollToRemove = selectedRolls.find(r => r.id === rollId);
         const updated = selectedRolls.filter(r => r.id !== rollId);
         setSelectedRolls(updated);
         notifyParent(updated);
-    }, [selectedRolls]);
+
+        // If it's a JIT roll, also delete from DB
+        if (rollToRemove?.roll_number?.startsWith('JIT-')) {
+            const deleted = await autoRollService.deleteJITRoll(rollId);
+            if (deleted) {
+                toast.success(tl(
+                    `🗑️ تم حذف الرولون ${rollToRemove.roll_number} وإرجاع الكمية للمخزون السائب`,
+                    `🗑️ Deleted ${rollToRemove.roll_number} — returned to loose stock`
+                ));
+                // Refresh loose materials since stock changed
+                refreshLooseMaterials();
+            }
+        }
+    }, [selectedRolls, refreshLooseMaterials, tl]);
 
     // ═══ Notify parent + save directly to Supabase ═══
     const prevRollCountRef = React.useRef(selectedRolls.length);
+
+    // Determine target table: stock_transfers (for transfer delivery) or sales_transactions (default)
+    const saveTarget = data?._saveTarget || 'sales_transactions';
+    const isTransferMode = saveTarget === 'stock_transfers';
 
     const notifyParent = useCallback((rolls: FabricRoll[]) => {
         const update = {
@@ -392,6 +564,9 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             total_length: rolls.reduce((s, r) => s + (r.net_length || r.current_length || 0), 0),
         };
         onChange(update);
+
+        // Skip DB writes in view mode (e.g. shipped transfers)
+        if (data?.view_mode) return;
 
         const invoiceId = data?.id || data?.source_id || data?.transaction_id;
         if (!invoiceId) return;
@@ -414,8 +589,9 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             saved_at: new Date().toISOString(),
         };
 
+        const draftKeyPrefix = isTransferMode ? 'transfer_delivery_draft_' : 'delivery_draft_';
         try {
-            localStorage.setItem(`delivery_draft_${invoiceId}`, JSON.stringify(draft));
+            localStorage.setItem(`${draftKeyPrefix}${invoiceId}`, JSON.stringify(draft));
         } catch { /* ignore */ }
 
         const updates: any = {
@@ -423,24 +599,29 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             updated_at: new Date().toISOString(),
         };
 
+        // Stage/Status field depends on target table
+        const statusField = isTransferMode ? 'status' : 'stage';
+        const loadingStatus = isTransferMode ? 'loading' : 'in_delivery';
+        const confirmedStatus = 'confirmed';
+
         if (rolls.length > 0 && prevRollCountRef.current === 0) {
-            updates.stage = 'in_delivery';
+            updates[statusField] = loadingStatus;
         }
         if (rolls.length === 0 && prevRollCountRef.current > 0) {
-            updates.stage = 'confirmed';
+            updates[statusField] = confirmedStatus;
             updates.delivery_draft = null;
         }
 
         prevRollCountRef.current = rolls.length;
 
         supabase
-            .from('sales_transactions')
+            .from(saveTarget)
             .update(updates)
             .eq('id', invoiceId)
             .then(({ error }) => {
-                if (error) console.warn('[DirectSave] Error:', error.message);
+                if (error) console.warn(`[DirectSave → ${saveTarget}] Error:`, error.message);
             });
-    }, [onChange, data?.id, warehouseId]);
+    }, [onChange, data?.id, warehouseId, saveTarget, isTransferMode]);
 
     // ═══ Scan QR/RFID/Roll Number ═══
     const handleScan = useCallback(async () => {
@@ -565,6 +746,115 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                             }`}>
                             {scanMessage.text}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ═══ Loose Stock Entry Row — إنشاء رولون من المخزون السائب ═══ */}
+            {!isViewMode && (
+                <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 border-b border-amber-200/50">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Ruler className="w-4 h-4 text-amber-600" />
+                        <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                            {tl('إنشاء رولون من المخزون السائب', 'Create roll from loose stock')}
+                        </span>
+                        <Badge variant="outline" className="text-[9px] h-4 bg-amber-100/50 text-amber-600 border-amber-200">
+                            JIT
+                        </Badge>
+                        {loadingLooseMats && <Loader2 className="w-3 h-3 animate-spin text-amber-500" />}
+                        {!loadingLooseMats && looseMaterials.length === 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                                {tl('لا توجد مواد بمخزون سائب', 'No materials with loose stock')}
+                            </span>
+                        )}
+                        {selectedLooseMat && (
+                            <Badge variant="secondary" className="text-[9px] h-4 bg-amber-200/50 text-amber-700">
+                                {tl(`المتاح: ${selectedLooseMat.loose_stock.toFixed(1)} م`, `Available: ${selectedLooseMat.loose_stock.toFixed(1)}m`)}
+                            </Badge>
+                        )}
+                    </div>
+                    {looseMaterials.length > 0 && (
+                        <div className="flex items-end gap-2 flex-wrap">
+                            {/* Material */}
+                            <div className="flex-1 min-w-[140px] space-y-1">
+                                <Label className="text-[10px] text-amber-600">{tl('المادة', 'Material')}</Label>
+                                <Select value={looseMatId} onValueChange={(v) => { setLooseMatId(v); setLooseColorName(''); setLooseColorId(''); }}>
+                                    <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800">
+                                        <SelectValue placeholder={tl('اختر المادة...', 'Select material...')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {looseMaterials.map(m => (
+                                            <SelectItem key={m.id} value={m.id} className="text-xs">
+                                                <div className="flex items-center justify-between w-full gap-2">
+                                                    <span>{language === 'ar' ? (m.name_ar || m.name_en) : (m.name_en || m.name_ar)}</span>
+                                                    <span className="text-[10px] text-amber-600 font-mono">
+                                                        ({m.loose_stock.toFixed(1)} {tl('م', 'm')})
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {/* Color */}
+                            {looseColorOptions.length > 0 ? (
+                                <div className="min-w-[120px] space-y-1">
+                                    <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
+                                    <Select value={looseColorName} onValueChange={(v) => {
+                                        setLooseColorName(v);
+                                        const opt = looseColorOptions.find(o => o.name === v);
+                                        setLooseColorId(opt?.id || '');
+                                    }}>
+                                        <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800">
+                                            <SelectValue placeholder={tl('اللون...', 'Color...')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {looseColorOptions.map(c => (
+                                                <SelectItem key={c.name} value={c.name} className="text-xs">
+                                                    {c.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            ) : looseMatId ? (
+                                <div className="min-w-[120px] space-y-1">
+                                    <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
+                                    <Input
+                                        value={looseColorName}
+                                        onChange={(e) => setLooseColorName(e.target.value)}
+                                        placeholder={tl('اسم اللون...', 'Color name...')}
+                                        className="h-9 text-xs bg-white dark:bg-slate-800"
+                                    />
+                                </div>
+                            ) : null}
+                            {/* Length */}
+                            <div className="w-[100px] space-y-1">
+                                <Label className="text-[10px] text-amber-600">{tl('الطول (م)', 'Length (m)')}</Label>
+                                <Input
+                                    ref={looseLengthRef}
+                                    type="number"
+                                    step="0.1"
+                                    min="0.1"
+                                    max={selectedLooseMat?.loose_stock}
+                                    value={looseLength}
+                                    onChange={(e) => setLooseLength(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateLooseRoll(); } }}
+                                    placeholder="0.0"
+                                    className="h-9 text-xs font-mono bg-white dark:bg-slate-800"
+                                />
+                            </div>
+                            {/* Create Button */}
+                            <Button
+                                size="sm"
+                                disabled={!looseMatId || !looseLength || Number(looseLength) <= 0 || looseCreating}
+                                onClick={handleCreateLooseRoll}
+                                className="h-9 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs"
+                            >
+                                {looseCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                {tl('إنشاء وتسليم', 'Create & Deliver')}
+                            </Button>
                         </div>
                     )}
                 </div>

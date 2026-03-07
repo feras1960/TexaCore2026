@@ -38,7 +38,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
     StickyNote, AlertTriangle, CreditCard, Percent,
     CalendarClock, Tag, Loader2, ShieldAlert, CheckCircle2,
-    ChevronDown, Building2, Calendar, DollarSign, Warehouse, Truck
+    ChevronDown, Building2, Calendar, DollarSign, Warehouse, Truck,
+    Lock, ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -46,7 +47,7 @@ interface TradeMainTabProps {
     data: any;
     mode: 'view' | 'edit' | 'create';
     onChange: (updates: any) => void;
-    tradeMode?: 'sales' | 'purchase';
+    tradeMode?: 'sales' | 'purchase' | 'transfer';
 }
 
 export const TradeMainTab: React.FC<TradeMainTabProps> = ({
@@ -68,6 +69,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
 
     // Determine specific trade mode — prop takes priority, then fallback
     const tradeMode = tradeModeFromProp || (data.type?.includes('purchase') ? 'purchase' : 'sales');
+    const isTransfer = tradeMode === 'transfer';
 
     // ─── Load Trade Defaults on Create ───
     const tradeDefaultsAppliedRef = useRef(false);
@@ -99,6 +101,13 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                     updates.stock_warehouse_id = defaults.stock_warehouse_id;
                 }
 
+                // ═══ Transfer: auto-fill from_warehouse from user defaults ═══
+                if (tradeMode === 'transfer' && defaults.from_warehouse_id && !data.from_warehouse_id && !data.warehouse_id) {
+                    updates.warehouse_id = defaults.from_warehouse_id;
+                    updates.from_warehouse_id = defaults.from_warehouse_id;
+                    console.log(`[TradeMainTab] 🏭 Applied default from_warehouse:`, defaults.from_warehouse_id);
+                }
+
                 if (Object.keys(updates).length > 0) {
                     console.log(`[TradeMainTab] 📋 Applied trade defaults:`, updates);
                     onChange(updates);
@@ -119,15 +128,25 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
             return;
         }
         // Save preferences when auto_update_stock or related fields change
+        const prefsPayload: Record<string, any> = {
+            auto_update_stock: data.auto_update_stock || false,
+            stock_warehouse_id: data.warehouse_id || '',
+            receipt_mode: data.receipt_mode || 'direct',
+        };
+        // ═══ Transfer: persist from_warehouse choice as default ═══
+        if (isTransfer && (data.warehouse_id || data.from_warehouse_id)) {
+            prefsPayload.from_warehouse_id = data.from_warehouse_id || data.warehouse_id || '';
+        }
         debouncedSavePreferences(`trade_defaults_${tradeMode}`, {
-            columnVisibility: {
-                auto_update_stock: data.auto_update_stock || false,
-                stock_warehouse_id: data.warehouse_id || '',
-                receipt_mode: data.receipt_mode || 'direct',
-            },
+            columnVisibility: prefsPayload,
         } as any, 2000);
         prevAutoStockRef.current = data.auto_update_stock;
-    }, [data.auto_update_stock, data.warehouse_id, data.receipt_mode, tradeMode, mode]);
+    }, [data.auto_update_stock, data.warehouse_id, data.from_warehouse_id, data.receipt_mode, tradeMode, mode, isTransfer]);
+
+    // ═══ Transfer Gate: both warehouses must be selected before items ═══
+    const transferWarehousesReady = !isTransfer || (
+        !!(data.warehouse_id || data.from_warehouse_id) && !!data.to_warehouse_id
+    );
 
     // ─── Smart pricing hook ───
     const currentPartyId = data.party_id || data.customer_id || '';
@@ -444,7 +463,15 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
 
     // ─── Collapsible header state ───
     // Auto-open in create mode, collapsed in view/edit mode
+    // For transfers: keep open until both warehouses are selected
     const [headerOpen, setHeaderOpen] = useState(mode === 'create');
+
+    // Force header open when transfer warehouses not yet selected
+    useEffect(() => {
+        if (isTransfer && !transferWarehousesReady && !headerOpen) {
+            setHeaderOpen(true);
+        }
+    }, [isTransfer, transferWarehousesReady, headerOpen]);
 
     // Summary values for collapsed state
     const partyName = data.party_name || data.supplier_name || data.customer_name || '';
@@ -540,7 +567,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                             />
 
                             {/* 1.5 Customer Pricing Info Bar — only for Sales with selected customer */}
-                            {tradeMode === 'sales' && currentPartyId && (
+                            {tradeMode === 'sales' && !isTransfer && currentPartyId && (
                                 <div className={cn(
                                     "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs flex-wrap",
                                     customerPricing.isCreditExceeded
@@ -681,7 +708,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
             )}
 
             {/* ═══ STATUS BAR — حالات الفاتورة ═══ */}
-            {mode === 'view' && data.stage && data.stage !== 'draft' && (() => {
+            {mode === 'view' && !isTransfer && data.stage && data.stage !== 'draft' && (() => {
                 const totalAmt = Number(data.total_amount || data.grand_total || 0);
                 const paidAmt = Number(data.paid_amount || 0);
                 const payStatus: 'paid' | 'partial' | 'unpaid' =
@@ -852,8 +879,9 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                         readOnly={mode === 'view'}
                                         currency={data.currency || companyCurrency || 'SAR'}
                                         companyCurrency={companyCurrency || 'SAR'}
-                                        showDiscount={true}
-                                        showTax={true}
+                                        showDiscount={!isTransfer}
+                                        showTax={!isTransfer}
+                                        hideFinancials={isTransfer}
                                         customerId={currentPartyId || undefined}
                                         isInternational={tradeMode === 'purchase' && data.receipt_mode === 'international'}
                                         priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
@@ -867,8 +895,9 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                 readOnly={mode === 'view'}
                                 currency={data.currency || companyCurrency || 'SAR'}
                                 companyCurrency={companyCurrency || 'SAR'}
-                                showDiscount={true}
-                                showTax={true}
+                                showDiscount={!isTransfer}
+                                showTax={!isTransfer}
+                                hideFinancials={isTransfer}
                                 customerId={currentPartyId || undefined}
                                 isInternational={tradeMode === 'purchase' && data.receipt_mode === 'international'}
                                 priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}

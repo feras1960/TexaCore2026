@@ -164,7 +164,7 @@ export function UnifiedAccountingSheet({
 
     // Is this a trade document type?
     const isTradeDocType = useMemo(() =>
-        ['trade_order', 'trade_invoice', 'trade_quotation', 'trade_reservation', 'trade_delivery', 'trade_request', 'trade_return', 'trade_receipt', 'trade_container'].includes(docType),
+        ['trade_order', 'trade_invoice', 'trade_quotation', 'trade_reservation', 'trade_delivery', 'trade_request', 'trade_return', 'trade_receipt', 'trade_container', 'sales_delivery'].includes(docType),
         [docType]
     );
 
@@ -477,6 +477,9 @@ export function UnifiedAccountingSheet({
                         trade_receipt: 'purchase_receipt',
                         trade_return: 'purchase_return',
                     },
+                    transfer: {
+                        trade_invoice: 'stock_transfer',
+                    },
                 };
                 const modeKey = tradeMode || 'sales';
                 const serviceDocType = tradeTypeMap[modeKey]?.[docType] || 'invoice';
@@ -575,9 +578,13 @@ export function UnifiedAccountingSheet({
         // Enable save button when entering edit mode
         if (newMode === 'edit') {
             setHasChanges(true);
+            // ═══ Reset to appropriate tab when entering edit mode ═══
+            // For materials, edit mode uses 'basicInfo' as the first tab
+            const editDefaultTab = config.tabs.find(t => t.showInModes?.includes('edit'))?.id || defaultTab || config.defaultTab;
+            setActiveTab(editDefaultTab);
         }
         onModeChange?.(newMode);
-    }, [onModeChange]);
+    }, [onModeChange, defaultTab, config.defaultTab, config.tabs]);
 
     // ═══ Document Type Flags ═══
     const isAccountingDocType = useMemo(() => ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType), [docType]);
@@ -641,9 +648,15 @@ export function UnifiedAccountingSheet({
         }
     }, [data?.activity_count]);
 
-    // Filter tabs based on props and current stage
+    // Filter tabs based on props, mode, and current stage
     const visibleTabs = useMemo(() => {
         let tabs = [...effectiveConfig.tabs];
+
+        // ═══ Filter by current mode (view/edit/create) ═══
+        tabs = tabs.filter(tab => {
+            if (!tab.showInModes) return true; // No restriction → always show
+            return tab.showInModes.includes(mode);
+        });
 
         // ═══ Auto-inject activity tab if not present ═══
         if (!tabs.some(t => t.id === 'activity')) {
@@ -690,7 +703,7 @@ export function UnifiedAccountingSheet({
         });
 
         return tabs;
-    }, [effectiveConfig.tabs, allowedTabs, hiddenTabs, currentStage, attachmentCount, activityCount, data?.variance_status]);
+    }, [effectiveConfig.tabs, allowedTabs, hiddenTabs, currentStage, attachmentCount, activityCount, data?.variance_status, mode]);
 
     // Is the current stage editable? (NEW)
     const isStageEditable = useMemo(() => {
@@ -740,6 +753,13 @@ export function UnifiedAccountingSheet({
 
     // ═══ Close with Unsaved Changes Guard ═══
     const handleCloseAttempt = useCallback(() => {
+        // Auto-saved trade documents: skip dialog — changes are already persisted
+        // Even on first create before auto-save runs, nothing critical is lost
+        if (isTradeDocType) {
+            setHasChanges(false);
+            onClose();
+            return;
+        }
         // Only guard if there are unsaved changes and we're in edit/create mode
         const isEditing = mode === 'edit' || mode === 'create';
         if (isEditing && hasChanges) {
@@ -747,7 +767,7 @@ export function UnifiedAccountingSheet({
             return;
         }
         onClose();
-    }, [mode, hasChanges, onClose]);
+    }, [mode, hasChanges, onClose, isTradeDocType]);
 
     const handleDiscardAndClose = useCallback(() => {
         setShowUnsavedGuard(false);
@@ -832,10 +852,20 @@ export function UnifiedAccountingSheet({
                                                             }
                                                             const stage = data?.stage || data?.document_stage || data?.status;
                                                             const isSales = tradeMode === 'sales';
+                                                            const isTransfer = tradeMode === 'transfer';
                                                             const stageTitle: Record<string, { ar: string; en: string }> = {
-                                                                draft: { ar: isSales ? 'مسودة مبيعات' : 'مسودة مشتريات', en: isSales ? 'Sales Draft' : 'Purchase Draft' },
-                                                                confirmed: { ar: isSales ? 'فاتورة مبيعات مؤكدة' : 'فاتورة مشتريات مؤكدة', en: isSales ? 'Confirmed Sales Invoice' : 'Confirmed Purchase Invoice' },
-                                                                posted: { ar: isSales ? 'فاتورة مبيعات مرحّلة' : 'فاتورة مشتريات مرحّلة', en: isSales ? 'Posted Sales Invoice' : 'Posted Purchase Invoice' },
+                                                                draft: {
+                                                                    ar: isTransfer ? 'مسودة مناقلة' : isSales ? 'مسودة مبيعات' : 'مسودة مشتريات',
+                                                                    en: isTransfer ? 'Transfer Draft' : isSales ? 'Sales Draft' : 'Purchase Draft'
+                                                                },
+                                                                confirmed: {
+                                                                    ar: isTransfer ? 'مناقلة مؤكدة' : isSales ? 'فاتورة مبيعات مؤكدة' : 'فاتورة مشتريات مؤكدة',
+                                                                    en: isTransfer ? 'Confirmed Transfer' : isSales ? 'Confirmed Sales Invoice' : 'Confirmed Purchase Invoice'
+                                                                },
+                                                                posted: {
+                                                                    ar: isTransfer ? 'مناقلة مرحّلة' : isSales ? 'فاتورة مبيعات مرحّلة' : 'فاتورة مشتريات مرحّلة',
+                                                                    en: isTransfer ? 'Posted Transfer' : isSales ? 'Posted Sales Invoice' : 'Posted Purchase Invoice'
+                                                                },
                                                                 in_delivery: { ar: 'فاتورة مبيعات — قيد التسليم', en: 'Sales Invoice — In Delivery' },
                                                                 sent_to_branch: { ar: 'فاتورة مبيعات — أُرسلت للفرع', en: 'Sales Invoice — Sent to Branch' },
                                                                 delivered: { ar: 'فاتورة مبيعات — تم التسليم', en: 'Sales Invoice — Delivered' },
@@ -843,7 +873,10 @@ export function UnifiedAccountingSheet({
                                                                 partially_received: { ar: 'فاتورة مشتريات — مستلم جزئياً', en: 'Purchase Invoice — Partially Received' },
                                                                 received: { ar: isSales ? 'تم التسليم' : 'تم الاستلام', en: isSales ? 'Delivered' : 'Received' },
                                                                 fully_received: { ar: 'تم الاستلام بالكامل', en: 'Fully Received' },
-                                                                completed: { ar: isSales ? 'فاتورة مكتملة' : 'فاتورة مكتملة', en: 'Completed Invoice' },
+                                                                completed: {
+                                                                    ar: isTransfer ? 'مناقلة مكتملة' : 'فاتورة مكتملة',
+                                                                    en: isTransfer ? 'Completed Transfer' : 'Completed Invoice'
+                                                                },
                                                                 requested: { ar: isSales ? 'طلب بيع' : 'طلب شراء', en: isSales ? 'Sales Request' : 'Purchase Request' },
                                                                 quoted: { ar: isSales ? 'عرض سعر مبيعات' : 'عرض سعر شراء', en: isSales ? 'Sales Quotation' : 'Purchase Quotation' },
                                                                 ordered: { ar: isSales ? 'أمر بيع' : 'أمر شراء', en: isSales ? 'Sales Order' : 'Purchase Order' },
@@ -936,9 +969,9 @@ export function UnifiedAccountingSheet({
                                             {/* Code / Document Number in compact second line */}
                                             <div className="flex items-center gap-2">
                                                 {/* Show invoice/order number prominently for trade docs */}
-                                                {(data?.invoice_no || data?.invoice_number || data?.order_number) ? (
+                                                {(data?.invoice_no || data?.invoice_number || data?.order_number || data?.transfer_number) ? (
                                                     <span className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                                                        {data.invoice_no || data.invoice_number || data.order_number}
+                                                        {data.invoice_no || data.invoice_number || data.order_number || data.transfer_number}
                                                     </span>
                                                 ) : (data?.code || data?.entry_number) ? (
                                                     <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
@@ -987,7 +1020,7 @@ export function UnifiedAccountingSheet({
                                             docType={docType}
                                             docNumber={data?.id || documentId || ''}
                                             docId={data?.id || documentId || ''}
-                                            displayNumber={data?.invoice_no || data?.invoice_number || data?.order_number || data?.quotation_number || data?.receipt_number || data?.code || data?.entry_number || (isTradeDocType ? (language === 'ar' ? 'مسودة' : 'Draft') : '')}
+                                            displayNumber={data?.invoice_no || data?.invoice_number || data?.order_number || data?.quotation_number || data?.receipt_number || data?.transfer_number || data?.code || data?.entry_number || (isTradeDocType ? (language === 'ar' ? 'مسودة' : 'Draft') : '')}
                                             amount={isTradeDocType
                                                 ? Number(data?.grand_total || data?.total_amount || 0)
                                                 : (data?.grand_total ?? data?.total_amount ?? data?.current_balance ?? data?.balance ?? data?.total)

@@ -34,10 +34,16 @@ export interface MaterialSearchResult {
     default_width: number;
     min_stock: number;
     status: string;
-    /** Total available from all rolls */
+    /** Total available stock (current_stock = loose + rolled) */
     stock_qty: number;
     /** Number of available rolls */
     roll_count: number;
+    /** Total length in tracked rolls */
+    rolls_total_length: number;
+    /** Loose stock (unrolled/unassigned meters = current_stock - rolls_total_length) */
+    loose_stock: number;
+    /** Raw current_stock from fabric_materials */
+    current_stock: number;
     /** Thumbnail image */
     swatch_url: string | null;
     images: any[];
@@ -86,6 +92,8 @@ export interface MaterialWarehouseStock {
     total_length: number;
     available_length: number;
     reserved_length: number;
+    /** Loose stock (unrolled meters) in this warehouse */
+    loose_stock?: number;
     last_updated: string | null;
 }
 
@@ -135,7 +143,8 @@ export interface MaterialSearchFilters {
 // ─── Hook ──────────────────────────────────────────────────────────
 
 export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
-    const { companyId } = useCompany();
+    const { companyId, company } = useCompany();
+    const companyCurrency = company?.default_currency || 'USD';
     const [debouncedSearch, setDebouncedSearch] = useState(filters.search || '');
     const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -222,6 +231,7 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
             if (!companyId || !filters.warehouseId || filters.warehouseId === 'all' || materialIds.length === 0) return null;
             const result: Record<string, boolean> = {};
             try {
+                // 1. Check fabric_rolls for materials in this warehouse
                 const { data: rolls } = await supabase
                     .from('fabric_rolls')
                     .select('material_id')
@@ -231,6 +241,16 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                     .in('status', ['available', 'reserved', 'partial']);
                 if (rolls) {
                     for (const r of rolls) result[r.material_id] = true;
+                }
+
+                // 2. Also include materials with loose stock in this warehouse
+                //    (default_warehouse_id = selected warehouse AND current_stock > 0)
+                if (rawMaterials) {
+                    for (const m of rawMaterials as any[]) {
+                        if (m.default_warehouse_id === filters.warehouseId && Number(m.current_stock) > 0) {
+                            result[m.id] = true;
+                        }
+                    }
                 }
             } catch { /* ignore */ }
             return result;
@@ -288,12 +308,35 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                 return true;
             })
             .map((m: any) => {
-                // Use real stock from fabric_rolls
+                // ─── Dual Stock Model ───
+                // current_stock = total (loose + rolled) from fabric_materials
+                // rolls data from stockMap (fabric_rolls aggregation)
+                // loose_stock = current_stock - rolls_total_length
                 const stock = stockMap?.[m.id];
                 const isParent = !!m.is_variant_parent || !!m.has_variants;
 
                 // للمواد الأم: استخدم مجموع أرصدة المتغيرات الفرعية
                 const parentStock = isParent ? parentStockMap[m.id] : null;
+
+                // Raw values from warehouseService.getMaterials()
+                const rawCurrentStock = Number(m.current_stock || 0);
+                const rawRollsCount = Number(m.rolls_count || 0);
+                const rawRollsTotalLength = Number(m.rolls_total_length || 0);
+                const rawLooseStock = Number(m.loose_stock || 0);
+
+                // For rolls, prefer our fresh stockMap query (more up-to-date)
+                const rollsQty = stock?.stock_qty ?? rawRollsTotalLength;
+                const rollsCount = stock?.roll_count ?? rawRollsCount;
+
+                // Total = max(current_stock, rolls_qty) to handle both data sources
+                // current_stock includes everything (loose + rolled)
+                // If current_stock is 0 but rolls have data, use rolls
+                const totalStockQty = rawCurrentStock > 0
+                    ? Math.max(rawCurrentStock, rollsQty)
+                    : rollsQty;
+
+                // Loose stock = total - rolled portion
+                const looseStock = Math.max(0, totalStockQty - rollsQty);
 
                 return {
                     id: m.id,
@@ -307,16 +350,19 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                     unit: m.unit || 'meter',
                     purchase_price: Number(m.purchase_price || 0),
                     selling_price: Number(m.selling_price || 0),
-                    currency: m.currency || 'USD',
+                    currency: m.currency || companyCurrency,
                     default_width: Number(m.default_width || 150),
                     min_stock: Number(m.min_stock || 0),
                     status: m.status || 'active',
                     stock_qty: isParent
-                        ? (parentStock?.stock_qty ?? 0) + (stock?.stock_qty ?? 0)
-                        : (stock?.stock_qty ?? 0),
+                        ? (parentStock?.stock_qty ?? 0) + totalStockQty
+                        : totalStockQty,
                     roll_count: isParent
-                        ? (parentStock?.roll_count ?? 0) + (stock?.roll_count ?? 0)
-                        : (stock?.roll_count ?? 0),
+                        ? (parentStock?.roll_count ?? 0) + rollsCount
+                        : rollsCount,
+                    rolls_total_length: rollsQty,
+                    loose_stock: isParent ? rawLooseStock : looseStock,
+                    current_stock: rawCurrentStock,
                     swatch_url: m.swatch_url || null,
                     images: m.images || [],
                     default_supplier_id: m.default_supplier_id || null,
@@ -442,12 +488,15 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                     unit: m.unit || 'meter',
                     purchase_price: Number(m.purchase_price || 0),
                     selling_price: Number(m.selling_price || 0),
-                    currency: m.currency || 'USD',
+                    currency: m.currency || companyCurrency,
                     default_width: Number(m.default_width || 150),
                     min_stock: Number(m.min_stock || 0),
                     status: m.status || 'active',
-                    stock_qty: stock?.stock_qty ?? 0,
+                    stock_qty: Number(m.current_stock || 0) || (stock?.stock_qty ?? 0),
                     roll_count: stock?.roll_count ?? 0,
+                    rolls_total_length: stock?.stock_qty ?? 0,
+                    loose_stock: Math.max(0, Number(m.current_stock || 0) - (stock?.stock_qty ?? 0)),
+                    current_stock: Number(m.current_stock || 0),
                     swatch_url: m.swatch_url || null,
                     images: m.images || [],
                     default_supplier_id: m.default_supplier_id || null,

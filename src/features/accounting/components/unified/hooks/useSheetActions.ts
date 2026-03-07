@@ -5,7 +5,7 @@
  * Contains: handleAccountingSave, handleTradeSave, handleAction, autoSave
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { toast } from 'sonner';
@@ -66,6 +66,9 @@ const TRADE_TYPE_MAP: Record<string, Record<string, string>> = {
         trade_receipt: 'purchase_receipt',
         trade_return: 'purchase_return',
     },
+    transfer: {
+        trade_invoice: 'stock_transfer',
+    },
 };
 
 const TRADE_TABLE_MAP: Record<string, Record<string, string>> = {
@@ -84,6 +87,9 @@ const TRADE_TABLE_MAP: Record<string, Record<string, string>> = {
         trade_request: 'purchase_requests',
         trade_receipt: 'purchase_receipts',
         trade_return: 'purchase_returns',
+    },
+    transfer: {
+        trade_invoice: 'stock_transfers',
     },
 };
 
@@ -344,9 +350,10 @@ export function useTradeSave(
         // Build document payload
         const items = saveData.items || [];
 
-        // Validate: party_id is required for invoices/orders
+        // Validate: party_id is required for invoices/orders (but NOT for transfers)
         const partyId = saveData.party_id || saveData.customer_id || saveData.supplier_id;
-        if ((docType === 'trade_invoice' || docType === 'trade_order') && !partyId) {
+        const isTransferMode = tradeMode === 'transfer';
+        if ((docType === 'trade_invoice' || docType === 'trade_order') && !partyId && !isTransferMode) {
             const errorMsg = language === 'ar' ? 'عذراً، يجب تحديد المورد/العميل قبل الحفظ' : 'Supplier/Customer is required';
             toast.error(errorMsg);
             throw new Error(errorMsg);
@@ -384,6 +391,13 @@ export function useTradeSave(
         }
         if (saveData.attachments) {
             docPayload.attachments = saveData.attachments;
+        }
+
+        // Transfer-specific fields
+        if (isTransferMode) {
+            docPayload.from_warehouse_id = saveData.from_warehouse_id || saveData.warehouse_id || null;
+            docPayload.to_warehouse_id = saveData.to_warehouse_id || null;
+            // Note: warehouses are optional for drafts, validated on confirmation
         }
 
         // Create or Update
@@ -461,7 +475,13 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
         initialData, hasChanges,
     } = params;
 
+    // ═══ Ref to always hold latest data — avoids stale closures in useCallback ═══
+    const dataRef = useRef(data);
+    dataRef.current = data;
+
     return useCallback(async (actionId: string) => {
+        // Always read the freshest data from ref (closure may be stale)
+        const data = dataRef.current;
         try {
             switch (actionId) {
                 case 'edit':
@@ -849,6 +869,19 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         break;
                     }
 
+                    // TRANSFER: block if already confirmed/shipped/received/completed
+                    const transferStatus = data?.status || data?.stage || '';
+                    const BLOCKED_TRANSFER_STATUSES = ['confirmed', 'loading', 'shipped', 'received', 'completed'];
+                    if (tradeMode === 'transfer' && BLOCKED_TRANSFER_STATUSES.includes(transferStatus)) {
+                        toast.error(
+                            language === 'ar'
+                                ? '🚫 لا يمكن حذف مناقلة مؤكدة أو مُرسلة — يمكنك إلغاؤها فقط'
+                                : '🚫 Cannot delete a confirmed/shipped transfer — you can only cancel it',
+                            { duration: 6000 }
+                        );
+                        break;
+                    }
+
                     if (onDelete) {
                         const confirmed = window.confirm(t('messages.confirmDelete') || 'هل أنت متأكد من الحذف؟');
                         if (confirmed) {
@@ -883,12 +916,34 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                 case 'save_confirm': {
                     if (!isTradeDocType) break;
+
+                    // ═══ Transfer validation: require both warehouses for confirmation ═══
+                    const isTransferConfirm = tradeMode === 'transfer';
+                    if (isTransferConfirm) {
+                        const fromWh = data?.from_warehouse_id || data?.warehouse_id;
+                        const toWh = data?.to_warehouse_id;
+                        console.log('[SaveConfirm] Transfer validation:', {
+                            from_warehouse_id: data?.from_warehouse_id,
+                            warehouse_id: data?.warehouse_id,
+                            to_warehouse_id: data?.to_warehouse_id,
+                            fromWh, toWh,
+                            data_keys: data ? Object.keys(data) : [],
+                        });
+                        if (!fromWh || !toWh) {
+                            toast.error(
+                                language === 'ar'
+                                    ? 'يجب تحديد المستودع المصدر والهدف قبل التأكيد'
+                                    : 'Both source and destination warehouses are required for confirmation'
+                            );
+                            break;
+                        }
+                    }
+
                     setLoading(true);
                     try {
                         // ═══ Step 1: Save first (handles both create & edit) ═══
                         let savedResult: any = null;
                         if (mode === 'create' || !data?.id) {
-                            // Must save first to get the docId
                             savedResult = await handleTradeSave(data);
                         } else if (hasChanges && data) {
                             savedResult = await handleTradeSave(data);
@@ -900,16 +955,67 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             break;
                         }
 
-                        // ═══ Step 2: Confirm (update stage) ═══
                         const modeKey = tradeMode || 'sales';
                         const tableName = TRADE_TABLE_MAP[modeKey]?.[docType] || (tradeMode === 'purchase' ? 'purchase_transactions' : 'sales_transactions');
+
+                        // ═══ Transfer-specific confirmation ═══
+                        if (tradeMode === 'transfer') {
+                            // stock_transfers uses 'status' (not 'stage') + confirmed_by/confirmed_at
+                            const { data: { session } } = await supabase.auth.getSession();
+                            const userId = session?.user?.id;
+                            const { error } = await supabase
+                                .from(tableName)
+                                .update({
+                                    status: 'confirmed',
+                                    confirmed_by: userId,
+                                    confirmed_at: new Date().toISOString(),
+                                    updated_at: new Date().toISOString(),
+                                })
+                                .eq('id', docId);
+                            if (error) throw error;
+
+                            // ═══ Assign permanent sequential number (ST-2026-XXXXXX) ═══
+                            let permanentNumber = '';
+                            try {
+                                const { TradeService } = await import('@/features/trade/services/TradeService');
+                                const saveCompanyId = data?.company_id || companyId;
+                                permanentNumber = await TradeService.assignPermanentNumber(docId, 'stock_transfer', saveCompanyId);
+                            } catch (numErr) {
+                                console.error('[Transfer] Failed to assign permanent number:', numErr);
+                            }
+
+                            setData((prev: any) => prev ? {
+                                ...prev,
+                                id: docId,
+                                status: 'confirmed',
+                                transfer_number: permanentNumber || prev.transfer_number,
+                                confirmed_by: userId,
+                                confirmed_at: new Date().toISOString(),
+                            } : prev);
+                            setHasChanges(false);
+                            invalidateTradeQueries(queryClient);
+
+                            toast.success(
+                                language === 'ar'
+                                    ? `✅ تم حفظ وتأكيد المناقلة بنجاح${permanentNumber ? `\n📋 الرقم: ${permanentNumber}` : ''}\n📦 سيتم إشعار المستودع المصدر لتجهيز البضاعة`
+                                    : `✅ Transfer saved & confirmed${permanentNumber ? `\n📋 Number: ${permanentNumber}` : ''}\n📦 Source warehouse will be notified to prepare goods`,
+                            );
+
+                            // Close sheet and go back to transfers list
+                            onRefresh?.();
+                            onClose();
+                            break;
+                        }
+
+                        // ═══ Standard (Sales/Purchase) confirmation ═══
+                        // Step 2: Confirm (update stage)
                         const { error } = await supabase
                             .from(tableName)
                             .update({ stage: 'confirmed', updated_at: new Date().toISOString() })
                             .eq('id', docId);
                         if (error) throw error;
 
-                        // ═══ Step 3: Assign permanent sequential number at confirmation ═══
+                        // Step 3: Assign permanent sequential number at confirmation
                         const serviceDocType = TRADE_TYPE_MAP[modeKey]?.[docType] || (tradeMode === 'purchase' ? 'purchase_invoice' : 'invoice');
                         const saveCompanyId = data?.company_id || companyId;
                         let permanentNumber = '';
@@ -918,10 +1024,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             permanentNumber = await TradeService.assignPermanentNumber(docId, serviceDocType, saveCompanyId);
                         } catch (numErr) {
                             console.error('Failed to assign permanent number:', numErr);
-                            // Non-fatal — document is still confirmed, just keeps draft number
                         }
 
-                        // Determine the correct number field based on document type
                         const numberFieldMap: Record<string, string> = {
                             purchase_invoice: 'invoice_no',
                             invoice: 'invoice_no',
@@ -951,7 +1055,6 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                         invalidateTradeQueries(queryClient);
 
-                        // Sales vs Purchase confirmation message
                         const isSales = modeKey === 'sales';
                         toast.success(
                             language === 'ar'
@@ -961,7 +1064,7 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         onRefresh?.();
                     } catch (err: any) {
                         console.error('SaveConfirm failed:', err);
-                        toast.error(language === 'ar' ? 'فشل في حفظ أو تأكيد الفاتورة' : 'Failed to save/confirm invoice', { description: err?.message });
+                        toast.error(language === 'ar' ? 'فشل في حفظ أو تأكيد المستند' : 'Failed to save/confirm document', { description: err?.message });
                     } finally {
                         setLoading(false);
                     }
@@ -1651,15 +1754,55 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     break;
                 }
 
-                case 'cancel':
+                case 'cancel': {
                     if (mode === 'create') {
+                        // ═══ Create mode: delete auto-saved draft and close ═══
+                        const cancelDocId = data?.id || documentId;
+                        if (cancelDocId && isTradeDocType) {
+                            try {
+                                const cancelModeKey = tradeMode || 'sales';
+                                const cancelTableName = TRADE_TABLE_MAP[cancelModeKey]?.[docType];
+                                if (cancelTableName) {
+                                    await supabase.from(cancelTableName).delete().eq('id', cancelDocId);
+                                    console.log(`[Cancel] 🗑️ Deleted draft ${cancelDocId} from ${cancelTableName}`);
+                                    invalidateTradeQueries(queryClient);
+                                }
+                            } catch (delErr) {
+                                console.warn('[Cancel] Failed to delete draft:', delErr);
+                            }
+                        }
                         onClose();
+                    } else if (tradeMode === 'transfer') {
+                        // ═══ Transfer in edit mode (auto-saved from create): delete draft and close ═══
+                        const cancelStage = data?.stage || '';
+                        const isDraftTransfer = !cancelStage || cancelStage === 'draft';
+                        const cancelDocId = data?.id || documentId;
+                        if (isDraftTransfer && cancelDocId) {
+                            try {
+                                const cancelTableName = TRADE_TABLE_MAP['transfer']?.[docType];
+                                if (cancelTableName) {
+                                    await supabase.from(cancelTableName).delete().eq('id', cancelDocId);
+                                    console.log(`[Cancel] 🗑️ Deleted transfer draft ${cancelDocId}`);
+                                    invalidateTradeQueries(queryClient);
+                                }
+                            } catch (delErr) {
+                                console.warn('[Cancel] Failed to delete transfer draft:', delErr);
+                            }
+                            onClose();
+                        } else {
+                            // Non-draft transfer in edit mode — revert to view
+                            setData(initialData);
+                            setHasChanges(false);
+                            handleModeChange('view');
+                        }
                     } else {
+                        // ═══ Sales/Purchase in edit mode — original behavior: revert to view ═══
                         setData(initialData);
                         setHasChanges(false);
                         handleModeChange('view');
                     }
                     break;
+                }
 
                 default:
                     console.log('Unknown action:', actionId);

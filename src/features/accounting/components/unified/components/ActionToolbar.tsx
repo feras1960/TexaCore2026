@@ -210,12 +210,7 @@ export function EnhancedActionToolbar({
 
     const handleCancel = () => {
         onCancelEdit?.();
-        if (isCreateMode) {
-            // In create mode, cancel should close the sheet
-            onAction('cancel');
-        } else {
-            onModeChange?.('view');
-        }
+        onAction('cancel');
     };
 
     return (
@@ -257,6 +252,7 @@ export function EnhancedActionToolbar({
             )}
 
             {/* ✅ Save & Confirm — for draft invoices (step 1 of workflow) */}
+            {/* ⚠️ Also shown for draft transfers in view mode */}
             {isViewMode && isPostable && isDraft && !isReceivedDoc && (
                 <TooltipProvider>
                     <Tooltip>
@@ -283,7 +279,8 @@ export function EnhancedActionToolbar({
 
             {/* ✅ Post Action — for confirmed / partially_received / received stages */}
             {/* ⚠️ Hidden for sales invoices — posting is automatic after warehouse delivery */}
-            {isViewMode && isPostable && canPostFromStage && !isPosted && !(tradeMode === 'sales' && docType === 'trade_invoice') && (
+            {/* ⚠️ Hidden for transfers — no accounting entry needed for inter-warehouse moves */}
+            {isViewMode && isPostable && canPostFromStage && !isPosted && !(tradeMode === 'sales' && docType === 'trade_invoice') && tradeMode !== 'transfer' && (
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -309,6 +306,9 @@ export function EnhancedActionToolbar({
                     </Tooltip>
                 </TooltipProvider>
             )}
+
+
+
 
             {/* ✅ Confirm & Send (for non-postable trade docs: orders, quotations)
                 ❌ Hidden when: container is in_receiving / received / fully received
@@ -413,6 +413,34 @@ export function EnhancedActionToolbar({
             {/* ✅ Save Only — for EDIT mode on sales invoices (posting tied to warehouse) */}
             {
                 (isEditMode || isCreateMode) && isPostable && (() => {
+                    // ═══ Transfer: always show Save & Confirm for drafts ═══
+                    const isTransferDraft = tradeMode === 'transfer' && isDraft;
+                    if (isTransferDraft) {
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onAction('save_confirm')}
+                                            disabled={disabled || loading}
+                                            className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                                        >
+                                            <ShieldCheck className="w-4 h-4" />
+                                            <span>{language === 'ar' ? 'حفظ وتأكيد' : 'Save & Confirm'}</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{language === 'ar'
+                                            ? 'حفظ الفاتورة وتأكيدها — سيتم إشعار أمين المستودع لتجهيز الطلب'
+                                            : 'Save and confirm — warehouse keeper will be notified to prepare the order'
+                                        }</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    }
+
                     // Sales invoices in EDIT mode: just "Save" — posting is via warehouse
                     const isSalesInvoice = tradeMode === 'sales' && docType === 'trade_invoice';
 
@@ -685,16 +713,19 @@ export function EnhancedActionToolbar({
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    {/* Delete Action — hidden when: received, posted, or container is closed */}
+                    {/* Delete Action — hidden when: received, posted, container closed, or non-draft transfer */}
                     {perms.canDelete && !isContainerClosed && !isReceivedDoc && status !== 'posted' && (
-                        <DropdownMenuItem
-                            onClick={() => onAction('delete')}
-                            className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            <span>{t('common.delete') || 'حذف'}</span>
-                        </DropdownMenuItem>
-                    )}
+                        // TRANSFER: Only allow delete for draft transfers
+                        !(tradeMode === 'transfer' && effectiveStatus !== 'draft' && effectiveStatus !== '')
+                    ) && (
+                            <DropdownMenuItem
+                                onClick={() => onAction('delete')}
+                                className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                <span>{t('common.delete') || 'حذف'}</span>
+                            </DropdownMenuItem>
+                        )}
                 </DropdownMenuContent>
             </DropdownMenu>
         </div >

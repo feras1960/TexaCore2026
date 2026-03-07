@@ -15,13 +15,17 @@ import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { MaterialReceiptDialog } from '../components/MaterialReceiptDialog';
 import { SalesDeliveryDialog } from '../components/SalesDeliveryDialog';
+import { TransferDeliveryDialog } from '../components/TransferDeliveryDialog';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import {
     ArrowDownToLine,
+    ArrowLeftRight,
     Package,
     Truck,
     Clock,
@@ -53,9 +57,13 @@ export default function ReceiptsDeliveriesPage() {
 
     const [linkedInvoiceSheet, setLinkedInvoiceSheet] = useState<{ open: boolean; invoiceData: any; mode?: 'purchase' | 'sales'; }>({ open: false, invoiceData: null });
     const [containerSheet, setContainerSheet] = useState<{ open: boolean; data: any; }>({ open: false, data: null });
+    const [transferSheet, setTransferSheet] = useState<{ open: boolean; data: any; }>({ open: false, data: null });
 
     // Sales delivery dialog (uses UnifiedAccountingSheet like receipt dialog)
     const [salesDeliveryDialog, setSalesDeliveryDialog] = useState<{ open: boolean; salesInvoice: any; }>({ open: false, salesInvoice: null });
+
+    // Transfer delivery dialog (roll picking for inter-warehouse transfers)
+    const [transferDeliveryDialog, setTransferDeliveryDialog] = useState<{ open: boolean; transfer: any; }>({ open: false, transfer: null });
 
     // Bin location assignment dialog — opened after receipt completion
     const [binAssignDialog, setBinAssignDialog] = useState<{
@@ -104,7 +112,7 @@ export default function ReceiptsDeliveriesPage() {
     }, [isRTL]);
 
     // ═══ Document Logic ═══
-    const handleConfirmReceipt = useCallback((receipt: any) => {
+    const handleConfirmReceipt = useCallback(async (receipt: any) => {
         const docType = receipt.type || receipt.source_type || '';
 
         // Sales delivery → open SalesDeliveryDialog (roll picking)
@@ -113,13 +121,24 @@ export default function ReceiptsDeliveriesPage() {
             return;
         }
 
+        // Transfer → open TransferDeliveryDialog (roll picking for dispatch)
+        if (docType === 'transfer') {
+            const sourceId = receipt.source_id || receipt.id;
+            const { data: transfer } = await supabase.from('stock_transfers').select('*').eq('id', sourceId).maybeSingle();
+            if (transfer) {
+                setTransferDeliveryDialog({ open: true, transfer });
+            } else {
+                toast.error(isRTL ? 'المناقلة غير موجودة' : 'Transfer not found');
+            }
+            return;
+        }
+
         // Purchase receipt → open receipt dialog
         let dialogType: any = 'purchase_local';
         if (docType === 'container') dialogType = 'container';
-        else if (docType === 'transfer') dialogType = 'transfer';
         else if (docType === 'return') dialogType = 'return';
         setReceiptDialog({ open: true, type: dialogType, reference: receipt.source_id });
-    }, []);
+    }, [isRTL]);
 
     const handleViewSourceDocument = useCallback(async (receipt: any) => {
         try {
@@ -131,6 +150,22 @@ export default function ReceiptsDeliveriesPage() {
                 const { data: container } = await supabase.from('containers').select('*').eq('id', sourceId).maybeSingle();
                 if (container) { setContainerSheet({ open: true, data: { ...container, party_id: container.supplier_id } }); return; }
                 toast.error(isRTL ? 'الكونتينر غير موجود' : 'Container not found');
+                return;
+            }
+
+            // 1b. Transfer → open delivery dialog for loading/shipped, else standard sheet
+            if (docType === 'transfer') {
+                const { data: transfer } = await supabase.from('stock_transfers').select('*').eq('id', sourceId).maybeSingle();
+                if (transfer) {
+                    // If transfer is in loading/shipped state, show TransferDeliveryDialog (view mode)
+                    if (['loading', 'shipped', 'received'].includes(transfer.status)) {
+                        setTransferDeliveryDialog({ open: true, transfer });
+                    } else {
+                        setTransferSheet({ open: true, data: transfer });
+                    }
+                    return;
+                }
+                toast.error(isRTL ? 'المناقلة غير موجودة' : 'Transfer not found');
                 return;
             }
 
@@ -304,10 +339,12 @@ export default function ReceiptsDeliveriesPage() {
             sortKey: 'reference',
             cell: (row: any) => {
                 const isContainer = row.type === 'container';
-                const Icon = isContainer ? Package : Truck;
+                const isTransfer = row.type === 'transfer';
+                const Icon = isTransfer ? ArrowLeftRight : isContainer ? Package : Truck;
+                const iconColor = isTransfer ? 'text-purple-600' : isContainer ? 'text-cyan-600' : 'text-emerald-600';
                 return (
                     <div className="flex items-center gap-2">
-                        <Icon className={cn("h-4 w-4", isContainer ? "text-cyan-600" : "text-emerald-600")} />
+                        <Icon className={cn("h-4 w-4", iconColor)} />
                         <div>
                             <span className="font-semibold font-mono text-sm block">{row.reference || row.source_id}</span>
                             {row.receipt_number && (
@@ -360,12 +397,16 @@ export default function ReceiptsDeliveriesPage() {
             sortKey: 'doc_status',
             cell: (row: any) => {
                 const isSalesRow = row.type === 'sale_invoice' || row.source_type === 'sale_invoice';
-                const status = isSalesRow ? (row.stage || 'confirmed') : (row.invoice_status || row.status || 'unknown');
+                const isTransferRow = row.type === 'transfer';
+                const status = isSalesRow ? (row.stage || 'confirmed') : isTransferRow ? (row.stage || row.invoice_status || 'confirmed') : (row.invoice_status || row.status || 'unknown');
                 const stageLabels: Record<string, { ar: string; en: string; cls: string }> = {
                     confirmed: { ar: 'مؤكدة', en: 'Confirmed', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                    loading: { ar: 'قيد التحميل', en: 'Loading', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    shipped: { ar: 'في الطريق', en: 'Shipped', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
                     sent_to_branch: { ar: 'أُرسلت للفرع', en: 'Sent to Branch', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
                     in_delivery: { ar: 'قيد التسليم', en: 'In Delivery', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
                     delivered: { ar: 'تم التسليم', en: 'Delivered', cls: 'bg-green-50 text-green-700 border-green-200' },
+                    received: { ar: 'تم الاستلام', en: 'Received', cls: 'bg-green-50 text-green-700 border-green-200' },
                 };
                 const sl = stageLabels[status];
                 if (sl) {
@@ -458,7 +499,25 @@ export default function ReceiptsDeliveriesPage() {
         const rs = row.receipt_status || 'none';
         const hasDraft = rs === 'draft' || rs === 'in_progress' || rs === 'completed';
         const isSales = row.type === 'sale_invoice' || row.source_type === 'sale_invoice';
+        const isTransfer = row.type === 'transfer';
         const salesHasDraft = isSales && (!!row.delivery_draft || row.stage === 'in_delivery');
+
+        // Transfer-specific button labels
+        const getTransferActionLabel = () => {
+            const stage = row.stage || row.invoice_status;
+            if (stage === 'confirmed') return isRTL ? 'تسليم من المستودع' : 'Dispatch';
+            if (stage === 'loading') return isRTL ? 'إرسال' : 'Ship';
+            if (stage === 'shipped') return isRTL ? 'تأكيد الاستلام' : 'Confirm Receipt';
+            return isRTL ? 'معالجة' : 'Process';
+        };
+
+        const getTransferActionColor = () => {
+            const stage = row.stage || row.invoice_status;
+            if (stage === 'confirmed') return 'h-8 px-3 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white';
+            if (stage === 'loading') return 'h-8 px-3 text-xs gap-1 bg-indigo-500 hover:bg-indigo-600 text-white';
+            if (stage === 'shipped') return 'h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white';
+            return 'h-8 px-3 text-xs gap-1 bg-gray-500 hover:bg-gray-600 text-white';
+        };
 
         return (
             <div className="flex items-center gap-1.5 justify-end">
@@ -472,20 +531,24 @@ export default function ReceiptsDeliveriesPage() {
                     <Eye className="h-3.5 w-3.5" />
                     {isRTL ? 'عرض' : 'View'}
                 </Button>
-                {/* فتح إذن التسليم (مبيعات) أو الاستلام (مشتريات) */}
+                {/* فتح الإجراء المناسب حسب نوع المستند */}
                 <Button
                     size="sm"
-                    className={isSales
-                        ? salesHasDraft
-                            ? 'h-8 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-white'
-                            : 'h-8 px-3 text-xs gap-1 bg-rose-500 hover:bg-rose-600 text-white'
-                        : hasDraft
-                            ? 'h-8 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-white'
-                            : 'h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white'
+                    className={isTransfer
+                        ? getTransferActionColor()
+                        : isSales
+                            ? salesHasDraft
+                                ? 'h-8 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-white'
+                                : 'h-8 px-3 text-xs gap-1 bg-rose-500 hover:bg-rose-600 text-white'
+                            : hasDraft
+                                ? 'h-8 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-white'
+                                : 'h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white'
                     }
                     onClick={(e) => { e.stopPropagation(); handleConfirmReceipt(row); }}
                 >
-                    {isSales ? (
+                    {isTransfer ? (
+                        <><ArrowLeftRight className="h-3.5 w-3.5" />{getTransferActionLabel()}</>
+                    ) : isSales ? (
                         salesHasDraft
                             ? <><Truck className="h-3.5 w-3.5" />{isRTL ? 'متابعة التسليم' : 'Continue'}</>
                             : <><Truck className="h-3.5 w-3.5" />{isRTL ? 'تسليم' : 'Deliver'}</>
@@ -502,12 +565,14 @@ export default function ReceiptsDeliveriesPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-1">
                 <div className="flex items-center gap-3">
-                    <ClipboardList className="w-7 h-7 text-emerald-600" />
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shadow-sm flex-shrink-0">
+                        <ClipboardList className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
                     <div>
-                        <h1 className="text-xl font-bold text-erp-navy dark:text-white leading-tight">
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
                             {isRTL ? 'أذون الاستلام والتسليم' : 'Receipts & Deliveries'}
                         </h1>
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                             {isRTL ? 'الأذونات المعلقة بانتظار التعامل المخزني' : 'Pending documents waiting for warehouse processing'}
                         </p>
                     </div>
@@ -520,42 +585,94 @@ export default function ReceiptsDeliveriesPage() {
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-1.5 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                        className="h-9 gap-1.5 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400"
                         onClick={handleManualRefresh}
                         disabled={receiptsLoading}
                     >
-                        <RefreshCw className={`w-3.5 h-3.5 ${receiptsLoading ? 'animate-spin' : ''}`} />
-                        {isRTL ? 'تحديث' : 'Refresh'}
+                        <RefreshCw className={`w-4 h-4 ${receiptsLoading ? 'animate-spin' : ''}`} />
+                        <span className="hidden md:inline">{isRTL ? 'تحديث' : 'Refresh'}</span>
+                    </Button>
+                    {/* Quick open buttons for previewing dialogs */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400"
+                        onClick={() => setReceiptDialog({ open: true, type: 'purchase_local', reference: '' })}
+                    >
+                        <ArrowDownToLine className="w-4 h-4" />
+                        <span className="hidden md:inline">{isRTL ? 'إذن استلام' : 'Receipt'}</span>
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-1.5 text-rose-600 border-rose-300 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400"
+                        onClick={() => setSalesDeliveryDialog({ open: true, salesInvoice: null })}
+                    >
+                        <Truck className="w-4 h-4" />
+                        <span className="hidden md:inline">{isRTL ? 'إذن تسليم' : 'Delivery'}</span>
                     </Button>
                 </div>
             </div>
 
+            {/* ═══ Summary Cards ═══ */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {[
+                    { labelAr: 'الكل', labelEn: 'Total', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ClipboardList },
+                    { labelAr: 'مشتريات', labelEn: 'Purchases', value: counts.purchases, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: ArrowDownToLine },
+                    { labelAr: 'مبيعات', labelEn: 'Sales', value: counts.sales, color: 'text-rose-600 dark:text-rose-400', bg: 'from-rose-500/10 to-rose-600/5 border-rose-200/60 dark:border-rose-800/40', iconBg: 'text-rose-500 bg-rose-50 dark:bg-rose-900/40', icon: Truck },
+                    { labelAr: 'كونتينرات', labelEn: 'Containers', value: counts.containers, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/60 dark:border-indigo-800/40', iconBg: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40', icon: Package },
+                    { labelAr: 'مناقلات', labelEn: 'Transfers', value: counts.transfers, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: ArrowLeftRight },
+                ].map((stat, i) => {
+                    const StatIcon = stat.icon;
+                    return (
+                        <div key={i} className={cn('relative overflow-hidden rounded-xl border bg-gradient-to-br px-4 py-3 shadow-sm transition-shadow hover:shadow-md', stat.bg)}>
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">
+                                        {isRTL ? stat.labelAr : stat.labelEn}
+                                    </p>
+                                    <p className={cn('text-2xl font-bold font-mono mt-1', stat.color)} dir="ltr">{stat.value}</p>
+                                </div>
+                                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0', stat.iconBg)}>
+                                    <StatIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
             {/* Sub-Tabs Filters */}
-            <div className="flex items-center gap-2 px-1 flex-wrap mb-2 mt-2">
-                {([
-                    { key: 'all' as const, label: isRTL ? 'الكل' : 'All', count: counts.all, activeCls: 'bg-gray-100 text-gray-700 border-gray-300 ring-1 ring-gray-300', badgeActiveCls: 'bg-gray-200 text-gray-800' },
-                    { key: 'purchases' as const, label: isRTL ? '📥 استلام مشتريات' : '📥 Purchases', count: counts.purchases, activeCls: 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-1 ring-emerald-300', badgeActiveCls: 'bg-emerald-200 text-emerald-800' },
-                    { key: 'sales' as const, label: isRTL ? '📤 تسليم مبيعات' : '📤 Sales', count: counts.sales, activeCls: 'bg-rose-50 text-rose-700 border-rose-300 ring-1 ring-rose-300', badgeActiveCls: 'bg-rose-200 text-rose-800' },
-                    { key: 'containers' as const, label: isRTL ? '📦 استلام كونتينرات' : '📦 Containers', count: counts.containers, activeCls: 'bg-indigo-50 text-indigo-700 border-indigo-300 ring-1 ring-indigo-300', badgeActiveCls: 'bg-indigo-200 text-indigo-800' },
-                    { key: 'transfers' as const, label: isRTL ? '🔄 مناقلات' : '🔄 Transfers', count: counts.transfers, activeCls: 'bg-purple-50 text-purple-700 border-purple-300 ring-1 ring-purple-300', badgeActiveCls: 'bg-purple-200 text-purple-800' },
-                ]).map(sf => (
-                    <button
-                        key={sf.key}
-                        onClick={() => setSubFilter(sf.key)}
-                        className={cn(
-                            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-                            subFilter === sf.key
-                                ? sf.activeCls
-                                : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                        )}
-                    >
-                        {sf.label}
-                        <span className={cn(
-                            'inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 font-mono',
-                            subFilter === sf.key ? sf.badgeActiveCls : 'bg-gray-100 text-gray-500'
-                        )}>{sf.count}</span>
-                    </button>
-                ))}
+            <div className="flex items-center gap-3 px-1 flex-wrap mb-2 mt-2">
+                <Tabs value={subFilter} onValueChange={(v) => setSubFilter(v as any)} className="w-full sm:w-auto" dir={direction}>
+                    <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
+                        <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                            <ClipboardList className="w-4 h-4 me-1.5" />
+                            {isRTL ? 'الكل' : 'All'}
+                            <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{counts.all}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="purchases" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
+                            <ArrowDownToLine className="w-4 h-4 me-1.5" />
+                            {isRTL ? 'استلام مشتريات' : 'Purchases'}
+                            <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{counts.purchases}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">
+                            <Truck className="w-4 h-4 me-1.5" />
+                            {isRTL ? 'تسليم مبيعات' : 'Sales'}
+                            <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-rose-100/60 text-rose-700">{counts.sales}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="containers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">
+                            <Package className="w-4 h-4 me-1.5" />
+                            {isRTL ? 'استلام كونتينرات' : 'Containers'}
+                            <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-indigo-100/60 text-indigo-700">{counts.containers}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="transfers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
+                            <ArrowLeftRight className="w-4 h-4 me-1.5" />
+                            {isRTL ? 'مناقلات' : 'Transfers'}
+                            <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{counts.transfers}</Badge>
+                        </TabsTrigger>
+                    </TabsList>
+                </Tabs>
             </div>
 
             {/* List */}
@@ -631,8 +748,22 @@ export default function ReceiptsDeliveriesPage() {
                     onRefresh={() => refetchMovements()}
                 />
             )}
+            {/* Stock Transfer Sheet — uses UnifiedAccountingSheet with tradeMode="transfer" */}
+            {transferSheet.open && transferSheet.data && (
+                <UnifiedAccountingSheet
+                    isOpen={transferSheet.open}
+                    onClose={() => {
+                        setTransferSheet(prev => ({ ...prev, open: false }));
+                        refetchMovements();
+                    }}
+                    docType="trade_invoice"
+                    tradeMode="transfer"
+                    mode="view"
+                    data={transferSheet.data}
+                />
+            )}
             {/* Sales Delivery — SalesDeliveryDialog (roll picking) */}
-            {salesDeliveryDialog.open && salesDeliveryDialog.salesInvoice && (
+            {salesDeliveryDialog.open && (
                 <SalesDeliveryDialog
                     isOpen={salesDeliveryDialog.open}
                     onOpenChange={(open) => {
@@ -643,6 +774,21 @@ export default function ReceiptsDeliveriesPage() {
                     onComplete={() => {
                         refetchMovements();
                         setSalesDeliveryDialog({ open: false, salesInvoice: null });
+                    }}
+                />
+            )}
+            {/* Transfer Delivery Dialog — roll picking for inter-warehouse transfers */}
+            {transferDeliveryDialog.open && (
+                <TransferDeliveryDialog
+                    isOpen={transferDeliveryDialog.open}
+                    onOpenChange={(open) => {
+                        setTransferDeliveryDialog(prev => ({ ...prev, open }));
+                        if (!open) refetchMovements();
+                    }}
+                    transfer={transferDeliveryDialog.transfer}
+                    onComplete={() => {
+                        refetchMovements();
+                        setTransferDeliveryDialog({ open: false, transfer: null });
                     }}
                 />
             )}

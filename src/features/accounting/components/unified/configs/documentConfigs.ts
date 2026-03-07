@@ -872,7 +872,7 @@ export const materialConfig: DocumentConfig = {
         },
         {
             id: 'ecommerce',
-            labelKey: 'warehouse.tabs.ecommerce',
+            labelKey: 'warehouse.material.tabs.ecommerce',
             icon: 'Store',
             component: 'MaterialEcommerceTab',
             showInModes: ['view'],
@@ -888,17 +888,10 @@ export const materialConfig: DocumentConfig = {
             showInModes: ['create', 'edit'],
         },
         {
-            id: 'specs',
-            labelKey: 'warehouse.material.tabs.specs',
-            icon: 'Ruler',
-            component: 'MaterialSpecsTab',
-            showInModes: ['create', 'edit'],
-        },
-        {
-            id: 'variants',
-            labelKey: 'warehouse.material.tabs.variants',
-            icon: 'Layers',
-            component: 'MaterialVariantsTab',
+            id: 'details',
+            labelKey: 'warehouse.material.tabs.details',
+            icon: 'ClipboardList',
+            component: 'MaterialDetailsTab',
             showInModes: ['create', 'edit'],
         },
         {
@@ -916,15 +909,8 @@ export const materialConfig: DocumentConfig = {
             showInModes: ['create', 'edit'],
         },
         {
-            id: 'additionalInfo',
-            labelKey: 'warehouse.material.tabs.additionalInfo',
-            icon: 'Info',
-            component: 'MaterialAdditionalInfoTab',
-            showInModes: ['create', 'edit'],
-        },
-        {
             id: 'createEcommerce',
-            labelKey: 'warehouse.tabs.ecommerce', // Fallback mapped in UI
+            labelKey: 'warehouse.material.tabs.ecommerce',
             icon: 'Store',
             component: 'MaterialEcommerceTab',
             showInModes: ['create', 'edit'],
@@ -1334,7 +1320,7 @@ export const rollConfig: DocumentConfig = {
 (documentConfigs as any)['roll'] = rollConfig;
 
 // Get config by type — with optional tradeMode for smart tab selection
-export function getDocumentConfig(type: string, tradeMode?: 'sales' | 'purchase'): DocumentConfig {
+export function getDocumentConfig(type: string, tradeMode?: 'sales' | 'purchase' | 'transfer'): DocumentConfig {
     // For trade documents, use mode-aware config
     if (type.startsWith('trade_') && tradeMode) {
         const tradeConfig = getTradeDocConfig(type, tradeMode);

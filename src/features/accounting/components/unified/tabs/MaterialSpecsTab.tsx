@@ -18,16 +18,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import {
     FlaskConical,
     Ruler,
     Scale,
     Percent,
     Box,
-    Search,
-    Globe
 } from 'lucide-react';
 import type { SheetMode } from '../types';
 
@@ -40,6 +36,13 @@ interface MaterialSpecsTabProps {
 export function MaterialSpecsTab({ data, mode, onChange }: MaterialSpecsTabProps) {
     const { language } = useLanguage();
     const isReadOnly = mode === 'view';
+
+    // ═══ Lock Unit of Measure if material has stock movements ═══
+    const hasMovements = Boolean(
+        data?.rolls_count > 0 ||
+        data?.current_stock > 0 ||
+        data?.rolls_total_length > 0
+    );
 
     const handleChange = (field: string, value: any) => {
         if (onChange && !isReadOnly) {
@@ -113,9 +116,9 @@ export function MaterialSpecsTab({ data, mode, onChange }: MaterialSpecsTabProps
                             <Select
                                 value={data?.unit || 'meter'}
                                 onValueChange={(value) => handleChange('unit', value)}
-                                disabled={isReadOnly}
+                                disabled={isReadOnly || hasMovements}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className={hasMovements && !isReadOnly ? 'opacity-70 cursor-not-allowed' : ''}>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -126,6 +129,13 @@ export function MaterialSpecsTab({ data, mode, onChange }: MaterialSpecsTabProps
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {hasMovements && !isReadOnly && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                    🔒 {language === 'ar'
+                                        ? 'لا يمكن تغيير وحدة القياس الأساسية بعد وجود حركات مخزنية على المادة'
+                                        : 'Base unit cannot be changed after stock movements exist'}
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -240,75 +250,6 @@ export function MaterialSpecsTab({ data, mode, onChange }: MaterialSpecsTabProps
                             placeholder={language === 'ar' ? 'عدد الخيوط لكل بوصة مربعة' : 'Threads per square inch'}
                             disabled={isReadOnly}
                         />
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* SEO & Online Settings */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                        <Search className="w-5 h-5 text-green-600" />
-                        {language === 'ar' ? 'إعدادات SEO والعرض' : 'SEO & Display Settings'}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {/* Slug */}
-                    <div className="space-y-2">
-                        <Label htmlFor="slug" className="text-sm font-medium">
-                            {language === 'ar' ? 'الرابط المختصر (Slug)' : 'URL Slug'}
-                        </Label>
-                        <Input
-                            id="slug"
-                            value={data?.slug || ''}
-                            onChange={(e) => handleChange('slug', e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                            placeholder={language === 'ar' ? 'soft-cotton-fabric' : 'soft-cotton-fabric'}
-                            disabled={isReadOnly}
-                            className="font-mono"
-                            dir="ltr"
-                        />
-                        <p className="text-xs text-gray-500">
-                            {language === 'ar'
-                                ? 'يستخدم في رابط المنتج على الموقع'
-                                : 'Used in the product URL on the website'}
-                        </p>
-                    </div>
-
-                    {/* Visibility Toggles */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div>
-                                <Label htmlFor="is_visible_online" className="text-sm font-medium">
-                                    {language === 'ar' ? 'مرئي أونلاين' : 'Visible Online'}
-                                </Label>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                    {language === 'ar' ? 'السماح بالعرض على الموقع' : 'Allow display on website'}
-                                </p>
-                            </div>
-                            <Switch
-                                id="is_visible_online"
-                                checked={data?.is_visible_online ?? true}
-                                onCheckedChange={(checked) => handleChange('is_visible_online', checked)}
-                                disabled={isReadOnly}
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div>
-                                <Label htmlFor="is_featured" className="text-sm font-medium">
-                                    {language === 'ar' ? 'منتج مميز' : 'Featured Product'}
-                                </Label>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                    {language === 'ar' ? 'عرض في القسم المميز' : 'Show in featured section'}
-                                </p>
-                            </div>
-                            <Switch
-                                id="is_featured"
-                                checked={data?.is_featured ?? false}
-                                onCheckedChange={(checked) => handleChange('is_featured', checked)}
-                                disabled={isReadOnly}
-                            />
-                        </div>
                     </div>
                 </CardContent>
             </Card>

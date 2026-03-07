@@ -315,8 +315,10 @@ export function ActivityTabV2({
 
     // ─── Map docType to ActivityTimeline documentType ───
     // Only trade documents, journals, and containers have activity_log JSONB column
+    // ⚠️ Transfers use stock_transfers table — no activity_log JSONB, so exclude them
+    const isTransferMode = tradeMode === 'transfer';
     const LIFECYCLE_DOC_TYPES = ['trade_invoice', 'trade_order', 'trade_delivery', 'trade_receipt', 'trade_return', 'trade_request', 'trade_container', 'journal'];
-    const hasLifecycleLog = LIFECYCLE_DOC_TYPES.includes(docType || '');
+    const hasLifecycleLog = !isTransferMode && LIFECYCLE_DOC_TYPES.includes(docType || '');
 
     const lifecycleDocType = useMemo(() => {
         if (!hasLifecycleLog) return null;

@@ -722,6 +722,8 @@ export const warehouseService = {
 
                 return {
                     ...material,
+                    // Map status → is_active for UI compatibility
+                    is_active: material.status !== 'inactive',
                     rolls_count,
                     rolls_total_length,
                     // Calculate loose stock (Total - Rolled)
@@ -1013,6 +1015,22 @@ export const warehouseService = {
             }
         }
 
+        // ─── إثراء بعدد رولونات إذن الاستلام (من fabric_rolls) ───────
+        const receiptRefIds = [...new Set(allData.map((m: any) => m.reference_id).filter(Boolean))] as string[];
+        const receiptRollsMap: Record<string, number> = {};
+        if (receiptRefIds.length > 0) {
+            // Fetch receipt IDs → actual roll count from fabric_rolls via notes 'GRN: {receiptId}'
+            for (const refId of receiptRefIds) {
+                const { count } = await supabase
+                    .from('fabric_rolls')
+                    .select('id', { count: 'exact', head: true })
+                    .ilike('notes', `%${refId}%`);
+                if (count && count > 0) {
+                    receiptRollsMap[refId] = count;
+                }
+            }
+        }
+
         return allData.map((m: any) => ({
             ...m,
             from_warehouse_name: m.from_warehouse?.name_ar ?? m.from_warehouse?.name_en ?? null,
@@ -1024,6 +1042,8 @@ export const warehouseService = {
             material_code: materialsMap[m.material_id || m.product_id]?.code || null,
             // 🔑 اسم الجهة: عميل للمبيعات، مورّد للمشتريات
             party_name: salesPartyMap[m.reference_id] || purPartyMap[m.reference_id] || '',
+            // 🔑 عدد رولونات إذن الاستلام
+            receipt_rolls_count: receiptRollsMap[m.reference_id] || 0,
         }));
     },
 
@@ -1410,6 +1430,99 @@ export const warehouseService = {
             }
         } catch (err: any) {
             console.warn('getPendingReceipts [sales] exception:', err?.message);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 8. STOCK TRANSFERS — Confirmed/Loading/Shipped transfers
+        //    مناقلات مؤكدة بانتظار التسليم أو الاستلام
+        // ═══════════════════════════════════════════════════════════
+        try {
+            const { data: transfers, error: transferError } = await supabase
+                .from('stock_transfers')
+                .select('*')
+                .eq('company_id', companyId)
+                .in('status', ['confirmed', 'loading', 'shipped'])
+                .order('updated_at', { ascending: false });
+
+            if (transferError) {
+                console.warn('getPendingReceipts [stock_transfers] error:', transferError.message);
+            }
+
+            if (transfers && transfers.length > 0) {
+                // Pre-fetch warehouse names
+                const whIds = [...new Set([
+                    ...transfers.map((t: any) => t.from_warehouse_id),
+                    ...transfers.map((t: any) => t.to_warehouse_id),
+                ].filter(Boolean))];
+
+                let warehouseNames: Record<string, string> = {};
+                if (whIds.length > 0) {
+                    const { data: whs } = await supabase
+                        .from('warehouses')
+                        .select('id, name_ar, name_en')
+                        .in('id', whIds);
+                    if (whs) {
+                        whs.forEach((w: any) => {
+                            warehouseNames[w.id] = w.name_ar || w.name_en || '';
+                        });
+                    }
+                }
+
+                // Pre-fetch item counts per transfer
+                const transferIds = transfers.map((t: any) => t.id);
+                let itemCountMap: Record<string, number> = {};
+                if (transferIds.length > 0) {
+                    const { data: items } = await supabase
+                        .from('stock_transfer_items')
+                        .select('transfer_id')
+                        .in('transfer_id', transferIds);
+                    if (items) {
+                        items.forEach((item: any) => {
+                            itemCountMap[item.transfer_id] = (itemCountMap[item.transfer_id] || 0) + 1;
+                        });
+                    }
+                }
+
+                transfers.forEach((t: any) => {
+                    const fromName = warehouseNames[t.from_warehouse_id] || '';
+                    const toName = warehouseNames[t.to_warehouse_id] || '';
+                    const docNumber = t.transfer_number || t.id?.substring(0, 8);
+
+                    pending.push({
+                        id: t.id,
+                        type: 'transfer',
+                        source_type: 'transfer',
+                        reference: docNumber,
+                        reference_label: `Transfer #${docNumber}`,
+                        description: `${fromName} \u200E\u2192\u200E ${toName}`,
+                        supplier_name: `${fromName} \u200E\u2192\u200E ${toName}`, // re-use for display
+                        status: t.status === 'shipped' ? 'in_transit' : 'ready',
+                        invoice_status: t.status,
+                        stage: t.status,
+                        items: itemCountMap[t.id] || t.total_rolls || 0,
+                        itemsUnit: 'items',
+                        arrivalDate: t.transfer_date,
+                        source_id: t.id,
+                        source_table: 'stock_transfers',
+                        total_amount: 0, // Transfers don't have monetary value
+                        currency: '',
+                        receipt_id: null,
+                        receipt_number: null,
+                        receipt_status: t.status === 'shipped' ? 'in_progress' : 'none',
+                        receipt_date: null,
+                        pending_since: t.confirmed_at || t.updated_at || t.created_at,
+                        receipt_created_at: null,
+                        from_warehouse_id: t.from_warehouse_id,
+                        to_warehouse_id: t.to_warehouse_id,
+                        from_warehouse_name: fromName,
+                        to_warehouse_name: toName,
+                        total_meters: t.total_meters,
+                        created_at: t.created_at,
+                    });
+                });
+            }
+        } catch (err: any) {
+            console.warn('getPendingReceipts [transfers] exception:', err?.message);
         }
 
         return pending;
@@ -1921,6 +2034,7 @@ export const warehouseService = {
      * Get material stock summary grouped by warehouse
      * يرجع بيانات المخزون لمادة معينة مجمعة حسب المستودعات
      * Aggregates from fabric_rolls table: roll count, total/available/reserved lengths
+     * Also includes loose stock from fabric_materials.current_stock for the default_warehouse_id
      */
     async getMaterialStockByWarehouse(companyId: string, materialId: string): Promise<{
         warehouse_id: string;
@@ -1931,6 +2045,7 @@ export const warehouseService = {
         total_length: number;
         available_length: number;
         reserved_length: number;
+        loose_stock: number;
         last_updated: string | null;
     }[]> {
         try {
@@ -1959,8 +2074,6 @@ export const warehouseService = {
                 return [];
             }
 
-            if (!rolls || rolls.length === 0) return [];
-
             // Aggregate by warehouse
             const warehouseMap = new Map<string, {
                 warehouse_id: string;
@@ -1971,37 +2084,86 @@ export const warehouseService = {
                 total_length: number;
                 available_length: number;
                 reserved_length: number;
+                loose_stock: number;
                 last_updated: string | null;
             }>();
 
-            for (const roll of rolls) {
-                const wh = roll.warehouse as any;
-                if (!wh) continue;
+            if (rolls) {
+                for (const roll of rolls) {
+                    const wh = roll.warehouse as any;
+                    if (!wh) continue;
 
-                const whId = roll.warehouse_id;
-                const existing = warehouseMap.get(whId);
+                    const whId = roll.warehouse_id;
+                    const existing = warehouseMap.get(whId);
 
-                if (existing) {
-                    existing.roll_count += 1;
-                    existing.total_length += Number(roll.current_length) || 0;
-                    existing.available_length += Number(roll.available_length) || 0;
-                    existing.reserved_length += Number(roll.reserved_length) || 0;
-                    // Keep the most recent update date
-                    if (roll.updated_at && (!existing.last_updated || roll.updated_at > existing.last_updated)) {
-                        existing.last_updated = roll.updated_at;
+                    if (existing) {
+                        existing.roll_count += 1;
+                        existing.total_length += Number(roll.current_length) || 0;
+                        existing.available_length += Number(roll.available_length) || 0;
+                        existing.reserved_length += Number(roll.reserved_length) || 0;
+                        if (roll.updated_at && (!existing.last_updated || roll.updated_at > existing.last_updated)) {
+                            existing.last_updated = roll.updated_at;
+                        }
+                    } else {
+                        warehouseMap.set(whId, {
+                            warehouse_id: whId,
+                            warehouse_code: wh.code || '',
+                            warehouse_name_ar: wh.name_ar || '',
+                            warehouse_name_en: wh.name_en || '',
+                            roll_count: 1,
+                            total_length: Number(roll.current_length) || 0,
+                            available_length: Number(roll.available_length) || 0,
+                            reserved_length: Number(roll.reserved_length) || 0,
+                            loose_stock: 0,
+                            last_updated: roll.updated_at || null,
+                        });
                     }
-                } else {
-                    warehouseMap.set(whId, {
-                        warehouse_id: whId,
-                        warehouse_code: wh.code || '',
-                        warehouse_name_ar: wh.name_ar || '',
-                        warehouse_name_en: wh.name_en || '',
-                        roll_count: 1,
-                        total_length: Number(roll.current_length) || 0,
-                        available_length: Number(roll.available_length) || 0,
-                        reserved_length: Number(roll.reserved_length) || 0,
-                        last_updated: roll.updated_at || null,
-                    });
+                }
+            }
+
+            // ─── Add loose stock to the default warehouse ───
+            // Loose stock = current_stock - total rolled stock across all warehouses
+            const { data: material } = await supabase
+                .from('fabric_materials')
+                .select('current_stock, default_warehouse_id')
+                .eq('id', materialId)
+                .single();
+
+            if (material && Number(material.current_stock) > 0 && material.default_warehouse_id) {
+                const totalRolled = Array.from(warehouseMap.values()).reduce((s, w) => s + w.total_length, 0);
+                const looseStock = Math.max(0, Number(material.current_stock) - totalRolled);
+
+                if (looseStock > 0) {
+                    const defaultWhId = material.default_warehouse_id;
+                    const existing = warehouseMap.get(defaultWhId);
+
+                    if (existing) {
+                        // Warehouse already has rolls — add loose stock as separate field only
+                        existing.loose_stock = looseStock;
+                    } else {
+                        // Warehouse has no rolls — create a new entry for loose stock only
+                        // Need to fetch warehouse info
+                        const { data: wh } = await supabase
+                            .from('warehouses')
+                            .select('id, code, name_ar, name_en')
+                            .eq('id', defaultWhId)
+                            .single();
+
+                        if (wh) {
+                            warehouseMap.set(defaultWhId, {
+                                warehouse_id: defaultWhId,
+                                warehouse_code: wh.code || '',
+                                warehouse_name_ar: wh.name_ar || '',
+                                warehouse_name_en: wh.name_en || '',
+                                roll_count: 0,
+                                total_length: 0,
+                                available_length: 0,
+                                reserved_length: 0,
+                                loose_stock: looseStock,
+                                last_updated: null,
+                            });
+                        }
+                    }
                 }
             }
 

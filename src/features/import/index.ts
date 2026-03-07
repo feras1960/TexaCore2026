@@ -16,4 +16,5 @@ export { PreviewStep } from './steps/PreviewStep';
 export { ResultStep } from './steps/ResultStep';
 
 // Template Config
-export { TEMPLATE_CONFIGS, getTemplateConfig, getTemplateFileName } from './templates/templateConfig';
+export { TEMPLATE_CONFIGS, getTemplateConfig, getAvailableEntityTypes, SUPPORTED_LANGUAGES } from './templates/templateConfig';
+export type { TemplateLang, TemplateConfig, TemplateColumn } from './templates/templateConfig';

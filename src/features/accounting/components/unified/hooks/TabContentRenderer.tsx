@@ -45,6 +45,7 @@ const MaterialImagesTab = lazy(() => import('../tabs').then(m => ({ default: m.M
 const MaterialEcommerceTab = lazy(() => import('../tabs/MaterialEcommerceTab').then(m => ({ default: m.MaterialEcommerceTab })));
 const MaterialAdditionalInfoTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialAdditionalInfoTab })));
 const MaterialGroupInfoTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialGroupInfoTab })));
+const MaterialDetailsTab = lazy(() => import('../tabs/MaterialDetailsTab').then(m => ({ default: m.MaterialDetailsTab })));
 
 // Trade
 const TradeMainTab = lazy(() => import('../tabs/TradeMainTab').then(m => ({ default: m.TradeMainTab })));
@@ -694,6 +695,10 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                 if (docType === 'material') return <MaterialAdditionalInfoTab data={data} mode={mode} onChange={onChange} />;
                 break;
 
+            case 'details':
+                if (docType === 'material') return <MaterialDetailsTab data={data} mode={mode} onChange={onChange} />;
+                break;
+
             // ═══ Trade tabs ═══
             case 'trade_details':
                 return (
@@ -725,7 +730,9 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                             setHasChanges(true);
                         }}
                         currency={data?.currency || ''}
+                        tradeMode={tradeMode}
                         readOnly={mode === 'view'}
+                        sourceWarehouseId={data?.warehouse_id || data?.from_warehouse_id}
                     />
                 );
 

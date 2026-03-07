@@ -28,7 +28,7 @@ import {
   CreditCard, Upload, ChevronDown,
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
-import { AddPartySheet } from './components/AddPartySheet';
+// AddPartySheet removed — using UnifiedAccountingSheet in create mode instead
 import { ImportWizard } from '@/features/import';
 import QuickActionsBar from './components/QuickActionsBar';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,9 @@ interface Party {
   name: string;
   name_ar: string;
   name_en: string;
+  name_tr?: string;
+  name_ru?: string;
+  name_uk?: string;
   type: 'customer' | 'supplier';
   phone?: string;
   mobile?: string;
@@ -69,6 +72,18 @@ interface Party {
     name_en: string;
     account_code: string;
   };
+}
+
+/** الحصول على الاسم المحلي حسب اللغة مع fallback: اللغة المطلوبة → الإنجليزية → العربية */
+function getLocalizedName(row: any, lang: string): string {
+  const nameMap: Record<string, string> = {
+    ar: row.name_ar,
+    en: row.name_en,
+    tr: row.name_tr,
+    ru: row.name_ru,
+    uk: row.name_uk,
+  };
+  return nameMap[lang] || row.name_en || row.name_ar || '';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -107,7 +122,7 @@ export default function Parties() {
 
   // ─── Fetch Suppliers ─────────────────────────────────────────
   const { data: suppliers = [], isLoading: suppLoading, refetch: refetchSuppliers } = useQuery({
-    queryKey: ['parties_suppliers', companyId],
+    queryKey: ['parties_suppliers', companyId, language],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -119,7 +134,7 @@ export default function Parties() {
       return (data || []).map((s: any) => ({
         ...s,
         type: 'supplier' as const,
-        name: language === 'ar' ? (s.name_ar || s.name_en || '') : (s.name_en || s.name_ar || ''),
+        name: getLocalizedName(s, language),
       })) as Party[];
     },
     enabled: !!companyId,
@@ -128,7 +143,7 @@ export default function Parties() {
 
   // ─── Fetch Customers ─────────────────────────────────────────
   const { data: customers = [], isLoading: custLoading, refetch: refetchCustomers } = useQuery({
-    queryKey: ['parties_customers', companyId],
+    queryKey: ['parties_customers', companyId, language],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -140,7 +155,7 @@ export default function Parties() {
       return (data || []).map((c: any) => ({
         ...c,
         type: 'customer' as const,
-        name: language === 'ar' ? (c.name_ar || c.name_en || '') : (c.name_en || c.name_ar || ''),
+        name: getLocalizedName(c, language),
       })) as Party[];
     },
     enabled: !!companyId,
@@ -626,12 +641,19 @@ export default function Parties() {
         enableEditFlow
       />
 
-      {/* ─── Add Party Sheet ─── */}
-      <AddPartySheet
+      {/* ─── Add Party Sheet (uses UnifiedAccountingSheet in create mode) ─── */}
+      <UnifiedAccountingSheet
         isOpen={showAddSheet}
         onClose={() => setShowAddSheet(false)}
-        type={activeEntityTab === 'customers' ? 'customer' : 'supplier'}
-        onComplete={handleRefresh}
+        docType="party"
+        mode="create"
+        data={{
+          _partyType: activeEntityTab === 'customers' ? 'customer' : 'supplier',
+          is_active: true,
+        }}
+        companyId={companyId || undefined}
+        onRefresh={handleRefresh}
+        enableEditFlow
       />
 
       {/* ─── Import Wizard ─── */}

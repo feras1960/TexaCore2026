@@ -7,14 +7,15 @@
 import React from 'react';
 import { useLanguage } from '@/hooks';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 import { useImportWizard, WizardStep } from './hooks/useImportWizard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Upload, 
-  FileSpreadsheet, 
-  CheckCircle, 
+import {
+  Upload,
+  FileSpreadsheet,
+  CheckCircle,
   AlertCircle,
   ArrowLeft,
   ArrowRight,
@@ -49,8 +50,9 @@ const STEPS: { id: WizardStep; label_ar: string; label_en: string; icon: React.R
 export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportWizardProps) {
   const { t, language, isRTL } = useLanguage();
   const { user } = useAuth();
+  const { companyId } = useCompany();
   const tenantId = user?.user_metadata?.tenant_id || '';
-  
+
   const {
     state,
     entityDefinitions,
@@ -65,7 +67,7 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
     validateData,
     executeImport,
     updateOptions
-  } = useImportWizard(tenantId, defaultEntityType);
+  } = useImportWizard(tenantId, companyId || '', defaultEntityType);
 
   const currentStepIndex = STEPS.findIndex(s => s.id === state.currentStep);
   const isFirstStep = state.currentStep === 'select-entity';
@@ -154,6 +156,7 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
             importJob={state.importJob}
             importRows={state.importRows}
             entityDefinition={state.entityDefinition}
+            entityType={state.entityType}
             options={state.options}
             onExecute={executeImport}
             isLoading={state.isLoading}
@@ -209,13 +212,16 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
               const stepIndex = STEPS.findIndex(s => s.id === step.id);
               const isCurrent = state.currentStep === step.id;
               const isPast = currentStepIndex > stepIndex;
-              const isAccessible = isPast || isCurrent;
+              // Don't allow jumping to validation/preview/result without importJob data
+              const requiresImportJob = ['validation', 'preview', 'result'].includes(step.id);
+              const hasRequiredData = !requiresImportJob || !!state.importJob;
+              const isAccessible = (isPast || isCurrent) && hasRequiredData;
 
               return (
                 <React.Fragment key={step.id}>
                   {index > 0 && (
-                    <div 
-                      className={`h-0.5 w-8 ${isPast ? 'bg-primary' : 'bg-muted'}`} 
+                    <div
+                      className={`h-0.5 w-8 ${isPast ? 'bg-primary' : 'bg-muted'}`}
                     />
                   )}
                   <button
@@ -224,10 +230,10 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
                     className={`
                       flex items-center gap-2 px-3 py-1.5 rounded-full text-sm whitespace-nowrap
                       transition-colors
-                      ${isCurrent 
-                        ? 'bg-primary text-primary-foreground' 
-                        : isPast 
-                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                      ${isCurrent
+                        ? 'bg-primary text-primary-foreground'
+                        : isPast
+                          ? 'bg-primary/20 text-primary hover:bg-primary/30'
                           : 'bg-muted text-muted-foreground'}
                     `}
                   >
@@ -270,14 +276,15 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
               {t('import.step')} {currentStepIndex + 1} {t('import.of')} {STEPS.length - 1}
             </div>
 
-            {state.currentStep !== 'select-entity' && 
-             state.currentStep !== 'mapping' && 
-             state.currentStep !== 'preview' && (
-              <Button onClick={nextStep} disabled={state.isLoading}>
-                {t('common.next')}
-                {isRTL ? <ArrowLeft className="h-4 w-4 ms-2" /> : <ArrowRight className="h-4 w-4 ms-2" />}
-              </Button>
-            )}
+            {state.currentStep !== 'select-entity' &&
+              state.currentStep !== 'mapping' &&
+              state.currentStep !== 'validation' &&
+              state.currentStep !== 'preview' && (
+                <Button onClick={nextStep} disabled={state.isLoading}>
+                  {t('common.next')}
+                  {isRTL ? <ArrowLeft className="h-4 w-4 ms-2" /> : <ArrowRight className="h-4 w-4 ms-2" />}
+                </Button>
+              )}
           </div>
         )}
       </Card>

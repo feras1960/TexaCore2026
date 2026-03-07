@@ -25,8 +25,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Languages } from 'lucide-react';
 import { toast } from 'sonner';
+import { TranslateButton } from '@/components/ui/translate-button';
 
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 
@@ -48,6 +49,9 @@ export function AddPartySheet({ isOpen, onClose, type, onComplete }: AddPartyShe
     const schema = z.object({
         name_ar: z.string().min(1, t('accounting.errors.fillRequiredFields')),
         name_en: z.string().optional(),
+        name_tr: z.string().optional(),
+        name_ru: z.string().optional(),
+        name_uk: z.string().optional(),
         party_type: z.string().min(1, t('accounting.errors.fillRequiredFields')),
         phone: z.string().optional(),
         email: z.string().email().optional().or(z.literal('')),
@@ -63,6 +67,9 @@ export function AddPartySheet({ isOpen, onClose, type, onComplete }: AddPartyShe
         defaultValues: {
             name_ar: '',
             name_en: '',
+            name_tr: '',
+            name_ru: '',
+            name_uk: '',
             party_type: '',
             phone: '',
             email: '',
@@ -80,6 +87,9 @@ export function AddPartySheet({ isOpen, onClose, type, onComplete }: AddPartyShe
             form.reset({
                 name_ar: '',
                 name_en: '',
+                name_tr: '',
+                name_ru: '',
+                name_uk: '',
                 party_type: '',
                 phone: '',
                 email: '',
@@ -142,7 +152,10 @@ export function AddPartySheet({ isOpen, onClose, type, onComplete }: AddPartyShe
                 tenant_id: company?.tenant_id,
                 code: `${type === 'customer' ? 'C' : 'S'}-${Date.now()}`,
                 name_ar: values.name_ar,
-                name_en: values.name_en || values.name_ar, // Fallback
+                name_en: values.name_en || values.name_ar,
+                name_tr: values.name_tr || null,
+                name_ru: values.name_ru || null,
+                name_uk: values.name_uk || null,
                 phone: values.phone,
                 email: values.email || null,
                 address: values.address,
@@ -191,16 +204,54 @@ export function AddPartySheet({ isOpen, onClose, type, onComplete }: AddPartyShe
 
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-6">
 
-                    {/* Basic Info */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>{t('parties.form.nameAr')} <span className="text-red-500">*</span></Label>
-                            <Input {...form.register('name_ar')} className="text-right" dir="rtl" />
-                            {form.formState.errors.name_ar && <p className="text-xs text-red-500">{form.formState.errors.name_ar.message}</p>}
+                    {/* Basic Info — Names with AI Translate */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                <Languages className="h-4 w-4 text-gray-400" />
+                                {language === 'ar' ? 'اسم الجهة' : 'Party Name'}
+                            </Label>
+                            <TranslateButton
+                                sourceText={form.watch('name_ar') || form.watch('name_en') || ''}
+                                sourceLanguage={form.watch('name_ar') ? 'ar' : 'en'}
+                                context="customer_name"
+                                onTranslated={(translations) => {
+                                    if (translations.en) form.setValue('name_en', translations.en);
+                                    if (translations.ar) form.setValue('name_ar', translations.ar);
+                                    if (translations.tr) form.setValue('name_tr', translations.tr);
+                                    if (translations.ru) form.setValue('name_ru', translations.ru);
+                                    if (translations.uk) form.setValue('name_uk', translations.uk);
+                                }}
+                                size="sm"
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <Label>{t('parties.form.nameEn')}</Label>
-                            <Input {...form.register('name_en')} className="text-left" dir="ltr" />
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">🇸🇦 {language === 'ar' ? 'العربية' : 'Arabic'} <span className="text-red-500">*</span></Label>
+                                <Input {...form.register('name_ar')} className="text-right" dir="rtl" />
+                                {form.formState.errors.name_ar && <p className="text-xs text-red-500">{form.formState.errors.name_ar.message}</p>}
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">🇬🇧 {language === 'ar' ? 'الإنجليزية' : 'English'}</Label>
+                                <Input {...form.register('name_en')} className="text-left" dir="ltr" />
+                            </div>
+                        </div>
+
+                        {/* Extra languages — shown if filled */}
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">🇹🇷 {language === 'ar' ? 'التركية' : 'Turkish'}</Label>
+                                <Input {...form.register('name_tr')} className="text-left" dir="ltr" placeholder="..." />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">🇷🇺 {language === 'ar' ? 'الروسية' : 'Russian'}</Label>
+                                <Input {...form.register('name_ru')} className="text-left" dir="ltr" placeholder="..." />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">🇺🇦 {language === 'ar' ? 'الأوكرانية' : 'Ukrainian'}</Label>
+                                <Input {...form.register('name_uk')} className="text-left" dir="ltr" placeholder="..." />
+                            </div>
                         </div>
                     </div>
 

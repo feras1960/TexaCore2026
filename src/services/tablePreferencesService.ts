@@ -51,7 +51,7 @@ export async function getTablePreferences(tableKey: string): Promise<TablePrefer
                 .select('column_visibility, column_sizing, column_order')
                 .eq('user_id', user.id)
                 .eq('table_key', tableKey)
-                .single();
+                .maybeSingle();
 
             if (data && !error) {
                 const prefs: TablePreferences = {

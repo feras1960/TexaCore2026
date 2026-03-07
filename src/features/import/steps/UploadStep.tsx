@@ -48,10 +48,10 @@ export function UploadStep({
   }, []);
 
   const validateFile = (file: File): string | null => {
-    if (!ACCEPTED_TYPES.includes(file.type) && 
-        !file.name.endsWith('.xlsx') && 
-        !file.name.endsWith('.xls') && 
-        !file.name.endsWith('.csv')) {
+    if (!ACCEPTED_TYPES.includes(file.type) &&
+      !file.name.endsWith('.xlsx') &&
+      !file.name.endsWith('.xls') &&
+      !file.name.endsWith('.csv')) {
       return t('import.invalidFileType');
     }
     if (file.size > MAX_FILE_SIZE) {
@@ -110,7 +110,7 @@ export function UploadStep({
               </p>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -119,16 +119,11 @@ export function UploadStep({
               disabled={isLoading}
             >
               <Download className="h-4 w-4 me-2" />
-              {t('import.templateArabic')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDownloadTemplate('en')}
-              disabled={isLoading}
-            >
-              <Download className="h-4 w-4 me-2" />
-              {t('import.templateEnglish')}
+              {language === 'ar' ? 'تحميل القالب' :
+                language === 'tr' ? 'Şablonu İndir' :
+                  language === 'ru' ? 'Скачать шаблон' :
+                    language === 'uk' ? 'Завантажити шаблон' :
+                      'Download Template'}
             </Button>
           </div>
         </div>

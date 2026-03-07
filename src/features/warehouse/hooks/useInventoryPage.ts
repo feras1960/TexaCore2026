@@ -31,13 +31,17 @@ export interface InventoryMaterialRow {
 
     // Aggregated stock
     total_rolls: number;
-    total_meters: number;
+    total_meters: number;           // sum of rolls current_length
     available_meters: number;
     reserved_meters: number;
     warehouse_count: number;
     color_ids: string[];          // for color dots
     avg_cost_per_meter: number;
     total_stock_value: number;
+
+    // Dual-stock model
+    current_stock: number;          // total stock from fabric_materials (opening balance)
+    loose_stock: number;            // current_stock - total_meters (rolls)
 
     // Container link (last received)
     last_container_number: string | null;
@@ -172,7 +176,7 @@ export function useInventoryPage() {
             // 3. Fetch all fabric_materials
             const { data: mats, error: matsErr } = await supabase
                 .from('fabric_materials')
-                .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season')
+                .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock')
                 .eq('company_id', companyId)
                 .eq('status', 'active');
 
@@ -219,6 +223,8 @@ export function useInventoryPage() {
                     color_ids: [],
                     avg_cost_per_meter: 0,
                     total_stock_value: 0,
+                    current_stock: Number(mat.current_stock) || 0,
+                    loose_stock: 0,
                     last_container_number: null,
                 });
             }
@@ -276,6 +282,8 @@ export function useInventoryPage() {
                     row.avg_cost_per_meter = acc.totalCost / acc.count;
                     row.total_stock_value = acc.totalCost;
                 }
+                // Compute loose stock: current_stock - rolled meters
+                row.loose_stock = Math.max(0, row.current_stock - row.total_meters);
             }
 
             setMaterials(Array.from(materialMap.values()));
@@ -332,9 +340,9 @@ export function useInventoryPage() {
                 .filter(m => m.total_rolls > 0); // only show materials present in this warehouse
         }
 
-        // Hide empty (unless showEmpty)
+        // Hide empty (unless showEmpty) — show materials that have rolls OR loose stock
         if (!filters.showEmpty) {
-            result = result.filter(m => m.total_rolls > 0);
+            result = result.filter(m => m.total_rolls > 0 || m.loose_stock > 0);
         }
 
         // Search: name, code, OR color name (ar/en)
@@ -395,11 +403,12 @@ export function useInventoryPage() {
 
     // ─── Summary Stats ─────────────────────────────────────
     const summary = useMemo(() => ({
-        totalMaterials: filteredMaterials.filter(m => m.total_rolls > 0).length,
+        totalMaterials: filteredMaterials.filter(m => m.total_rolls > 0 || m.loose_stock > 0).length,
         totalRolls: filteredMaterials.reduce((s, m) => s + m.total_rolls, 0),
         totalMeters: filteredMaterials.reduce((s, m) => s + m.total_meters, 0),
         totalValue: filteredMaterials.reduce((s, m) => s + m.total_stock_value, 0),
         availableMeters: filteredMaterials.reduce((s, m) => s + m.available_meters, 0),
+        totalLooseStock: filteredMaterials.reduce((s, m) => s + m.loose_stock, 0),
     }), [filteredMaterials]);
 
     const hasActiveFilters = filters.search !== '' ||

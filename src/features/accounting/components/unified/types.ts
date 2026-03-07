@@ -129,7 +129,7 @@ export interface UnifiedAccountingSheetProps {
     options?: any;             // Additional options (e.g. dropdown lists)
     documentId?: string;       // For loading from API
     companyId?: string;        // For edit permission check
-    tradeMode?: 'sales' | 'purchase'; // Sales vs Purchase mode for smart tabs
+    tradeMode?: 'sales' | 'purchase' | 'transfer'; // Sales vs Purchase vs Transfer mode for smart tabs
 
     // Tabs
     defaultTab?: string;
@@ -335,7 +335,7 @@ export interface OpenDocument {
     isClosable: boolean;  // التبويب الأول غير قابل للإغلاق
     lastActiveTab?: string;
     icon?: string;
-    tradeMode?: 'sales' | 'purchase';
+    tradeMode?: 'sales' | 'purchase' | 'transfer';
 }
 
 // Props للتنقل بين السجلات

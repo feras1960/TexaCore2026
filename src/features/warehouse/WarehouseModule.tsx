@@ -34,6 +34,7 @@ import {
     ArrowLeftRight,
     ClipboardCheck,
     Beaker,
+    Repeat,
 } from 'lucide-react';
 
 // Direct imports (no lazy loading) for instant switching
@@ -49,6 +50,7 @@ import LocationManagementPage from './pages/LocationManagementPage';
 import StockMovementsPage from './pages/StockMovementsPage';
 import StockCountPage from './pages/StockCountPage';
 import SamplesPage from './pages/SamplesPage';
+import TransfersPage from './pages/TransfersPage';
 
 // Tab configuration type
 interface TabConfig {
@@ -72,6 +74,7 @@ export default function WarehouseModule() {
 
         // Precise matching first
         if (path.includes('/stockMovements')) return 'stockMovements';
+        if (path.includes('/transfers')) return 'transfers';
         if (path.includes('/stockCount')) return 'stockCount';
         if (path.includes('/inventory')) return 'inventory';
         // /warehouse/locations now lives inside the warehouses sub-tab → redirect there
@@ -144,6 +147,12 @@ export default function WarehouseModule() {
             labelKey: 'warehouse.tabs.stockMovements',
             icon: ArrowLeftRight,
             component: StockMovementsPage,
+        },
+        {
+            id: 'transfers',
+            labelKey: 'warehouse.tabs.transfers',
+            icon: Repeat,
+            component: TransfersPage,
         },
         {
             id: 'stockCount',

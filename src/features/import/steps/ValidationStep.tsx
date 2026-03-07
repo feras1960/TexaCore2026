@@ -11,12 +11,12 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { 
-  CheckCircle, 
-  XCircle, 
-  AlertTriangle, 
+import {
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
   ArrowRight,
-  Sparkles 
+  Sparkles
 } from 'lucide-react';
 import type { ImportJob, ImportRow, EntityDefinition, ImportOptions } from '@/services/importService';
 
@@ -45,16 +45,28 @@ export function ValidationStep({
   const pageSize = 10;
 
   if (!importJob || !entityDefinition) {
-    return null;
+    return (
+      <div className="text-center py-12 space-y-4">
+        <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500" />
+        <h3 className="text-lg font-semibold">
+          {language === 'ar' ? 'لم يتم التحقق من البيانات بعد' : 'Data not validated yet'}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          {language === 'ar'
+            ? 'يرجى العودة لخطوة مطابقة الأعمدة والضغط على زر "التحقق من البيانات" أولاً'
+            : 'Please go back to the Column Mapping step and click "Validate Data" first'}
+        </p>
+      </div>
+    );
   }
 
   const validRows = importRows.filter(r => r.status === 'valid');
   const invalidRows = importRows.filter(r => r.status === 'invalid');
 
-  const filteredRows = activeTab === 'all' 
-    ? importRows 
-    : activeTab === 'valid' 
-      ? validRows 
+  const filteredRows = activeTab === 'all'
+    ? importRows
+    : activeTab === 'valid'
+      ? validRows
       : invalidRows;
 
   const paginatedRows = filteredRows.slice(
@@ -87,7 +99,7 @@ export function ValidationStep({
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4 border-green-200 bg-green-50/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
@@ -99,7 +111,7 @@ export function ValidationStep({
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4 border-red-200 bg-red-50/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-red-100 rounded-lg">
@@ -111,7 +123,7 @@ export function ValidationStep({
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -165,7 +177,7 @@ export function ValidationStep({
               onCheckedChange={(checked) => onUpdateOptions({ skip_invalid_rows: checked })}
             />
           </div>
-          
+
           <div className="flex items-center justify-between">
             <Label htmlFor="update-existing" className="flex-1">
               <div>{t('import.updateExisting')}</div>
@@ -179,7 +191,7 @@ export function ValidationStep({
               onCheckedChange={(checked) => onUpdateOptions({ update_existing: checked })}
             />
           </div>
-          
+
           <div className="flex items-center justify-between">
             <Label htmlFor="use-ai" className="flex-1">
               <div className="flex items-center gap-2">

@@ -516,24 +516,24 @@ export default function PaymentsList() {
                     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full sm:w-auto" dir={direction}>
                         <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
                             {/* الكل */}
-                            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 font-tajawal">
-                                <CircleDollarSign className="w-3.5 h-3.5 me-1" />
+                            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                                <CircleDollarSign className="w-4 h-4 me-1.5" />
                                 {isRTL ? 'الكل' : 'All'}
-                                <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-gray-200/60">{tabCounts.all}</Badge>
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{tabCounts.all}</Badge>
                             </TabsTrigger>
 
                             {/* فواتير مشتريات */}
-                            <TabsTrigger value="purchase_invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-purple-600 font-tajawal">
-                                <FileText className="w-3.5 h-3.5 me-1" />
+                            <TabsTrigger value="purchase_invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
+                                <FileText className="w-4 h-4 me-1.5" />
                                 {isRTL ? 'فواتير مشتريات' : 'Purchase Invoices'}
-                                <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-purple-100/60 text-purple-700">{tabCounts.purchase_invoice}</Badge>
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{tabCounts.purchase_invoice}</Badge>
                             </TabsTrigger>
 
                             {/* كونتينرات */}
-                            <TabsTrigger value="container" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-blue-600 font-tajawal">
-                                <Ship className="w-3.5 h-3.5 me-1" />
+                            <TabsTrigger value="container" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">
+                                <Ship className="w-4 h-4 me-1.5" />
                                 {isRTL ? 'كونتينرات' : 'Containers'}
-                                <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-blue-100/60 text-blue-700">{tabCounts.container}</Badge>
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-blue-100/60 text-blue-700">{tabCounts.container}</Badge>
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>

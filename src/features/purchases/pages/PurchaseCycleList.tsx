@@ -960,12 +960,12 @@ export default function PurchaseCycleList() {
                     {viewMode === 'list' && (
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto" dir={direction}>
                             <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
-                                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'الكل' : 'All'}</TabsTrigger>
-                                <TabsTrigger value="request" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'طلبات شراء' : 'Requests'}</TabsTrigger>
-                                <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'عروض سعر' : 'Quotations'}</TabsTrigger>
-                                <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{isRTL ? 'فواتير مشتريات' : 'Invoices'}</TabsTrigger>
-                                <TabsTrigger value="receipt" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'اذون تسليم' : 'Receipts'}</TabsTrigger>
-                                <TabsTrigger value="return" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-rose-600">{isRTL ? 'مرتجعات' : 'Returns'}</TabsTrigger>
+                                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{isRTL ? 'الكل' : 'All'}</TabsTrigger>
+                                <TabsTrigger value="request" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-amber-600 font-tajawal">{isRTL ? 'طلبات شراء' : 'Requests'}</TabsTrigger>
+                                <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">{isRTL ? 'عروض سعر' : 'Quotations'}</TabsTrigger>
+                                <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">{isRTL ? 'فواتير مشتريات' : 'Invoices'}</TabsTrigger>
+                                <TabsTrigger value="receipt" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">{isRTL ? 'اذون تسليم' : 'Receipts'}</TabsTrigger>
+                                <TabsTrigger value="return" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">{isRTL ? 'مرتجعات' : 'Returns'}</TabsTrigger>
                             </TabsList>
                         </Tabs>
                     )}

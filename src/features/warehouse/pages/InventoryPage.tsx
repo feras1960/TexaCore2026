@@ -27,7 +27,7 @@ import {
     Package, RefreshCw, Download, ShoppingCart, Check,
     ChevronDown, Warehouse, Layers, Ruler, Eye, EyeOff,
     AlertTriangle, Boxes, DollarSign, ShieldAlert, Filter, X,
-    Search, MapPin, Building2, TrendingUp,
+    Search, MapPin, Building2, TrendingUp, ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -88,16 +88,18 @@ function SummaryCard({ label, value, sub, icon, color }: {
 }
 
 // ─── Stock Status Badge ───────────────────────────────────
-function StockBadge({ meters, minStock, t }: {
-    meters: number; minStock: number; t: (k: string) => string;
+function StockBadge({ meters, currentStock, minStock, t }: {
+    meters: number; currentStock?: number; minStock: number; t: (k: string) => string;
 }) {
-    if (meters <= 0) return (
+    // Use current_stock (total including loose) for status determination
+    const effectiveStock = currentStock ?? meters;
+    if (effectiveStock <= 0) return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
             {t('inventory.outOfStock')}
         </span>
     );
-    if (minStock > 0 && meters <= minStock) return (
+    if (minStock > 0 && effectiveStock <= minStock) return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             {t('inventory.lowStock')}
@@ -223,6 +225,9 @@ export default function InventoryPage() {
     const [rollSheetData, setRollSheetData] = useState<any>(null);
     const [rollSheetLoading, setRollSheetLoading] = useState(false);
 
+    // ─── Transfer Sheet ───────────────────────────────────────
+    const [transferOpen, setTransferOpen] = useState(false);
+
     const openRollSheet = useCallback(async (roll: { id: string; roll_number: string }) => {
         setRollSheetLoading(true);
         try {
@@ -265,7 +270,7 @@ export default function InventoryPage() {
     // Footer text
     const footerText = useMemo(() => {
         const visible = materials.length;
-        const total = allMaterials.filter(m => m.total_rolls > 0).length;
+        const total = allMaterials.filter(m => m.total_rolls > 0 || m.loose_stock > 0).length;
         return `${t('inventory.showing')} ${fmt0(visible)} ${t('inventory.of')} ${fmt0(total)} ${t('warehouse.tabs.materials')}`;
     }, [materials.length, allMaterials, t]);
 
@@ -276,14 +281,18 @@ export default function InventoryPage() {
 
                 {/* ═══ Header ═══ */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-shrink-0">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-cairo flex items-center gap-2">
-                            <Package className="w-6 h-6 text-indigo-500" />
-                            {t('inventory.management')}
-                        </h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                            {t('inventory.managementDesc')}
-                        </p>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shadow-sm flex-shrink-0">
+                            <Package className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+                                {t('inventory.management')}
+                            </h1>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                {t('inventory.managementDesc')}
+                            </p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
@@ -305,6 +314,15 @@ export default function InventoryPage() {
                             <Download className="w-4 h-4" />
                             <span className="hidden md:inline">{t('common.export')}</span>
                         </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400"
+                            onClick={() => setTransferOpen(true)}
+                        >
+                            <ArrowLeftRight className="w-4 h-4" />
+                            <span className="hidden md:inline">{language === 'ar' ? 'مناقلة' : 'Transfer'}</span>
+                        </Button>
                     </div>
                 </div>
 
@@ -320,8 +338,8 @@ export default function InventoryPage() {
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 flex-shrink-0">
                     <SummaryCard label={t('warehouse.tabs.materials')} value={fmt0(summary.totalMaterials)} sub={t('inventory.types')} icon={<Package className="w-5 h-5" />} color="indigo" />
                     <SummaryCard label={t('inventory.totalRolls')} value={fmt0(summary.totalRolls)} icon={<Boxes className="w-5 h-5" />} color="purple" />
-                    <SummaryCard label={t('inventory.availableMeters')} value={fmt(summary.availableMeters)} sub={t('inventory.meterUnit')} icon={<Ruler className="w-5 h-5" />} color="green" />
-                    <SummaryCard label={t('inventory.totalStock')} value={fmt(summary.totalMeters)} sub={t('inventory.meterUnit')} icon={<Layers className="w-5 h-5" />} color="blue" />
+                    <SummaryCard label={isRTL ? 'الأمتار المتاحة' : 'Available Meters'} value={fmt(summary.totalMeters + summary.totalLooseStock)} sub={t('inventory.meterUnit')} icon={<Ruler className="w-5 h-5" />} color="green" />
+                    <SummaryCard label={isRTL ? 'إجمالي المخزون' : 'Total Stock'} value={fmt(summary.totalMeters + summary.totalLooseStock)} sub={t('inventory.meterUnit')} icon={<Layers className="w-5 h-5" />} color="blue" />
                     {canSeeValue
                         ? <SummaryCard label={`${t('inventory.stockValue')} (${activeCurrency})`} value={fmt0(convertPrice(summary.totalValue, 'UAH'))} icon={<DollarSign className="w-5 h-5" />} color="amber" />
                         : <SummaryCard label={t('inventory.warehouses')} value={fmt0(filterOptions.warehouses.length)} icon={<Warehouse className="w-5 h-5" />} color="amber" />
@@ -419,7 +437,7 @@ export default function InventoryPage() {
                                 </Button>
                             )}
                             <div className="text-xs text-gray-400 pb-1 font-mono" dir="ltr">
-                                {fmt0(materials.length)}/{fmt0(allMaterials.filter(m => m.total_rolls > 0).length)}
+                                {fmt0(materials.length)}/{fmt0(allMaterials.filter(m => m.total_rolls > 0 || m.loose_stock > 0).length)}
                             </div>
                         </div>
                     </div>
@@ -498,8 +516,10 @@ export default function InventoryPage() {
                                 <tbody>
                                     {materials.map((mat, idx) => {
                                         const isOpen = expandedId === mat.material_id;
-                                        const isLowStock = mat.min_stock > 0 && mat.available_meters <= mat.min_stock;
-                                        const isOutOfStock = mat.available_meters <= 0;
+                                        // Effective total = max(current_stock, rolled_meters) + ensures stale DB values don't hide real stock
+                                        const effectiveTotal = Math.max(mat.current_stock, mat.total_meters);
+                                        const isLowStock = mat.min_stock > 0 && effectiveTotal <= mat.min_stock;
+                                        const isOutOfStock = effectiveTotal <= 0;
                                         const inCart = cartActions.isInCart(mat.material_id);
 
                                         return (
@@ -547,31 +567,41 @@ export default function InventoryPage() {
                                                     <td className="px-3 py-3 text-center">
                                                         <ColorDots colorIds={mat.color_ids} colors={filterOptions.colors as any} />
                                                     </td>
-                                                    {/* Rolls + WH count */}
+                                                    {/* Rolls — count + rolled meters */}
                                                     <td className="px-3 py-3 text-center">
                                                         <span className={cn('text-sm font-bold font-mono', mat.total_rolls > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300')} dir="ltr">
                                                             {fmt0(mat.total_rolls)}
                                                         </span>
+                                                        {mat.total_meters > 0 && (
+                                                            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5" dir="ltr">
+                                                                {fmt(mat.total_meters)} {t('inventory.meterUnit')}
+                                                            </p>
+                                                        )}
                                                         {mat.warehouse_count > 0 && (
                                                             <p className="text-[10px] text-gray-400 mt-0.5" dir="ltr">
                                                                 {fmt0(mat.warehouse_count)} {t('inventory.warehouseCount')}
                                                             </p>
                                                         )}
                                                     </td>
-                                                    {/* Available meters */}
+                                                    {/* Available meters — effective total + loose sub-line */}
                                                     <td className="px-3 py-3 text-end">
-                                                        <span className={cn('text-sm font-bold font-mono', mat.available_meters > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300')} dir="ltr">
-                                                            {fmt(mat.available_meters)} {t('inventory.meterUnit')}
+                                                        <span className={cn('text-sm font-bold font-mono', effectiveTotal > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300')} dir="ltr">
+                                                            {fmt(effectiveTotal)} {t('inventory.meterUnit')}
                                                         </span>
+                                                        {mat.loose_stock > 0 && (
+                                                            <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-0.5" dir="ltr">
+                                                                {fmt(mat.loose_stock)} {isRTL ? 'سائب' : 'loose'}
+                                                            </p>
+                                                        )}
                                                         {mat.reserved_meters > 0 && (
                                                             <p className="text-[10px] text-amber-500 mt-0.5" dir="ltr">
                                                                 {fmt(mat.reserved_meters)} {t('inventory.reserved')}
                                                             </p>
                                                         )}
                                                     </td>
-                                                    {/* Status */}
+                                                    {/* Status — considers effective total */}
                                                     <td className="px-3 py-3">
-                                                        <StockBadge meters={mat.available_meters} minStock={mat.min_stock} t={t} />
+                                                        <StockBadge meters={mat.available_meters} currentStock={effectiveTotal} minStock={mat.min_stock} t={t} />
                                                     </td>
                                                     {/* Cost */}
                                                     {canSeeCost && (
@@ -646,7 +676,7 @@ export default function InventoryPage() {
                                                     {/* Cart */}
                                                     {canAddToCart && (
                                                         <td className="px-2 py-3 text-center">
-                                                            {mat.total_rolls > 0 && (
+                                                            {(mat.total_rolls > 0 || mat.loose_stock > 0) && (
                                                                 <button
                                                                     className={cn(
                                                                         'w-8 h-8 rounded-lg flex items-center justify-center transition-all border mx-auto',
@@ -702,6 +732,8 @@ export default function InventoryPage() {
                                                                                 price: mat.selling_price,
                                                                                 currency: activeCurrency,
                                                                                 min_stock: mat.min_stock,
+                                                                                current_stock: mat.current_stock,
+                                                                                loose_stock: mat.loose_stock,
                                                                             }}
                                                                             onClose={() => setExpandedId(null)}
                                                                             onOpenRoll={openRollSheet}
@@ -744,6 +776,20 @@ export default function InventoryPage() {
                     docType="roll"
                     data={rollSheetData}
                     mode="view"
+                />
+            )}
+            {/* ═══ Transfer Sheet ═══ */}
+            {transferOpen && (
+                <UnifiedAccountingSheet
+                    isOpen={transferOpen}
+                    onClose={() => {
+                        setTransferOpen(false);
+                        refetch();
+                    }}
+                    docType="trade_invoice"
+                    tradeMode="transfer"
+                    mode="create"
+                    data={{ type: 'transfer', status: 'draft', subType: 'transfer' }}
                 />
             )}
         </>

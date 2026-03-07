@@ -102,6 +102,8 @@ export interface CartItemsViewProps {
     customerId?: string;
     /** International purchase — tax is 0 on invoice, paid later via container */
     isInternational?: boolean;
+    /** Hide all financial columns (price, discount, total) — used for transfer mode */
+    hideFinancials?: boolean;
     /** Optional price resolver from customer pricing — applies smart pricing when qty changes */
     priceResolver?: (materialId: string, qty: number, baseSellPrice: number) => {
         unitPrice: number;
@@ -139,6 +141,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
     showTax = false,
     customerId,
     isInternational = false,
+    hideFinancials = false,
     priceResolver,
 }) => {
     const { language, direction } = useLanguage();
@@ -315,7 +318,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
         <TooltipProvider delayDuration={200}>
             <div className="space-y-4">
                 {/* ════════ Summary Bar ════════ */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className={cn("grid gap-3", hideFinancials ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
                     <SummaryMiniCard
                         label={t('المواد', 'Materials')}
                         value={String(grandTotals.materials)}
@@ -328,7 +331,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                         icon={<Ruler className="w-4 h-4" />}
                         color="blue"
                     />
-                    {showDiscount && grandTotals.discount > 0 && (
+                    {!hideFinancials && showDiscount && grandTotals.discount > 0 && (
                         <SummaryMiniCard
                             label={t('الخصم', 'Discount')}
                             value={`-${fmtAmount(grandTotals.discount)}`}
@@ -336,12 +339,14 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                             color="orange"
                         />
                     )}
-                    <SummaryMiniCard
-                        label={grandTotals.tax > 0 ? t('الإجمالي شامل الضريبة', 'Total incl. Tax') : t('الإجمالي', 'Total')}
-                        value={`${fmtAmount(grandTotals.total)} ${currency}`}
-                        icon={<Check className="w-4 h-4" />}
-                        color="green"
-                    />
+                    {!hideFinancials && (
+                        <SummaryMiniCard
+                            label={grandTotals.tax > 0 ? t('الإجمالي شامل الضريبة', 'Total incl. Tax') : t('الإجمالي', 'Total')}
+                            value={`${fmtAmount(grandTotals.total)} ${currency}`}
+                            icon={<Check className="w-4 h-4" />}
+                            color="green"
+                        />
+                    )}
                 </div>
 
                 {/* ════════ Grouped Items ════════ */}
@@ -378,9 +383,11 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                 {fmtQty(group.groupQty)}
                                             </Badge>
 
-                                            <Badge className="text-xs font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                                {fmtAmount(group.groupTotal)} {currency}
-                                            </Badge>
+                                            {!hideFinancials && (
+                                                <Badge className="text-xs font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                    {fmtAmount(group.groupTotal)} {currency}
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -388,17 +395,19 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                 {/* ═══ Column Sub-Header ═══ */}
                                 <div className={cn(
                                     "grid items-center text-[10px] font-medium text-gray-400 border-b bg-gray-50/50 dark:bg-gray-800/30",
-                                    showDiscount
-                                        ? "grid-cols-[1fr_140px_20px_90px_80px_20px_100px_40px]"
-                                        : "grid-cols-[1fr_140px_20px_90px_20px_100px_40px]"
+                                    hideFinancials
+                                        ? "grid-cols-[1fr_140px_40px]"
+                                        : showDiscount
+                                            ? "grid-cols-[1fr_140px_20px_90px_80px_20px_100px_40px]"
+                                            : "grid-cols-[1fr_140px_20px_90px_20px_100px_40px]"
                                 )}>
                                     <div className="px-4 py-1.5">{t('المستودع', 'Warehouse')}</div>
                                     <div className="px-2 py-1.5 text-center">{t('الكمية', 'Qty')}</div>
-                                    <div />
-                                    <div className="px-2 py-1.5 text-center">{t('السعر', 'Price')}</div>
-                                    {showDiscount && <div className="px-2 py-1.5 text-center">{t('الخصم %', 'Disc %')}</div>}
-                                    <div />
-                                    <div className="px-2 py-1.5 text-end">{t('المجموع', 'Total')}</div>
+                                    {!hideFinancials && <div />}
+                                    {!hideFinancials && <div className="px-2 py-1.5 text-center">{t('السعر', 'Price')}</div>}
+                                    {!hideFinancials && showDiscount && <div className="px-2 py-1.5 text-center">{t('الخصم %', 'Disc %')}</div>}
+                                    {!hideFinancials && <div />}
+                                    {!hideFinancials && <div className="px-2 py-1.5 text-end">{t('المجموع', 'Total')}</div>}
                                     <div />
                                 </div>
 
@@ -416,9 +425,11 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                 {/* ── Row ── */}
                                                 <div className={cn(
                                                     "grid items-center hover:bg-emerald-50/30 dark:hover:bg-emerald-900/5 transition-colors",
-                                                    showDiscount
-                                                        ? "grid-cols-[1fr_140px_20px_90px_80px_20px_100px_40px]"
-                                                        : "grid-cols-[1fr_140px_20px_90px_20px_100px_40px]"
+                                                    hideFinancials
+                                                        ? "grid-cols-[1fr_140px_40px]"
+                                                        : showDiscount
+                                                            ? "grid-cols-[1fr_140px_20px_90px_80px_20px_100px_40px]"
+                                                            : "grid-cols-[1fr_140px_20px_90px_20px_100px_40px]"
                                                 )}>
                                                     {/* Warehouse Name */}
                                                     <div className="px-4 py-3 flex items-center gap-2 min-w-0">
@@ -486,115 +497,120 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                         )}
                                                     </div>
 
-                                                    {/* × */}
-                                                    <span className="text-gray-300 text-xs text-center">×</span>
+                                                    {/* ═══ Financial Columns — hidden in transfer mode ═══ */}
+                                                    {!hideFinancials && (
+                                                        <>
+                                                            {/* × */}
+                                                            <span className="text-gray-300 text-xs text-center">×</span>
 
-                                                    {/* Unit Price */}
-                                                    <div className="px-2 py-3 text-center">
-                                                        {readOnly ? (
-                                                            <span className="text-sm font-mono">{fmtAmount(item.unit_price)}</span>
-                                                        ) : isPriceEdit ? (
-                                                            <div className="flex items-center gap-0.5">
-                                                                <Input
-                                                                    type="number"
-                                                                    value={tempValue}
-                                                                    onChange={(e) => setTempValue(e.target.value)}
-                                                                    className="h-7 w-20 text-xs font-mono text-center px-1"
-                                                                    autoFocus
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') confirmEdit(item.id, 'price');
-                                                                        if (e.key === 'Escape') setEditingPrice(null);
-                                                                    }}
-                                                                />
-                                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-600"
-                                                                    onClick={() => confirmEdit(item.id, 'price')}>
-                                                                    <Check className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                        ) : (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button
-                                                                        onClick={() => startEdit(item.id, 'price', String(item.unit_price))}
-                                                                        className="text-sm font-mono hover:text-emerald-600 hover:underline transition-colors cursor-text"
-                                                                    >
-                                                                        {fmtAmount(item.unit_price)}
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent side="top" className="text-xs">
-                                                                    {t('سعر الوحدة — انقر للتعديل', 'Unit price — Click to edit')}
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        )}
-                                                        {/* Price History Icon */}
-                                                        {!readOnly && (
-                                                            <PriceHistoryPopover
-                                                                materialId={item.material_id}
-                                                                customerId={customerId}
-                                                                currentPrice={item.unit_price}
-                                                                currency={currency}
-                                                                onApplyPrice={(price) => {
-                                                                    updateItem(item.id, { unit_price: price });
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </div>
-
-                                                    {/* Discount % */}
-                                                    {showDiscount && (
-                                                        <div className="px-2 py-3 text-center">
-                                                            {readOnly ? (
-                                                                <span className="text-xs font-mono text-amber-600">{item.discount_percent || 0}%</span>
-                                                            ) : isDiscountEdit ? (
-                                                                <div className="flex items-center gap-0.5">
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={tempValue}
-                                                                        onChange={(e) => setTempValue(e.target.value)}
-                                                                        className="h-7 w-16 text-xs font-mono text-center px-1"
-                                                                        autoFocus
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') confirmEdit(item.id, 'discount');
-                                                                            if (e.key === 'Escape') setEditingDiscount(null);
+                                                            {/* Unit Price */}
+                                                            <div className="px-2 py-3 text-center">
+                                                                {readOnly ? (
+                                                                    <span className="text-sm font-mono">{fmtAmount(item.unit_price)}</span>
+                                                                ) : isPriceEdit ? (
+                                                                    <div className="flex items-center gap-0.5">
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={tempValue}
+                                                                            onChange={(e) => setTempValue(e.target.value)}
+                                                                            className="h-7 w-20 text-xs font-mono text-center px-1"
+                                                                            autoFocus
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') confirmEdit(item.id, 'price');
+                                                                                if (e.key === 'Escape') setEditingPrice(null);
+                                                                            }}
+                                                                        />
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-600"
+                                                                            onClick={() => confirmEdit(item.id, 'price')}>
+                                                                            <Check className="h-3 w-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <button
+                                                                                onClick={() => startEdit(item.id, 'price', String(item.unit_price))}
+                                                                                className="text-sm font-mono hover:text-emerald-600 hover:underline transition-colors cursor-text"
+                                                                            >
+                                                                                {fmtAmount(item.unit_price)}
+                                                                            </button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent side="top" className="text-xs">
+                                                                            {t('سعر الوحدة — انقر للتعديل', 'Unit price — Click to edit')}
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                )}
+                                                                {/* Price History Icon */}
+                                                                {!readOnly && (
+                                                                    <PriceHistoryPopover
+                                                                        materialId={item.material_id}
+                                                                        customerId={customerId}
+                                                                        currentPrice={item.unit_price}
+                                                                        currency={currency}
+                                                                        onApplyPrice={(price) => {
+                                                                            updateItem(item.id, { unit_price: price });
                                                                         }}
                                                                     />
-                                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-600"
-                                                                        onClick={() => confirmEdit(item.id, 'discount')}>
-                                                                        <Check className="h-3 w-3" />
-                                                                    </Button>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Discount % */}
+                                                            {showDiscount && (
+                                                                <div className="px-2 py-3 text-center">
+                                                                    {readOnly ? (
+                                                                        <span className="text-xs font-mono text-amber-600">{item.discount_percent || 0}%</span>
+                                                                    ) : isDiscountEdit ? (
+                                                                        <div className="flex items-center gap-0.5">
+                                                                            <Input
+                                                                                type="number"
+                                                                                value={tempValue}
+                                                                                onChange={(e) => setTempValue(e.target.value)}
+                                                                                className="h-7 w-16 text-xs font-mono text-center px-1"
+                                                                                autoFocus
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') confirmEdit(item.id, 'discount');
+                                                                                    if (e.key === 'Escape') setEditingDiscount(null);
+                                                                                }}
+                                                                            />
+                                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-600"
+                                                                                onClick={() => confirmEdit(item.id, 'discount')}>
+                                                                                <Check className="h-3 w-3" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <button
+                                                                                    onClick={() => startEdit(item.id, 'discount', String(item.discount_percent || 0))}
+                                                                                    className={cn(
+                                                                                        "text-xs font-mono transition-colors cursor-text",
+                                                                                        (item.discount_percent || 0) > 0
+                                                                                            ? "text-amber-600 font-bold hover:text-amber-700"
+                                                                                            : "text-gray-400 hover:text-amber-500"
+                                                                                    )}
+                                                                                >
+                                                                                    {item.discount_percent || 0}%
+                                                                                </button>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent side="top" className="text-xs">
+                                                                                {t('نسبة الخصم — انقر للتعديل', 'Discount % — Click to edit')}
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    )}
                                                                 </div>
-                                                            ) : (
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <button
-                                                                            onClick={() => startEdit(item.id, 'discount', String(item.discount_percent || 0))}
-                                                                            className={cn(
-                                                                                "text-xs font-mono transition-colors cursor-text",
-                                                                                (item.discount_percent || 0) > 0
-                                                                                    ? "text-amber-600 font-bold hover:text-amber-700"
-                                                                                    : "text-gray-400 hover:text-amber-500"
-                                                                            )}
-                                                                        >
-                                                                            {item.discount_percent || 0}%
-                                                                        </button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent side="top" className="text-xs">
-                                                                        {t('نسبة الخصم — انقر للتعديل', 'Discount % — Click to edit')}
-                                                                    </TooltipContent>
-                                                                </Tooltip>
                                                             )}
-                                                        </div>
+
+                                                            {/* = */}
+                                                            <span className="text-gray-300 text-xs text-center">=</span>
+
+                                                            {/* Total (net after discount, before tax) */}
+                                                            <div className="px-2 py-3 text-end">
+                                                                <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                                                                    {fmtAmount((item.subtotal || 0) - (item.discount_amount || 0))}
+                                                                </span>
+                                                            </div>
+                                                        </>
                                                     )}
-
-                                                    {/* = */}
-                                                    <span className="text-gray-300 text-xs text-center">=</span>
-
-                                                    {/* Total (net after discount, before tax) */}
-                                                    <div className="px-2 py-3 text-end">
-                                                        <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                                                            {fmtAmount((item.subtotal || 0) - (item.discount_amount || 0))}
-                                                        </span>
-                                                    </div>
 
                                                     {/* Delete */}
                                                     <div className="px-2 py-3 text-center">
@@ -604,7 +620,7 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="icon"
-                                                                        className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all"
+                                                                        className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
                                                                         onClick={() => removeItem(item.id)}
                                                                     >
                                                                         <X className="h-3.5 w-3.5" />
@@ -654,87 +670,89 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                                                     </div>
                                                 )}
 
-                                                {/* ── Currency & Exchange Rate ── */}
-                                                <div className="px-4 pb-2.5 -mt-1">
-                                                    <div className="ms-6 flex items-center gap-2">
-                                                        {editingCurrency === item.id ? (
-                                                            /* Edit mode */
-                                                            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800">
-                                                                <DollarSign className="w-3.5 h-3.5 text-blue-500" />
-                                                                <Input
-                                                                    value={tempCurrency}
-                                                                    onChange={(e) => setTempCurrency(e.target.value.toUpperCase())}
-                                                                    className="h-6 w-16 text-xs font-mono text-center px-1"
-                                                                    placeholder="USD"
-                                                                    autoFocus
-                                                                    dir="ltr"
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') confirmCurrencyEdit(item.id);
-                                                                        if (e.key === 'Escape') cancelCurrencyEdit();
-                                                                    }}
-                                                                />
-                                                                {tempCurrency !== companyCurrency && (
-                                                                    <>
-                                                                        <ArrowLeftRight className="w-3 h-3 text-blue-400" />
-                                                                        <span className="text-[10px] text-blue-500">
-                                                                            {t('سعر التصريف', 'Rate')}:
-                                                                        </span>
-                                                                        <Input
-                                                                            type="number"
-                                                                            step="0.0001"
-                                                                            value={tempExchangeRate}
-                                                                            onChange={(e) => setTempExchangeRate(e.target.value)}
-                                                                            className="h-6 w-20 text-xs font-mono text-center px-1"
-                                                                            dir="ltr"
-                                                                            onKeyDown={(e) => {
-                                                                                if (e.key === 'Enter') confirmCurrencyEdit(item.id);
-                                                                                if (e.key === 'Escape') cancelCurrencyEdit();
-                                                                            }}
-                                                                        />
-                                                                        <span className="text-[10px] text-blue-400 font-mono">{companyCurrency}</span>
-                                                                    </>
-                                                                )}
-                                                                <Button variant="ghost" size="icon" className="h-5 w-5 text-emerald-600"
-                                                                    onClick={() => confirmCurrencyEdit(item.id)}>
-                                                                    <Check className="h-3 w-3" />
-                                                                </Button>
-                                                                <Button variant="ghost" size="icon" className="h-5 w-5 text-gray-400"
-                                                                    onClick={cancelCurrencyEdit}>
-                                                                    <X className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                        ) : (
-                                                            /* Display mode */
-                                                            <button
-                                                                onClick={() => !readOnly && startEditCurrency(item.id, item.currency || currency, item.exchange_rate || 1)}
-                                                                disabled={readOnly}
-                                                                className={cn(
-                                                                    "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] transition-colors",
-                                                                    readOnly
-                                                                        ? "cursor-default"
-                                                                        : "hover:bg-blue-50 dark:hover:bg-blue-950/20 cursor-pointer",
-                                                                    (item.currency && item.currency !== companyCurrency)
-                                                                        ? "text-blue-600 dark:text-blue-400 font-semibold"
-                                                                        : "text-gray-400"
-                                                                )}
-                                                            >
-                                                                <DollarSign className="w-3 h-3" />
-                                                                <span className="font-mono">{item.currency || currency}</span>
-                                                                {item.currency && item.currency !== companyCurrency && (item.exchange_rate || 0) !== 1 && (
-                                                                    <>
-                                                                        <ArrowLeftRight className="w-2.5 h-2.5 text-gray-300" />
-                                                                        <span className="font-mono text-[10px]">
-                                                                            {(item.exchange_rate || 1).toFixed(4)} {companyCurrency}
-                                                                        </span>
-                                                                    </>
-                                                                )}
-                                                                {!readOnly && (
-                                                                    <Edit3 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-50 ms-0.5" />
-                                                                )}
-                                                            </button>
-                                                        )}
+                                                {/* ── Currency & Exchange Rate (hidden in transfer mode) ── */}
+                                                {!hideFinancials && (
+                                                    <div className="px-4 pb-2.5 -mt-1">
+                                                        <div className="ms-6 flex items-center gap-2">
+                                                            {editingCurrency === item.id ? (
+                                                                /* Edit mode */
+                                                                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800">
+                                                                    <DollarSign className="w-3.5 h-3.5 text-blue-500" />
+                                                                    <Input
+                                                                        value={tempCurrency}
+                                                                        onChange={(e) => setTempCurrency(e.target.value.toUpperCase())}
+                                                                        className="h-6 w-16 text-xs font-mono text-center px-1"
+                                                                        placeholder="USD"
+                                                                        autoFocus
+                                                                        dir="ltr"
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') confirmCurrencyEdit(item.id);
+                                                                            if (e.key === 'Escape') cancelCurrencyEdit();
+                                                                        }}
+                                                                    />
+                                                                    {tempCurrency !== companyCurrency && (
+                                                                        <>
+                                                                            <ArrowLeftRight className="w-3 h-3 text-blue-400" />
+                                                                            <span className="text-[10px] text-blue-500">
+                                                                                {t('سعر التصريف', 'Rate')}:
+                                                                            </span>
+                                                                            <Input
+                                                                                type="number"
+                                                                                step="0.0001"
+                                                                                value={tempExchangeRate}
+                                                                                onChange={(e) => setTempExchangeRate(e.target.value)}
+                                                                                className="h-6 w-20 text-xs font-mono text-center px-1"
+                                                                                dir="ltr"
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') confirmCurrencyEdit(item.id);
+                                                                                    if (e.key === 'Escape') cancelCurrencyEdit();
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-[10px] text-blue-400 font-mono">{companyCurrency}</span>
+                                                                        </>
+                                                                    )}
+                                                                    <Button variant="ghost" size="icon" className="h-5 w-5 text-emerald-600"
+                                                                        onClick={() => confirmCurrencyEdit(item.id)}>
+                                                                        <Check className="h-3 w-3" />
+                                                                    </Button>
+                                                                    <Button variant="ghost" size="icon" className="h-5 w-5 text-gray-400"
+                                                                        onClick={cancelCurrencyEdit}>
+                                                                        <X className="h-3 w-3" />
+                                                                    </Button>
+                                                                </div>
+                                                            ) : (
+                                                                /* Display mode */
+                                                                <button
+                                                                    onClick={() => !readOnly && startEditCurrency(item.id, item.currency || currency, item.exchange_rate || 1)}
+                                                                    disabled={readOnly}
+                                                                    className={cn(
+                                                                        "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] transition-colors",
+                                                                        readOnly
+                                                                            ? "cursor-default"
+                                                                            : "hover:bg-blue-50 dark:hover:bg-blue-950/20 cursor-pointer",
+                                                                        (item.currency && item.currency !== companyCurrency)
+                                                                            ? "text-blue-600 dark:text-blue-400 font-semibold"
+                                                                            : "text-gray-400"
+                                                                    )}
+                                                                >
+                                                                    <DollarSign className="w-3 h-3" />
+                                                                    <span className="font-mono">{item.currency || currency}</span>
+                                                                    {item.currency && item.currency !== companyCurrency && (item.exchange_rate || 0) !== 1 && (
+                                                                        <>
+                                                                            <ArrowLeftRight className="w-2.5 h-2.5 text-gray-300" />
+                                                                            <span className="font-mono text-[10px]">
+                                                                                {(item.exchange_rate || 1).toFixed(4)} {companyCurrency}
+                                                                            </span>
+                                                                        </>
+                                                                    )}
+                                                                    {!readOnly && (
+                                                                        <Edit3 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-50 ms-0.5" />
+                                                                    )}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -744,67 +762,69 @@ export const CartItemsView: React.FC<CartItemsViewProps> = ({
                     </AnimatePresence>
                 </div>
 
-                {/* ════════ Grand Totals Footer ════════ */}
-                <Card className="border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/10 dark:to-teal-900/10">
-                    <CardContent className="p-4">
-                        <div className="space-y-2">
-                            {/* Subtotal */}
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-500">{t('المجموع الفرعي', 'Subtotal')}</span>
-                                <span className="font-mono font-semibold">
-                                    {fmtAmount(grandTotals.subtotal)}
-                                    <span className="text-xs text-gray-400 ms-1">{currency}</span>
-                                </span>
+                {/* ════════ Grand Totals Footer (hidden in transfer mode) ════════ */}
+                {!hideFinancials && (
+                    <Card className="border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/10 dark:to-teal-900/10">
+                        <CardContent className="p-4">
+                            <div className="space-y-2">
+                                {/* Subtotal */}
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-500">{t('المجموع الفرعي', 'Subtotal')}</span>
+                                    <span className="font-mono font-semibold">
+                                        {fmtAmount(grandTotals.subtotal)}
+                                        <span className="text-xs text-gray-400 ms-1">{currency}</span>
+                                    </span>
+                                </div>
+
+                                {/* Discount line */}
+                                {showDiscount && grandTotals.discount > 0 && (
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-amber-600">{t('إجمالي الخصم', 'Total Discount')}</span>
+                                        <span className="font-mono font-semibold text-amber-600">
+                                            -{fmtAmount(grandTotals.discount)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Tax line — show rate % OR international notice */}
+                                {showTax && isInternational ? (
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-amber-600 flex items-center gap-1.5">
+                                            🌍 {t('الضريبة عبر الكونتينر', 'Tax via Container')}
+                                        </span>
+                                        <span className="font-mono text-xs text-amber-500">
+                                            {t('تُدفع لاحقاً', 'Paid later')}
+                                        </span>
+                                    </div>
+                                ) : showTax && grandTotals.tax > 0 && (
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-blue-600">
+                                            {t('ضريبة القيمة المضافة', 'VAT')}
+                                            {items[0]?.tax_rate ? ` (${items[0].tax_rate}%)` : ''}
+                                        </span>
+                                        <span className="font-mono font-semibold text-blue-600">
+                                            +{fmtAmount(grandTotals.tax)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Grand Total — clarify tax-inclusive */}
+                                <div className="pt-2 border-t border-emerald-200 dark:border-emerald-700 flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-base">{t('الإجمالي النهائي', 'Grand Total')}</span>
+                                        {grandTotals.tax > 0 && (
+                                            <span className="text-[10px] text-gray-400">{t('شامل الضريبة', 'Tax Inclusive')}</span>
+                                        )}
+                                    </div>
+                                    <span className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                                        {fmtAmount(grandTotals.total)}
+                                        <span className="text-sm text-emerald-500 ms-1">{currency}</span>
+                                    </span>
+                                </div>
                             </div>
-
-                            {/* Discount line */}
-                            {showDiscount && grandTotals.discount > 0 && (
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-amber-600">{t('إجمالي الخصم', 'Total Discount')}</span>
-                                    <span className="font-mono font-semibold text-amber-600">
-                                        -{fmtAmount(grandTotals.discount)}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Tax line — show rate % OR international notice */}
-                            {showTax && isInternational ? (
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-amber-600 flex items-center gap-1.5">
-                                        🌍 {t('الضريبة عبر الكونتينر', 'Tax via Container')}
-                                    </span>
-                                    <span className="font-mono text-xs text-amber-500">
-                                        {t('تُدفع لاحقاً', 'Paid later')}
-                                    </span>
-                                </div>
-                            ) : showTax && grandTotals.tax > 0 && (
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-blue-600">
-                                        {t('ضريبة القيمة المضافة', 'VAT')}
-                                        {items[0]?.tax_rate ? ` (${items[0].tax_rate}%)` : ''}
-                                    </span>
-                                    <span className="font-mono font-semibold text-blue-600">
-                                        +{fmtAmount(grandTotals.tax)}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Grand Total — clarify tax-inclusive */}
-                            <div className="pt-2 border-t border-emerald-200 dark:border-emerald-700 flex justify-between items-center">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-base">{t('الإجمالي النهائي', 'Grand Total')}</span>
-                                    {grandTotals.tax > 0 && (
-                                        <span className="text-[10px] text-gray-400">{t('شامل الضريبة', 'Tax Inclusive')}</span>
-                                    )}
-                                </div>
-                                <span className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
-                                    {fmtAmount(grandTotals.total)}
-                                    <span className="text-sm text-emerald-500 ms-1">{currency}</span>
-                                </span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </TooltipProvider >
     );

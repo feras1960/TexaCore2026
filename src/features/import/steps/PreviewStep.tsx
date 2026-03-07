@@ -9,12 +9,13 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  CheckCircle, 
-  Upload, 
+import {
+  CheckCircle,
+  Upload,
   AlertTriangle,
   FileSpreadsheet,
-  Loader2
+  Loader2,
+  BookOpen
 } from 'lucide-react';
 import type { ImportJob, ImportRow, EntityDefinition, ImportOptions } from '@/services/importService';
 
@@ -22,6 +23,7 @@ interface PreviewStepProps {
   importJob: ImportJob | null;
   importRows: ImportRow[];
   entityDefinition: EntityDefinition | null;
+  entityType: string | null;
   options: ImportOptions;
   onExecute: () => void;
   isLoading: boolean;
@@ -31,6 +33,7 @@ export function PreviewStep({
   importJob,
   importRows,
   entityDefinition,
+  entityType,
   options,
   onExecute,
   isLoading
@@ -40,7 +43,19 @@ export function PreviewStep({
   const pageSize = 15;
 
   if (!importJob || !entityDefinition) {
-    return null;
+    return (
+      <div className="text-center py-12 space-y-4">
+        <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500" />
+        <h3 className="text-lg font-semibold">
+          {language === 'ar' ? 'لا توجد بيانات للمعاينة' : 'No data to preview'}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          {language === 'ar'
+            ? 'يرجى إكمال خطوة التحقق أولاً'
+            : 'Please complete the validation step first'}
+        </p>
+      </div>
+    );
   }
 
   // Get rows to import based on options
@@ -73,7 +88,7 @@ export function PreviewStep({
             <p className="text-sm text-muted-foreground mt-1">
               {t('import.reviewAndConfirm')}
             </p>
-            
+
             <div className="flex flex-wrap gap-4 mt-4">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -81,16 +96,16 @@ export function PreviewStep({
                 </Badge>
                 <span className="text-sm">{t('import.recordsToImport')}</span>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="bg-purple-50 text-purple-700">
-                  {language === 'ar' 
-                    ? entityDefinition.display_name_ar 
+                  {language === 'ar'
+                    ? entityDefinition.display_name_ar
                     : entityDefinition.display_name_en}
                 </Badge>
                 <span className="text-sm">{t('import.entityType')}</span>
               </div>
-              
+
               {options.update_existing && (
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
@@ -112,7 +127,7 @@ export function PreviewStep({
             {t('import.showing')} {paginatedRows.length} {t('import.of')} {rowsToImport.length}
           </p>
         </div>
-        
+
         <ScrollArea className="h-[400px]">
           <Table>
             <TableHeader>
@@ -196,10 +211,152 @@ export function PreviewStep({
         </div>
       </Card>
 
+      {/* Opening Balance Journal Preview */}
+      {(entityType === 'customers' || entityType === 'suppliers' || entityType === 'products') && (() => {
+        const validRows = options.skip_invalid_rows
+          ? importRows.filter(r => r.status === 'valid')
+          : importRows;
+
+        // حساب الأرصدة الافتتاحية
+        type PreviewLine = { name: string; code: string; debit: number; credit: number };
+        const journalLines: PreviewLine[] = [];
+
+        if (entityType === 'customers') {
+          for (const row of validRows) {
+            const d = row.mapped_data || {};
+            const bal = Number(d.opening_balance) || 0;
+            if (bal === 0) continue;
+            journalLines.push({
+              name: String(d.name_ar || d.name_en || ''),
+              code: String(d.code || ''),
+              debit: bal > 0 ? Math.abs(bal) : 0,
+              credit: bal < 0 ? Math.abs(bal) : 0,
+            });
+          }
+        } else if (entityType === 'suppliers') {
+          for (const row of validRows) {
+            const d = row.mapped_data || {};
+            const bal = Number(d.opening_balance) || 0;
+            if (bal === 0) continue;
+            journalLines.push({
+              name: String(d.name_ar || d.name_en || ''),
+              code: String(d.code || ''),
+              debit: bal < 0 ? Math.abs(bal) : 0,
+              credit: bal > 0 ? Math.abs(bal) : 0,
+            });
+          }
+        } else if (entityType === 'products') {
+          let totalValue = 0;
+          for (const row of validRows) {
+            const d = row.mapped_data || {};
+            const qty = Number(d.opening_qty) || 0;
+            const price = Number(d.cost_price) || 0;
+            totalValue += qty * price;
+          }
+          if (totalValue > 0) {
+            journalLines.push({
+              name: language === 'ar' ? 'المخزون' : 'Inventory',
+              code: '1140',
+              debit: totalValue,
+              credit: 0,
+            });
+          }
+        }
+
+        if (journalLines.length === 0) return null;
+
+        const totalDebit = journalLines.reduce((s, l) => s + l.debit, 0);
+        const totalCredit = journalLines.reduce((s, l) => s + l.credit, 0);
+
+        // إضافة سطر الأرصدة الافتتاحية المقابل
+        const obDebit = totalCredit > totalDebit ? totalCredit - totalDebit : 0;
+        const obCredit = totalDebit > totalCredit ? totalDebit - totalCredit : 0;
+
+        return (
+          <Card className="p-4 border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800">
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="h-5 w-5 text-amber-600" />
+              <h4 className="font-semibold text-amber-800 dark:text-amber-300">
+                {language === 'ar' ? 'معاينة القيد الافتتاحي' : 'Opening Balance Journal Preview'}
+              </h4>
+            </div>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
+              {language === 'ar'
+                ? 'سيتم إنشاء هذا القيد المحاسبي تلقائياً عند تنفيذ الاستيراد'
+                : 'This journal entry will be automatically created upon import execution'}
+            </p>
+
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-amber-100/70 dark:bg-amber-900/30">
+                    <TableHead className="text-amber-900 dark:text-amber-200">
+                      {language === 'ar' ? 'الحساب' : 'Account'}
+                    </TableHead>
+                    <TableHead className="text-right text-amber-900 dark:text-amber-200">
+                      {language === 'ar' ? 'مدين' : 'Debit'}
+                    </TableHead>
+                    <TableHead className="text-right text-amber-900 dark:text-amber-200">
+                      {language === 'ar' ? 'دائن' : 'Credit'}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {journalLines.map((line, i) => (
+                    <TableRow key={i} className="bg-white/60 dark:bg-transparent">
+                      <TableCell className="font-medium">
+                        {line.code} - {line.name}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {line.debit > 0 ? line.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {line.credit > 0 ? line.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* سطر حساب الأرصدة الافتتاحية */}
+                  <TableRow className="bg-amber-50 dark:bg-amber-900/20 font-medium">
+                    <TableCell>
+                      35 - {language === 'ar' ? 'أرصدة افتتاحية' : 'Opening Balance Equity'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {obDebit > 0 ? obDebit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {obCredit > 0 ? obCredit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                    </TableCell>
+                  </TableRow>
+                  {/* المجاميع */}
+                  <TableRow className="bg-amber-100 dark:bg-amber-900/40 font-bold border-t-2 border-amber-300">
+                    <TableCell>
+                      {language === 'ar' ? 'المجموع' : 'Total'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {(totalDebit + obDebit).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {(totalCredit + obCredit).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-xs text-green-700 dark:text-green-400">
+                {language === 'ar' ? 'القيد متوازن ✓' : 'Entry is balanced ✓'}
+              </span>
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Execute Button */}
       <div className="flex justify-end">
-        <Button 
-          onClick={onExecute} 
+        <Button
+          onClick={onExecute}
           size="lg"
           disabled={isLoading || rowsToImport.length === 0}
           className="gap-2"

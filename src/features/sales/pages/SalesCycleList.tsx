@@ -836,17 +836,17 @@ export default function SalesCycleList() {
                         return (
                             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full sm:w-auto" dir={direction}>
                                 <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
-                                    <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'الكل' : 'All'}{badge(total)}</TabsTrigger>
-                                    <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'مسودة' : 'Draft'}{badge(tabCounts.draft || 0)}</TabsTrigger>
-                                    <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-purple-600">{isRTL ? 'عرض سعر' : 'Quotation'}{badge(tabCounts.quotation || 0)}</TabsTrigger>
-                                    <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-cyan-600">{isRTL ? 'حجز' : 'Reserved'}{badge(tabCounts.reservation || 0)}</TabsTrigger>
-                                    <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-blue-600">{isRTL ? 'أمر بيع' : 'Order'}{badge(tabCounts.order || 0)}</TabsTrigger>
-                                    <TabsTrigger value="confirmed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-green-600">{isRTL ? 'فاتورة مؤكدة' : 'Confirmed'}{badge(tabCounts.confirmed || 0)}</TabsTrigger>
-                                    <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-teal-600">
-                                        <Truck className="w-3 h-3 me-1" />
+                                    <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{isRTL ? 'الكل' : 'All'}{badge(total)}</TabsTrigger>
+                                    <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{isRTL ? 'مسودة' : 'Draft'}{badge(tabCounts.draft || 0)}</TabsTrigger>
+                                    <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">{isRTL ? 'عرض سعر' : 'Quotation'}{badge(tabCounts.quotation || 0)}</TabsTrigger>
+                                    <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-cyan-600 font-tajawal">{isRTL ? 'حجز' : 'Reserved'}{badge(tabCounts.reservation || 0)}</TabsTrigger>
+                                    <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">{isRTL ? 'أمر بيع' : 'Order'}{badge(tabCounts.order || 0)}</TabsTrigger>
+                                    <TabsTrigger value="confirmed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-green-600 font-tajawal">{isRTL ? 'فاتورة مؤكدة' : 'Confirmed'}{badge(tabCounts.confirmed || 0)}</TabsTrigger>
+                                    <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-teal-600 font-tajawal">
+                                        <Truck className="w-4 h-4 me-1.5" />
                                         {isRTL ? 'المسلّمة' : 'Delivered'}{badge(tabCounts.delivery || 0)}
                                     </TabsTrigger>
-                                    <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{isRTL ? 'فاتورة' : 'Invoice'}{badge(tabCounts.invoice || 0)}</TabsTrigger>
+                                    <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">{isRTL ? 'فاتورة' : 'Invoice'}{badge(tabCounts.invoice || 0)}</TabsTrigger>
                                 </TabsList>
                             </Tabs>
                         );

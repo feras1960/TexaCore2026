@@ -55,6 +55,7 @@ import {
     Check,
     ShoppingCart,
     RotateCcw,
+    Lock,
 } from 'lucide-react';
 import type { InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
 
@@ -71,8 +72,12 @@ interface MaterialBrowserTabProps {
     };
     /** Document currency */
     currency?: string;
+    /** Trade mode: sales, purchase, transfer */
+    tradeMode?: string;
     /** Read only mode */
     readOnly?: boolean;
+    /** Source warehouse ID — filters materials to only show stock in this warehouse */
+    sourceWarehouseId?: string;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -102,15 +107,20 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     items,
     onAddItem,
     customerPricing,
-    currency = 'SAR',
+    currency: currencyProp = '',
+    tradeMode,
     readOnly = false,
+    sourceWarehouseId,
 }) => {
     const { language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
     const t = (ar: string, en: string) => language === 'ar' ? ar : en;
+    const { company, companyId } = useCompany();
+    // Currency priority: prop (from document) > company default
+    const currency = currencyProp || company?.default_currency || 'USD';
+    const isTransfer = tradeMode === 'transfer';
 
-    // ─── Company & Tax Defaults ───
-    const { companyId } = useCompany();
+    // ─── Tax Defaults ───
     const { data: taxDefaults } = useTaxDefaults(companyId);
     const companyTaxRate = taxDefaults?.isEnabled ? taxDefaults.rate : 0;
     const companyTaxEnabled = taxDefaults?.isEnabled ?? false;
@@ -120,7 +130,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const [selectedGroup, setSelectedGroup] = useState<string>('all');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
-    const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
+    const [selectedWarehouse, setSelectedWarehouse] = useState<string>(sourceWarehouseId || 'all');
     const [inStockOnly, setInStockOnly] = useState(true);
     const [belowMinStock, setBelowMinStock] = useState(false);
     const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
@@ -519,12 +529,15 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                             <Label className="text-[10px] text-gray-500 mb-0.5 block">
                                 {t('المستودع', 'Warehouse')}
                             </Label>
-                            <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
-                                <SelectTrigger className={cn('h-7 text-xs', selectedWarehouse !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
-                                    <SelectValue />
+                            <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse} disabled={!!sourceWarehouseId}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedWarehouse !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20', !!sourceWarehouseId && 'opacity-70 cursor-default')}>
+                                    <div className="flex items-center gap-1">
+                                        {!!sourceWarehouseId && <Lock className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
+                                        <SelectValue />
+                                    </div>
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">{t('كل المستودعات', 'All Warehouses')}</SelectItem>
+                                    {!sourceWarehouseId && <SelectItem value="all">{t('كل المستودعات', 'All Warehouses')}</SelectItem>}
                                     {warehousesList.map(w => (
                                         <SelectItem key={w.id} value={w.id}>
                                             <span className="flex items-center gap-1.5">
@@ -710,7 +723,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* Stock */}
+                                        {/* Stock — Dual Stock Display */}
                                         <div className="text-end shrink-0">
                                             <div className={cn(
                                                 'flex items-center gap-1 text-xs',
@@ -730,11 +743,21 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                     {t('مخزون منخفض', 'Low stock')}
                                                 </div>
                                             )}
-                                            {material.roll_count > 0 && (
-                                                <span className="text-[10px] text-gray-400">
-                                                    {material.roll_count} {t('رولون', 'rolls')}
-                                                </span>
-                                            )}
+                                            {/* Dual stock breakdown: Rolls + Loose */}
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                {material.roll_count > 0 && (
+                                                    <span className="text-[10px] text-indigo-500 dark:text-indigo-400">
+                                                        <Scroll className="w-2.5 h-2.5 inline me-0.5" />
+                                                        {material.roll_count} {t('رولون', 'rolls')}
+                                                    </span>
+                                                )}
+                                                {material.loose_stock > 0 && (
+                                                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                                                        <Package className="w-2.5 h-2.5 inline me-0.5" />
+                                                        {material.loose_stock.toLocaleString('en-US', { maximumFractionDigits: 1 })} {t('سائب', 'loose')}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Price */}
@@ -1136,16 +1159,22 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                 ) : (
                                                     /* ═══ NORMAL MATERIAL: Warehouse stock breakdown ═══ */
                                                     <>
-                                                        {/* Summary Cards */}
-                                                        <div className="grid grid-cols-3 gap-2">
+                                                        {/* Summary Cards — Dual Stock: Rolls / Loose / Total / Price */}
+                                                        <div className="grid grid-cols-4 gap-2">
                                                             <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
-                                                                <div className="text-[10px] text-gray-500">{t('الرولونات', 'Rolls')}</div>
+                                                                <div className="text-[10px] text-gray-500">{t('مجرود', 'Rolled')}</div>
                                                                 <div className="font-mono font-semibold text-sm text-indigo-600 dark:text-indigo-400">
-                                                                    {material.roll_count}
+                                                                    {material.roll_count} <span className="text-[9px] text-gray-400">({material.rolls_total_length.toLocaleString('en-US', { maximumFractionDigits: 1 })})</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-center">
+                                                                <div className="text-[10px] text-gray-500">{t('سائب', 'Loose')}</div>
+                                                                <div className="font-mono font-semibold text-sm text-amber-600 dark:text-amber-400">
+                                                                    {(material.loose_stock || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })}
                                                                 </div>
                                                             </div>
                                                             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
-                                                                <div className="text-[10px] text-gray-500">{t('المتاح', 'Available')}</div>
+                                                                <div className="text-[10px] text-gray-500">{t('الإجمالي', 'Total')}</div>
                                                                 <div className="font-mono font-semibold text-sm text-green-600 dark:text-green-400">
                                                                     {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })}
                                                                 </div>
@@ -1184,9 +1213,10 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                         ) : (
                                                             <div className="border rounded-lg overflow-hidden">
                                                                 {/* Table Header */}
-                                                                <div className="grid grid-cols-[1fr_0.6fr_0.8fr_0.6fr_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                                                                <div className="grid grid-cols-[1fr_0.6fr_0.5fr_0.8fr_0.6fr_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-[10px] font-medium text-gray-500 dark:text-gray-400">
                                                                     <div className="px-2.5 py-2">{t('المستودع', 'Warehouse')}</div>
                                                                     <div className="px-2.5 py-2 text-end">{t('رولونات', 'Rolls')}</div>
+                                                                    <div className="px-2.5 py-2 text-end">{t('سائب', 'Loose')}</div>
                                                                     <div className="px-2.5 py-2 text-end">{t('المتاح', 'Available')}</div>
                                                                     <div className="px-2.5 py-2 text-end">{t('المحجوز', 'Reserved')}</div>
                                                                     <div className="px-2.5 py-2 text-center w-20">{t('إضافة', 'Add')}</div>
@@ -1205,7 +1235,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                             {/* Warehouse Row */}
                                                                             <div
                                                                                 className={cn(
-                                                                                    'grid grid-cols-[1fr_0.6fr_0.8fr_0.6fr_auto] items-center border-b last:border-b-0 transition-colors text-xs',
+                                                                                    'grid grid-cols-[1fr_0.6fr_0.5fr_0.8fr_0.6fr_auto] items-center border-b last:border-b-0 transition-colors text-xs',
                                                                                     isWhExpanded && 'bg-blue-50/50 dark:bg-blue-900/10',
                                                                                     isWhInCart && 'bg-emerald-50/40 dark:bg-emerald-900/10',
                                                                                     'hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer',
@@ -1232,9 +1262,14 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                                     {wh.roll_count}
                                                                                 </div>
 
-                                                                                {/* Available */}
+                                                                                {/* Loose */}
+                                                                                <div className="px-2.5 py-2 text-end font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                                                                                    {(wh.loose_stock || 0) > 0 ? (wh.loose_stock || 0).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
+                                                                                </div>
+
+                                                                                {/* Available (Rolled + Loose) */}
                                                                                 <div className="px-2.5 py-2 text-end font-mono text-green-600 dark:text-green-400 font-semibold">
-                                                                                    {wh.available_length.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                    {(wh.available_length + (wh.loose_stock || 0)).toLocaleString('en-US', { maximumFractionDigits: 1 })}
                                                                                 </div>
 
                                                                                 {/* Reserved */}
@@ -1416,10 +1451,12 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                         name_ar: dialogWarehouse.warehouse_name_ar,
                         name_en: dialogWarehouse.warehouse_name_en,
                         available_length: dialogWarehouse.available_length,
+                        loose_stock: dialogMaterial?.loose_stock || 0,
                     }}
                     rolls={dialogRolls}
                     rollsLoading={dialogRollsLoading}
                     mode="line"
+                    hidePrice={isTransfer}
                     onAddLineItem={handleAddLineItem}
                 />
             )}

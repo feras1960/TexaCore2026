@@ -78,13 +78,28 @@ export function useAutoSave<T>({
             return;
         }
 
-        // Don't save essentially empty data (no party, no items)
+        // Don't save essentially empty data
         const d = dataRef.current as any;
-        const hasParty = !!(d?.party_id || d?.customer_id || d?.supplier_id);
-        const hasItems = d?.items && d.items.length > 0;
-        if (!hasParty && !hasItems) {
-            console.log('⏭️ [AutoSave] Skipping — no party or items yet');
-            return;
+
+        // ═══ Transfer-specific guard: only skip if truly empty ═══
+        const isTransfer = d && ('from_warehouse_id' in d || 'to_warehouse_id' in d || d?._tradeMode === 'transfer');
+        if (isTransfer) {
+            // For transfers: allow draft saves even without warehouses
+            // Only skip if there are absolutely no items (empty form)
+            const hasItems = d?.items && d.items.length > 0;
+            const hasAnyWarehouse = !!(d?.from_warehouse_id || d?.to_warehouse_id || d?.warehouse_id);
+            if (!hasItems && !hasAnyWarehouse) {
+                console.log('⏭️ [AutoSave] Skipping transfer — empty form (no items, no warehouses)');
+                return;
+            }
+        } else {
+            // Standard documents: require party or items
+            const hasParty = !!(d?.party_id || d?.customer_id || d?.supplier_id);
+            const hasItems = d?.items && d.items.length > 0;
+            if (!hasParty && !hasItems) {
+                console.log('⏭️ [AutoSave] Skipping — no party or items yet');
+                return;
+            }
         }
 
         isSavingRef.current = true;

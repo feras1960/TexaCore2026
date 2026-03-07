@@ -72,6 +72,7 @@ interface InventoryRecord {
     total_length: number;
     available_length: number;
     reserved_length: number;
+    loose_stock: number;
     last_updated: string | null;
 }
 
@@ -223,6 +224,7 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                     total_length: 0,
                     available_length: 0,
                     reserved_length: 0,
+                    loose_stock: 0,
                     last_updated: null,
                 }));
             result = [...result, ...emptyWarehouses];
@@ -386,6 +388,47 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
         <TooltipProvider delayDuration={300}>
             <div className="space-y-4 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
 
+                {/* ═══════════ Stock Summary ═══════════ */}
+                {!loading && (data?.current_stock > 0 || data?.loose_stock > 0 || totals.total > 0) && (() => {
+                    // Effective total = max(current_stock, rolled) to handle stale DB values
+                    const effectiveTotal = Math.max(data?.current_stock || 0, totals.total);
+                    const effectiveLoose = data?.loose_stock ?? Math.max(0, (data?.current_stock || 0) - totals.total);
+                    return (
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="flex flex-col items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                                <Database className="w-5 h-5 text-blue-500 mb-1" />
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                    {t('الإجمالي', 'Total')}
+                                </span>
+                                <span className="font-mono font-bold text-lg text-blue-700 dark:text-blue-300">
+                                    {effectiveTotal.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                </span>
+                                <span className="text-[10px] text-blue-500">{unitLabel[language === 'ar' ? 'ar' : 'en']}</span>
+                            </div>
+                            <div className="flex flex-col items-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
+                                <Package className="w-5 h-5 text-amber-500 mb-1" />
+                                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                    {t('السائب', 'Loose')}
+                                </span>
+                                <span className="font-mono font-bold text-lg text-amber-700 dark:text-amber-300">
+                                    {effectiveLoose.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                </span>
+                                <span className="text-[10px] text-amber-500">{unitLabel[language === 'ar' ? 'ar' : 'en']}</span>
+                            </div>
+                            <div className="flex flex-col items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800">
+                                <Scroll className="w-5 h-5 text-purple-500 mb-1" />
+                                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                                    {t('المجرود', 'Rolled')}
+                                </span>
+                                <span className="font-mono font-bold text-lg text-purple-700 dark:text-purple-300">
+                                    {totals.total.toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                </span>
+                                <span className="text-[10px] text-purple-500">{totals.rolls} {t('رول', 'rolls')}</span>
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {/* ═══════════ Error Message ═══════════ */}
                 {error && (
                     <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -408,8 +451,8 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                     <CardHeader className="pb-3">
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                             <CardTitle className="flex items-center gap-2 text-base">
-                                <WarehouseIcon className="w-5 h-5 text-erp-teal" />
-                                {t('المخزون حسب المستودعات', 'Inventory by Warehouse')}
+                                <Scroll className="w-5 h-5 text-erp-teal" />
+                                {t('المخزون المجرود حسب المستودعات', 'Rolled Stock by Warehouse')}
                                 {!loading && (
                                     <Badge variant="secondary" className="text-xs ms-2">
                                         {filteredData.length} {t('مستودع', 'warehouses')}
@@ -536,29 +579,56 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                     <CardContent className="pt-0">
                         {!loading && !error && filteredData.length === 0 ? (
                             /* ═══════════ Empty State ═══════════ */
-                            <div className="text-center py-12">
-                                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Package className="w-8 h-8 text-gray-400" />
-                                </div>
-                                <p className="text-gray-500 dark:text-gray-400 font-medium">
-                                    {(selectedWarehouse !== 'all' || statusFilter !== 'all')
-                                        ? t('لا توجد نتائج مطابقة للفلاتر المحددة', 'No results match the selected filters')
-                                        : t('لا يوجد مخزون لهذه المادة حالياً', 'No inventory found for this material')}
-                                </p>
-                                <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-                                    {(selectedWarehouse !== 'all' || statusFilter !== 'all')
-                                        ? t('جرب تغيير الفلاتر أو إعادة تعيينها', 'Try changing or resetting the filters')
-                                        : t('سيظهر المخزون هنا بعد إضافة رولونات لهذه المادة', 'Stock will appear here after adding rolls')}
-                                </p>
+                            <div className="text-center py-8">
+                                {/* If material has loose stock but no rolls */}
+                                {(data?.loose_stock > 0 || (data?.current_stock > 0 && totals.total === 0)) ? (
+                                    <div className="space-y-4">
+                                        <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
+                                            <Package className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+                                        </div>
+                                        <div>
+                                            <p className="text-amber-700 dark:text-amber-300 font-medium text-sm">
+                                                {t('المخزون السائب فقط — لا توجد رولونات مجرودة', 'Loose stock only — no rolled inventory')}
+                                            </p>
+                                            <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">
+                                                {t('يتوفر مخزون سائب يمكن جرده إلى رولونات عند الحاجة', 'Loose stock is available and can be rolled when needed')}
+                                            </p>
+                                        </div>
+                                        <div className="inline-flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2">
+                                            <span className="text-xs text-amber-600 dark:text-amber-400">{t('الكمية السائبة المتاحة', 'Available Loose Stock')}</span>
+                                            <span className="font-mono font-bold text-amber-700 dark:text-amber-300">
+                                                {Number(data?.loose_stock || data?.current_stock || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                            </span>
+                                            <span className="text-xs text-amber-500">{unitLabel[language === 'ar' ? 'ar' : 'en']}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Package className="w-8 h-8 text-gray-400" />
+                                        </div>
+                                        <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                            {(selectedWarehouse !== 'all' || statusFilter !== 'all')
+                                                ? t('لا توجد نتائج مطابقة للفلاتر المحددة', 'No results match the selected filters')
+                                                : t('لا يوجد مخزون لهذه المادة حالياً', 'No inventory found for this material')}
+                                        </p>
+                                        <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+                                            {(selectedWarehouse !== 'all' || statusFilter !== 'all')
+                                                ? t('جرب تغيير الفلاتر أو إعادة تعيينها', 'Try changing or resetting the filters')
+                                                : t('سيظهر المخزون هنا بعد إضافة رولونات لهذه المادة', 'Stock will appear here after adding rolls')}
+                                        </p>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             /* ═══════════ Inventory Table with Expandable Rows ═══════════ */
                             <div className="border rounded-lg overflow-hidden">
                                 {/* Table Header */}
-                                <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_1fr_6rem_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-xs font-medium text-gray-500 dark:text-gray-400">
                                     <div className="p-2.5 text-center">#</div>
                                     <div className="p-2.5">{t('المستودع', 'Warehouse')}</div>
                                     <div className="p-2.5 text-end">{t('الرولونات', 'Rolls')}</div>
+                                    <div className="p-2.5 text-end">{t('سائب', 'Loose')}</div>
                                     <div className="p-2.5 text-end">{t(`الإجمالي (${unitLabel.ar})`, `Total (${unitLabel.en})`)}</div>
                                     <div className="p-2.5 text-end">{t('المتاح', 'Available')}</div>
                                     <div className="p-2.5 text-end">{t('المحجوز', 'Reserved')}</div>
@@ -573,8 +643,8 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                                 {loading && (
                                     <div className="divide-y">
                                         {[1, 2, 3].map(i => (
-                                            <div key={i} className="grid grid-cols-[2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_auto] animate-pulse">
-                                                {Array.from({ length: 9 }).map((_, j) => (
+                                            <div key={i} className="grid grid-cols-[2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_1fr_6rem_auto] animate-pulse">
+                                                {Array.from({ length: 10 }).map((_, j) => (
                                                     <div key={j} className="p-3">
                                                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full" />
                                                     </div>
@@ -594,7 +664,7 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                                     const filteredRolls = selectedColor === 'all'
                                         ? rolls
                                         : rolls.filter(r => r.color_id === selectedColor);
-                                    const isEmpty = record.roll_count === 0;
+                                    const isEmpty = record.roll_count === 0 && (record.loose_stock || 0) <= 0;
                                     const isInCart = cartActions.isInCart(data?.id, record.warehouse_id);
 
                                     return (
@@ -602,7 +672,7 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                                             {/* Main Row */}
                                             <div
                                                 className={cn(
-                                                    "grid grid-cols-[2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_auto] items-center border-b last:border-b-0 transition-colors",
+                                                    "grid grid-cols-[2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_1fr_6rem_auto] items-center border-b last:border-b-0 transition-colors",
                                                     isExpanded && "bg-blue-50/50 dark:bg-blue-900/10",
                                                     isInCart && "bg-emerald-50/40 dark:bg-emerald-900/10",
                                                     isEmpty && "opacity-60",
@@ -637,17 +707,24 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                                                     </span>
                                                 </div>
 
-                                                {/* Total */}
+                                                {/* Loose Stock */}
                                                 <div className="p-2.5 text-end">
-                                                    <span className={cn("font-semibold font-mono text-sm", isEmpty ? "text-gray-300" : "text-blue-600 dark:text-blue-400")}>
-                                                        {record.total_length.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                                    <span className={cn("font-semibold font-mono text-sm", isEmpty ? "text-gray-300" : record.loose_stock > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-300")}>
+                                                        {(record.loose_stock || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
 
-                                                {/* Available */}
+                                                {/* Total (Rolled + Loose) */}
+                                                <div className="p-2.5 text-end">
+                                                    <span className={cn("font-semibold font-mono text-sm", isEmpty ? "text-gray-300" : "text-blue-600 dark:text-blue-400")}>
+                                                        {(record.total_length + (record.loose_stock || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+
+                                                {/* Available (Rolled available + Loose) */}
                                                 <div className="p-2.5 text-end">
                                                     <span className={cn("font-semibold font-mono text-sm", isEmpty ? "text-gray-300" : "text-green-600 dark:text-green-400")}>
-                                                        {record.available_length.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                                        {(record.available_length + (record.loose_stock || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
 

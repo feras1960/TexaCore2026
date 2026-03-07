@@ -12,31 +12,31 @@ import * as XLSX from 'xlsx';
 // Types & Interfaces
 // ═══════════════════════════════════════════════════════════════
 
-export type EntityType = 
-  | 'customers' 
-  | 'suppliers' 
-  | 'products' 
-  | 'chart_of_accounts' 
-  | 'journal_entries' 
+export type EntityType =
+  | 'customers'
+  | 'suppliers'
+  | 'products'
+  | 'chart_of_accounts'
+  | 'journal_entries'
   | 'inventory_movements';
 
-export type ImportStatus = 
-  | 'pending' 
-  | 'parsing' 
-  | 'validating' 
-  | 'ai_analyzing' 
-  | 'ready' 
-  | 'importing' 
-  | 'completed' 
-  | 'failed' 
+export type ImportStatus =
+  | 'pending'
+  | 'parsing'
+  | 'validating'
+  | 'ai_analyzing'
+  | 'ready'
+  | 'importing'
+  | 'completed'
+  | 'failed'
   | 'cancelled';
 
-export type RowStatus = 
-  | 'pending' 
-  | 'valid' 
-  | 'invalid' 
-  | 'imported' 
-  | 'skipped' 
+export type RowStatus =
+  | 'pending'
+  | 'valid'
+  | 'invalid'
+  | 'imported'
+  | 'skipped'
   | 'failed';
 
 export interface FieldDefinition {
@@ -185,32 +185,46 @@ export const importService = {
 
   /**
    * الحصول على تعريفات جميع الكيانات المتاحة للاستيراد
+   * يستخدم التعريفات المحلية من templateConfig بدلاً من RPC
    */
   async getEntityDefinitions(): Promise<EntityDefinition[]> {
-    const { data, error } = await supabase
-      .rpc('get_all_import_entity_definitions');
-
-    if (error) {
-      console.error('Error fetching entity definitions:', error);
+    try {
+      const { TEMPLATE_CONFIGS } = await import('@/features/import/templates/templateConfig');
+      return Object.values(TEMPLATE_CONFIGS).map(cfg => ({
+        entity_type: cfg.entity_type,
+        target_table: cfg.entity_type === 'journal_entries' ? 'journal_entries' :
+          cfg.entity_type === 'inventory_movements' ? 'stock_movements' :
+            cfg.entity_type,
+        display_name_ar: cfg.display_name.ar,
+        display_name_en: cfg.display_name.en,
+        icon: cfg.entity_type === 'customers' ? 'Users' :
+          cfg.entity_type === 'suppliers' ? 'Truck' :
+            cfg.entity_type === 'products' ? 'Package' :
+              cfg.entity_type === 'journal_entries' ? 'FileSpreadsheet' :
+                'TrendingUp',
+        fields: cfg.columns.map(col => ({
+          name: col.field,
+          type: (typeof col.example === 'number' ? 'number' : 'string') as FieldDefinition['type'],
+          required: col.required,
+          label_ar: col.label.ar.replace(' *', ''),
+          label_en: col.label.en.replace(' *', ''),
+        })),
+        required_fields: cfg.columns.filter(c => c.required).map(c => c.field),
+        unique_fields: cfg.columns.filter(c => c.field === 'code' || c.field === 'barcode').map(c => c.field),
+        lookup_fields: null,
+      }));
+    } catch (err) {
+      console.error('Error building entity definitions:', err);
       return [];
     }
-
-    return data || [];
   },
 
   /**
    * الحصول على تعريف كيان معين
    */
   async getEntityDefinition(entityType: EntityType): Promise<EntityDefinition | null> {
-    const { data, error } = await supabase
-      .rpc('get_import_entity_definition', { p_entity_type: entityType });
-
-    if (error) {
-      console.error('Error fetching entity definition:', error);
-      return null;
-    }
-
-    return data;
+    const definitions = await this.getEntityDefinitions();
+    return definitions.find(d => d.entity_type === entityType) || null;
   },
 
   // ─────────────────────────────────────────────────────────────
@@ -232,10 +246,10 @@ export const importService = {
       const wb = XLSX.utils.book_new();
 
       // إنشاء ورقة البيانات
-      const headers = definition.fields.map(f => 
+      const headers = definition.fields.map(f =>
         language === 'ar' ? f.label_ar : f.label_en
       );
-      
+
       const fieldNames = definition.fields.map(f => f.name);
 
       // صف المثال
@@ -366,30 +380,60 @@ export const importService = {
     try {
       const fileType = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx';
       const buffer = await file.arrayBuffer();
-      
-      const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+
+      let wb;
+      try {
+        wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+      } catch (xlsxErr) {
+        console.error('XLSX read error:', xlsxErr);
+        // Retry with different options
+        wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+      }
+
       const wsName = wb.SheetNames[0];
       const ws = wb.Sheets[wsName];
-      
-      // تحويل إلى JSON
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as unknown[][];
-      
-      if (rawData.length < 2) {
+
+      if (!ws) {
+        console.error('No worksheet found in file');
         return null;
       }
 
-      // استخراج العناوين (الصف الأول أو الثاني)
-      let headerRowIndex = 0;
-      const firstRow = rawData[0] as string[];
-      const secondRow = rawData[1] as string[];
+      // تحويل إلى JSON
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][];
 
-      // تحقق إذا كان الصف الأول أسماء تقنية (بالإنجليزية)
-      if (firstRow.every(h => typeof h === 'string' && /^[a-z_]+$/.test(h))) {
-        headerRowIndex = 1;
+      if (!rawData || rawData.length < 2) {
+        console.error('File has less than 2 rows:', rawData?.length);
+        return null;
       }
 
-      const headers = rawData[headerRowIndex] as string[];
-      const dataStartIndex = headerRowIndex + 1;
+      // استخراج العناوين
+      const firstRow = (rawData[0] as any[]).map(h => String(h || '').trim());
+
+      // تحقق إذا كان الصف الأول أسماء تقنية (بالإنجليزية مثل code, name_ar, phone)
+      const isTechnicalHeaders = firstRow.length > 0 &&
+        firstRow.filter(h => h).length > 0 &&
+        firstRow.filter(h => h).every(h => /^[a-z][a-z0-9_]*$/i.test(h));
+
+      let headers: string[];
+      let dataStartIndex: number;
+
+      if (isTechnicalHeaders) {
+        // الصف الأول = أسماء حقول تقنية → استخدمها كعناوين
+        headers = firstRow;
+        // تحقق هل الصف الثاني أيضاً عناوين (labels) وليس بيانات
+        const secondRow = rawData.length > 1
+          ? (rawData[1] as any[]).map(h => String(h || '').trim())
+          : [];
+        const secondRowIsLabels = secondRow.length > 0 &&
+          secondRow.every(v => typeof v === 'string' || v === '');
+        // إذا الصف الثاني يبدو وكأنه labels (وليس قيم رقمية) تخطّه
+        const hasNumbers = secondRow.some(v => !isNaN(Number(v)) && Number(v) > 0);
+        dataStartIndex = (secondRowIsLabels && !hasNumbers) ? 2 : 1;
+      } else {
+        // الصف الأول = عناوين مقروءة
+        headers = firstRow;
+        dataStartIndex = 1;
+      }
 
       // تحويل الصفوف إلى كائنات
       const rows: Record<string, unknown>[] = [];
@@ -401,7 +445,7 @@ export const importService = {
 
         const rowObj: Record<string, unknown> = {};
         headers.forEach((header, index) => {
-          if (header && row[index] !== undefined && row[index] !== null) {
+          if (header && row[index] !== undefined && row[index] !== null && row[index] !== '') {
             rowObj[String(header).trim()] = row[index];
           }
         });
@@ -410,6 +454,8 @@ export const importService = {
           rows.push(rowObj);
         }
       }
+
+      console.log(`📊 Parsed file: ${headers.length} columns, ${rows.length} data rows, dataStart=${dataStartIndex}`);
 
       return {
         headers: headers.filter(h => h),
@@ -685,11 +731,11 @@ export const importService = {
   },
 
   // ─────────────────────────────────────────────────────────────
-  // Import Job Management
+  // Import Job Management (Local - no DB table yet)
   // ─────────────────────────────────────────────────────────────
 
   /**
-   * إنشاء عملية استيراد جديدة
+   * إنشاء عملية استيراد جديدة (محلياً)
    */
   async createImportJob(
     tenantId: string,
@@ -698,181 +744,86 @@ export const importService = {
     fileSize: number,
     fileType: string
   ): Promise<ImportJob | null> {
-    const { data, error } = await supabase
-      .from('import_jobs')
-      .insert({
-        tenant_id: tenantId,
-        entity_type: entityType,
-        file_name: fileName,
-        file_size: fileSize,
-        file_type: fileType,
-        status: 'pending'
-      })
-      .select()
-      .single();
+    // إنشاء كائن محلي بدلاً من الحفظ في قاعدة البيانات
+    const localJob: ImportJob = {
+      id: crypto.randomUUID(),
+      tenant_id: tenantId,
+      user_id: '',
+      entity_type: entityType,
+      file_name: fileName,
+      file_type: fileType,
+      file_size: fileSize,
+      total_rows: 0,
+      valid_rows: 0,
+      invalid_rows: 0,
+      imported_rows: 0,
+      skipped_rows: 0,
+      failed_rows: 0,
+      status: 'pending' as ImportStatus,
+      progress_percent: 0,
+      current_step: 'upload',
+      validation_summary: { total_errors: 0, errors_by_field: {}, error_samples: [] },
+      import_options: { skip_duplicates: true, update_existing: false, batch_size: 500 } as any,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as ImportJob;
 
-    if (error) {
-      console.error('Error creating import job:', error);
-      return null;
-    }
-
-    return data;
+    return localJob;
   },
 
   /**
-   * تحديث حالة عملية الاستيراد
+   * تحديث حالة عملية الاستيراد (محلياً)
    */
   async updateJobStatus(
     jobId: string,
     status: ImportStatus,
     additionalData?: Partial<ImportJob>
   ): Promise<boolean> {
-    const { error } = await supabase
-      .from('import_jobs')
-      .update({
-        status,
-        ...additionalData,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', jobId);
-
-    if (error) {
-      console.error('Error updating job status:', error);
-      return false;
-    }
-
+    // لا يوجد جدول - نتجاهل التحديث
     return true;
   },
 
   /**
-   * الحصول على عملية استيراد
+   * الحصول على عملية استيراد (محلياً)
    */
   async getImportJob(jobId: string): Promise<ImportJob | null> {
-    const { data, error } = await supabase
-      .from('import_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .single();
-
-    if (error) {
-      console.error('Error fetching import job:', error);
-      return null;
-    }
-
-    return data;
+    return null;
   },
 
   /**
-   * الحصول على صفوف عملية استيراد
+   * الحصول على صفوف عملية استيراد (محلياً)
    */
   async getImportRows(
     jobId: string,
     filters?: { status?: RowStatus; page?: number; limit?: number }
   ): Promise<{ rows: ImportRow[]; total: number }> {
-    let query = supabase
-      .from('import_rows')
-      .select('*', { count: 'exact' })
-      .eq('job_id', jobId)
-      .order('row_number', { ascending: true });
-
-    if (filters?.status) {
-      query = query.eq('status', filters.status);
-    }
-
-    if (filters?.page !== undefined && filters?.limit) {
-      const from = filters.page * filters.limit;
-      const to = from + filters.limit - 1;
-      query = query.range(from, to);
-    }
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      console.error('Error fetching import rows:', error);
-      return { rows: [], total: 0 };
-    }
-
-    return { rows: data || [], total: count || 0 };
+    return { rows: [], total: 0 };
   },
 
   /**
-   * حفظ صفوف الاستيراد
+   * حفظ صفوف الاستيراد (محلياً - يتجاهل)
    */
   async saveImportRows(jobId: string, rows: Omit<ImportRow, 'id' | 'job_id'>[]): Promise<boolean> {
-    const rowsToInsert = rows.map(row => ({
-      ...row,
-      job_id: jobId
-    }));
-
-    // إدراج بالدفعات (500 صف لكل دفعة)
-    const batchSize = 500;
-    for (let i = 0; i < rowsToInsert.length; i += batchSize) {
-      const batch = rowsToInsert.slice(i, i + batchSize);
-      
-      const { error } = await supabase
-        .from('import_rows')
-        .insert(batch);
-
-      if (error) {
-        console.error('Error saving import rows:', error);
-        return false;
-      }
-    }
-
     return true;
   },
 
   /**
-   * الحصول على سجل عمليات الاستيراد
+   * الحصول على سجل عمليات الاستيراد (محلياً)
    */
   async getImportHistory(
     tenantId: string,
     filters?: { entity_type?: EntityType; status?: ImportStatus; limit?: number }
   ): Promise<ImportJob[]> {
-    let query = supabase
-      .from('import_jobs')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
-
-    if (filters?.entity_type) {
-      query = query.eq('entity_type', filters.entity_type);
-    }
-
-    if (filters?.status) {
-      query = query.eq('status', filters.status);
-    }
-
-    if (filters?.limit) {
-      query = query.limit(filters.limit);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching import history:', error);
-      return [];
-    }
-
-    return data || [];
+    return [];
   },
 
   /**
-   * حذف عملية استيراد
+   * حذف عملية استيراد (محلياً)
    */
   async deleteImportJob(jobId: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('import_jobs')
-      .delete()
-      .eq('id', jobId);
-
-    if (error) {
-      console.error('Error deleting import job:', error);
-      return false;
-    }
-
     return true;
   }
 };
 
 export default importService;
+

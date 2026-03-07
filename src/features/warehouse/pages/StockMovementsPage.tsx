@@ -17,11 +17,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useStockMovements, useWarehouses } from '../hooks/useWarehouseQueries';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 import { SalesDeliveryDialog } from '../components/SalesDeliveryDialog';
+import { TransferDeliveryDialog } from '../components/TransferDeliveryDialog';
 import { MaterialReceiptDialog } from '../components/MaterialReceiptDialog';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import {
     Select,
     SelectContent,
@@ -49,6 +50,7 @@ import {
 } from 'lucide-react';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Movement type colors
 const movementTypeColors: Record<string, string> = {
@@ -93,6 +95,8 @@ export default function StockMovementsPage() {
     }>({ open: false, billType: 'purchase_local', reference: '' });
     // ── Sales: يفتح SalesDeliveryDialog (إذن التسليم بتبويباته) ──
     const [salesDeliveryDialog, setSalesDeliveryDialog] = useState<{ open: boolean; salesInvoice: any }>({ open: false, salesInvoice: null });
+    // ── Transfer: يفتح TransferDeliveryDialog لعرض/استلام المناقلة ──
+    const [transferDeliveryDialog, setTransferDeliveryDialog] = useState<{ open: boolean; transfer: any }>({ open: false, transfer: null });
     // ── داخل إذن التسليم: يفتح الفاتورة المالية عند الضغط على العميل ──
     const [salesInvoiceSheet, setSalesInvoiceSheet] = useState<{ open: boolean; invoiceData: any }>({ open: false, invoiceData: null });
 
@@ -243,8 +247,10 @@ export default function StockMovementsPage() {
                 existing.material_names.add(
                     (language === 'ar' ? m.material_name_ar : m.material_name_en) || m.material_name_ar || m.material_name_en || ''
                 );
-                // Keep first movement for dates/metadata
+                if (m.roll_id) existing.roll_ids.add(m.roll_id);
             } else {
+                const rollIds = new Set<string>();
+                if (m.roll_id) rollIds.add(m.roll_id);
                 groupMap.set(key, {
                     ...m,
                     total_quantity: Number(m.quantity || 0),
@@ -252,6 +258,8 @@ export default function StockMovementsPage() {
                     material_names: new Set([
                         (language === 'ar' ? m.material_name_ar : m.material_name_en) || m.material_name_ar || m.material_name_en || ''
                     ]),
+                    roll_ids: rollIds,
+                    receipt_rolls_count: m.receipt_rolls_count || 0,
                     _groupKey: key,
                 });
             }
@@ -309,8 +317,11 @@ export default function StockMovementsPage() {
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
         if (diffHours < 24) return `${diffHours} ${isRTL ? 'س' : 'h'}`;
 
-        const diffDays = Math.floor(diffHours / 24);
-        return `${diffDays} ${isRTL ? 'يوم' : 'd'}`;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays < 30) return `${diffDays} ${isRTL ? (diffDays > 10 ? 'يوم' : 'أيام') : 'd'}`;
+
+        const diffMonths = Math.floor(diffDays / 30);
+        return `${diffMonths} ${isRTL ? (diffMonths === 1 ? 'شهر' : 'أشهر') : 'mo'}`;
     };
 
     // خريطة ثابتة لأنواع الحركات — بديل للمفاتيح غير المترجمة
@@ -388,6 +399,20 @@ export default function StockMovementsPage() {
 
     const handleOpenDocument = useCallback(async (m: any) => {
         try {
+            // ══ حركات المناقلات → فتح TransferDeliveryDialog ══
+            const isTransferMovement = transferTypes.includes(m.movement_type);
+            if (isTransferMovement && m.reference_type === 'stock_transfer' && m.reference_id) {
+                const { data: transfer } = await supabase
+                    .from('stock_transfers')
+                    .select('*')
+                    .eq('id', m.reference_id)
+                    .maybeSingle();
+                if (transfer) {
+                    setTransferDeliveryDialog({ open: true, transfer });
+                    return;
+                }
+            }
+
             // ══ حركات المبيعات → فتح فاتورة المبيعات ══
             const isSalesMovement = salesTypes.includes(m.movement_type);
             if (isSalesMovement) {
@@ -521,21 +546,29 @@ export default function StockMovementsPage() {
     const columns: NexaListColumn<any>[] = useMemo(() => [
         {
             id: 'date',
-            header: isRTL ? 'التاريخ والوقت' : 'Date & Time',
+            header: isRTL ? 'التاريخ' : 'Date',
             sortable: true,
             sortKey: 'date',
-            cell: (m: any) => (
-                <div className="flex flex-col gap-0.5 text-xs">
-                    <div className="flex items-center gap-1.5 whitespace-nowrap font-mono text-gray-700 dark:text-gray-300">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        {formatDate(m.movement_date || m.created_at)}
+            cell: (m: any) => {
+                const d = new Date(m.movement_date || m.created_at);
+                const dateStr = d.toLocaleDateString('en-CA'); // yyyy-mm-dd
+                const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                return (
+                    <div className="flex flex-col gap-0.5 text-xs">
+                        <div className="flex items-center gap-1.5 whitespace-nowrap text-gray-800 dark:text-gray-200 font-medium">
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            {dateStr}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground ms-5">
+                            {timeStr}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/70 ms-5 flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
+                            {isRTL ? 'منذ ' : ''}{getElapsedTime(m.movement_date || m.created_at)}{!isRTL ? ' ago' : ''}
+                        </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground ms-5 flex items-center gap-0.5">
-                        <Clock className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
-                        {isRTL ? 'منذ ' : ''}{getElapsedTime(m.created_at || m.movement_date)}{!isRTL ? ' ago' : ''}
-                    </span>
-                </div>
-            )
+                );
+            }
         },
         {
             id: 'type',
@@ -552,9 +585,8 @@ export default function StockMovementsPage() {
         {
             // عمود الجهة الذكي: من → إلى حسب نوع الحركة
             id: 'flow',
-            header: isRTL ? 'الجهة (من → إلى)' : 'Flow (From → To)',
+            header: isRTL ? 'من → إلى' : 'From → To',
             cell: (m: any) => {
-                // الجهة: من partyNames[reference_number] أو من service enrichment
                 const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
                 const isSales = salesTypes.includes(m.movement_type);
                 const isContainer = containerTypes.includes(m.movement_type);
@@ -564,7 +596,6 @@ export default function StockMovementsPage() {
                 // من طرف
                 let fromNode: React.ReactNode = null;
                 if (isSales) {
-                    // مبيعات: المستودع هو المصدر
                     const wName = m.from_warehouse_name || m.warehouse_name || '—';
                     fromNode = (
                         <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
@@ -573,16 +604,14 @@ export default function StockMovementsPage() {
                         </div>
                     );
                 } else if (isContainer) {
-                    // كونتينر: اسم المورد أو رقم الكونتينر هو المصدر
                     const src = resolvedPartyName || m.reference_number || '—';
                     fromNode = (
                         <div className="flex items-center gap-1 text-cyan-700 dark:text-cyan-400">
                             <Package className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[110px] font-mono text-[11px]" title={src}>{src}</span>
+                            <span className="truncate max-w-[110px] text-[11px]" title={src}>{src}</span>
                         </div>
                     );
                 } else if (isPurchase) {
-                    // شراء: المورد هو المصدر
                     const supplier = resolvedPartyName || '—';
                     fromNode = (
                         <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
@@ -591,7 +620,6 @@ export default function StockMovementsPage() {
                         </div>
                     );
                 } else if (isTransfer) {
-                    // مناقلة: مستودع المصدر
                     const wName = m.from_warehouse_name || '—';
                     fromNode = (
                         <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
@@ -604,7 +632,6 @@ export default function StockMovementsPage() {
                 // إلى طرف
                 let toNode: React.ReactNode = null;
                 if (isSales) {
-                    // مبيعات: العميل هو الوجهة
                     const customer = resolvedPartyName || '—';
                     toNode = (
                         <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
@@ -613,7 +640,6 @@ export default function StockMovementsPage() {
                         </div>
                     );
                 } else {
-                    // شراء/كونتينر/مناقلة: المستودع هو الوجهة
                     const dest = m.to_warehouse_name || m.warehouse_name || '—';
                     toNode = (
                         <div className="flex items-center gap-1 text-gray-700 dark:text-gray-300 font-medium">
@@ -641,15 +667,16 @@ export default function StockMovementsPage() {
             sortKey: 'material',
             cell: (m: any) => {
                 const names = m.material_names ? Array.from(m.material_names as Set<string>) : [];
-                const displayName = names.length > 0 ? names[0] : '—';
+                const uniqueCount = names.length;
+                const displayName = uniqueCount > 0 ? names[0] : '—';
                 return (
                     <div className="flex flex-col">
                         <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
-                            {m.items_count > 1
-                                ? (isRTL ? `${m.items_count} مادة` : `${m.items_count} items`)
+                            {uniqueCount > 1
+                                ? (isRTL ? `${uniqueCount} مادة` : `${uniqueCount} items`)
                                 : displayName}
                         </span>
-                        {m.items_count > 1 && (
+                        {uniqueCount > 1 && (
                             <span className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
                                 {names.slice(0, 3).join('، ')}{names.length > 3 ? ` +${names.length - 3}` : ''}
                             </span>
@@ -663,28 +690,57 @@ export default function StockMovementsPage() {
             header: isRTL ? 'الكمية' : 'Quantity',
             sortable: true,
             sortKey: 'quantity',
-            cell: (m: any) => (
-                <span className="font-mono font-semibold text-sm tabular-nums text-gray-800 dark:text-gray-200">
-                    {Number(m.total_quantity || m.quantity || 0).toLocaleString('en-US')}
-                    <span className="text-[10px] text-muted-foreground font-normal ms-1">{m.unit || (isRTL ? 'م' : 'm')}</span>
-                </span>
-            )
+            cell: (m: any) => {
+                const rollCount = m.roll_ids?.size || m.receipt_rolls_count || 0;
+                return (
+                    <div className="flex flex-col gap-0.5">
+                        <span className="font-mono font-semibold text-sm tabular-nums text-gray-800 dark:text-gray-200">
+                            {Number(m.total_quantity || m.quantity || 0).toLocaleString('en-US')}
+                            <span className="text-[10px] text-muted-foreground font-normal ms-1">{m.unit || (isRTL ? 'م' : 'm')}</span>
+                        </span>
+                        {rollCount > 0 && (
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                                {rollCount} {isRTL ? 'رول' : 'rolls'}
+                            </span>
+                        )}
+                    </div>
+                );
+            }
         },
         {
             id: 'reference',
-            header: isRTL ? 'المرجع' : 'Reference',
+            header: isRTL ? 'المرجع والجهة' : 'Ref & Party',
             sortable: true,
             sortKey: 'reference',
-            cell: (m: any) => (
-                <div className="flex flex-col items-start gap-0.5">
-                    <span className="text-erp-navy dark:text-blue-300 font-semibold font-mono text-sm tracking-wide">
-                        {m.reference_number || m.id?.substring(0, 8)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                        {m.reference_type || m.movement_type}
-                    </span>
-                </div>
-            )
+            cell: (m: any) => {
+                const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
+                const isSales = salesTypes.includes(m.movement_type);
+                const isPurchase = purchasesTypes.includes(m.movement_type);
+                const isContainer = containerTypes.includes(m.movement_type);
+                return (
+                    <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-erp-navy dark:text-blue-300 font-semibold font-mono text-sm tracking-wide">
+                            {m.reference_number || m.id?.substring(0, 8)}
+                        </span>
+                        {resolvedPartyName ? (
+                            <div className="flex items-center gap-1 text-[11px]">
+                                {isSales ? <User className="h-3 w-3 flex-shrink-0 text-rose-500" />
+                                    : (isPurchase || isContainer) ? <Building2 className="h-3 w-3 flex-shrink-0 text-emerald-500" />
+                                        : <Warehouse className="h-3 w-3 flex-shrink-0 text-orange-500" />}
+                                <span className={`truncate max-w-[140px] font-medium ${isSales ? 'text-rose-600 dark:text-rose-400'
+                                    : 'text-emerald-700 dark:text-emerald-400'
+                                    }`} title={resolvedPartyName}>
+                                    {resolvedPartyName}
+                                </span>
+                            </div>
+                        ) : (
+                            <span className="text-[10px] text-muted-foreground">
+                                {getMovementTypeLabel(m.reference_type || m.movement_type)}
+                            </span>
+                        )}
+                    </div>
+                );
+            }
         },
         {
             id: 'status',
@@ -692,13 +748,32 @@ export default function StockMovementsPage() {
             sortable: true,
             sortKey: 'status',
             cell: (m: any) => {
-                const status = m.status || 'completed';
-                const label = status === 'completed' ? (isRTL ? 'مكتمل' : 'Completed')
-                    : status === 'pending' ? (isRTL ? 'معلق' : 'Pending')
-                        : status;
+                const isTransfer = transferTypes.includes(m.movement_type);
+                let status = m.status || 'completed';
+                let label = '';
+                let variant: 'default' | 'secondary' | 'outline' = 'default';
+
+                if (isTransfer) {
+                    // For transfers, show the actual transfer status
+                    if (m.movement_type === 'transfer_out') {
+                        label = isRTL ? 'مرسلة' : 'Shipped';
+                        variant = 'secondary';
+                    } else if (m.movement_type === 'transfer_in') {
+                        label = isRTL ? 'مستلمة' : 'Received';
+                        variant = 'default';
+                    } else {
+                        label = isRTL ? 'مناقلة' : 'Transfer';
+                        variant = 'outline';
+                    }
+                } else {
+                    label = status === 'completed' ? (isRTL ? 'مكتمل' : 'Completed')
+                        : status === 'pending' ? (isRTL ? 'معلق' : 'Pending')
+                            : status;
+                    variant = status === 'completed' ? 'default' : 'secondary';
+                }
                 return (
                     <Badge
-                        variant={status === 'completed' ? 'default' : 'secondary'}
+                        variant={variant}
                         className="text-xs px-2"
                     >
                         {label}
@@ -711,33 +786,69 @@ export default function StockMovementsPage() {
     return (
         <div className="flex flex-col space-y-3" dir={direction}>
             {/* ─── Page Header ─── */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-1">
+            <div className="flex items-center justify-between gap-3 px-1">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shadow-sm">
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shadow-sm flex-shrink-0">
                         <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-erp-navy dark:text-white leading-tight">
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
                             {isRTL ? 'حركات المخزون' : 'Stock Movements'}
                         </h1>
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                             {isRTL ? 'سجل شامل لجميع حركات الأصناف والمواد في المستودعات' : 'Comprehensive record of all item and material movements'}
                         </p>
                     </div>
                 </div>
-                {/* ─── Filters Bar: Warehouse + Date Range + Refresh ─── */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    {/* فلتر المستودع */}
-                    <div className="flex items-center gap-1.5">
-                        <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            </div>
+
+            {/* ═══ Summary Cards ═══ */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {[
+                    { labelAr: 'الكل', labelEn: 'Total', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: Package },
+                    { labelAr: 'مشتريات', labelEn: 'Purchases', value: counts.purchases, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: Truck },
+                    { labelAr: 'مبيعات', labelEn: 'Sales', value: counts.sales, color: 'text-rose-600 dark:text-rose-400', bg: 'from-rose-500/10 to-rose-600/5 border-rose-200/60 dark:border-rose-800/40', iconBg: 'text-rose-500 bg-rose-50 dark:bg-rose-900/40', icon: ShoppingCart },
+                    { labelAr: 'كونتينرات', labelEn: 'Containers', value: counts.containers, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/60 dark:border-indigo-800/40', iconBg: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40', icon: Package },
+                    { labelAr: 'مناقلات', labelEn: 'Transfers', value: counts.transfers, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: ArrowLeftRight },
+                ].map((stat, i) => {
+                    const StatIcon = stat.icon;
+                    return (
+                        <div key={i} className={cn('relative overflow-hidden rounded-xl border bg-gradient-to-br px-4 py-3 shadow-sm transition-shadow hover:shadow-md', stat.bg)}>
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">
+                                        {isRTL ? stat.labelAr : stat.labelEn}
+                                    </p>
+                                    <p className={cn('text-2xl font-bold font-mono mt-1', stat.color)} dir="ltr">{stat.value}</p>
+                                </div>
+                                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0', stat.iconBg)}>
+                                    <StatIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* ═══ Table Panel ═══ */}
+            <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+
+                {/* ── Toolbar (filters) ── */}
+                <div className="flex items-end gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0 flex-wrap">
+
+                    {/* Warehouse */}
+                    <div className="flex flex-col gap-1 min-w-[180px]">
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
+                            {isRTL ? 'المستودع' : 'Warehouse'}
+                        </span>
                         <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
-                            <SelectTrigger className="h-9 text-xs w-[160px] border-gray-200">
+                            <SelectTrigger className="h-8 text-xs border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                                 <SelectValue placeholder={isRTL ? 'كل المستودعات' : 'All Warehouses'} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">{isRTL ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
+                                <SelectItem value="all" className="text-xs">{isRTL ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
                                 {warehouses.map((w: any) => (
-                                    <SelectItem key={w.id} value={w.id}>
+                                    <SelectItem key={w.id} value={w.id} className="text-xs">
                                         {isRTL ? (w.name_ar || w.name_en) : (w.name_en || w.name_ar)}
                                     </SelectItem>
                                 ))}
@@ -745,89 +856,82 @@ export default function StockMovementsPage() {
                         </Select>
                     </div>
 
-                    {/* فلتر التاريخ — المكوّن المشترك */}
-                    <DateRangePicker
-                        date={dateRange}
-                        setDate={setDateRange}
-                        align={isRTL ? 'end' : 'start'}
-                    />
-                    {dateRange && (
+                    {/* Date Range */}
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
+                            {isRTL ? 'الفترة' : 'Period'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <DateRangePicker
+                                date={dateRange}
+                                setDate={setDateRange}
+                                align={isRTL ? 'end' : 'start'}
+                            />
+                            {dateRange && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 text-xs text-gray-400 hover:text-red-500"
+                                    onClick={() => setDateRange(undefined)}
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Spacer + Refresh */}
+                    <div className="flex items-end gap-2 ms-auto">
+                        <span className="text-[10px] text-gray-400 hidden lg:block pb-1.5">
+                            {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-9 px-2 text-xs text-gray-400 hover:text-red-500"
-                            onClick={() => setDateRange(undefined)}
+                            className="h-9 gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400"
+                            onClick={handleManualRefresh}
+                            disabled={loading}
                         >
-                            <X className="w-3.5 h-3.5" />
+                            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                            <span className="hidden md:inline">{isRTL ? 'تحديث' : 'Refresh'}</span>
                         </Button>
-                    )}
-
-                    {/* آخر تحديث + زر التحديث */}
-                    <span className="text-[10px] text-gray-400 font-mono hidden lg:block">
-                        {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 gap-1.5 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
-                        onClick={handleManualRefresh}
-                        disabled={loading}
-                    >
-                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        {isRTL ? 'تحديث' : 'Refresh'}
-                    </Button>
+                    </div>
                 </div>
-            </div>
-            {/* Header Tabs - RTL: الكل ← مشتريات ← مبيعات ← كونتينرات ← مناقلات */}
-            <div className="bg-white dark:bg-gray-900 rounded-t-xl border-b overflow-x-auto">
-                <Tabs value={subFilter} onValueChange={setSubFilter} dir={direction}>
-                    <TabsList className={`bg-transparent h-12 p-0 border-none rounded-none flex ${isRTL ? 'flex-row-reverse justify-end' : 'flex-row justify-start'}`}>
-                        <TabsTrigger
-                            value="transfers"
-                            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-orange-600 data-[state=active]:text-orange-600 data-[state=active]:shadow-none rounded-none h-12 px-4 text-sm font-medium"
-                        >
-                            <ArrowLeftRight className="w-4 h-4 me-2" />
-                            {isRTL ? 'مناقلات' : 'Transfers'}
-                            <Badge className="ms-2 text-[10px] py-0 px-1.5 h-4 bg-orange-100 text-orange-700 hover:bg-orange-100">{counts.transfers}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="containers"
-                            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:shadow-none rounded-none h-12 px-4 text-sm font-medium"
-                        >
-                            <Package className="w-4 h-4 me-2" />
-                            {isRTL ? 'كونتينرات' : 'Containers'}
-                            <Badge className="ms-2 text-[10px] py-0 px-1.5 h-4 bg-blue-100 text-blue-700 hover:bg-blue-100">{counts.containers}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="sales"
-                            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-rose-600 data-[state=active]:text-rose-600 data-[state=active]:shadow-none rounded-none h-12 px-4 text-sm font-medium"
-                        >
-                            <ShoppingCart className="w-4 h-4 me-2" />
-                            {isRTL ? 'مبيعات' : 'Sales'}
-                            <Badge className="ms-2 text-[10px] py-0 px-1.5 h-4 bg-rose-100 text-rose-700 hover:bg-rose-100">{counts.sales}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="purchases"
-                            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-emerald-600 data-[state=active]:text-emerald-600 data-[state=active]:shadow-none rounded-none h-12 px-4 text-sm font-medium"
-                        >
-                            <Truck className="w-4 h-4 me-2" />
-                            {isRTL ? 'مشتريات' : 'Purchases'}
-                            <Badge className="ms-2 text-[10px] py-0 px-1.5 h-4 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{counts.purchases}</Badge>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="all"
-                            className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-erp-navy data-[state=active]:text-erp-navy data-[state=active]:shadow-none rounded-none h-12 px-4 text-sm font-medium"
-                        >
-                            <ArrowLeftRight className="w-4 h-4 me-2" />
-                            {isRTL ? 'الكل' : 'All'}
-                            <Badge variant="secondary" className="ms-2 text-[10px] py-0 px-1.5 h-4">{counts.all}</Badge>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
-            </div>
 
-            {/* Main Table View */}
-            <div className="bg-white dark:bg-gray-900 rounded-b-xl border border-t-0 shadow-sm overflow-hidden">
+                {/* ── Sub-Tabs Filters ── */}
+                <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-100 dark:border-gray-800 flex-wrap">
+                    <Tabs value={subFilter} onValueChange={(v) => setSubFilter(v as any)} className="w-full sm:w-auto" dir={direction}>
+                        <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
+                            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                                <Package className="w-4 h-4 me-1.5" />
+                                {isRTL ? 'الكل' : 'All'}
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{counts.all}</Badge>
+                            </TabsTrigger>
+                            <TabsTrigger value="purchases" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
+                                <Truck className="w-4 h-4 me-1.5" />
+                                {isRTL ? 'مشتريات' : 'Purchases'}
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{counts.purchases}</Badge>
+                            </TabsTrigger>
+                            <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">
+                                <ShoppingCart className="w-4 h-4 me-1.5" />
+                                {isRTL ? 'مبيعات' : 'Sales'}
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-rose-100/60 text-rose-700">{counts.sales}</Badge>
+                            </TabsTrigger>
+                            <TabsTrigger value="containers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">
+                                <Package className="w-4 h-4 me-1.5" />
+                                {isRTL ? 'كونتينرات' : 'Containers'}
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-indigo-100/60 text-indigo-700">{counts.containers}</Badge>
+                            </TabsTrigger>
+                            <TabsTrigger value="transfers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
+                                <ArrowLeftRight className="w-4 h-4 me-1.5" />
+                                {isRTL ? 'مناقلات' : 'Transfers'}
+                                <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{counts.transfers}</Badge>
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </div>
+
+                {/* ── Table ── */}
                 <NexaListTable
                     data={groupedMovements}
                     columns={columns}
@@ -930,6 +1034,19 @@ export default function StockMovementsPage() {
                     initialData={salesInvoiceSheet.invoiceData}
                     companyId={companyId}
                     onRefresh={() => { }}
+                />
+            )}
+
+            {/* Transfer Delivery Dialog — عرض/استلام مناقلة */}
+            {transferDeliveryDialog.open && transferDeliveryDialog.transfer && (
+                <TransferDeliveryDialog
+                    isOpen={transferDeliveryDialog.open}
+                    onOpenChange={(open) => setTransferDeliveryDialog(prev => ({ ...prev, open }))}
+                    transfer={transferDeliveryDialog.transfer}
+                    onComplete={() => {
+                        setTransferDeliveryDialog({ open: false, transfer: null });
+                        refetchMovements();
+                    }}
                 />
             )}
         </div>

@@ -727,13 +727,13 @@ export default function ContainersList() {
 
     const getTabIcon = (value: string) => {
         switch (value) {
-            case 'all': return <Ship className="w-3.5 h-3.5 me-1" />;
-            case 'in_transit': return <Ship className="w-3.5 h-3.5 me-1" />;
-            case 'at_port': return <Anchor className="w-3.5 h-3.5 me-1" />;
-            case 'customs': return <Globe className="w-3.5 h-3.5 me-1" />;
-            case 'cleared': return <PackageCheck className="w-3.5 h-3.5 me-1" />;
-            case 'in_receiving': return <Warehouse className="w-3.5 h-3.5 me-1 text-teal-500" />;
-            case 'received': return <Warehouse className="w-3.5 h-3.5 me-1" />;
+            case 'all': return <Ship className="w-4 h-4 me-1.5" />;
+            case 'in_transit': return <Ship className="w-4 h-4 me-1.5" />;
+            case 'at_port': return <Anchor className="w-4 h-4 me-1.5" />;
+            case 'customs': return <Globe className="w-4 h-4 me-1.5" />;
+            case 'cleared': return <PackageCheck className="w-4 h-4 me-1.5" />;
+            case 'in_receiving': return <Warehouse className="w-4 h-4 me-1.5 text-teal-500" />;
+            case 'received': return <Warehouse className="w-4 h-4 me-1.5" />;
             default: return null;
         }
     };
@@ -820,13 +820,13 @@ export default function ContainersList() {
                                     <TabsTrigger
                                         key={tab.value}
                                         value={tab.value}
-                                        className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 font-tajawal"
+                                        className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal"
                                     >
                                         {getTabIcon(tab.value)}
                                         {getTabLabel(tab.value)}
                                         <Badge
                                             variant="secondary"
-                                            className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-gray-200/60"
+                                            className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60"
                                         >
                                             {statusCounts[tab.value] || 0}
                                         </Badge>

@@ -43,6 +43,7 @@ const Sales = React.lazy(() => import('@/features/sales/SalesPage'));
 const WorkflowCenter = React.lazy(() => import('@/features/workflow-center/WorkflowCenter'));
 const EcommercePage = React.lazy(() => import('@/features/ecommerce/EcommercePage'));
 const WebsiteManagerPage = React.lazy(() => import('@/features/website/WebsiteManagerPage'));
+const AIAnalyticsPage = React.lazy(() => import('@/features/ai/AIAnalyticsPage'));
 
 // Public Route Guard (redirects to home if already authenticated)
 // Reserved for future use when public routes are needed
@@ -122,7 +123,7 @@ function AppRoutes() {
             <Route path="/hr/*" element={<HR />} />
             <Route path="/ecommerce/*" element={<EcommercePage />} />
             <Route path="/website/*" element={<WebsiteManagerPage />} />
-            <Route path="/ai-analytics" element={<PlaceholderPage titleKey="navigation.aiAnalytics" />} />
+            <Route path="/ai-analytics" element={<AIAnalyticsPage />} />
             <Route path="/system-config/*" element={<SystemConfigPage />} />
             <Route path="/users-permissions/*" element={<UsersPermissionsPage />} />
             <Route path="/workflows/*" element={<WorkflowCenter />} />
