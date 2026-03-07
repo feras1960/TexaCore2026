@@ -52,6 +52,8 @@ export default function AILanguageSettingsTab() {
 
     // Telegram state
     const [tgConnected, setTgConnected] = useState(false);
+    const [linkedUsers, setLinkedUsers] = useState<any[]>([]);
+    const [linkedGroups, setLinkedGroups] = useState<any[]>([]);
     const [tgBotUsername, setTgBotUsername] = useState('');
 
     // Notification preferences
@@ -65,11 +67,12 @@ export default function AILanguageSettingsTab() {
         report_time_evening: '18:00',
     });
 
-    // Load current settings
+    // Load current settings + linked users
     useEffect(() => {
         if (!companyId) return;
         (async () => {
             setLoading(true);
+            // Load company settings
             const { data, error } = await supabase
                 .from('companies')
                 .select('settings, integrations')
@@ -90,6 +93,20 @@ export default function AILanguageSettingsTab() {
                     }
                 }
             }
+
+            // Load linked Telegram connections
+            const { data: connections } = await supabase
+                .from('telegram_connections')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .order('created_at', { ascending: false });
+
+            if (connections) {
+                setLinkedUsers(connections.filter(c => c.connection_type === 'private'));
+                setLinkedGroups(connections.filter(c => c.connection_type !== 'private'));
+            }
+
             setLoading(false);
         })();
     }, [companyId]);
@@ -306,19 +323,46 @@ export default function AILanguageSettingsTab() {
                                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                     <Users className="w-4 h-4 text-blue-500" />
                                     {isAr ? 'المستخدمون المربوطون' : 'Linked Users'}
+                                    {linkedUsers.length > 0 && (
+                                        <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedUsers.length}</Badge>
+                                    )}
                                 </CardTitle>
-                                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
+                                    onClick={() => window.location.href = '/system-config/integrations'}>
                                     <UserPlus className="w-3.5 h-3.5" />
                                     {isAr ? 'ربط مستخدم' : 'Link User'}
                                 </Button>
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-6 text-gray-400">
-                                <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                <p className="text-sm">{isAr ? 'لم يتم ربط أي مستخدم بعد' : 'No users linked yet'}</p>
-                                <p className="text-xs mt-1">{isAr ? 'أنشئ رمز تحقق من التكاملات وأرسله للموظف' : 'Generate a code from Integrations and send it to the employee'}</p>
-                            </div>
+                            {linkedUsers.length === 0 ? (
+                                <div className="text-center py-6 text-gray-400">
+                                    <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">{isAr ? 'لم يتم ربط أي مستخدم بعد' : 'No users linked yet'}</p>
+                                    <p className="text-xs mt-1">{isAr ? 'أنشئ رمز تحقق من التكاملات وأرسله للموظف' : 'Generate a code from Integrations and send it to the employee'}</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {linkedUsers.map(user => (
+                                        <div key={user.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                                <Send className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                    {user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
+                                                </div>
+                                                <div className="text-[11px] text-gray-400">
+                                                    {user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_chat_id}`}
+                                                </div>
+                                            </div>
+                                            <Badge className="bg-green-100 text-green-700 text-[10px]">
+                                                <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'مربوط' : 'Linked'}
+                                            </Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -329,6 +373,9 @@ export default function AILanguageSettingsTab() {
                                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                     <MessageCircle className="w-4 h-4 text-blue-500" />
                                     {isAr ? 'المجموعات' : 'Groups'}
+                                    {linkedGroups.length > 0 && (
+                                        <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedGroups.length}</Badge>
+                                    )}
                                 </CardTitle>
                                 <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
                                     <UserPlus className="w-3.5 h-3.5" />
@@ -337,11 +384,34 @@ export default function AILanguageSettingsTab() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-6 text-gray-400">
-                                <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                <p className="text-sm">{isAr ? 'لم يتم ربط أي مجموعة بعد' : 'No groups linked yet'}</p>
-                                <p className="text-xs mt-1">{isAr ? 'أضف البوت إلى مجموعة Telegram لتفعيل التقارير الجماعية' : 'Add the bot to a Telegram group to enable team reports'}</p>
-                            </div>
+                            {linkedGroups.length === 0 ? (
+                                <div className="text-center py-6 text-gray-400">
+                                    <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">{isAr ? 'لم يتم ربط أي مجموعة بعد' : 'No groups linked yet'}</p>
+                                    <p className="text-xs mt-1">{isAr ? 'أضف البوت إلى مجموعة Telegram لتفعيل التقارير الجماعية' : 'Add the bot to a Telegram group to enable team reports'}</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {linkedGroups.map(group => (
+                                        <div key={group.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                                                <MessageCircle className="w-4 h-4 text-indigo-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                    {group.telegram_first_name || (isAr ? 'مجموعة' : 'Group')}
+                                                </div>
+                                                <div className="text-[11px] text-gray-400">
+                                                    {group.connection_type} • ID: {group.telegram_chat_id}
+                                                </div>
+                                            </div>
+                                            <Badge className="bg-green-100 text-green-700 text-[10px]">
+                                                <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'نشط' : 'Active'}
+                                            </Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </>
