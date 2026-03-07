@@ -81,6 +81,21 @@ export default function IntegrationsTab() {
     const [tgWebhookActive, setTgWebhookActive] = useState(false);
     const [tgSetupStatus, setTgSetupStatus] = useState<'idle' | 'setting' | 'success' | 'error'>('idle');
     const [tgVerificationCode, setTgVerificationCode] = useState('');
+    const [tgSelectedUserId, setTgSelectedUserId] = useState('');
+    const [systemUsers, setSystemUsers] = useState<any[]>([]);
+
+    // Load system users for linking
+    useEffect(() => {
+        if (!companyId) return;
+        (async () => {
+            const { data } = await supabase
+                .from('user_profiles')
+                .select('id, full_name, email, role')
+                .eq('company_id', companyId)
+                .order('full_name');
+            if (data) setSystemUsers(data);
+        })();
+    }, [companyId]);
 
     // ─── Load integrations ──────────────────────────────────────
     const loadIntegrations = useCallback(async () => {
@@ -113,6 +128,10 @@ export default function IntegrationsTab() {
                 setTgBotToken(intg.telegram.bot_token || '');
                 setTgBotUsername(intg.telegram.bot_username || '');
                 setTgWebhookActive(intg.telegram.webhook_active || false);
+                // Restore activated status if webhook was set up
+                if (intg.telegram.webhook_active && intg.telegram.bot_username) {
+                    setTgSetupStatus('success');
+                }
             }
 
 
@@ -522,6 +541,28 @@ export default function IntegrationsTab() {
                                         const whData = await whRes.json();
                                         if (!whData.ok) throw new Error(whData.description || 'Webhook setup failed');
 
+                                        // ═══ Auto-save to Supabase ═══
+                                        const telegramConfig = {
+                                            bot_token: tgBotToken.trim(),
+                                            bot_username: infoData.result.username,
+                                            webhook_active: true,
+                                            webhook_secret: secret,
+                                        };
+                                        const newIntegrations = {
+                                            ...integrations,
+                                            telegram: telegramConfig,
+                                        };
+                                        const { error: saveError } = await supabase
+                                            .from('companies')
+                                            .update({ integrations: newIntegrations })
+                                            .eq('id', companyId);
+
+                                        if (saveError) {
+                                            console.error('Save error:', saveError);
+                                        } else {
+                                            setIntegrations(newIntegrations);
+                                        }
+
                                         setTgWebhookActive(true);
                                         setTgSetupStatus('success');
                                         toast({
@@ -571,27 +612,43 @@ export default function IntegrationsTab() {
                                 </div>
 
                                 {/* Verification Code for linking */}
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                     <h4 className="text-xs font-semibold flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
                                         <Users className="w-3.5 h-3.5 text-blue-500" />
                                         {isAr ? 'ربط حساب الموظف' : 'Link Employee Account'}
                                     </h4>
                                     <p className="text-[10px] text-gray-400">
                                         {isAr
-                                            ? 'أنشئ رمز تحقق وأرسله للموظف ليربط حسابه عبر البوت'
-                                            : 'Generate a code and send it to the employee to link their account via the bot'}
+                                            ? 'اختر المستخدم من النظام ثم أنشئ رمز تحقق وأرسله للموظف ليربط حسابه عبر البوت'
+                                            : 'Select the system user, generate a code, and send it to the employee to link via the bot'}
                                     </p>
-                                    <div className="flex gap-2">
+
+                                    {/* User selector */}
+                                    <div className="flex gap-2 items-center">
+                                        <select
+                                            value={tgSelectedUserId}
+                                            onChange={(e) => setTgSelectedUserId(e.target.value)}
+                                            className="flex-1 h-8 text-xs rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 text-gray-900 dark:text-white"
+                                        >
+                                            <option value="">{isAr ? '— اختر المستخدم —' : '— Select User —'}</option>
+                                            {systemUsers.map(u => (
+                                                <option key={u.id} value={u.id}>
+                                                    {u.full_name || u.email} {u.role ? `(${u.role})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+
                                         <Button variant="outline" size="sm"
+                                            disabled={!tgSelectedUserId}
                                             onClick={async () => {
                                                 const code = Math.random().toString(36).substring(2, 8).toUpperCase();
                                                 try {
-                                                    // Save verification code to telegram_connections (pending)
                                                     const { error } = await supabase
                                                         .from('telegram_connections')
                                                         .insert({
                                                             company_id: companyId,
-                                                            telegram_chat_id: 0, // placeholder, updated on verification
+                                                            user_id: tgSelectedUserId || null,
+                                                            telegram_chat_id: 0,
                                                             verification_code: code,
                                                             is_active: false,
                                                             connection_type: 'private',
@@ -602,29 +659,31 @@ export default function IntegrationsTab() {
                                                         return;
                                                     }
                                                     setTgVerificationCode(code);
+                                                    const selectedUser = systemUsers.find(u => u.id === tgSelectedUserId);
+                                                    toast({ title: isAr ? '✅ تم إنشاء الرمز' : '✅ Code generated', description: isAr ? `أرسل الرمز لـ ${selectedUser?.full_name || 'الموظف'}` : `Send the code to ${selectedUser?.full_name || 'employee'}` });
                                                 } catch (err: any) {
                                                     toast({ title: isAr ? '❌ خطأ' : '❌ Error', description: err.message, variant: 'destructive' });
                                                 }
                                             }}
-                                            className="gap-1.5 h-8 text-xs">
+                                            className="gap-1.5 h-8 text-xs shrink-0">
                                             <RefreshCw className="w-3 h-3" />
                                             {isAr ? 'إنشاء رمز' : 'Generate Code'}
                                         </Button>
-                                        {tgVerificationCode && (
-                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
-                                                <span className="text-lg font-mono font-black text-indigo-700 dark:text-indigo-300 tracking-widest">
-                                                    {tgVerificationCode}
-                                                </span>
-                                                <button onClick={() => { navigator.clipboard.writeText(tgVerificationCode); toast({ title: isAr ? '📋 تم النسخ' : '📋 Copied' }); }}
-                                                    className="text-indigo-400 hover:text-indigo-600">
-                                                    <Copy className="w-3.5 h-3.5" />
-                                                </button>
-                                                <span className="text-[9px] text-indigo-400">
-                                                    {isAr ? 'ينتهي خلال 10 دقائق' : 'Expires in 10 min'}
-                                                </span>
-                                            </div>
-                                        )}
                                     </div>
+                                    {tgVerificationCode && (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+                                            <span className="text-lg font-mono font-black text-indigo-700 dark:text-indigo-300 tracking-widest">
+                                                {tgVerificationCode}
+                                            </span>
+                                            <button onClick={() => { navigator.clipboard.writeText(tgVerificationCode); toast({ title: isAr ? '📋 تم النسخ' : '📋 Copied' }); }}
+                                                className="text-indigo-400 hover:text-indigo-600">
+                                                <Copy className="w-3.5 h-3.5" />
+                                            </button>
+                                            <span className="text-[9px] text-indigo-400">
+                                                {isAr ? 'ينتهي خلال 10 دقائق' : 'Expires in 10 min'}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </>
