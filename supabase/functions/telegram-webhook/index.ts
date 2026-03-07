@@ -414,6 +414,67 @@ serve(async (req: Request) => {
             })
         }
 
+        // ─── Send notification from web app ─────────────────
+        if (body.action === 'send_notification') {
+            const { company_id, chat_id, message } = body
+            if (!company_id || !chat_id || !message) {
+                return new Response(JSON.stringify({ ok: false, error: 'Missing params' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+            const notifConfig = await getBotConfig(supabase, company_id)
+            if (!notifConfig) {
+                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+            const result = await sendMessage(notifConfig.botToken, chat_id, message)
+            return new Response(JSON.stringify({ ok: result.ok }), {
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
+
+        // ─── Send bulk notification ─────────────────────────
+        if (body.action === 'send_bulk_notification') {
+            const { company_id, message: bulkMessage, target_type } = body
+            if (!company_id || !bulkMessage) {
+                return new Response(JSON.stringify({ ok: false, error: 'Missing params' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+            const bulkConfig = await getBotConfig(supabase, company_id)
+            if (!bulkConfig) {
+                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+
+            // Get all active connections
+            let connQuery = supabase
+                .from('telegram_connections')
+                .select('telegram_chat_id, connection_type')
+                .eq('company_id', company_id)
+                .eq('is_active', true)
+
+            if (target_type === 'private') {
+                connQuery = connQuery.eq('connection_type', 'private')
+            } else if (target_type === 'group') {
+                connQuery = connQuery.neq('connection_type', 'private')
+            }
+
+            const { data: conns } = await connQuery
+            let sentCount = 0
+            if (conns) {
+                for (const conn of conns) {
+                    const r = await sendMessage(bulkConfig.botToken, conn.telegram_chat_id, bulkMessage)
+                    if (r.ok) sentCount++
+                }
+            }
+            return new Response(JSON.stringify({ ok: true, sent: sentCount }), {
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
+
         // ─── Bot token from URL parameter or body ───────────
         const url = new URL(req.url)
         const botTokenParam = url.searchParams.get('bot_token') || body.bot_token || ''
