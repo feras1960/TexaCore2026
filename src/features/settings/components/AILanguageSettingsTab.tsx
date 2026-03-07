@@ -459,7 +459,7 @@ export default function AILanguageSettingsTab() {
                 </Card>
             )}
 
-            {/* ═══ Step 3: Linked Users List ═══ */}
+            {/* ═══ Step 3: Linked Users Table ═══ */}
             {tgConnected && (
                 <Card>
                     <CardHeader className="pb-3">
@@ -469,139 +469,186 @@ export default function AILanguageSettingsTab() {
                             {linkedUsers.length > 0 && <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedUsers.length}</Badge>}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-0">
                         {linkedUsers.length === 0 ? (
-                            <div className="text-center py-6 text-gray-400">
+                            <div className="text-center py-6 text-gray-400 px-4">
                                 <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
                                 <p className="text-sm">{isAr ? 'لم يتم ربط أي مستخدم بعد' : 'No users linked yet'}</p>
                             </div>
                         ) : (
-                            <div className="space-y-2">
-                                {linkedUsers.map(user => {
-                                    const profile = user.user_profiles;
-                                    const sysName = profile?.full_name || profile?.email || '';
-                                    const sysRole = profile?.role || '';
-                                    const isExpanded = expandedUserId === user.id;
-                                    const userPrefs = user.notification_preferences || {};
+                            <div className="overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/30">
+                                            <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-4 py-2.5">{isAr ? 'المستخدم' : 'User'}</th>
+                                            <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'حساب Telegram' : 'Telegram'}</th>
+                                            <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'الدور' : 'Role'}</th>
+                                            <th className="text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'الحالة' : 'Status'}</th>
+                                            <th className="text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'إجراءات' : 'Actions'}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {linkedUsers.map((user, idx) => {
+                                            const profile = user.user_profiles;
+                                            const sysName = profile?.full_name || profile?.email || '';
+                                            const sysRole = profile?.role || '';
+                                            const isExpanded = expandedUserId === user.id;
+                                            const userPrefs = user.notification_preferences || {};
+                                            const isLast = idx === linkedUsers.length - 1;
 
-                                    const handleTogglePref = async (key: string) => {
-                                        const newPrefs = { ...userPrefs, [key]: !userPrefs[key] };
-                                        setSavingPrefs(user.id);
-                                        const { error } = await supabase.from('telegram_connections')
-                                            .update({ notification_preferences: newPrefs })
-                                            .eq('id', user.id);
-                                        if (!error) {
-                                            setLinkedUsers(prev => prev.map(u =>
-                                                u.id === user.id ? { ...u, notification_preferences: newPrefs } : u
-                                            ));
-                                        } else toast.error(error.message);
-                                        setSavingPrefs(null);
-                                    };
+                                            const handleTogglePref = async (key: string) => {
+                                                const newPrefs = { ...userPrefs, [key]: !userPrefs[key] };
+                                                setSavingPrefs(user.id);
+                                                const { error } = await supabase.from('telegram_connections')
+                                                    .update({ notification_preferences: newPrefs })
+                                                    .eq('id', user.id);
+                                                if (!error) {
+                                                    setLinkedUsers(prev => prev.map(u =>
+                                                        u.id === user.id ? { ...u, notification_preferences: newPrefs } : u
+                                                    ));
+                                                } else toast.error(error.message);
+                                                setSavingPrefs(null);
+                                            };
 
-                                    const NOTIF_CATEGORIES = [
-                                        {
-                                            cat: isAr ? '📦 المستودعات' : '📦 Warehouse', items: [
-                                                { key: 'receipt_order', ar: 'إذن استلام', en: 'Receipt Order' },
-                                                { key: 'issue_order', ar: 'إذن تسليم/صرف', en: 'Issue Order' },
-                                                { key: 'shipment_arrival', ar: 'وصول حاوية/شحنة', en: 'Shipment Arrival' },
-                                                { key: 'warehouse_transfer', ar: 'تحويل مستودعي', en: 'Warehouse Transfer' },
-                                                { key: 'low_stock', ar: 'مخزون منخفض', en: 'Low Stock Alert' },
-                                                { key: 'inventory_task', ar: 'مهمة جرد', en: 'Inventory Task' },
-                                            ]
-                                        },
-                                        {
-                                            cat: isAr ? '💰 المالية' : '💰 Finance', items: [
-                                                { key: 'payment_received', ar: 'دفعة مستلمة', en: 'Payment Received' },
-                                                { key: 'payment_sent', ar: 'دفعة صادرة', en: 'Payment Sent' },
-                                                { key: 'invoice_due', ar: 'فاتورة مستحقة', en: 'Invoice Due' },
-                                                { key: 'credit_limit', ar: 'تجاوز حد ائتمان', en: 'Credit Limit Exceeded' },
-                                                { key: 'price_update', ar: 'تحديث أسعار', en: 'Price Update' },
-                                            ]
-                                        },
-                                        {
-                                            cat: isAr ? '🚚 المبيعات والتوصيل' : '🚚 Sales & Delivery', items: [
-                                                { key: 'sales_order', ar: 'طلب بيع جديد', en: 'New Sales Order' },
-                                                { key: 'delivery_route', ar: 'وجهة توصيل', en: 'Delivery Route' },
-                                                { key: 'delivery_delayed', ar: 'تأخر توصيل', en: 'Delivery Delayed' },
-                                            ]
-                                        },
-                                        {
-                                            cat: isAr ? '📊 التقارير' : '📊 Reports', items: [
-                                                { key: 'daily_report_am', ar: 'تقرير صباحي', en: 'Morning Report' },
-                                                { key: 'daily_report_pm', ar: 'تقرير مسائي', en: 'Evening Report' },
-                                                { key: 'meeting_scheduled', ar: 'اجتماع مجدول', en: 'Scheduled Meeting' },
-                                            ]
-                                        },
-                                    ];
+                                            const NOTIF_CATEGORIES = [
+                                                {
+                                                    cat: isAr ? '📦 المستودعات' : '📦 Warehouse', items: [
+                                                        { key: 'receipt_order', ar: 'إذن استلام', en: 'Receipt Order' },
+                                                        { key: 'issue_order', ar: 'إذن تسليم/صرف', en: 'Issue Order' },
+                                                        { key: 'shipment_arrival', ar: 'وصول حاوية/شحنة', en: 'Shipment Arrival' },
+                                                        { key: 'warehouse_transfer', ar: 'تحويل مستودعي', en: 'Warehouse Transfer' },
+                                                        { key: 'low_stock', ar: 'مخزون منخفض', en: 'Low Stock Alert' },
+                                                        { key: 'inventory_task', ar: 'مهمة جرد', en: 'Inventory Task' },
+                                                    ]
+                                                },
+                                                {
+                                                    cat: isAr ? '💰 المالية' : '💰 Finance', items: [
+                                                        { key: 'payment_received', ar: 'دفعة مستلمة', en: 'Payment Received' },
+                                                        { key: 'payment_sent', ar: 'دفعة صادرة', en: 'Payment Sent' },
+                                                        { key: 'invoice_due', ar: 'فاتورة مستحقة', en: 'Invoice Due' },
+                                                        { key: 'credit_limit', ar: 'تجاوز حد ائتمان', en: 'Credit Limit Exceeded' },
+                                                        { key: 'price_update', ar: 'تحديث أسعار', en: 'Price Update' },
+                                                    ]
+                                                },
+                                                {
+                                                    cat: isAr ? '🚚 المبيعات والتوصيل' : '🚚 Sales & Delivery', items: [
+                                                        { key: 'sales_order', ar: 'طلب بيع جديد', en: 'New Sales Order' },
+                                                        { key: 'delivery_route', ar: 'وجهة توصيل', en: 'Delivery Route' },
+                                                        { key: 'delivery_delayed', ar: 'تأخر توصيل', en: 'Delivery Delayed' },
+                                                    ]
+                                                },
+                                                {
+                                                    cat: isAr ? '📊 التقارير' : '📊 Reports', items: [
+                                                        { key: 'daily_report_am', ar: 'تقرير صباحي', en: 'Morning Report' },
+                                                        { key: 'daily_report_pm', ar: 'تقرير مسائي', en: 'Evening Report' },
+                                                        { key: 'meeting_scheduled', ar: 'اجتماع مجدول', en: 'Scheduled Meeting' },
+                                                    ]
+                                                },
+                                            ];
 
-                                    return (
-                                        <div key={user.id} className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
-                                            {/* User Row */}
-                                            <div className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-800/50">
-                                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                                    <Send className="w-4 h-4 text-blue-600" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                        {sysName || user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
-                                                    </div>
-                                                    <div className="text-[11px] text-gray-400 flex items-center gap-2">
-                                                        <span>{user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_chat_id}`}</span>
-                                                        {sysRole && <Badge className="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 text-[9px] px-1.5 py-0">{sysRole}</Badge>}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <Badge className="bg-green-100 text-green-700 text-[10px]">
-                                                        <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'مربوط' : 'Linked'}
-                                                    </Badge>
-                                                    <button onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
-                                                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-purple-500 transition-colors"
-                                                        title={isAr ? 'تفضيلات الإشعارات' : 'Notification Preferences'}>
-                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}
-                                                    </button>
-                                                    <button onClick={async () => {
-                                                        if (!confirm(isAr ? 'إزالة ربط هذا المستخدم؟' : 'Remove this link?')) return;
-                                                        const { error } = await supabase.from('telegram_connections').delete().eq('id', user.id);
-                                                        if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast.success('✅'); }
-                                                        else toast.error(error.message);
-                                                    }} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-500 transition-colors" title={isAr ? 'إزالة' : 'Unlink'}>
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            </div>
+                                            // Count active notifications
+                                            const allKeys = NOTIF_CATEGORIES.flatMap(c => c.items.map(i => i.key));
+                                            const activeCount = allKeys.filter(k => userPrefs[k] !== false).length;
 
-                                            {/* Expanded: Notification Preferences */}
-                                            {isExpanded && (
-                                                <div className="px-3 py-2 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700">
-                                                    <div className="text-[11px] text-gray-500 font-medium mb-2 flex items-center gap-1">
-                                                        <Bell className="w-3 h-3" />
-                                                        {isAr ? 'تفضيلات الإشعارات' : 'Notification Preferences'}
-                                                        {savingPrefs === user.id && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        {NOTIF_CATEGORIES.map(cat => (
-                                                            <div key={cat.cat}>
-                                                                <div className="text-[10px] font-bold text-gray-400 mb-1">{cat.cat}</div>
-                                                                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                                                                    {cat.items.map(item => (
-                                                                        <label key={item.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1">
-                                                                            <Switch
-                                                                                checked={userPrefs[item.key] !== false}
-                                                                                onCheckedChange={() => handleTogglePref(item.key)}
-                                                                                className="scale-75"
-                                                                            />
-                                                                            <span className="text-[11px] text-gray-600 dark:text-gray-300">{isAr ? item.ar : item.en}</span>
-                                                                        </label>
-                                                                    ))}
+                                            return (
+                                                <React.Fragment key={user.id}>
+                                                    <tr className={`${!isLast && !isExpanded ? 'border-b border-gray-50 dark:border-gray-800' : ''} hover:bg-blue-50/30 dark:hover:bg-blue-900/5 transition-colors ${isExpanded ? 'bg-purple-50/30 dark:bg-purple-900/5' : ''}`}>
+                                                        {/* System Name */}
+                                                        <td className="px-4 py-2.5">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 flex items-center justify-center shrink-0">
+                                                                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                                                        {(sysName || user.telegram_first_name || '?')[0]?.toUpperCase()}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="text-[13px] font-medium text-gray-900 dark:text-white truncate">
+                                                                        {sysName || user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
+                                                                    </div>
+                                                                    {sysName && user.telegram_first_name && sysName !== user.telegram_first_name && (
+                                                                        <div className="text-[10px] text-gray-400 truncate">{user.telegram_first_name}</div>
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                                        </td>
+                                                        {/* Telegram Handle */}
+                                                        <td className="px-3 py-2.5">
+                                                            <span className="text-[12px] text-blue-600 dark:text-blue-400 font-mono">
+                                                                {user.telegram_username ? `@${user.telegram_username}` : `#${user.telegram_chat_id}`}
+                                                            </span>
+                                                        </td>
+                                                        {/* Role */}
+                                                        <td className="px-3 py-2.5">
+                                                            {sysRole ? (
+                                                                <Badge className="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 text-[10px] px-1.5 py-0.5 font-normal">
+                                                                    {sysRole}
+                                                                </Badge>
+                                                            ) : (
+                                                                <span className="text-[11px] text-gray-300">—</span>
+                                                            )}
+                                                        </td>
+                                                        {/* Status */}
+                                                        <td className="px-3 py-2.5 text-center">
+                                                            <Badge className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 text-[10px] px-1.5 py-0.5">
+                                                                <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'مربوط' : 'Linked'}
+                                                            </Badge>
+                                                        </td>
+                                                        {/* Actions */}
+                                                        <td className="px-3 py-2.5 text-center">
+                                                            <div className="flex items-center justify-center gap-0.5">
+                                                                <button onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
+                                                                    className={`p-1.5 rounded-md transition-all ${isExpanded ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-purple-500'}`}
+                                                                    title={isAr ? `تفضيلات الإشعارات (${activeCount}/${allKeys.length})` : `Notification Preferences (${activeCount}/${allKeys.length})`}>
+                                                                    <Bell className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button onClick={async () => {
+                                                                    if (!confirm(isAr ? 'إزالة ربط هذا المستخدم؟' : 'Remove this link?')) return;
+                                                                    const { error } = await supabase.from('telegram_connections').delete().eq('id', user.id);
+                                                                    if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast.success('✅'); }
+                                                                    else toast.error(error.message);
+                                                                }} className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-500 transition-colors" title={isAr ? 'إزالة الربط' : 'Unlink'}>
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {/* Expanded: Notification Preferences */}
+                                                    {isExpanded && (
+                                                        <tr>
+                                                            <td colSpan={5} className="px-4 py-3 bg-gradient-to-b from-purple-50/40 to-white dark:from-purple-900/5 dark:to-gray-900 border-b border-purple-100 dark:border-purple-900/20">
+                                                                <div className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold mb-2.5 flex items-center gap-1.5">
+                                                                    <Bell className="w-3.5 h-3.5" />
+                                                                    {isAr ? 'تفضيلات الإشعارات' : 'Notification Preferences'}
+                                                                    <span className="text-[10px] font-normal text-gray-400">({activeCount}/{allKeys.length})</span>
+                                                                    {savingPrefs === user.id && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                                </div>
+                                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                                                    {NOTIF_CATEGORIES.map(cat => (
+                                                                        <div key={cat.cat} className="bg-white dark:bg-gray-800/50 rounded-lg p-2.5 border border-gray-100 dark:border-gray-700">
+                                                                            <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 pb-1 border-b border-gray-100 dark:border-gray-700">{cat.cat}</div>
+                                                                            <div className="space-y-0.5">
+                                                                                {cat.items.map(item => (
+                                                                                    <label key={item.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1">
+                                                                                        <Switch
+                                                                                            checked={userPrefs[item.key] !== false}
+                                                                                            onCheckedChange={() => handleTogglePref(item.key)}
+                                                                                            className="scale-[0.65]"
+                                                                                        />
+                                                                                        <span className="text-[11px] text-gray-600 dark:text-gray-300">{isAr ? item.ar : item.en}</span>
+                                                                                    </label>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
                     </CardContent>
