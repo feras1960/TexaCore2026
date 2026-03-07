@@ -19,6 +19,7 @@ import {
     MessageCircle, Clock, TrendingUp, Package,
     Sun, Moon, AlertTriangle, Star, UserPlus, Languages, Trash2,
     Eye, EyeOff, ExternalLink, RefreshCw, Copy, AlertCircle,
+    ChevronDown, ChevronUp, Settings2, Truck, Warehouse, DollarSign, CalendarDays,
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -63,6 +64,8 @@ export default function AILanguageSettingsTab() {
     const [tgSelectedUserId, setTgSelectedUserId] = useState('');
     const [systemUsers, setSystemUsers] = useState<any[]>([]);
     const [integrations, setIntegrations] = useState<any>({});
+    const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+    const [savingPrefs, setSavingPrefs] = useState<string | null>(null);
 
     // Notification preferences
     const [notifPrefs, setNotifPrefs] = useState({
@@ -107,10 +110,10 @@ export default function AILanguageSettingsTab() {
                 }
             }
 
-            // Load linked Telegram connections
+            // Load linked Telegram connections with user profile data
             const { data: connections } = await supabase
                 .from('telegram_connections')
-                .select('*')
+                .select('*, user_profiles:user_id(full_name, email, role)')
                 .eq('company_id', companyId)
                 .eq('is_active', true)
                 .order('created_at', { ascending: false });
@@ -474,34 +477,131 @@ export default function AILanguageSettingsTab() {
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {linkedUsers.map(user => (
-                                    <div key={user.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                            <Send className="w-4 h-4 text-blue-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                {user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
+                                {linkedUsers.map(user => {
+                                    const profile = user.user_profiles;
+                                    const sysName = profile?.full_name || profile?.email || '';
+                                    const sysRole = profile?.role || '';
+                                    const isExpanded = expandedUserId === user.id;
+                                    const userPrefs = user.notification_preferences || {};
+
+                                    const handleTogglePref = async (key: string) => {
+                                        const newPrefs = { ...userPrefs, [key]: !userPrefs[key] };
+                                        setSavingPrefs(user.id);
+                                        const { error } = await supabase.from('telegram_connections')
+                                            .update({ notification_preferences: newPrefs })
+                                            .eq('id', user.id);
+                                        if (!error) {
+                                            setLinkedUsers(prev => prev.map(u =>
+                                                u.id === user.id ? { ...u, notification_preferences: newPrefs } : u
+                                            ));
+                                        } else toast.error(error.message);
+                                        setSavingPrefs(null);
+                                    };
+
+                                    const NOTIF_CATEGORIES = [
+                                        {
+                                            cat: isAr ? '📦 المستودعات' : '📦 Warehouse', items: [
+                                                { key: 'receipt_order', ar: 'إذن استلام', en: 'Receipt Order' },
+                                                { key: 'issue_order', ar: 'إذن تسليم/صرف', en: 'Issue Order' },
+                                                { key: 'shipment_arrival', ar: 'وصول حاوية/شحنة', en: 'Shipment Arrival' },
+                                                { key: 'warehouse_transfer', ar: 'تحويل مستودعي', en: 'Warehouse Transfer' },
+                                                { key: 'low_stock', ar: 'مخزون منخفض', en: 'Low Stock Alert' },
+                                                { key: 'inventory_task', ar: 'مهمة جرد', en: 'Inventory Task' },
+                                            ]
+                                        },
+                                        {
+                                            cat: isAr ? '💰 المالية' : '💰 Finance', items: [
+                                                { key: 'payment_received', ar: 'دفعة مستلمة', en: 'Payment Received' },
+                                                { key: 'payment_sent', ar: 'دفعة صادرة', en: 'Payment Sent' },
+                                                { key: 'invoice_due', ar: 'فاتورة مستحقة', en: 'Invoice Due' },
+                                                { key: 'credit_limit', ar: 'تجاوز حد ائتمان', en: 'Credit Limit Exceeded' },
+                                                { key: 'price_update', ar: 'تحديث أسعار', en: 'Price Update' },
+                                            ]
+                                        },
+                                        {
+                                            cat: isAr ? '🚚 المبيعات والتوصيل' : '🚚 Sales & Delivery', items: [
+                                                { key: 'sales_order', ar: 'طلب بيع جديد', en: 'New Sales Order' },
+                                                { key: 'delivery_route', ar: 'وجهة توصيل', en: 'Delivery Route' },
+                                                { key: 'delivery_delayed', ar: 'تأخر توصيل', en: 'Delivery Delayed' },
+                                            ]
+                                        },
+                                        {
+                                            cat: isAr ? '📊 التقارير' : '📊 Reports', items: [
+                                                { key: 'daily_report_am', ar: 'تقرير صباحي', en: 'Morning Report' },
+                                                { key: 'daily_report_pm', ar: 'تقرير مسائي', en: 'Evening Report' },
+                                                { key: 'meeting_scheduled', ar: 'اجتماع مجدول', en: 'Scheduled Meeting' },
+                                            ]
+                                        },
+                                    ];
+
+                                    return (
+                                        <div key={user.id} className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                                            {/* User Row */}
+                                            <div className="flex items-center gap-3 p-2.5 bg-gray-50 dark:bg-gray-800/50">
+                                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                                    <Send className="w-4 h-4 text-blue-600" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                        {sysName || user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
+                                                    </div>
+                                                    <div className="text-[11px] text-gray-400 flex items-center gap-2">
+                                                        <span>{user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_chat_id}`}</span>
+                                                        {sysRole && <Badge className="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 text-[9px] px-1.5 py-0">{sysRole}</Badge>}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <Badge className="bg-green-100 text-green-700 text-[10px]">
+                                                        <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'مربوط' : 'Linked'}
+                                                    </Badge>
+                                                    <button onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
+                                                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-purple-500 transition-colors"
+                                                        title={isAr ? 'تفضيلات الإشعارات' : 'Notification Preferences'}>
+                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}
+                                                    </button>
+                                                    <button onClick={async () => {
+                                                        if (!confirm(isAr ? 'إزالة ربط هذا المستخدم؟' : 'Remove this link?')) return;
+                                                        const { error } = await supabase.from('telegram_connections').delete().eq('id', user.id);
+                                                        if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast.success('✅'); }
+                                                        else toast.error(error.message);
+                                                    }} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-500 transition-colors" title={isAr ? 'إزالة' : 'Unlink'}>
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="text-[11px] text-gray-400">
-                                                {user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_chat_id}`}
-                                            </div>
+
+                                            {/* Expanded: Notification Preferences */}
+                                            {isExpanded && (
+                                                <div className="px-3 py-2 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700">
+                                                    <div className="text-[11px] text-gray-500 font-medium mb-2 flex items-center gap-1">
+                                                        <Bell className="w-3 h-3" />
+                                                        {isAr ? 'تفضيلات الإشعارات' : 'Notification Preferences'}
+                                                        {savingPrefs === user.id && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {NOTIF_CATEGORIES.map(cat => (
+                                                            <div key={cat.cat}>
+                                                                <div className="text-[10px] font-bold text-gray-400 mb-1">{cat.cat}</div>
+                                                                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                                                    {cat.items.map(item => (
+                                                                        <label key={item.key} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1">
+                                                                            <Switch
+                                                                                checked={userPrefs[item.key] !== false}
+                                                                                onCheckedChange={() => handleTogglePref(item.key)}
+                                                                                className="scale-75"
+                                                                            />
+                                                                            <span className="text-[11px] text-gray-600 dark:text-gray-300">{isAr ? item.ar : item.en}</span>
+                                                                        </label>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <Badge className="bg-green-100 text-green-700 text-[10px]">
-                                                <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'مربوط' : 'Linked'}
-                                            </Badge>
-                                            <button onClick={async () => {
-                                                if (!confirm(isAr ? 'إزالة ربط هذا المستخدم؟' : 'Remove this link?')) return;
-                                                const { error } = await supabase.from('telegram_connections').delete().eq('id', user.id);
-                                                if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast.success('✅'); }
-                                                else toast.error(error.message);
-                                            }} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-500 transition-colors" title={isAr ? 'إزالة' : 'Unlink'}>
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </CardContent>
