@@ -652,6 +652,7 @@ export function SalesDeliveryDialog({
             ));
 
             // 🔔 Telegram: Notify warehouse staff (issue_order)
+            // → dispatch_notification already checks company settings internally
             if (companyId) {
                 const wh = warehouses.find(w => w.id === selectedWarehouseId);
                 const whName = wh ? (language === 'ar' ? (wh.name_ar || wh.name_en || '') : (wh.name_en || wh.name_ar || '')) : '';
@@ -668,14 +669,25 @@ export function SalesDeliveryDialog({
                     invoiceNumber: invoiceData?.invoice_no || '',
                 }).catch(() => { });
 
-                // 🔔 Telegram: Notify customer directly (if they have Telegram)
+                // 🔔 Telegram: Notify customer directly (if company setting enabled)
                 if (invoiceData?.customer_id) {
-                    telegramNotify.customerGoodsReady(companyId, {
-                        customerId: invoiceData.customer_id,
-                        customerName: invoiceData.customer_name || '',
-                        invoiceNumber: invoiceData.invoice_no || invoiceData.draft_no || '',
-                        totalQty: Math.round(totalDeliveredLength * 100) / 100,
-                    }).catch(() => { });
+                    // Check company-level setting before sending to customer
+                    supabase.from('telegram_bot_config')
+                        .select('notification_preferences')
+                        .eq('company_id', companyId)
+                        .maybeSingle()
+                        .then(({ data: cfg }) => {
+                            const prefs = cfg?.notification_preferences || {};
+                            if (prefs.sales_notify_customer !== false) {
+                                telegramNotify.customerGoodsReady(companyId!, {
+                                    customerId: invoiceData.customer_id,
+                                    customerName: invoiceData.customer_name || '',
+                                    invoiceNumber: invoiceData.invoice_no || invoiceData.draft_no || '',
+                                    totalQty: Math.round(totalDeliveredLength * 100) / 100,
+                                }).catch(() => { });
+                            }
+                        })
+                        .catch(() => { });
                 }
             }
 

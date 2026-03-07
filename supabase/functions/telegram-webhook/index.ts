@@ -490,7 +490,54 @@ serve(async (req: Request) => {
                 })
             }
 
-            // Get all active private connections with their preferences
+            // ═══ Layer 1: Company-level settings ═══
+            // Check telegram_bot_config.notification_preferences for document-type toggles
+            const { data: botConfigRow } = await supabase
+                .from('telegram_bot_config')
+                .select('notification_preferences')
+                .eq('company_id', company_id)
+                .maybeSingle()
+
+            const companyPrefs = botConfigRow?.notification_preferences || {}
+
+            // Map event_type → company setting keys
+            // An event is blocked if ALL its mapped company keys are explicitly false
+            const EVENT_TO_COMPANY_KEYS: Record<string, string[]> = {
+                // Sales
+                'issue_order': ['sales_notify_warehouse'],
+                'sales_order': ['sales_notify_owner', 'sales_notify_accountant'],
+                // Purchases
+                'receipt_order': ['purchase_notify_warehouse'],
+                // Containers
+                'shipment_arrival': ['container_notify_warehouse', 'container_notify_owner'],
+                // Transfers
+                'warehouse_transfer': ['transfer_notify_from_wh', 'transfer_notify_to_wh'],
+                // Finance
+                'payment_received': ['finance_notify_accountant', 'finance_notify_owner'],
+                'payment_sent': ['finance_notify_accountant'],
+                'invoice_due': ['finance_notify_accountant', 'finance_notify_owner'],
+                'credit_limit': ['finance_notify_owner', 'finance_notify_sales'],
+                'price_update': ['finance_notify_sales'],
+                // Inventory
+                'low_stock': ['stock_notify_warehouse', 'stock_notify_owner'],
+                'inventory_task': ['stock_notify_warehouse'],
+                // Delivery
+                'delivery_route': ['delivery_notify_driver'],
+            }
+
+            const companyKeys = EVENT_TO_COMPANY_KEYS[event_type] || []
+            if (companyKeys.length > 0) {
+                // If ALL mapped company keys are explicitly false → skip entirely
+                const allDisabled = companyKeys.every(k => companyPrefs[k] === false)
+                if (allDisabled) {
+                    console.log(`[Dispatch] ${event_type}: BLOCKED by company settings (${companyKeys.join(',')})`)
+                    return new Response(JSON.stringify({ ok: true, event_type, sent: 0, skipped: 0, blocked_by: 'company_settings' }), {
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                }
+            }
+
+            // ═══ Layer 2: Per-user preferences ═══
             const { data: activeConns } = await supabase
                 .from('telegram_connections')
                 .select('telegram_chat_id, notification_preferences')
