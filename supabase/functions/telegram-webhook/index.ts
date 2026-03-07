@@ -537,25 +537,66 @@ serve(async (req: Request) => {
                 }
             }
 
-            // ═══ Layer 2: Per-user preferences ═══
+            // ═══ Layer 2 + 3: Role-based routing + Per-user preferences ═══
             const { data: activeConns } = await supabase
                 .from('telegram_connections')
-                .select('telegram_chat_id, notification_preferences')
+                .select('telegram_chat_id, notification_preferences, notification_role, assigned_warehouses')
                 .eq('company_id', company_id)
                 .eq('is_active', true)
                 .eq('connection_type', 'private')
+
+            // Map event_type → which roles should receive it
+            const EVENT_TO_ROLES: Record<string, string[]> = {
+                'receipt_order': ['warehouse_keeper', 'owner'],
+                'issue_order': ['warehouse_keeper', 'owner'],
+                'shipment_arrival': ['warehouse_keeper', 'owner'],
+                'warehouse_transfer': ['warehouse_keeper', 'owner'],
+                'low_stock': ['warehouse_keeper', 'owner'],
+                'inventory_task': ['warehouse_keeper'],
+                'payment_received': ['accountant', 'owner'],
+                'payment_sent': ['accountant', 'owner'],
+                'invoice_due': ['accountant', 'owner'],
+                'credit_limit': ['owner', 'sales_manager'],
+                'price_update': ['sales_manager', 'owner'],
+                'sales_order': ['owner', 'sales_manager', 'accountant'],
+                'delivery_route': ['driver'],
+            }
+
+            // Optional: target a specific warehouse (passed from the caller)
+            const targetWarehouseId = body.target_warehouse_id || null
+
+            const targetRoles = EVENT_TO_ROLES[event_type] || []
 
             let sentCount = 0
             let skippedCount = 0
 
             if (activeConns) {
                 for (const conn of activeConns) {
+                    // Layer 2a: Role-based filter (if roles are defined)
+                    if (targetRoles.length > 0 && conn.notification_role) {
+                        if (!targetRoles.includes(conn.notification_role)) {
+                            skippedCount++
+                            continue
+                        }
+                    }
+
+                    // Layer 2b: Warehouse-specific filter
+                    if (targetWarehouseId && conn.notification_role === 'warehouse_keeper') {
+                        const assignedWhs = conn.assigned_warehouses || []
+                        // If they have specific warehouses assigned, check if this one matches
+                        if (assignedWhs.length > 0 && !assignedWhs.includes(targetWarehouseId)) {
+                            skippedCount++
+                            continue
+                        }
+                    }
+
+                    // Layer 3: Per-user opt-out preferences
                     const prefs = conn.notification_preferences || {}
-                    // Opt-out model: send unless explicitly disabled (false)
                     if (prefs[event_type] === false) {
                         skippedCount++
                         continue
                     }
+
                     const msgToSend = html_message || notifMessage
                     const r = await sendMessage(dispatchConfig.botToken, conn.telegram_chat_id, msgToSend)
                     if (r.ok) sentCount++

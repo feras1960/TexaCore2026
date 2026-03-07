@@ -56,6 +56,7 @@ export default function AILanguageSettingsTab() {
     const [tgConnected, setTgConnected] = useState(false);
     const [linkedUsers, setLinkedUsers] = useState<any[]>([]);
     const [linkedGroups, setLinkedGroups] = useState<any[]>([]);
+    const [warehouses, setWarehouses] = useState<any[]>([]);
     const [tgBotUsername, setTgBotUsername] = useState('');
     const [tgBotToken, setTgBotToken] = useState('');
     const [tgShowToken, setTgShowToken] = useState(false);
@@ -125,6 +126,15 @@ export default function AILanguageSettingsTab() {
                 .eq('company_id', companyId)
                 .order('full_name');
             if (users) setSystemUsers(users);
+
+            // Load warehouses for assignment dropdown
+            const { data: whs } = await supabase
+                .from('warehouses')
+                .select('id, name_ar, name_en')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .order('name_ar');
+            if (whs) setWarehouses(whs);
 
             // Enrich connections with user profile data
             if (connections) {
@@ -487,7 +497,7 @@ export default function AILanguageSettingsTab() {
                                         <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/30">
                                             <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-4 py-2.5">{isAr ? 'المستخدم' : 'User'}</th>
                                             <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'حساب Telegram' : 'Telegram'}</th>
-                                            <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'الدور' : 'Role'}</th>
+                                            <th className="text-start text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'المسؤولية' : 'Responsibility'}</th>
                                             <th className="text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'الحالة' : 'Status'}</th>
                                             <th className="text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-3 py-2.5">{isAr ? 'إجراءات' : 'Actions'}</th>
                                         </tr>
@@ -582,15 +592,57 @@ export default function AILanguageSettingsTab() {
                                                                 {user.telegram_username ? `@${user.telegram_username}` : `#${user.telegram_chat_id}`}
                                                             </span>
                                                         </td>
-                                                        {/* Role */}
+                                                        {/* Responsibility (Role + Warehouses) */}
                                                         <td className="px-3 py-2.5">
-                                                            {sysRole ? (
-                                                                <Badge className="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 text-[10px] px-1.5 py-0.5 font-normal">
-                                                                    {sysRole}
-                                                                </Badge>
-                                                            ) : (
-                                                                <span className="text-[11px] text-gray-300">—</span>
-                                                            )}
+                                                            <div className="space-y-1">
+                                                                <select
+                                                                    value={user.notification_role || ''}
+                                                                    onChange={async (e) => {
+                                                                        const newRole = e.target.value || null;
+                                                                        const { error } = await supabase.from('telegram_connections')
+                                                                            .update({ notification_role: newRole })
+                                                                            .eq('id', user.id);
+                                                                        if (!error) {
+                                                                            setLinkedUsers(prev => prev.map(u =>
+                                                                                u.id === user.id ? { ...u, notification_role: newRole } : u
+                                                                            ));
+                                                                        } else toast.error(error.message);
+                                                                    }}
+                                                                    className="h-7 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-1.5 w-full cursor-pointer"
+                                                                >
+                                                                    <option value="">{isAr ? '— اختر الدور —' : '— Select role —'}</option>
+                                                                    <option value="warehouse_keeper">{isAr ? '📦 أمين مستودع' : '📦 Warehouse Keeper'}</option>
+                                                                    <option value="accountant">{isAr ? '💰 محاسب' : '💰 Accountant'}</option>
+                                                                    <option value="owner">{isAr ? '👑 مالك / مدير' : '👑 Owner / Manager'}</option>
+                                                                    <option value="driver">{isAr ? '🚗 سائق' : '🚗 Driver'}</option>
+                                                                    <option value="sales_manager">{isAr ? '🛒 مدير مبيعات' : '🛒 Sales Manager'}</option>
+                                                                </select>
+                                                                {user.notification_role === 'warehouse_keeper' && warehouses.length > 0 && (
+                                                                    <select
+                                                                        value={(user.assigned_warehouses || [])[0] || ''}
+                                                                        onChange={async (e) => {
+                                                                            const whId = e.target.value;
+                                                                            const newWhs = whId ? [whId] : [];
+                                                                            const { error } = await supabase.from('telegram_connections')
+                                                                                .update({ assigned_warehouses: newWhs })
+                                                                                .eq('id', user.id);
+                                                                            if (!error) {
+                                                                                setLinkedUsers(prev => prev.map(u =>
+                                                                                    u.id === user.id ? { ...u, assigned_warehouses: newWhs } : u
+                                                                                ));
+                                                                            } else toast.error(error.message);
+                                                                        }}
+                                                                        className="h-7 text-[10px] rounded-md border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-1.5 w-full cursor-pointer text-blue-700 dark:text-blue-300"
+                                                                    >
+                                                                        <option value="">{isAr ? '📍 كل المستودعات' : '📍 All warehouses'}</option>
+                                                                        {warehouses.map(wh => (
+                                                                            <option key={wh.id} value={wh.id}>
+                                                                                {isAr ? (wh.name_ar || wh.name_en) : (wh.name_en || wh.name_ar)}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                         {/* Status */}
                                                         <td className="px-3 py-2.5 text-center">

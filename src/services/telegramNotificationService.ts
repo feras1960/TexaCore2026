@@ -17,7 +17,7 @@
 import { supabase } from '@/lib/supabase';
 
 // ─── Core Dispatch Function ──────────────────────────────
-async function dispatch(companyId: string, eventType: string, htmlMessage: string) {
+async function dispatch(companyId: string, eventType: string, htmlMessage: string, targetWarehouseId?: string) {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return { ok: false, error: 'Not authenticated' };
@@ -28,6 +28,7 @@ async function dispatch(companyId: string, eventType: string, htmlMessage: strin
                 company_id: companyId,
                 event_type: eventType,
                 html_message: htmlMessage,
+                ...(targetWarehouseId ? { target_warehouse_id: targetWarehouseId } : {}),
             },
         });
 
@@ -67,6 +68,7 @@ export const telegramNotify = {
         orderNumber: string;
         supplierName: string;
         warehouseName?: string;
+        warehouseId?: string;
         items: Array<{ name: string; qty: number; unit?: string; rolls?: number }>;
         totalQty?: number;
         totalRolls?: number;
@@ -88,7 +90,7 @@ ${formatItemsTable(data.items)}
 ${data.notes ? `📝 ${data.notes}` : ''}
 ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
 
-        return dispatch(companyId, 'receipt_order', msg.trim());
+        return dispatch(companyId, 'receipt_order', msg.trim(), data.warehouseId);
     },
 
     /** 📤 إذن تسليم/صرف — Issue Order */
@@ -96,6 +98,7 @@ ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
         orderNumber: string;
         customerName: string;
         warehouseName?: string;
+        warehouseId?: string;
         items: Array<{ name: string; qty: number; unit?: string; rolls?: number; preferredRolls?: string }>;
         totalQty?: number;
         estimatedValue?: number;
@@ -127,7 +130,7 @@ ${data.invoiceNumber ? `🔖 الفاتورة: ${data.invoiceNumber}` : ''}
 ${data.deadline ? `⏰ مطلوب قبل: ${data.deadline}` : ''}
 ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
 
-        return dispatch(companyId, 'issue_order', msg.trim());
+        return dispatch(companyId, 'issue_order', msg.trim(), data.warehouseId);
     },
 
     /** 📦 وصول حاوية/شحنة — Shipment Arrival */
