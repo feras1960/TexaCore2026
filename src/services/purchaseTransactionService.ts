@@ -9,6 +9,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { activityLogService } from './activityLogService';
+import { telegramNotify } from './telegramNotificationService';
 import type {
     PurchaseTransaction,
     PurchaseTransactionItem,
@@ -271,6 +272,11 @@ export const purchaseTransactionService = {
                 userName: input.user_name || '',
                 details: { new_stage: input.new_stage, notes: input.notes },
             });
+        }
+
+        // 📱 Telegram: إشعار عند تأكيد أو استلام مشتريات
+        if (['received', 'receipt', 'confirmed'].includes(input.new_stage)) {
+            this._sendPurchaseStageNotification(input).catch(() => { });
         }
 
         return data as StageTransitionResult;
@@ -588,6 +594,49 @@ export const purchaseTransactionService = {
         });
 
         return stats;
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📱 Telegram Notification Helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    async _sendPurchaseStageNotification(input: AdvanceStageInput): Promise<void> {
+        try {
+            const { data: tx } = await supabase
+                .from('purchase_transactions')
+                .select('id, receipt_no, order_no, invoice_no, supplier_name, total_amount, currency, warehouse_id, company_id')
+                .eq('id', input.transaction_id)
+                .single();
+            if (!tx) return;
+
+            const { data: items } = await supabase
+                .from('purchase_transaction_items')
+                .select('description, description_ar, quantity, unit, rolls_count')
+                .eq('transaction_id', input.transaction_id);
+
+            const docNo = tx.receipt_no || tx.order_no || tx.invoice_no || tx.id.substring(0, 8);
+            const mappedItems = (items || []).map((i: any) => ({
+                name: i.description_ar || i.description || '-',
+                qty: i.quantity || 0,
+                unit: i.unit || 'pc',
+                rolls: i.rolls_count || undefined,
+            }));
+
+            if (['received', 'receipt'].includes(input.new_stage)) {
+                telegramNotify.receiptOrder(tx.company_id, {
+                    orderNumber: docNo,
+                    supplierName: tx.supplier_name || '-',
+                    warehouseId: tx.warehouse_id || undefined,
+                    items: mappedItems,
+                    totalQty: mappedItems.reduce((s, i) => s + i.qty, 0),
+                    totalRolls: mappedItems.reduce((s, i) => s + (i.rolls || 0), 0) || undefined,
+                    createdBy: input.user_name || undefined,
+                });
+            }
+        } catch (err) {
+            console.warn('[PurchaseService] Telegram notification failed (non-blocking):', err);
+        }
     },
 
 };

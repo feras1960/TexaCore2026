@@ -9,6 +9,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { activityLogService } from './activityLogService';
+import { telegramNotify } from './telegramNotificationService';
 import type {
     SalesTransaction,
     SalesTransactionItem,
@@ -386,6 +387,11 @@ export const salesTransactionService = {
             });
         }
 
+        // 📱 Telegram: إرسال إشعار عند تأكيد أو تسليم فاتورة
+        if (['confirmed', 'delivered', 'order'].includes(input.new_stage)) {
+            this._sendSalesStageNotification(input).catch(() => { });
+        }
+
         return data as StageTransitionResult;
     },
 
@@ -675,6 +681,70 @@ export const salesTransactionService = {
         });
 
         return stats;
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📱 Telegram Notification Helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    async _sendSalesStageNotification(input: AdvanceStageInput): Promise<void> {
+        try {
+            // Fetch transaction data (includes company_id)
+            const { data: tx } = await supabase
+                .from('sales_transactions')
+                .select('id, document_number, invoice_no, order_no, customer_name, customer_id, total_amount, currency, warehouse_id, company_id')
+                .eq('id', input.transaction_id)
+                .single();
+            if (!tx) return;
+
+            // Fetch items
+            const { data: items } = await supabase
+                .from('sales_transaction_items')
+                .select('description, description_ar, quantity, unit, unit_price')
+                .eq('transaction_id', input.transaction_id);
+
+            const docNo = tx.invoice_no || tx.order_no || tx.document_number || tx.id.substring(0, 8);
+            const mappedItems = (items || []).map((i: any) => ({
+                name: i.description_ar || i.description || '-',
+                qty: i.quantity || 0,
+                unit: i.unit || 'pc',
+            }));
+
+            if (input.new_stage === 'confirmed' || input.new_stage === 'order') {
+                telegramNotify.salesOrder(tx.company_id, {
+                    orderNumber: docNo,
+                    customerName: tx.customer_name || '-',
+                    totalAmount: tx.total_amount || 0,
+                    currency: tx.currency || 'TRY',
+                    itemCount: mappedItems.length,
+                });
+            }
+
+            if (input.new_stage === 'delivered') {
+                telegramNotify.issueOrder(tx.company_id, {
+                    orderNumber: docNo,
+                    customerName: tx.customer_name || '-',
+                    warehouseId: tx.warehouse_id || undefined,
+                    items: mappedItems,
+                    totalQty: mappedItems.reduce((s, i) => s + i.qty, 0),
+                    createdBy: input.user_name || undefined,
+                });
+
+                // Also notify customer if they have Telegram
+                if (tx.customer_id) {
+                    telegramNotify.customerGoodsReady(tx.company_id, {
+                        customerId: tx.customer_id,
+                        customerName: tx.customer_name || '',
+                        invoiceNumber: docNo,
+                        items: mappedItems,
+                        totalQty: mappedItems.reduce((s, i) => s + i.qty, 0),
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('[SalesService] Telegram notification failed (non-blocking):', err);
+        }
     },
 
 };

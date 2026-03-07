@@ -15,6 +15,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { postingService } from './postingService';
+import { telegramNotify } from './telegramNotificationService';
 
 // ═══ Types ═══
 
@@ -231,6 +232,46 @@ class SalesDeliveryService {
                 });
             } catch (logErr) {
                 console.warn('Activity log error (non-blocking):', logErr);
+            }
+
+            // ─── 7. 📱 Telegram notifications ───
+            try {
+                const docNo = transaction.invoice_no || transaction.order_no || transaction.draft_no || '';
+
+                // Send driver delivery notification
+                if (['in_delivery', 'sent_to_branch'].includes(newStage) && input.driver_name) {
+                    telegramNotify.deliveryRoute(input.company_id, {
+                        deliveryNumber: docNo,
+                        customerName: transaction.customer_name || '-',
+                        address: transaction.shipping_address || '-',
+                        items: `${(input.items || []).length} بنود`,
+                        collectAmount: transaction.balance || 0,
+                        currency: transaction.currency || 'TRY',
+                    });
+                }
+
+                // Send issue order notification (goods leaving warehouse)
+                telegramNotify.issueOrder(input.company_id, {
+                    orderNumber: docNo,
+                    customerName: transaction.customer_name || '-',
+                    warehouseId: input.warehouse_id || transaction.warehouse_id || undefined,
+                    items: (input.items || []).map((i: any) => ({
+                        name: i.description || '-',
+                        qty: i.qty || 0,
+                    })),
+                    createdBy: input.user_name || undefined,
+                });
+
+                // Notify customer their goods are ready/dispatched
+                if (transaction.customer_id) {
+                    telegramNotify.customerGoodsReady(input.company_id, {
+                        customerId: transaction.customer_id,
+                        customerName: transaction.customer_name || '',
+                        invoiceNumber: docNo,
+                    });
+                }
+            } catch (tgErr) {
+                console.warn('[Delivery] Telegram notification failed (non-blocking):', tgErr);
             }
 
             return {

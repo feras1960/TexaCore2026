@@ -12,6 +12,7 @@
  */
 
 import { supabase, getCurrentTenantIdAsync } from '@/lib/supabase';
+import { telegramNotify } from './telegramNotificationService';
 
 // ═══════════════════════════════════════════
 // Types
@@ -416,6 +417,26 @@ export const paymentScheduleService = {
             } catch (err) {
                 console.warn('Could not create receipt record:', err);
             }
+        }
+
+        // 4. 📱 Telegram: إشعار استلام دفعة
+        try {
+            const schedule = item.payment_schedule;
+            if (schedule?.company_id) {
+                const partyName = schedule.customer_id
+                    ? (schedule.customer_name || 'عميل')
+                    : (schedule.supplier_name || 'مورد');
+
+                telegramNotify.paymentReceived(schedule.company_id, {
+                    amount: input.amount,
+                    currency: schedule.currency || 'TRY',
+                    customerName: partyName,
+                    paymentMethod: input.payment_method,
+                    referenceNumber: input.reference_number || undefined,
+                });
+            }
+        } catch (tgErr) {
+            console.warn('[Payment] Telegram notification failed (non-blocking):', tgErr);
         }
 
         return updated as PaymentScheduleItem;
