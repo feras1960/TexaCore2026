@@ -4336,7 +4336,10 @@
       "visibility": "قواعد الإخفاء",
       "modules": "الموديولات",
       "branches": "الفروع",
-      "notifications": "الإشعارات"
+      "notifications": "الإشعارات",
+      "print": "الطباعة",
+      "import": "استيراد البيانات",
+      "aiLanguages": "الذكاء الاصطناعي"
     }
   },
   "usersPermissions": {

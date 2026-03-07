@@ -3906,7 +3906,10 @@
       "visibility": "Visibility",
       "modules": "Modules",
       "branches": "Branches",
-      "notifications": "Notifications"
+      "notifications": "Notifications",
+      "print": "Printing",
+      "import": "Data Import",
+      "aiLanguages": "AI & Languages"
     }
   },
   "usersPermissions": {
