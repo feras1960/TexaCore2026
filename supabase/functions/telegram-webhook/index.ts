@@ -665,6 +665,25 @@ serve(async (req: Request) => {
             })
         }
 
+        // ─── Detect user language from message ─────────────
+        const detectLanguage = (text: string, telegramLang?: string): string => {
+            // Check script-based detection first (most reliable)
+            if (/[\u0600-\u06FF\u0750-\u077F]/.test(text)) return 'ar'    // Arabic script
+            if (/[\u0400-\u04FF]/.test(text)) return 'ru'                 // Cyrillic (Russian/Ukrainian)
+            if (/[ğüşöçıİĞÜŞÖÇ]/.test(text)) return 'tr'                // Turkish specific chars
+            if (/[\u0400-\u04FF]/.test(text) && /[іїєґ]/i.test(text)) return 'uk' // Ukrainian specific
+            // Fallback to Telegram's reported language
+            if (telegramLang) {
+                if (telegramLang.startsWith('ru')) return 'ru'
+                if (telegramLang.startsWith('uk')) return 'uk'
+                if (telegramLang.startsWith('tr')) return 'tr'
+                if (telegramLang.startsWith('ar')) return 'ar'
+            }
+            return 'en' // default English
+        }
+
+        const userLang = detectLanguage(text, message?.from?.language_code)
+
         // ─── General message → forward to NexaPro Agent ─────
         // For general queries, we can call the nexa-agent function
         try {
@@ -677,6 +696,7 @@ serve(async (req: Request) => {
                 body: JSON.stringify({
                     message: text,
                     company_id: companyId,
+                    language: userLang,
                     context_type: 'general',
                     complexity: 'auto',
                 }),
@@ -684,30 +704,43 @@ serve(async (req: Request) => {
 
             if (agentResponse.ok) {
                 const agentData = await agentResponse.json()
-                const reply = agentData.response || agentData.reply || 'لم أتمكن من معالجة طلبك.'
+                const fallbackMsg = userLang === 'ar' ? 'لم أتمكن من معالجة طلبك.'
+                    : userLang === 'ru' ? 'Не удалось обработать ваш запрос.'
+                        : userLang === 'tr' ? 'İsteğiniz işlenemedi.'
+                            : userLang === 'uk' ? 'Не вдалося обробити ваш запит.'
+                                : 'Could not process your request.'
+                const reply = agentData.response || agentData.reply || fallbackMsg
 
                 // Truncate if too long for Telegram (4096 chars max)
                 const truncatedReply = reply.length > 4000
-                    ? reply.substring(0, 4000) + '...\n\n<i>📄 الرد مختصر — افتح البرنامج للتفاصيل الكاملة</i>'
+                    ? reply.substring(0, 4000) + '...\n\n<i>📄 ' +
+                    (userLang === 'ar' ? 'الرد مختصر — افتح البرنامج للتفاصيل' :
+                        userLang === 'ru' ? 'Ответ сокращён — откройте программу для деталей' :
+                            userLang === 'tr' ? 'Yanıt kısaltıldı — detaylar için programı açın' :
+                                'Response truncated — open the app for full details') + '</i>'
                     : reply
 
                 await sendMessage(botToken, chatId, truncatedReply)
             } else {
-                await sendMessage(botToken, chatId,
-                    `🤖 <b>وكيل نيكسا برو</b>\n\n` +
-                    `تم استلام رسالتك. يمكنك التحقق من النتائج في البرنامج.\n\n` +
-                    `<i>💡 جرّب أوامر مباشرة مثل: "استلمت 5000 من أحمد"</i>`
-                )
+                const helpMsg = userLang === 'ar'
+                    ? `🤖 <b>وكيل نيكسا برو</b>\n\nتم استلام رسالتك. يمكنك التحقق من النتائج في البرنامج.\n\n<i>💡 جرّب أوامر مباشرة مثل: "استلمت 5000 من أحمد"</i>`
+                    : userLang === 'ru'
+                        ? `🤖 <b>NexaPro Agent</b>\n\nВаше сообщение получено. Проверьте результаты в программе.\n\n<i>💡 Попробуйте: "получил 5000 от Ахмеда"</i>`
+                        : userLang === 'tr'
+                            ? `🤖 <b>NexaPro Agent</b>\n\nMesajınız alındı. Sonuçları programda kontrol edin.\n\n<i>💡 Deneyin: "5000 aldım Ahmed'den"</i>`
+                            : `🤖 <b>NexaPro Agent</b>\n\nMessage received. Check results in the app.\n\n<i>💡 Try: "received 5000 from Ahmed"</i>`
+                await sendMessage(botToken, chatId, helpMsg)
             }
         } catch (agentErr) {
             console.error('[TelegramWebhook] Agent call error:', agentErr)
-            await sendMessage(botToken, chatId,
-                `🤖 استلمت رسالتك.\n\n` +
-                `💡 <b>جرّب:</b>\n` +
-                `• <code>استلمت 5000 من أحمد</code>\n` +
-                `• <code>دفعت 2000 كهرباء</code>\n` +
-                `• <code>/help</code> للمساعدة`
-            )
+            const errMsg = userLang === 'ar'
+                ? `🤖 استلمت رسالتك.\n\n💡 <b>جرّب:</b>\n• <code>استلمت 5000 من أحمد</code>\n• <code>دفعت 2000 كهرباء</code>\n• <code>/help</code> للمساعدة`
+                : userLang === 'ru'
+                    ? `🤖 Сообщение получено.\n\n💡 <b>Попробуйте:</b>\n• <code>получил 5000 от Ахмеда</code>\n• <code>оплатил 2000 за электричество</code>\n• <code>/help</code> для помощи`
+                    : userLang === 'tr'
+                        ? `🤖 Mesajınız alındı.\n\n💡 <b>Deneyin:</b>\n• <code>5000 aldım Ahmed'den</code>\n• <code>2000 elektrik ödedim</code>\n• <code>/help</code> yardım için`
+                        : `🤖 Message received.\n\n💡 <b>Try:</b>\n• <code>received 5000 from Ahmed</code>\n• <code>paid 2000 for electricity</code>\n• <code>/help</code> for help`
+            await sendMessage(botToken, chatId, errMsg)
         }
 
         return new Response(JSON.stringify({ ok: true }), {

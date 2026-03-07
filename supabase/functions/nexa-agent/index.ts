@@ -706,8 +706,17 @@ async function fetchMaterialContext(supabase: any, materialId: string, companyId
  * Build system prompt
  */
 function buildSystemPrompt(contextType: string, contextData: any, language: string, userRole: string): string {
-  const langText = language === 'ar' ? 'العربية' : language === 'ru' ? 'الروسية'
-    : language === 'uk' ? 'الأوكرانية' : language === 'tr' ? 'التركية' : 'الإنجليزية';
+  // Use native language names for stronger AI compliance
+  const langText = language === 'ar' ? 'العربية (Arabic)'
+    : language === 'ru' ? 'Русский (Russian)'
+      : language === 'uk' ? 'Українська (Ukrainian)'
+        : language === 'tr' ? 'Türkçe (Turkish)'
+          : 'English';
+
+  // Add explicit instruction in English to ensure compliance
+  const langEnforcement = language !== 'en'
+    ? `\n\n**IMPORTANT: You MUST respond ENTIRELY in ${langText}. The user wrote in ${langText}, so respond in the SAME language. Do NOT respond in Arabic if the user wrote in ${langText}.**`
+    : '';
 
   let contextBlock = '';
 
@@ -854,7 +863,7 @@ ${suppliersList.length > 0 ? suppliersList.map((s: any) => `- ${s.name} (${s.cod
 10. عند السؤال عن مادة محددة أو لون أو نوع، ابحث في قائمة المواد التفصيلية أدناه وأجب بدقة
 11. ⚠️ **أسلوب الإجابة**: قدم القصة الكاملة، ليس فقط الأرقام. اشرح التسلسل الزمني والعلاقات بين الأحداث
 
-${contextBlock}`;
+${contextBlock}${langEnforcement}`;
 }
 
 serve(async (req) => {
