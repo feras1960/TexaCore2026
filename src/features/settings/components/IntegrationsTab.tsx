@@ -14,9 +14,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-    Truck, Bot, Save, CheckCircle2, AlertCircle,
-    Loader2, Eye, EyeOff, RefreshCw, ExternalLink,
-    Shield, Zap, Settings, Link2, MessageCircle, Send, Copy, Users,
+    Truck, Save, CheckCircle2, AlertCircle,
+    Loader2, Eye, EyeOff, ExternalLink,
+    Shield, Zap, Settings, Link2,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,16 +39,8 @@ interface NovaPoshtaSettings {
     sender_phone: string;
 }
 
-interface TelegramSettings {
-    bot_token: string;
-    bot_username: string;
-    webhook_active: boolean;
-    webhook_secret: string;
-}
-
 interface Integrations {
     nova_poshta?: Partial<NovaPoshtaSettings>;
-    telegram?: Partial<TelegramSettings>;
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -74,28 +66,7 @@ export default function IntegrationsTab() {
     const [npShowApiKey, setNpShowApiKey] = useState(false);
     const [npTestStatus, setNpTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
-    // Telegram-specific
-    const [tgBotToken, setTgBotToken] = useState('');
-    const [tgBotUsername, setTgBotUsername] = useState('');
-    const [tgShowToken, setTgShowToken] = useState(false);
-    const [tgWebhookActive, setTgWebhookActive] = useState(false);
-    const [tgSetupStatus, setTgSetupStatus] = useState<'idle' | 'setting' | 'success' | 'error'>('idle');
-    const [tgVerificationCode, setTgVerificationCode] = useState('');
-    const [tgSelectedUserId, setTgSelectedUserId] = useState('');
-    const [systemUsers, setSystemUsers] = useState<any[]>([]);
 
-    // Load system users for linking
-    useEffect(() => {
-        if (!companyId) return;
-        (async () => {
-            const { data } = await supabase
-                .from('user_profiles')
-                .select('id, full_name, email, role')
-                .eq('company_id', companyId)
-                .order('full_name');
-            if (data) setSystemUsers(data);
-        })();
-    }, [companyId]);
 
     // ─── Load integrations ──────────────────────────────────────
     const loadIntegrations = useCallback(async () => {
@@ -123,16 +94,7 @@ export default function IntegrationsTab() {
                 setNpSenderPhone(intg.nova_poshta.sender_phone || '');
             }
 
-            // Populate Telegram fields
-            if (intg.telegram) {
-                setTgBotToken(intg.telegram.bot_token || '');
-                setTgBotUsername(intg.telegram.bot_username || '');
-                setTgWebhookActive(intg.telegram.webhook_active || false);
-                // Restore activated status if webhook was set up
-                if (intg.telegram.webhook_active && intg.telegram.bot_username) {
-                    setTgSetupStatus('success');
-                }
-            }
+
 
 
 
@@ -161,12 +123,6 @@ export default function IntegrationsTab() {
                     sender_address_ref: npSenderAddressRef.trim(),
                     sender_contact_ref: npSenderContactRef.trim(),
                     sender_phone: npSenderPhone.trim(),
-                },
-                telegram: {
-                    bot_token: tgBotToken.trim(),
-                    bot_username: tgBotUsername,
-                    webhook_active: tgWebhookActive,
-                    webhook_secret: integrations.telegram?.webhook_secret || crypto.randomUUID().replace(/-/g, ''),
                 },
             };
 
@@ -447,255 +403,11 @@ export default function IntegrationsTab() {
                 </CardContent>
             </Card>
 
-            {/* ═══ 2. Telegram Bot Integration ═══ */}
-            <Card className="border-2 border-blue-100 dark:border-blue-900/30">
-                <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-md">
-                                <Send className="w-5 h-5 text-white" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    Telegram Bot
-                                    {tgWebhookActive && tgBotToken ? (
-                                        <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">
-                                            {isAr ? '🟢 متصل' : '🟢 Connected'}
-                                        </Badge>
-                                    ) : tgBotToken ? (
-                                        <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">
-                                            {isAr ? '🔑 مُعد' : '🔑 Configured'}
-                                        </Badge>
-                                    ) : null}
-                                </CardTitle>
-                                <CardDescription className="text-xs">
-                                    {isAr
-                                        ? 'وكيل نيكسا برو عبر Telegram — إجراءات سريعة، إشعارات، ومتابعة فريق العمل'
-                                        : 'NexaPro Agent via Telegram — quick actions, notifications, and team management'}
-                                </CardDescription>
-                            </div>
-                        </div>
-                        <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1">
-                            @BotFather <ExternalLink className="w-3 h-3" />
-                        </a>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {/* Setup Steps */}
-                    {!tgBotToken && (
-                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 p-3 space-y-2">
-                            <h4 className="text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
-                                <MessageCircle className="w-3.5 h-3.5" />
-                                {isAr ? 'كيفية إنشاء البوت:' : 'How to create your bot:'}
-                            </h4>
-                            <ol className="text-[11px] text-blue-600 dark:text-blue-400 space-y-1 list-decimal list-inside">
-                                <li>{isAr ? 'افتح Telegram وابحث عن @BotFather' : 'Open Telegram and search for @BotFather'}</li>
-                                <li>{isAr ? 'أرسل الأمر /newbot واتبع التعليمات' : 'Send /newbot and follow the instructions'}</li>
-                                <li>{isAr ? 'اختر اسم للبوت (مثل: اسم شركتك Bot)' : 'Choose a bot name (e.g., YourCompany Bot)'}</li>
-                                <li>{isAr ? 'انسخ الـ Token والصقه هنا 👇' : 'Copy the Token and paste it below 👇'}</li>
-                            </ol>
-                        </div>
-                    )}
-
-                    {/* Bot Token */}
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                            <Shield className="w-3 h-3 text-blue-500" />
-                            Bot Token
-                        </Label>
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <Input
-                                    type={tgShowToken ? 'text' : 'password'}
-                                    value={tgBotToken}
-                                    onChange={(e) => { setTgBotToken(e.target.value); setTgSetupStatus('idle'); setTgWebhookActive(false); }}
-                                    placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                                    className="h-9 text-sm font-mono pe-9"
-                                    dir="ltr"
-                                />
-                                <button type="button" onClick={() => setTgShowToken(!tgShowToken)}
-                                    className="absolute end-2 top-2 text-gray-400 hover:text-gray-600">
-                                    {tgShowToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                            </div>
-                            <Button variant="outline" size="sm" disabled={!tgBotToken.trim() || tgSetupStatus === 'setting'}
-                                onClick={async () => {
-                                    setTgSetupStatus('setting');
-                                    try {
-                                        // Get bot info
-                                        const infoRes = await fetch(`https://api.telegram.org/bot${tgBotToken.trim()}/getMe`);
-                                        const infoData = await infoRes.json();
-                                        if (!infoData.ok) throw new Error(infoData.description || 'Invalid token');
-                                        setTgBotUsername(infoData.result.username);
-
-                                        // Set webhook
-                                        const secret = crypto.randomUUID().replace(/-/g, '');
-                                        const projectUrl = import.meta.env.VITE_SUPABASE_URL || '';
-                                        const webhookUrl = `${projectUrl}/functions/v1/telegram-webhook`;
-                                        const whRes = await fetch(`https://api.telegram.org/bot${tgBotToken.trim()}/setWebhook`, {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ url: webhookUrl, secret_token: secret }),
-                                        });
-                                        const whData = await whRes.json();
-                                        if (!whData.ok) throw new Error(whData.description || 'Webhook setup failed');
-
-                                        // ═══ Auto-save to Supabase ═══
-                                        const telegramConfig = {
-                                            bot_token: tgBotToken.trim(),
-                                            bot_username: infoData.result.username,
-                                            webhook_active: true,
-                                            webhook_secret: secret,
-                                        };
-                                        const newIntegrations = {
-                                            ...integrations,
-                                            telegram: telegramConfig,
-                                        };
-                                        const { error: saveError } = await supabase
-                                            .from('companies')
-                                            .update({ integrations: newIntegrations })
-                                            .eq('id', companyId);
-
-                                        if (saveError) {
-                                            console.error('Save error:', saveError);
-                                        } else {
-                                            setIntegrations(newIntegrations);
-                                        }
-
-                                        setTgWebhookActive(true);
-                                        setTgSetupStatus('success');
-                                        toast({
-                                            title: isAr ? '✅ تم تفعيل البوت!' : '✅ Bot activated!',
-                                            description: isAr ? `البوت @${infoData.result.username} جاهز للعمل` : `Bot @${infoData.result.username} is ready`,
-                                        });
-                                    } catch (err: any) {
-                                        setTgSetupStatus('error');
-                                        toast({ title: isAr ? '❌ خطأ' : '❌ Error', description: err.message, variant: 'destructive' });
-                                    }
-                                }}
-                                className={`gap-1.5 h-9 px-3 text-xs ${tgSetupStatus === 'success' ? 'border-green-500 text-green-600' :
-                                    tgSetupStatus === 'error' ? 'border-red-500 text-red-600' : ''
-                                    }`}>
-                                {tgSetupStatus === 'setting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
-                                    tgSetupStatus === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> :
-                                        tgSetupStatus === 'error' ? <AlertCircle className="w-3.5 h-3.5" /> :
-                                            <Zap className="w-3.5 h-3.5" />}
-                                {isAr ? 'تفعيل' : 'Activate'}
-                            </Button>
-                        </div>
-                        <p className="text-[10px] text-gray-400">
-                            {isAr
-                                ? 'الصق الـ Token من @BotFather ثم اضغط "تفعيل" لربط البوت تلقائياً'
-                                : 'Paste the Token from @BotFather then click "Activate" to auto-connect the bot'}
-                        </p>
-                    </div>
-
-                    {/* Bot Info + Verification Code */}
-                    {tgBotUsername && tgSetupStatus === 'success' && (
-                        <>
-                            <Separator />
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
-                                    <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-                                    <div className="flex-1">
-                                        <div className="text-sm font-bold text-green-700 dark:text-green-300">@{tgBotUsername}</div>
-                                        <div className="text-[10px] text-green-600">
-                                            {isAr ? 'البوت نشط وجاهز لاستقبال الرسائل' : 'Bot is active and ready to receive messages'}
-                                        </div>
-                                    </div>
-                                    <a href={`https://t.me/${tgBotUsername}`} target="_blank" rel="noopener noreferrer">
-                                        <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-green-300 text-green-600 hover:bg-green-50">
-                                            <ExternalLink className="w-3 h-3" /> {isAr ? 'فتح البوت' : 'Open Bot'}
-                                        </Button>
-                                    </a>
-                                </div>
-
-                                {/* Verification Code for linking */}
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-semibold flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                                        <Users className="w-3.5 h-3.5 text-blue-500" />
-                                        {isAr ? 'ربط حساب الموظف' : 'Link Employee Account'}
-                                    </h4>
-                                    <p className="text-[10px] text-gray-400">
-                                        {isAr
-                                            ? 'اختر المستخدم من النظام ثم أنشئ رمز تحقق وأرسله للموظف ليربط حسابه عبر البوت'
-                                            : 'Select the system user, generate a code, and send it to the employee to link via the bot'}
-                                    </p>
-
-                                    {/* User selector */}
-                                    <div className="flex gap-2 items-center">
-                                        <select
-                                            value={tgSelectedUserId}
-                                            onChange={(e) => setTgSelectedUserId(e.target.value)}
-                                            className="flex-1 h-8 text-xs rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 text-gray-900 dark:text-white"
-                                        >
-                                            <option value="">{isAr ? '— اختر المستخدم —' : '— Select User —'}</option>
-                                            {systemUsers.map(u => (
-                                                <option key={u.id} value={u.id}>
-                                                    {u.full_name || u.email} {u.role ? `(${u.role})` : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        <Button variant="outline" size="sm"
-                                            disabled={!tgSelectedUserId}
-                                            onClick={async () => {
-                                                const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                try {
-                                                    const { error } = await supabase
-                                                        .from('telegram_connections')
-                                                        .insert({
-                                                            company_id: companyId,
-                                                            user_id: tgSelectedUserId || null,
-                                                            telegram_chat_id: 0,
-                                                            verification_code: code,
-                                                            is_active: false,
-                                                            connection_type: 'private',
-                                                        });
-                                                    if (error) {
-                                                        console.error('Save code error:', error);
-                                                        toast({ title: isAr ? '❌ خطأ' : '❌ Error', description: error.message, variant: 'destructive' });
-                                                        return;
-                                                    }
-                                                    setTgVerificationCode(code);
-                                                    const selectedUser = systemUsers.find(u => u.id === tgSelectedUserId);
-                                                    toast({ title: isAr ? '✅ تم إنشاء الرمز' : '✅ Code generated', description: isAr ? `أرسل الرمز لـ ${selectedUser?.full_name || 'الموظف'}` : `Send the code to ${selectedUser?.full_name || 'employee'}` });
-                                                } catch (err: any) {
-                                                    toast({ title: isAr ? '❌ خطأ' : '❌ Error', description: err.message, variant: 'destructive' });
-                                                }
-                                            }}
-                                            className="gap-1.5 h-8 text-xs shrink-0">
-                                            <RefreshCw className="w-3 h-3" />
-                                            {isAr ? 'إنشاء رمز' : 'Generate Code'}
-                                        </Button>
-                                    </div>
-                                    {tgVerificationCode && (
-                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
-                                            <span className="text-lg font-mono font-black text-indigo-700 dark:text-indigo-300 tracking-widest">
-                                                {tgVerificationCode}
-                                            </span>
-                                            <button onClick={() => { navigator.clipboard.writeText(tgVerificationCode); toast({ title: isAr ? '📋 تم النسخ' : '📋 Copied' }); }}
-                                                className="text-indigo-400 hover:text-indigo-600">
-                                                <Copy className="w-3.5 h-3.5" />
-                                            </button>
-                                            <span className="text-[9px] text-indigo-400">
-                                                {isAr ? 'ينتهي خلال 10 دقائق' : 'Expires in 10 min'}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </CardContent>
-            </Card>
-
             {/* ═══ Future Integrations Placeholder ═══ */}
             <Card className="border-dashed border-2 border-gray-200 dark:border-gray-700 opacity-60">
                 <CardContent className="py-6 text-center">
                     <p className="text-sm text-gray-400">
-                        {isAr ? '🔜 تكاملات قادمة: بوابات الدفع، خدمات SMS، WhatsApp Business' : '🔜 Coming: Payment gateways, SMS services, WhatsApp Business'}
+                        {isAr ? '🔜 تكاملات قادمة: بوابات الدفع، خدمات SMS، WhatsApp Business، Telegram' : '🔜 Coming: Payment gateways, SMS, WhatsApp Business, Telegram'}
                     </p>
                 </CardContent>
             </Card>
