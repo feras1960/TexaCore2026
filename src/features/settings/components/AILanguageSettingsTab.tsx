@@ -359,18 +359,27 @@ export default function AILanguageSettingsTab() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {tgConnected ? (
-                        <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
-                            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-                            <div className="flex-1">
-                                <div className="text-sm font-bold text-green-700 dark:text-green-300">@{tgBotUsername}</div>
-                                <div className="text-[10px] text-green-600">{isAr ? 'البوت نشط وجاهز لاستقبال الرسائل' : 'Bot is active and ready'}</div>
-                            </div>
-                            <a href={`https://t.me/${tgBotUsername}`} target="_blank" rel="noopener noreferrer">
-                                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-green-300 text-green-600">
-                                    <ExternalLink className="w-3 h-3" /> {isAr ? 'فتح' : 'Open'}
+                        <>
+                            <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+                                <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                                <div className="flex-1">
+                                    <div className="text-sm font-bold text-green-700 dark:text-green-300">@{tgBotUsername}</div>
+                                    <div className="text-[10px] text-green-600">{isAr ? 'البوت نشط وجاهز لاستقبال الرسائل' : 'Bot is active and ready'}</div>
+                                </div>
+                                <a href={`https://t.me/${tgBotUsername}`} target="_blank" rel="noopener noreferrer">
+                                    <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-green-300 text-green-600">
+                                        <ExternalLink className="w-3 h-3" /> {isAr ? 'فتح' : 'Open'}
+                                    </Button>
+                                </a>
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 text-gray-400 hover:text-red-500"
+                                    onClick={() => { setTgConnected(false); setTgSetupStatus('idle'); }}>
+                                    <RefreshCw className="w-3 h-3" /> {isAr ? 'تغيير' : 'Change'}
                                 </Button>
-                            </a>
-                        </div>
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono mt-1 ps-8">
+                                Token: {tgBotToken ? tgBotToken.substring(0, 8) + '••••••••' : '—'}
+                            </div>
+                        </>
                     ) : (
                         <>
                             <p className="text-[11px] text-gray-400">
