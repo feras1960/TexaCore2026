@@ -110,18 +110,13 @@ export default function AILanguageSettingsTab() {
                 }
             }
 
-            // Load linked Telegram connections with user profile data
+            // Load linked Telegram connections
             const { data: connections } = await supabase
                 .from('telegram_connections')
-                .select('*, user_profiles:user_id(full_name, email, role)')
+                .select('*')
                 .eq('company_id', companyId)
                 .eq('is_active', true)
                 .order('created_at', { ascending: false });
-
-            if (connections) {
-                setLinkedUsers(connections.filter(c => c.connection_type === 'private'));
-                setLinkedGroups(connections.filter(c => c.connection_type !== 'private'));
-            }
 
             // Load system users for linking
             const { data: users } = await supabase
@@ -130,6 +125,16 @@ export default function AILanguageSettingsTab() {
                 .eq('company_id', companyId)
                 .order('full_name');
             if (users) setSystemUsers(users);
+
+            // Enrich connections with user profile data
+            if (connections) {
+                const enriched = connections.map(c => {
+                    const profile = users?.find(u => u.id === c.user_id);
+                    return { ...c, user_profiles: profile || null };
+                });
+                setLinkedUsers(enriched.filter(c => c.connection_type === 'private'));
+                setLinkedGroups(enriched.filter(c => c.connection_type !== 'private'));
+            }
 
             setLoading(false);
         })();
