@@ -17,7 +17,8 @@ import {
     Sparkles, Check, Loader2, Bot, Zap,
     Send, Users, Bell, Shield, CheckCircle2,
     MessageCircle, Clock, TrendingUp, Package,
-    Sun, Moon, AlertTriangle, Star, UserPlus, Languages,
+    Sun, Moon, AlertTriangle, Star, UserPlus, Languages, Trash2,
+    Eye, EyeOff, ExternalLink, RefreshCw, Copy, AlertCircle,
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -55,6 +56,13 @@ export default function AILanguageSettingsTab() {
     const [linkedUsers, setLinkedUsers] = useState<any[]>([]);
     const [linkedGroups, setLinkedGroups] = useState<any[]>([]);
     const [tgBotUsername, setTgBotUsername] = useState('');
+    const [tgBotToken, setTgBotToken] = useState('');
+    const [tgShowToken, setTgShowToken] = useState(false);
+    const [tgSetupStatus, setTgSetupStatus] = useState<'idle' | 'setting' | 'success' | 'error'>('idle');
+    const [tgVerificationCode, setTgVerificationCode] = useState('');
+    const [tgSelectedUserId, setTgSelectedUserId] = useState('');
+    const [systemUsers, setSystemUsers] = useState<any[]>([]);
+    const [integrations, setIntegrations] = useState<any>({});
 
     // Notification preferences
     const [notifPrefs, setNotifPrefs] = useState({
@@ -67,7 +75,7 @@ export default function AILanguageSettingsTab() {
         report_time_evening: '18:00',
     });
 
-    // Load current settings + linked users
+    // Load current settings + linked users + system users
     useEffect(() => {
         if (!companyId) return;
         (async () => {
@@ -87,9 +95,14 @@ export default function AILanguageSettingsTab() {
                 }
                 if (data.integrations && typeof data.integrations === 'object') {
                     const intg = data.integrations as any;
+                    setIntegrations(intg);
+                    if (intg.telegram?.bot_token) {
+                        setTgBotToken(intg.telegram.bot_token);
+                    }
                     if (intg.telegram?.webhook_active && intg.telegram?.bot_username) {
                         setTgConnected(true);
                         setTgBotUsername(intg.telegram.bot_username);
+                        setTgSetupStatus('success');
                     }
                 }
             }
@@ -106,6 +119,14 @@ export default function AILanguageSettingsTab() {
                 setLinkedUsers(connections.filter(c => c.connection_type === 'private'));
                 setLinkedGroups(connections.filter(c => c.connection_type !== 'private'));
             }
+
+            // Load system users for linking
+            const { data: users } = await supabase
+                .from('user_profiles')
+                .select('id, full_name, email, role')
+                .eq('company_id', companyId)
+                .order('full_name');
+            if (users) setSystemUsers(users);
 
             setLoading(false);
         })();
@@ -277,144 +298,225 @@ export default function AILanguageSettingsTab() {
         </div>
     );
 
+    const handleActivateBot = async () => {
+        if (!tgBotToken.trim()) return;
+        setTgSetupStatus('setting');
+        try {
+            const infoRes = await fetch(`https://api.telegram.org/bot${tgBotToken.trim()}/getMe`);
+            const infoData = await infoRes.json();
+            if (!infoData.ok) throw new Error(infoData.description || 'Invalid token');
+            setTgBotUsername(infoData.result.username);
+
+            const secret = crypto.randomUUID().replace(/-/g, '');
+            const projectUrl = import.meta.env.VITE_SUPABASE_URL || '';
+            const webhookUrl = `${projectUrl}/functions/v1/telegram-webhook`;
+            const whRes = await fetch(`https://api.telegram.org/bot${tgBotToken.trim()}/setWebhook`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: webhookUrl, secret_token: secret }),
+            });
+            const whData = await whRes.json();
+            if (!whData.ok) throw new Error(whData.description || 'Webhook failed');
+
+            const telegramConfig = { bot_token: tgBotToken.trim(), bot_username: infoData.result.username, webhook_active: true, webhook_secret: secret };
+            const newIntg = { ...integrations, telegram: telegramConfig };
+            await supabase.from('companies').update({ integrations: newIntg }).eq('id', companyId);
+            setIntegrations(newIntg);
+            setTgConnected(true);
+            setTgSetupStatus('success');
+            toast({ title: isAr ? '✅ تم تفعيل البوت!' : '✅ Bot activated!', description: `@${infoData.result.username}` });
+        } catch (err: any) {
+            setTgSetupStatus('error');
+            toast({ title: isAr ? '❌ خطأ' : '❌ Error', description: err.message, variant: 'destructive' });
+        }
+    };
+
+    const handleGenerateCode = async () => {
+        if (!tgSelectedUserId) return;
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        try {
+            const { error } = await supabase.from('telegram_connections').insert({
+                company_id: companyId, user_id: tgSelectedUserId, telegram_chat_id: 0,
+                verification_code: code, is_active: false, connection_type: 'private',
+            });
+            if (error) { toast({ title: '❌', description: error.message, variant: 'destructive' }); return; }
+            setTgVerificationCode(code);
+            const u = systemUsers.find(u => u.id === tgSelectedUserId);
+            toast({ title: isAr ? '✅ تم إنشاء الرمز' : '✅ Code generated', description: u?.full_name || '' });
+        } catch (err: any) { toast({ title: '❌', description: err.message, variant: 'destructive' }); }
+    };
+
     const renderTelegramUsersTab = () => (
         <div className="space-y-4">
-            {!tgConnected ? (
-                /* Not Connected Banner */
-                <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/10">
-                    <CardContent className="py-8 text-center space-y-3">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center mx-auto shadow-lg">
-                            <Send className="w-7 h-7 text-white" />
-                        </div>
-                        <h3 className="text-base font-bold text-gray-800 dark:text-gray-200">
-                            {isAr ? 'Telegram Bot غير مربوط' : 'Telegram Bot Not Connected'}
-                        </h3>
-                        <p className="text-sm text-gray-500 max-w-md mx-auto">
-                            {isAr
-                                ? 'لربط المستخدمين عبر Telegram، يجب أولاً إنشاء بوت وربطه من الإعدادات → التكاملات'
-                                : 'To link users via Telegram, first create a bot and connect it from Settings → Integrations'}
-                        </p>
-                        <Button variant="outline" className="gap-2 mt-2"
-                            onClick={() => window.location.href = '/system-config/integrations'}>
-                            <Shield className="w-4 h-4" />
-                            {isAr ? 'الذهاب إلى التكاملات' : 'Go to Integrations'}
-                        </Button>
-                    </CardContent>
-                </Card>
-            ) : (
-                <>
-                    {/* Bot Status */}
-                    <Card className="border-green-200 dark:border-green-800">
-                        <CardContent className="py-3">
-                            <div className="flex items-center gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                <div className="flex-1">
-                                    <span className="text-sm font-bold text-green-700 dark:text-green-300">@{tgBotUsername}</span>
-                                    <span className="text-xs text-green-600 ms-2">{isAr ? 'متصل وجاهز' : 'Connected & Ready'}</span>
-                                </div>
+            {/* ═══ Step 1: Bot Setup ═══ */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Bot className="w-4 h-4 text-blue-500" />
+                        {isAr ? 'إعداد البوت' : 'Bot Setup'}
+                        {tgConnected && <Badge className="bg-green-100 text-green-700 text-[10px]">✅ {isAr ? 'نشط' : 'Active'}</Badge>}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {tgConnected ? (
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+                            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                            <div className="flex-1">
+                                <div className="text-sm font-bold text-green-700 dark:text-green-300">@{tgBotUsername}</div>
+                                <div className="text-[10px] text-green-600">{isAr ? 'البوت نشط وجاهز لاستقبال الرسائل' : 'Bot is active and ready'}</div>
                             </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Linked Users */}
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                    <Users className="w-4 h-4 text-blue-500" />
-                                    {isAr ? 'المستخدمون المربوطون' : 'Linked Users'}
-                                    {linkedUsers.length > 0 && (
-                                        <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedUsers.length}</Badge>
-                                    )}
-                                </CardTitle>
-                                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
-                                    onClick={() => window.location.href = '/system-config/integrations'}>
-                                    <UserPlus className="w-3.5 h-3.5" />
-                                    {isAr ? 'ربط مستخدم' : 'Link User'}
+                            <a href={`https://t.me/${tgBotUsername}`} target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-green-300 text-green-600">
+                                    <ExternalLink className="w-3 h-3" /> {isAr ? 'فتح' : 'Open'}
+                                </Button>
+                            </a>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-[11px] text-gray-400">
+                                {isAr ? 'الصق Token البوت من @BotFather ثم اضغط تفعيل' : 'Paste bot token from @BotFather then click Activate'}
+                            </p>
+                            <div className="flex gap-2 items-center">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type={tgShowToken ? 'text' : 'password'}
+                                        value={tgBotToken}
+                                        onChange={e => setTgBotToken(e.target.value)}
+                                        placeholder="1234567890:ABCdef..."
+                                        className="w-full h-9 text-xs px-3 pe-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 font-mono"
+                                    />
+                                    <button onClick={() => setTgShowToken(!tgShowToken)} className="absolute end-2 top-2 text-gray-400">
+                                        {tgShowToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                <Button variant="outline" size="sm" disabled={!tgBotToken.trim() || tgSetupStatus === 'setting'}
+                                    onClick={handleActivateBot}
+                                    className={`gap-1.5 h-9 px-3 text-xs shrink-0 ${tgSetupStatus === 'success' ? 'border-green-500 text-green-600' : tgSetupStatus === 'error' ? 'border-red-500 text-red-600' : ''}`}>
+                                    {tgSetupStatus === 'setting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+                                        tgSetupStatus === 'error' ? <AlertCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
+                                    {isAr ? 'تفعيل' : 'Activate'}
                                 </Button>
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            {linkedUsers.length === 0 ? (
-                                <div className="text-center py-6 text-gray-400">
-                                    <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                    <p className="text-sm">{isAr ? 'لم يتم ربط أي مستخدم بعد' : 'No users linked yet'}</p>
-                                    <p className="text-xs mt-1">{isAr ? 'أنشئ رمز تحقق من التكاملات وأرسله للموظف' : 'Generate a code from Integrations and send it to the employee'}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {linkedUsers.map(user => (
-                                        <div key={user.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
-                                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                                <Send className="w-4 h-4 text-blue-600" />
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ═══ Step 2: Link Users ═══ */}
+            {tgConnected && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <UserPlus className="w-4 h-4 text-blue-500" />
+                            {isAr ? 'ربط مستخدم جديد' : 'Link New User'}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <p className="text-[11px] text-gray-400">
+                            {isAr ? 'اختر المستخدم من النظام ثم أنشئ رمز تحقق وأرسله للموظف ليربط حسابه عبر البوت' : 'Select user, generate code, send to employee to link via bot'}
+                        </p>
+                        <div className="flex gap-2 items-center">
+                            <select value={tgSelectedUserId} onChange={e => setTgSelectedUserId(e.target.value)}
+                                className="flex-1 h-8 text-xs rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2">
+                                <option value="">{isAr ? '— اختر المستخدم —' : '— Select User —'}</option>
+                                {systemUsers.map(u => (
+                                    <option key={u.id} value={u.id}>{u.full_name || u.email} {u.role ? `(${u.role})` : ''}</option>
+                                ))}
+                            </select>
+                            <Button variant="outline" size="sm" disabled={!tgSelectedUserId} onClick={handleGenerateCode} className="gap-1.5 h-8 text-xs shrink-0">
+                                <RefreshCw className="w-3 h-3" /> {isAr ? 'إنشاء رمز' : 'Generate'}
+                            </Button>
+                        </div>
+                        {tgVerificationCode && (
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200">
+                                <span className="text-lg font-mono font-black text-indigo-700 dark:text-indigo-300 tracking-widest">{tgVerificationCode}</span>
+                                <button onClick={() => { navigator.clipboard.writeText(tgVerificationCode); toast({ title: isAr ? '📋 تم النسخ' : '📋 Copied' }); }} className="text-indigo-400 hover:text-indigo-600">
+                                    <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="text-[9px] text-indigo-400">{isAr ? 'أرسله للبوت في Telegram' : 'Send to bot in Telegram'}</span>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* ═══ Step 3: Linked Users List ═══ */}
+            {tgConnected && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <Users className="w-4 h-4 text-blue-500" />
+                            {isAr ? 'المستخدمون المربوطون' : 'Linked Users'}
+                            {linkedUsers.length > 0 && <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedUsers.length}</Badge>}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {linkedUsers.length === 0 ? (
+                            <div className="text-center py-6 text-gray-400">
+                                <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                                <p className="text-sm">{isAr ? 'لم يتم ربط أي مستخدم بعد' : 'No users linked yet'}</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {linkedUsers.map(user => (
+                                    <div key={user.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                            <Send className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                {user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                    {user.telegram_first_name || (isAr ? 'مستخدم' : 'User')}
-                                                </div>
-                                                <div className="text-[11px] text-gray-400">
-                                                    {user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_chat_id}`}
-                                                </div>
+                                            <div className="text-[11px] text-gray-400">
+                                                {user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_chat_id}`}
                                             </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
                                             <Badge className="bg-green-100 text-green-700 text-[10px]">
                                                 <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'مربوط' : 'Linked'}
                                             </Badge>
+                                            <button onClick={async () => {
+                                                if (!confirm(isAr ? 'إزالة ربط هذا المستخدم؟' : 'Remove this link?')) return;
+                                                const { error } = await supabase.from('telegram_connections').delete().eq('id', user.id);
+                                                if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast({ title: '✅' }); }
+                                                else toast({ title: '❌', description: error.message, variant: 'destructive' });
+                                            }} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-500 transition-colors" title={isAr ? 'إزالة' : 'Unlink'}>
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Groups */}
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                    <MessageCircle className="w-4 h-4 text-blue-500" />
-                                    {isAr ? 'المجموعات' : 'Groups'}
-                                    {linkedGroups.length > 0 && (
-                                        <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedGroups.length}</Badge>
-                                    )}
-                                </CardTitle>
-                                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
-                                    <UserPlus className="w-3.5 h-3.5" />
-                                    {isAr ? 'ربط مجموعة' : 'Link Group'}
-                                </Button>
+                                    </div>
+                                ))}
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            {linkedGroups.length === 0 ? (
-                                <div className="text-center py-6 text-gray-400">
-                                    <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                    <p className="text-sm">{isAr ? 'لم يتم ربط أي مجموعة بعد' : 'No groups linked yet'}</p>
-                                    <p className="text-xs mt-1">{isAr ? 'أضف البوت إلى مجموعة Telegram لتفعيل التقارير الجماعية' : 'Add the bot to a Telegram group to enable team reports'}</p>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* ═══ Groups ═══ */}
+            {tgConnected && linkedGroups.length > 0 && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <MessageCircle className="w-4 h-4 text-blue-500" /> {isAr ? 'المجموعات' : 'Groups'}
+                            <Badge className="bg-blue-100 text-blue-700 text-[10px]">{linkedGroups.length}</Badge>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-2">
+                            {linkedGroups.map(group => (
+                                <div key={group.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                                    <MessageCircle className="w-4 h-4 text-indigo-600" />
+                                    <div className="flex-1">
+                                        <div className="text-sm font-medium">{group.telegram_first_name || (isAr ? 'مجموعة' : 'Group')}</div>
+                                    </div>
+                                    <Badge className="bg-green-100 text-green-700 text-[10px]">
+                                        <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'نشط' : 'Active'}
+                                    </Badge>
                                 </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {linkedGroups.map(group => (
-                                        <div key={group.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
-                                            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                                                <MessageCircle className="w-4 h-4 text-indigo-600" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                    {group.telegram_first_name || (isAr ? 'مجموعة' : 'Group')}
-                                                </div>
-                                                <div className="text-[11px] text-gray-400">
-                                                    {group.connection_type} • ID: {group.telegram_chat_id}
-                                                </div>
-                                            </div>
-                                            <Badge className="bg-green-100 text-green-700 text-[10px]">
-                                                <CheckCircle2 className="w-3 h-3 me-0.5" /> {isAr ? 'نشط' : 'Active'}
-                                            </Badge>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
             )}
         </div>
     );
