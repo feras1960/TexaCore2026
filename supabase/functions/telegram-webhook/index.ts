@@ -491,14 +491,14 @@ serve(async (req: Request) => {
             }
 
             // ═══ Layer 1: Company-level settings ═══
-            // Check telegram_bot_config.notification_preferences for document-type toggles
-            const { data: botConfigRow } = await supabase
-                .from('telegram_bot_config')
-                .select('notification_preferences')
-                .eq('company_id', company_id)
+            // Check companies.settings.notification_preferences for document-type toggles
+            const { data: companyRow } = await supabase
+                .from('companies')
+                .select('settings')
+                .eq('id', company_id)
                 .maybeSingle()
 
-            const companyPrefs = botConfigRow?.notification_preferences || {}
+            const companyPrefs = (companyRow?.settings as any)?.notification_preferences || {}
 
             // Map event_type → company setting keys
             // An event is blocked if ALL its mapped company keys are explicitly false
