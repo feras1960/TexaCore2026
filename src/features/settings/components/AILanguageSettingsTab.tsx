@@ -324,10 +324,10 @@ export default function AILanguageSettingsTab() {
             setIntegrations(newIntg);
             setTgConnected(true);
             setTgSetupStatus('success');
-            toast({ title: isAr ? '✅ تم تفعيل البوت!' : '✅ Bot activated!', description: `@${infoData.result.username}` });
+            toast.success(isAr ? '✅ تم تفعيل البوت!' : '✅ Bot activated!', { description: `@${infoData.result.username}` });
         } catch (err: any) {
             setTgSetupStatus('error');
-            toast({ title: isAr ? '❌ خطأ' : '❌ Error', description: err.message, variant: 'destructive' });
+            toast.error(isAr ? '❌ خطأ' : '❌ Error', { description: err.message });
         }
     };
 
@@ -335,15 +335,22 @@ export default function AILanguageSettingsTab() {
         if (!tgSelectedUserId) return;
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         try {
+            // Delete any existing pending (unverified) connections for this user first
+            await supabase.from('telegram_connections')
+                .delete()
+                .eq('company_id', companyId)
+                .eq('user_id', tgSelectedUserId)
+                .eq('is_active', false);
+
             const { error } = await supabase.from('telegram_connections').insert({
                 company_id: companyId, user_id: tgSelectedUserId, telegram_chat_id: 0,
                 verification_code: code, is_active: false, connection_type: 'private',
             });
-            if (error) { toast({ title: '❌', description: error.message, variant: 'destructive' }); return; }
+            if (error) { toast.error(error.message); return; }
             setTgVerificationCode(code);
             const u = systemUsers.find(u => u.id === tgSelectedUserId);
-            toast({ title: isAr ? '✅ تم إنشاء الرمز' : '✅ Code generated', description: u?.full_name || '' });
-        } catch (err: any) { toast({ title: '❌', description: err.message, variant: 'destructive' }); }
+            toast.success(isAr ? '✅ تم إنشاء الرمز' : '✅ Code generated', { description: u?.full_name || '' });
+        } catch (err: any) { toast.error(err.message); }
     };
 
     const renderTelegramUsersTab = () => (
@@ -439,7 +446,7 @@ export default function AILanguageSettingsTab() {
                         {tgVerificationCode && (
                             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200">
                                 <span className="text-lg font-mono font-black text-indigo-700 dark:text-indigo-300 tracking-widest">{tgVerificationCode}</span>
-                                <button onClick={() => { navigator.clipboard.writeText(tgVerificationCode); toast({ title: isAr ? '📋 تم النسخ' : '📋 Copied' }); }} className="text-indigo-400 hover:text-indigo-600">
+                                <button onClick={() => { navigator.clipboard.writeText(tgVerificationCode); toast.success(isAr ? '📋 تم النسخ' : '📋 Copied'); }} className="text-indigo-400 hover:text-indigo-600">
                                     <Copy className="w-3.5 h-3.5" />
                                 </button>
                                 <span className="text-[9px] text-indigo-400">{isAr ? 'أرسله للبوت في Telegram' : 'Send to bot in Telegram'}</span>
@@ -487,8 +494,8 @@ export default function AILanguageSettingsTab() {
                                             <button onClick={async () => {
                                                 if (!confirm(isAr ? 'إزالة ربط هذا المستخدم؟' : 'Remove this link?')) return;
                                                 const { error } = await supabase.from('telegram_connections').delete().eq('id', user.id);
-                                                if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast({ title: '✅' }); }
-                                                else toast({ title: '❌', description: error.message, variant: 'destructive' });
+                                                if (!error) { setLinkedUsers(prev => prev.filter(u => u.id !== user.id)); toast.success('✅'); }
+                                                else toast.error(error.message);
                                             }} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-300 hover:text-red-500 transition-colors" title={isAr ? 'إزالة' : 'Unlink'}>
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
