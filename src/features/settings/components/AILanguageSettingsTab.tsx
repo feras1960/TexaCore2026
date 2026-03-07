@@ -38,7 +38,6 @@ interface SubTab {
 const SUB_TABS: SubTab[] = [
     { id: 'status', labelAr: 'الحالة والميزات', labelEn: 'Status & Features', icon: <Zap className="w-3.5 h-3.5" /> },
     { id: 'telegram-users', labelAr: 'مستخدمو Telegram', labelEn: 'Telegram Users', icon: <Users className="w-3.5 h-3.5" /> },
-    { id: 'notifications', labelAr: 'الإشعارات', labelEn: 'Notifications', icon: <Bell className="w-3.5 h-3.5" /> },
 ];
 
 // ─── Main Component ───────────────────────────────────────────
@@ -1015,7 +1014,6 @@ export default function AILanguageSettingsTab() {
             <div>
                 {activeSubTab === 'status' && renderStatusTab()}
                 {activeSubTab === 'telegram-users' && renderTelegramUsersTab()}
-                {activeSubTab === 'notifications' && renderNotificationsTab()}
             </div>
         </div>
     );
