@@ -521,6 +521,29 @@ serve(async (req: Request) => {
             })
         }
 
+        // ─── Send direct message to specific chat ───────────
+        if (body.action === 'send_direct_message') {
+            const { company_id, chat_id, message: directMsg, html_message } = body
+            if (!company_id || !chat_id || (!directMsg && !html_message)) {
+                return new Response(JSON.stringify({ ok: false, error: 'Missing: company_id, chat_id, message' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+            const directConfig = await getBotConfig(supabase, company_id)
+            if (!directConfig) {
+                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
+
+            const msgToSend = html_message || directMsg
+            const r = await sendMessage(directConfig.botToken, chat_id, msgToSend)
+            console.log(`[DirectMsg] chat=${chat_id}: ${r.ok ? 'sent' : 'failed'}`)
+            return new Response(JSON.stringify({ ok: r.ok, chat_id }), {
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
+
         // ─── Bot token from URL parameter or body ───────────
         const url = new URL(req.url)
         const botTokenParam = url.searchParams.get('bot_token') || body.bot_token || ''

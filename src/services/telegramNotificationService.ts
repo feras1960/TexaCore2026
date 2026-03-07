@@ -359,6 +359,66 @@ ${data.rollCount ? `🧵 عدد الرولونات: <b>${data.rollCount}</b>` : 
         return dispatch(companyId, 'inventory_task', msg.trim());
     },
 
+    // ═══════════════════════════════════════════════════════════
+    // 🔔 CUSTOMER DIRECT NOTIFICATIONS
+    // These bypass employee preferences — sent directly to customer's Telegram
+    // ═══════════════════════════════════════════════════════════
+
+    /** 📦 إعلام العميل بجاهزية بضاعته — Customer Goods Ready */
+    customerGoodsReady: async (companyId: string, data: {
+        customerId: string;
+        customerName: string;
+        invoiceNumber?: string;
+        items?: Array<{ name: string; qty: number; unit?: string; rolls?: number }>;
+        totalQty?: number;
+        pickupAddress?: string;
+        deliveryDate?: string;
+        companyName?: string;
+    }) => {
+        try {
+            // 1. Look up customer's Telegram chat ID
+            const { data: customer } = await supabase
+                .from('customers')
+                .select('telegram_chat_id, telegram_username')
+                .eq('id', data.customerId)
+                .maybeSingle();
+
+            if (!customer?.telegram_chat_id) {
+                console.log(`[TelegramNotify] Customer ${data.customerName} has no Telegram linked`);
+                return { ok: false, error: 'No Telegram for customer' };
+            }
+
+            // 2. Build customer-friendly message
+            const itemsText = data.items?.length ? `\n📋 المواد:\n${formatItemsTable(data.items)}` : '';
+            const msg = `✅ <b>بضاعتكم جاهزة!</b>
+━━━━━━━━━━━━━━━━━━━━
+
+مرحباً <b>${data.customerName}</b> 👋
+
+${data.invoiceNumber ? `📋 الفاتورة: <b>${data.invoiceNumber}</b>` : ''}${itemsText}
+${data.totalQty ? `📊 الإجمالي: <b>${data.totalQty}</b> م` : ''}
+${data.pickupAddress ? `📍 عنوان الاستلام: ${data.pickupAddress}` : ''}
+${data.deliveryDate ? `📅 موعد التوصيل: ${data.deliveryDate}` : ''}
+
+${data.companyName ? `— ${data.companyName}` : '— TexaFab'}`;
+
+            // 3. Send directly to customer's chat
+            const response = await supabase.functions.invoke('telegram-webhook', {
+                body: {
+                    action: 'send_direct_message',
+                    company_id: companyId,
+                    chat_id: customer.telegram_chat_id,
+                    html_message: msg.trim(),
+                },
+            });
+
+            return response.data || { ok: false };
+        } catch (err) {
+            console.warn('[TelegramNotify] Customer notification error:', err);
+            return { ok: false, error: 'Failed' };
+        }
+    },
+
     /** 🔔 Generic notification — for custom events */
     custom: (companyId: string, eventType: string, htmlMessage: string) => {
         return dispatch(companyId, eventType, htmlMessage);
@@ -366,3 +426,4 @@ ${data.rollCount ? `🧵 عدد الرولونات: <b>${data.rollCount}</b>` : 
 };
 
 export default telegramNotify;
+

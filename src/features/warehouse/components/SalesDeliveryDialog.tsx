@@ -22,6 +22,7 @@ import { useRBAC } from '@/hooks/useRBAC';
 import { useWarehouses } from '@/features/warehouse/hooks/useWarehouseQueries';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { telegramNotify } from '@/services/telegramNotificationService';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import type { UnifiedDocType } from '@/features/accounting/components/unified/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -649,6 +650,34 @@ export function SalesDeliveryDialog({
                     ? `✅ Full delivery! ${selectedRolls.length} rolls — ${totalDeliveredLength.toFixed(1)}m — Invoice posted`
                     : `📦 Partial delivery — ${selectedRolls.length} rolls (${totalDeliveredLength.toFixed(1)}m). Remaining: ${(totalExpected - totalNowDelivered).toFixed(1)}m`
             ));
+
+            // 🔔 Telegram: Notify warehouse staff (issue_order)
+            if (companyId) {
+                const wh = warehouses.find(w => w.id === selectedWarehouseId);
+                const whName = wh ? (language === 'ar' ? (wh.name_ar || wh.name_en || '') : (wh.name_en || wh.name_ar || '')) : '';
+                telegramNotify.issueOrder(companyId, {
+                    orderNumber: invoiceData?.invoice_no || invoiceData?.draft_no || '',
+                    customerName: invoiceData?.customer_name || '',
+                    warehouseName: whName,
+                    items: sourceItems.map((si: any) => ({
+                        name: si.material_name_ar || si.material_name || '',
+                        qty: Math.round((Number(si.quantity) || 0) * 100) / 100,
+                        unit: 'م',
+                        rolls: (rollsByMaterial[si.material_id] || []).length,
+                    })),
+                    invoiceNumber: invoiceData?.invoice_no || '',
+                }).catch(() => { });
+
+                // 🔔 Telegram: Notify customer directly (if they have Telegram)
+                if (invoiceData?.customer_id) {
+                    telegramNotify.customerGoodsReady(companyId, {
+                        customerId: invoiceData.customer_id,
+                        customerName: invoiceData.customer_name || '',
+                        invoiceNumber: invoiceData.invoice_no || invoiceData.draft_no || '',
+                        totalQty: Math.round(totalDeliveredLength * 100) / 100,
+                    }).catch(() => { });
+                }
+            }
 
             setShowConfirm(false);
             onOpenChange(false);
