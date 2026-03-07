@@ -695,58 +695,194 @@ export default function AILanguageSettingsTab() {
             setHasChanges(true);
         };
 
-        const notifItems = [
-            { key: 'daily_report', icon: <Sun className="w-4 h-4 text-amber-500" />, labelAr: 'تقرير صباحي يومي', labelEn: 'Daily Morning Report', descAr: 'ملخص المبيعات والمهام لكل موظف عند بداية اليوم', descEn: 'Sales summary and tasks for each employee at start of day' },
-            { key: 'workflow_alerts', icon: <Package className="w-4 h-4 text-blue-500" />, labelAr: 'تنبيهات سير العمل', labelEn: 'Workflow Alerts', descAr: 'كونتينر وصل، فاتورة جديدة، مخزون منخفض', descEn: 'Container arrival, new invoice, low inventory' },
-            { key: 'customer_reminders', icon: <AlertTriangle className="w-4 h-4 text-red-500" />, labelAr: 'تذكير الزبائن المتأخرين', labelEn: 'Late Customer Reminders', descAr: 'تنبيه بالزبائن المتأخرين بالدفع', descEn: 'Alert for customers with overdue payments' },
-            { key: 'price_updates', icon: <TrendingUp className="w-4 h-4 text-green-500" />, labelAr: 'تحديثات الأسعار', labelEn: 'Price Updates', descAr: 'إرسال تحديثات الأسعار لفريق المبيعات', descEn: 'Send price updates to sales team' },
-            { key: 'motivational', icon: <Star className="w-4 h-4 text-yellow-500" />, labelAr: 'رسائل تحفيزية', labelEn: 'Motivational Messages', descAr: 'نجم اليوم، أفضل أداء، تشجيع الفريق', descEn: 'Star of the day, best performance, team encouragement' },
+        // ─── Document Type Notification Config ──────────────
+        const DOC_TYPES = [
+            {
+                id: 'sales',
+                icon: '🧾',
+                color: 'emerald',
+                labelAr: 'فواتير المبيعات والتسليم',
+                labelEn: 'Sales Invoices & Delivery',
+                descAr: 'إشعارات عند إصدار فاتورة أو تسليم بضاعة',
+                descEn: 'Notifications on invoice creation or goods delivery',
+                parties: [
+                    { key: 'sales_notify_customer', labelAr: '👤 العميل', labelEn: '👤 Customer', hintAr: 'إعلام العميل "بضاعتكم جاهزة"', hintEn: 'Notify customer "Your goods are ready"' },
+                    { key: 'sales_notify_warehouse', labelAr: '📦 أمين المستودع', labelEn: '📦 Warehouse Keeper', hintAr: 'إشعار بإذن الصرف والتسليم', hintEn: 'Issue/delivery order notification' },
+                    { key: 'sales_notify_accountant', labelAr: '💰 المحاسب', labelEn: '💰 Accountant', hintAr: 'فاتورة جديدة للمراجعة', hintEn: 'New invoice for review' },
+                    { key: 'sales_notify_owner', labelAr: '👑 المالك', labelEn: '👑 Owner', hintAr: 'طلب بيع جديد', hintEn: 'New sales order' },
+                ],
+            },
+            {
+                id: 'purchases',
+                icon: '📥',
+                color: 'indigo',
+                labelAr: 'المشتريات والاستلام',
+                labelEn: 'Purchases & Receipts',
+                descAr: 'إشعارات استلام البضائع وفواتير الشراء',
+                descEn: 'Goods receipt and purchase invoice notifications',
+                parties: [
+                    { key: 'purchase_notify_warehouse', labelAr: '📦 أمين المستودع', labelEn: '📦 Warehouse Keeper', hintAr: 'إذن استلام بضاعة جديدة', hintEn: 'New goods receipt order' },
+                    { key: 'purchase_notify_accountant', labelAr: '💰 المحاسب', labelEn: '💰 Accountant', hintAr: 'فاتورة شراء للمراجعة', hintEn: 'Purchase invoice for review' },
+                    { key: 'purchase_notify_owner', labelAr: '👑 المالك', labelEn: '👑 Owner', hintAr: 'ملخص المشتريات اليومية', hintEn: 'Daily purchases summary' },
+                ],
+            },
+            {
+                id: 'containers',
+                icon: '🚢',
+                color: 'blue',
+                labelAr: 'الحاويات والشحنات',
+                labelEn: 'Containers & Shipments',
+                descAr: 'إشعارات وصول الحاويات والتخليص الجمركي',
+                descEn: 'Container arrival and customs clearance alerts',
+                parties: [
+                    { key: 'container_notify_warehouse', labelAr: '📦 أمين المستودع', labelEn: '📦 Warehouse Keeper', hintAr: 'وصول حاوية — جاهز للاستلام', hintEn: 'Container arrived — ready for receipt' },
+                    { key: 'container_notify_owner', labelAr: '👑 المالك', labelEn: '👑 Owner', hintAr: 'تحديث حالة الشحنة', hintEn: 'Shipment status update' },
+                ],
+            },
+            {
+                id: 'transfers',
+                icon: '🔄',
+                color: 'purple',
+                labelAr: 'المناقلات المستودعية',
+                labelEn: 'Warehouse Transfers',
+                descAr: 'إشعارات تحويل البضائع بين المستودعات',
+                descEn: 'Goods transfer between warehouses notifications',
+                parties: [
+                    { key: 'transfer_notify_from_wh', labelAr: '📤 مستودع المصدر', labelEn: '📤 Source Warehouse', hintAr: 'تجهيز وإخراج البضاعة', hintEn: 'Prepare and dispatch goods' },
+                    { key: 'transfer_notify_to_wh', labelAr: '📥 مستودع الوجهة', labelEn: '📥 Destination Warehouse', hintAr: 'بضاعة في الطريق إليك', hintEn: 'Goods incoming to you' },
+                ],
+            },
+            {
+                id: 'delivery',
+                icon: '🚚',
+                color: 'orange',
+                labelAr: 'التوصيل والسائقين',
+                labelEn: 'Delivery & Drivers',
+                descAr: 'إشعارات مهام التوصيل والوجهات',
+                descEn: 'Delivery tasks and route notifications',
+                parties: [
+                    { key: 'delivery_notify_driver', labelAr: '🚗 السائق', labelEn: '🚗 Driver', hintAr: 'وجهة ومعلومات العميل', hintEn: 'Destination and customer info' },
+                    { key: 'delivery_notify_customer', labelAr: '👤 العميل', labelEn: '👤 Customer', hintAr: 'بضاعتكم في الطريق', hintEn: 'Your goods are on the way' },
+                ],
+            },
+            {
+                id: 'finance',
+                icon: '💰',
+                color: 'yellow',
+                labelAr: 'المالية والدفعات',
+                labelEn: 'Finance & Payments',
+                descAr: 'إشعارات الدفعات وتجاوز الائتمان والأسعار',
+                descEn: 'Payment, credit limit, and price update alerts',
+                parties: [
+                    { key: 'finance_notify_accountant', labelAr: '💰 المحاسب', labelEn: '💰 Accountant', hintAr: 'دفعات وفواتير مستحقة', hintEn: 'Payments and due invoices' },
+                    { key: 'finance_notify_owner', labelAr: '👑 المالك', labelEn: '👑 Owner', hintAr: 'تنبيهات مالية هامة', hintEn: 'Critical financial alerts' },
+                    { key: 'finance_notify_sales', labelAr: '🛒 فريق المبيعات', labelEn: '🛒 Sales Team', hintAr: 'تحديث الأسعار وحدود الائتمان', hintEn: 'Price updates and credit limits' },
+                ],
+            },
+            {
+                id: 'inventory',
+                icon: '📊',
+                color: 'red',
+                labelAr: 'المخزون والجرد',
+                labelEn: 'Inventory & Stock',
+                descAr: 'تنبيهات المخزون المنخفض ومهام الجرد',
+                descEn: 'Low stock alerts and inventory task assignments',
+                parties: [
+                    { key: 'stock_notify_warehouse', labelAr: '📦 أمين المستودع', labelEn: '📦 Warehouse Keeper', hintAr: 'مهام جرد ومخزون منخفض', hintEn: 'Inventory tasks and low stock' },
+                    { key: 'stock_notify_owner', labelAr: '👑 المالك', labelEn: '👑 Owner', hintAr: 'تنبيهات المخزون الحرجة', hintEn: 'Critical stock alerts' },
+                ],
+            },
         ];
+
+        const colorMap: Record<string, string> = {
+            emerald: 'from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800',
+            indigo: 'from-indigo-50 to-blue-50 dark:from-indigo-950/20 dark:to-blue-950/20 border-indigo-200 dark:border-indigo-800',
+            blue: 'from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border-blue-200 dark:border-blue-800',
+            purple: 'from-purple-50 to-violet-50 dark:from-purple-950/20 dark:to-violet-950/20 border-purple-200 dark:border-purple-800',
+            orange: 'from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 border-orange-200 dark:border-orange-800',
+            yellow: 'from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20 border-yellow-200 dark:border-yellow-800',
+            red: 'from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20 border-red-200 dark:border-red-800',
+        };
 
         return (
             <div className="space-y-4">
                 {!tgConnected && (
                     <div className="rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 p-3 text-center">
                         <p className="text-xs text-amber-700 dark:text-amber-400">
-                            ⚠️ {isAr ? 'اربط Telegram Bot أولاً لتفعيل الإشعارات الخارجية' : 'Connect Telegram Bot first to enable external notifications'}
+                            ⚠️ {isAr ? 'اربط Telegram Bot أولاً لتفعيل الإشعارات' : 'Connect Telegram Bot first to enable notifications'}
                         </p>
                     </div>
                 )}
 
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                {/* ─── Title ─── */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             <Bell className="w-4 h-4 text-purple-500" />
-                            {isAr ? 'أنواع الإشعارات' : 'Notification Types'}
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                            {isAr ? 'اختر الإشعارات التي تُرسل عبر Telegram لفريقك' : 'Choose which notifications to send via Telegram to your team'}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-1">
-                        {notifItems.map(item => (
-                            <div key={item.key} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
-                                    {item.icon}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                        {isAr ? item.labelAr : item.labelEn}
-                                    </div>
-                                    <div className="text-[11px] text-gray-400 truncate">
-                                        {isAr ? item.descAr : item.descEn}
-                                    </div>
-                                </div>
-                                <Switch
-                                    checked={(notifPrefs as any)[item.key]}
-                                    onCheckedChange={() => toggleNotif(item.key)}
-                                />
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
+                            {isAr ? 'إعدادات الإشعارات حسب نوع المستند' : 'Notification Settings by Document Type'}
+                        </h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                            {isAr ? 'حدد من يستقبل إشعارات Telegram لكل عملية' : 'Choose who receives Telegram notifications for each operation'}
+                        </p>
+                    </div>
+                    <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 text-[10px]">
+                        {DOC_TYPES.reduce((s, d) => s + d.parties.filter(p => (notifPrefs as any)[p.key] !== false).length, 0)}/{DOC_TYPES.reduce((s, d) => s + d.parties.length, 0)} {isAr ? 'مفعّل' : 'active'}
+                    </Badge>
+                </div>
 
-                {/* Schedule */}
+                {/* ─── Document Type Cards ─── */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {DOC_TYPES.map(doc => {
+                        const activeCount = doc.parties.filter(p => (notifPrefs as any)[p.key] !== false).length;
+                        const allActive = activeCount === doc.parties.length;
+
+                        return (
+                            <div key={doc.id} className={`rounded-xl border bg-gradient-to-br ${colorMap[doc.color]} p-3 space-y-2.5`}>
+                                {/* Header */}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">{doc.icon}</span>
+                                        <div>
+                                            <div className="text-[13px] font-bold text-gray-900 dark:text-white">
+                                                {isAr ? doc.labelAr : doc.labelEn}
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                {isAr ? doc.descAr : doc.descEn}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <Badge className={`text-[9px] px-1.5 ${allActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                                        {activeCount}/{doc.parties.length}
+                                    </Badge>
+                                </div>
+
+                                {/* Party Toggles */}
+                                <div className="space-y-0.5">
+                                    {doc.parties.map(party => (
+                                        <label key={party.key}
+                                            className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg cursor-pointer hover:bg-white/60 dark:hover:bg-gray-800/40 transition-colors">
+                                            <Switch
+                                                checked={(notifPrefs as any)[party.key] !== false}
+                                                onCheckedChange={() => toggleNotif(party.key)}
+                                                className="scale-[0.7]"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-[12px] font-medium text-gray-800 dark:text-gray-200">
+                                                    {isAr ? party.labelAr : party.labelEn}
+                                                </div>
+                                                <div className="text-[10px] text-gray-400 truncate">
+                                                    {isAr ? party.hintAr : party.hintEn}
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* ─── Schedule ─── */}
                 <Card>
                     <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-semibold flex items-center gap-2">
