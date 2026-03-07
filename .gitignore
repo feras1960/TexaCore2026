@@ -83,3 +83,6 @@ scripts/check_*.ts
 
 # ═══ n8n workflows (may contain API keys) ═══
 n8n-workflows/
+
+# Google OAuth secrets
+client_secret_*.json
