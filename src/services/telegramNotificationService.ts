@@ -59,6 +59,78 @@ function formatItemsTable(items: Array<{ name: string; qty: number; unit?: strin
     }).join('\n');
 }
 
+// ─── Helper: Fetch bin locations for materials ───────────
+async function fetchBinLocations(
+    materialIds: string[],
+    warehouseId?: string
+): Promise<Record<string, Array<{ binCode: string; binName: string; rollCount: number; totalLength: number }>>> {
+    if (!materialIds?.length) return {};
+
+    try {
+        let query = supabase
+            .from('fabric_rolls')
+            .select('material_id, current_length, bin_location:bin_locations(code, name, row_code, column_code)')
+            .in('material_id', materialIds)
+            .in('status', ['available', 'reserved', 'in_stock'])
+            .not('bin_location_id', 'is', null);
+
+        if (warehouseId) {
+            query = query.eq('warehouse_id', warehouseId);
+        }
+
+        const { data: rolls, error } = await query;
+        if (error || !rolls?.length) return {};
+
+        // Group by material_id → bin
+        const result: Record<string, Array<{ binCode: string; binName: string; rollCount: number; totalLength: number }>> = {};
+        const binMap: Record<string, Record<string, { code: string; name: string; count: number; length: number }>> = {};
+
+        for (const roll of rolls) {
+            const matId = (roll as any).material_id;
+            const bin = (roll as any).bin_location;
+            if (!matId || !bin?.code) continue;
+
+            if (!binMap[matId]) binMap[matId] = {};
+            const binKey = bin.code;
+            if (!binMap[matId][binKey]) {
+                binMap[matId][binKey] = {
+                    code: bin.code,
+                    name: bin.name || `${bin.row_code || ''}${bin.column_code || ''}`,
+                    count: 0,
+                    length: 0,
+                };
+            }
+            binMap[matId][binKey].count++;
+            binMap[matId][binKey].length += Number((roll as any).current_length) || 0;
+        }
+
+        for (const [matId, bins] of Object.entries(binMap)) {
+            result[matId] = Object.values(bins)
+                .sort((a, b) => b.count - a.count)
+                .map(b => ({
+                    binCode: b.code,
+                    binName: b.name,
+                    rollCount: b.count,
+                    totalLength: Math.round(b.length * 100) / 100,
+                }));
+        }
+        return result;
+    } catch {
+        return {};
+    }
+}
+
+// ─── Helper: Format shipping method ──────────────────────
+function formatShippingMethod(method?: string): string {
+    const methods: Record<string, string> = {
+        'store_pickup': '🏬 استلام من الفرع',
+        'direct_delivery': '🚚 توصيل مباشر',
+        'direct_pickup': '🚗 استلام مباشر من العميل',
+        'carrier': '📦 شركة شحن',
+    };
+    return method ? (methods[method] || method) : '';
+}
+
 // ─── Notification Templates ──────────────────────────────
 
 export const telegramNotify = {
@@ -426,7 +498,227 @@ ${data.companyName ? `— ${data.companyName}` : '— TexaFab'}`;
     custom: (companyId: string, eventType: string, htmlMessage: string) => {
         return dispatch(companyId, eventType, htmlMessage);
     },
+
+    // ═══════════════════════════════════════════════════════════
+    // 📦 RICH WAREHOUSE NOTIFICATIONS (with bin locations)
+    // ═══════════════════════════════════════════════════════════
+
+    /** 📦 طلب تجميع مبيعات — Warehouse Picking Order
+     * يُرسل لأمين المستودع عند تأكيد فاتورة مبيعات
+     * يتضمن: البنود + مواقع المواد بالرفوف + طريقة الشحن
+     */
+    warehousePickingOrder: async (companyId: string, data: {
+        orderNumber: string;
+        customerName: string;
+        customerPhone?: string;
+        warehouseId?: string;
+        warehouseName?: string;
+        items: Array<{
+            materialId?: string;
+            name: string;
+            qty: number;
+            unit?: string;
+            rolls?: number;
+            color?: string;
+        }>;
+        totalAmount?: number;
+        currency?: string;
+        shippingMethod?: string;
+        shippingAddress?: string;
+        driverName?: string;
+        driverPhone?: string;
+        notes?: string;
+        createdBy?: string;
+    }) => {
+        try {
+            // Fetch bin locations for all materials
+            const materialIds = data.items
+                .map(i => i.materialId)
+                .filter((id): id is string => !!id);
+
+            const binLocations = await fetchBinLocations(materialIds, data.warehouseId);
+
+            // Format items with bin locations
+            const itemLines = data.items.map((item, idx) => {
+                let line = `<b>${idx + 1}.</b> ${item.name}`;
+                if (item.color) line += ` (${item.color})`;
+                line += `\n   📏 الكمية: <b>${item.qty}</b> ${item.unit || 'م'}`;
+                if (item.rolls) line += ` | ${item.rolls} رول`;
+
+                // Add bin location info
+                if (item.materialId && binLocations[item.materialId]?.length) {
+                    const bins = binLocations[item.materialId];
+                    const binText = bins.slice(0, 3).map(b =>
+                        `📍 <code>${b.binCode}</code> (${b.rollCount} رول, ${b.totalLength} م)`
+                    ).join('\n   ');
+                    line += `\n   ${binText}`;
+                }
+                return line;
+            }).join('\n\n');
+
+            const shippingInfo = data.shippingMethod ? `\n🚛 <b>طريقة الشحن:</b> ${formatShippingMethod(data.shippingMethod)}` : '';
+            const addressInfo = data.shippingAddress ? `\n📍 <b>عنوان التوصيل:</b> ${data.shippingAddress}` : '';
+            const driverInfo = data.driverName ? `\n👤 <b>السائق:</b> ${data.driverName}${data.driverPhone ? ` (${data.driverPhone})` : ''}` : '';
+
+            const msg = `📦 <b>طلب تجميع — فاتورة ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 العميل: <b>${data.customerName}</b>${data.customerPhone ? ` 📱 ${data.customerPhone}` : ''}
+${data.warehouseName ? `🏭 المستودع: <b>${data.warehouseName}</b>` : ''}
+${data.totalAmount ? `💰 المبلغ: <b>${data.totalAmount.toLocaleString()}</b> ${data.currency || '₺'}` : ''}
+
+📋 <b>البنود المطلوبة:</b>
+${itemLines}
+${shippingInfo}${addressInfo}${driverInfo}
+${data.notes ? `\n📝 ملاحظات: ${data.notes}` : ''}
+${data.createdBy ? `\n👤 بواسطة: ${data.createdBy}` : ''}
+
+⚡ يرجى تجميع الطلب وإعداده للتسليم`;
+
+            return dispatch(companyId, 'warehouse_picking', msg.trim(), data.warehouseId);
+        } catch (err) {
+            console.warn('[TelegramNotify] warehousePickingOrder error:', err);
+            return { ok: false, error: 'Failed' };
+        }
+    },
+
+    /** 📥 طلب ترتيب استلام مشتريات — Warehouse Receiving Order
+     * يُرسل لأمين المستودع عند تأكيد/استلام فاتورة مشتريات
+     * يتضمن: البنود + مواقع التخزين المقترحة
+     */
+    warehouseReceivingOrder: async (companyId: string, data: {
+        orderNumber: string;
+        supplierName: string;
+        warehouseId?: string;
+        warehouseName?: string;
+        items: Array<{
+            materialId?: string;
+            name: string;
+            qty: number;
+            unit?: string;
+            rolls?: number;
+            color?: string;
+        }>;
+        totalAmount?: number;
+        currency?: string;
+        notes?: string;
+        createdBy?: string;
+    }) => {
+        try {
+            // Fetch existing bin locations (to suggest where to store)
+            const materialIds = data.items
+                .map(i => i.materialId)
+                .filter((id): id is string => !!id);
+
+            const existingBins = await fetchBinLocations(materialIds, data.warehouseId);
+
+            const itemLines = data.items.map((item, idx) => {
+                let line = `<b>${idx + 1}.</b> ${item.name}`;
+                if (item.color) line += ` (${item.color})`;
+                line += `\n   📏 الكمية: <b>${item.qty}</b> ${item.unit || 'م'}`;
+                if (item.rolls) line += ` | ${item.rolls} رول`;
+
+                // Suggest existing bin location 
+                if (item.materialId && existingBins[item.materialId]?.length) {
+                    const suggestedBin = existingBins[item.materialId][0];
+                    line += `\n   💡 موقع مقترح: <code>${suggestedBin.binCode}</code> (يوجد فيه ${suggestedBin.rollCount} رول)`;
+                }
+                return line;
+            }).join('\n\n');
+
+            const msg = `📥 <b>طلب استلام مشتريات — ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 المورّد: <b>${data.supplierName}</b>
+${data.warehouseName ? `🏭 المستودع: <b>${data.warehouseName}</b>` : ''}
+${data.totalAmount ? `💰 المبلغ: <b>${data.totalAmount.toLocaleString()}</b> ${data.currency || '₺'}` : ''}
+
+📋 <b>المواد الواردة:</b>
+${itemLines}
+${data.notes ? `\n📝 ملاحظات: ${data.notes}` : ''}
+${data.createdBy ? `\n👤 بواسطة: ${data.createdBy}` : ''}
+
+⚡ يرجى الفحص والاستلام وترتيب المواد بالمستودع`;
+
+            return dispatch(companyId, 'warehouse_receiving', msg.trim(), data.warehouseId);
+        } catch (err) {
+            console.warn('[TelegramNotify] warehouseReceivingOrder error:', err);
+            return { ok: false, error: 'Failed' };
+        }
+    },
+
+    /** 🔄 طلب تجميع مناقلة — Transfer Picking Order
+     * يُرسل لأمين مستودع المصدر عند تأكيد مناقلة
+     * يتضمن: البنود + مواقع المواد + معلومات الشحن
+     */
+    warehouseTransferPicking: async (companyId: string, data: {
+        transferNumber: string;
+        fromWarehouseId: string;
+        fromWarehouseName: string;
+        toWarehouseName: string;
+        items: Array<{
+            materialId?: string;
+            name: string;
+            qty: number;
+            unit?: string;
+            rolls?: number;
+            color?: string;
+        }>;
+        shippingMethod?: string;
+        driverName?: string;
+        driverPhone?: string;
+        vehicleNumber?: string;
+        notes?: string;
+        createdBy?: string;
+    }) => {
+        try {
+            // Fetch bin locations from source warehouse
+            const materialIds = data.items
+                .map(i => i.materialId)
+                .filter((id): id is string => !!id);
+
+            const binLocations = await fetchBinLocations(materialIds, data.fromWarehouseId);
+
+            const itemLines = data.items.map((item, idx) => {
+                let line = `<b>${idx + 1}.</b> ${item.name}`;
+                if (item.color) line += ` (${item.color})`;
+                line += `\n   📏 الكمية: <b>${item.qty}</b> ${item.unit || 'م'}`;
+                if (item.rolls) line += ` | ${item.rolls} رول`;
+
+                if (item.materialId && binLocations[item.materialId]?.length) {
+                    const bins = binLocations[item.materialId];
+                    const binText = bins.slice(0, 3).map(b =>
+                        `📍 <code>${b.binCode}</code> (${b.rollCount} رول, ${b.totalLength} م)`
+                    ).join('\n   ');
+                    line += `\n   ${binText}`;
+                }
+                return line;
+            }).join('\n\n');
+
+            const shippingLine = data.shippingMethod ? `\n🚛 طريقة النقل: ${formatShippingMethod(data.shippingMethod)}` : '';
+            const driverLine = data.driverName ? `\n👤 السائق: ${data.driverName}${data.driverPhone ? ` (${data.driverPhone})` : ''}` : '';
+            const vehicleLine = data.vehicleNumber ? `\n🚗 رقم المركبة: ${data.vehicleNumber}` : '';
+
+            const msg = `🔄 <b>طلب تجميع مناقلة — ${data.transferNumber}</b>
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📍 من: <b>${data.fromWarehouseName}</b>
+📍 إلى: <b>${data.toWarehouseName}</b>
+
+📋 <b>المواد المطلوب نقلها:</b>
+${itemLines}
+${shippingLine}${driverLine}${vehicleLine}
+${data.notes ? `\n📝 ملاحظات: ${data.notes}` : ''}
+${data.createdBy ? `\n👤 بواسطة: ${data.createdBy}` : ''}
+
+⚡ يرجى تجميع المواد وتجهيزها للنقل`;
+
+            return dispatch(companyId, 'warehouse_transfer_picking', msg.trim(), data.fromWarehouseId);
+        } catch (err) {
+            console.warn('[TelegramNotify] warehouseTransferPicking error:', err);
+            return { ok: false, error: 'Failed' };
+        }
+    },
 };
 
 export default telegramNotify;
-

@@ -690,55 +690,88 @@ export const salesTransactionService = {
 
     async _sendSalesStageNotification(input: AdvanceStageInput): Promise<void> {
         try {
-            // Fetch transaction data (includes company_id)
+            // Fetch transaction data (includes company_id + shipping details)
             const { data: tx } = await supabase
                 .from('sales_transactions')
-                .select('id, document_number, invoice_no, order_no, customer_name, customer_id, total_amount, currency, warehouse_id, company_id')
+                .select(`
+                    id, document_number, invoice_no, order_no, 
+                    customer_name, customer_id, total_amount, currency, 
+                    warehouse_id, company_id,
+                    shipping_method, shipping_address,
+                    driver_name, driver_phone,
+                    delivery_method, notes
+                `)
                 .eq('id', input.transaction_id)
                 .single();
             if (!tx) return;
 
-            // Fetch items
+            // Fetch items WITH material_id and color
             const { data: items } = await supabase
                 .from('sales_transaction_items')
-                .select('description, description_ar, quantity, unit, unit_price')
+                .select('material_id, description, description_ar, quantity, unit, unit_price, color_name, rolls_count')
                 .eq('transaction_id', input.transaction_id);
 
+            // Fetch warehouse name
+            let warehouseName = '';
+            if (tx.warehouse_id) {
+                const { data: wh } = await supabase
+                    .from('warehouses')
+                    .select('name_ar')
+                    .eq('id', tx.warehouse_id)
+                    .maybeSingle();
+                warehouseName = wh?.name_ar || '';
+            }
+
+            // Fetch customer phone
+            let customerPhone = '';
+            if (tx.customer_id) {
+                const { data: cust } = await supabase
+                    .from('customers')
+                    .select('phone')
+                    .eq('id', tx.customer_id)
+                    .maybeSingle();
+                customerPhone = cust?.phone || '';
+            }
+
             const docNo = tx.invoice_no || tx.order_no || tx.document_number || tx.id.substring(0, 8);
-            const mappedItems = (items || []).map((i: any) => ({
+            const richItems = (items || []).map((i: any) => ({
+                materialId: i.material_id || undefined,
                 name: i.description_ar || i.description || '-',
                 qty: i.quantity || 0,
-                unit: i.unit || 'pc',
+                unit: i.unit || 'م',
+                rolls: i.rolls_count || undefined,
+                color: i.color_name || undefined,
             }));
 
             if (input.new_stage === 'confirmed' || input.new_stage === 'order') {
-                telegramNotify.salesOrder(tx.company_id, {
+                // 📦 Rich warehouse picking order (with bin locations!)
+                telegramNotify.warehousePickingOrder(tx.company_id, {
                     orderNumber: docNo,
                     customerName: tx.customer_name || '-',
+                    customerPhone: customerPhone || undefined,
+                    warehouseId: tx.warehouse_id || undefined,
+                    warehouseName: warehouseName || undefined,
+                    items: richItems,
                     totalAmount: tx.total_amount || 0,
                     currency: tx.currency || 'TRY',
-                    itemCount: mappedItems.length,
+                    shippingMethod: tx.delivery_method || tx.shipping_method || undefined,
+                    shippingAddress: tx.shipping_address || undefined,
+                    driverName: tx.driver_name || undefined,
+                    driverPhone: tx.driver_phone || undefined,
+                    notes: tx.notes || undefined,
+                    createdBy: input.user_name || undefined,
                 });
             }
 
             if (input.new_stage === 'delivered') {
-                telegramNotify.issueOrder(tx.company_id, {
-                    orderNumber: docNo,
-                    customerName: tx.customer_name || '-',
-                    warehouseId: tx.warehouse_id || undefined,
-                    items: mappedItems,
-                    totalQty: mappedItems.reduce((s, i) => s + i.qty, 0),
-                    createdBy: input.user_name || undefined,
-                });
-
                 // Also notify customer if they have Telegram
                 if (tx.customer_id) {
                     telegramNotify.customerGoodsReady(tx.company_id, {
                         customerId: tx.customer_id,
                         customerName: tx.customer_name || '',
                         invoiceNumber: docNo,
-                        items: mappedItems,
-                        totalQty: mappedItems.reduce((s, i) => s + i.qty, 0),
+                        items: richItems,
+                        totalQty: richItems.reduce((s, i) => s + i.qty, 0),
                     });
                 }
             }

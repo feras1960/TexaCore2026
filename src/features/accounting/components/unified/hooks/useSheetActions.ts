@@ -1001,6 +1001,55 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                     : `✅ Transfer saved & confirmed${permanentNumber ? `\n📋 Number: ${permanentNumber}` : ''}\n📦 Source warehouse will be notified to prepare goods`,
                             );
 
+                            // 📱 Telegram: Send transfer picking notification
+                            try {
+                                const { telegramNotify } = await import('@/services/telegramNotificationService');
+                                const transferCompanyId = data?.company_id || companyId;
+                                if (transferCompanyId) {
+                                    // Fetch transfer items with material details
+                                    const { data: transferItems } = await supabase
+                                        .from('stock_transfer_items')
+                                        .select('material_id, quantity, material:fabric_materials(name_ar, name_en)')
+                                        .eq('transfer_id', docId);
+
+                                    // Fetch warehouse names
+                                    const fromWhId = data?.from_warehouse_id || data?.warehouse_id;
+                                    const toWhId = data?.to_warehouse_id;
+                                    let fromWhName = '', toWhName = '';
+                                    if (fromWhId) {
+                                        const { data: wh } = await supabase.from('warehouses').select('name_ar').eq('id', fromWhId).maybeSingle();
+                                        fromWhName = wh?.name_ar || '';
+                                    }
+                                    if (toWhId) {
+                                        const { data: wh } = await supabase.from('warehouses').select('name_ar').eq('id', toWhId).maybeSingle();
+                                        toWhName = wh?.name_ar || '';
+                                    }
+
+                                    const mappedItems = (transferItems || []).map((i: any) => ({
+                                        materialId: i.material_id || undefined,
+                                        name: i.material?.name_ar || i.material?.name_en || '-',
+                                        qty: i.quantity || 0,
+                                        unit: 'م',
+                                        rolls: 1,
+                                    }));
+
+                                    telegramNotify.warehouseTransferPicking(transferCompanyId, {
+                                        transferNumber: permanentNumber || data?.transfer_number || '',
+                                        fromWarehouseId: fromWhId || '',
+                                        fromWarehouseName: fromWhName,
+                                        toWarehouseName: toWhName,
+                                        items: mappedItems,
+                                        shippingMethod: data?.shipping_method || undefined,
+                                        driverName: data?.driver_name || undefined,
+                                        driverPhone: data?.driver_phone || undefined,
+                                        vehicleNumber: data?.vehicle_number || undefined,
+                                        notes: data?.notes || undefined,
+                                    });
+                                }
+                            } catch (tgErr) {
+                                console.warn('[Transfer] Telegram notification failed (non-blocking):', tgErr);
+                            }
+
                             // Close sheet and go back to transfers list
                             onRefresh?.();
                             onClose();
@@ -1061,6 +1110,83 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 ? `✅ تم حفظ وتأكيد الفاتورة بنجاح${permanentNumber ? ` — الرقم: ${permanentNumber}` : ''}${isSales ? '\n📦 سيتم إشعار أمين المستودع لتجهيز الطلب' : ''}`
                                 : `✅ Invoice saved & confirmed${permanentNumber ? ` — Number: ${permanentNumber}` : ''}${isSales ? '\n📦 Warehouse keeper will be notified' : ''}`,
                         );
+
+                        // 📱 Telegram: Send warehouse notification for confirmed sales/purchases
+                        try {
+                            const { telegramNotify } = await import('@/services/telegramNotificationService');
+                            const confirmCompanyId = data?.company_id || companyId;
+                            if (confirmCompanyId) {
+                                const docNo = permanentNumber || data?.invoice_no || data?.order_number || docId.substring(0, 8);
+
+                                if (isSales) {
+                                    // Fetch items with material_id
+                                    const { data: sItems } = await supabase
+                                        .from('sales_transaction_items')
+                                        .select('material_id, description_ar, description, quantity, unit, rolls_count, color_name')
+                                        .eq('transaction_id', docId);
+
+                                    let whName = '';
+                                    if (data?.warehouse_id) {
+                                        const { data: wh } = await supabase.from('warehouses').select('name_ar').eq('id', data.warehouse_id).maybeSingle();
+                                        whName = wh?.name_ar || '';
+                                    }
+
+                                    telegramNotify.warehousePickingOrder(confirmCompanyId, {
+                                        orderNumber: docNo,
+                                        customerName: data?.customer_name || data?.party_name || '-',
+                                        warehouseId: data?.warehouse_id || undefined,
+                                        warehouseName: whName || undefined,
+                                        items: (sItems || []).map((i: any) => ({
+                                            materialId: i.material_id || undefined,
+                                            name: i.description_ar || i.description || '-',
+                                            qty: i.quantity || 0,
+                                            unit: i.unit || 'م',
+                                            rolls: i.rolls_count || undefined,
+                                            color: i.color_name || undefined,
+                                        })),
+                                        totalAmount: data?.total_amount || data?.grand_total || 0,
+                                        currency: data?.currency || 'TRY',
+                                        shippingMethod: data?.delivery_method || data?.shipping_method || undefined,
+                                        shippingAddress: data?.shipping_address || undefined,
+                                        driverName: data?.driver_name || undefined,
+                                        notes: data?.notes || undefined,
+                                    });
+                                } else {
+                                    // Purchase confirmation → warehouse receiving
+                                    const { data: pItems } = await supabase
+                                        .from('purchase_transaction_items')
+                                        .select('material_id, description_ar, description, quantity, unit, rolls_count, color_name')
+                                        .eq('transaction_id', docId);
+
+                                    let whName = '';
+                                    if (data?.warehouse_id) {
+                                        const { data: wh } = await supabase.from('warehouses').select('name_ar').eq('id', data.warehouse_id).maybeSingle();
+                                        whName = wh?.name_ar || '';
+                                    }
+
+                                    telegramNotify.warehouseReceivingOrder(confirmCompanyId, {
+                                        orderNumber: docNo,
+                                        supplierName: data?.supplier_name || data?.party_name || '-',
+                                        warehouseId: data?.warehouse_id || undefined,
+                                        warehouseName: whName || undefined,
+                                        items: (pItems || []).map((i: any) => ({
+                                            materialId: i.material_id || undefined,
+                                            name: i.description_ar || i.description || '-',
+                                            qty: i.quantity || 0,
+                                            unit: i.unit || 'م',
+                                            rolls: i.rolls_count || undefined,
+                                            color: i.color_name || undefined,
+                                        })),
+                                        totalAmount: data?.total_amount || data?.grand_total || 0,
+                                        currency: data?.currency || 'TRY',
+                                        notes: data?.notes || undefined,
+                                    });
+                                }
+                            }
+                        } catch (tgErr) {
+                            console.warn('[SaveConfirm] Telegram notification failed (non-blocking):', tgErr);
+                        }
+
                         onRefresh?.();
                     } catch (err: any) {
                         console.error('SaveConfirm failed:', err);

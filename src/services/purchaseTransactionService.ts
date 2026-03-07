@@ -605,32 +605,49 @@ export const purchaseTransactionService = {
         try {
             const { data: tx } = await supabase
                 .from('purchase_transactions')
-                .select('id, receipt_no, order_no, invoice_no, supplier_name, total_amount, currency, warehouse_id, company_id')
+                .select('id, receipt_no, order_no, invoice_no, supplier_name, total_amount, currency, warehouse_id, company_id, notes')
                 .eq('id', input.transaction_id)
                 .single();
             if (!tx) return;
 
+            // Fetch items WITH material_id and color
             const { data: items } = await supabase
                 .from('purchase_transaction_items')
-                .select('description, description_ar, quantity, unit, rolls_count')
+                .select('material_id, description, description_ar, quantity, unit, rolls_count, color_name')
                 .eq('transaction_id', input.transaction_id);
 
+            // Fetch warehouse name
+            let warehouseName = '';
+            if (tx.warehouse_id) {
+                const { data: wh } = await supabase
+                    .from('warehouses')
+                    .select('name_ar')
+                    .eq('id', tx.warehouse_id)
+                    .maybeSingle();
+                warehouseName = wh?.name_ar || '';
+            }
+
             const docNo = tx.receipt_no || tx.order_no || tx.invoice_no || tx.id.substring(0, 8);
-            const mappedItems = (items || []).map((i: any) => ({
+            const richItems = (items || []).map((i: any) => ({
+                materialId: i.material_id || undefined,
                 name: i.description_ar || i.description || '-',
                 qty: i.quantity || 0,
-                unit: i.unit || 'pc',
+                unit: i.unit || 'م',
                 rolls: i.rolls_count || undefined,
+                color: i.color_name || undefined,
             }));
 
             if (['received', 'receipt'].includes(input.new_stage)) {
-                telegramNotify.receiptOrder(tx.company_id, {
+                // 📥 Rich warehouse receiving order (with suggested bin locations!)
+                telegramNotify.warehouseReceivingOrder(tx.company_id, {
                     orderNumber: docNo,
                     supplierName: tx.supplier_name || '-',
                     warehouseId: tx.warehouse_id || undefined,
-                    items: mappedItems,
-                    totalQty: mappedItems.reduce((s, i) => s + i.qty, 0),
-                    totalRolls: mappedItems.reduce((s, i) => s + (i.rolls || 0), 0) || undefined,
+                    warehouseName: warehouseName || undefined,
+                    items: richItems,
+                    totalAmount: tx.total_amount || 0,
+                    currency: tx.currency || 'TRY',
+                    notes: tx.notes || undefined,
                     createdBy: input.user_name || undefined,
                 });
             }

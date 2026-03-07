@@ -18,6 +18,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { telegramNotify } from '@/services/telegramNotificationService';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -343,6 +344,31 @@ export const transferService = {
             }
 
             console.log(`[Transfer] ✅ Confirmed ${transfer.transfer_number} — ${rollIds.length} rolls moved`);
+
+            // ── 5. 📱 Telegram: إشعار أمين المستودع المصدر بالتجميع ───
+            try {
+                const transferItems = (transfer.items || []).map(item => ({
+                    materialId: item.material_id || undefined,
+                    name: item.material?.name_ar || item.material?.name_en || '-',
+                    qty: item.quantity || 0,
+                    unit: 'م',
+                    rolls: 1,
+                    color: undefined as string | undefined,
+                }));
+
+                telegramNotify.warehouseTransferPicking(transfer.company_id, {
+                    transferNumber: transfer.transfer_number,
+                    fromWarehouseId: transfer.from_warehouse_id,
+                    fromWarehouseName: transfer.from_warehouse?.name_ar || '-',
+                    toWarehouseName: transfer.to_warehouse?.name_ar || '-',
+                    items: transferItems,
+                    notes: transfer.notes || undefined,
+                    createdBy: confirmedBy,
+                });
+            } catch (tgErr) {
+                console.warn('[Transfer] Telegram notification failed (non-blocking):', tgErr);
+            }
+
             return { success: true };
         } catch (err: any) {
             console.error('[Transfer] ❌ confirmTransfer exception:', err.message);
