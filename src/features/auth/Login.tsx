@@ -207,6 +207,8 @@ export default function Login() {
   };
 
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
@@ -243,6 +245,53 @@ export default function Login() {
           : 'Error connecting to Google'
       );
       setGoogleLoading(false);
+    }
+  };
+
+  const handleMagicLink = async () => {
+    if (!email) {
+      setFormError(
+        language === 'ar'
+          ? 'يرجى إدخال البريد الإلكتروني أولاً'
+          : 'Please enter your email first'
+      );
+      return;
+    }
+
+    setMagicLinkLoading(true);
+    setFormError(null);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const redirectUrl = window.location.hostname === 'localhost'
+        ? `${window.location.origin}/`
+        : 'https://app.texacore.ai/';
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+
+      if (error) {
+        console.error('[Magic Link] Error:', error);
+        setFormError(
+          language === 'ar'
+            ? 'حدث خطأ أثناء إرسال رابط الدخول: ' + error.message
+            : 'Error sending magic link: ' + error.message
+        );
+      } else {
+        setMagicLinkSent(true);
+        setFormError(null);
+      }
+    } catch (err: any) {
+      console.error('[Magic Link] Exception:', err);
+      setFormError(
+        language === 'ar'
+          ? 'حدث خطأ أثناء إرسال رابط الدخول'
+          : 'Error sending magic link'
+      );
+    } finally {
+      setMagicLinkLoading(false);
     }
   };
 
@@ -518,6 +567,37 @@ export default function Login() {
                 )}
               </Button>
             </form>
+
+            {/* Magic Link Divider */}
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-gray-400">{t('common.or')}</span>
+              </div>
+            </div>
+
+            {/* Magic Link Button */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleMagicLink}
+              disabled={magicLinkLoading || loading || googleLoading}
+              className="w-full h-11 text-sm font-medium gap-2 border-2 border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all rounded-xl"
+            >
+              {magicLinkLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+              ) : (
+                <Sparkles className="w-4 h-4 text-amber-500" />
+              )}
+              <span className="text-gray-700">
+                {magicLinkSent
+                  ? (language === 'ar' ? '✅ تم الإرسال! تحقق من بريدك' : '✅ Sent! Check your email')
+                  : (language === 'ar' ? 'إرسال رابط الدخول السحري' : 'Send Magic Link')
+                }
+              </span>
+            </Button>
 
             {/* Trust Badges */}
             <div className="flex items-center justify-center gap-6 mt-8 pt-6 border-t border-gray-100">
