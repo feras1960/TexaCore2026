@@ -392,6 +392,19 @@
     "detail": "Detail",
     "dueDate": "Due Date",
     "duplicateRow": "Duplicate row",
+    "grid": {
+      "keyboardShortcuts": "Keyboard Shortcuts",
+      "navigation": "Navigation",
+      "nextRow": "Next row (down)",
+      "nextColumn": "Next column",
+      "navigateCells": "Navigate cells",
+      "copy": "Copy",
+      "copyAboveDown": "Copy above + down",
+      "rows": "Rows",
+      "insertRow": "Insert row",
+      "clearCell": "Clear cell",
+      "swapDebitCredit": "Swap debit↔credit"
+    },
     "editAccount": "Edit Account",
     "editGroup": "Edit Group",
     "entry": {
@@ -647,7 +660,8 @@
       "attachments": "Attachments",
       "form": "Form",
       "documents": "Documents",
-      "analysis": "AI Analysis"
+      "analysis": "AI Analysis",
+      "accountingEntry": "Accounting Entry"
     },
     "details": "Details",
     "activity": "Activity",
@@ -3918,6 +3932,15 @@
       "users": "Users",
       "branches": "Branches",
       "auditLog": "Audit Log"
+    }
+  },
+  "profile": {
+    "tabs": {
+      "personal": "Personal Info",
+      "security": "Security",
+      "notifications": "Notifications",
+      "preferences": "Preferences",
+      "account": "Account"
     }
   }
 }

@@ -273,6 +273,7 @@
     "detail": "[UK] detail",
     "dueDate": "[UK] dueDate",
     "duplicateRow": "Дублювати рядок",
+    "grid": {"keyboardShortcuts":"Гарячі клавіші","navigation":"Навігація","nextRow":"Наступний рядок (вниз)","nextColumn":"Наступний стовпець","navigateCells":"Навігація по клітинках","copy":"Копіювання","copyAboveDown":"Копіювати зверху + вниз","rows":"Рядки","insertRow":"Вставити рядок","clearCell":"Очистити клітинку","swapDebitCredit":"Обмін дебет↔кредит"},
     "editAccount": "[UK] editAccount",
     "editGroup": "[UK] Edit Group",
     "entry": {

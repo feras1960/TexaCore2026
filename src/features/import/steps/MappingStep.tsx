@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, XCircle, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import type { ColumnMapping, EntityDefinition, ParsedFile } from '@/services/importService';
 
 interface MappingStepProps {
@@ -88,7 +89,7 @@ export function MappingStep({
             {missingRequired.map(fieldName => {
               const field = entityDefinition.fields.find(f => f.name === fieldName);
               return (
-                <span 
+                <span
                   key={fieldName}
                   className="px-2 py-1 bg-destructive/20 text-destructive text-sm rounded"
                 >
@@ -113,7 +114,7 @@ export function MappingStep({
           </TableHeader>
           <TableBody>
             {columnMappings.map((mapping) => {
-              const isRequired = mapping.system_field && 
+              const isRequired = mapping.system_field &&
                 requiredFields.includes(mapping.system_field);
 
               return (
@@ -126,15 +127,15 @@ export function MappingStep({
                       }
                     </div>
                   </TableCell>
-                  
+
                   <TableCell className="text-center">
                     <ArrowRight className="h-4 w-4 text-muted-foreground inline" />
                   </TableCell>
-                  
+
                   <TableCell>
                     <Select
                       value={mapping.system_field || 'none'}
-                      onValueChange={(value) => 
+                      onValueChange={(value) =>
                         onUpdateMapping(mapping.file_column, value === 'none' ? '' : value)
                       }
                     >
@@ -146,13 +147,13 @@ export function MappingStep({
                           <span className="text-muted-foreground">-- {t('import.ignore')} --</span>
                         </SelectItem>
                         {entityDefinition.fields.map((field) => {
-                          const alreadyMapped = mappedSystemFields.includes(field.name) && 
+                          const alreadyMapped = mappedSystemFields.includes(field.name) &&
                             mapping.system_field !== field.name;
                           const isReq = requiredFields.includes(field.name);
-                          
+
                           return (
-                            <SelectItem 
-                              key={field.name} 
+                            <SelectItem
+                              key={field.name}
                               value={field.name}
                               disabled={alreadyMapped}
                             >
@@ -166,10 +167,17 @@ export function MappingStep({
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  
+
                   <TableCell className="text-center">
                     {mapping.is_mapped ? (
-                      <CheckCircle className={`h-5 w-5 inline ${isRequired ? 'text-green-600' : 'text-blue-600'}`} />
+                      <div className="flex items-center justify-center gap-1">
+                        <CheckCircle className={`h-5 w-5 inline ${isRequired ? 'text-green-600' : 'text-blue-600'}`} />
+                        {(mapping as any).ai_confidence >= 70 && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-700 border-purple-200" title={(mapping as any).ai_reason}>
+                            🤖 {(mapping as any).ai_confidence}%
+                          </Badge>
+                        )}
+                      </div>
                     ) : (
                       <XCircle className="h-5 w-5 inline text-muted-foreground" />
                     )}
@@ -183,8 +191,8 @@ export function MappingStep({
 
       {/* Action Button */}
       <div className="flex justify-end">
-        <Button 
-          onClick={onValidate} 
+        <Button
+          onClick={onValidate}
           disabled={!canProceed || isLoading}
           size="lg"
         >

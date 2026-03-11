@@ -273,6 +273,7 @@
     "detail": "[DE] detail",
     "dueDate": "[DE] dueDate",
     "duplicateRow": "Zeile duplizieren",
+    "grid": {"keyboardShortcuts":"Tastenkombinationen","navigation":"Navigation","nextRow":"Nächste Zeile (unten)","nextColumn":"Nächste Spalte","navigateCells":"Zwischen Zellen navigieren","copy":"Kopieren","copyAboveDown":"Von oben kopieren + nach unten","rows":"Zeilen","insertRow":"Zeile einfügen","clearCell":"Zelle leeren","swapDebitCredit":"Soll↔Haben tauschen"},
     "editAccount": "[DE] editAccount",
     "editGroup": "[DE] Edit Group",
     "entry": {

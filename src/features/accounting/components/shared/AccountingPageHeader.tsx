@@ -29,7 +29,7 @@ export const AccountingPageHeader: React.FC<AccountingPageHeaderProps> = ({
                 )}
             </div>
             {children && (
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                     {children}
                 </div>
             )}

@@ -209,8 +209,12 @@ export function Header() {
                 )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>{t('auth.profile')}</DropdownMenuItem>
-              <DropdownMenuItem>{t('navigation.settings')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                {t('auth.profile')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/profile/preferences')} className="cursor-pointer">
+                {t('navigation.settings')}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-erp-error cursor-pointer"

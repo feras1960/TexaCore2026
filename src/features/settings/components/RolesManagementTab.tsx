@@ -83,13 +83,14 @@ const ROLE_CODE_ORDER: Record<string, number> = {
     accountant: 4,
     cashier: 5,
     warehouse_keeper: 6,
-    sales_rep: 7,
-    purchaser: 8,
-    viewer: 9,
-    employee: 10,
-    auditor: 11,
-    driver: 12,
-    agent: 13,
+    picker: 7,
+    sales_rep: 8,
+    purchaser: 9,
+    viewer: 10,
+    employee: 11,
+    auditor: 12,
+    driver: 13,
+    agent: 14,
 };
 
 // Protected roles — can be VIEWED (click to see details) but NOT deleted

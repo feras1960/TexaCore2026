@@ -382,15 +382,24 @@ async function handleCallbackQuery(supabase: any, botToken: string, callbackQuer
 // ═══════════════════════════════════════════════════════════════
 // Main Handler
 // ═══════════════════════════════════════════════════════════════
+
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function corsResponse(body: any, status = 200) {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    })
+}
+
 serve(async (req: Request) => {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-        return new Response('ok', {
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': '*',
-            }
-        })
+        return new Response('ok', { headers: corsHeaders })
     }
 
     try {
@@ -398,7 +407,7 @@ serve(async (req: Request) => {
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
         if (!serviceRoleKey) {
-            return new Response(JSON.stringify({ error: 'Service role key missing' }), { status: 500 })
+            return corsResponse({ error: 'Service role key missing' }, 500)
         }
 
         // Service-role client (full access)
@@ -409,44 +418,32 @@ serve(async (req: Request) => {
 
         // ─── Webhook verification from settings UI ──────────
         if (body.action === 'verify_webhook') {
-            return new Response(JSON.stringify({ ok: true, message: 'Webhook active' }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true, message: 'Webhook active' })
         }
 
         // ─── Send notification from web app ─────────────────
         if (body.action === 'send_notification') {
             const { company_id, chat_id, message } = body
             if (!company_id || !chat_id || !message) {
-                return new Response(JSON.stringify({ ok: false, error: 'Missing params' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Missing params' })
             }
             const notifConfig = await getBotConfig(supabase, company_id)
             if (!notifConfig) {
-                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Bot not configured' })
             }
             const result = await sendMessage(notifConfig.botToken, chat_id, message)
-            return new Response(JSON.stringify({ ok: result.ok }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: result.ok })
         }
 
         // ─── Send bulk notification ─────────────────────────
         if (body.action === 'send_bulk_notification') {
             const { company_id, message: bulkMessage, target_type } = body
             if (!company_id || !bulkMessage) {
-                return new Response(JSON.stringify({ ok: false, error: 'Missing params' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Missing params' })
             }
             const bulkConfig = await getBotConfig(supabase, company_id)
             if (!bulkConfig) {
-                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Bot not configured' })
             }
 
             // Get all active connections
@@ -470,24 +467,18 @@ serve(async (req: Request) => {
                     if (r.ok) sentCount++
                 }
             }
-            return new Response(JSON.stringify({ ok: true, sent: sentCount }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true, sent: sentCount })
         }
 
         // ─── Dispatch notification by event type ────────────
         if (body.action === 'dispatch_notification') {
             const { company_id, event_type, message: notifMessage, html_message } = body
             if (!company_id || !event_type || (!notifMessage && !html_message)) {
-                return new Response(JSON.stringify({ ok: false, error: 'Missing: company_id, event_type, message' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Missing: company_id, event_type, message' })
             }
             const dispatchConfig = await getBotConfig(supabase, company_id)
             if (!dispatchConfig) {
-                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Bot not configured' })
             }
 
             // ═══ Layer 1: Company-level settings ═══
@@ -531,9 +522,7 @@ serve(async (req: Request) => {
                 const allDisabled = companyKeys.every(k => companyPrefs[k] === false)
                 if (allDisabled) {
                     console.log(`[Dispatch] ${event_type}: BLOCKED by company settings (${companyKeys.join(',')})`)
-                    return new Response(JSON.stringify({ ok: true, event_type, sent: 0, skipped: 0, blocked_by: 'company_settings' }), {
-                        headers: { 'Content-Type': 'application/json' },
-                    })
+                    return corsResponse({ ok: true, event_type, sent: 0, skipped: 0, blocked_by: 'company_settings' })
                 }
             }
 
@@ -547,18 +536,18 @@ serve(async (req: Request) => {
 
             // Map event_type → which roles should receive it
             const EVENT_TO_ROLES: Record<string, string[]> = {
-                'receipt_order': ['warehouse_keeper', 'owner'],
-                'issue_order': ['warehouse_keeper', 'owner'],
+                'receipt_order': ['warehouse_keeper', 'picker', 'owner'],
+                'issue_order': ['warehouse_keeper', 'picker', 'owner'],
                 'shipment_arrival': ['warehouse_keeper', 'owner'],
-                'warehouse_transfer': ['warehouse_keeper', 'owner'],
+                'warehouse_transfer': ['warehouse_keeper', 'picker', 'owner'],
                 'low_stock': ['warehouse_keeper', 'owner'],
-                'inventory_task': ['warehouse_keeper'],
-                'payment_received': ['accountant', 'owner'],
-                'payment_sent': ['accountant', 'owner'],
+                'inventory_task': ['warehouse_keeper', 'picker'],
+                'payment_received': ['accountant', 'cashier', 'owner'],
+                'payment_sent': ['accountant', 'cashier', 'owner'],
                 'invoice_due': ['accountant', 'owner'],
                 'credit_limit': ['owner', 'sales_manager'],
                 'price_update': ['sales_manager', 'owner'],
-                'sales_order': ['owner', 'sales_manager', 'accountant'],
+                'sales_order': ['owner', 'sales_manager', 'accountant', 'cashier'],
                 'delivery_route': ['driver'],
             }
 
@@ -570,6 +559,11 @@ serve(async (req: Request) => {
             let sentCount = 0
             let skippedCount = 0
 
+            // ═══ Layer 4: Role-based message content ═══
+            // role_messages: { warehouse_keeper: "...", owner: "...", accountant: "...", driver: "..." }
+            const roleMessages = body.role_messages || {}
+            const defaultMsg = html_message || notifMessage
+
             if (activeConns) {
                 for (const conn of activeConns) {
                     // Layer 2a: Role-based filter (if roles are defined)
@@ -580,10 +574,9 @@ serve(async (req: Request) => {
                         }
                     }
 
-                    // Layer 2b: Warehouse-specific filter
-                    if (targetWarehouseId && conn.notification_role === 'warehouse_keeper') {
+                    // Layer 2b: Warehouse-specific filter (applies to warehouse_keeper and picker)
+                    if (targetWarehouseId && (conn.notification_role === 'warehouse_keeper' || conn.notification_role === 'picker')) {
                         const assignedWhs = conn.assigned_warehouses || []
-                        // If they have specific warehouses assigned, check if this one matches
                         if (assignedWhs.length > 0 && !assignedWhs.includes(targetWarehouseId)) {
                             skippedCount++
                             continue
@@ -597,39 +590,33 @@ serve(async (req: Request) => {
                         continue
                     }
 
-                    const msgToSend = html_message || notifMessage
+                    // Layer 4: Pick role-specific message or fallback to default
+                    const role = conn.notification_role || ''
+                    const msgToSend = roleMessages[role] || defaultMsg
                     const r = await sendMessage(dispatchConfig.botToken, conn.telegram_chat_id, msgToSend)
                     if (r.ok) sentCount++
                 }
             }
 
             console.log(`[Dispatch] ${event_type}: sent=${sentCount}, skipped=${skippedCount}`)
-            return new Response(JSON.stringify({ ok: true, event_type, sent: sentCount, skipped: skippedCount }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true, event_type, sent: sentCount, skipped: skippedCount })
         }
 
         // ─── Send direct message to specific chat ───────────
         if (body.action === 'send_direct_message') {
             const { company_id, chat_id, message: directMsg, html_message } = body
             if (!company_id || !chat_id || (!directMsg && !html_message)) {
-                return new Response(JSON.stringify({ ok: false, error: 'Missing: company_id, chat_id, message' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Missing: company_id, chat_id, message' })
             }
             const directConfig = await getBotConfig(supabase, company_id)
             if (!directConfig) {
-                return new Response(JSON.stringify({ ok: false, error: 'Bot not configured' }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: false, error: 'Bot not configured' })
             }
 
             const msgToSend = html_message || directMsg
             const r = await sendMessage(directConfig.botToken, chat_id, msgToSend)
             console.log(`[DirectMsg] chat=${chat_id}: ${r.ok ? 'sent' : 'failed'}`)
-            return new Response(JSON.stringify({ ok: r.ok, chat_id }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: r.ok, chat_id })
         }
 
         // ─── Bot token from URL parameter or body ───────────
@@ -676,35 +663,27 @@ serve(async (req: Request) => {
 
         if (!companyId) {
             console.error('[TelegramWebhook] No company found for this bot')
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' }
-            })
+            return corsResponse({ ok: true })
         }
 
         // Get bot token from company settings
         const config = await getBotConfig(supabase, companyId)
         if (!config) {
             console.error('[TelegramWebhook] No bot config for company:', companyId)
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
         const botToken = config.botToken
 
         // ─── Handle Callback Query (button press) ───────────
         if (update.callback_query) {
             await handleCallbackQuery(supabase, botToken, update.callback_query)
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ─── Handle Message ─────────────────────────────────
         const message = update.message
         if (!message || !message.text) {
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         const chatId = message.chat.id
@@ -720,9 +699,7 @@ serve(async (req: Request) => {
             // In groups, only respond to commands or @mentions
             const botUsername = config.botToken ? '' : '' // We'd need to fetch this
             if (!text.startsWith('/') && !text.includes(`@${botUsername}`)) {
-                return new Response(JSON.stringify({ ok: true }), {
-                    headers: { 'Content-Type': 'application/json' },
-                })
+                return corsResponse({ ok: true })
             }
         }
 
@@ -733,9 +710,7 @@ serve(async (req: Request) => {
             if (verificationCode) {
                 await handleVerification(supabase, chatId, verificationCode, username, firstName, botToken)
             }
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ─── Check if user is linked ────────────────────────
@@ -744,9 +719,7 @@ serve(async (req: Request) => {
         // ─── /help command ──────────────────────────────────
         if (text === '/help') {
             await handleHelp(botToken, chatId, !!linkedUser)
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ─── /status command ────────────────────────────────
@@ -764,17 +737,13 @@ serve(async (req: Request) => {
                     `أرسل رمز التحقق لربط حسابك.`
                 )
             }
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ─── Verification code (6 chars, not linked) ────────
         if (!linkedUser && /^[A-Z0-9]{6}$/i.test(text)) {
             await handleVerification(supabase, chatId, text, username, firstName, botToken)
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ─── Not linked — prompt to verify ──────────────────
@@ -784,9 +753,7 @@ serve(async (req: Request) => {
                 `📌 أرسل <b>رمز التحقق</b> المكون من 6 أحرف لربط حسابك.\n\n` +
                 `<i>اطلب الرمز من مدير النظام (الإعدادات → التكاملات)</i>`
             )
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ═══ LINKED USER — Process Actions ═══════════════════
@@ -817,9 +784,7 @@ serve(async (req: Request) => {
                 await sendMessage(botToken, chatId, '❌ حدث خطأ في إنشاء الإجراء. حاول مرة أخرى.')
             }
 
-            return new Response(JSON.stringify({ ok: true }), {
-                headers: { 'Content-Type': 'application/json' },
-            })
+            return corsResponse({ ok: true })
         }
 
         // ─── Detect user language from message ─────────────
@@ -900,15 +865,11 @@ serve(async (req: Request) => {
             await sendMessage(botToken, chatId, errMsg)
         }
 
-        return new Response(JSON.stringify({ ok: true }), {
-            headers: { 'Content-Type': 'application/json' },
-        })
+        return corsResponse({ ok: true })
 
     } catch (err) {
         console.error('[TelegramWebhook] Error:', err)
         // Always return 200 to Telegram to avoid retries
-        return new Response(JSON.stringify({ ok: true, error: 'internal' }), {
-            headers: { 'Content-Type': 'application/json' },
-        })
+        return corsResponse({ ok: true, error: 'internal' })
     }
 })

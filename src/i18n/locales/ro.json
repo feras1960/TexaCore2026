@@ -273,6 +273,7 @@
     "detail": "[RO] detail",
     "dueDate": "[RO] dueDate",
     "duplicateRow": "Duplică rând",
+    "grid": {"keyboardShortcuts":"Scurtături tastatură","navigation":"Navigare","nextRow":"Rândul următor (jos)","nextColumn":"Coloana următoare","navigateCells":"Navigare celule","copy":"Copiere","copyAboveDown":"Copiază de sus + jos","rows":"Rânduri","insertRow":"Inserează rând","clearCell":"Golește celulă","swapDebitCredit":"Schimbă debit↔credit"},
     "editAccount": "[RO] editAccount",
     "editGroup": "[RO] Edit Group",
     "entry": {

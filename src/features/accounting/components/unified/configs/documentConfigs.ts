@@ -407,6 +407,12 @@ export const cashConfig: DocumentConfig = {
             component: 'CashJournalEntryTab',
         },
         {
+            id: 'accounting_entry',
+            labelKey: 'accounting.tabs.accountingEntry',
+            icon: 'BookOpen',
+            component: 'AccountingEntryViewTab',
+        },
+        {
             id: 'attachments',
             labelKey: 'accounting.tabs.attachments',
             icon: 'Paperclip',
@@ -498,6 +504,12 @@ export const receiptConfig: DocumentConfig = {
             icon: 'FileEdit',
             component: 'ReceiptFormTab',
         },
+        {
+            id: 'accounting_entry',
+            labelKey: 'accounting.tabs.accountingEntry',
+            icon: 'BookOpen',
+            component: 'AccountingEntryViewTab',
+        },
     ],
     actions: [
         {
@@ -556,6 +568,12 @@ export const paymentConfig: DocumentConfig = {
             labelKey: 'accounting.tabs.form',
             icon: 'FileEdit',
             component: 'PaymentFormTab',
+        },
+        {
+            id: 'accounting_entry',
+            labelKey: 'accounting.tabs.accountingEntry',
+            icon: 'BookOpen',
+            component: 'AccountingEntryViewTab',
         },
     ],
     actions: [

@@ -8,6 +8,7 @@ import { useCompany } from '@/hooks/useCompany';
 import { useFunds } from './hooks/useAccountingQueries';
 import { AddFundDialog } from './components/AddFundDialog';
 import { FundStatementSheet } from './components/FundStatementSheet';
+import QuickActionsBar from './components/QuickActionsBar';
 
 // Shared Components
 import { AccountingPageHeader } from './components/shared/AccountingPageHeader';
@@ -124,10 +125,13 @@ export default function FundsManagement() {
         title={t('accounting.funds_management')}
         description={t('accounting.funds_description')}
       >
-        <Button onClick={() => setIsAddDialogOpen(true)} className="bg-erp-primary hover:bg-erp-primary/90">
-          <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-          {t('accounting.add_fund')}
-        </Button>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button onClick={() => setIsAddDialogOpen(true)} className="h-9 px-3 gap-1.5 text-xs font-tajawal text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm">
+            <Building2 className="w-3.5 h-3.5" />
+            {t('accounting.add_fund')}
+          </Button>
+          <QuickActionsBar />
+        </div>
       </AccountingPageHeader>
 
       {/* Stats Cards */}

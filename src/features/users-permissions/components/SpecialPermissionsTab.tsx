@@ -302,26 +302,14 @@ export default function SpecialPermissionsTab() {
 
             setPermMatrix(matrix);
 
-            // Auto-save defaults for new/empty roles
+            // NOTE: Do NOT auto-save defaults to DB on page load.
+            // The defaults are applied in-memory for display only.
+            // User must click "Apply Defaults" then "Save" to persist.
             if (needsAutoSave) {
-                const emptyRoles = filteredRoles.filter(role => {
-                    const existingPerms = (role as any).special_permissions || {};
-                    return !existingPerms || Object.keys(existingPerms).length === 0
-                        || SPECIAL_PERMISSIONS_KEYS.every(k => existingPerms[k.key] === undefined);
-                });
-
-                if (emptyRoles.length > 0) {
-                    try {
-                        await Promise.all(
-                            emptyRoles.map(role =>
-                                rbacService.updateRoleSpecialPermissions(role.id, matrix[role.id])
-                            )
-                        );
-                        console.log(`[RBAC] Auto-applied default permissions for ${emptyRoles.length} roles`);
-                    } catch (err) {
-                        console.warn('[RBAC] Failed to auto-save defaults:', err);
-                    }
-                }
+                console.log(`[RBAC] ${filteredRoles.filter(r => {
+                    const sp = (r as any).special_permissions || {};
+                    return !sp || Object.keys(sp).length === 0;
+                }).length} roles have empty special_permissions — defaults applied in-memory only`);
             }
         } catch (error) {
             console.error('Failed to load special permissions:', error);

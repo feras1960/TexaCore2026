@@ -3,6 +3,7 @@
  * يعرض أزرار الإجراءات مع أسهم التنقل وزر QR وتبديل تعديل/حفظ
  */
 
+import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -15,10 +16,13 @@ import {
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import {
     Printer,
     Download,
@@ -31,6 +35,7 @@ import {
     RefreshCw,
     MoreHorizontal,
     FileText,
+    FileSpreadsheet,
     QrCode,
     ArrowDownRight,
     ArrowUpRight,
@@ -45,13 +50,21 @@ import {
     Lock,
     PackageCheck,
     LockKeyhole,
+    ChevronDown,
+    Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { SheetMode, ActionConfig } from '../types';
 import { NavigationArrows } from './NavigationArrows';
 import { QRPopover } from './QRPopover';
 import { useTradePermissions } from '@/hooks/useTradePermissions';
 import { EnhancedPrintDialog } from '@/components/shared/print/EnhancedPrintDialog';
+import { usePrintData } from '@/hooks/usePrintData';
+import { useCompany } from '@/hooks/useCompany';
+import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
+import { exportToExcel, openInGoogleSheets, type ExportOptions, type ExportColumn, type CompanyInfo } from '@/lib/export-utils';
+import { supabase } from '@/lib/supabase';
 
 // Document types that support posting (ترحيل)
 // Only documents with accounting/inventory impact should be postable
@@ -122,7 +135,11 @@ interface EnhancedActionToolbarProps {
     confirmationStatus?: string;
 
     /** Trade mode for RBAC context */
-    tradeMode?: 'sales' | 'purchase';
+    tradeMode?: 'sales' | 'purchase' | 'transfer';
+    /** Display currency filter from LedgerTab */
+    displayCurrency?: string;
+    /** Whether this is an accounting document (journal/cash/receipt/payment/etc.) */
+    isAccountingDocType?: boolean;
 }
 
 export function EnhancedActionToolbar({
@@ -154,6 +171,8 @@ export function EnhancedActionToolbar({
     showConfirmAction = false,
     confirmationStatus,
     tradeMode,
+    displayCurrency,
+    isAccountingDocType = false,
 }: EnhancedActionToolbarProps) {
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
@@ -192,7 +211,7 @@ export function EnhancedActionToolbar({
 
     // RBAC permissions
     const { actions: perms } = useTradePermissions({
-        tradeMode: tradeMode,
+        tradeMode: tradeMode as "sales" | "purchase" | undefined,
         docType: docType,
         docStatus: status,
     });
@@ -251,9 +270,9 @@ export function EnhancedActionToolbar({
                 </TooltipProvider>
             )}
 
-            {/* ✅ Save & Confirm — for draft invoices (step 1 of workflow) */}
-            {/* ⚠️ Also shown for draft transfers in view mode */}
-            {isViewMode && isPostable && isDraft && !isReceivedDoc && (
+            {/* ✅ Save & Confirm — for draft TRADE invoices only (step 1 of workflow) */}
+            {isViewMode && isPostable && isDraft && !isReceivedDoc && !isAccountingDocType && (
+
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -412,7 +431,56 @@ export function EnhancedActionToolbar({
             {/* ✅ Save & Post — only for non-sales postable docs (purchases) */}
             {/* ✅ Save Only — for EDIT mode on sales invoices (posting tied to warehouse) */}
             {
-                (isEditMode || isCreateMode) && isPostable && (() => {
+                // ─── Accounting documents: حفظ مسودة + تسجيل ───
+                (isEditMode || isCreateMode) && isAccountingDocType && (
+                    <>
+                        {/* Save Draft */}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => onAction('save')}
+                                        disabled={disabled || loading}
+                                        className="gap-1.5 border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                        <span>{language === 'ar' ? 'حفظ مسودة' : 'Save Draft'}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{language === 'ar' ? 'حفظ القيد كمسودة دون ترحيل' : 'Save as draft without posting'}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        {/* Register (Save + Post) */}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => onAction('save_post')}
+                                        disabled={disabled || loading}
+                                        className="gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                                    >
+                                        <CheckCircle className="w-4 h-4" />
+                                        <span>{language === 'ar' ? 'تسجيل' : 'Register'}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{language === 'ar' ? 'حفظ القيد وترحيله مباشرةً' : 'Save and post the entry immediately'}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </>
+                )
+            }
+
+            {
+                // ─── Non-accounting (trade) postable docs: Save & Confirm / Save & Post ───
+                (isEditMode || isCreateMode) && isPostable && !isAccountingDocType && (() => {
                     // ═══ Transfer: always show Save & Confirm for drafts ═══
                     const isTransferDraft = tradeMode === 'transfer' && isDraft;
                     if (isTransferDraft) {
@@ -544,8 +612,8 @@ export function EnhancedActionToolbar({
                 })()
             }
 
-            {/* ✅ Save Button — for NON-postable docs in create/edit mode (containers, quotations, orders) */}
-            {(isEditMode || isCreateMode) && !isPostable && (
+            {/* ✅ Save Button — for NON-postable, NON-accounting docs (containers, quotations, orders) */}
+            {(isEditMode || isCreateMode) && !isPostable && !isAccountingDocType && (
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -642,29 +710,16 @@ export function EnhancedActionToolbar({
 
             <Separator orientation="vertical" className="h-6 mx-1" />
 
-            {/* Export */}
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onAction('export')}
-                            disabled={disabled || loading}
-                            className="gap-1.5 text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span className="hidden lg:inline">{t('common.export') || 'تصدير'}</span>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>{t('common.export') || 'تصدير'}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-
-            {/* Print - Enhanced Dialog */}
-            <PrintDropdown docType={docType} docId={docId} disabled={disabled || loading} />
+            {/* Unified Print & Export Dropdown */}
+            <PrintExportDropdown
+                docType={docType}
+                docId={docId}
+                disabled={disabled || loading}
+                onAction={onAction}
+                language={language}
+                isRTL={isRTL}
+                displayCurrency={displayCurrency}
+            />
 
             {/* QR Popover */}
             <QRPopover
@@ -698,8 +753,8 @@ export function EnhancedActionToolbar({
                         <span>{t('common.share') || 'مشاركة'}</span>
                     </DropdownMenuItem>
 
-                    {/* Unpost Action */}
-                    {isPostable && isPosted && perms.canUnpost && (
+                    {/* Unpost Action — للمستندات المحاسبية + المستندات التجارية (بصلاحية canUnpost) */}
+                    {isPosted && (isAccountingDocType || (isPostable && perms.canUnpost)) && (
                         <DropdownMenuItem onClick={() => onAction('unpost')} className="gap-2 cursor-pointer text-orange-600">
                             <XCircle className="w-4 h-4" />
                             <span>{t('accounting.unpost') || 'إلغاء الترحيل'}</span>
@@ -937,11 +992,11 @@ export function QuickActionsBar({
 
 export default ActionToolbar;
 
-// ─── Print Dropdown Wrapper ────────────────────────────────────
-// Maps internal document types to print template doc_types
+// ─── Unified Print & Export Dropdown ────────────────────────────
+// Combines print templates + export options in a single dropdown
 const DOC_TYPE_MAP: Record<string, string> = {
     trade_invoice: 'sales_invoice',
-    trade_container: 'container_label',   // ✅ إصلاح: كان 'purchase_invoice' يسبب 406
+    trade_container: 'container_label',
     trade_delivery: 'delivery_note',
     trade_receipt: 'goods_receipt',
     sales_delivery: 'delivery_note',
@@ -949,17 +1004,455 @@ const DOC_TYPE_MAP: Record<string, string> = {
     trade_quotation: 'price_quote',
     trade_order: 'sales_invoice',
     journal: 'journal_entry',
+    account: 'account_statement',
+    party: 'account_statement',
 };
 
-function PrintDropdown({ docType, docId, disabled }: { docType: string; docId: string; disabled: boolean }) {
+function PrintExportDropdown({
+    docType,
+    docId,
+    disabled,
+    onAction,
+    language,
+    isRTL,
+    displayCurrency,
+}: {
+    docType: string;
+    docId: string;
+    disabled: boolean;
+    onAction: (actionId: string) => void;
+    language: string;
+    isRTL: boolean;
+    displayCurrency?: string;
+}) {
     const printDocType = DOC_TYPE_MAP[docType] || docType;
+    const isAr = language === 'ar';
+
+    const { companyId } = useCompany();
+    const { getRate } = useViewCurrency();
+
+    // Use print data hook for template access + data
+    const {
+        loading,
+        templates,
+        defaultTemplate,
+        printData,
+        print: printFn,
+        preview: previewFn,
+    } = usePrintData({ docType: printDocType, docId, displayCurrency, getConvertRate: displayCurrency ? getRate : undefined });
+
+    const [printing, setPrinting] = React.useState(false);
+    const [dialogOpen, setDialogOpen] = React.useState(false);
+
+    const quickPrint = React.useCallback(async (templateId: string) => {
+        setPrinting(true);
+        try {
+            await printFn(templateId);
+            toast.success(isAr ? 'جاري الطباعة...' : 'Printing...');
+        } catch (err: any) {
+            toast.error(err.message || (isAr ? 'خطأ في الطباعة' : 'Print error'));
+        } finally {
+            setPrinting(false);
+        }
+    }, [printFn, isAr]);
+
+    // Build export data from printData (same data used by print templates)
+    const buildExportFromPrintData = React.useCallback((): ExportOptions | null => {
+        if (!printData) return null;
+
+        const companyInfo: CompanyInfo = {
+            name: printData.company?.name || printData.company?.name_ar || '',
+            nameEn: printData.company?.name_en || '',
+            logo: printData.company?.logo || undefined,
+            address: printData.company?.address || printData.company?.address_ar || undefined,
+            phone: printData.company?.phone || undefined,
+            email: printData.company?.email || undefined,
+            taxNumber: printData.company?.tax_id || undefined,
+        };
+
+        // ═══ Journal Entry ═══
+        if (printData.entry) {
+            const entry = printData.entry;
+            const columns: ExportColumn[] = [
+                { key: 'index', header: '#', width: 5 },
+                { key: 'account_code', header: isAr ? 'رمز الحساب' : 'Account Code', width: 15 },
+                { key: 'account_name', header: isAr ? 'اسم الحساب' : 'Account Name', width: 25 },
+                { key: 'description', header: isAr ? 'البيان' : 'Description', width: 30 },
+                { key: 'debit', header: isAr ? 'مدين' : 'Debit', width: 15, type: 'debit' },
+                { key: 'credit', header: isAr ? 'دائن' : 'Credit', width: 15, type: 'credit' },
+            ];
+
+            const data = (entry.lines || []).map((line: any, idx: number) => ({
+                index: idx + 1,
+                account_code: line.account_code || '',
+                account_name: line.name_ar || line.name_en || line.account_name || '',
+                description: line.description || '',
+                debit: Number(line.debit) || 0,
+                credit: Number(line.credit) || 0,
+            }));
+
+            // Totals row
+            data.push({
+                index: '',
+                account_code: '',
+                account_name: isAr ? 'الإجمالي' : 'Total',
+                description: '',
+                debit: entry.total_debit || 0,
+                credit: entry.total_credit || 0,
+            });
+
+            return {
+                filename: entry.number || 'journal-entry',
+                title: `${isAr ? 'قيد يومية' : 'Journal Entry'} - ${entry.number || ''}`,
+                subtitle: entry.description || '',
+                isRTL,
+                columns,
+                data,
+                companyInfo,
+                showTotals: true,
+                debitKey: 'debit',
+                creditKey: 'credit',
+            };
+        }
+
+        // ═══ Sales / Purchase Invoice ═══
+        if (printData.invoice) {
+            const inv = printData.invoice;
+            const partyName = printData.customer?.name || printData.supplier?.name || '';
+            const columns: ExportColumn[] = [
+                { key: 'index', header: '#', width: 5 },
+                { key: 'name', header: isAr ? 'الصنف' : 'Item', width: 25 },
+                { key: 'description', header: isAr ? 'الوصف' : 'Description', width: 25 },
+                { key: 'quantity', header: isAr ? 'الكمية' : 'Qty', width: 10 },
+                { key: 'unit', header: isAr ? 'الوحدة' : 'Unit', width: 8 },
+                { key: 'unit_price', header: isAr ? 'السعر' : 'Price', width: 12, type: 'currency' },
+                { key: 'discount', header: isAr ? 'الخصم' : 'Discount', width: 10 },
+                { key: 'tax_amount', header: isAr ? 'الضريبة' : 'Tax', width: 10, type: 'currency' },
+                { key: 'line_total', header: isAr ? 'المجموع' : 'Total', width: 15, type: 'currency' },
+            ];
+
+            const data = (inv.items || []).map((item: any, idx: number) => ({
+                index: idx + 1,
+                name: item.name_ar || item.name_en || '',
+                description: item.description || '',
+                quantity: item.quantity || 0,
+                unit: item.unit || '',
+                unit_price: item.unit_price || 0,
+                discount: item.discount || 0,
+                tax_amount: item.tax_amount || 0,
+                line_total: item.line_total || 0,
+            }));
+
+            // Totals row
+            data.push({
+                index: '', name: '', description: isAr ? 'الإجمالي' : 'Total',
+                quantity: '', unit: '', unit_price: '', discount: '',
+                tax_amount: inv.tax_amount || 0,
+                line_total: inv.total || 0,
+            });
+
+            return {
+                filename: inv.number || 'invoice',
+                title: `${isAr ? 'فاتورة' : 'Invoice'} ${inv.number || ''}`,
+                subtitle: partyName,
+                isRTL,
+                columns,
+                data,
+                companyInfo,
+                showTotals: true,
+            };
+        }
+
+        // ═══ Voucher (Receipt / Payment) ═══
+        if (printData.voucher) {
+            const v = printData.voucher;
+            const columns: ExportColumn[] = [
+                { key: 'field', header: isAr ? 'الحقل' : 'Field', width: 20 },
+                { key: 'value', header: isAr ? 'القيمة' : 'Value', width: 35 },
+            ];
+
+            const data = [
+                { field: isAr ? 'رقم السند' : 'Voucher No', value: v.number || '' },
+                { field: isAr ? 'التاريخ' : 'Date', value: v.date || '' },
+                { field: isAr ? 'الجهة' : 'Party', value: printData.party?.name || '' },
+                { field: isAr ? 'المبلغ' : 'Amount', value: v.amount || 0 },
+                { field: isAr ? 'العملة' : 'Currency', value: v.currency || '' },
+                { field: isAr ? 'طريقة الدفع' : 'Payment Method', value: v.payment_method || '' },
+                { field: isAr ? 'البيان' : 'Description', value: v.description || '' },
+            ].filter(r => r.value);
+
+            return {
+                filename: v.number || 'voucher',
+                title: v.number || '',
+                isRTL,
+                columns,
+                data,
+                companyInfo,
+            };
+        }
+
+        // ═══ Account Statement ═══
+        if (printData.account) {
+            const acc = printData.account;
+            const targetCurrency = displayCurrency; // from LedgerTab filter
+            // Check if data was already converted by usePrintData
+            const alreadyConverted = acc._convertedTo && acc._convertedTo === targetCurrency;
+            
+            const columns: ExportColumn[] = [
+                { key: 'index', header: '#', width: 5 },
+                { key: 'debit', header: isAr ? 'مدين' : 'Debit', width: 15, type: 'debit' },
+                { key: 'credit', header: isAr ? 'دائن' : 'Credit', width: 15, type: 'credit' },
+                { key: 'balance', header: isAr ? 'الرصيد' : 'Balance', width: 15, type: 'currency' },
+                { key: 'date', header: isAr ? 'التاريخ' : 'Date', width: 12 },
+                { key: 'description', header: isAr ? 'البيان' : 'Description', width: 30 },
+                { key: 'currency', header: isAr ? 'العملة' : 'Currency', width: 10 },
+                { key: 'exchange_rate', header: isAr ? 'سعر الصرف' : 'Exchange Rate', width: 12 },
+            ];
+
+            // Use raw entries for conversion, or converted entries if already done
+            const rawCurrency = acc._rawCurrency || acc.currency || 'USD';
+            const sourceEntries = alreadyConverted ? acc.entries : (acc._rawEntries || acc.entries || []);
+            const openingBal = alreadyConverted 
+                ? (Number(acc.opening_balance) || 0)
+                : (Number(acc._rawOpeningBalance ?? acc.opening_balance) || 0);
+            let runningBalance = openingBal;
+
+            // Convert amount from entry currency to target display currency
+            const convertAmount = (amount: number, entryCurrency: string): number => {
+                if (alreadyConverted) return amount; // Already converted by usePrintData
+                if (!targetCurrency || !entryCurrency || entryCurrency === targetCurrency) return amount;
+                const rate = getRate(entryCurrency, targetCurrency);
+                return rate > 0 ? amount * rate : amount;
+            };
+
+            // If converting opening balance and not already done
+            if (!alreadyConverted && targetCurrency) {
+                runningBalance = convertAmount(runningBalance, rawCurrency);
+            }
+
+            const data: any[] = [];
+
+            // Opening balance row
+            if (runningBalance !== 0) {
+                data.push({
+                    index: '',
+                    debit: '',
+                    credit: '',
+                    balance: runningBalance,
+                    date: '',
+                    description: isAr ? 'الرصيد الافتتاحي' : 'Opening Balance',
+                    currency: targetCurrency || '',
+                    exchange_rate: '',
+                });
+            }
+
+            sourceEntries.forEach((e: any, idx: number) => {
+                const entryCurrency = alreadyConverted ? targetCurrency : (e.currency || rawCurrency);
+                const rawDebit = Number(e.debit) || 0;
+                const rawCredit = Number(e.credit) || 0;
+                const debit = convertAmount(rawDebit, entryCurrency || 'USD');
+                const credit = convertAmount(rawCredit, entryCurrency || 'USD');
+                runningBalance += debit - credit;
+                
+                const rate = alreadyConverted 
+                    ? (Number(e.exchange_rate) || 1)
+                    : (targetCurrency ? getRate(entryCurrency || 'USD', targetCurrency) : (Number(e.exchange_rate) || 1));
+                
+                data.push({
+                    index: idx + 1,
+                    debit: debit || '',
+                    credit: credit || '',
+                    balance: runningBalance,
+                    date: e.date || e.entry_date || '',
+                    description: e.description || e.memo || '',
+                    currency: targetCurrency || entryCurrency || '',
+                    exchange_rate: rate !== 1 ? rate : '',
+                });
+            });
+
+            // Totals row
+            const totalDebit = data.reduce((s: number, row: any) => s + (Number(row.debit) || 0), 0);
+            const totalCredit = data.reduce((s: number, row: any) => s + (Number(row.credit) || 0), 0);
+            data.push({
+                index: '',
+                debit: totalDebit,
+                credit: totalCredit,
+                balance: runningBalance,
+                date: '',
+                description: isAr ? 'الإجمالي' : 'Total',
+                currency: '',
+                exchange_rate: '',
+            });
+
+            const accountName = acc.name_ar || acc.name_en || acc.name || acc.account_name || '';
+            const currencyLabel = targetCurrency ? ` (${targetCurrency})` : '';
+
+            return {
+                filename: `statement-${accountName}`,
+                title: `${isAr ? 'كشف حساب' : 'Account Statement'} - ${accountName}`,
+                subtitle: (acc.code ? `${acc.code} - ${accountName}` : accountName) + currencyLabel,
+                isRTL,
+                columns,
+                data,
+                companyInfo,
+                showTotals: true,
+                debitKey: 'debit',
+                creditKey: 'credit',
+            };
+        }
+
+        // ═══ Fallback: generic key-value ═══
+        const columns: ExportColumn[] = [
+            { key: 'field', header: isAr ? 'الحقل' : 'Field', width: 20 },
+            { key: 'value', header: isAr ? 'القيمة' : 'Value', width: 35 },
+        ];
+
+        const skipKeys = new Set(['company', 'system', '_printSettings', 'id']);
+        const data = Object.entries(printData)
+            .filter(([k, v]) => !skipKeys.has(k) && v !== null && v !== undefined && typeof v !== 'object')
+            .map(([k, v]) => ({ field: k, value: String(v) }));
+
+        return { filename: 'export', isRTL, columns, data, companyInfo };
+    }, [printData, isAr, isRTL]);
+
+    // ─── Export to Excel ───
+    const handleExportExcel = React.useCallback(() => {
+        const opts = buildExportFromPrintData();
+        if (!opts) {
+            toast.error(isAr ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            return;
+        }
+        exportToExcel(opts);
+        toast.success(isAr ? 'تم تصدير Excel بنجاح' : 'Excel exported successfully');
+    }, [buildExportFromPrintData, isAr]);
+
+    // ─── Export to Google Sheets ───
+    const handleExportGoogleSheets = React.useCallback(async () => {
+        const opts = buildExportFromPrintData();
+        if (!opts) {
+            toast.error(isAr ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            return;
+        }
+        await openInGoogleSheets({
+            ...opts,
+            companyId: companyId || undefined,
+            supabaseClient: supabase,
+            language,
+        });
+    }, [buildExportFromPrintData, isAr, companyId, language]);
+
+    // ─── Export to PDF (via print template) ───
+    const handleExportPDF = React.useCallback(async () => {
+        if (!defaultTemplate) {
+            toast.error(isAr ? 'لا يوجد قالب طباعة' : 'No print template');
+            return;
+        }
+        try {
+            const html = await previewFn(defaultTemplate.id);
+            const win = window.open('', '_blank');
+            if (win) {
+                win.document.write(html);
+                win.document.close();
+                win.focus();
+                setTimeout(() => win.print(), 500);
+            }
+            toast.success(isAr ? 'اختر "حفظ كـ PDF" من خيارات الطباعة' : 'Select "Save as PDF" from print options');
+        } catch (err: any) {
+            toast.error(err.message || (isAr ? 'خطأ في التصدير' : 'Export error'));
+        }
+    }, [defaultTemplate, previewFn, isAr]);
+
     return (
-        <EnhancedPrintDialog
-            docType={printDocType}
-            docId={docId}
-            variant="dropdown"
-            size="sm"
-            className={disabled ? 'opacity-50 pointer-events-none' : ''}
-        />
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
+                        disabled={disabled || loading}
+                    >
+                        {(loading || printing) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                        <span className="hidden sm:inline">{isAr ? 'طباعة' : 'Print'}</span>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-64" align={isRTL ? 'start' : 'end'}>
+                    {/* Print Templates Section */}
+                    {templates.length > 0 && (
+                        <>
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">
+                                {isAr ? '🖨️ طباعة' : '🖨️ Print'}
+                            </DropdownMenuLabel>
+                            <DropdownMenuGroup>
+                                {templates.map(tpl => (
+                                    <DropdownMenuItem
+                                        key={tpl.id}
+                                        className="flex items-center justify-between cursor-pointer"
+                                        onClick={() => quickPrint(tpl.id)}
+                                    >
+                                        <span className="flex-1 text-sm">
+                                            {isAr ? tpl.name_ar : (tpl.name_en || tpl.name_ar)}
+                                        </span>
+                                        {tpl.is_default && (
+                                            <Badge variant="secondary" className="text-[10px] ms-2">{isAr ? 'افتراضي' : 'Default'}</Badge>
+                                        )}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuGroup>
+                        </>
+                    )}
+
+                    {templates.length === 0 && (
+                        <DropdownMenuItem disabled className="text-muted-foreground text-sm">
+                            {isAr ? 'لا توجد قوالب طباعة' : 'No print templates'}
+                        </DropdownMenuItem>
+                    )}
+
+                    <DropdownMenuSeparator />
+
+                    {/* Export Section */}
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        {isAr ? '📤 تصدير' : '📤 Export'}
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem onClick={handleExportExcel} className="gap-2 cursor-pointer">
+                        <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                        <span>{isAr ? 'تصدير Excel' : 'Export to Excel'}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportGoogleSheets} className="gap-2 cursor-pointer">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="3" width="18" height="18" rx="2" fill="#0F9D58" />
+                            <rect x="6" y="7" width="12" height="2" rx="0.5" fill="white" />
+                            <rect x="6" y="11" width="12" height="2" rx="0.5" fill="white" />
+                            <rect x="6" y="15" width="8" height="2" rx="0.5" fill="white" />
+                            <rect x="11" y="7" width="2" height="10" rx="0.5" fill="white" opacity="0.6" />
+                        </svg>
+                        <span>{isAr ? 'فتح في Google Sheets' : 'Open in Google Sheets'}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
+                        <FileText className="w-4 h-4 text-red-600" />
+                        <span>{isAr ? 'تصدير PDF' : 'Export to PDF'}</span>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Advanced Options */}
+                    <DropdownMenuItem onClick={() => setDialogOpen(true)} className="gap-2">
+                        <Eye className="w-4 h-4" />
+                        {isAr ? 'خيارات متقدمة' : 'Advanced Options'}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Advanced Print Dialog */}
+            {dialogOpen && (
+                <EnhancedPrintDialog
+                    docType={printDocType}
+                    docId={docId}
+                    variant="button"
+                    size="sm"
+                />
+            )}
+        </>
     );
 }

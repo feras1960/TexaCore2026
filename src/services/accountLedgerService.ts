@@ -17,10 +17,12 @@ export interface LedgerEntry {
   entryType?: string;
   entryNumber: string;
   lineNumber: number;
-  debit: number;
-  credit: number;
+  debit: number;     // المبلغ بالعملة الأساسية (UAH)
+  credit: number;    // المبلغ بالعملة الأساسية (UAH)
+  debitFc: number | null;   // المبلغ بعملة المعاملة الأصلية (مثلاً USD)
+  creditFc: number | null;  // المبلغ بعملة المعاملة الأصلية
   balance: number; // Running balance (calculated)
-  type: 'journal' | 'invoice' | 'payment' | 'receipt' | 'transfer';
+  type: 'journal' | 'invoice' | 'payment' | 'receipt' | 'transfer' | 'cash';
   status: 'draft' | 'posted' | 'cancelled';
   costCenterId?: string;
   costCenterName?: string;
@@ -28,6 +30,7 @@ export interface LedgerEntry {
   partyId?: string;
   partyName?: string;
   currency?: string;
+  exchangeRate?: number; // سعر الصرف وقت العملية
   createdAt: string;
 }
 
@@ -93,6 +96,8 @@ export const accountLedgerService = {
         line_number,
         debit,
         credit,
+        debit_fc,
+        credit_fc,
         description,
         cost_center_id,
         party_type,
@@ -100,6 +105,7 @@ export const accountLedgerService = {
         reference_type,
         reference_id,
         currency,
+        exchange_rate,
         created_at,
         journal_entries!inner (
           id,
@@ -134,12 +140,15 @@ export const accountLedgerService = {
     query = query.neq('journal_entries.status', 'cancelled');
     query = query.neq('journal_entries.status', 'voided');
 
-    if (filters.status && filters.status !== 'all') {
-      if (filters.status === 'posted') {
-        query = query.eq('journal_entries.is_posted', true);
-      } else if (filters.status === 'draft') {
-        query = query.eq('journal_entries.status', 'draft');
-      }
+    // ⚠️ DEFAULT BEHAVIOUR: show only POSTED entries unless caller explicitly asks for drafts
+    // This prevents unposted/draft journal entries from appearing in any account ledger
+    if (filters.status === 'draft') {
+      query = query.eq('journal_entries.status', 'draft');
+    } else if (filters.status === 'all') {
+      // 'all' — show everything except cancelled (already filtered above)
+    } else {
+      // Default ('posted' or undefined) — only posted entries
+      query = query.eq('journal_entries.is_posted', true);
     }
 
     // Cost Center Filter
@@ -152,12 +161,9 @@ export const accountLedgerService = {
       }
     }
 
-    // Project Filter (Assuming project_id exists in lines, if not, we check journal_entries)
-    // Based on standard schemas, project usually lines or header. 
-    // Checking previous mocks, project was line level. I will assume line level `project_id`.
-    if (filters.projectId && filters.projectId !== 'all') {
-      query = query.eq('project_id', filters.projectId);
-    }
+    // Currency Filter — NOT done at query level
+    // Currency conversion is handled client-side by useLedgerData hook
+    // All entries are fetched, then amounts are converted to the target currency
 
     // Order by date (using created_at as reliable fallback)
     query = query.order('created_at', { ascending: true });
@@ -194,6 +200,8 @@ export const accountLedgerService = {
       const entry = line.journal_entries;
       const debit = line.debit || 0;
       const credit = line.credit || 0;
+      const debitFc = line.debit_fc != null ? Number(line.debit_fc) : null;
+      const creditFc = line.credit_fc != null ? Number(line.credit_fc) : null;
 
       // Calculate running balance (debit increases, credit decreases for asset accounts)
       runningBalance = runningBalance + debit - credit;
@@ -201,14 +209,17 @@ export const accountLedgerService = {
       // Determine entry type based on reference_type or entry_type
       let type: LedgerEntry['type'] = 'journal';
       const refType = entry.reference_type || entry.entry_type || '';
+      const jeType = entry.entry_type || '';
       if (refType.includes('invoice') || refType.includes('INV')) {
         type = 'invoice';
-      } else if (refType.includes('payment') || refType.includes('PAY')) {
+      } else if (refType.includes('payment') || refType.includes('PAY') || jeType === 'payment') {
         type = 'payment';
-      } else if (refType.includes('receipt') || refType.includes('RCT')) {
+      } else if (refType.includes('receipt') || refType.includes('RCT') || jeType === 'receipt') {
         type = 'receipt';
       } else if (refType.includes('transfer') || refType.includes('TRF')) {
         type = 'transfer';
+      } else if (jeType === 'cash') {
+        type = 'cash';
       }
 
       return {
@@ -224,6 +235,8 @@ export const accountLedgerService = {
         lineNumber: line.line_number,
         debit,
         credit,
+        debitFc,
+        creditFc,
         balance: runningBalance,
         type,
         status: entry.status,
@@ -231,6 +244,7 @@ export const accountLedgerService = {
         partyType: line.party_type,
         partyId: line.party_id,
         currency: line.currency || entry.currency,
+        exchangeRate: line.exchange_rate || 1,
         createdAt: line.created_at,
       };
     });
@@ -506,6 +520,9 @@ export const accountLedgerService = {
       query = query.eq('tenant_id', tenantId);
     }
 
+    // ⚠️ Only posted entries appear in account activity
+    query = query.eq('journal_entries.is_posted', true);
+
     const { data, error } = await query;
 
     if (error) {
@@ -526,8 +543,10 @@ export const accountLedgerService = {
         lineNumber: line.line_number,
         debit: line.debit || 0,
         credit: line.credit || 0,
+        debitFc: null,
+        creditFc: null,
         balance: 0, // Not calculated for recent activity
-        type: 'journal',
+        type: 'journal' as const,
         status: entry.status,
         createdAt: line.created_at,
       };

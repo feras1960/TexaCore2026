@@ -117,7 +117,7 @@ export interface UseSheetActionsParams {
     isAccountingDocType: boolean;
     isPostableDocType: boolean;
     // Save handlers (from useAccountingSave / useTradeSave)
-    handleAccountingSave: (data: any) => Promise<void>;
+    handleAccountingSave: (data: any) => Promise<string | undefined>;
     handleTradeSave: (data: any) => Promise<any>;
     // State setters
     setData: (fn: any) => void;
@@ -174,65 +174,138 @@ export function useAccountingSave(
         const { journalEntriesService } = await import('@/services/journalEntriesService');
 
         // Build entry lines
-        const entryType = docType === 'receipt' ? 'receipt' : docType === 'payment' ? 'payment' : 'journal';
-        let finalLines = [...(saveData.lines || [])];
+        const entryType = docType === 'receipt' ? 'receipt'
+            : docType === 'payment' ? 'payment'
+            : docType === 'cash' ? 'cash'
+            : 'journal';
 
-        // For receipt/payment: auto-add header balancing line
-        if (['receipt', 'payment'].includes(entryType) && saveData.header_account_id) {
-            const lineTotal = finalLines.reduce((sum: number, l: any) =>
-                sum + (Number(l.debit) || 0) + (Number(l.credit) || 0), 0);
+        // ✅ رشح الأسطر الفارغة أولاً (لا حساب + لا مبلغ)
+        let finalLines = (saveData.lines || []).filter((l: any) =>
+            l.account_id && ((Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0)
+        );
 
-            if (lineTotal > 0) {
-                finalLines.push({
-                    account_id: saveData.header_account_id,
-                    description: saveData.description || (entryType === 'receipt' ? 'سند قبض' : 'سند صرف'),
-                    debit: entryType === 'receipt' ? lineTotal : 0,
-                    credit: entryType === 'payment' ? lineTotal : 0,
-                    cost_center_id: null,
-                });
+        // ─── Auto-add header balancing line for receipt / payment / cash ───
+        const fundAccountId = saveData.fund_account_id || saveData.header_account_id;
+        if (['receipt', 'payment', 'cash'].includes(entryType) && fundAccountId) {
+            // ✅ استبعد سطر الصندوق إذا كان موجوداً في finalLines
+            // (يحدث عند تحميل قيد محفوظ وإرجاع سطر الصندوق معه)
+            // نحسب الحصاد من الأسطر غير الصندوق فقط، ثم نضيف سطر الصندوق من جديد
+            finalLines = finalLines.filter((l: any) => l.account_id !== fundAccountId);
+
+            const convertedDebit  = finalLines.reduce((s: number, l: any) => s + (Number(l.debit)  || 0) * (Number(l.exchange_rate) || 1), 0);
+            const convertedCredit = finalLines.reduce((s: number, l: any) => s + (Number(l.credit) || 0) * (Number(l.exchange_rate) || 1), 0);
+            const convertedTotal  = convertedDebit + convertedCredit;
+
+            if (convertedTotal > 0) {
+                let fundDebit = 0;
+                let fundCredit = 0;
+
+                if (entryType === 'receipt') {
+                    // مقبوضات: الصندوق يستلم → مدين
+                    fundDebit  = convertedTotal;
+                    fundCredit = 0;
+                } else if (entryType === 'payment') {
+                    // مدفوعات: الصندوق يدفع → دائن
+                    fundDebit  = 0;
+                    fundCredit = convertedTotal;
+                } else {
+                    // cash (يومية صندوق): قد تحتوي مدفوعات ومقبوضات معاً
+                    // ✅ نحسب الصافي لتفادي وجود مدين ودائن في نفس السطر
+                    // chk_debit_or_credit يمنع ذلك
+                    const netEffect = convertedDebit - convertedCredit; // موجب = مدفوعات أكثر، سالب = مقبوضات أكثر
+                    if (netEffect > 0.001) {
+                        // مدفوعات أكثر → الصندوق دائن (يخرج منه مال)
+                        fundDebit  = 0;
+                        fundCredit = Math.round(netEffect * 100) / 100;
+                    } else if (netEffect < -0.001) {
+                        // مقبوضات أكثر → الصندوق مدين (يدخل إليه مال)
+                        fundDebit  = Math.round(Math.abs(netEffect) * 100) / 100;
+                        fundCredit = 0;
+                    } else {
+                        // متساوٍ تماماً → لا يلزم سطر صندوق
+                        fundDebit  = 0;
+                        fundCredit = 0;
+                    }
+                }
+
+                const fundCurrency = saveData.fund_currency || saveData.base_currency || saveData.currency || null;
+
+                if (fundDebit > 0 || fundCredit > 0) {
+                    finalLines.push({
+                        account_id: fundAccountId,
+                        description: saveData.description || (
+                            entryType === 'receipt' ? 'سند قبض' :
+                            entryType === 'payment' ? 'سند صرف' : 'يومية صندوق'
+                        ),
+                        debit:  Math.round(fundDebit  * 100) / 100,
+                        credit: Math.round(fundCredit * 100) / 100,
+                        cost_center_id: null,
+                        currency: fundCurrency,
+                        exchange_rate: 1,
+                        is_fund_line: true,  // ← علامة تمييز السطر التلقائي
+                    });
+                }
             }
         }
 
-        // Validation
-        if (finalLines.length < 2) {
+
+        // Validation: at least 2 lines
+        if (finalLines.filter((l: any) => l.account_id).length < 2) {
             toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ', {
-                description: t('accounting.errors.minLinesRequired') || 'يجب إدخال بندين على الأقل',
+                description: t('accounting.errors.minLinesRequired') || 'يجب إدخال بندين على الأقل (مع حساب الصندوق)',
             });
             return;
         }
 
-        const totalDebit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.debit) || 0), 0);
-        const totalCredit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.credit) || 0), 0);
+        // ✅ التحقق من التوازن بالعملة الأساسية (بعد التحويل بسعر الصرف)
+        // لأن الأسطر قد تكون بعملات مختلفة (USD, UAH, ...) وسطر الصندوق بعملته الأساسية
+        const convDebit  = finalLines.reduce((sum: number, l: any) => sum + (Number(l.debit)  || 0) * (Number(l.exchange_rate) || 1), 0);
+        const convCredit = finalLines.reduce((sum: number, l: any) => sum + (Number(l.credit) || 0) * (Number(l.exchange_rate) || 1), 0);
 
-        if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        if (Math.abs(convDebit - convCredit) > 0.1) {
             toast.error(t('accounting.errors.notBalanced') || 'القيد غير متوازن!', {
-                description: `${t('accounting.debit') || 'مدين'}: ${totalDebit.toFixed(2)} ≠ ${t('accounting.credit') || 'دائن'}: ${totalCredit.toFixed(2)}`,
+                description: `${t('accounting.debit') || 'مدين'}: ${convDebit.toFixed(2)} ≠ ${t('accounting.credit') || 'دائن'}: ${convCredit.toFixed(2)}`,
             });
             return;
         }
 
         // Build entry data
-        const entryInput = {
+        const entryInput: Record<string, any> = {
             company_id: saveCompanyId,
             entry_date: saveData.entry_date || new Date().toISOString().split('T')[0],
             description: saveData.description || '',
+            reference: saveData.reference || saveData.entry_number || undefined,
+            entry_number: saveData.entry_number || undefined,
             entry_type: entryType,
+            fund_account_id: fundAccountId || undefined,
+            total_amount: saveData.total_amount || undefined,
+            status: saveData._post ? 'posted' : 'draft',
             lines: finalLines.map((line: any) => ({
                 account_id: line.account_id,
                 debit: Number(line.debit) || 0,
                 credit: Number(line.credit) || 0,
                 description: line.description || '',
                 cost_center_id: line.cost_center_id || null,
+                currency: line.currency || null,
+                exchange_rate: Number(line.exchange_rate) || 1,
+                link_type: line.link_type || null,
+                invoice_id: line.invoice_id || null,
+                is_fund_line: line.is_fund_line === true,  // ← يُخفى في تبويب القيد
             })),
         };
 
-        // Create or Update
+        // Create or Update in journal_entries
         const entryId = saveData.id || documentId;
         if (mode === 'edit' && entryId) {
-            await journalEntriesService.update(entryId, entryInput);
+            const result = await journalEntriesService.update(entryId, entryInput as any);
+            // أرجع الـ ID حتى يستطيع useSheetActions استخدامه للترحيل
+            return result?.id || entryId;
         } else {
-            await journalEntriesService.create(entryInput);
+            const result = await journalEntriesService.create(entryInput as any);
+            // أرجع الـ ID الجديد — حاسم لعملية الترحيل بعد الحفظ
+            return result?.id;
         }
+
     }, [isAccountingDocType, docType, companyId, documentId, mode, t]);
 }
 
@@ -457,9 +530,459 @@ function invalidateTradeQueries(queryClient: ReturnType<typeof useQueryClient>) 
     // Also invalidate warehouse queries so pending receipts update
     queryClient.invalidateQueries({ queryKey: ['warehouse', 'pending-receipts'] });
     queryClient.invalidateQueries({ queryKey: ['warehouse', 'stock-movements'] });
+    // ── Party balances — تحديث أرصدة الجهات فوراً ──
+    queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
+    queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+    queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
 }
 
-// ═══ Main Action Handler Hook ═══
+
+// ═══ Build Export Data from Document ═══
+async function buildExportData(data: any, language: string, docType: string): Promise<{
+    columns: { key: string; header: string }[];
+    rows: Record<string, any>[];
+}> {
+    const isAr = language === 'ar';
+
+    // ═══ Party / Account Statement — fetch ledger entries ═══
+    if (docType === 'party' && data?.id) {
+        try {
+            // Get the party's accounting account ID
+            const accountId = data?.payable_account_id || data?.receivable_account_id;
+            if (!accountId) {
+                // Try to find from suppliers/customers table
+                const partyType = data?._partyType || data?.type;
+                const table = partyType === 'supplier' ? 'suppliers' : 'customers';
+                const accountField = partyType === 'supplier' ? 'payable_account_id' : 'receivable_account_id';
+                const { data: partyRecord } = await supabase
+                    .from(table)
+                    .select(accountField)
+                    .eq('id', data.id)
+                    .maybeSingle();
+                const resolvedAccountId = partyRecord?.[accountField];
+                if (!resolvedAccountId) {
+                    return { columns: [], rows: [] };
+                }
+                // Fetch ledger with resolved account
+                return await fetchLedgerExportData(resolvedAccountId, data, isAr, language);
+            }
+            return await fetchLedgerExportData(accountId, data, isAr, language);
+        } catch (e) {
+            console.error('Failed to fetch ledger for export:', e);
+            return { columns: [], rows: [] };
+        }
+    }
+
+    // ═══ Journal Entry — export lines with account details ═══
+    const lines = data?.lines || [];
+    if ((docType === 'journal' || data?.entry_type || data?.entry_number) && lines.length > 0) {
+        const columns = [
+            { key: 'index', header: '#' },
+            { key: 'account', header: isAr ? 'الحساب' : 'Account' },
+            { key: 'description', header: isAr ? 'البيان' : 'Description' },
+            { key: 'debit', header: isAr ? 'مدين' : 'Debit' },
+            { key: 'credit', header: isAr ? 'دائن' : 'Credit' },
+            { key: 'currency', header: isAr ? 'العملة' : 'Currency' },
+            { key: 'exchange_rate', header: isAr ? 'سعر الصرف' : 'Ex. Rate' },
+        ];
+
+        const rows = lines.map((line: any, idx: number) => {
+            const accountCode = line.account?.account_code || line.account_code || '';
+            const accountName = line.account?.name_ar || line.account?.name_en || line.account_name || '';
+            return {
+                index: idx + 1,
+                account: accountCode && accountName ? `${accountCode} - ${accountName}` : accountName || accountCode || '-',
+                description: line.description || '-',
+                debit: Number(line.debit) || 0,
+                credit: Number(line.credit) || 0,
+                currency: line.currency || data.currency || '',
+                exchange_rate: Number(line.exchange_rate) || 1,
+            };
+        });
+
+        // Add totals row
+        const totalDebit = rows.reduce((s: number, r: any) => s + (r.debit || 0), 0);
+        const totalCredit = rows.reduce((s: number, r: any) => s + (r.credit || 0), 0);
+        rows.push({
+            index: '',
+            account: isAr ? 'الإجمالي' : 'Total',
+            description: '',
+            debit: totalDebit,
+            credit: totalCredit,
+            currency: '',
+            exchange_rate: '',
+        });
+
+        return { columns, rows };
+    }
+
+    // ═══ Trade docs with items (invoices, orders, quotations) ═══
+    const items = data?.items || [];
+    if (items.length > 0) {
+        const columns = [
+            { key: 'index', header: '#' },
+            { key: 'description', header: isAr ? 'البيان' : 'Description' },
+            { key: 'quantity', header: isAr ? 'الكمية' : 'Qty' },
+            { key: 'unit', header: isAr ? 'الوحدة' : 'Unit' },
+            { key: 'unit_price', header: isAr ? 'سعر الوحدة' : 'Unit Price' },
+            { key: 'discount', header: isAr ? 'الخصم' : 'Discount' },
+            { key: 'total', header: isAr ? 'المجموع' : 'Total' },
+        ];
+
+        const rows = items.map((item: any, idx: number) => ({
+            index: idx + 1,
+            description: item.description_ar || item.description || item.material_name || item.name || '-',
+            quantity: item.quantity || 0,
+            unit: item.unit || 'م',
+            unit_price: item.unit_price || item.price || 0,
+            discount: item.discount_amount || item.discount || 0,
+            total: item.total || item.line_total || (item.quantity || 0) * (item.unit_price || item.price || 0),
+        }));
+
+        const grandTotal = data?.grand_total || data?.total_amount || rows.reduce((s: number, r: any) => s + (r.total || 0), 0);
+        rows.push({
+            index: '',
+            description: isAr ? 'الإجمالي' : 'Grand Total',
+            quantity: '', unit: '', unit_price: '', discount: '',
+            total: grandTotal,
+        });
+
+        return { columns, rows };
+    }
+
+    // ═══ Fallback: export document header as key-value pairs ═══
+    const headerFields = [
+        { key: 'invoice_no', ar: 'رقم الفاتورة', en: 'Invoice No' },
+        { key: 'order_number', ar: 'رقم الطلب', en: 'Order No' },
+        { key: 'container_number', ar: 'رقم الحاوية', en: 'Container No' },
+        { key: 'date', ar: 'التاريخ', en: 'Date' },
+        { key: 'party_name', ar: 'الجهة', en: 'Party' },
+        { key: 'customer_name', ar: 'العميل', en: 'Customer' },
+        { key: 'supplier_name', ar: 'المورد', en: 'Supplier' },
+        { key: 'total_amount', ar: 'المبلغ الإجمالي', en: 'Total Amount' },
+        { key: 'grand_total', ar: 'المبلغ الإجمالي', en: 'Grand Total' },
+        { key: 'currency', ar: 'العملة', en: 'Currency' },
+        { key: 'notes', ar: 'الملاحظات', en: 'Notes' },
+        { key: 'status', ar: 'الحالة', en: 'Status' },
+        { key: 'stage', ar: 'المرحلة', en: 'Stage' },
+    ];
+
+    const columns = [
+        { key: 'field', header: isAr ? 'الحقل' : 'Field' },
+        { key: 'value', header: isAr ? 'القيمة' : 'Value' },
+    ];
+
+    const rows = headerFields
+        .filter(f => data?.[f.key] !== undefined && data?.[f.key] !== null && data?.[f.key] !== '')
+        .map(f => ({
+            field: isAr ? f.ar : f.en,
+            value: data[f.key],
+        }));
+
+    return { columns, rows };
+}
+
+// ═══ Translate auto-generated Arabic descriptions ═══
+function translateAutoDescription(desc: string, lang: string, partyData?: any): string {
+    if (lang === 'ar' || !desc) return desc;
+
+    // Map of Arabic prefixes → multi-language translations
+    const translations: [string, Record<string, string>][] = [
+        ['فاتورة مشتريات', { en: 'Purchase Invoice', tr: 'Alış Faturası', ru: 'Счёт на закупку', uk: 'Рахунок на закупівлю' }],
+        ['فاتورة مبيعات', { en: 'Sales Invoice', tr: 'Satış Faturası', ru: 'Счёт на продажу', uk: 'Рахунок на продаж' }],
+        ['سند قبض', { en: 'Receipt Voucher', tr: 'Tahsilat Makbuzu', ru: 'Приходный ордер', uk: 'Прибутковий ордер' }],
+        ['سند صرف', { en: 'Payment Voucher', tr: 'Ödeme Makbuzu', ru: 'Расходный ордер', uk: 'Видатковий ордер' }],
+        ['قيد يومية', { en: 'Journal Entry', tr: 'Yevmiye Kaydı', ru: 'Журнальная запись', uk: 'Журнальний запис' }],
+        ['قيد افتتاحي', { en: 'Opening Entry', tr: 'Açılış Kaydı', ru: 'Вступительная запись', uk: 'Вступний запис' }],
+        ['إقفال', { en: 'Closing', tr: 'Kapanış', ru: 'Закрытие', uk: 'Закриття' }],
+        ['مرتجع مشتريات', { en: 'Purchase Return', tr: 'Alış İadesi', ru: 'Возврат закупки', uk: 'Повернення закупки' }],
+        ['مرتجع مبيعات', { en: 'Sales Return', tr: 'Satış İadesi', ru: 'Возврат продажи', uk: 'Повернення продажу' }],
+        ['دفعة', { en: 'Payment', tr: 'Ödeme', ru: 'Платёж', uk: 'Платіж' }],
+        ['إيصال استلام', { en: 'Goods Receipt', tr: 'Mal Alımı', ru: 'Приёмка товара', uk: 'Прийом товару' }],
+        ['أمر شراء', { en: 'Purchase Order', tr: 'Satınalma Siparişi', ru: 'Заказ на закупку', uk: 'Замовлення на закупівлю' }],
+        ['أمر بيع', { en: 'Sales Order', tr: 'Satış Siparişi', ru: 'Заказ на продажу', uk: 'Замовлення на продаж' }],
+        ['رصيد افتتاحي', { en: 'Opening Balance', tr: 'Açılış Bakiyesi', ru: 'Начальное сальдо', uk: 'Початковий залишок' }],
+        ['كونتينر', { en: 'Container', tr: 'Konteyner', ru: 'Контейнер', uk: 'Контейнер' }],
+        ['مصاريف', { en: 'Expenses', tr: 'Giderler', ru: 'Расходы', uk: 'Витрати' }],
+    ];
+
+    let result = desc;
+    for (const [arTerm, langMap] of translations) {
+        if (result.includes(arTerm)) {
+            result = result.replace(arTerm, langMap[lang] || langMap.en || arTerm);
+        }
+    }
+
+    // Translate party name if localized version exists
+    if (partyData) {
+        const arName = partyData.name_ar || partyData.name || '';
+        const localizedName = partyData[`name_${lang}`];
+        if (arName && localizedName && arName !== localizedName && result.includes(arName)) {
+            result = result.replace(arName, localizedName);
+        }
+    }
+
+    return result;
+}
+
+// ═══ Fetch Ledger Entries for Party Export ═══
+async function fetchLedgerExportData(
+    accountId: string,
+    data: any,
+    isAr: boolean,
+    language: string
+): Promise<{ columns: { key: string; header: string }[]; rows: Record<string, any>[] }> {
+    // Multi-language header helper
+    const h = (ar: string, en: string, tr: string, ru: string, uk: string) => {
+        const map: Record<string, string> = { ar, en, tr, ru, uk };
+        return map[language] || en;
+    };
+
+    // Query journal entry lines (no cost_center FK join — use ID only)
+    const { data: lines, error } = await supabase
+        .from('journal_entry_lines')
+        .select(`
+            id,
+            debit,
+            credit,
+            description,
+            line_number,
+            cost_center_id,
+            entry:journal_entries!entry_id (
+                id,
+                entry_number,
+                entry_date,
+                description,
+                reference_type,
+                status
+            )
+        `)
+        .eq('account_id', accountId)
+        .order('line_number', { ascending: true });
+
+    if (error || !lines || lines.length === 0) {
+        return { columns: [], rows: [] };
+    }
+
+    // Sort by date
+    const sorted = [...lines].sort((a: any, b: any) => {
+        const dateA = a.entry?.entry_date || '';
+        const dateB = b.entry?.entry_date || '';
+        return dateA.localeCompare(dateB);
+    });
+
+    // Same column order for ALL languages — sheet direction (RTL/LTR) handles the layout
+    // # | Debit | Credit | Description | Date | Balance | Currency | Exchange Rate | Cost Center
+    const columns = [
+        { key: 'index', header: '#' },
+        { key: 'debit', header: h('مدين', 'Debit', 'Borç', 'Дебет', 'Дебет') },
+        { key: 'credit', header: h('دائن', 'Credit', 'Alacak', 'Кредит', 'Кредит') },
+        { key: 'description', header: h('البيان', 'Description', 'Açıklama', 'Описание', 'Опис') },
+        { key: 'date', header: h('التاريخ', 'Date', 'Tarih', 'Дата', 'Дата') },
+        { key: 'balance', header: h('الرصيد', 'Balance', 'Bakiye', 'Баланс', 'Баланс') },
+        { key: 'currency', header: h('العملة', 'Currency', 'Para Birimi', 'Валюта', 'Валюта') },
+        { key: 'exchange_rate', header: h('سعر الصرف', 'Exchange Rate', 'Döviz Kuru', 'Курс', 'Курс') },
+        { key: 'cost_center', header: h('مركز التكلفة', 'Cost Center', 'Maliyet Merkezi', 'Центр затрат', 'Центр витрат') },
+    ];
+
+    const partyCurrency = data?.currency || 'USD';
+
+    let runningBalance = 0;
+    const rows: Record<string, any>[] = sorted.map((line: any, idx: number) => {
+        const debit = Number(line.debit) || 0;
+        const credit = Number(line.credit) || 0;
+        runningBalance += debit - credit;
+        const entry = line.entry || {};
+        const cc = line.cost_center_id || '';
+        const rawDesc = line.description || entry.description || '';
+        return {
+            index: idx + 1,
+            debit: debit || '',
+            credit: credit || '',
+            description: translateAutoDescription(rawDesc, language, data),
+            date: entry.entry_date || '',
+            balance: runningBalance,
+            currency: partyCurrency,
+            exchange_rate: 1,
+            cost_center: cc,
+        };
+    });
+
+    // Totals row
+    const totalDebit = sorted.reduce((s: number, l: any) => s + (Number(l.debit) || 0), 0);
+    const totalCredit = sorted.reduce((s: number, l: any) => s + (Number(l.credit) || 0), 0);
+    rows.push({
+        index: '',
+        debit: totalDebit,
+        credit: totalCredit,
+        description: h('الإجمالي', 'Total', 'Toplam', 'Итого', 'Всього'),
+        date: '',
+        balance: runningBalance,
+        currency: partyCurrency,
+        exchange_rate: '',
+        cost_center: '',
+    });
+
+    // التفقيط — Amount in words
+    const amountInWords = numberToWords(Math.abs(runningBalance), partyCurrency, language);
+    const tafqeetLabel = h('التفقيط', 'Amount in Words', 'Yazıyla', 'Сумма прописью', 'Сума прописом');
+
+    rows.push({
+        index: '',
+        debit: '',
+        credit: '',
+        description: `${tafqeetLabel}: ${amountInWords}`,
+        date: '',
+        balance: '',
+        currency: '',
+        exchange_rate: '',
+        cost_center: '',
+    });
+
+    return { columns, rows };
+}
+
+// ═══ Number to Words — Multi-language ═══
+function numberToWords(amount: number, currency: string, lang: string): string {
+    const integer = Math.floor(amount);
+    const fraction = Math.round((amount - integer) * 100);
+
+    const currencyNames: Record<string, Record<string, { singular: string; plural: string; subunit: string }>> = {
+        ar: {
+            USD: { singular: 'دولار أمريكي', plural: 'دولار أمريكي', subunit: 'سنت' },
+            EUR: { singular: 'يورو', plural: 'يورو', subunit: 'سنت' },
+            TRY: { singular: 'ليرة تركية', plural: 'ليرة تركية', subunit: 'قرش' },
+            SAR: { singular: 'ريال سعودي', plural: 'ريال سعودي', subunit: 'هللة' },
+            AED: { singular: 'درهم إماراتي', plural: 'درهم إماراتي', subunit: 'فلس' },
+            EGP: { singular: 'جنيه مصري', plural: 'جنيه مصري', subunit: 'قرش' },
+            UAH: { singular: 'هريفنيا أوكرانية', plural: 'هريفنيا أوكرانية', subunit: 'كوبيك' },
+            RUB: { singular: 'روبل روسي', plural: 'روبل روسي', subunit: 'كوبيك' },
+        },
+        en: {
+            USD: { singular: 'US Dollar', plural: 'US Dollars', subunit: 'Cent' },
+            EUR: { singular: 'Euro', plural: 'Euros', subunit: 'Cent' },
+            TRY: { singular: 'Turkish Lira', plural: 'Turkish Lira', subunit: 'Kuruş' },
+            SAR: { singular: 'Saudi Riyal', plural: 'Saudi Riyals', subunit: 'Halala' },
+            AED: { singular: 'Dirham', plural: 'Dirhams', subunit: 'Fils' },
+            EGP: { singular: 'Egyptian Pound', plural: 'Egyptian Pounds', subunit: 'Piastre' },
+            UAH: { singular: 'Hryvnia', plural: 'Hryvnias', subunit: 'Kopiyka' },
+            RUB: { singular: 'Russian Ruble', plural: 'Russian Rubles', subunit: 'Kopeck' },
+        },
+        tr: {
+            USD: { singular: 'ABD Doları', plural: 'ABD Doları', subunit: 'Sent' },
+            EUR: { singular: 'Euro', plural: 'Euro', subunit: 'Sent' },
+            TRY: { singular: 'Türk Lirası', plural: 'Türk Lirası', subunit: 'Kuruş' },
+            SAR: { singular: 'Suudi Riyali', plural: 'Suudi Riyali', subunit: 'Halala' },
+        },
+        ru: {
+            USD: { singular: 'доллар США', plural: 'долларов США', subunit: 'цент' },
+            EUR: { singular: 'евро', plural: 'евро', subunit: 'цент' },
+            RUB: { singular: 'рубль', plural: 'рублей', subunit: 'копейка' },
+            UAH: { singular: 'гривна', plural: 'гривен', subunit: 'копейка' },
+        },
+        uk: {
+            USD: { singular: 'долар США', plural: 'доларів США', subunit: 'цент' },
+            EUR: { singular: 'євро', plural: 'євро', subunit: 'цент' },
+            UAH: { singular: 'гривня', plural: 'гривень', subunit: 'копійка' },
+            RUB: { singular: 'рубль', plural: 'рублів', subunit: 'копійка' },
+        },
+    };
+
+    const curInfo = currencyNames[lang]?.[currency] || currencyNames.en?.[currency] || { singular: currency, plural: currency, subunit: '' };
+    const curName = integer === 1 ? curInfo.singular : curInfo.plural;
+
+    // Convert integer to words
+    const intWords = integerToWordsMultiLang(integer, lang);
+    let result = `${intWords} ${curName}`;
+
+    if (fraction > 0) {
+        const fracWords = integerToWordsMultiLang(fraction, lang);
+        const andWord = { ar: 'و', en: 'and', tr: 've', ru: 'и', uk: 'та' }[lang] || 'and';
+        result += ` ${andWord} ${fracWords} ${curInfo.subunit}`;
+    }
+
+    // Add "فقط لا غير" suffix for Arabic
+    if (lang === 'ar') {
+        result += ' فقط لا غير';
+    } else if (lang === 'en') {
+        result += ' only';
+    }
+
+    return result;
+}
+
+function integerToWordsMultiLang(n: number, lang: string): string {
+    if (n === 0) return lang === 'ar' ? 'صفر' : lang === 'tr' ? 'sıfır' : lang === 'ru' ? 'ноль' : lang === 'uk' ? 'нуль' : 'zero';
+
+    if (lang === 'ar') return integerToWordsArabic(n);
+    if (lang === 'en') return integerToWordsEnglish(n);
+    if (lang === 'tr') return integerToWordsTurkish(n);
+    if (lang === 'ru' || lang === 'uk') return integerToWordsRuUk(n, lang);
+    return integerToWordsEnglish(n);
+}
+
+function integerToWordsArabic(n: number): string {
+    if (n === 0) return 'صفر';
+    const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة'];
+    const tens = ['', 'عشر', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
+    const teens = ['عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+
+    const parts: string[] = [];
+    if (n >= 1000000) { const m = Math.floor(n / 1000000); parts.push(m === 1 ? 'مليون' : m === 2 ? 'مليونان' : `${integerToWordsArabic(m)} مليون`); n %= 1000000; }
+    if (n >= 1000) { const k = Math.floor(n / 1000); parts.push(k === 1 ? 'ألف' : k === 2 ? 'ألفان' : `${integerToWordsArabic(k)} آلاف`); n %= 1000; }
+    if (n >= 100) { const c = Math.floor(n / 100); const hundreds = ['', 'مائة', 'مئتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة']; parts.push(hundreds[c]); n %= 100; }
+    if (n >= 10 && n < 20) { parts.push(teens[n - 10]); }
+    else { if (n % 10 > 0) parts.push(ones[n % 10]); if (n >= 20) parts.push(tens[Math.floor(n / 10)]); }
+
+    return parts.filter(Boolean).join(' و ');
+}
+
+function integerToWordsEnglish(n: number): string {
+    if (n === 0) return 'zero';
+    const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    const parts: string[] = [];
+    if (n >= 1000000) { parts.push(`${integerToWordsEnglish(Math.floor(n / 1000000))} million`); n %= 1000000; }
+    if (n >= 1000) { parts.push(`${integerToWordsEnglish(Math.floor(n / 1000))} thousand`); n %= 1000; }
+    if (n >= 100) { parts.push(`${ones[Math.floor(n / 100)]} hundred`); n %= 100; }
+    if (n >= 20) { const t = tens[Math.floor(n / 10)]; const o = ones[n % 10]; parts.push(o ? `${t}-${o}` : t); }
+    else if (n > 0) { parts.push(ones[n]); }
+    return parts.join(' ');
+}
+
+function integerToWordsTurkish(n: number): string {
+    if (n === 0) return 'sıfır';
+    const ones = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'];
+    const tens = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'];
+    const parts: string[] = [];
+    if (n >= 1000000) { parts.push(`${integerToWordsTurkish(Math.floor(n / 1000000))} milyon`); n %= 1000000; }
+    if (n >= 1000) { const k = Math.floor(n / 1000); parts.push(k === 1 ? 'bin' : `${integerToWordsTurkish(k)} bin`); n %= 1000; }
+    if (n >= 100) { const c = Math.floor(n / 100); parts.push(c === 1 ? 'yüz' : `${ones[c]} yüz`); n %= 100; }
+    if (n >= 10) { parts.push(tens[Math.floor(n / 10)]); n %= 10; }
+    if (n > 0) parts.push(ones[n]);
+    return parts.join(' ');
+}
+
+function integerToWordsRuUk(n: number, lang: 'ru' | 'uk'): string {
+    if (n === 0) return lang === 'ru' ? 'ноль' : 'нуль';
+    const onesRu = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать'];
+    const onesUk = ['', 'один', 'два', 'три', 'чотири', 'п\'ять', 'шість', 'сім', 'вісім', 'дев\'ять', 'десять', 'одинадцять', 'дванадцять', 'тринадцять', 'чотирнадцять', 'п\'ятнадцять', 'шістнадцять', 'сімнадцять', 'вісімнадцять', 'дев\'ятнадцять'];
+    const tensRu = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+    const tensUk = ['', '', 'двадцять', 'тридцять', 'сорок', 'п\'ятдесят', 'шістдесят', 'сімдесят', 'вісімдесят', 'дев\'яносто'];
+    const hundredsArr = ['', 'сто', 'двісті', 'триста', 'чотириста', 'п\'ятсот', 'шістсот', 'сімсот', 'вісімсот', 'дев\'ятсот'];
+    const ones = lang === 'ru' ? onesRu : onesUk;
+    const tensList = lang === 'ru' ? tensRu : tensUk;
+    const tys = lang === 'ru' ? 'тысяча' : 'тисяча';
+    const mln = lang === 'ru' ? 'миллион' : 'мільйон';
+
+    const parts: string[] = [];
+    if (n >= 1000000) { parts.push(`${integerToWordsRuUk(Math.floor(n / 1000000), lang)} ${mln}`); n %= 1000000; }
+    if (n >= 1000) { parts.push(`${integerToWordsRuUk(Math.floor(n / 1000), lang)} ${tys}`); n %= 1000; }
+    if (n >= 100) { parts.push(hundredsArr[Math.floor(n / 100)]); n %= 100; }
+    if (n >= 20) { parts.push(tensList[Math.floor(n / 10)]); n %= 10; if (n > 0) parts.push(ones[n]); }
+    else if (n > 0) { parts.push(ones[n]); }
+    return parts.filter(Boolean).join(' ');
+}
 export function useSheetActionHandler(params: UseSheetActionsParams) {
     const { t, language } = useLanguage();
     const queryClient = useQueryClient();
@@ -653,15 +1176,72 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             if (data.iban !== undefined) updatePayload.iban = data.iban || null;
                             if (data.bank_account !== undefined) updatePayload.bank_account = data.bank_account || null;
 
-                            const { error } = await supabase
-                                .from(tableName)
-                                .update(updatePayload)
-                                .eq('id', data.id);
+                            if (mode === 'create' || !data.id) {
+                                // Get tenant_id from user profile
+                                let tenantId = data.tenant_id;
+                                if (!tenantId) {
+                                    const { data: { session } } = await supabase.auth.getSession();
+                                    if (session?.user) {
+                                        const { data: profile } = await supabase
+                                            .from('user_profiles')
+                                            .select('tenant_id')
+                                            .eq('id', session.user.id)
+                                            .single();
+                                        tenantId = profile?.tenant_id;
+                                    }
+                                }
+                                if (!tenantId) throw new Error('Tenant ID not found');
 
-                            if (error) throw error;
+                                // Auto-generate code (SUP-001 / CUS-001)
+                                const codePrefix = isCustomer ? 'CUS' : 'SUP';
+                                const { count } = await supabase
+                                    .from(tableName)
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('company_id', companyId || data.company_id);
+                                const nextNum = ((count || 0) + 1).toString().padStart(3, '0');
+                                const autoCode = data.code || `${codePrefix}-${nextNum}`;
 
-                            toast.success(language === 'ar' ? 'تم حفظ بيانات الجهة بنجاح' : 'Party saved successfully');
+                                // INSERT new party
+                                const insertPayload = {
+                                    ...updatePayload,
+                                    code: autoCode,
+                                    company_id: companyId || data.company_id,
+                                    tenant_id: tenantId,
+                                };
+                                // Remove undefined values
+                                Object.keys(insertPayload).forEach(k => {
+                                    if (insertPayload[k] === undefined) delete insertPayload[k];
+                                });
+
+                                const { data: inserted, error } = await supabase
+                                    .from(tableName)
+                                    .insert(insertPayload)
+                                    .select()
+                                    .single();
+
+                                if (error) throw error;
+
+                                // Update local state with new ID
+                                setData((prev: any) => ({ ...prev, ...inserted, id: inserted.id }));
+                                toast.success(language === 'ar' ? 'تم إنشاء الجهة بنجاح' : 'Party created successfully');
+                            } else {
+                                // UPDATE existing party
+                                const { error } = await supabase
+                                    .from(tableName)
+                                    .update(updatePayload)
+                                    .eq('id', data.id);
+
+                                if (error) throw error;
+                                toast.success(language === 'ar' ? 'تم حفظ بيانات الجهة بنجاح' : 'Party saved successfully');
+                            }
+
                             setHasChanges(false);
+                            // Invalidate party queries to refresh the list immediately
+                            queryClient.invalidateQueries({ queryKey: ['parties_suppliers'] });
+                            queryClient.invalidateQueries({ queryKey: ['parties_customers'] });
+                            queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
+                            queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+                            queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
                             if (onSave) await onSave(data);
                             setMode('view');
                         } catch (err: any) {
@@ -693,15 +1273,108 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     if (onSave) {
                         await onSave(data);
                     } else if (isAccountingDocType) {
-                        await handleAccountingSave(data);
+                        // ─── Accounting: احفظ دائماً كمسودة أولاً لضمان الحصول على الـ ID ───
+                        // (الترحيل يتم لاحقاً عبر RPC منفصل إذا كان save_post)
+                        const createdId = await handleAccountingSave({ ...data, _post: false });
+                        console.log('[Register] handleAccountingSave returned ID:', createdId);
+                        if (createdId) {
+                            savedResult = { id: createdId };
+                            setData((prev: any) => ({ ...prev, id: createdId }));
+                        } else {
+                            // إذا لم يُرجع ID فالحفظ فشل — أوقف العملية
+                            console.error('[Register] handleAccountingSave returned no ID — aborting');
+                            setLoading(false);
+                            return;
+                        }
                     } else if (isTradeDocType) {
                         savedResult = await handleTradeSave(data);
                     }
-                    toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
+                    // Only show generic save toast for draft saves (not for Register which shows its own)
+                    if (actionId !== 'save_post' || !isAccountingDocType) {
+                        toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
+                    }
                     setHasChanges(false);
 
-                    // Save & Post Logic
+                    // ─── Save & Post Logic ───
                     let manualPostSuccess = false;
+
+                    // Accounting docs: استخدام RPC الرسمي للترحيل — يُحدِّث chart_of_accounts أيضاً
+                    if (actionId === 'save_post' && isAccountingDocType) {
+                        // ✅ نستخدم الـ ID المُرجَع من الحفظ أولاً، ثم ID المستند الحالي
+                        const docId = savedResult?.id || data?.id || documentId;
+                        if (docId) {
+                            try {
+                                const { data: { session } } = await supabase.auth.getSession();
+                                const userId = session?.user?.id || '';
+
+                                // ✅ المسار الصحيح: RPC يُحدِّث journal_entries + chart_of_accounts
+                                const { error: rpcErr } = await supabase.rpc('post_journal_entry', {
+                                    p_entry_id: docId,
+                                    p_user_id: userId,
+                                });
+
+                                if (rpcErr) {
+                                    // ⚠️ الـ RPC فشل — لا نُكمِل الترحيل لأن أرصدة chart_of_accounts لن تُحدَّث
+                                    // المستخدم يجب أن يحاول مجدداً بعد إصلاح سبب الفشل
+                                    console.error('[Register] RPC post_journal_entry failed:', rpcErr.message, rpcErr.code);
+                                    const errDetail = rpcErr.message || '';
+                                    if (errDetail.includes('غير متوازن') || errDetail.includes('unbalanced')) {
+                                        toast.error(language === 'ar'
+                                            ? `❌ القيد غير متوازن — تحقق من مجموع المدين والدائن`
+                                            : `❌ Entry not balanced — check debit/credit totals`);
+                                    } else if (errDetail.includes('مرحّل مسبقاً') || errDetail.includes('already posted')) {
+                                        toast.warning(language === 'ar' ? 'القيد مرحّل مسبقاً' : 'Entry already posted');
+                                    } else {
+                                        toast.error(language === 'ar'
+                                            ? `❌ فشل الترحيل: ${errDetail}`
+                                            : `❌ Post failed: ${errDetail}`);
+                                    }
+                                    break; // لا تُكمِل — الرصيد لم يُحدَّث
+                                }
+
+                                // نجاح ✅
+                                // أعِد جلب القيد من DB ليحمل البيانات الكاملة (debit_fc, is_fund_line)
+                                // هذا يجعل AccountingEntryViewTab يقرأ بيانات حقيقية بدون ضرب مزدوج
+                                try {
+                                    const { journalEntriesService } = await import('@/services/journalEntriesService');
+                                    const freshEntry = await journalEntriesService.getById(docId);
+                                    if (freshEntry) {
+                                        // C3: فلتر سطر الصندوق من lines قبل دمجها في state الأب
+                                        // تبويب القيد يقرأ data.lines ← يجب ألا يحتوي الصندوق
+                                        const cleanLines = (freshEntry.lines || []).filter(
+                                            (l: any) => l.is_fund_line !== true
+                                        );
+                                        setData((prev: any) => ({
+                                            ...prev,
+                                            ...freshEntry,
+                                            lines: cleanLines,
+                                            status: 'posted',
+                                            is_posted: true,
+                                        }));
+                                    } else {
+                                        setData((prev: any) => ({ ...prev, status: 'posted', is_posted: true }));
+                                    }
+                                } catch {
+                                    setData((prev: any) => ({ ...prev, status: 'posted', is_posted: true }));
+                                }
+                                queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+                                queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                                queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
+                                queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+                                toast.success(language === 'ar' ? '✅ تم التسجيل والترحيل بنجاح' : '✅ Registered and posted successfully');
+
+                                manualPostSuccess = true;
+
+                            } catch (postEx: any) {
+                                console.error('[Register] Exception:', postEx);
+                                toast.error(language === 'ar' ? `خطأ في الترحيل: ${postEx.message}` : `Register error: ${postEx.message}`);
+                            }
+                        } else {
+                            toast.error(language === 'ar' ? 'لم يتم العثور على رقم القيد' : 'Document ID not found');
+                        }
+                    }
+
+
                     if (actionId === 'save_post' && isTradeDocType && isPostableDocType) {
                         try {
                             const docId = savedResult?.id || data?.id || documentId;
@@ -748,9 +1421,17 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     }
 
                     // After-save mode transitions
-                    if (mode === 'create' && isAccountingDocType) {
+                    if (mode === 'create' && isAccountingDocType && actionId === 'save') {
+                        // Draft save in create mode: reset for new entry
                         setData({});
                         setTimeout(() => setData({ type: docType }), 50);
+                    } else if (mode === 'create' && isAccountingDocType && actionId === 'save_post') {
+                        // Register in create mode: go to view showing posted entry
+                        handleModeChange('view');
+                    } else if (mode === 'edit' && isAccountingDocType && actionId === 'save_post') {
+                        // Register in edit mode: update state FIRST, then switch to view
+                        // setData already called above with posted status
+                        handleModeChange('view');
                     } else if (mode === 'create' && isTradeDocType) {
                         handleModeChange('view');
                     } else if (mode === 'create') {
@@ -889,6 +1570,30 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             await onDelete();
                             toast.success(t('messages.deletedSuccessfully') || 'تم الحذف بنجاح');
                             onClose();
+                        }
+                    } else if (isAccountingDocType && (documentId || data?.id)) {
+                        // ─── Accounting: حذف القيد من journal_entries ───
+                        const docId = documentId || data?.id;
+                        const confirmed = window.confirm(
+                            language === 'ar'
+                                ? 'هل أنت متأكد من حذف هذا القيد؟\n\nلا يمكن التراجع عن هذا الإجراء.'
+                                : 'Are you sure you want to delete this journal entry?\n\nThis action cannot be undone.'
+                        );
+                        if (confirmed) {
+                            setLoading(true);
+                            try {
+                                const { journalEntriesService } = await import('@/services/journalEntriesService');
+                                await journalEntriesService.delete(docId);
+                                queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+                                toast.success(language === 'ar' ? '🗑️ تم حذف القيد بنجاح' : '🗑️ Journal entry deleted');
+                                onClose();
+                            } catch (err: any) {
+                                toast.error(
+                                    language === 'ar' ? `فشل الحذف: ${err.message}` : `Delete failed: ${err.message}`
+                                );
+                            } finally {
+                                setLoading(false);
+                            }
                         }
                     } else if (isTradeDocType && (documentId || data?.id)) {
                         const confirmed = window.confirm(
@@ -1435,6 +2140,30 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         await onUnpost();
                         toast.success(language === 'ar' ? 'تم إلغاء الترحيل' : 'Document unposted');
                         onRefresh?.();
+                    } else if (isAccountingDocType && (documentId || data?.id)) {
+                        // ─── Accounting: إلغاء ترحيل القيد ───
+                        const docId = documentId || data?.id;
+                        const confirmed = window.confirm(
+                            language === 'ar'
+                                ? 'هل تريد إلغاء ترحيل هذا القيد؟ سيعود لحالة المسودة.'
+                                : 'Unpost this journal entry? It will return to draft status.'
+                        );
+                        if (confirmed) {
+                            setLoading(true);
+                            try {
+                                const { journalEntriesService } = await import('@/services/journalEntriesService');
+                                await journalEntriesService.unpost(docId);
+                                setData((prev: any) => ({ ...prev, status: 'draft', is_posted: false }));
+                                queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+                                toast.success(language === 'ar' ? '✅ تم إلغاء الترحيل — القيد الآن مسودة' : '✅ Unposted — entry is now a draft');
+                            } catch (err: any) {
+                                toast.error(
+                                    language === 'ar' ? `فشل إلغاء الترحيل: ${err.message}` : `Unpost failed: ${err.message}`
+                                );
+                            } finally {
+                                setLoading(false);
+                            }
+                        }
                     } else if (isTradeDocType && isPostableDocType && (documentId || data?.id)) {
                         const confirmUnpost = window.confirm(
                             language === 'ar'
@@ -1818,9 +2547,93 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     }
                     break;
 
-                case 'export':
-                    toast.info(t('messages.featureComingSoon') || 'قريباً');
+                case 'export': {
+                    // Excel export — build from document items
+                    try {
+                        const { exportToExcel } = await import('@/lib/export-utils');
+                        const { columns: cols, rows } = await buildExportData(data, language, docType);
+                        exportToExcel({
+                            filename: data?.invoice_no || data?.order_number || data?.container_number || 'export',
+                            title: data?.invoice_no || data?.order_number || docType,
+                            columns: cols,
+                            data: rows,
+                            isRTL: language === 'ar',
+                        });
+                        toast.success(language === 'ar' ? '✅ تم التصدير بنجاح' : '✅ Exported successfully');
+                    } catch (err) {
+                        console.error('Export error:', err);
+                        toast.info(t('messages.featureComingSoon') || 'قريباً');
+                    }
                     break;
+                }
+
+                case 'google_sheets': {
+                    try {
+                        const { openInGoogleSheets } = await import('@/lib/export-utils');
+                        const { columns: cols, rows } = await buildExportData(data, language, docType);
+                        if (cols.length === 0) {
+                            toast.warning(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+                            break;
+                        }
+                        // Build smart title — multi-language
+                        const nameByLang = data?.[`name_${language}`] || data?.name || data?.name_ar || data?.name_en || data?.party_name || '';
+                        const statementLabel: Record<string, string> = {
+                            ar: 'كشف حساب', en: 'Statement', tr: 'Hesap Özeti', ru: 'Выписка', uk: 'Виписка',
+                        };
+                        const exportTitle = docType === 'party'
+                            ? `${statementLabel[language] || 'Statement'} - ${nameByLang}`
+                            : (data?.invoice_no || data?.order_number || docType);
+                        const exportFilename = docType === 'party'
+                            ? nameByLang || 'statement'
+                            : (data?.invoice_no || data?.order_number || data?.container_number || 'export');
+
+                        const creatingMsg: Record<string, string> = {
+                            ar: '⏳ جاري إنشاء Google Sheet...', en: '⏳ Creating Google Sheet...',
+                            tr: '⏳ Google Sheet oluşturuluyor...', ru: '⏳ Создание Google Sheet...',
+                            uk: '⏳ Створення Google Sheet...',
+                        };
+                        toast.info(creatingMsg[language] || creatingMsg.en);
+                        const result = await openInGoogleSheets({
+                            filename: exportFilename,
+                            title: exportTitle,
+                            columns: cols,
+                            data: rows,
+                            isRTL: language === 'ar',
+                            language: language,
+                            companyId: companyId,
+                            supabaseClient: supabase,
+                        });
+                        if (result?.url) {
+                            toast.success(language === 'ar' ? '✅ تم فتح Google Sheet بنجاح' : '✅ Google Sheet opened');
+                        } else if (result?.error === 'not_connected') {
+                            // fallback handled inside openInGoogleSheets
+                        } else if (result?.error) {
+                            toast.error(result.error);
+                        }
+                    } catch (err: any) {
+                        console.error('Google Sheets error:', err);
+                        toast.error(err.message || 'Google Sheets error');
+                    }
+                    break;
+                }
+
+                case 'export_pdf': {
+                    try {
+                        const { exportToPDF } = await import('@/lib/export-utils');
+                        const { columns: cols, rows } = await buildExportData(data, language, docType);
+                        exportToPDF({
+                            filename: data?.invoice_no || data?.order_number || 'export',
+                            title: data?.invoice_no || data?.order_number || docType,
+                            columns: cols,
+                            data: rows,
+                            isRTL: language === 'ar',
+                        });
+                        toast.success(language === 'ar' ? '📄 تم فتح PDF' : '📄 PDF opened');
+                    } catch {
+                        toast.info(t('messages.featureComingSoon') || 'قريباً');
+                    }
+                    break;
+                }
 
                 case 'confirm': {
                     if (!companyId) {

@@ -273,6 +273,7 @@
     "detail": "[PL] detail",
     "dueDate": "[PL] dueDate",
     "duplicateRow": "Duplikuj wiersz",
+    "grid": {"keyboardShortcuts":"Skróty klawiaturowe","navigation":"Nawigacja","nextRow":"Następny wiersz (w dół)","nextColumn":"Następna kolumna","navigateCells":"Nawigacja między komórkami","copy":"Kopiowanie","copyAboveDown":"Kopiuj z góry + w dół","rows":"Wiersze","insertRow":"Wstaw wiersz","clearCell":"Wyczyść komórkę","swapDebitCredit":"Zamień debet↔kredyt"},
     "editAccount": "[PL] editAccount",
     "editGroup": "[PL] Edit Group",
     "entry": {

@@ -273,6 +273,7 @@
     "detail": "[IT] detail",
     "dueDate": "[IT] dueDate",
     "duplicateRow": "Duplica riga",
+    "grid": {"keyboardShortcuts":"Scorciatoie tastiera","navigation":"Navigazione","nextRow":"Riga successiva (giù)","nextColumn":"Colonna successiva","navigateCells":"Naviga tra celle","copy":"Copia","copyAboveDown":"Copia da sopra + giù","rows":"Righe","insertRow":"Inserisci riga","clearCell":"Pulisci cella","swapDebitCredit":"Scambia dare↔avere"},
     "editAccount": "[IT] editAccount",
     "editGroup": "[IT] Edit Group",
     "entry": {

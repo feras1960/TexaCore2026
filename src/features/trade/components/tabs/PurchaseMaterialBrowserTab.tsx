@@ -23,6 +23,7 @@ import { useMaterialPriceHistory, type PriceHistoryRecord } from '@/features/tra
 import { useTradePermissions } from '@/hooks/useTradePermissions';
 import { useTaxDefaults, computeTaxAmount, resolveItemTaxRate } from '@/features/trade/hooks/useTaxDefaults';
 import { useCompany } from '@/hooks/useCompany';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,8 @@ interface PurchaseMaterialBrowserTabProps {
     onAddItem: (item: InvoiceLineItem) => void;
     /** Document currency */
     currency?: string;
+    /** Exchange rate: 1 doc-currency = X base-currency */
+    exchangeRate?: number;
     /** Read only mode */
     readOnly?: boolean;
     /** Supplier ID — for price history context */
@@ -106,6 +109,7 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     items,
     onAddItem,
     currency = '',
+    exchangeRate: exchangeRateProp = 1,
     readOnly = false,
     supplierId,
     receiptMode,
@@ -115,10 +119,24 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     const t = (ar: string, en: string) => language === 'ar' ? ar : en;
 
     // ─── Company & Tax Defaults ───
-    const { companyId } = useCompany();
+    const { companyId, company } = useCompany();
+    const companyCurrency = company?.default_currency || 'USD';
     const { data: taxDefaults } = useTaxDefaults(companyId);
     const companyTaxRate = taxDefaults?.isEnabled ? taxDefaults.rate : 0;
     const companyTaxEnabled = taxDefaults?.isEnabled ?? false;
+
+    // ─── Price Conversion ───
+    // Material prices are in the material's own currency.
+    // Convert: materialCurrency → invoiceCurrency using lookupRate × multiply
+    const { lookupRate: lookupExRate } = useExchangeRateLookup();
+    const convertPrice = useCallback((basePrice: number, fromCurrency: string) => {
+        if (!fromCurrency || fromCurrency === currency) return basePrice;
+        const rate = lookupExRate(fromCurrency, currency);
+        if (rate > 0 && Math.abs(rate - 1) > 0.0001) {
+            return Math.round(basePrice * rate * 10000) / 10000;
+        }
+        return basePrice;
+    }, [currency, lookupExRate]);
 
     // ─── Permissions ────────────────────────────────────────────
     const permissions = useTradePermissions({ tradeMode: 'purchase' });
@@ -529,7 +547,7 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                     {materials.map((material) => {
                         const isExpanded = expandedMaterial === material.id;
                         const isInCart = cartMaterialIds.has(material.id);
-                        const displayPrice = material.purchase_price || material.selling_price;
+                        const displayPrice = convertPrice(material.purchase_price || material.selling_price, material.currency || companyCurrency);
                         const isLowStock = material.stock_qty > 0 && material.stock_qty <= material.min_stock;
 
                         return (

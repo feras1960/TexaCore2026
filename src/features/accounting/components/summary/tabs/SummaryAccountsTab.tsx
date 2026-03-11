@@ -1,9 +1,6 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * 📋 SummaryAccountsTab — جدول حسابات الأطراف
- * ════════════════════════════════════════════════════════════════
- * يستخدم NexaListTable وفقاً للقانون 21
- * يعرض كل الحسابات الفرعية مع أرصدتها وتفاصيلها
+ * 📋 SummaryAccountsTab — جدول حسابات الأطراف مع العملات
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -22,13 +19,15 @@ interface Props {
     partyType: string;
     isRTL: boolean;
     companyId?: string | null;
+    convert?: (amount: number, currency: string) => number;
+    selectedCurrency?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════
 
-export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }: Props) {
+export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId, convert, selectedCurrency }: Props) {
     const { t, language, direction } = useLanguage();
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -47,8 +46,22 @@ export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }:
     const fmt = (val: number) =>
         val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // Helper: convert amount
+    const cv = (amount: number, currency: string) => {
+        if (convert) return convert(amount, currency);
+        return amount;
+    };
+
     // Columns
     const columns: NexaListColumn<PartySubAccount>[] = useMemo(() => [
+        {
+            id: 'row_num',
+            header: '#',
+            width: '45px',
+            cell: (_row, index) => (
+                <span className="text-xs text-gray-400">{(index || 0) + 1}</span>
+            ),
+        },
         {
             id: 'account_code',
             header: t('accounting.summarySheet.columns.code'),
@@ -73,13 +86,23 @@ export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }:
             ),
         },
         {
+            id: 'currency',
+            header: t('accounting.currency') || 'العملة',
+            width: '80px',
+            cell: (row) => (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                    {row.currency || '—'}
+                </span>
+            ),
+        },
+        {
             id: 'current_balance',
             header: t('accounting.summarySheet.columns.balance'),
             sortable: true,
             sortKey: 'current_balance',
             align: 'end' as const,
             cell: (row) => {
-                const bal = row.current_balance || 0;
+                const bal = cv(row.current_balance || 0, row.currency || 'USD');
                 return (
                     <span className={cn(
                         'font-mono font-semibold text-sm',
@@ -97,8 +120,8 @@ export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }:
             header: t('accounting.summarySheet.columns.totalDebit'),
             align: 'end' as const,
             cell: (row) => (
-                <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
-                    {fmt(row.total_debit || 0)}
+                <span className="font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                    {fmt(cv(row.total_debit || 0, row.currency || 'USD'))}
                 </span>
             ),
         },
@@ -107,15 +130,15 @@ export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }:
             header: t('accounting.summarySheet.columns.totalCredit'),
             align: 'end' as const,
             cell: (row) => (
-                <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
-                    {fmt(row.total_credit || 0)}
+                <span className="font-mono text-sm text-rose-600 dark:text-rose-400">
+                    {fmt(cv(row.total_credit || 0, row.currency || 'USD'))}
                 </span>
             ),
         },
         {
             id: 'is_active',
             header: t('accounting.summarySheet.columns.status'),
-            width: '100px',
+            width: '80px',
             cell: (row) => (
                 <span className={cn(
                     'px-2 py-0.5 rounded-full text-xs font-medium',
@@ -130,10 +153,12 @@ export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }:
                 </span>
             ),
         },
-    ], [t, language, fmt]);
+    ], [t, language, convert, selectedCurrency]);
 
     // Footer totals
-    const totalBalance = filteredAccounts.reduce((s, a) => s + (a.current_balance || 0), 0);
+    const totalBalance = filteredAccounts.reduce((s, a) => s + cv(a.current_balance || 0, a.currency || 'USD'), 0);
+    const totalDebit = filteredAccounts.reduce((s, a) => s + cv(a.total_debit || 0, a.currency || 'USD'), 0);
+    const totalCredit = filteredAccounts.reduce((s, a) => s + cv(a.total_credit || 0, a.currency || 'USD'), 0);
 
     return (
         <NexaListTable
@@ -150,14 +175,22 @@ export function SummaryAccountsTab({ subAccounts, partyType, isRTL, companyId }:
             showFooter
             footerLeftText={`${t('accounting.summarySheet.totalLabel')}: ${filteredAccounts.length}`}
             footerRightContent={
-                <span className={cn(
-                    'font-mono font-bold',
-                    totalBalance >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400',
-                )}>
-                    {fmt(totalBalance)}
-                </span>
+                <div className="flex items-center gap-4">
+                    <span className="text-xs text-gray-500">
+                        {t('accounting.summarySheet.columns.totalDebit')}: <span className="font-mono font-bold text-emerald-600">{fmt(totalDebit)}</span>
+                    </span>
+                    <span className="text-xs text-gray-500">
+                        {t('accounting.summarySheet.columns.totalCredit')}: <span className="font-mono font-bold text-rose-600">{fmt(totalCredit)}</span>
+                    </span>
+                    <span className={cn(
+                        'font-mono font-bold',
+                        totalBalance >= 0
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400',
+                    )}>
+                        {fmt(totalBalance)}
+                    </span>
+                </div>
             }
             isRTL={isRTL}
             direction={direction}

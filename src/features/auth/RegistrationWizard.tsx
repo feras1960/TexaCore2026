@@ -39,7 +39,11 @@ import {
   Mail,
   Globe,
   Calendar,
-  Coins
+  Coins,
+  Warehouse,
+  GitBranch,
+  Wallet,
+  SkipForward
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -313,22 +317,46 @@ export default function RegistrationWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // قراءة بيانات التسجيل من localStorage
+  // قراءة بيانات التسجيل من localStorage أو من Google OAuth user_metadata
   const registrationData = React.useMemo(() => {
+    // First try localStorage (from website trial signup modal)
     const data = localStorage.getItem('registration_data');
     if (data) {
       try {
         return JSON.parse(data);
       } catch {
-        return null;
+        // fall through
       }
     }
+    // If no localStorage data, extract from Google OAuth user_metadata
+    if (user?.user_metadata) {
+      return {
+        email: user.email || user.user_metadata.email || '',
+        name: user.user_metadata.full_name || user.user_metadata.name || '',
+        companyName: '', // Google doesn't provide company
+        phone: user.user_metadata.phone || '',
+        plan: '',
+        billing: 'monthly',
+      };
+    }
     return null;
-  }, []);
+  }, [user]);
+
+  // Google user info for wizard header
+  const googleInfo = React.useMemo(() => {
+    if (user?.user_metadata?.avatar_url) {
+      return {
+        name: user.user_metadata.full_name || user.user_metadata.name || '',
+        email: user.email || '',
+        avatar: user.user_metadata.avatar_url,
+      };
+    }
+    return null;
+  }, [user]);
 
   const [formData, setFormData] = useState<CompanyFormData>({
     companyName: registrationData?.companyName || '',
-    businessType: '',
+    businessType: 'fabric',
     address: '',
     city: '',
     country: defaultCountryByLanguage[language] || 'SA',
@@ -338,12 +366,12 @@ export default function RegistrationWizard() {
     localCurrency: '',
     mainCurrency: 'USD',
     fiscalYearStart: 1,
-    selectedPlan: 'starter', // 🆕 الباقة الافتراضية
-    billingCycle: 'monthly', // 🆕 شهري افتراضياً
-    chartTemplate: 'standard' // 🆕 قالب شجرة الحسابات الافتراضي
+    selectedPlan: registrationData?.plan || 'texa-professional',
+    billingCycle: registrationData?.billing || 'monthly',
+    chartTemplate: 'simple'
   });
 
-  // 🆕 قراءة الباقة من URL
+  // 🆕 قراءة الباقة من URL أو من بيانات التسجيل
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const planFromUrl = params.get('plan');
@@ -356,7 +384,7 @@ export default function RegistrationWizard() {
   }, []);
 
   const isRTL = direction === 'rtl';
-  const totalSteps = 4; // 🆕 زيادة عدد الخطوات إلى 4
+  const totalSteps = 4;
   const progress = (currentStep / totalSteps) * 100;
 
   // ترتيب الدول أبجدياً عالمياً
@@ -458,20 +486,12 @@ export default function RegistrationWizard() {
   };
 
   const handleNext = () => {
-    // Step 1: التحقق من نوع العمل واسم الشركة
+    // Step 1: التحقق من اسم الشركة والدولة والمدينة
     if (currentStep === 1) {
-      if (!formData.businessType) {
-        toast.error(t('wizard.selectBusinessType') || 'الرجاء اختيار نوع العمل');
-        return;
-      }
       if (!formData.companyName || formData.companyName.trim() === '') {
         toast.error(t('wizard.companyNameRequired') || 'الرجاء إدخال اسم الشركة');
         return;
       }
-    }
-
-    // Step 2: التحقق من الدولة والمدينة
-    if (currentStep === 2) {
       if (!formData.country) {
         toast.error(t('wizard.countryRequired') || 'الرجاء اختيار الدولة');
         return;
@@ -480,12 +500,10 @@ export default function RegistrationWizard() {
         toast.error(t('wizard.cityRequired') || 'الرجاء إدخال المدينة');
         return;
       }
-      // التحقق من البريد الإلكتروني
       if (!formData.email || formData.email.trim() === '') {
         toast.error(t('wizard.emailRequired') || 'الرجاء إدخال البريد الإلكتروني');
         return;
       }
-      // التحقق من صحة البريد الإلكتروني
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
         toast.error(t('wizard.emailInvalid') || 'البريد الإلكتروني غير صحيح');
@@ -493,8 +511,8 @@ export default function RegistrationWizard() {
       }
     }
 
-    // Step 3: التحقق من العملات
-    if (currentStep === 3) {
+    // Step 2: التحقق من العملات
+    if (currentStep === 2) {
       if (!formData.localCurrency) {
         toast.error(t('wizard.localCurrencyRequired') || 'الرجاء اختيار العملة المحلية');
         return;
@@ -505,7 +523,9 @@ export default function RegistrationWizard() {
       }
     }
 
-    // 🆕 Step 4: التحقق من الباقة
+    // Step 3: اختياري — يمكن التخطي
+
+    // Step 4: التحقق من الباقة
     if (currentStep === 4) {
       if (!formData.selectedPlan) {
         toast.error(t('wizard.selectPlan') || 'الرجاء اختيار الباقة');
@@ -559,10 +579,11 @@ export default function RegistrationWizard() {
         p_company_name: formData.companyName,
         p_phone: formData.phone || null,
         p_business_type: formData.businessType,
-        p_currency: formData.localCurrency,
+        p_currency: formData.mainCurrency,           // العملة الرئيسية (USD مثلاً)
+        p_local_currency: formData.localCurrency,     // العملة المحلية (UAH, SAR مثلاً)
         p_country_code: formData.country,
-        p_plan_code: formData.selectedPlan, // 🆕 إرسال الباقة المختارة
-        p_chart_template: formData.chartTemplate // 🆕 إرسال القالب المختار
+        p_plan_code: formData.selectedPlan,
+        p_chart_template: formData.chartTemplate      // simple أو extended
       });
 
       console.log('📊 RPC Response:', { data, error });
@@ -593,6 +614,8 @@ export default function RegistrationWizard() {
       // Update company details
       if (data?.company_id) {
         console.log('📝 Updating company details for company_id:', data.company_id);
+
+        // 1. Update companies table
         const { error: updateError } = await supabase
           .from('companies')
           .update({
@@ -602,16 +625,39 @@ export default function RegistrationWizard() {
             phone: formData.phone || '',
             email: formData.email,
             website: formData.website || '',
-            default_currency: formData.localCurrency,
+            default_currency: formData.mainCurrency,
             fiscal_year_start_month: formData.fiscalYearStart
           })
           .eq('id', data.company_id);
 
         if (updateError) {
-          console.error('⚠️ Update error:', updateError);
-          // لا نوقف العملية، فقط نسجل الخطأ
+          console.error('⚠️ Company update error:', updateError);
         } else {
           console.log('✅ Company details updated');
+        }
+
+        // 2. Update company_accounting_settings
+        const supportedCurrencies = [formData.mainCurrency];
+        if (formData.localCurrency && formData.localCurrency !== formData.mainCurrency) {
+          supportedCurrencies.push(formData.localCurrency);
+        }
+
+        const { error: accountingError } = await supabase
+          .from('company_accounting_settings')
+          .upsert({
+            company_id: data.company_id,
+            base_currency: formData.mainCurrency,
+            supported_currencies: supportedCurrencies,
+            fiscal_year_start_month: formData.fiscalYearStart,
+            fiscal_year_end_month: formData.fiscalYearStart === 1 ? 12 : ((formData.fiscalYearStart - 1 + 11) % 12) + 1,
+            enable_vat: true,
+            decimal_places: 2
+          }, { onConflict: 'company_id' });
+
+        if (accountingError) {
+          console.error('⚠️ Accounting settings error:', accountingError);
+        } else {
+          console.log('✅ Accounting settings updated');
         }
       }
 
@@ -649,7 +695,7 @@ export default function RegistrationWizard() {
 
 
   // ============================================
-  // STEP 1: Business Type + Company Name
+  // STEP 1: Company Info (معلومات الشركة)
   // ============================================
 
   const renderStep1 = () => (
@@ -658,113 +704,166 @@ export default function RegistrationWizard() {
       initial={{ opacity: 0, x: isRTL ? -20 : 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: isRTL ? 20 : -20 }}
-      className="space-y-6"
+      className="space-y-5"
     >
-      <div className="text-center mb-8">
-        <Store className="w-12 h-12 mx-auto mb-4 text-teal-600" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {t('wizard.step1Title')}
+      <div className="text-center mb-4">
+        {/* Google account info */}
+        {googleInfo && (
+          <div className="flex items-center justify-center gap-3 mb-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
+            <img src={googleInfo.avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
+            <div className="text-start">
+              <p className="text-sm font-semibold text-gray-900">{googleInfo.name}</p>
+              <p className="text-xs text-gray-500">{googleInfo.email}</p>
+            </div>
+            <div className="ms-auto">
+              <span className="text-[10px] px-2 py-1 bg-blue-100 text-blue-700 rounded-full flex items-center gap-1">
+                <Check className="w-3 h-3" />
+                {isRTL ? 'تم التحقق' : 'Verified'}
+              </span>
+            </div>
+          </div>
+        )}
+        <Building2 className="w-10 h-10 mx-auto mb-3 text-teal-600" />
+        <h2 className="text-xl font-bold text-gray-900 mb-1">
+          {isRTL ? 'معلومات شركتك' : 'Company Information'}
         </h2>
-        <p className="text-gray-600">{t('wizard.step1Description')}</p>
+        <p className="text-sm text-gray-500">{isRTL ? 'أدخل البيانات الأساسية لشركتك' : 'Enter your company details'}</p>
+
+        {/* Fabric badge */}
+        <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium border border-purple-100">
+          <Shirt className="w-3.5 h-3.5" />
+          {isRTL ? 'منصة تجارة الأقمشة' : 'Fabric Trading Platform'}
+        </div>
       </div>
 
-      {/* اسم الشركة */}
-      <div className="mb-6">
-        <Label htmlFor="companyName" className="text-base font-semibold mb-3 flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-teal-600" />
-          {t('wizard.companyName')} *
-        </Label>
-        <Input
-          id="companyName"
-          value={formData.companyName}
-          onChange={(e) => handleChange('companyName', e.target.value)}
-          placeholder={t('wizard.companyNamePlaceholder')}
-          className="text-lg h-12 border-2"
-          dir={isRTL ? 'rtl' : 'ltr'}
-          autoFocus={!formData.companyName} // تركيز فقط إذا كان فارغاً
-          required
-        />
-        {formData.companyName && (
-          <p className="text-xs text-teal-600 mt-1 flex items-center gap-1">
-            <Check className="w-3 h-3" />
-            {t('wizard.companyNameFromRegistration')}
-          </p>
-        )}
-        {!formData.companyName && (
-          <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-            <Info className="w-3 h-3" />
-            {t('wizard.companyNameHint')}
-          </p>
-        )}
-      </div>
+      <div className="grid gap-4">
+        {/* اسم الشركة */}
+        <div>
+          <Label htmlFor="companyName" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 text-teal-600" />
+            {t('wizard.companyName')} *
+          </Label>
+          <Input
+            id="companyName"
+            value={formData.companyName}
+            onChange={(e) => handleChange('companyName', e.target.value)}
+            placeholder={isRTL ? 'مثال: شركة النسيج الذهبي' : 'e.g. Golden Textile Co.'}
+            className="h-11 border-gray-200"
+            dir={isRTL ? 'rtl' : 'ltr'}
+            autoFocus={!formData.companyName}
+            required
+          />
+        </div>
 
-      {/* Business Types */}
-      <div>
-        <Label className="text-base font-semibold mb-3 block">
-          {t('wizard.selectBusinessType')} *
-        </Label>
-        {!formData.businessType && (
-          <p className="text-xs text-gray-500 mb-3 flex items-center gap-1">
-            <Info className="w-3 h-3" />
-            {t('wizard.businessTypeHint')}
-          </p>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(businessTypes).map(([key, type]) => {
-            const Icon = type.icon;
-            const isSelected = formData.businessType === key;
+        {/* الدولة و المدينة */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="country" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-teal-600" />
+              {t('wizard.country')} *
+            </Label>
+            <Select
+              value={formData.country}
+              onValueChange={(value) => handleChange('country', value)}
+            >
+              <SelectTrigger id="country" className="h-11">
+                <SelectValue placeholder={t('wizard.selectCountry')} />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedCountries.map((country) => (
+                  <SelectItem key={country.code} value={country.code}>
+                    {isRTL ? country.nameAr : country.name} ({country.currency})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="city" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" />
+              {t('wizard.city')} *
+            </Label>
+            <Input
+              id="city"
+              value={formData.city}
+              onChange={(e) => handleChange('city', e.target.value)}
+              placeholder={isRTL ? 'المدينة' : 'City'}
+              className="h-11"
+            />
+          </div>
+        </div>
 
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => handleChange('businessType', key)}
-                className={cn(
-                  "relative p-6 rounded-xl border-2 transition-all duration-200 text-start",
-                  "hover:shadow-md hover:scale-[1.02]",
-                  isSelected
-                    ? `${type.borderColor} ${type.bgColor} shadow-md scale-[1.02]`
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                )}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={cn(
-                    "p-3 rounded-lg",
-                    isSelected ? type.bgColor : 'bg-gray-100'
-                  )}>
-                    <Icon className={cn(
-                      "w-6 h-6",
-                      isSelected ? type.color : 'text-gray-600'
-                    )} />
-                  </div>
+        {/* البريد و الهاتف */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="email" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-teal-600" />
+              {t('wizard.email')} *
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="name@company.com"
+              className="h-11"
+              dir="ltr"
+            />
+          </div>
+          <div>
+            <Label htmlFor="phone" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5" />
+              {t('wizard.phone')}
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              placeholder="+xxx xxx xxxx"
+              className="h-11"
+              dir="ltr"
+            />
+          </div>
+        </div>
 
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      {t(`wizard.businessTypes.${key}.name`)}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {t(`wizard.businessTypes.${key}.description`)}
-                    </p>
-                  </div>
-
-                  {isSelected && (
-                    <div className="absolute top-4 end-4">
-                      <div className="w-6 h-6 rounded-full bg-teal-600 flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+        {/* العنوان و الموقع (اختياري) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="address" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" />
+              {t('wizard.address')}
+            </Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={(e) => handleChange('address', e.target.value)}
+              placeholder={isRTL ? 'العنوان (اختياري)' : 'Address (optional)'}
+              className="h-11"
+            />
+          </div>
+          <div>
+            <Label htmlFor="website" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" />
+              {t('wizard.website')}
+            </Label>
+            <Input
+              id="website"
+              type="url"
+              value={formData.website}
+              onChange={(e) => handleChange('website', e.target.value)}
+              placeholder="www.example.com"
+              className="h-11"
+              dir="ltr"
+            />
+          </div>
         </div>
       </div>
     </motion.div>
   );
 
   // ============================================
-  // STEP 2: Company Info
+  // STEP 2: Financial Settings (الإعدادات المالية)
   // ============================================
 
   const renderStep2 = () => (
@@ -773,213 +872,67 @@ export default function RegistrationWizard() {
       initial={{ opacity: 0, x: isRTL ? -20 : 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: isRTL ? 20 : -20 }}
-      className="space-y-6"
+      className="space-y-5"
     >
-      <div className="text-center mb-8">
-        <MapPin className="w-12 h-12 mx-auto mb-4 text-teal-600" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {t('wizard.step2Title')}
+      <div className="text-center mb-4">
+        <Coins className="w-10 h-10 mx-auto mb-3 text-teal-600" />
+        <h2 className="text-xl font-bold text-gray-900 mb-1">
+          {isRTL ? 'الإعدادات المالية' : 'Financial Settings'}
         </h2>
-        <p className="text-gray-600">{t('wizard.step2Description')}</p>
+        <p className="text-sm text-gray-500">{isRTL ? 'اختر العملات وبداية السنة المالية' : 'Configure currencies and fiscal year'}</p>
       </div>
 
-      <div className="grid gap-6">
-        {/* اسم الشركة (عرض فقط) */}
-        <div>
-          <Label className="flex items-center gap-2 mb-2">
-            <Building2 className="w-4 h-4" />
-            {t('wizard.companyName')}
-          </Label>
-          <Input
-            value={formData.companyName}
-            disabled
-            className="bg-gray-50"
-          />
-        </div>
-
-        {/* الدولة */}
-        <div>
-          <Label htmlFor="country" className="flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4" />
-            {t('wizard.country')} *
-          </Label>
-          <Select
-            value={formData.country}
-            onValueChange={(value) => handleChange('country', value)}
-          >
-            <SelectTrigger id="country" className="h-12">
-              <SelectValue placeholder={t('wizard.selectCountry')} />
-            </SelectTrigger>
-            <SelectContent>
-              {sortedCountries.map((country) => (
-                <SelectItem key={country.code} value={country.code}>
-                  {isRTL ? country.nameAr : country.name} ({country.currency})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* المدينة */}
-        <div>
-          <Label htmlFor="city" className="flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4" />
-            {t('wizard.city')} *
-          </Label>
-          <Input
-            id="city"
-            value={formData.city}
-            onChange={(e) => handleChange('city', e.target.value)}
-            placeholder={t('wizard.cityPlaceholder')}
-          />
-        </div>
-
-        {/* العنوان */}
-        <div>
-          <Label htmlFor="address" className="flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4" />
-            {t('wizard.address')}
-          </Label>
-          <Input
-            id="address"
-            value={formData.address}
-            onChange={(e) => handleChange('address', e.target.value)}
-            placeholder={t('wizard.addressPlaceholder')}
-          />
-        </div>
-
-        {/* الموقع الإلكتروني */}
-        <div>
-          <Label htmlFor="website" className="flex items-center gap-2 mb-2">
-            <Globe className="w-4 h-4" />
-            {t('wizard.website')}
-          </Label>
-          <Input
-            id="website"
-            type="url"
-            value={formData.website}
-            onChange={(e) => handleChange('website', e.target.value)}
-            placeholder={t('wizard.websitePlaceholder')}
-          />
-        </div>
-
-        {/* الهاتف */}
-        <div>
-          <Label htmlFor="phone" className="flex items-center gap-2 mb-2">
-            <Phone className="w-4 h-4" />
-            {t('wizard.phone')}
-          </Label>
-          <Input
-            id="phone"
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => handleChange('phone', e.target.value)}
-            placeholder={t('wizard.phonePlaceholder')}
-          />
-        </div>
-
-        {/* البريد الإلكتروني */}
-        <div>
-          <Label htmlFor="email" className="flex items-center gap-2 mb-2">
-            <Mail className="w-4 h-4" />
-            {t('wizard.email')}
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => handleChange('email', e.target.value)}
-            placeholder={t('wizard.emailPlaceholder')}
-          />
-        </div>
-      </div>
-    </motion.div>
-  );
-
-  // ============================================
-  // STEP 3: Financial Settings
-  // ============================================
-
-  const renderStep3 = () => (
-    <motion.div
-      key="step3"
-      initial={{ opacity: 0, x: isRTL ? -20 : 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: isRTL ? 20 : -20 }}
-      className="space-y-6"
-    >
-      <div className="text-center mb-8">
-        <Coins className="w-12 h-12 mx-auto mb-4 text-teal-600" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {t('wizard.step3Title')}
-        </h2>
-        <p className="text-gray-600">{t('wizard.step3Description')}</p>
-      </div>
-
-      <div className="grid gap-6">
-        {/* العملة المحلية */}
-        <div>
-          <Label htmlFor="localCurrency" className="flex items-center gap-2 mb-2">
-            <Coins className="w-4 h-4" />
-            {t('wizard.localCurrency')} *
-          </Label>
-          <Select
-            value={formData.localCurrency}
-            onValueChange={(value) => handleChange('localCurrency', value)}
-          >
-            <SelectTrigger id="localCurrency" className="h-12">
-              <SelectValue placeholder={t('wizard.selectCurrency')} />
-            </SelectTrigger>
-            <SelectContent>
-              {currencies.map((currency) => (
-                <SelectItem key={currency.code} value={currency.code}>
-                  {currency.code} - {isRTL ? currency.name : currency.nameEn}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-gray-500 mt-1">
-            {t('wizard.localCurrencyNote')}
-          </p>
-        </div>
-
-        {/* العملة الرئيسية */}
-        <div>
-          <Label htmlFor="mainCurrency" className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-4 h-4" />
-            {t('wizard.mainCurrency')} *
-          </Label>
-          <Select
-            value={formData.mainCurrency}
-            onValueChange={(value) => handleChange('mainCurrency', value)}
-          >
-            <SelectTrigger id="mainCurrency" className="h-12">
-              <SelectValue placeholder={t('wizard.selectMainCurrency')} />
-            </SelectTrigger>
-            <SelectContent>
-              {currencies.map((currency) => (
-                <SelectItem key={currency.code} value={currency.code}>
-                  {currency.code} - {isRTL ? currency.name : currency.nameEn}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-gray-500 mt-1">
-            {t('wizard.mainCurrencyNote')}
-          </p>
+      <div className="grid gap-5">
+        {/* العملات */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="localCurrency" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <Coins className="w-3.5 h-3.5 text-teal-600" />
+              {t('wizard.localCurrency')} *
+            </Label>
+            <Select value={formData.localCurrency} onValueChange={(value) => handleChange('localCurrency', value)}>
+              <SelectTrigger id="localCurrency" className="h-11">
+                <SelectValue placeholder={t('wizard.selectCurrency')} />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    {currency.code} - {isRTL ? currency.name : currency.nameEn}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-gray-400 mt-1">{isRTL ? 'العملة في بلدك' : 'Your country currency'}</p>
+          </div>
+          <div>
+            <Label htmlFor="mainCurrency" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-teal-600" />
+              {t('wizard.mainCurrency')} *
+            </Label>
+            <Select value={formData.mainCurrency} onValueChange={(value) => handleChange('mainCurrency', value)}>
+              <SelectTrigger id="mainCurrency" className="h-11">
+                <SelectValue placeholder={t('wizard.selectMainCurrency')} />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    {currency.code} - {isRTL ? currency.name : currency.nameEn}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-gray-400 mt-1">{isRTL ? 'للتقارير والمحاسبة' : 'For reports & accounting'}</p>
+          </div>
         </div>
 
         {/* بداية السنة المالية */}
         <div>
-          <Label htmlFor="fiscalYear" className="flex items-center gap-2 mb-2">
-            <Calendar className="w-4 h-4" />
+          <Label htmlFor="fiscalYear" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-teal-600" />
             {t('wizard.fiscalYearStart')}
           </Label>
-          <Select
-            value={formData.fiscalYearStart.toString()}
-            onValueChange={(value) => handleChange('fiscalYearStart', parseInt(value))}
-          >
-            <SelectTrigger id="fiscalYear" className="h-12">
+          <Select value={formData.fiscalYearStart.toString()} onValueChange={(value) => handleChange('fiscalYearStart', parseInt(value))}>
+            <SelectTrigger id="fiscalYear" className="h-11">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -992,104 +945,152 @@ export default function RegistrationWizard() {
           </Select>
         </div>
 
-        {/* 🆕 اختيار الشجرة المحاسبية */}
+        {/* الشجرة المحاسبية */}
         <div>
-          <Label className="flex items-center gap-2 mb-2 text-base font-semibold">
-            <DollarSign className="w-4 h-4" />
-            {t('wizard.selectChartTemplate') || 'اختر نوع الشجرة المحاسبية'}
+          <Label className="text-sm font-medium mb-2 flex items-center gap-1.5">
+            <DollarSign className="w-3.5 h-3.5 text-teal-600" />
+            {isRTL ? 'نوع الشجرة المحاسبية' : 'Chart of Accounts'}
           </Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* الشجرة المبسطة - متاح للجميع */}
-            <button
-              type="button"
-              onClick={() => handleChange('chartTemplate', 'simple')}
-              className={cn(
-                "p-4 rounded-xl border-2 transition-all text-start",
-                formData.chartTemplate === 'simple'
-                  ? "border-teal-600 bg-teal-50"
-                  : "border-gray-200 hover:border-teal-200"
-              )}
-            >
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => handleChange('chartTemplate', 'simple')}
+              className={cn("p-3 rounded-xl border-2 transition-all text-start",
+                formData.chartTemplate === 'simple' ? "border-teal-600 bg-teal-50" : "border-gray-200 hover:border-teal-200"
+              )}>
               <div className="flex items-center justify-between mb-1">
-                <span className="font-bold text-gray-900">{t('wizard.chartSimple') || 'الشجرة القياسية'}</span>
+                <span className="font-semibold text-sm text-gray-900">{isRTL ? 'قياسية' : 'Standard'}</span>
                 {formData.chartTemplate === 'simple' && <Check className="w-4 h-4 text-teal-600" />}
               </div>
-              <p className="text-sm text-gray-500 mb-2">
-                {t('wizard.chartSimpleDesc') || 'مناسبة للشركات الصغيرة والخدمية. حسابات أساسية ومختصرة.'}
-              </p>
-              <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded inline-block">
-                💡 {t('wizard.chartSimpleNote') || 'يمكنك ترقيتها لاحقاً إلى الموسعة'}
-              </div>
+              <p className="text-xs text-gray-500">{isRTL ? 'للشركات الصغيرة والمتوسطة' : 'Small & medium businesses'}</p>
             </button>
-
-            {/* الشجرة الموسعة - متاح للجميع */}
-            <button
-              type="button"
-              onClick={() => handleChange('chartTemplate', 'extended')}
-              className={cn(
-                "p-4 rounded-xl border-2 transition-all text-start",
-                formData.chartTemplate === 'extended'
-                  ? "border-teal-600 bg-teal-50"
-                  : "border-gray-200 hover:border-teal-200"
-              )}
-            >
+            <button type="button" onClick={() => handleChange('chartTemplate', 'extended')}
+              className={cn("p-3 rounded-xl border-2 transition-all text-start",
+                formData.chartTemplate === 'extended' ? "border-teal-600 bg-teal-50" : "border-gray-200 hover:border-teal-200"
+              )}>
               <div className="flex items-center justify-between mb-1">
-                <span className="font-bold text-gray-900">{t('wizard.chartExtended') || 'الشجرة الموسعة'}</span>
+                <span className="font-semibold text-sm text-gray-900">{isRTL ? 'موسّعة' : 'Extended'}</span>
                 {formData.chartTemplate === 'extended' && <Check className="w-4 h-4 text-teal-600" />}
               </div>
-              <p className="text-sm text-gray-500">
-                {t('wizard.chartExtendedDesc') || 'شجرة كاملة ومفصلة. مناسبة للشركات التجارية والصناعية الكبيرة.'}
-              </p>
+              <p className="text-xs text-gray-500">{isRTL ? 'للشركات الكبيرة المتعددة الفروع' : 'Large multi-branch companies'}</p>
             </button>
+          </div>
+        </div>
 
-
+        {/* Summary */}
+        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
+          <div className="flex items-center gap-2 mb-2 text-gray-700 font-medium">
+            <Info className="w-4 h-4 text-teal-600" />
+            {isRTL ? 'ملخص الإعدادات' : 'Settings Summary'}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+            <div><span className="text-gray-700">{isRTL ? 'الشركة:' : 'Company:'}</span> {formData.companyName}</div>
+            <div><span className="text-gray-700">{isRTL ? 'الدولة:' : 'Country:'}</span> {countries.find(c => c.code === formData.country)?.[isRTL ? 'nameAr' : 'name']}</div>
+            <div><span className="text-gray-700">{isRTL ? 'المحلية:' : 'Local:'}</span> {formData.localCurrency || '—'}</div>
+            <div><span className="text-gray-700">{isRTL ? 'الرئيسية:' : 'Main:'}</span> {formData.mainCurrency}</div>
           </div>
         </div>
       </div>
+    </motion.div>
+  );
 
-      {/* Summary */}
-      <Card className="bg-gray-50 border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Info className="w-5 h-5 text-teal-600" />
-            {t('wizard.summary')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('wizard.businessType')}:</span>
-            <span className="font-medium">{t(`wizard.businessTypes.${formData.businessType}.name`)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('wizard.companyName')}:</span>
-            <span className="font-medium">{formData.companyName}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('wizard.country')}:</span>
-            <span className="font-medium">
-              {isRTL
-                ? countries.find(c => c.code === formData.country)?.nameAr
-                : countries.find(c => c.code === formData.country)?.name
-              }
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('wizard.localCurrency')}:</span>
-            <span className="font-medium">{formData.localCurrency}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('wizard.mainCurrency')}:</span>
-            <span className="font-medium">{formData.mainCurrency}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('wizard.chartTemplate') || 'الشجرة المحاسبية'}:</span>
-            <span className="font-medium">
-              {formData.chartTemplate === 'simple' && (t('wizard.chartSimple') || 'القياسية')}
-              {formData.chartTemplate === 'extended' && (t('wizard.chartExtended') || 'الموسعة')}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+  // ============================================
+  // STEP 3: Quick Setup (إعداد سريع - اختياري)
+  // ============================================
+
+  const [quickSetup, setQuickSetup] = useState({
+    branchName: '',
+    warehouseName: '',
+    cashRegisterName: '',
+  });
+
+  const renderStep3 = () => (
+    <motion.div
+      key="step3"
+      initial={{ opacity: 0, x: isRTL ? -20 : 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: isRTL ? 20 : -20 }}
+      className="space-y-5"
+    >
+      <div className="text-center mb-4">
+        <Warehouse className="w-10 h-10 mx-auto mb-3 text-teal-600" />
+        <h2 className="text-xl font-bold text-gray-900 mb-1">
+          {isRTL ? 'إعداد سريع' : 'Quick Setup'}
+        </h2>
+        <p className="text-sm text-gray-500">
+          {isRTL ? 'أنشئ الفرع والمستودع والصندوق الآن أو لاحقاً' : 'Create branch, warehouse & register now or later'}
+        </p>
+        <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-xs font-medium border border-amber-100">
+          <SkipForward className="w-3.5 h-3.5" />
+          {isRTL ? 'هذه الخطوة اختيارية — يمكنك التخطي' : 'Optional step — you can skip'}
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {/* الفرع */}
+        <div className="p-4 rounded-xl border border-gray-200 bg-white hover:border-teal-200 transition-colors">
+          <Label className="text-sm font-medium mb-2 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <GitBranch className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <span className="text-gray-900">{isRTL ? 'الفرع الرئيسي' : 'Main Branch'}</span>
+              <p className="text-xs text-gray-400 font-normal">{isRTL ? 'أول فرع لشركتك' : 'Your first branch location'}</p>
+            </div>
+          </Label>
+          <Input
+            value={quickSetup.branchName}
+            onChange={(e) => setQuickSetup(prev => ({ ...prev, branchName: e.target.value }))}
+            placeholder={isRTL ? 'مثال: الفرع الرئيسي' : 'e.g. Main Branch'}
+            className="h-10 mt-2"
+          />
+        </div>
+
+        {/* المستودع */}
+        <div className="p-4 rounded-xl border border-gray-200 bg-white hover:border-teal-200 transition-colors">
+          <Label className="text-sm font-medium mb-2 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <Warehouse className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <span className="text-gray-900">{isRTL ? 'المستودع الرئيسي' : 'Main Warehouse'}</span>
+              <p className="text-xs text-gray-400 font-normal">{isRTL ? 'مستودع الأقمشة الأساسي' : 'Primary fabric warehouse'}</p>
+            </div>
+          </Label>
+          <Input
+            value={quickSetup.warehouseName}
+            onChange={(e) => setQuickSetup(prev => ({ ...prev, warehouseName: e.target.value }))}
+            placeholder={isRTL ? 'مثال: المستودع الرئيسي' : 'e.g. Main Warehouse'}
+            className="h-10 mt-2"
+          />
+        </div>
+
+        {/* الصندوق */}
+        <div className="p-4 rounded-xl border border-gray-200 bg-white hover:border-teal-200 transition-colors">
+          <Label className="text-sm font-medium mb-2 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <span className="text-gray-900">{isRTL ? 'صندوق النقد' : 'Cash Register'}</span>
+              <p className="text-xs text-gray-400 font-normal">{isRTL ? 'الصندوق الأساسي للمدفوعات' : 'Primary cash register'}</p>
+            </div>
+          </Label>
+          <Input
+            value={quickSetup.cashRegisterName}
+            onChange={(e) => setQuickSetup(prev => ({ ...prev, cashRegisterName: e.target.value }))}
+            placeholder={isRTL ? 'مثال: الصندوق الرئيسي' : 'e.g. Main Cash Register'}
+            className="h-10 mt-2"
+          />
+        </div>
+      </div>
+
+      <Alert className="bg-blue-50 border-blue-100">
+        <Info className="w-4 h-4 text-blue-600" />
+        <AlertDescription className="text-xs text-blue-800">
+          {isRTL
+            ? 'يمكنك إنشاء هذه العناصر لاحقاً من لوحة التحكم. إذا تركت الحقول فارغة سيتم تخطي الإنشاء.'
+            : 'You can create these later from the dashboard. Leave fields empty to skip.'}
+        </AlertDescription>
+      </Alert>
     </motion.div>
   );
 
@@ -1101,7 +1102,7 @@ export default function RegistrationWizard() {
     // خطط الباقات
     const plans = [
       {
-        code: 'starter',
+        code: 'texa-starter',
         nameKey: 'wizard.plans.starter.name',
         descKey: 'wizard.plans.starter.description',
         priceMonthly: 99,
@@ -1119,7 +1120,7 @@ export default function RegistrationWizard() {
         isPopular: false
       },
       {
-        code: 'professional',
+        code: 'texa-professional',
         nameKey: 'wizard.plans.professional.name',
         descKey: 'wizard.plans.professional.description',
         priceMonthly: 799,
@@ -1138,7 +1139,7 @@ export default function RegistrationWizard() {
         isPopular: true
       },
       {
-        code: 'enterprise',
+        code: 'texa-enterprise',
         nameKey: 'wizard.plans.enterprise.name',
         descKey: 'wizard.plans.enterprise.description',
         priceMonthly: 1199,
@@ -1337,92 +1338,218 @@ export default function RegistrationWizard() {
   };
 
   // ============================================
+  // STEP INDICATORS
+  // ============================================
+
+  const stepInfo = [
+    { icon: Building2, labelAr: 'معلومات الشركة', labelEn: 'Company Info' },
+    { icon: Coins, labelAr: 'الإعدادات المالية', labelEn: 'Financial Settings' },
+    { icon: Warehouse, labelAr: 'إعداد سريع', labelEn: 'Quick Setup', optional: true },
+    { icon: Check, labelAr: 'اختيار الباقة', labelEn: 'Choose Plan' },
+  ];
+
+  // ============================================
   // RENDER
   // ============================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex items-center justify-center p-4" dir={direction}>
-      <Card className="w-full max-w-4xl shadow-2xl">
-        <CardHeader className="text-center border-b bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-t-lg">
-          <CardTitle className="text-3xl font-bold">{t('wizard.title')}</CardTitle>
-          <CardDescription className="text-white/90 text-lg">
-            {t('wizard.description')}
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-teal-50/30 flex" dir={direction}>
 
-        <CardContent className="p-8">
-          {/* Progress Bar */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-700">
-                {t('wizard.step')} {currentStep} {t('wizard.of')} {totalSteps}
-              </span>
-              <span className="text-sm text-gray-600">{Math.round(progress)}%</span>
+      {/* ═══ Left Sidebar — Steps Indicator ═══ */}
+      <div className="hidden lg:flex lg:w-80 bg-gradient-to-b from-[#0d5c4d] to-[#0a4a3f] flex-col p-8 relative overflow-hidden">
+        {/* Decorative */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-10"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.2) 0%, transparent 50%)'
+          }}
+        />
+        <div className="absolute top-0 left-0 w-full h-full opacity-[0.05]"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)',
+            backgroundSize: '32px 32px'
+          }}
+        />
+
+        {/* Logo / Brand */}
+        <div className="relative z-10 mb-12">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-white" />
             </div>
-            <Progress value={progress} className="h-2" />
+            <div>
+              <h2 className="text-white font-bold text-lg">TexaCore</h2>
+              <p className="text-white/50 text-xs">{isRTL ? 'إعداد حسابك' : 'Account Setup'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div className="relative z-10 flex-1 space-y-1">
+          {stepInfo.map((step, idx) => {
+            const stepNum = idx + 1;
+            const isActive = currentStep === stepNum;
+            const isDone = currentStep > stepNum;
+            const StepIcon = step.icon;
+
+            return (
+              <div key={idx} className="flex items-start gap-4">
+                {/* Circle + Line */}
+                <div className="flex flex-col items-center">
+                  <div className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500",
+                    isDone ? "bg-white/20 border-white/60" :
+                      isActive ? "bg-white border-white shadow-lg shadow-white/20 scale-110" :
+                        "bg-white/5 border-white/20"
+                  )}>
+                    {isDone ? (
+                      <Check className="w-5 h-5 text-white" />
+                    ) : (
+                      <StepIcon className={cn("w-5 h-5", isActive ? "text-[#0d5c4d]" : "text-white/40")} />
+                    )}
+                  </div>
+                  {idx < stepInfo.length - 1 && (
+                    <div className={cn(
+                      "w-0.5 h-12 my-1 transition-all duration-500",
+                      isDone ? "bg-white/40" : "bg-white/10"
+                    )} />
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <p className={cn(
+                    "text-sm font-medium transition-all duration-300",
+                    isActive ? "text-white" : isDone ? "text-white/70" : "text-white/30"
+                  )}>
+                    {isRTL ? step.labelAr : step.labelEn}
+                    {(step as any).optional && (
+                      <span className="ms-1.5 text-[9px] px-1.5 py-0.5 bg-white/10 text-white/50 rounded-full">
+                        {isRTL ? 'اختياري' : 'optional'}
+                      </span>
+                    )}
+                  </p>
+                  {isActive && (
+                    <p className="text-[10px] text-white/40 mt-0.5">
+                      {isRTL ? `الخطوة ${stepNum} من ${totalSteps}` : `Step ${stepNum} of ${totalSteps}`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom — Trust */}
+        <div className="relative z-10 mt-auto pt-8 border-t border-white/10">
+          <div className="flex items-center gap-2 text-white/40 text-xs">
+            <Info className="w-3.5 h-3.5" />
+            <span>{isRTL ? 'بياناتك محمية ومشفرة' : 'Your data is protected & encrypted'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ Main Content ═══ */}
+      <div className="flex-1 flex items-start lg:items-center justify-center p-4 sm:p-8 overflow-y-auto">
+        <div className="w-full max-w-2xl">
+
+          {/* Mobile Header */}
+          <div className="lg:hidden mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0d5c4d] to-teal-600 flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-gray-900">TexaCore</h2>
+                <p className="text-xs text-gray-500">{isRTL ? 'إعداد حسابك' : 'Account Setup'}</p>
+              </div>
+            </div>
+            {/* Mobile Progress */}
+            <div className="flex items-center gap-2 mb-2">
+              {stepInfo.map((_, idx) => (
+                <div key={idx} className={cn(
+                  "h-1.5 flex-1 rounded-full transition-all duration-500",
+                  idx + 1 <= currentStep ? "bg-teal-500" : "bg-gray-200"
+                )} />
+              ))}
+            </div>
+            <p className="text-xs text-gray-500">
+              {isRTL ? `الخطوة ${currentStep} من ${totalSteps}` : `Step ${currentStep} of ${totalSteps}`}
+            </p>
           </div>
 
-          {/* Steps */}
-          <div className="min-h-[500px]">
-            <AnimatePresence mode="wait">
-              {currentStep === 1 && renderStep1()}
-              {currentStep === 2 && renderStep2()}
-              {currentStep === 3 && renderStep3()}
-              {currentStep === 4 && renderStep4()}
-            </AnimatePresence>
-          </div>
+          {/* Card */}
+          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-6 sm:p-8">
+              {/* Steps Content */}
+              <div className="min-h-[450px]">
+                <AnimatePresence mode="wait">
+                  {currentStep === 1 && renderStep1()}
+                  {currentStep === 2 && renderStep2()}
+                  {currentStep === 3 && renderStep3()}
+                  {currentStep === 4 && renderStep4()}
+                </AnimatePresence>
+              </div>
 
-          {/* Navigation */}
-          <div className={cn(
-            "flex gap-4 mt-8 pt-6 border-t",
-            currentStep === 1 ? "justify-end" : "justify-between"
-          )}>
-            {currentStep > 1 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleBack}
-                disabled={isSubmitting}
-                className="gap-2"
-              >
-                {isRTL ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-                {t('wizard.back')}
-              </Button>
-            )}
-
-            {currentStep < totalSteps ? (
-              <Button
-                type="button"
-                onClick={handleNext}
-                disabled={isSubmitting}
-                className="gap-2 bg-teal-600 hover:bg-teal-700"
-              >
-                {t('wizard.next')}
-                {isRTL ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="gap-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {t('wizard.submitting')}
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    {t('wizard.complete')}
-                  </>
+              {/* Navigation */}
+              <div className={cn(
+                "flex gap-4 mt-6 pt-6 border-t border-gray-100",
+                currentStep === 1 ? "justify-end" : "justify-between"
+              )}>
+                {currentStep > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBack}
+                    disabled={isSubmitting}
+                    className="gap-2 h-11 px-6 border-gray-200 hover:bg-gray-50"
+                  >
+                    {isRTL ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                    {t('wizard.back')}
+                  </Button>
                 )}
-              </Button>
-            )}
+
+                {currentStep < totalSteps ? (
+                  <Button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={isSubmitting}
+                    className="gap-2 h-11 px-8 bg-gradient-to-r from-[#0d5c4d] to-teal-600 hover:from-[#0a4a3f] hover:to-teal-700 shadow-lg shadow-teal-600/20"
+                  >
+                    {t('wizard.next')}
+                    {isRTL ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="gap-2 h-12 px-10 bg-gradient-to-r from-[#0d5c4d] to-teal-600 hover:from-[#0a4a3f] hover:to-teal-700 shadow-lg shadow-teal-600/20 text-base font-semibold"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {t('wizard.submitting')}
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        {t('wizard.complete')}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bottom Trust Bar */}
+          <div className="flex items-center justify-center gap-6 mt-4 text-xs text-gray-400">
+            <span className="flex items-center gap-1">🔒 {isRTL ? 'اتصال آمن' : 'Secure'}</span>
+            <span className="flex items-center gap-1">🇪🇺 {isRTL ? 'جودة أوروبية' : 'European Quality'}</span>
+            <span className="flex items-center gap-1">⚡ {isRTL ? 'إعداد سريع' : 'Quick Setup'}</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
+

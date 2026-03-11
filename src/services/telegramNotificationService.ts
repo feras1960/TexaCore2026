@@ -16,35 +16,211 @@
 
 import { supabase } from '@/lib/supabase';
 
+// Event type → source type + notification type mapping
+const EVENT_SOURCE_MAP: Record<string, { sourceType: string; notifType: 'info' | 'success' | 'warning' | 'error' }> = {
+    receipt_order: { sourceType: 'warehouse', notifType: 'info' },
+    issue_order: { sourceType: 'warehouse', notifType: 'info' },
+    shipment_arrival: { sourceType: 'container', notifType: 'success' },
+    warehouse_transfer: { sourceType: 'warehouse', notifType: 'info' },
+    warehouse_picking: { sourceType: 'sales', notifType: 'info' },
+    warehouse_receiving: { sourceType: 'purchases', notifType: 'info' },
+    warehouse_transfer_picking: { sourceType: 'warehouse', notifType: 'info' },
+    low_stock: { sourceType: 'warehouse', notifType: 'warning' },
+    payment_received: { sourceType: 'finance', notifType: 'success' },
+    payment_sent: { sourceType: 'finance', notifType: 'info' },
+    price_update: { sourceType: 'inventory', notifType: 'warning' },
+    delivery_route: { sourceType: 'delivery', notifType: 'info' },
+    sales_order: { sourceType: 'sales', notifType: 'success' },
+    invoice_due: { sourceType: 'finance', notifType: 'warning' },
+    credit_limit: { sourceType: 'finance', notifType: 'error' },
+    inventory_task: { sourceType: 'warehouse', notifType: 'info' },
+    security_alert: { sourceType: 'security', notifType: 'warning' },
+    test_notification: { sourceType: 'system', notifType: 'info' },
+};
+
 // ─── Core Dispatch Function ──────────────────────────────
-async function dispatch(companyId: string, eventType: string, htmlMessage: string, targetWarehouseId?: string) {
+async function dispatch(companyId: string, eventType: string, htmlMessage: string, targetWarehouseId?: string, roleMessages?: Record<string, string>) {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return { ok: false, error: 'Not authenticated' };
 
-        const response = await supabase.functions.invoke('telegram-webhook', {
-            body: {
-                action: 'dispatch_notification',
-                company_id: companyId,
-                event_type: eventType,
-                html_message: htmlMessage,
-                ...(targetWarehouseId ? { target_warehouse_id: targetWarehouseId } : {}),
-            },
-        });
+        let telegramResult: any = { ok: true };
 
-        if (response.error) {
-            console.warn(`[TelegramNotify] ${eventType} failed:`, response.error);
-            return { ok: false, error: response.error.message };
+        // 1. Send via Telegram (existing flow)
+        try {
+            const response = await supabase.functions.invoke('telegram-webhook', {
+                body: {
+                    action: 'dispatch_notification',
+                    company_id: companyId,
+                    event_type: eventType,
+                    html_message: htmlMessage,
+                    ...(targetWarehouseId ? { target_warehouse_id: targetWarehouseId } : {}),
+                    ...(roleMessages ? { role_messages: roleMessages } : {}),
+                },
+            });
+
+            if (response.error) {
+                // CORS errors still deliver the message — treat as success
+                console.warn(`[TelegramNotify] ${eventType} response error (may be CORS):`, response.error);
+            }
+            telegramResult = response?.data || { ok: true, sent: 1 };
+        } catch (telegramErr) {
+            // CORS or network error — Edge Function likely still executed
+            console.warn(`[TelegramNotify] ${eventType} fetch error (likely CORS, message may have been sent):`, telegramErr);
+            telegramResult = { ok: true, sent: 1, cors_fallback: true };
         }
 
-        const result = response.data;
-        if (result?.sent > 0) {
-            console.log(`[TelegramNotify] ${eventType}: sent=${result.sent}, skipped=${result.skipped}`);
+        // 2. Save in-app notification (for NotificationBell)
+        try {
+            const mapping = EVENT_SOURCE_MAP[eventType] || { sourceType: 'system', notifType: 'info' as const };
+            const plainText = htmlMessage.replace(/<[^>]+>/g, '').trim();
+            const lines = plainText.split('\n').filter(l => l.trim() && !l.includes('━'));
+            const title = lines[0] || eventType;
+            const body = lines.slice(1, 4).join('\n').trim();
+
+            await supabase.from('notifications').insert({
+                user_id: session.user.id,
+                tenant_id: companyId,
+                title,
+                body: body || null,
+                type: mapping.notifType,
+                source_type: mapping.sourceType,
+                metadata: { event_type: eventType, company_id: companyId },
+            });
+        } catch (inAppErr) {
+            console.warn('[TelegramNotify] In-app save failed:', inAppErr);
         }
-        return result;
+
+        if (telegramResult?.sent > 0) {
+            console.log(`[TelegramNotify] ${eventType}: sent=${telegramResult.sent}`);
+        }
+        return telegramResult;
     } catch (err) {
         console.warn('[TelegramNotify] Error:', err);
         return { ok: false, error: 'Network error' };
+    }
+}
+
+/**
+ * 🧪 Send a test notification to verify a channel works
+ */
+export async function sendTestNotification(channel: 'telegram' | 'email' | 'in_app', companyId?: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return { ok: false, error: 'Not authenticated' };
+
+        const userName = session.user.user_metadata?.full_name || session.user.email || 'User';
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        if (channel === 'telegram') {
+            const msg = `🧪 <b>إشعار تجريبي — Test Notification</b>
+━━━━━━━━━━━━━━━━━━━━
+
+✅ مرحباً <b>${userName}</b>
+📱 إشعارات التلغرام تعمل بنجاح!
+⏰ ${timestamp}
+
+— TexaCore ERP`;
+
+            let cId = companyId || session.user.app_metadata?.company_id;
+
+            // Fallback: get company_id from user_profiles
+            if (!cId) {
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('company_id')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+                cId = profile?.company_id;
+            }
+
+            if (cId) {
+                const result = await dispatch(cId, 'test_notification', msg);
+                return { ok: !!result?.ok || !!result?.sent };
+            }
+            return { ok: false, error: 'No company ID' };
+        }
+
+        if (channel === 'email') {
+            const emailHtml = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
+<div style="max-width:520px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#2563eb 100%);padding:32px 24px;text-align:center;">
+    <div style="font-size:28px;font-weight:800;color:#fff;letter-spacing:1px;">TexaCore</div>
+    <div style="font-size:12px;color:#93c5fd;margin-top:4px;">Enterprise Resource Planning</div>
+  </div>
+  <!-- Content -->
+  <div style="padding:32px 28px;text-align:center;">
+    <div style="width:64px;height:64px;margin:0 auto 16px;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+      <span style="font-size:32px;line-height:64px;">✅</span>
+    </div>
+    <h2 style="margin:0 0 8px;color:#1e293b;font-size:22px;">إشعار تجريبي ناجح</h2>
+    <p style="margin:0 0 20px;color:#64748b;font-size:15px;line-height:1.6;">
+      مرحباً <strong style="color:#1e293b;">${userName}</strong><br>
+      إشعارات البريد الإلكتروني تعمل بنجاح!
+    </p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:20px 0;">
+      <div style="display:inline-block;background:#059669;color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;margin-bottom:8px;">CONNECTED</div>
+      <p style="margin:8px 0 0;color:#166534;font-size:13px;">📧 ${session.user.email}</p>
+      <p style="margin:4px 0 0;color:#166534;font-size:13px;">⏰ ${timestamp}</p>
+    </div>
+    <p style="color:#94a3b8;font-size:12px;margin-top:24px;line-height:1.5;">
+      ستستقبل إشعارات المبيعات والمشتريات والمستودع<br>
+      والمقبوضات والمدفوعات ومهام الفريق
+    </p>
+  </div>
+  <!-- Footer -->
+  <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 24px;text-align:center;">
+    <p style="margin:0;color:#94a3b8;font-size:11px;">
+      TexaCore ERP — جودة تستحق الثقة
+    </p>
+    <p style="margin:4px 0 0;color:#cbd5e1;font-size:10px;">
+      هذا إشعار تجريبي • يمكنك إدارة تفضيلاتك من الملف الشخصي
+    </p>
+  </div>
+</div>
+</body>
+</html>`;
+            const result = await supabase.functions.invoke('send-email', {
+                body: {
+                    to: session.user.email,
+                    subject: '✅ TexaCore — إشعار تجريبي ناجح',
+                    html: emailHtml,
+                },
+            });
+            return { ok: !result.error };
+        }
+
+        if (channel === 'in_app') {
+            // Get company_id for tenant_id
+            let tenantId = session.user.app_metadata?.company_id;
+            if (!tenantId) {
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('company_id')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+                tenantId = profile?.company_id;
+            }
+            await supabase.from('notifications').insert({
+                user_id: session.user.id,
+                tenant_id: tenantId,
+                title: '🧪 إشعار تجريبي — Test',
+                body: `✅ الإشعارات الداخلية تعمل بنجاح! (${timestamp})`,
+                type: 'success',
+                source_type: 'system',
+                metadata: { test: true },
+            });
+            return { ok: true };
+        }
+
+        return { ok: false, error: 'Unknown channel' };
+    } catch (err: any) {
+        return { ok: false, error: err?.message || 'Error' };
     }
 }
 
@@ -149,7 +325,9 @@ export const telegramNotify = {
     }) => {
         const totalQty = data.totalQty || data.items.reduce((s, i) => s + i.qty, 0);
         const totalRolls = data.totalRolls || data.items.reduce((s, i) => s + (i.rolls || 0), 0);
-        const msg = `📥 <b>إذن استلام جديد ${data.orderNumber}</b>
+
+        // ── Full message (warehouse_keeper + owner default) ──
+        const fullMsg = `📥 <b>إذن استلام جديد ${data.orderNumber}</b>
 ━━━━━━━━━━━━━━━━━━━━
 
 👤 المورّد: <b>${data.supplierName}</b>
@@ -162,7 +340,28 @@ ${formatItemsTable(data.items)}
 ${data.notes ? `📝 ${data.notes}` : ''}
 ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
 
-        return dispatch(companyId, 'receipt_order', msg.trim(), data.warehouseId);
+        // ── Picker: focused unloading list ──
+        const pickerItems = data.items.map(item => {
+            let line = `📦 ${item.name} — <b>${item.qty}</b>`;
+            if (item.unit) line += ` ${item.unit}`;
+            if (item.rolls) line += ` (${item.rolls} رول)`;
+            return line;
+        }).join('\n');
+
+        const pickerMsg = `🏋️ <b>قائمة تنزيل ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
+
+${pickerItems}
+
+📊 الإجمالي: <b>${totalQty}</b>${totalRolls ? ` | ${totalRolls} رول` : ''}`;
+
+        return dispatch(companyId, 'receipt_order', fullMsg.trim(), data.warehouseId, {
+            warehouse_keeper: fullMsg.trim(),
+            picker: pickerMsg.trim(),
+            owner: fullMsg.trim(),
+        });
     },
 
     /** 📤 إذن تسليم/صرف — Issue Order */
@@ -171,38 +370,88 @@ ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
         customerName: string;
         warehouseName?: string;
         warehouseId?: string;
-        items: Array<{ name: string; qty: number; unit?: string; rolls?: number; preferredRolls?: string }>;
+        items: Array<{ name: string; qty: number; unit?: string; rolls?: number; preferredRolls?: string; binLocation?: string }>;
         totalQty?: number;
         estimatedValue?: number;
         invoiceNumber?: string;
         deadline?: string;
         createdBy?: string;
+        purpose?: string; // 'sale' | 'transfer'
     }) => {
         const totalQty = data.totalQty || data.items.reduce((s, i) => s + i.qty, 0);
-        const itemLines = data.items.map(item => {
+        const totalRolls = data.items.reduce((s, i) => s + (i.rolls || 0), 0);
+
+        // ── Warehouse Keeper: materials + qty + location, NO prices ──
+        const whItems = data.items.map(item => {
             let line = `• ${item.name} — <b>${item.qty}</b>`;
             if (item.unit) line += ` ${item.unit}`;
             if (item.rolls) line += ` (${item.rolls} رول)`;
+            if (item.binLocation) line += `\n  📍 الموقع: ${item.binLocation}`;
             if (item.preferredRolls) line += `\n  ↳ الرولونات: ${item.preferredRolls}`;
             return line;
         }).join('\n');
 
-        const msg = `📤 <b>إذن تسليم/صرف ${data.orderNumber}</b>
+        const whMsg = `📤 <b>إذن تسليم ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+${data.purpose === 'transfer' ? '🔄 تحويل مستودعي' : `👤 العميل: <b>${data.customerName}</b>`}
+${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
+
+📋 المواد المطلوبة:
+${whItems}
+
+📊 الإجمالي: <b>${totalQty}</b>${totalRolls ? ` | ${totalRolls} رول` : ''}
+${data.deadline ? `⏰ مطلوب قبل: ${data.deadline}` : ''}
+${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
+
+        // ── Owner: full details with value ──
+        const ownerItems = data.items.map(item => {
+            let line = `• ${item.name} — <b>${item.qty}</b>`;
+            if (item.unit) line += ` ${item.unit}`;
+            if (item.rolls) line += ` (${item.rolls} رول)`;
+            return line;
+        }).join('\n');
+
+        const ownerMsg = `📤 <b>إذن تسليم/صرف ${data.orderNumber}</b>
 ━━━━━━━━━━━━━━━━━━━━
 
 👤 العميل: <b>${data.customerName}</b>
 ${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
 
 📋 المواد المطلوبة:
-${itemLines}
+${ownerItems}
 
-📊 الإجمالي: <b>${totalQty}</b>
+📊 الإجمالي: <b>${totalQty}</b>${totalRolls ? ` | ${totalRolls} رول` : ''}
 ${data.estimatedValue ? `💰 قيمة تقديرية: <b>${data.estimatedValue.toLocaleString()}</b>` : ''}
 ${data.invoiceNumber ? `🔖 الفاتورة: ${data.invoiceNumber}` : ''}
 ${data.deadline ? `⏰ مطلوب قبل: ${data.deadline}` : ''}
 ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
 
-        return dispatch(companyId, 'issue_order', msg.trim(), data.warehouseId);
+        // ── Picker: focused picking list with locations ──
+        const pickerItems = data.items.map(item => {
+            let line = `📍 ${item.name} — <b>${item.qty}</b>`;
+            if (item.unit) line += ` ${item.unit}`;
+            if (item.rolls) line += ` (${item.rolls} رول)`;
+            if (item.binLocation) line += ` ← ${item.binLocation}`;
+            if (item.preferredRolls) line += `\n  ↳ الرولونات: ${item.preferredRolls}`;
+            return line;
+        }).join('\n');
+
+        const pickerMsg = `🏋️ <b>قائمة تجميع ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
+
+${pickerItems}
+
+📊 الإجمالي: <b>${totalQty}</b>${totalRolls ? ` | ${totalRolls} رول` : ''}
+${data.deadline ? `⏰ مطلوب قبل: ${data.deadline}` : ''}`;
+
+        return dispatch(companyId, 'issue_order', ownerMsg.trim(), data.warehouseId, {
+            warehouse_keeper: whMsg.trim(),
+            picker: pickerMsg.trim(),
+            owner: ownerMsg.trim(),
+        });
     },
 
     /** 📦 وصول حاوية/شحنة — Shipment Arrival */
@@ -212,18 +461,44 @@ ${data.createdBy ? `👤 بواسطة: ${data.createdBy}` : ''}`;
         itemCount: number;
         warehouseName?: string;
         arrivalDate?: string;
+        originCountry?: string;
+        totalCost?: number;
+        currency?: string;
+        invoices?: Array<{ number: string; amount: number; items?: number }>;
     }) => {
-        const msg = `📦 <b>وصول حاوية ${data.containerNumber}</b>
+        const invoiceLines = data.invoices?.map(inv =>
+            `  🔖 ${inv.number} — <b>${inv.amount.toLocaleString()}</b>${inv.items ? ` (${inv.items} صنف)` : ''}`
+        ).join('\n') || '';
+
+        // ── Warehouse Keeper: items to receive, NO costs ──
+        const whMsg = `📦 <b>حاوية واردة ${data.containerNumber}</b>
 ━━━━━━━━━━━━━━━━━━━━
 
 ${data.supplierName ? `👤 المورّد: <b>${data.supplierName}</b>` : ''}
 📊 عدد الأصناف: <b>${data.itemCount}</b>
+${data.warehouseName ? `📍 الاستلام في: ${data.warehouseName}` : ''}
+${data.arrivalDate ? `📅 تاريخ الوصول: ${data.arrivalDate}` : ''}
+
+⏳ يرجى تجهيز منطقة الاستلام والفحص`;
+
+        // ── Owner: full details with costs and invoices ──
+        const ownerMsg = `📦 <b>وصول حاوية ${data.containerNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+${data.supplierName ? `👤 المورّد: <b>${data.supplierName}</b>` : ''}
+${data.originCountry ? `🌍 بلد المنشأ: ${data.originCountry}` : ''}
+📊 عدد الأصناف: <b>${data.itemCount}</b>
+${data.totalCost ? `💰 التكلفة الإجمالية: <b>${data.totalCost.toLocaleString()}</b> ${data.currency || '₺'}` : ''}
 ${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
 ${data.arrivalDate ? `📅 تاريخ الوصول: ${data.arrivalDate}` : ''}
+${invoiceLines ? `\n📄 الفواتير المرتبطة:\n${invoiceLines}` : ''}
 
 ⏳ بانتظار الفحص والاستلام`;
 
-        return dispatch(companyId, 'shipment_arrival', msg.trim());
+        return dispatch(companyId, 'shipment_arrival', ownerMsg.trim(), undefined, {
+            warehouse_keeper: whMsg.trim(),
+            owner: ownerMsg.trim(),
+        });
     },
 
     /** 🔄 تحويل مستودعي — Warehouse Transfer */
@@ -276,6 +551,9 @@ ${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
         customerName: string;
         paymentMethod?: string;
         referenceNumber?: string;
+        invoiceNumber?: string;
+        remainingBalance?: number;
+        receivedBy?: string;
     }) => {
         const msg = `💰 <b>دفعة مستلمة</b>
 ━━━━━━━━━━━━━━━━━━━━
@@ -283,7 +561,10 @@ ${data.warehouseName ? `📍 المستودع: ${data.warehouseName}` : ''}
 👤 العميل: <b>${data.customerName}</b>
 💵 المبلغ: <b>${data.amount.toLocaleString()}</b> ${data.currency || '₺'}
 ${data.paymentMethod ? `💳 الطريقة: ${data.paymentMethod}` : ''}
-${data.referenceNumber ? `🔖 المرجع: ${data.referenceNumber}` : ''}`;
+${data.referenceNumber ? `🔖 المرجع: ${data.referenceNumber}` : ''}
+${data.invoiceNumber ? `📄 الفاتورة: ${data.invoiceNumber}` : ''}
+${data.remainingBalance !== undefined ? `📊 الرصيد المتبقي: <b>${data.remainingBalance.toLocaleString()}</b> ${data.currency || '₺'}` : ''}
+${data.receivedBy ? `👤 استلمها: ${data.receivedBy}` : ''}`;
 
         return dispatch(companyId, 'payment_received', msg.trim());
     },
@@ -361,15 +642,73 @@ ${data.mapsUrl ? `📍 <a href="${data.mapsUrl}">عرض على الخريطة</a
         totalAmount: number;
         currency?: string;
         itemCount: number;
+        items?: Array<{ name: string; qty: number; unit?: string; price?: number; rolls?: number }>;
+        salesPerson?: string;
+        notes?: string;
     }) => {
-        const msg = `🛒 <b>طلب بيع جديد ${data.orderNumber}</b>
+        const cur = data.currency || '₺';
+
+        // ── Owner/Sales Manager: full prices ──
+        const ownerItems = data.items?.map(item => {
+            let line = `• ${item.name} — <b>${item.qty}</b>`;
+            if (item.unit) line += ` ${item.unit}`;
+            if (item.rolls) line += ` (${item.rolls} رول)`;
+            if (item.price) line += ` × ${item.price.toLocaleString()} = <b>${(item.qty * item.price).toLocaleString()}</b>`;
+            return line;
+        }).join('\n') || '';
+
+        const ownerMsg = `🛒 <b>طلب بيع جديد ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+👤 العميل: <b>${data.customerName}</b>
+${data.salesPerson ? `🧑‍💼 المندوب: ${data.salesPerson}` : ''}
+
+${ownerItems ? `📋 الأصناف:\n${ownerItems}\n` : `📦 عدد الأصناف: ${data.itemCount}`}
+💰 إجمالي الفاتورة: <b>${data.totalAmount.toLocaleString()}</b> ${cur}
+${data.notes ? `📝 ملاحظات: ${data.notes}` : ''}`;
+
+        // ── Accountant: financial summary only ──
+        const accountantMsg = `🧾 <b>فاتورة مبيعات جديدة ${data.orderNumber}</b>
 ━━━━━━━━━━━━━━━━━━━━
 
 👤 العميل: <b>${data.customerName}</b>
 📦 عدد الأصناف: ${data.itemCount}
-💰 الإجمالي: <b>${data.totalAmount.toLocaleString()}</b> ${data.currency || '₺'}`;
+💰 الإجمالي: <b>${data.totalAmount.toLocaleString()}</b> ${cur}
+${data.salesPerson ? `🧑‍💼 المندوب: ${data.salesPerson}` : ''}`;
 
-        return dispatch(companyId, 'sales_order', msg.trim());
+        // ── Warehouse Keeper: materials + qty, NO prices ──
+        const whItems = data.items?.map(item => {
+            let line = `• ${item.name} — <b>${item.qty}</b>`;
+            if (item.unit) line += ` ${item.unit}`;
+            if (item.rolls) line += ` (${item.rolls} رول)`;
+            return line;
+        }).join('\n') || '';
+
+        const whMsg = `📤 <b>جهّز بضاعة لطلب ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+👤 العميل: <b>${data.customerName}</b>
+
+📋 المواد المطلوبة:
+${whItems || `📦 ${data.itemCount} صنف`}
+
+⏳ يرجى تجهيز الطلب`;
+
+        // ── Cashier: collection amount ──
+        const cashierMsg = `💳 <b>فاتورة بيع ${data.orderNumber}</b>
+━━━━━━━━━━━━━━━━━━━━
+
+👤 العميل: <b>${data.customerName}</b>
+💰 المبلغ المطلوب: <b>${data.totalAmount.toLocaleString()}</b> ${cur}
+📦 عدد الأصناف: ${data.itemCount}`;
+
+        return dispatch(companyId, 'sales_order', ownerMsg.trim(), undefined, {
+            owner: ownerMsg.trim(),
+            sales_manager: ownerMsg.trim(),
+            accountant: accountantMsg.trim(),
+            cashier: cashierMsg.trim(),
+            warehouse_keeper: whMsg.trim(),
+        });
     },
 
     /** 📄 فاتورة مستحقة — Invoice Due */

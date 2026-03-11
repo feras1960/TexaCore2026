@@ -7,7 +7,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
-    TestTube, Sheet, Eye, Database, Layers
+    TestTube, Sheet, Eye, Database, Layers, Grid3X3
 } from 'lucide-react';
 
 const LAB_TABS = [
@@ -50,6 +50,14 @@ const LAB_TABS = [
         labelEn: 'Kanban Board',
         icon: Layers,
         bgActive: 'bg-orange-50 border-orange-500 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-400',
+    },
+    {
+        id: 'grid-lab',
+        route: '/grid-lab',
+        labelAr: 'جدول المحاسبة',
+        labelEn: 'AccountingGrid',
+        icon: Grid3X3,
+        bgActive: 'bg-teal-50 border-teal-500 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-400',
         badge: 'NEW',
     },
 ];

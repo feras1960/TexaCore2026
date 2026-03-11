@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from './components/unified/UnifiedAccountingSheet';
 import type { UnifiedDocType } from './components/unified/types';
+import QuickActionsBar from './components/QuickActionsBar';
 import AutomaticEntriesTab from './components/AutomaticEntriesTab';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { ImportWizard } from '@/features/import';
@@ -153,6 +154,8 @@ export default function JournalEntries() {
         referenceType: entry.reference_type || null,
         referenceId: entry.reference_id || null,
         origin: 'manual',
+        // Keep raw entry for UnifiedAccountingSheet (needs original field names)
+        _raw: entry,
         lines: (entry.lines || []).map((line: any) => ({
           id: line.id,
           account_id: line.account_id,
@@ -250,6 +253,29 @@ export default function JournalEntries() {
     const refType = entry.referenceType; // reference_type field (from RPC-created entries)
     const refId = entry.referenceId; // reference_id field
     const entryId = entry.id;
+
+    // ═══ 0. Regular entries → open UnifiedAccountingSheet in edit/view mode ═══
+    // Only entries with source-document refTypes (container, purchase, sales) go through async lookup
+    const SOURCE_DOC_REF_TYPES = new Set([
+      'container_expense', 'container', 'container_tax', 'container_close',
+      'purchase_invoice', 'sales_invoice', 'goods_receipt', 'sales_cogs',
+    ]);
+    if (!SOURCE_DOC_REF_TYPES.has(refType || '') && !SOURCE_DOC_REF_TYPES.has(entryType || '')) {
+      // ✅ cash/receipt/payment → افتح بواجهتها الأصلية (يومية الصندوق / سند القبض / سند الصرف)
+      const cashDocTypes: Record<string, AccountingDocType> = {
+        cash: 'cash',
+        receipt: 'receipt',
+        payment: 'payment',
+      };
+      const targetDocType: AccountingDocType = cashDocTypes[entryType] || 'journal';
+
+      setNewEntryDocType(targetDocType);
+      setEditEntryId(entryId);
+      setIsEditMode(false);
+      setSheetInitialData(entry._raw || entry);
+      setIsNewEntryOpen(true);
+      return;
+    }
 
     // ═══ 1. Container expense → open Container sheet ═══
     // Container entries use reference_type='container_expense' and reference_id=container_id
@@ -564,23 +590,12 @@ export default function JournalEntries() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setShowImportWizard(true)}>
-            <Upload className="w-4 h-4" />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="outline" className="gap-1.5 h-9 text-xs font-tajawal" onClick={() => setShowImportWizard(true)}>
+            <Upload className="w-3.5 h-3.5" />
             {t('common.import')}
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => { setNewEntryDocType('transfer'); setSheetInitialData(null); setIsEditMode(false); setEditEntryId(null); setIsNewEntryOpen(true); }}>
-            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" />
-            {isRTL ? 'تحويل' : 'Transfer'}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => { setNewEntryDocType('exchange'); setSheetInitialData(null); setIsEditMode(false); setEditEntryId(null); setIsNewEntryOpen(true); }}>
-            <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
-            {isRTL ? 'صرافة' : 'Exchange'}
-          </Button>
-          <Button size="sm" className="bg-erp-primary hover:bg-erp-primary/90 text-white gap-1.5 h-9 px-4 shadow-sm" onClick={() => { setNewEntryDocType('journal'); setSheetInitialData(null); setIsEditMode(false); setEditEntryId(null); setIsNewEntryOpen(true); }}>
-            <Plus className="w-4 h-4" />
-            {isRTL ? 'قيد محاسبي' : 'Journal Entry'}
-          </Button>
+          <QuickActionsBar />
         </div>
       </div>
 
@@ -696,6 +711,7 @@ export default function JournalEntries() {
 
       {/* ─── Unified Accounting Sheet (replaces legacy NewJournalEntrySheet) ─── */}
       <UnifiedAccountingSheet
+        key={`${editEntryId || 'new'}-${isNewEntryOpen}`}
         isOpen={isNewEntryOpen}
         onClose={() => {
           setIsNewEntryOpen(false);
@@ -705,7 +721,7 @@ export default function JournalEntries() {
           invalidateEntries();
         }}
         docType={newEntryDocType as UnifiedDocType}
-        mode={isEditMode ? 'edit' : 'create'}
+        mode={isEditMode ? 'edit' : (editEntryId ? 'view' : 'create')}
         data={sheetInitialData}
         documentId={editEntryId || undefined}
         onSave={async () => {

@@ -30,7 +30,6 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { companiesService } from '@/services/companiesService';
 import RolesManagementTab from '@/features/settings/components/RolesManagementTab';
-import SpecialPermissionsTab from './SpecialPermissionsTab';
 
 interface CompanyOption {
     id: string;
@@ -127,12 +126,6 @@ export default function UserGroupsSection() {
 
             {/* ─── Section 1: Role Management ──────────────────────── */}
             <RolesManagementTab />
-
-            {/* ─── Divider ──────────────────────────────────────────── */}
-            <div className="border-t border-gray-200 dark:border-gray-700" />
-
-            {/* ─── Section 2: Special Permissions Matrix ────────────── */}
-            <SpecialPermissionsTab />
         </div>
     );
 }

@@ -22,6 +22,8 @@ import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { preloadAccounts } from '@/components/ui/InlineAccountCell';
+import { preloadCurrencies } from '@/features/accounting/hooks/useViewCurrency';
+import { preloadExchangeRates } from '@/hooks/useExchangeRateLookup';
 import {
   LayoutDashboard,
   BookOpen,
@@ -65,9 +67,13 @@ export default function Accounting() {
   const navigate = useNavigate();
   const { companyId } = useCompany();
 
-  // ═══ Preload accounts as soon as accounting module opens ═══
+  // ═══ Preload accounts, currencies & rates as soon as accounting module opens ═══
   useEffect(() => {
-    if (companyId) preloadAccounts(companyId);
+    if (companyId) {
+      preloadAccounts(companyId);
+      preloadCurrencies(companyId);
+      preloadExchangeRates(companyId);
+    }
   }, [companyId]);
 
   // Determine active tab from route

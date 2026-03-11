@@ -20,20 +20,51 @@ export interface ExchangeRate {
 
 export type CreateExchangeRate = Omit<ExchangeRate, 'id' | 'created_at' | 'mid_rate'>;
 
+let ratesCachePromise: Promise<ExchangeRate[]> | null = null;
+let ratesCacheCompanyId: string | null = null;
+let ratesCacheData: ExchangeRate[] | null = null;
+let ratesCacheTime = 0;
+
 export const ExchangeRatesService = {
     /**
      * Get all active exchange rates for a company
+     * Uses a singleton promise to prevent parallel identical DB fetches
      */
-    async getRates(companyId: string): Promise<ExchangeRate[]> {
-        const { data, error } = await supabase
-            .from('exchange_rates')
-            .select('*')
-            .eq('company_id', companyId)
-            .eq('is_active', true)
-            .order('from_currency', { ascending: true });
+    async getRates(companyId: string, force = false): Promise<ExchangeRate[]> {
+        if (!companyId) return [];
+        
+        const now = Date.now();
+        // Return existing data if cache is fresh (within 5 minutes)
+        if (!force && ratesCacheData && ratesCacheCompanyId === companyId && (now - ratesCacheTime < 5 * 60 * 1000)) {
+            return ratesCacheData;
+        }
+        
+        // If a request is already in flight, return the same promise
+        if (!force && ratesCachePromise && ratesCacheCompanyId === companyId) {
+            return ratesCachePromise;
+        }
 
-        if (error) throw error;
-        return data || [];
+        ratesCacheCompanyId = companyId;
+        ratesCachePromise = (async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('exchange_rates')
+                    .select('*')
+                    .eq('company_id', companyId)
+                    .eq('is_active', true)
+                    .order('effective_from', { ascending: false });
+                
+                if (error) throw error;
+                ratesCacheData = data || [];
+                ratesCacheTime = Date.now();
+                return ratesCacheData;
+            } catch (err) {
+                console.error('[ExchangeRatesService] Error fetching rates:', err);
+                return [];
+            }
+        })();
+
+        return ratesCachePromise;
     },
 
     /**
@@ -117,9 +148,23 @@ export const ExchangeRatesService = {
         const rates = await this.getRates(companyId);
         const ratesMap: Record<string, number> = {};
 
+        // Rates are sorted by effective_from DESC — first match is the latest
         rates.forEach(rate => {
-            // Create a key like "USD-SAR"
-            ratesMap[`${rate.from_currency}-${rate.to_currency}`] = rate.mid_rate || rate.buy_rate;
+            const directKey = `${rate.from_currency}-${rate.to_currency}`;
+            const inverseKey = `${rate.to_currency}-${rate.from_currency}`;
+            
+            // Direct key
+            if (!ratesMap[directKey]) { 
+                ratesMap[directKey] = rate.buy_rate || rate.mid_rate;
+            }
+            
+            // Inverse key
+            if (!ratesMap[inverseKey]) {
+                const invRate = rate.sell_rate || rate.buy_rate || rate.mid_rate;
+                if (invRate && invRate > 0) {
+                    ratesMap[inverseKey] = 1 / invRate;
+                }
+            }
         });
 
         return ratesMap;

@@ -290,6 +290,19 @@
     "detail": "[RU] detail",
     "dueDate": "[RU] dueDate",
     "duplicateRow": "Дублировать строку",
+    "grid": {
+      "keyboardShortcuts": "Горячие клавиши",
+      "navigation": "Навигация",
+      "nextRow": "Следующая строка (вниз)",
+      "nextColumn": "Следующий столбец",
+      "navigateCells": "Навигация по ячейкам",
+      "copy": "Копирование",
+      "copyAboveDown": "Копировать сверху + вниз",
+      "rows": "Строки",
+      "insertRow": "Вставить строку",
+      "clearCell": "Очистить ячейку",
+      "swapDebitCredit": "Обмен дебет↔кредит"
+    },
     "editAccount": "Редактировать счет",
     "editGroup": "Редактировать группу",
     "entry": {
@@ -568,7 +581,8 @@
       "attachments": "Вложения",
       "form": "Форма",
       "documents": "Документы",
-      "analysis": "Анализ ИИ"
+      "analysis": "Анализ ИИ",
+      "accountingEntry": "Бухгалтерская проводка"
     },
     "details": "Детали",
     "activity": "Активность",

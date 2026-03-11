@@ -474,6 +474,39 @@ export function useDocumentActivityLogger({
                         undefined,
                         {
                             action: 'exported',
+                            format: 'excel',
+                            doc_type: docType,
+                            trade_mode: tradeMode,
+                        },
+                    );
+                    break;
+                }
+
+                case 'google_sheets': {
+                    // ═══ Exported to Google Sheets ═══
+                    documentActivityService.logEvent(
+                        entityType, docId, tenantId,
+                        'exported',
+                        undefined,
+                        {
+                            action: 'exported',
+                            format: 'google_sheets',
+                            doc_type: docType,
+                            trade_mode: tradeMode,
+                        },
+                    );
+                    break;
+                }
+
+                case 'export_pdf': {
+                    // ═══ Exported to PDF ═══
+                    documentActivityService.logEvent(
+                        entityType, docId, tenantId,
+                        'exported',
+                        undefined,
+                        {
+                            action: 'exported',
+                            format: 'pdf',
                             doc_type: docType,
                             trade_mode: tradeMode,
                         },

@@ -273,6 +273,7 @@
     "detail": "[TR] detail",
     "dueDate": "[TR] dueDate",
     "duplicateRow": "Satırı kopyala",
+    "grid": {"keyboardShortcuts":"Klavye Kısayolları","navigation":"Gezinme","nextRow":"Sonraki satır (aşağı)","nextColumn":"Sonraki sütun","navigateCells":"Hücreler arası gezin","copy":"Kopyala","copyAboveDown":"Üstten kopyala + aşağı","rows":"Satırlar","insertRow":"Satır ekle","clearCell":"Hücreyi temizle","swapDebitCredit":"Borç↔Alacak takas"},
     "editAccount": "[TR] editAccount",
     "editGroup": "[TR] Edit Group",
     "entry": {

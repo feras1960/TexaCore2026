@@ -152,6 +152,7 @@ export interface NexaDataTableProps<TData> {
     enableEditMode?: boolean;           // تفعيل وضع التعديل
     editableColumns?: EditableColumnConfig[];  // الأعمدة القابلة للتعديل
     onDataChange?: (newData: TData[]) => void;  // عند تغيير البيانات
+    onCellChange?: (rowIndex: number, colKey: string, newValue: unknown, currentRow: TData) => TData | void; // يعترض التغيير
     onSave?: (data: TData[]) => Promise<void>;  // عند الحفظ
     onCancel?: () => void;              // عند الإلغاء
     enableInstantEdit?: boolean;        // تفعيل التعديل الفوري (بدون أزرار حفظ/إلغاء)
@@ -349,8 +350,10 @@ function EditableCell({
     const { decimalPlaces } = useAccountingSettings();
 
     useEffect(() => {
-        setLocalValue(value);
-    }, [value]);
+        if (!isFocused) {
+            setLocalValue(value);
+        }
+    }, [value, isFocused]);
 
     // إذا لم يكن في وضع التعديل أو العمود غير قابل للتعديل
     if (!isEditing || !config) {
@@ -617,7 +620,7 @@ function EditableCell({
                     className={cn(baseInputClass, 'cursor-pointer')}
                     data-cell-id={`${rowIndex}-${colKey}`}
                 >
-                    <option value="">{isRTL ? 'اختر...' : 'Select...'}</option>
+                    {!localValue && <option value="">{isRTL ? 'اختر...' : 'Select...'}</option>}
                     {selectOptions?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                             {opt.label}
@@ -645,12 +648,15 @@ function EditableCell({
                     companyId={companyId}
                     onChange={(accountId, account) => {
                         handleChange(accountId);
-                        // Also update account_name, account_code, and current_balance on the row
+                        // Also update account_name, account_code, current_balance, and currency on the row
                         if (account) {
                             onChange(rowIndex, 'account_name', account.name_ar || account.name_en || '');
                             onChange(rowIndex, 'account_code', account.code || '');
                             // Push balance directly from cached account data
                             onChange(rowIndex, 'current_balance', account.current_balance ?? 0);
+                            if (account.currency) {
+                                onChange(rowIndex, 'currency', account.currency);
+                            }
                         }
                     }}
                     onNavigate={onNavigate}
@@ -720,6 +726,7 @@ export function NexaDataTable<TData>({
     enableEditMode = false,
     editableColumns = [],
     onDataChange,
+    onCellChange,
     onSave,
     onCancel,
     onAddRow,
@@ -883,28 +890,38 @@ export function NexaDataTable<TData>({
         if (enableInstantEdit) {
             setIsEditing(true);
 
-            let initialData = [...data];
-
-            // Append initial empty rows if specified and data is empty (or just append)
-            // Strategy: Ensure at least `initialEmptyRows` exist if data is empty, 
-            // or just append them? Typically for invoice, we want 10 empty rows at bottom.
-            if (onAddRow && initialEmptyRows > 0) {
-                // Check if we need to add rows. 
-                // Simple logic: If existing data < initialEmptyRows, fill up.
-                // OR: Always add N empty rows? 
-                // User request: "Start with 10 empty rows". Usually implies total rows if new.
-
-                const needed = Math.max(0, initialEmptyRows - initialData.length);
-                if (needed > 0) {
-                    for (let i = 0; i < needed; i++) {
-                        initialData.push(onAddRow());
+            // ONLY deep merge or set initial data if editedData is empty,
+            // otherwise rely on editedData taking priority to prevent cursor jumps
+            if (editedData.length === 0 && data.length > 0) {
+                let initialData = [...data];
+                if (onAddRow && initialEmptyRows > 0) {
+                    const needed = Math.max(0, initialEmptyRows - initialData.length);
+                    if (needed > 0) {
+                        for (let i = 0; i < needed; i++) {
+                            initialData.push(onAddRow());
+                        }
                     }
                 }
+                setEditedData(initialData);
+            } else if (data.length > 0) {
+                // If async updates happen (like exchange_rate), we merge them carefully
+                setEditedData(prev => {
+                    const merged = [...prev];
+                    let changed = false;
+                    for (let i = 0; i < Math.min(merged.length, data.length); i++) {
+                        const original = data[i] as any;
+                        const edited = merged[i] as any;
+                        // For example, if parent updated exchange rate from async fetch:
+                        if (original.exchange_rate && original.exchange_rate !== edited.exchange_rate && (edited.exchange_rate === undefined || edited.exchange_rate === 1)) {
+                            merged[i] = { ...edited, exchange_rate: original.exchange_rate };
+                            changed = true;
+                        }
+                    }
+                    return changed ? merged : prev;
+                });
             }
-
-            setEditedData(initialData);
         }
-    }, [enableInstantEdit, data, initialEmptyRows, onAddRow]);
+    }, [data]); // intentionally decoupled from other dependencies to prevent thrashing
 
     // حفظ التغييرات
     const handleSave = useCallback(async () => {
@@ -951,25 +968,33 @@ export function NexaDataTable<TData>({
     const handleCellChange = useCallback((rowIndex: number, colKey: string, value: unknown) => {
         setEditedData(prev => {
             const newData = [...prev];
-            newData[rowIndex] = { ...newData[rowIndex], [colKey]: value };
+            let newRow = { ...newData[rowIndex], [colKey]: value } as Record<string, unknown>;
 
             // Debit/Credit mutual exclusivity:
             const dk = debitKey || 'debit';
             const ck = creditKey || 'credit';
             const numVal = Number(value);
             if (colKey === dk && numVal > 0) {
-                newData[rowIndex] = { ...newData[rowIndex], [dk]: value, [ck]: 0 };
+                newRow = { ...newRow, [dk]: value, [ck]: 0 };
             } else if (colKey === ck && numVal > 0) {
-                newData[rowIndex] = { ...newData[rowIndex], [ck]: value, [dk]: 0 };
+                newRow = { ...newRow, [ck]: value, [dk]: 0 };
             }
 
+            if (onCellChange) {
+                const interceptedRow = onCellChange(rowIndex, colKey, value, newRow as TData);
+                if (interceptedRow) {
+                    newRow = interceptedRow as Record<string, unknown>;
+                }
+            }
+
+            newData[rowIndex] = newRow as TData;
             return newData;
         });
         // Signal that data changed (useEffect will propagate to parent)
         if (enableInstantEdit) {
             setCellChangeCounter(c => c + 1);
         }
-    }, [enableInstantEdit, debitKey, creditKey]);
+    }, [enableInstantEdit, debitKey, creditKey, onCellChange]);
 
     // Propagate cell changes to parent AFTER render (React 18 safe)
     useEffect(() => {

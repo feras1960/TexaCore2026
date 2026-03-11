@@ -37,7 +37,9 @@ interface UnifiedTransaction {
     description: string;
     debit: number;
     credit: number;
+    currency: string;
     accountName: string;
+    contraAccount: string;
     status: string;
 }
 
@@ -95,7 +97,7 @@ export function SummaryTransactionsTab({ subAccounts, partyType, isRTL, parentAc
                 .select(`
           id, debit, credit, description, account_id,
           journal_entries (
-            id, entry_number, entry_date, description, status
+            id, entry_number, entry_date, description, status, currency
           )
         `)
                 .in('account_id', accountIds)
@@ -115,7 +117,9 @@ export function SummaryTransactionsTab({ subAccounts, partyType, isRTL, parentAc
                         description: line.description || entry.description || '',
                         debit: Number(line.debit) || 0,
                         credit: Number(line.credit) || 0,
+                        currency: entry.currency || 'USD',
                         accountName: language === 'ar' ? (acct?.name_ar || '') : (acct?.name_en || acct?.name_ar || ''),
+                        contraAccount: acct?.account_code || '',
                         status: entry.status || 'draft',
                     });
                 }
@@ -141,7 +145,9 @@ export function SummaryTransactionsTab({ subAccounts, partyType, isRTL, parentAc
                         description: tx.description || '',
                         debit: isReceipt ? Number(tx.amount) || 0 : 0,
                         credit: !isReceipt ? Number(tx.amount) || 0 : 0,
+                        currency: tx.currency || 'USD',
                         accountName: language === 'ar' ? (acct?.name_ar || tx.party_name || '') : (acct?.name_en || acct?.name_ar || tx.party_name || ''),
+                        contraAccount: acct?.account_code || '',
                         status: tx.status || 'confirmed',
                     });
                 }
@@ -251,6 +257,16 @@ export function SummaryTransactionsTab({ subAccounts, partyType, isRTL, parentAc
             cell: (row) => (
                 <span className="text-sm text-gray-600 dark:text-gray-400 font-tajawal truncate">
                     {row.description}
+                </span>
+            ),
+        },
+        {
+            id: 'currency',
+            header: t('accounting.currency') || 'العملة',
+            width: '70px',
+            cell: (row: UnifiedTransaction) => (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                    {row.currency}
                 </span>
             ),
         },

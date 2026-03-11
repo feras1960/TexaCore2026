@@ -114,10 +114,11 @@ export const partyBalanceService = {
                 party_id,
                 debit,
                 credit,
-                entry:journal_entries!inner(id, company_id, status)
+                entry:journal_entries!inner(id, company_id, status, is_posted)
             `)
             .eq('party_type', partyType)
-            .not('party_id', 'is', null);
+            .not('party_id', 'is', null)
+            .eq('journal_entries.is_posted', true);   // ⚠️ فلتر DB مباشر — فقط المرحّلة
 
         if (error) {
             console.error('❌ Error fetching party balances:', error);
@@ -128,7 +129,8 @@ export const partyBalanceService = {
 
         for (const row of (data || [])) {
             const entry = row.entry as any;
-            if (!entry || entry.company_id !== companyId || entry.status !== 'posted') continue;
+            // Double protection: DB filter + JS filter
+            if (!entry || entry.company_id !== companyId || !entry.is_posted) continue;
 
             const pid = row.party_id;
             if (!pid) continue;
@@ -242,10 +244,11 @@ export const partyBalanceService = {
             .select(`
                 debit,
                 credit,
-                entry:journal_entries!inner(id, company_id, status)
+                entry:journal_entries!inner(id, company_id, status, is_posted)
             `)
             .eq('party_type', partyType)
-            .eq('party_id', partyId);
+            .eq('party_id', partyId)
+            .eq('journal_entries.is_posted', true);  // ⚠️ فلتر DB مباشر — فقط المرحّلة
 
         if (error) {
             console.error('❌ Error in manual balance query:', error);
@@ -264,7 +267,8 @@ export const partyBalanceService = {
 
         for (const row of (data || [])) {
             const entry = row.entry as any;
-            if (!entry || entry.company_id !== companyId || entry.status !== 'posted') continue;
+            // Double protection: DB filter + JS filter
+            if (!entry || entry.company_id !== companyId || !entry.is_posted) continue;
             totalDebit += Number(row.debit || 0);
             totalCredit += Number(row.credit || 0);
             txCount++;

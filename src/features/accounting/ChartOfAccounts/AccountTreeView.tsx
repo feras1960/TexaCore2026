@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { ChevronRight, ChevronDown, Folder, FileText, Plus, Trash2, MoreHorizontal, BarChart3, DollarSign, CheckCircle2, Pin, PinOff, Home } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, FileText, Plus, Trash2, MoreHorizontal, BarChart3, DollarSign, CheckCircle2, Pin, PinOff, Home, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -48,6 +48,9 @@ interface AccountTreeViewProps {
   className?: string;
   height?: string;
   searchQuery?: string;
+  convertBalance?: (amount: number, currency: string) => number;
+  multiCurrencyMap?: Map<string, Array<{ currency: string, balance: number }>>;
+  enhancedConvertBalance?: (amount: number, currency: string, accountId?: string) => number;
 }
 
 // TreeNode component - renders a single tree node using divs (not table)
@@ -66,6 +69,10 @@ function TreeNode({
   pinnedIds,
   onTogglePin,
   focusedId: focusedNodeId,
+  convertBalance,
+  siblings,
+  enhancedConvertBalance,
+  multiCurrencyMap,
 }: {
   node: AccountTreeNode;
   level?: number;
@@ -81,6 +88,10 @@ function TreeNode({
   pinnedIds?: Set<string>;
   onTogglePin?: (id: string) => void;
   focusedId?: string | null;
+  convertBalance?: (amount: number, currency: string) => number;
+  siblings?: AccountTreeNode[];  // siblings (parent's children) — needed for SUM accounts
+  enhancedConvertBalance?: (amount: number, currency: string, accountId?: string) => number;
+  multiCurrencyMap?: Map<string, Array<{ currency: string, balance: number }>>;
 }) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children && node.children.length > 0;
@@ -92,19 +103,59 @@ function TreeNode({
   // DB تخزن Net (Dr-Cr) = سالب للخصوم/الإيرادات، موجب للأصول/المصروفات
   // لا نقلب الإشارة — نعرض كما هو
   const aggregateBalance = useMemo(() => {
-    if (!node.is_group || !node.children || node.children.length === 0) {
-      return node.current_balance || 0;
+    // Helper: get converted balance for a single account (with multi-currency support)
+    const getBalance = (acct: AccountTreeNode): number => {
+      const bal = acct.current_balance || 0;
+      const cur = acct.currency_code || acct.currency || '';
+      // Use enhanced conversion for multi-currency accounts
+      if (enhancedConvertBalance) {
+        return enhancedConvertBalance(bal, cur, acct.id);
+      }
+      if (bal === 0 || !convertBalance) return bal;
+      return cur ? convertBalance(bal, cur) : bal;
+    };
+
+    // ═══ حساب المجاميع (SUM): جمع أرصدة الأخوة المحوّلة ═══
+    if ((node as any).is_summary_account && siblings && siblings.length > 0) {
+      return siblings
+        .filter(s => s.id !== node.id && !(s as any).is_summary_account)
+        .reduce((sum, s) => {
+          if (s.is_group && s.children && s.children.length > 0) {
+            // لمجموعات فرعية: جمع أبنائها بتحويل
+            const sumGroupChildren = (children: AccountTreeNode[]): number => {
+              return children
+                .filter(c => !(c as any).is_summary_account)
+                .reduce((acc, child) => {
+                  if (child.is_group && child.children && child.children.length > 0) {
+                    return acc + sumGroupChildren(child.children);
+                  }
+                  return acc + getBalance(child);
+                }, 0);
+            };
+            return sum + sumGroupChildren(s.children);
+          }
+          return sum + getBalance(s);
+        }, 0);
     }
+
+    // ═══ حساب عادي (leaf) ═══
+    if (!node.is_group || !node.children || node.children.length === 0) {
+      return getBalance(node);
+    }
+
+    // ═══ مجموعة (group): جمع الأبناء مع استبعاد SUM ═══
     const sumChildren = (children: AccountTreeNode[]): number => {
-      return children.reduce((sum, child) => {
-        if (child.is_group && child.children && child.children.length > 0) {
-          return sum + sumChildren(child.children);
-        }
-        return sum + (child.current_balance || 0);
-      }, 0);
+      return children
+        .filter(c => !(c as any).is_summary_account) // استبعاد SUM لتجنب الحساب المزدوج
+        .reduce((sum, child) => {
+          if (child.is_group && child.children && child.children.length > 0) {
+            return sum + sumChildren(child.children);
+          }
+          return sum + getBalance(child);
+        }, 0);
     };
     return sumChildren(node.children);
-  }, [node]);
+  }, [node, convertBalance, siblings, enhancedConvertBalance]);
 
   // استخدام getAccountName من accountsService
   const accountName = getAccountName(node, language as SupportedLanguage);
@@ -266,16 +317,23 @@ function TreeNode({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteClick(node);
-                  }}
-                  className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
-                >
-                  <Trash2 className="w-4 h-4 me-2" />
-                  {t('accounting.deleteAccount')}
-                </DropdownMenuItem>
+                {node.is_system ? (
+                  <DropdownMenuItem disabled className="text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                    <Shield className="w-4 h-4 me-2" />
+                    {t('accounting.systemProtected') || 'محمي'}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteClick(node);
+                    }}
+                    className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                  >
+                    <Trash2 className="w-4 h-4 me-2" />
+                    {t('accounting.deleteAccount')}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -288,7 +346,8 @@ function TreeNode({
           language === 'ar' ? 'border-r-2 mr-5' : 'border-l-2 ml-5'
         )}>
           {node.children!
-            // عرض جميع الحسابات (المجموعات والحسابات التفصيلية)
+            // إخفاء حسابات الأطراف (party) من العرض — تبقى في البيانات للحساب
+            .filter((child) => !(child as any).is_party_account)
             .map((child) => (
               <TreeNode
                 key={child.id}
@@ -306,6 +365,10 @@ function TreeNode({
                 pinnedIds={pinnedIds}
                 onTogglePin={onTogglePin}
                 focusedId={focusedNodeId}
+                convertBalance={convertBalance}
+                siblings={node.children}
+                enhancedConvertBalance={enhancedConvertBalance}
+                multiCurrencyMap={multiCurrencyMap}
               />
             ))}
         </div>
@@ -326,6 +389,9 @@ export function AccountTreeView({
   className,
   height,
   searchQuery,
+  convertBalance,
+  multiCurrencyMap,
+  enhancedConvertBalance,
 }: AccountTreeViewProps) {
   const { t, direction, language } = useLanguage();
   const SESSION_KEY = 'coa_expanded_ids';
@@ -574,17 +640,30 @@ export function AccountTreeView({
   }, [selectedId, fullTreeData]);
 
   const rightPanelAccounts = selectedGroup?.children || [];
+  // For display: hide individual party accounts (customer/supplier) — they're accessible from their own tabs
+  const displayedAccounts = rightPanelAccounts.filter(a => !(a as any).is_party_account);
 
   // Calculate stats for selected group
   const groupStats = useMemo(() => {
     if (!selectedGroup || !rightPanelAccounts.length) return null;
 
-    const totalChildren = rightPanelAccounts.length;
-    const groupsCount = rightPanelAccounts.filter(a => a.is_group).length;
-    const accountsCount = rightPanelAccounts.filter(a => !a.is_group).length;
-    // DB تخزن Net (Dr-Cr) — نجمع مباشرة بدون قلب إشارة
-    const totalBalance = rightPanelAccounts.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
-    const activeCount = rightPanelAccounts.filter(a => a.is_active).length;
+    const totalChildren = displayedAccounts.length;
+    const groupsCount = displayedAccounts.filter(a => a.is_group).length;
+    const accountsCount = displayedAccounts.filter(a => !a.is_group).length;
+    // Exclude SUM accounts from total to avoid double-counting
+    // Use rightPanelAccounts (includes party accounts) for correct balance calculation
+    const totalBalance = rightPanelAccounts
+      .filter(a => !(a as any).is_summary_account)
+      .reduce((sum, a) => {
+        const bal = a.current_balance ?? 0;
+        const cur = a.currency_code || a.currency || '';
+        if (enhancedConvertBalance) {
+          return sum + enhancedConvertBalance(bal, cur, a.id);
+        }
+        if (bal === 0 || !convertBalance) return sum + bal;
+        return sum + (cur ? convertBalance(bal, cur) : bal);
+      }, 0);
+    const activeCount = displayedAccounts.filter(a => a.is_active).length;
 
     return {
       totalChildren,
@@ -593,7 +672,7 @@ export function AccountTreeView({
       totalBalance,
       activeCount,
     };
-  }, [selectedGroup, rightPanelAccounts]);
+  }, [selectedGroup, rightPanelAccounts, displayedAccounts, convertBalance, enhancedConvertBalance]);
 
   // دالة لحساب عدد الحسابات الفرعية لكل مجموعة
   const getChildrenCount = (node: AccountTreeNode): number => {
@@ -752,6 +831,9 @@ export function AccountTreeView({
                       pinnedIds={pinnedIds}
                       onTogglePin={togglePin}
                       focusedId={focusedId}
+                      convertBalance={convertBalance}
+                      enhancedConvertBalance={enhancedConvertBalance}
+                      multiCurrencyMap={multiCurrencyMap}
                     />
                   ))
                 )}
@@ -875,8 +957,8 @@ export function AccountTreeView({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rightPanelAccounts.length > 0 ? (
-                          rightPanelAccounts.map((account) => (
+                        {displayedAccounts.length > 0 ? (
+                          displayedAccounts.map((account) => (
                             <TableRow
                               key={account.id}
                               className={cn(
@@ -921,11 +1003,26 @@ export function AccountTreeView({
                                   : account.account_type || '-'}
                               </TableCell>
                               <TableCell className="font-mono text-gray-900 dark:text-gray-100 text-end">
-                                {(account.current_balance || 0).toLocaleString('en-US', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                                <span className="text-xs text-gray-500 ms-1">{account.currency_code}</span>
+                                {(() => {
+                                  // SUM accounts: use dynamically computed total from siblings (not DB balance)
+                                  if ((account as any).is_summary_account && groupStats) {
+                                    return groupStats.totalBalance.toLocaleString('en-US', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    });
+                                  }
+                                  // Regular accounts: convert with proper exchange rates
+                                  const bal = account.current_balance || 0;
+                                  const cur = account.currency_code || account.currency || '';
+                                  const converted = enhancedConvertBalance
+                                    ? enhancedConvertBalance(bal, cur, account.id)
+                                    : (convertBalance && cur ? convertBalance(bal, cur) : bal);
+                                  return converted.toLocaleString('en-US', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  });
+                                })()}
+                                <span className="text-xs text-gray-500 ms-1">{(account as any).is_summary_account ? '' : account.currency_code}</span>
                               </TableCell>
                               <TableCell>
                                 {onAddChild && account.is_group && (

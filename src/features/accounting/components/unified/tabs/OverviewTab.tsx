@@ -4,7 +4,7 @@
  * ═══ يدعم وضع العرض (view) والتعديل (edit) والإنشاء (create) ═══
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { QuickStats } from '../components/QuickStats';
 import { formatCurrency, formatNumber, formatDate, getCurrencySymbol } from '../utils/formatters';
+import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
 import type { StatConfig } from '../types';
 import type { SheetMode } from '../types';
 import { supabase } from '@/lib/supabase';
@@ -86,6 +87,8 @@ export function OverviewTab({
     const [accountTypes, setAccountTypes] = useState<AccountType[]>([]);
     const [visibleLanguages, setVisibleLanguages] = useState<string[]>([]);
     const [companyCurrencies, setCompanyCurrencies] = useState<string[]>([]);
+    const [convertedBalance, setConvertedBalance] = useState<{ totalDebit: number; totalCredit: number; balance: number } | null>(null);
+    const { getRate } = useViewCurrency();
 
     // ═══ Load account types + company currencies ═══
     useEffect(() => {
@@ -122,6 +125,79 @@ export function OverviewTab({
         };
         fetchEditData();
     }, [isEditable, companyId, data?.company_id]);
+
+    // ═══ Compute converted balance for account's own currency ═══
+    useEffect(() => {
+        if (!data?.id || isCreate) return;
+        const accountCurrency = data?.currency || '';
+        if (!accountCurrency) {
+            setConvertedBalance(null);
+            return;
+        }
+
+        const computeCorrectBalance = async () => {
+            try {
+                const { data: lines, error } = await supabase
+                    .from('journal_entry_lines')
+                    .select(`
+                        debit,
+                        credit,
+                        currency,
+                        journal_entries!inner ( currency, status )
+                    `)
+                    .eq('account_id', data.id)
+                    .neq('journal_entries.status', 'cancelled')
+                    .neq('journal_entries.status', 'voided');
+
+                if (error || !lines) {
+                    setConvertedBalance(null);
+                    return;
+                }
+
+                let totalDebit = 0;
+                let totalCredit = 0;
+
+                for (const line of lines as any[]) {
+                    const lineCurrency = line.currency || line.journal_entries?.currency || accountCurrency;
+                    const debit = line.debit || 0;
+                    const credit = line.credit || 0;
+
+                    if (lineCurrency === accountCurrency) {
+                        totalDebit += debit;
+                        totalCredit += credit;
+                    } else {
+                        // Convert to account currency using getRate
+                        const rate = getRate(lineCurrency, accountCurrency);
+                        totalDebit += debit * rate;
+                        totalCredit += credit * rate;
+                    }
+                }
+
+                setConvertedBalance({
+                    totalDebit: Math.round(totalDebit * 100) / 100,
+                    totalCredit: Math.round(totalCredit * 100) / 100,
+                    balance: Math.round((totalDebit - totalCredit + (data?.opening_balance || 0)) * 100) / 100,
+                });
+            } catch (err) {
+                console.error('[OverviewTab] Error computing converted balance:', err);
+                setConvertedBalance(null);
+            }
+        };
+
+        computeCorrectBalance();
+    }, [data?.id, data?.currency, data?.opening_balance, isCreate, getRate]);
+
+    // Build enhanced data with converted balances for stats display
+    const enhancedData = useMemo(() => {
+        if (!data) return data;
+        if (!convertedBalance) return data;
+        return {
+            ...data,
+            current_balance: convertedBalance.balance,
+            total_debit: convertedBalance.totalDebit,
+            total_credit: convertedBalance.totalCredit,
+        };
+    }, [data, convertedBalance]);
 
     // ═══ Detect which languages have values (for initial display) ═══
     useEffect(() => {
@@ -256,7 +332,7 @@ export function OverviewTab({
             {!isCreate && (
                 <QuickStats
                     stats={stats}
-                    data={data}
+                    data={enhancedData}
                     currency={currency || data?.currency || ''}
                     useArabicNumerals={useArabicNumerals}
                     columns={4}
@@ -698,14 +774,14 @@ export function OverviewTab({
                                 <BalanceItem
                                     label={t('accounting.openingBalance') || 'الرصيد الافتتاحي'}
                                     subtitle={language === 'ar' ? 'رصيد بداية الفترة' : 'Period opening'}
-                                    value={data?.opening_balance || 0}
+                                    value={enhancedData?.opening_balance || 0}
                                     currency={currency || data?.currency || ''}
                                     useArabicNumerals={useArabicNumerals}
                                 />
                                 <BalanceItem
                                     label={t('accounting.entry.debit') || 'مدين'}
                                     subtitle={language === 'ar' ? 'ما دخل للحساب' : 'Inflow'}
-                                    value={data?.total_debit || 0}
+                                    value={enhancedData?.total_debit || 0}
                                     currency={currency || data?.currency || ''}
                                     useArabicNumerals={useArabicNumerals}
                                     colorClass="text-green-600"
@@ -713,13 +789,13 @@ export function OverviewTab({
                                 <BalanceItem
                                     label={t('accounting.entry.credit') || 'دائن'}
                                     subtitle={language === 'ar' ? 'ما خرج من الحساب' : 'Outflow'}
-                                    value={data?.total_credit || 0}
+                                    value={enhancedData?.total_credit || 0}
                                     currency={currency || data?.currency || ''}
                                     useArabicNumerals={useArabicNumerals}
                                     colorClass="text-red-600"
                                 />
                                 {(() => {
-                                    const balance = data?.current_balance || data?.balance || 0;
+                                    const balance = enhancedData?.current_balance ?? enhancedData?.balance ?? 0;
                                     const isPositive = balance > 0;
                                     const isZero = Math.abs(balance) < 0.01;
                                     const balanceHint = isZero

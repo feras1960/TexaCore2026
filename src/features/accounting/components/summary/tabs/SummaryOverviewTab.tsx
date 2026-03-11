@@ -30,21 +30,23 @@ interface Props {
     };
     partyType: string;
     isRTL: boolean;
+    convert?: (amount: number, currency: string) => number;
 }
 
 // ═══════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════
 
-export function SummaryOverviewTab({ data, subAccounts, stats, partyType, isRTL }: Props) {
+export function SummaryOverviewTab({ data, subAccounts, stats, partyType, isRTL, convert }: Props) {
     const { t, language } = useLanguage();
 
     // Top 5 by balance
     const topAccounts = useMemo(() => {
+        const cv = (amount: number, currency: string) => convert ? convert(amount, currency) : amount;
         return [...subAccounts]
-            .sort((a, b) => Math.abs(b.current_balance || 0) - Math.abs(a.current_balance || 0))
+            .sort((a, b) => Math.abs(cv(b.current_balance || 0, b.currency || 'USD')) - Math.abs(cv(a.current_balance || 0, a.currency || 'USD')))
             .slice(0, 5);
-    }, [subAccounts]);
+    }, [subAccounts, convert]);
 
     const formatCurrency = (val: number) =>
         val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -126,7 +128,8 @@ export function SummaryOverviewTab({ data, subAccounts, stats, partyType, isRTL 
                     </div>
                     <div className="divide-y divide-gray-100 dark:divide-gray-700">
                         {topAccounts.map((account, idx) => {
-                            const balance = account.current_balance || 0;
+                            const cv = (amount: number, currency: string) => convert ? convert(amount, currency) : amount;
+                            const balance = cv(account.current_balance || 0, account.currency || 'USD');
                             const pct = stats.maxBalance > 0 ? (Math.abs(balance) / stats.maxBalance) * 100 : 0;
                             const name = language === 'ar' ? account.name_ar : (account.name_en || account.name_ar);
 

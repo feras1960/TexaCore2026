@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import MfaChallengeScreen from './MfaChallengeScreen';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,7 +158,7 @@ const GoogleIcon = () => (
 export default function Login() {
   const { t, direction, language, setLanguage, supportedLanguages } = useLanguage();
   const navigate = useNavigate();
-  const { login, loading, error, isAuthenticated } = useAuth();
+  const { login, verifyMfa, cancelMfa, loading, error, isAuthenticated, mfaRequired } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -198,6 +199,9 @@ export default function Login() {
     const result = await login(email, password);
     if (result.error) {
       setFormError(result.error);
+    } else if ((result as any).mfaRequired) {
+      // MFA required — the MfaChallengeScreen will show automatically via mfaRequired state
+      setFormError(null);
     } else if (result.data?.success) {
       // Small delay to ensure state is updated before navigation
       setTimeout(() => {
@@ -320,6 +324,24 @@ export default function Login() {
       description: t('authPage.features.ai.description'),
     },
   ];
+
+  // 🔐 MFA Challenge Screen — show when 2FA is required after password login
+  if (mfaRequired) {
+    return (
+      <MfaChallengeScreen
+        onVerify={async (code, trustDevice) => {
+          const result = await verifyMfa(code, trustDevice);
+          if (result.success) {
+            setTimeout(() => navigate('/', { replace: true }), 100);
+          }
+          return result;
+        }}
+        onCancel={cancelMfa}
+        loading={loading}
+        userEmail={email}
+      />
+    );
+  }
 
   return (
     <div

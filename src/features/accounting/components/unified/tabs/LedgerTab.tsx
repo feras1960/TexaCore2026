@@ -14,6 +14,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
+import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { LedgerExpandedRow } from './LedgerExpandedRow';
 import { useLedgerData, type ExtendedLedgerEntry } from '../hooks/useLedgerData';
@@ -34,6 +35,7 @@ import {
 // ═══ Entry Type Icons ═══
 const ENTRY_TYPE_ICONS: Record<string, string> = {
     journal: '📋',
+    cash: '🏦',
     invoice: '🧾',
     payment: '💸',
     receipt: '💰',
@@ -49,6 +51,8 @@ interface LedgerTabProps {
     renderExpandedRowOverride?: (row: ExtendedLedgerEntry) => React.ReactNode;
     /** Party mode: enables invoice+payment grouping toggle */
     partyMode?: boolean;
+    /** Callback when user changes display currency filter */
+    onDisplayCurrencyChange?: (currency: string) => void;
 }
 
 // ═══ View Mode ═══
@@ -77,10 +81,23 @@ export function LedgerTab({
     onEntryOpen,
     renderExpandedRowOverride,
     partyMode = false,
+    onDisplayCurrencyChange,
 }: LedgerTabProps) {
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
-    const { supportedCurrencies } = useAccountingSettings();
+    const { supportedCurrencies, baseCurrency: settingsBaseCurrency } = useAccountingSettings();
+    const { getRate } = useViewCurrency();
+
+    // Local currency state for this tab — always starts as 'all' (no conversion)
+    const [localCurrency, setLocalCurrency] = useState<string>('all');
+
+    // Build lookupCurrentRate using getRate (independent of global selectedCurrency)
+    const lookupCurrentRate = useCallback((fromCurrency: string, toCurrency: string): number => {
+        return getRate(fromCurrency, toCurrency);
+    }, [getRate]);
+
+    const effectiveTargetCurrency = localCurrency !== 'all' ? localCurrency : undefined;
+    const effectiveBaseCurrency = settingsBaseCurrency || currency || 'USD';
 
     // ═══ Data Hook ═══
     const {
@@ -100,6 +117,9 @@ export function LedgerTab({
         accountId,
         companyId,
         enabled: !!accountId,
+        targetCurrency: effectiveTargetCurrency,
+        baseCurrency: effectiveBaseCurrency,
+        lookupCurrentRate: effectiveTargetCurrency ? lookupCurrentRate : undefined,
     });
 
     // ═══ Local State ═══
@@ -403,14 +423,11 @@ export function LedgerTab({
         ),
     };
 
-    // ═══ Columns — ordered for correct visual display ═══
-    // With dir="rtl" on <table>, array[0] appears on the RIGHT side
-    // RTL (right→left): # | مدين | دائن | الرصيد | التاريخ | المرجع | البيان | الحساب المقابل | العملة
-    // LTR (left→right): Date | Ref | Description | Counter Acct | Debit | Credit | Balance | Currency
+    // ═══ Columns — SAME order for all languages ═══
+    // The table's dir="rtl"/"ltr" handles visual direction automatically
+    // Order: Debit | Credit | Balance | Date | Ref | Description | Counter Acct | Currency
     const columns: NexaListColumn<ExtendedLedgerEntry>[] = useMemo(() =>
-        isRTL
-            ? [debitCol, creditCol, balanceCol, dateCol, referenceCol, descriptionCol, counterAccountCol, currencyCol]
-            : [dateCol, referenceCol, descriptionCol, counterAccountCol, debitCol, creditCol, balanceCol, currencyCol],
+        [debitCol, creditCol, balanceCol, dateCol, referenceCol, descriptionCol, counterAccountCol, currencyCol],
         [isRTL]);
 
     // ═══ Row Accent (entry type color) ═══
@@ -420,6 +437,7 @@ export function LedgerTab({
             case 'payment': return 'border-s-red-400';
             case 'invoice': return 'border-s-amber-400';
             case 'transfer': return 'border-s-blue-400';
+            case 'cash': return 'border-s-teal-400';
             default: return 'border-s-gray-300 dark:border-s-gray-600';
         }
     }, []);
@@ -458,6 +476,26 @@ export function LedgerTab({
             });
         }
 
+        // Currency filter — shows company supported currencies
+        if (supportedCurrencies.length > 0) {
+            f.push({
+                id: 'currency',
+                label: isRTL ? 'العملة' : 'Currency',
+                type: 'select' as const,
+                value: localCurrency,
+                onChange: (v: string) => {
+                    setLocalCurrency(v);
+                    onDisplayCurrencyChange?.(v);
+                    // Also set the hook filter for reference
+                    setCurrency(v === 'all' ? '' : v);
+                },
+                options: [
+                    { value: 'all', label: isRTL ? 'كل العملات' : 'All Currencies' },
+                    ...supportedCurrencies.map((c: string) => ({ value: c, label: c })),
+                ],
+            });
+        }
+
         // Monthly groups toggle
         f.push({
             id: 'monthlyGroup',
@@ -472,7 +510,7 @@ export function LedgerTab({
         });
 
         return f;
-    }, [isRTL, movementFilter, showMonthlyGroups, partyMode, entryTypeFilter]);
+    }, [isRTL, movementFilter, showMonthlyGroups, partyMode, entryTypeFilter, supportedCurrencies, filters.currency]);
 
     // ═══ Footer Content ═══
     const footerRight = useMemo(() => {
@@ -649,12 +687,14 @@ export function LedgerTab({
                 totalCount={entries.length}
                 countLabel={isRTL ? 'حركة' : 'entries'}
                 filters={nexaFilters}
-                hasActiveFilters={movementFilter !== 'all' || !showMonthlyGroups || (partyMode && viewMode !== 'chronological') || (partyMode && entryTypeFilter !== 'all')}
+                hasActiveFilters={movementFilter !== 'all' || !showMonthlyGroups || localCurrency !== 'all' || (partyMode && viewMode !== 'chronological') || (partyMode && entryTypeFilter !== 'all')}
                 onClearFilters={() => {
                     setMovementFilter('all');
                     setShowMonthlyGroups(true);
                     setViewMode('chronological');
                     setEntryTypeFilter('all');
+                    setLocalCurrency('all');
+                    setCurrency('');
                 }}
                 filtersLabel={isRTL ? 'فلاتر' : 'Filters'}
                 clearFiltersLabel={isRTL ? 'مسح الفلاتر' : 'Clear All'}

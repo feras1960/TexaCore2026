@@ -12,16 +12,19 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  Sparkles, 
-  AlertTriangle, 
-  Copy, 
-  Users, 
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Sparkles,
+  AlertTriangle,
+  Copy,
+  Users,
   CheckCircle,
   ArrowRight,
   Loader2,
   Lightbulb,
-  RefreshCw
+  RefreshCw,
+  Info,
+  ShieldAlert
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { ImportJob, ImportRow, EntityDefinition, AISuggestions } from '@/services/importService';
@@ -72,6 +75,7 @@ export function AIAnalysisStep({
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<'all' | 'corrections' | 'duplicates' | 'warnings'>('all');
   const [error, setError] = useState<string | null>(null);
+  const [businessWarnings, setBusinessWarnings] = useState<Array<{ type: string; message: string; severity: 'low' | 'medium' | 'high'; icon: string }>>([]);
 
   // Summary stats
   const totalCorrections = results.reduce((sum, r) => sum + r.corrections.length, 0);
@@ -99,6 +103,7 @@ export function AIAnalysisStep({
     setAnalyzing(true);
     setError(null);
     setProgress(0);
+    setBusinessWarnings([]);
 
     try {
       // Prepare rows for analysis
@@ -122,14 +127,22 @@ export function AIAnalysisStep({
         setResults(data.suggestions);
         setAnalysisComplete(true);
       }
-      
+
+      // Business-level warnings from AI
+      if (data?.business_warnings) {
+        setBusinessWarnings(data.business_warnings);
+      }
+
       setProgress(100);
     } catch (err) {
       console.error('AI Analysis error:', err);
       setError(t('import.aiAnalysisError') || 'Failed to analyze data');
-      
+
       // Perform basic local analysis as fallback
       performLocalAnalysis();
+
+      // Generate local business warnings
+      generateLocalBusinessWarnings();
     } finally {
       setAnalyzing(false);
     }
@@ -149,7 +162,7 @@ export function AIAnalysisStep({
         if (!hasContact) {
           warnings.push({
             type: 'incomplete',
-            message: language === 'ar' 
+            message: language === 'ar'
               ? 'لا توجد معلومات اتصال (هاتف أو إيميل)'
               : 'No contact information (phone or email)',
             severity: 'low'
@@ -231,6 +244,46 @@ export function AIAnalysisStep({
     }
   };
 
+  // Local fallback for business warnings
+  const generateLocalBusinessWarnings = () => {
+    const bw: typeof businessWarnings = [];
+    const entityType = importJob?.entity_type;
+
+    if (entityType === 'customers' || entityType === 'suppliers') {
+      const label = entityType === 'customers' ? 'عملاء' : 'موردين';
+      const noBalance = importRows.filter(r => {
+        const d = r.mapped_data || r.raw_data;
+        return !d.opening_balance || Number(d.opening_balance) === 0;
+      }).length;
+
+      if (noBalance === importRows.length) {
+        bw.push({ type: 'no_balance', message: `⚠️ جميع ${label} (${importRows.length}) بدون أرصدة افتتاحية! لن يتم إنشاء قيد افتتاحي.`, severity: 'high', icon: '💰' });
+      } else if (noBalance > 0) {
+        bw.push({ type: 'partial_balance', message: `${noBalance} من ${importRows.length} ${label} بدون رصيد افتتاحي.`, severity: 'medium', icon: '💰' });
+      }
+    }
+
+    if (entityType === 'products') {
+      const noPrice = importRows.filter(r => {
+        const d = r.mapped_data || r.raw_data;
+        return !d.sale_price || Number(d.sale_price) === 0;
+      }).length;
+      if (noPrice === importRows.length) {
+        bw.push({ type: 'no_prices', message: `⚠️ جميع المواد بدون سعر بيع! لن تتمكن من إنشاء فواتير.`, severity: 'high', icon: '🏷️' });
+      }
+
+      const noQty = importRows.filter(r => {
+        const d = r.mapped_data || r.raw_data;
+        return !d.opening_qty || Number(d.opening_qty) === 0;
+      }).length;
+      if (noQty === importRows.length) {
+        bw.push({ type: 'no_qty', message: `⚠️ جميع المواد بدون كميات افتتاحية! المخزون سيبدأ من صفر.`, severity: 'high', icon: '📦' });
+      }
+    }
+
+    setBusinessWarnings(bw);
+  };
+
   if (!importJob || !entityDefinition) {
     return null;
   }
@@ -298,6 +351,32 @@ export function AIAnalysisStep({
       {/* Analysis Results */}
       {analysisComplete && (
         <>
+          {/* Business Warnings Panel */}
+          {businessWarnings.length > 0 && (
+            <Card className="p-4 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldAlert className="h-5 w-5 text-amber-600" />
+                <h4 className="font-semibold text-amber-800">
+                  {language === 'ar' ? 'تقييم جاهزية البيانات للتشغيل' : 'Data Readiness Assessment'}
+                </h4>
+                <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
+                  🤖 NexaAgent
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                {businessWarnings.map((bw, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-lg border text-sm ${getSeverityColor(bw.severity)}`}
+                  >
+                    <span className="me-2">{bw.icon}</span>
+                    {bw.message}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Card className="p-4 text-center">
@@ -307,7 +386,7 @@ export function AIAnalysisStep({
               <div className="text-2xl font-bold">{rowsWithIssues}</div>
               <div className="text-xs text-muted-foreground">{t('import.rowsWithSuggestions')}</div>
             </Card>
-            
+
             <Card className="p-4 text-center border-blue-200 bg-blue-50/50">
               <div className="p-2 bg-blue-100 rounded-lg inline-block mb-2">
                 <Lightbulb className="h-5 w-5 text-blue-600" />
@@ -315,7 +394,7 @@ export function AIAnalysisStep({
               <div className="text-2xl font-bold text-blue-600">{totalCorrections}</div>
               <div className="text-xs text-muted-foreground">{t('import.corrections')}</div>
             </Card>
-            
+
             <Card className="p-4 text-center border-orange-200 bg-orange-50/50">
               <div className="p-2 bg-orange-100 rounded-lg inline-block mb-2">
                 <Copy className="h-5 w-5 text-orange-600" />
@@ -323,7 +402,7 @@ export function AIAnalysisStep({
               <div className="text-2xl font-bold text-orange-600">{totalDuplicates}</div>
               <div className="text-xs text-muted-foreground">{t('import.potentialDuplicates')}</div>
             </Card>
-            
+
             <Card className="p-4 text-center border-yellow-200 bg-yellow-50/50">
               <div className="p-2 bg-yellow-100 rounded-lg inline-block mb-2">
                 <AlertTriangle className="h-5 w-5 text-yellow-600" />
@@ -376,7 +455,7 @@ export function AIAnalysisStep({
                               onCheckedChange={() => toggleRowSelection(result.row_number)}
                             />
                           )}
-                          
+
                           <div className="flex-1 space-y-3">
                             <div className="flex items-center gap-2">
                               <Badge variant="outline">
@@ -392,7 +471,7 @@ export function AIAnalysisStep({
                                   {t('import.suggestedCorrections')}
                                 </h5>
                                 {result.corrections.map((correction, idx) => (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="p-2 bg-blue-50 rounded-lg text-sm"
                                   >
@@ -425,7 +504,7 @@ export function AIAnalysisStep({
                                   {t('import.potentialDuplicates')}
                                 </h5>
                                 {result.potential_duplicates.map((dup, idx) => (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="p-2 bg-orange-50 rounded-lg text-sm flex items-center justify-between"
                                   >
@@ -446,7 +525,7 @@ export function AIAnalysisStep({
                                   {t('import.warnings')}
                                 </h5>
                                 {result.warnings.map((warning, idx) => (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className={`p-2 rounded-lg text-sm border ${getSeverityColor(warning.severity)}`}
                                   >
@@ -488,7 +567,7 @@ export function AIAnalysisStep({
           {t('import.skipAIAnalysis')}
         </Button>
 
-        <Button 
+        <Button
           onClick={handleApplySuggestions}
           disabled={analyzing}
           className="gap-2"

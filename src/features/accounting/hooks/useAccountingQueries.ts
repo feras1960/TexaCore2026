@@ -62,6 +62,9 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
                         description,
                         debit,
                         credit,
+                        currency,
+                        exchange_rate,
+                        cost_center_id,
                         account:chart_of_accounts(
                             id,
                             account_code,
@@ -115,11 +118,27 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
         queryKeys: [
             ['accounting', 'journal-entries'],
             ['accounting', 'funds'],
+            ['journal_entries'],                   // ← مفتاح useSheetActions
+            ['party_balances_supplier'],            // ← أرصدة الموردين
+            ['party_balances_customer'],            // ← أرصدة العملاء
+            ['chart_of_accounts'],                 // ← ميزانية الحسابات
+        ],
+    });
+
+    // 🔄 Realtime: تحديث عند تغيّر أسطر القيود أيضاً
+    useRealtimeInvalidation({
+        table: 'journal_entry_lines',
+        companyId,
+        queryKeys: [
+            ['accounting', 'journal-entries'],
+            ['party_balances_supplier'],
+            ['party_balances_customer'],
         ],
     });
 
     const invalidate = () => {
         queryClient.invalidateQueries({ queryKey: ['accounting', 'journal-entries'] });
+        queryClient.invalidateQueries({ queryKey: ['journal_entries'] }); // legacy key
     };
 
     return {

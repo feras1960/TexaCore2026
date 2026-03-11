@@ -42,7 +42,7 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsReturn
       if (accountType) {
         return await accountsService.getByType(companyId, accountType);
       } else {
-        return await accountsService.getAll(companyId);
+        return await accountsService.getAll(companyId, { includePartyAccounts: true });
       }
     },
     enabled: !!companyId && autoFetch,

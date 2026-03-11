@@ -166,8 +166,23 @@ export default function Register() {
   const navigate = useNavigate();
   const { register, loading, error } = useAuth();
 
+  // ✅ Read URL params from website (plan, billing, name, email, company, phone)
+  const urlParams = React.useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      plan: params.get('plan') || '',
+      billing: params.get('billing') || 'monthly',
+      name: params.get('name') || '',
+      email: params.get('email') || '',
+      phone: params.get('phone') || '',
+      company: params.get('company') || '',
+      size: params.get('size') || '',
+      lang: params.get('lang') || '',
+    };
+  }, []);
+
   const [formData, setFormData] = useState({
-    email: '',
+    email: urlParams.email || '',
     password: '',
     confirmPassword: ''
   });
@@ -245,9 +260,15 @@ export default function Register() {
       // Now redirect to wizard to complete registration
       console.log('✅ Auth successful, redirecting to wizard');
 
-      // Pass only available data (email)
+      // Pass all data from URL + form to wizard
       const registrationData = {
-        email: formData.email
+        email: formData.email,
+        plan: urlParams.plan || '',
+        billing: urlParams.billing || 'monthly',
+        name: urlParams.name || '',
+        phone: urlParams.phone || '',
+        companyName: urlParams.company || '',
+        companySize: urlParams.size || '',
       };
       localStorage.setItem('registration_data', JSON.stringify(registrationData));
 

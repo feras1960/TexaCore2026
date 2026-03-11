@@ -37,7 +37,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    Users, Search, Edit2, UserPlus, Shield,
+    Users, Search, Edit2, UserPlus, Shield, Trash2,
     Loader2, Save, RefreshCw, Building2,
     Warehouse, Wallet, GitBranch, Check, X,
     Mail, User, ToggleRight, Lock
@@ -46,7 +46,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useToast } from '@/components/ui/use-toast';
 import { rbacService, Role, UserRole } from '@/services/rbacService';
 import { companiesService } from '@/services/companiesService';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { logAuditEvent } from '@/features/users-permissions/components/AuditLogTab';
 
@@ -58,6 +58,7 @@ const ROLE_LEVEL_FIX: Record<string, string> = {
     employee: 'operations',
     driver: 'operations',
     agent: 'operations',
+    picker: 'operations',
 };
 const ROLE_SORT_PRIORITY: Record<string, number> = {
     tenant: 0, company: 1, branch: 2, operations: 3, custom: 4, special: 5,
@@ -91,8 +92,9 @@ interface Resource {
 export default function UsersManagementTab() {
     const { language, direction } = useLanguage();
     const { toast } = useToast();
-    const { companyId, authUser } = useAuth();
-    const tenantId = authUser?.tenant_id;
+    const { companyId, authUser, tenantId: authTenantId } = useAuth();
+    const [resolvedTenantId, setResolvedTenantId] = useState<string | null>(authTenantId);
+    const tenantId = resolvedTenantId || authTenantId;
     const isAr = language === 'ar';
 
     // State
@@ -104,6 +106,8 @@ export default function UsersManagementTab() {
     const [funds, setFunds] = useState<Resource[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [roleFilter, setRoleFilter] = useState<string>('all');
+    const [companyFilter, setCompanyFilter] = useState<string>('all');
     const [editingUser, setEditingUser] = useState<UserWithDetails | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [isAddMode, setIsAddMode] = useState(false);
@@ -113,6 +117,7 @@ export default function UsersManagementTab() {
     const [formData, setFormData] = useState({
         email: '',
         full_name: '',
+        phone: '',
         selectedCompany: companyId || '',
         selectedRoles: [] as string[],
         selectedBranches: [] as string[],
@@ -123,22 +128,34 @@ export default function UsersManagementTab() {
         require_mfa: false,
     });
 
-    // Load data — scoped to current company
+    // Resolve tenant_id from user_profiles if not available from auth
+    useEffect(() => {
+        if (authTenantId) {
+            setResolvedTenantId(authTenantId);
+        } else if (authUser?.id) {
+            supabase
+                .from('user_profiles')
+                .select('tenant_id')
+                .eq('id', authUser.id)
+                .single()
+                .then(({ data }) => {
+                    if (data?.tenant_id) setResolvedTenantId(data.tenant_id);
+                });
+        }
+    }, [authTenantId, authUser?.id]);
+
+    // Load data — scoped to current tenant
     const loadData = useCallback(async () => {
+        if (!tenantId) return; // Don't load until tenantId is resolved
         try {
             setLoading(true);
 
-            // Load users basic info — filtered by company_id
-            let usersQuery = supabase
+            // Load users — filtered by tenant_id (mandatory)
+            const { data: usersData, error: usersError } = await supabase
                 .from('user_profiles')
-                .select('id, email, full_name, avatar_url, company_id, branch_id, is_active')
+                .select('id, email, full_name, avatar_url, company_id, branch_id, is_active, phone, tenant_id')
+                .eq('tenant_id', tenantId)
                 .order('full_name');
-
-            if (companyId) {
-                usersQuery = usersQuery.eq('company_id', companyId);
-            }
-
-            const { data: usersData, error: usersError } = await usersQuery;
 
             if (usersError) throw usersError;
 
@@ -267,16 +284,35 @@ export default function UsersManagementTab() {
         loadData();
     }, [loadData]);
 
-    // Filter users by search
-    const filteredUsers = users.filter(user => {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        return (
-            (user.full_name?.toLowerCase() || '').includes(query) ||
-            user.email.toLowerCase().includes(query) ||
-            user.roles.some(r => r.name_ar.includes(query) || r.code.includes(query))
-        );
-    });
+    // Filter users by search + role + company
+    const filteredUsers = useMemo(() => {
+        return users.filter(user => {
+            // Company filter
+            if (companyFilter !== 'all') {
+                if (companyFilter === 'no_company') {
+                    if (user.company_id) return false;
+                } else {
+                    if (user.company_id !== companyFilter) return false;
+                }
+            }
+            // Role filter
+            if (roleFilter !== 'all') {
+                if (roleFilter === 'no_role') {
+                    if (user.roles.length > 0) return false;
+                } else {
+                    if (!user.roles.some(r => r.code === roleFilter)) return false;
+                }
+            }
+            // Search filter
+            if (!searchQuery) return true;
+            const query = searchQuery.toLowerCase();
+            return (
+                (user.full_name?.toLowerCase() || '').includes(query) ||
+                user.email.toLowerCase().includes(query) ||
+                user.roles.some(r => r.name_ar.includes(query) || r.code.includes(query))
+            );
+        });
+    }, [users, searchQuery, roleFilter, companyFilter]);
 
     // Open ADD user sheet
     const handleAddUser = () => {
@@ -285,6 +321,7 @@ export default function UsersManagementTab() {
         setFormData({
             email: '',
             full_name: '',
+            phone: '',
             selectedCompany: companyId || '',
             selectedRoles: [],
             selectedBranches: [],
@@ -309,6 +346,7 @@ export default function UsersManagementTab() {
             setFormData({
                 email: user.email,
                 full_name: user.full_name || '',
+                phone: (user as any).phone || '',
                 selectedCompany: user.company_id || companyId || '',
                 selectedRoles: user.roles.map(r => r.id),
                 selectedBranches: resources.branch?.map(r => r.resource_id) || [],
@@ -323,6 +361,7 @@ export default function UsersManagementTab() {
             setFormData({
                 email: user.email,
                 full_name: user.full_name || '',
+                phone: (user as any).phone || '',
                 selectedCompany: user.company_id || companyId || '',
                 selectedRoles: user.roles.map(r => r.id),
                 selectedBranches: [],
@@ -373,13 +412,70 @@ export default function UsersManagementTab() {
         }
     };
 
+    // Delete user
+    const handleDeleteUser = async (user: UserWithDetails) => {
+        const confirmMsg = isAr
+            ? `هل أنت متأكد من حذف المستخدم "${user.full_name || user.email}"?\n\nسيتم حذف الحساب والأدوار والموارد نهائياً.`
+            : `Are you sure you want to delete "${user.full_name || user.email}"?\n\nThis will permanently remove the account, roles, and resources.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            // Delete user_resource_access
+            await supabase
+                .from('user_resource_access')
+                .delete()
+                .eq('user_id', user.id);
+
+            // Delete user_roles
+            await supabase
+                .from('user_roles')
+                .delete()
+                .eq('user_id', user.id);
+
+            // Delete user_profile (CASCADE from auth.users FK handles this too)
+            await supabase
+                .from('user_profiles')
+                .delete()
+                .eq('id', user.id);
+
+            // Try to delete from auth.users via RPC
+            try { await supabase.rpc('delete_auth_user', { p_user_id: user.id }); } catch { /* ignore */ }
+
+            // Audit log
+            logAuditEvent({
+                action: 'delete_user',
+                entity_type: 'user_profiles',
+                entity_id: user.id,
+                entity_name: user.full_name || user.email,
+                old_values: { email: user.email, roles: user.roles.map(r => r.code) },
+            });
+
+            toast({
+                title: isAr ? '✅ تم الحذف' : '✅ Deleted',
+                description: isAr
+                    ? `تم حذف المستخدم ${user.full_name || user.email}`
+                    : `User ${user.full_name || user.email} deleted`,
+            });
+
+            loadData();
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            toast({
+                title: isAr ? 'خطأ' : 'Error',
+                description: isAr ? 'فشل حذف المستخدم' : 'Failed to delete user',
+                variant: 'destructive',
+            });
+        }
+    };
+
     // Save user (Add or Edit)
     const handleSaveUser = async () => {
         try {
             setSaving(true);
 
             if (isAddMode) {
-                // ─── ADD MODE: Invite new user via Edge Function ───────
+                // ─── ADD MODE: Create/invite user via Edge Function ───────
                 if (!formData.email) {
                     toast({
                         title: isAr ? 'خطأ' : 'Error',
@@ -391,85 +487,82 @@ export default function UsersManagementTab() {
 
                 const targetCompany = formData.selectedCompany || companyId;
 
-                try {
-                    // Call Edge Function for secure invitation
-                    const { data: inviteResult, error: inviteError } = await supabase.functions.invoke('invite-user', {
-                        body: {
-                            email: formData.email,
-                            full_name: formData.full_name || undefined,
-                            company_id: targetCompany,
-                            tenant_id: tenantId,
-                            role_ids: formData.selectedRoles,
-                            branch_ids: formData.selectedBranches,
-                            primary_branch_id: formData.primaryBranch || undefined,
-                            warehouse_ids: formData.selectedWarehouses,
-                            fund_ids: formData.selectedFunds,
-                            is_active: formData.is_active,
-                        },
-                    });
+                // ✅ Call Edge Function (creates user + profile + roles + sends welcome email)
+                const { data: fnResult, error: fnError } = await supabase.functions.invoke('invite-user', {
+                    body: {
+                        email: formData.email,
+                        full_name: formData.full_name || null,
+                        phone: formData.phone || null,
+                        company_id: targetCompany || null,
+                        tenant_id: tenantId || null,
+                        role_ids: formData.selectedRoles,
+                        branch_ids: formData.selectedBranches,
+                        primary_branch_id: formData.primaryBranch || null,
+                        warehouse_ids: formData.selectedWarehouses,
+                        fund_ids: formData.selectedFunds,
+                        redirect_url: window.location.origin + '/',
+                    },
+                });
 
-                    if (inviteError) throw inviteError;
+                if (fnError) {
+                    // Extract actual error message from Edge Function response body
+                    let errorMsg = 'فشل في استدعاء خدمة الدعوة';
+                    try {
+                        if (fnError.context?.body) {
+                            const errorBody = await fnError.context.json();
+                            errorMsg = errorBody?.error || errorBody?.message || errorMsg;
+                        } else if (fnResult?.error) {
+                            errorMsg = fnResult.error;
+                        }
+                    } catch { /* use default */ }
+                    console.error('[InviteUser] Edge Function error:', fnError, 'Parsed:', errorMsg);
+                    throw new Error(errorMsg);
+                }
 
-                    const result = inviteResult as { success: boolean; message: string; error?: string };
-                    if (!result.success) {
-                        throw new Error(result.error || 'Unknown error');
-                    }
+                // Parse response (Edge Function returns JSON body)
+                const result = fnResult as { success: boolean; message?: string; error?: string; data?: { user_id: string; is_new: boolean; email_sent: boolean } };
 
+                if (!result?.success) {
+                    throw new Error(result?.error || 'فشل في إضافة المستخدم');
+                }
+
+                const userId = result.data?.user_id;
+                const isNewUser = result.data?.is_new ?? true;
+                const emailSent = result.data?.email_sent ?? false;
+
+                toast({
+                    title: isAr ? '✅ تم الإضافة' : '✅ User Added',
+                    description: isAr
+                        ? isNewUser
+                            ? `تم إنشاء المستخدم ${formData.email}${emailSent ? ' وإرسال دعوة بالبريد ✉️' : ''}`
+                            : `تم تحديث المستخدم ${formData.email}`
+                        : isNewUser
+                            ? `User ${formData.email} created${emailSent ? ' — invitation email sent ✉️' : ''}`
+                            : `User ${formData.email} updated successfully`,
+                });
+
+                if (emailSent) {
                     toast({
-                        title: isAr ? '✅ تمت الدعوة' : '✅ Invitation Sent',
+                        title: isAr ? '📧 تم إرسال بريد الترحيب' : '📧 Welcome Email Sent',
                         description: isAr
-                            ? `تم إرسال دعوة إلى ${formData.email}`
-                            : `Invitation sent to ${formData.email}`,
-                    });
-
-                } catch (edgeFnError: any) {
-                    console.warn('Edge Function invite failed, falling back to local DB:', edgeFnError);
-
-                    // Fallback: create user_profile locally (without auth invitation)
-                    const { data: newUser, error: profileError } = await supabase
-                        .from('user_profiles')
-                        .insert({
-                            email: formData.email,
-                            full_name: formData.full_name || null,
-                            company_id: targetCompany,
-                            branch_id: formData.primaryBranch || null,
-                            tenant_id: tenantId,
-                            is_active: formData.is_active,
-                        })
-                        .select()
-                        .single();
-
-                    if (profileError) throw profileError;
-
-                    const userId = newUser.id;
-
-                    // Assign roles
-                    if (formData.selectedRoles.length > 0) {
-                        await supabase
-                            .from('user_roles')
-                            .insert(
-                                formData.selectedRoles.map(roleId => ({
-                                    user_id: userId,
-                                    role_id: roleId,
-                                    tenant_id: tenantId,
-                                    company_id: targetCompany,
-                                    is_active: true,
-                                }))
-                            );
-                    }
-
-                    // Assign resources
-                    await updateResourceAccess(userId, 'branch', formData.selectedBranches, formData.primaryBranch);
-                    await updateResourceAccess(userId, 'warehouse', formData.selectedWarehouses);
-                    await updateResourceAccess(userId, 'cash_account', formData.selectedFunds);
-
-                    toast({
-                        title: isAr ? 'تم الإضافة' : 'User Added',
-                        description: isAr
-                            ? 'تم إضافة المستخدم (بدون دعوة إيميل — يحتاج تسجيل يدوي)'
-                            : 'User added (without email invite — manual signup required)',
+                            ? `تم إرسال رسالة ترحيب مع رابط الدخول إلى ${formData.email}`
+                            : `Welcome email with login link sent to ${formData.email}`,
                     });
                 }
+
+                // Audit log
+                logAuditEvent({
+                    action: 'create_user',
+                    entity_type: 'user_profiles',
+                    entity_id: userId || '',
+                    entity_name: formData.full_name || formData.email,
+                    new_values: {
+                        email: formData.email,
+                        roles: formData.selectedRoles.length,
+                        is_new: isNewUser,
+                        email_sent: emailSent,
+                    },
+                });
 
             } else if (editingUser) {
                 // ─── EDIT MODE: Update existing user ─────────────
@@ -565,7 +658,8 @@ export default function UsersManagementTab() {
                         resource_type: resourceType,
                         resource_id: resourceId,
                         is_primary: resourceId === primaryId,
-                        permissions: { read: true, write: true },
+                        can_read: true,
+                        can_write: true,
                     }))
                 );
         }
@@ -637,16 +731,87 @@ export default function UsersManagementTab() {
                     </div>
                 </div>
 
-                {/* Search */}
-                <div className="relative mt-4">
-                    <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                        placeholder={language === 'ar' ? 'البحث عن مستخدم...' : 'Search users...'}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="ps-10 font-tajawal"
-                    />
+                {/* Search + Role Filter */}
+                <div className="flex items-center gap-3 mt-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                            placeholder={language === 'ar' ? 'البحث عن مستخدم...' : 'Search users...'}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="ps-10 font-tajawal"
+                        />
+                    </div>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                        <SelectTrigger className="w-[180px] h-9 text-sm font-tajawal">
+                            <Shield className="w-4 h-4 me-1 text-gray-400" />
+                            <SelectValue placeholder={isAr ? 'كل الأدوار' : 'All Roles'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all" className="font-tajawal">
+                                {isAr ? 'كل الأدوار' : 'All Roles'}
+                            </SelectItem>
+                            <SelectItem value="no_role" className="font-tajawal text-gray-400">
+                                {isAr ? 'بدون دور' : 'No Role'}
+                            </SelectItem>
+                            {roles.map(role => (
+                                <SelectItem key={role.id} value={role.code} className="font-tajawal">
+                                    {isAr ? role.name_ar : (role.name_en || role.name_ar)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {companies.length > 1 && (
+                        <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                            <SelectTrigger className="w-[180px] h-9 text-sm font-tajawal">
+                                <Building2 className="w-4 h-4 me-1 text-gray-400" />
+                                <SelectValue placeholder={isAr ? 'كل الشركات' : 'All Companies'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all" className="font-tajawal">
+                                    {isAr ? 'كل الشركات' : 'All Companies'}
+                                </SelectItem>
+                                {companies.map(c => (
+                                    <SelectItem key={c.id} value={c.id} className="font-tajawal">
+                                        {isAr ? c.name : (c.name_en || c.name)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
                 </div>
+
+                {/* Active filter info */}
+                {(roleFilter !== 'all' || companyFilter !== 'all' || searchQuery) && (
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-gray-500 font-tajawal">
+                            {filteredUsers.length} {isAr ? 'نتيجة' : 'results'}
+                        </span>
+                        {roleFilter !== 'all' && (
+                            <Badge
+                                variant="secondary"
+                                className="text-xs font-tajawal cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                                onClick={() => setRoleFilter('all')}
+                            >
+                                {roleFilter === 'no_role'
+                                    ? (isAr ? 'بدون دور' : 'No Role')
+                                    : roles.find(r => r.code === roleFilter)?.[isAr ? 'name_ar' : 'name_en'] || roleFilter
+                                }
+                                <X className="w-3 h-3 ms-1" />
+                            </Badge>
+                        )}
+                        {companyFilter !== 'all' && (
+                            <Badge
+                                variant="secondary"
+                                className="text-xs font-tajawal cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900"
+                                onClick={() => setCompanyFilter('all')}
+                            >
+                                {companies.find(c => c.id === companyFilter)?.[isAr ? 'name' : 'name_en'] || companyFilter}
+                                <X className="w-3 h-3 ms-1" />
+                            </Badge>
+                        )}
+                    </div>
+                )}
             </CardHeader>
 
             <CardContent>
@@ -747,6 +912,14 @@ export default function UsersManagementTab() {
                                                             {language === 'ar' ? 'تعديل' : 'Edit'}
                                                         </span>
                                                     </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteUser(user)}
+                                                        className="gap-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
                                                 </div>
                                             </TableCell>
                                         </motion.tr>
@@ -806,6 +979,20 @@ export default function UsersManagementTab() {
                                                 className="font-tajawal"
                                             />
                                         </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="font-tajawal">{isAr ? 'رقم الهاتف' : 'Phone Number'}</Label>
+                                        <Input
+                                            type="tel"
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                                            placeholder="+90 5XX XXX XX XX"
+                                            className="font-mono text-sm"
+                                            dir="ltr"
+                                        />
+                                        <p className="text-xs text-gray-400 font-tajawal">
+                                            {isAr ? 'لإشعارات التلغرام — يجب على المستخدم بدء محادثة مع البوت أولاً' : 'For Telegram notifications — user must start bot conversation first'}
+                                        </p>
                                     </div>
 
                                     {/* Company selection (for multi-company tenants) */}

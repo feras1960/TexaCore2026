@@ -5,12 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Wallet,
-  ArrowRightLeft,
-  RefreshCw,
   Plus,
-  FileText,
-  FileMinus,
-  FilePlus
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from './unified/UnifiedAccountingSheet';
 import { UnifiedDocType } from './unified/types';
@@ -20,12 +15,9 @@ interface QuickActionsBarProps {
 }
 
 export default function QuickActionsBar({ className = '' }: QuickActionsBarProps) {
-  const { t } = useLanguage();
+  const { t, direction } = useLanguage();
+  const isRTL = direction === 'rtl';
   const [activeDocType, setActiveDocType] = useState<UnifiedDocType | null>(null);
-
-  const handleOpen = (type: UnifiedDocType) => {
-    setActiveDocType(type);
-  };
 
   const handleClose = () => {
     setActiveDocType(null);
@@ -34,91 +26,43 @@ export default function QuickActionsBar({ className = '' }: QuickActionsBarProps
   return (
     <>
       <div className={`flex items-center gap-1.5 flex-wrap ${className}`}>
-        {/* Receipt Voucher */}
+        {/* Receipt Voucher — سندات القبض */}
         <Button
           variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('receipt')}
+          className="h-9 px-3 gap-1.5 text-xs font-tajawal"
+          onClick={() => setActiveDocType('receipt')}
         >
-          <ArrowDownRight className="w-3 h-3 text-green-600" />
-          {t('accounting.receipts')}
+          <ArrowDownRight className="w-3.5 h-3.5 text-green-600" />
+          {isRTL ? 'سندات القبض' : 'Receipts'}
         </Button>
 
-        {/* Payment Voucher */}
+        {/* Payment Voucher — المدفوعات */}
         <Button
           variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('payment')}
+          className="h-9 px-3 gap-1.5 text-xs font-tajawal"
+          onClick={() => setActiveDocType('payment')}
         >
-          <ArrowUpRight className="w-3 h-3 text-red-600" />
-          {t('accounting.paymentsLabel')}
+          <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
+          {isRTL ? 'المدفوعات' : 'Payments'}
         </Button>
 
-        {/* Cash Journal */}
+        {/* Cash Journal — يومية صندوق */}
         <Button
           variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('cash')}
+          className="h-9 px-3 gap-1.5 text-xs font-tajawal"
+          onClick={() => setActiveDocType('cash')}
         >
-          <Wallet className="w-3 h-3 text-purple-600" />
-          {t('accounting.cashJournal')}
+          <Wallet className="w-3.5 h-3.5 text-purple-600" />
+          {isRTL ? 'يومية صندوق' : 'Cash Journal'}
         </Button>
 
-        {/* Debit Note */}
+        {/* Journal Entry — قيد يومية */}
         <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('debit_note')}
+          className="h-9 px-3 gap-1.5 text-xs font-tajawal bg-erp-teal hover:bg-erp-teal/90 text-white"
+          onClick={() => setActiveDocType('journal')}
         >
-          <FilePlus className="w-3 h-3 text-blue-600" />
-          {t('accounting.debitNote.title') || 'Debit Note'}
-        </Button>
-
-        {/* Credit Note */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('credit_note')}
-        >
-          <FileMinus className="w-3 h-3 text-indigo-600" />
-          {t('accounting.creditNote.title') || 'Credit Note'}
-        </Button>
-
-        {/* Transfer */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('transfer')}
-        >
-          <ArrowRightLeft className="w-3 h-3 text-cyan-600" />
-          {t('accounting.transfer')}
-        </Button>
-
-        {/* Exchange */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2.5 gap-1"
-          onClick={() => handleOpen('exchange')}
-        >
-          <RefreshCw className="w-3 h-3 text-amber-600" />
-          {t('accounting.exchange')}
-        </Button>
-
-        {/* Journal Entry (Primary Action) */}
-        <Button
-          size="sm"
-          className="h-8 px-2.5 gap-1 bg-erp-teal hover:bg-erp-teal/90 text-white"
-          onClick={() => handleOpen('journal')}
-        >
-          <Plus className="w-3 h-3" />
-          {t('accounting.journalEntry')}
+          <Plus className="w-3.5 h-3.5" />
+          {isRTL ? 'قيد يومية' : 'Journal Entry'}
         </Button>
       </div>
 

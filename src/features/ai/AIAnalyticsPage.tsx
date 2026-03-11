@@ -154,13 +154,33 @@ Be concise and actionable (3-5 lines per section).`;
                     const endIdx = nextMarker ? text.indexOf(nextMarker) : text.length;
                     sections[marker.toLowerCase()] = text.substring(contentStart, endIdx !== -1 ? endIdx : text.length).trim();
                 });
-                // Fallback: if no markers found, put everything in inventory
+                // Fallback: if no markers found, put everything in summary
                 if (Object.keys(sections).length === 0) {
-                    sections['inventory'] = text;
+                    sections['summary'] = text;
                 }
                 setInsights(sections);
+            } else {
+                // Show welcome message when no data or error
+                const welcomeMsg = isAr
+                    ? `مرحباً ${userName}! 👋\n\nيبدو أن شركتك جديدة ولم تتم إضافة بيانات بعد.\n\n🚀 **ابدأ الآن:**\n• أضف المواد والمنتجات من قسم المخزون\n• سجّل العملاء والموردين\n• أنشئ أول فاتورة مبيعات\n\nبمجرد إضافة بياناتك، سأقدم لك تحليلات ذكية وتوصيات مخصصة لنجاح أعمالك! 💪`
+                    : `Welcome ${userName}! 👋\n\nYour company is new and has no data yet.\n\n🚀 **Get Started:**\n• Add materials from Inventory\n• Register customers & suppliers\n• Create your first sales invoice\n\nOnce you add data, I'll provide smart analytics and personalized recommendations! 💪`;
+                setInsights({
+                    summary: welcomeMsg,
+                    inventory: isAr ? '📦 لم يتم إضافة مواد بعد. ابدأ من قسم **إدارة الأقمشة** لإضافة المواد والرولونات.' : '📦 No materials added yet. Start from **Fabric Management** to add materials.',
+                    sales: isAr ? '💰 لا توجد مبيعات بعد. أنشئ أول **فاتورة مبيعات** من قسم المبيعات.' : '💰 No sales yet. Create your first **sales invoice**.',
+                    customers: isAr ? '👥 لا يوجد عملاء أو موردين. أضفهم من القائمة الجانبية.' : '👥 No customers or suppliers yet. Add them from the sidebar.',
+                    containers: isAr ? '🚢 لا توجد كونتينرات. عند استيراد بضائع، سجّلها هنا.' : '🚢 No containers yet. Register them when importing goods.',
+                    profit: isAr ? '📊 سيتم حساب الربحية تلقائياً بعد إضافة المبيعات والمشتريات.' : '📊 Profitability will be calculated automatically after adding sales and purchases.',
+                });
             }
-        } catch { /* ignore */ } finally { setInsightsLoading(false); setInsightsLoaded(true); }
+        } catch {
+            // Show welcome on error too
+            setInsights({
+                summary: isAr
+                    ? `مرحباً ${userName}! 👋\n\nوكيل نيكسا جاهز لمساعدتك. أضف بيانات شركتك لأقدم لك تحليلات ذكية ومخصصة! 🚀`
+                    : `Welcome ${userName}! 👋\n\nNexaAgent is ready! Add your company data for smart personalized analytics! 🚀`,
+            });
+        } finally { setInsightsLoading(false); setInsightsLoaded(true); }
     }, [companyId, language, isAr, insightsLoaded]);
 
     useEffect(() => { fetchInsights(); }, [fetchInsights]);
@@ -309,14 +329,20 @@ function ChatPanel({ companyId, language, isAr }: { companyId: string; language:
             const { data, error } = await supabase.functions.invoke('nexa-agent', {
                 body: { message: msg, language, context_type: contextType, context_id: contextId, chat_history: chatHistory, complexity: selectedModel, company_id: companyId },
             });
-            if (error) throw error;
+            const responseText = data?.response
+                || (isAr
+                    ? `مرحباً! 👋 يبدو أن شركتك جديدة ولم تتم إضافة بيانات بعد.\n\n🚀 ابدأ بإضافة المواد والعملاء والموردين، وسأساعدك بتحليلات ذكية ومخصصة!`
+                    : `Welcome! 👋 Your company is new and has no data yet.\n\n🚀 Start by adding materials, customers, and suppliers for smart analytics!`);
             setMessages(prev => [...prev, {
                 id: `a_${Date.now()}`, role: 'assistant',
-                content: data?.response || (isAr ? 'عذراً، حدث خطأ.' : 'Sorry, an error occurred.'),
+                content: responseText,
                 model_used: data?.model_used, context_loaded: data?.context_loaded, timestamp: new Date(),
             }]);
         } catch (err: any) {
-            setMessages(prev => [...prev, { id: `e_${Date.now()}`, role: 'assistant', content: `⚠️ ${err.message || 'Error'}`, timestamp: new Date() }]);
+            const fallbackMsg = isAr
+                ? `👋 مرحباً! وكيل نيكسا في خدمتك. أضف بيانات شركتك (مواد، عملاء، فواتير) وسأقدم لك تحليلات ذكية فورية! 🚀`
+                : `👋 Hello! NexaAgent at your service. Add your company data for instant smart analytics! 🚀`;
+            setMessages(prev => [...prev, { id: `e_${Date.now()}`, role: 'assistant', content: fallbackMsg, timestamp: new Date() }]);
         } finally { setIsLoading(false); inputRef.current?.focus(); }
     }, [inputValue, isLoading, messages, contextType, contextId, language, selectedModel, companyId, isAr]);
 

@@ -13,13 +13,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
 import {
     Sheet, SheetContent,
     SheetHeader as UiSheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, Users, UserCheck, Truck, BarChart3 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, X, Users, UserCheck, Truck, BarChart3, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
@@ -57,6 +59,7 @@ export interface PartySubAccount {
     party_id: string;
     party_type: string;
     current_balance: number;
+    currency?: string;
     is_active: boolean;
     created_at: string;
     last_activity?: string;
@@ -130,6 +133,7 @@ export function SummaryAccountSheet({
     const isRTL = direction === 'rtl';
     const { companyId: hookCompanyId } = useCompany();
     const resolvedCompanyId = propCompanyId || hookCompanyId;
+    const { selectedCurrency, setSelectedCurrency, currencyOptions, convertAmount } = useViewCurrency();
 
     // State
     const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -142,11 +146,12 @@ export function SummaryAccountSheet({
     const PartyIcon = getPartyIcon(partyType);
     const partyColor = getPartyColor(partyType);
 
-    // ═══ Fetch sub-accounts for this group ═══
+    // ═══ Fetch sub-accounts + debit/credit from journal entry lines ═══
     const fetchSubAccounts = useCallback(async () => {
         if (!data?.parent_id) return;
         setLoading(true);
         try {
+            // 1. جلب الحسابات الفرعية مع العملة
             const { data: accounts, error } = await supabase
                 .from('chart_of_accounts')
                 .select('*')
@@ -155,9 +160,38 @@ export function SummaryAccountSheet({
                 .order('account_code');
 
             if (error) throw error;
-            // DB تخزن Net (Dr-Cr) — الأرصدة سالبة للخصوم وموجبة للأصول
-            // نعرضها كما هي بدون أي تحويل
-            setSubAccounts(accounts || []);
+            const accts = accounts || [];
+
+            // 2. جلب إجمالي المدين والدائن من القيود
+            if (accts.length > 0) {
+                const accountIds = accts.map(a => a.id);
+                const { data: jelData } = await supabase
+                    .from('journal_entry_lines')
+                    .select('account_id, debit, credit, journal_entries!inner(status)')
+                    .in('account_id', accountIds)
+                    .eq('journal_entries.status', 'posted');
+
+                // تجميع المدين والدائن لكل حساب
+                const debitCreditMap = new Map<string, { debit: number; credit: number; count: number }>();
+                (jelData || []).forEach((line: any) => {
+                    const existing = debitCreditMap.get(line.account_id) || { debit: 0, credit: 0, count: 0 };
+                    existing.debit += Number(line.debit || 0);
+                    existing.credit += Number(line.credit || 0);
+                    existing.count += 1;
+                    debitCreditMap.set(line.account_id, existing);
+                });
+
+                // دمج البيانات
+                const enriched: PartySubAccount[] = accts.map(a => ({
+                    ...a,
+                    total_debit: debitCreditMap.get(a.id)?.debit || 0,
+                    total_credit: debitCreditMap.get(a.id)?.credit || 0,
+                    transaction_count: debitCreditMap.get(a.id)?.count || 0,
+                }));
+                setSubAccounts(enriched);
+            } else {
+                setSubAccounts([]);
+            }
         } catch (err) {
             console.error('[SummaryAccountSheet] fetch error:', err);
         } finally {
@@ -176,19 +210,32 @@ export function SummaryAccountSheet({
         }
     }, [isOpen, data, fetchSubAccounts]);
 
-    // ═══ Computed stats ═══
+    // ═══ Helper: convert amount to selected currency ═══
+    const convert = useCallback((amount: number, currency: string): number => {
+        if (!amount) return 0;
+        if (selectedCurrency === 'all') return amount;
+        return convertAmount(amount, currency || 'USD');
+    }, [selectedCurrency, convertAmount]);
+
+    // ═══ Computed stats (with currency conversion) ═══
     const stats = useMemo(() => {
         const total = subAccounts.length;
         const active = subAccounts.filter(a => a.is_active).length;
-        const totalDebit = subAccounts.reduce((s, a) => s + (a.total_debit || 0), 0);
-        const totalCredit = subAccounts.reduce((s, a) => s + (a.total_credit || 0), 0);
-        const totalBalance = subAccounts.reduce((s, a) => s + (a.current_balance || 0), 0);
+        const totalDebit = subAccounts.reduce((s, a) => {
+            return s + convert(a.total_debit || 0, a.currency || 'USD');
+        }, 0);
+        const totalCredit = subAccounts.reduce((s, a) => {
+            return s + convert(a.total_credit || 0, a.currency || 'USD');
+        }, 0);
+        const totalBalance = subAccounts.reduce((s, a) => {
+            return s + convert(a.current_balance || 0, a.currency || 'USD');
+        }, 0);
         const maxBalance = subAccounts.length > 0
-            ? Math.max(...subAccounts.map(a => Math.abs(a.current_balance || 0)))
+            ? Math.max(...subAccounts.map(a => Math.abs(convert(a.current_balance || 0, a.currency || 'USD'))))
             : 0;
 
         return { total, active, totalDebit, totalCredit, totalBalance, maxBalance };
-    }, [subAccounts]);
+    }, [subAccounts, convert]);
 
     // ═══ Title ═══
     const sheetTitle = useMemo(() => {
@@ -259,6 +306,22 @@ export function SummaryAccountSheet({
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
+                        {/* Currency Filter */}
+                        <div className="flex items-center gap-1.5">
+                            <Globe className="w-3.5 h-3.5 text-gray-400" />
+                            <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+                                <SelectTrigger className="h-7 w-[90px] text-xs">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {currencyOptions.map(opt => (
+                                        <SelectItem key={opt} value={opt} className="text-xs">
+                                            {opt === 'all' ? (t('common.all') || 'الكل') : opt}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     {/* ═══ Tabs Bar ═══ */}
@@ -313,6 +376,7 @@ export function SummaryAccountSheet({
                                     stats={stats}
                                     partyType={partyType}
                                     isRTL={isRTL}
+                                    convert={convert}
                                 />
                             </div>
 
@@ -323,6 +387,8 @@ export function SummaryAccountSheet({
                                     partyType={partyType}
                                     isRTL={isRTL}
                                     companyId={resolvedCompanyId}
+                                    convert={convert}
+                                    selectedCurrency={selectedCurrency}
                                 />
                             </div>
 

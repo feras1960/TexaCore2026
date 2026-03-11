@@ -15,6 +15,7 @@ import type { ExtendedLedgerEntry, EntryDetailLine } from '../hooks/useLedgerDat
 // ═══ Entry Type Icons ═══
 const ENTRY_TYPE_ICONS: Record<string, { icon: string; label_ar: string; label_en: string }> = {
     journal: { icon: '📋', label_ar: 'قيد يومية', label_en: 'Journal Entry' },
+    cash: { icon: '🏦', label_ar: 'يومية صندوق', label_en: 'Cash Journal' },
     invoice: { icon: '🧾', label_ar: 'فاتورة', label_en: 'Invoice' },
     payment: { icon: '💸', label_ar: 'سند صرف', label_en: 'Payment' },
     receipt: { icon: '💰', label_ar: 'سند قبض', label_en: 'Receipt' },

@@ -18,6 +18,7 @@ import { TradeService } from '@/features/trade/services/TradeService';
 // ═══ Eager imports (always needed for core tabs) ═══
 import { OverviewTab } from '../tabs/OverviewTab';
 import { AccountingEntryTab } from '../tabs/AccountingEntryTab';
+import { AccountingEntryViewTab } from '../tabs/AccountingEntryViewTab';
 
 // ═══ Lazy imports (loaded on demand per tab) ═══
 const LedgerTab = lazy(() => import('../tabs/LedgerTab').then(m => ({ default: m.LedgerTab })));
@@ -121,13 +122,25 @@ export interface TabContentRendererProps {
     activeTab?: string; // Current active tab — needed to save before switching to sub-doc
     // Config
     stats?: any;
+    onDisplayCurrencyChange?: (currency: string) => void;
+    /** If provided, the FIRST onChange call will NOT set hasChanges to true (skips empty-rows init) */
+    skipInitialOnChangeRef?: React.MutableRefObject<boolean>;
 }
 
 // ═══ Shared onChange handler builder ═══
-function makeOnChange(setData: (fn: any) => void, setHasChanges: (v: boolean) => void) {
+function makeOnChange(
+    setData: (fn: any) => void,
+    setHasChanges: (v: boolean) => void,
+    skipRef?: React.MutableRefObject<boolean>
+) {
     return (updates: any) => {
         setData((prev: any) => ({ ...prev, ...updates }));
-        setHasChanges(true);
+        // If this is the first call after a mode switch (empty rows init), skip dirty flag
+        if (skipRef?.current) {
+            skipRef.current = false; // consume the skip once
+        } else {
+            setHasChanges(true);
+        }
     };
 }
 
@@ -140,9 +153,11 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
         openDocs, setOpenDocs, setActiveDocId,
         activeTab: currentActiveTab,
         stats,
+        onDisplayCurrencyChange,
+        skipInitialOnChangeRef,
     } = props;
 
-    const onChange = useCallback(makeOnChange(setData, setHasChanges), [setData, setHasChanges]);
+    const onChange = useCallback(makeOnChange(setData, setHasChanges, skipInitialOnChangeRef), [setData, setHasChanges, skipInitialOnChangeRef]);
 
     // Track activeTab in a ref to avoid stale closures inside useCallback
     const activeTabRef = useRef(currentActiveTab);
@@ -474,6 +489,29 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         }
                     }
 
+                    // ═══ Handle cash/receipt/payment entry types ═══
+                    // When entry_type is 'cash', 'receipt', or 'payment', the document IS the journal entry
+                    // It should be opened in the correct sheet (cash journal / receipt / payment)
+                    if (mdiDocType === 'journal' && !refId) {
+                        const jeType = entryType || '';
+                        if (jeType === 'cash') {
+                            mdiDocType = 'cash';
+                            docId = entry.entryId;
+                            typeIcon = '📋';
+                            docTitle = language === 'ar' ? 'يومية صندوق' : 'Cash Journal';
+                        } else if (jeType === 'receipt') {
+                            mdiDocType = 'receipt';
+                            docId = entry.entryId;
+                            typeIcon = '💰';
+                            docTitle = language === 'ar' ? 'سند قبض' : 'Receipt Voucher';
+                        } else if (jeType === 'payment') {
+                            mdiDocType = 'payment';
+                            docId = entry.entryId;
+                            typeIcon = '💸';
+                            docTitle = language === 'ar' ? 'سند صرف' : 'Payment Voucher';
+                        }
+                    }
+
                     if (refId) {
                         if (mdiDocType === 'journal') {
                             // Only re-detect if not already set by reverse lookup
@@ -576,14 +614,13 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 party_id: containerResult.data.supplier_id,
                                 status: containerResult.data.status || 'draft',
                             };
-                        } else if (mdiDocType === 'receipt') {
-                            const { data: receiptData, error } = await supabase.from('cash_receipts').select('*').eq('id', docId).single();
-                            if (error) throw error;
-                            docData = { ...receiptData, _sourceEntryId: entry.entryId };
-                        } else if (mdiDocType === 'payment') {
-                            const { data: paymentData, error } = await supabase.from('payment_transactions').select('*').eq('id', docId).single();
-                            if (error) throw error;
-                            docData = { ...paymentData, _sourceEntryId: entry.entryId };
+                        } else if (mdiDocType === 'cash' || mdiDocType === 'receipt' || mdiDocType === 'payment') {
+                            // ═══ يومية صندوق / مقبوضات / مدفوعات ═══
+                            // الوثيقة هي القيد المحاسبي نفسه — نجلبه بالكامل مع أسطره
+                            docData = await journalEntriesService.getById(entry.entryId);
+                            if (docData) {
+                                docData._sourceEntryId = entry.entryId;
+                            }
                         } else {
                             // Fallback: journal entry
                             docData = await journalEntriesService.getById(entry.entryId);
@@ -615,7 +652,8 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 lastActiveTab: lastActiveTabExt || (
                                     mdiDocType === 'trade_container' ? 'trade_details' :
                                         mdiDocType === 'trade_invoice' || mdiDocType === 'trade_order' ? 'trade_details' :
-                                            undefined
+                                            mdiDocType === 'cash' || mdiDocType === 'receipt' || mdiDocType === 'payment' ? 'entry' :
+                                                undefined
                                 ),
                             }];
                         });
@@ -634,6 +672,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         companyId={companyId || ''}
                         currency={data?.currency || ''}
                         partyMode={true}
+                        onDisplayCurrencyChange={onDisplayCurrencyChange}
                         renderExpandedRowOverride={(row) => (
                             <Suspense fallback={<div className="flex items-center justify-center py-4"><Loader2 className="w-4 h-4 animate-spin" /></div>}>
                                 <PartyLedgerExpandedRow
@@ -730,6 +769,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                             setHasChanges(true);
                         }}
                         currency={data?.currency || ''}
+                        exchangeRate={Number(data?.exchange_rate) || 1}
                         tradeMode={tradeMode}
                         readOnly={mode === 'view'}
                         sourceWarehouseId={data?.warehouse_id || data?.from_warehouse_id}
@@ -746,6 +786,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                             setHasChanges(true);
                         }}
                         currency={data?.currency || ''}
+                        exchangeRate={Number(data?.exchange_rate) || 1}
                         readOnly={mode === 'view'}
                         supplierId={data?.supplier_id}
                         receiptMode={data?.receipt_mode}
@@ -913,6 +954,20 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         <RollLocationTab data={data} />
                     </Suspense>
                 );
+                break;
+
+            case 'accounting_entry':
+                // ─── تبويب القيد المحاسبي — للقراءة فقط ───
+                // يظهر في يومية الصندوق / مقبوضات / مدفوعات
+                if (['cash', 'receipt', 'payment'].includes(docType)) {
+                    return (
+                        <AccountingEntryViewTab
+                            data={data}
+                            mode={mode}
+                            companyId={companyId}
+                        />
+                    );
+                }
                 break;
 
             default:

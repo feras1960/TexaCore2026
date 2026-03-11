@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import {
     rbacService,
     Role,
@@ -186,6 +187,56 @@ export function useRBAC(): UseRBACReturn {
             loadPermissions();
         }
     }, [authLoading, loadPermissions]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🔄 Realtime: auto-refresh when admin changes modules or roles
+    // ═══════════════════════════════════════════════════════════════
+    useEffect(() => {
+        if (!user?.id) return;
+
+        // Get user's tenant_id first
+        let tenantId: string | null = null;
+        const getTenantAndSubscribe = async () => {
+            const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('tenant_id')
+                .eq('id', user.id)
+                .single();
+            tenantId = profile?.tenant_id;
+            if (!tenantId) return;
+
+            const channel = supabase
+                .channel('rbac-realtime')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'tenant_modules',
+                    filter: `tenant_id=eq.${tenantId}`,
+                }, () => {
+                    console.log('[RBAC] tenant_modules changed — refreshing...');
+                    loadPermissions();
+                })
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'user_role_assignments',
+                    filter: `user_id=eq.${user.id}`,
+                }, () => {
+                    console.log('[RBAC] user_role_assignments changed — refreshing...');
+                    loadPermissions();
+                })
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
+        };
+
+        const cleanup = getTenantAndSubscribe();
+        return () => {
+            cleanup.then(unsub => unsub?.());
+        };
+    }, [user?.id, loadPermissions]);
 
     // ─────────────────────────────────────────────────────────────
     // Permission Checks

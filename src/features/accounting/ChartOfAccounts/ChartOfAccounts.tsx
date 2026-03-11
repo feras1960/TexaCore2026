@@ -34,6 +34,7 @@ import {
   TrendingUp,
   TrendingDown,
   Scale,
+  Landmark,
 } from 'lucide-react';
 import { AddAccountSheet } from './AddAccountSheet';
 import { AccountTreeView } from './AccountTreeView';
@@ -82,7 +83,7 @@ export function ChartOfAccounts() {
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const { selectedCurrency, setSelectedCurrency, currencyOptions, formatAmount } = useViewCurrency();
+  const { selectedCurrency, setSelectedCurrency, currencyOptions, formatAmount, convertAmount } = useViewCurrency();
 
   // Get company from hook (fetches first company automatically)
   const { company, companyId, loading: companyLoading, refetch: refetchCompany } = useCompany(true);
@@ -205,6 +206,11 @@ export function ChartOfAccounts() {
   };
 
   const handleDeleteClick = (account: Account) => {
+    // حماية حسابات النظام من الحذف
+    if (account.is_system) {
+      toast.error(t('accounting.cannotDeleteSystemAccount') || 'لا يمكن حذف حساب نظام محمي');
+      return;
+    }
     setAccountToDelete(account);
     setDeleteConfirmOpen(true);
   };
@@ -252,58 +258,115 @@ export function ChartOfAccounts() {
   const activeAccounts = accounts.filter((a) => a.is_active).length;
   const groupsCount = accounts.filter((a) => a.is_group).length;
 
-  // ═══ Financial Stats (by account_code prefix) ═══
-  // SUM accounts (e.g. 1131-SUM, 2111-SUM) carry aggregated party balances,
-  // so financialStats using `accounts` (without party) is correct.
+  // Currency symbol mapping
+  const CURRENCY_SYMBOLS: Record<string, string> = {
+    USD: '$', EUR: '€', UAH: '₴', TRY: '₺', RUB: '₽', GBP: '£', JPY: '¥', CNY: '¥',
+  };
+  const currencySymbol = selectedCurrency && selectedCurrency !== 'all'
+    ? (CURRENCY_SYMBOLS[selectedCurrency] || selectedCurrency)
+    : '$';
+
+  // ═══ Multi-currency account balances (accounts receiving entries in multiple currencies) ═══
+  const [multiCurrencyMap, setMultiCurrencyMap] = useState<Map<string, Array<{ currency: string, balance: number }>>>(new Map());
+
+  useEffect(() => {
+    if (!companyId) return;
+    const fetchMultiCurrencyBalances = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_multi_currency_balances', {
+          p_company_id: companyId,
+        });
+        if (error || !data) return;
+        const map = new Map<string, Array<{ currency: string, balance: number }>>();
+        (data as any[]).forEach((row: any) => {
+          const existing = map.get(row.account_id) || [];
+          existing.push({ currency: row.currency, balance: Number(row.net_balance) });
+          map.set(row.account_id, existing);
+        });
+        setMultiCurrencyMap(map);
+      } catch (e) {
+        console.warn('Failed to fetch multi-currency balances:', e);
+      }
+    };
+    fetchMultiCurrencyBalances();
+  }, [companyId, accounts]);
+
+  // ═══ Enhanced convertBalance: handles multi-currency accounts ═══
+  const enhancedConvertBalance = useCallback((amount: number, currency: string, accountId?: string): number => {
+    // If this account has multi-currency breakdown, use it instead
+    if (accountId && multiCurrencyMap.has(accountId)) {
+      const entries = multiCurrencyMap.get(accountId)!;
+      if (selectedCurrency === 'all') {
+        // No conversion — return raw balance
+        return amount;
+      }
+      // Sum each currency's balance after converting to selected currency
+      return entries.reduce((sum, entry) => {
+        return sum + convertAmount(entry.balance, entry.currency);
+      }, 0);
+    }
+    // Normal single-currency conversion
+    if (!currency || selectedCurrency === 'all') return amount;
+    return convertAmount(amount, currency);
+  }, [multiCurrencyMap, selectedCurrency, convertAmount]);
+
+  // ═══ Financial Stats (by account_code prefix) — with currency conversion ═══
   const financialStats = useMemo(() => {
-    // Helper: get root code prefix (first digit of account_code)
     const getRootCode = (account: Account): string => {
       const code = account.code || (account as any).account_code || '';
       return code.charAt(0);
     };
 
-    // Only leaf accounts (non-group) to avoid double-counting
-    const leafAccounts = accounts.filter(a => !a.is_group);
+    // Only leaf accounts (non-group), excluding SUM accounts to avoid double-counting
+    const leafAccounts = accounts.filter(a => !a.is_group && !(a as any).is_summary_account);
 
-    // DB stores Net (Dr-Cr):
-    //   Assets/Expenses = positive (debit-normal)
-    //   Liabilities/Equity/Revenue = negative (credit-normal)
+    // Helper: get balance converted to selected currency (with multi-currency support)
+    const getConvertedBalance = (a: Account): number => {
+      const balance = a.current_balance ?? 0;
+      if (balance === 0 && !multiCurrencyMap.has(a.id)) return 0;
+      const acctCurrency = a.currency_code || a.currency || company?.default_currency || '';
+      return enhancedConvertBalance(balance, acctCurrency, a.id);
+    };
+
     const totalAssets = leafAccounts
       .filter(a => getRootCode(a) === '1')
-      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+      .reduce((sum, a) => sum + getConvertedBalance(a), 0);
 
     const totalLiabilities = leafAccounts
       .filter(a => getRootCode(a) === '2')
-      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
-    // totalLiabilities is NEGATIVE in DB (e.g. -31,227.88)
+      .reduce((sum, a) => sum + getConvertedBalance(a), 0);
 
     const totalEquity = leafAccounts
       .filter(a => getRootCode(a) === '3')
-      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+      .reduce((sum, a) => sum + getConvertedBalance(a), 0);
 
     const totalRevenue = leafAccounts
       .filter(a => getRootCode(a) === '4')
-      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
-    // totalRevenue is NEGATIVE in DB (e.g. -8,557.58)
+      .reduce((sum, a) => sum + getConvertedBalance(a), 0);
 
     const totalExpenses = leafAccounts
       .filter(a => getRootCode(a) === '5')
-      .reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+      .reduce((sum, a) => sum + getConvertedBalance(a), 0);
 
-    // Net profit = |Revenue| - Expenses  (Revenue is negative in DB, so negate it)
-    // e.g. -(-8,557.58) - 2,357.12 = 6,200.46
     const netProfit = -totalRevenue - totalExpenses;
 
-    // Trial Balance: Since DB stores Net(Dr-Cr), the sum of ALL should = 0
-    // Assets(+) + Expenses(+) + Liabilities(-) + Equity(-) + Revenue(-) = 0
     const totalAll = totalAssets + totalExpenses + totalLiabilities + totalEquity + totalRevenue;
     const balanceDiff = Math.abs(totalAll);
-    const isBalanced = balanceDiff < 0.02; // tolerance for rounding
+    const isBalanced = balanceDiff < 0.02;
 
-    // For display: Debit side = Assets + Expenses, Credit side = |Liabilities + Equity + Revenue|
-    const debitSide = totalAssets + totalExpenses;
-    const creditSide = -(totalLiabilities + totalEquity + totalRevenue); // negate to show as positive
-    const liabilitiesAndEquity = totalLiabilities + totalEquity; // negative in DB
+    // ═══ Trial Balance: Debit = all positive balances, Credit = abs(all negative balances) ═══
+    // This correctly handles ALL accounts regardless of their type
+    let debitSide = 0;
+    let creditSide = 0;
+    leafAccounts.forEach(a => {
+      const converted = getConvertedBalance(a);
+      if (converted > 0) {
+        debitSide += converted;
+      } else if (converted < 0) {
+        creditSide += Math.abs(converted);
+      }
+    });
+    const liabilitiesAndEquity = totalLiabilities + totalEquity;
 
     return {
       totalAssets,
@@ -318,7 +381,7 @@ export function ChartOfAccounts() {
       balanceDiff,
       isBalanced,
     };
-  }, [accounts]);
+  }, [accounts, selectedCurrency, enhancedConvertBalance, company?.default_currency, multiCurrencyMap]);
 
   // ═══ Net Profit Protection: hidden + password ═══
   const canSeeProfitCard = hasAnyRole(['super_admin', 'tenant_owner', 'company_owner']);
@@ -718,74 +781,32 @@ export function ChartOfAccounts() {
           value={activeAccounts}
           icon={CheckCircle2}
         />
-        {/* 4. Total Assets — with tooltip */}
-        <div className="relative group/tip">
-          <StatCard
-            label={language === 'ar' ? 'إجمالي الأصول' : 'Total Assets'}
-            value={financialStats.totalAssets.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            icon={TrendingUp}
-            type="positive"
-            prefix="$"
-          />
-          <div className="absolute top-2 end-2 opacity-0 group-hover/tip:opacity-100 transition-opacity">
-            <div className="relative group/help">
-              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-500 dark:text-gray-300">?</div>
-              <div className="absolute bottom-full mb-2 end-0 w-56 p-2.5 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none">
-                {language === 'ar'
-                  ? 'مجموع أرصدة كل حسابات الأصول (كود 1xx). يشمل: نقد، بنوك، مدينون، مخزون، أصول ثابتة'
-                  : 'Sum of all asset account balances (code 1xx). Includes: cash, banks, receivables, inventory, fixed assets'
-                }
-                <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* 5. Total Liabilities + Equity — with tooltip */}
-        <div className="relative group/tip">
-          <StatCard
-            label={language === 'ar' ? 'الخصوم + حقوق الملكية' : 'Liabilities + Equity'}
-            value={financialStats.liabilitiesAndEquity.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            icon={Scale}
-            type="info"
-            prefix="$"
-          />
-          <div className="absolute top-2 end-2 opacity-0 group-hover/tip:opacity-100 transition-opacity">
-            <div className="relative group/help">
-              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-500 dark:text-gray-300">?</div>
-              <div className="absolute bottom-full mb-2 end-0 w-56 p-2.5 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none">
-                {language === 'ar'
-                  ? 'مجموع الخصوم (كود 2xx) + حقوق الملكية (كود 3xx). يجب أن يتساوى مع الأصول في نظام متوازن'
-                  : 'Sum of liabilities (code 2xx) + equity (code 3xx). Should equal assets in a balanced system'
-                }
-                <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* 6. Balance Check (Trial Balance) — with tooltip */}
-        <div className="relative group/tip">
-          <StatCard
-            label={language === 'ar' ? 'ميزان المراجعة' : 'Trial Balance'}
-            value={financialStats.isBalanced
-              ? (language === 'ar' ? '✅ متوازن' : '✅ Balanced')
-              : `❌ ${language === 'ar' ? 'فرق' : 'Diff'}: ${financialStats.balanceDiff.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-            }
-            icon={Shield}
-            type={financialStats.isBalanced ? 'positive' : 'warning'}
-          />
-          <div className="absolute top-2 end-2 opacity-0 group-hover/tip:opacity-100 transition-opacity">
-            <div className="relative group/help">
-              <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-help text-[10px] font-bold text-gray-500 dark:text-gray-300">?</div>
-              <div className="absolute bottom-full mb-2 end-0 w-72 p-3 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] leading-relaxed shadow-xl z-50 hidden group-hover/help:block pointer-events-none">
-                {language === 'ar'
-                  ? `ميزان المراجعة يقارن:\n• الجانب المدين: الأصول + المصروفات = ${financialStats.debitSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• الجانب الدائن: الخصوم + حقوق الملكية + الإيرادات = ${financialStats.creditSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n✅ متوازن = النظام المحاسبي سليم`
-                  : `Trial Balance compares:\n• Debit Side: Assets + Expenses = ${financialStats.debitSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n• Credit Side: Liabilities + Equity + Revenue = ${financialStats.creditSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n✅ Balanced = accounting system is correct`
-                }
-                <div className="absolute top-full end-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45 -mt-1" />
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* 4. إجمالي المدين = الأصول + المصروفات */}
+        <StatCard
+          label={language === 'ar' ? 'إجمالي المدين' : 'Total Debit'}
+          value={financialStats.debitSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          icon={TrendingUp}
+          type="positive"
+          prefix={currencySymbol}
+        />
+        {/* 5. إجمالي الدائن = الخصوم + حقوق الملكية + الإيرادات */}
+        <StatCard
+          label={language === 'ar' ? 'إجمالي الدائن' : 'Total Credit'}
+          value={financialStats.creditSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          icon={TrendingDown}
+          type="info"
+          prefix={currencySymbol}
+        />
+        {/* 6. ميزان المراجعة */}
+        <StatCard
+          label={language === 'ar' ? 'ميزان المراجعة' : 'Trial Balance'}
+          value={financialStats.isBalanced
+            ? (language === 'ar' ? '✅ متوازن' : '✅ Balanced')
+            : `❌ ${language === 'ar' ? 'فرق' : 'Diff'}: ${financialStats.balanceDiff.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+          }
+          icon={Shield}
+          type={financialStats.isBalanced ? 'positive' : 'warning'}
+        />
       </div>
 
       {/* Net Profit Card — Owner Only + Password Protected */}
@@ -1213,6 +1234,9 @@ export function ChartOfAccounts() {
           expandAll={expandAll}
           collapseAll={collapseAll}
           searchQuery={searchQuery}
+          convertBalance={selectedCurrency !== 'all' ? convertAmount : undefined}
+          multiCurrencyMap={multiCurrencyMap}
+          enhancedConvertBalance={selectedCurrency !== 'all' ? enhancedConvertBalance : undefined}
           onExpandStateChange={() => {
             setExpandAll(undefined);
             setCollapseAll(undefined);

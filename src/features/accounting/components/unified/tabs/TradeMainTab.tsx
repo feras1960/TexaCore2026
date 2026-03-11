@@ -60,7 +60,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
     const { companyId } = useCompany();
     const { supportedCurrencies } = useAccountingSettings();
-    const { lookupRate } = useExchangeRateLookup();
+    const { lookupRate, lookupRateAsync } = useExchangeRateLookup();
 
     // ─── Tax Defaults (for tax reconciliation on load) ───
     const { data: taxDefaults } = useTaxDefaults(companyId);
@@ -440,14 +440,64 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         });
     };
 
-    // ─── Handle currency change with auto exchange rate ───
-    const handleCurrencyChange = useCallback((currency: string) => {
-        const rate = lookupRate(currency, companyCurrency);
-        onChange({
-            currency,
-            exchange_rate: rate,
-        });
-    }, [lookupRate, companyCurrency, onChange]);
+    // ─── Handle currency change with auto exchange rate + PRICE CONVERSION ───
+    // Converts ALL existing line item prices from old currency to new currency
+    const handleCurrencyChange = useCallback(async (currency: string) => {
+        const oldCurrency = data.currency || companyCurrency || '';
+        const oldRate = Number(data.exchange_rate) || 1; // 1 oldCurrency = X baseCurrency
+        const newRate = lookupRate(currency, companyCurrency); // 1 newCurrency = X baseCurrency
+
+        // Convert items: price_new = price_old × (oldRate / newRate)
+        // Example: 75 UAH→USD: oldRate=1, newRate=43.78 → 75 × (1/43.78) = $1.71
+        const currentItems = data.items || [];
+        const conversionFactor = (oldRate > 0 && newRate > 0) ? (oldRate / newRate) : 1;
+        const needsConversion = oldCurrency !== currency && Math.abs(conversionFactor - 1) > 0.0001;
+
+        const convertItem = (item: any, rate: number, factor: number, doConvert: boolean) => {
+            if (!doConvert) return { ...item, currency, exchange_rate: rate };
+            const newUnitPrice = Math.round(item.unit_price * factor * 10000) / 10000;
+            const newQty = Number(item.quantity || 0);
+            const newSubtotal = newQty * newUnitPrice;
+            const discAmt = (Number(item.discount_percent) || 0) / 100 * newSubtotal;
+            const net = newSubtotal - discAmt;
+            const tr = Number(item.tax_rate) || 0;
+            const tax = tr > 0 ? Math.round(net * (tr / 100) * 100) / 100 : 0;
+            return { ...item, currency, exchange_rate: rate, unit_price: newUnitPrice, subtotal: newSubtotal, discount_amount: discAmt, tax_amount: tax, total: net + tax };
+        };
+
+        const recalcTotals = (items: any[]) => {
+            const sub = items.reduce((s: number, i: any) => s + Number(i.subtotal || 0), 0);
+            const disc = items.reduce((s: number, i: any) => s + Number(i.discount_amount || 0), 0);
+            const tax = items.reduce((s: number, i: any) => s + Number(i.tax_amount || 0), 0);
+            return { subtotal: sub, discount_amount: disc, tax_amount: tax, total_amount: sub - disc + tax, grand_total: sub - disc + tax };
+        };
+
+        const convertedItems = currentItems.map((item: any) => convertItem(item, newRate, conversionFactor, needsConversion));
+        const totals = recalcTotals(convertedItems);
+
+        onChange({ currency, exchange_rate: newRate, items: convertedItems, ...totals });
+
+        if (needsConversion) {
+            console.log(`[TradeMainTab] 💱 Converted ${convertedItems.length} items: ${oldCurrency}→${currency} (factor: ${conversionFactor.toFixed(6)})`);
+        }
+
+        // Async fallback: if sync returned 1 but should have a real rate
+        if (newRate === 1 && currency !== companyCurrency) {
+            try {
+                const asyncRate = await lookupRateAsync(currency, companyCurrency);
+                if (asyncRate !== 1 && asyncRate > 0) {
+                    const asyncFactor = (oldRate > 0 && asyncRate > 0) ? (oldRate / asyncRate) : 1;
+                    const doConvert2 = oldCurrency !== currency && Math.abs(asyncFactor - 1) > 0.0001;
+                    const reItems = currentItems.map((item: any) => convertItem(item, asyncRate, asyncFactor, doConvert2));
+                    const reTotals = recalcTotals(reItems);
+                    onChange({ exchange_rate: asyncRate, items: reItems, ...reTotals });
+                    console.log(`[TradeMainTab] 🌐 Online rate: 1 ${currency} = ${asyncRate.toFixed(4)} ${companyCurrency} — reconverted ${reItems.length} items`);
+                }
+            } catch (err) {
+                console.warn('[TradeMainTab] Failed to fetch online exchange rate:', err);
+            }
+        }
+    }, [lookupRate, lookupRateAsync, companyCurrency, onChange, data.currency, data.exchange_rate, data.items]);
 
     // ─── Container gets its own dedicated tab ───
     if (isContainer) {

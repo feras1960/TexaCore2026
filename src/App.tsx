@@ -1,11 +1,13 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProviders } from '@/app/providers';
 import MainLayout from '@/components/layout/MainLayout';
+import ModuleGuard from '@/components/layout/ModuleGuard';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import PageLoader, { BrandedLoader } from '@/components/common/PageLoader';
+import { initArabicNumeralNormalizer } from '@/lib/arabicNumeralNormalizer';
 
 // Import AuthGuard directly (not lazy) for better auth flow
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -24,6 +26,7 @@ const DesignSystemDemo = React.lazy(() => import('@/pages/DesignSystemDemo'));
 const NexaDataTableDemo = React.lazy(() => import('@/pages/NexaDataTableDemo'));
 const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
 const KanbanLabPage = React.lazy(() => import('@/pages/KanbanLabPage'));
+const AccountingGridLab = React.lazy(() => import('@/pages/AccountingGridLab'));
 const AdvancedQRScannerPage = React.lazy(() => import('@/pages/advanced/AdvancedQRScannerPage'));
 const CRM = React.lazy(() => import('@/features/crm/CRM'));
 const HR = React.lazy(() => import('@/features/hr/HR'));
@@ -44,6 +47,7 @@ const WorkflowCenter = React.lazy(() => import('@/features/workflow-center/Workf
 const EcommercePage = React.lazy(() => import('@/features/ecommerce/EcommercePage'));
 const WebsiteManagerPage = React.lazy(() => import('@/features/website/WebsiteManagerPage'));
 const AIAnalyticsPage = React.lazy(() => import('@/features/ai/AIAnalyticsPage'));
+const UserProfilePage = React.lazy(() => import('@/features/profile/UserProfilePage'));
 
 // Public Route Guard (redirects to home if already authenticated)
 // Reserved for future use when public routes are needed
@@ -98,43 +102,48 @@ function AppRoutes() {
           {/* Registration Wizard - After signup */}
           <Route path="/registration-wizard" element={<RegistrationWizard />} />
           <Route element={<MainLayout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/accounting/*" element={<Accounting />} />
-            <Route path="/saas/*" element={<SaaS />} />
+            <Route element={<ModuleGuard />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/accounting/*" element={<Accounting />} />
+              <Route path="/saas/*" element={<SaaS />} />
 
-            {/* Hardcoded Modules */}
-            <Route path="/fabric/*" element={<Fabrics />} />
-            <Route path="/pharmacy/*" element={<Pharmacy />} />
-            <Route path="/healthcare/*" element={<Healthcare />} />
-            <Route path="/doctors/*" element={<Doctors />} />
-            <Route path="/restaurant/*" element={<Restaurant />} />
-            <Route path="/gold/*" element={<Gold />} />
-            {/* Shipments route removed 2026-02-17: unified into containers */}
+              {/* Hardcoded Modules */}
+              <Route path="/fabric/*" element={<Fabrics />} />
+              <Route path="/pharmacy/*" element={<Pharmacy />} />
+              <Route path="/healthcare/*" element={<Healthcare />} />
+              <Route path="/doctors/*" element={<Doctors />} />
+              <Route path="/restaurant/*" element={<Restaurant />} />
+              <Route path="/gold/*" element={<Gold />} />
+              {/* Shipments route removed 2026-02-17: unified into containers */}
 
-            <Route path="/sales/*" element={<Sales />} />
-            <Route path="/crm/*" element={<CRM />} />
-            <Route path="/warehouse/*" element={<WarehouseModule />} />
-            <Route path="/inventory/*" element={<WarehouseModule />} />
-            <Route path="/purchases/*" element={<Purchases />} />
-            <Route path="/pos/*" element={<PlaceholderPage titleKey="navigation.pos" />} />
-            <Route path="/exchange/*" element={<PlaceholderPage titleKey="navigation.exchange" />} />
-            <Route path="/real-estate/*" element={<PlaceholderPage titleKey="navigation.realEstate" />} />
-            <Route path="/manufacturing/*" element={<PlaceholderPage titleKey="navigation.manufacturing" />} />
-            <Route path="/hr/*" element={<HR />} />
-            <Route path="/ecommerce/*" element={<EcommercePage />} />
-            <Route path="/website/*" element={<WebsiteManagerPage />} />
-            <Route path="/ai-analytics" element={<AIAnalyticsPage />} />
-            <Route path="/system-config/*" element={<SystemConfigPage />} />
-            <Route path="/users-permissions/*" element={<UsersPermissionsPage />} />
-            <Route path="/workflows/*" element={<WorkflowCenter />} />
-            <Route path="/activity-log" element={<ActivityLog />} />
-            <Route path="/component-lab" element={<ComponentLab />} />
-            <Route path="/sheets-lab" element={<AccountingSheetsLab />} />
-            <Route path="/design-system" element={<DesignSystemDemo />} />
-            <Route path="/nexa-table" element={<NexaDataTableDemo />} />
-            <Route path="/sheets-preview" element={<SheetsPreview />} />
-            <Route path="/kanban-lab" element={<KanbanLabPage />} />
-            <Route path="/qr-scan" element={<AdvancedQRScannerPage />} />
+              <Route path="/sales/*" element={<Sales />} />
+              <Route path="/crm/*" element={<CRM />} />
+              <Route path="/warehouse/*" element={<WarehouseModule />} />
+              <Route path="/inventory/*" element={<WarehouseModule />} />
+              <Route path="/purchases/*" element={<Purchases />} />
+              <Route path="/pos/*" element={<PlaceholderPage titleKey="navigation.pos" />} />
+              <Route path="/exchange/*" element={<PlaceholderPage titleKey="navigation.exchange" />} />
+              <Route path="/real-estate/*" element={<PlaceholderPage titleKey="navigation.realEstate" />} />
+              <Route path="/manufacturing/*" element={<PlaceholderPage titleKey="navigation.manufacturing" />} />
+              <Route path="/hr/*" element={<HR />} />
+              <Route path="/ecommerce/*" element={<EcommercePage />} />
+              <Route path="/website/*" element={<WebsiteManagerPage />} />
+              <Route path="/ai-analytics" element={<AIAnalyticsPage />} />
+              <Route path="/profile" element={<UserProfilePage />} />
+              <Route path="/profile/:tab" element={<UserProfilePage />} />
+              <Route path="/system-config/*" element={<SystemConfigPage />} />
+              <Route path="/users-permissions/*" element={<UsersPermissionsPage />} />
+              <Route path="/workflows/*" element={<WorkflowCenter />} />
+              <Route path="/activity-log" element={<ActivityLog />} />
+              <Route path="/component-lab" element={<ComponentLab />} />
+              <Route path="/sheets-lab" element={<AccountingSheetsLab />} />
+              <Route path="/design-system" element={<DesignSystemDemo />} />
+              <Route path="/nexa-table" element={<NexaDataTableDemo />} />
+              <Route path="/sheets-preview" element={<SheetsPreview />} />
+              <Route path="/kanban-lab" element={<KanbanLabPage />} />
+              <Route path="/grid-lab" element={<AccountingGridLab />} />
+              <Route path="/qr-scan" element={<AdvancedQRScannerPage />} />
+            </Route>
           </Route>
         </Route>
 
@@ -146,6 +155,12 @@ function AppRoutes() {
 }
 
 function App() {
+  // 🔢 Auto-convert Arabic/Persian numerals to English globally
+  useEffect(() => {
+    const cleanup = initArabicNumeralNormalizer();
+    return cleanup;
+  }, []);
+
   return (
     <ErrorBoundary>
       <AppProviders>

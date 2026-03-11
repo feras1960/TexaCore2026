@@ -34,29 +34,65 @@ export interface CompanyAccountingSettings {
     default_international_purchase_currency?: string;
 }
 
+let cachedSettingsData: CompanyAccountingSettings | null = null;
+let cachedSettingsCompanyId: string | null = null;
+let settingsPromise: Promise<CompanyAccountingSettings | null> | null = null;
+
 export function useAccountingSettings() {
     const { company } = useCompany();
-    const [settings, setSettings] = useState<CompanyAccountingSettings | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [settings, setSettings] = useState<CompanyAccountingSettings | null>(cachedSettingsCompanyId === company?.id ? cachedSettingsData : null);
+    const [loading, setLoading] = useState(!cachedSettingsData || cachedSettingsCompanyId !== company?.id);
     const [error, setError] = useState<Error | null>(null);
-    const fetchedRef = useRef(false);
 
     const fetchSettings = useCallback(async (force = false) => {
-        if ((!company?.id || fetchedRef.current) && !force) return;
+        const companyId = company?.id;
+        if (!companyId) return;
+
+        // Return cache if valid
+        if (!force && cachedSettingsData && cachedSettingsCompanyId === companyId) {
+            setSettings(cachedSettingsData);
+            setLoading(false);
+            return;
+        }
+
+        // Wait for existing promise if one is already fetching for this company
+        if (!force && settingsPromise && cachedSettingsCompanyId === companyId) {
+            setLoading(true);
+            try {
+                const data = await settingsPromise;
+                setSettings(data);
+            } catch (err: any) {
+                setError(err);
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
 
         setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('company_accounting_settings')
-                .select('*')
-                .eq('company_id', company?.id)
-                .single();
+        cachedSettingsCompanyId = companyId;
+        
+        settingsPromise = (async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('company_accounting_settings')
+                    .select('*')
+                    .eq('company_id', companyId)
+                    .single();
 
-            if (error) throw error;
+                if (error) throw error;
+                cachedSettingsData = data;
+                return data;
+            } catch (err: any) {
+                console.error('[useAccountingSettings] Error fetching:', err);
+                throw err;
+            }
+        })();
+
+        try {
+            const data = await settingsPromise;
             setSettings(data);
-            fetchedRef.current = true;
         } catch (err: any) {
-            console.error('Error fetching accounting settings:', err);
             setError(err);
         } finally {
             setLoading(false);
@@ -88,4 +124,36 @@ export function useAccountingSettings() {
         defaultReceivableAccountId: settings?.default_receivable_account_id,
         defaultPayableAccountId: settings?.default_payable_account_id
     };
+}
+
+export async function fetchAccountingSettingsSingleton(companyId: string, force = false): Promise<CompanyAccountingSettings | null> {
+    if (!companyId) return null;
+
+    if (!force && cachedSettingsData && cachedSettingsCompanyId === companyId) {
+        return cachedSettingsData;
+    }
+
+    if (!force && settingsPromise && cachedSettingsCompanyId === companyId) {
+        return settingsPromise;
+    }
+
+    cachedSettingsCompanyId = companyId;
+    settingsPromise = (async () => {
+        try {
+            const { data, error } = await supabase
+                .from('company_accounting_settings')
+                .select('*')
+                .eq('company_id', companyId)
+                .single();
+
+            if (error) throw error;
+            cachedSettingsData = data;
+            return data;
+        } catch (err: any) {
+            console.error('[fetchAccountingSettingsSingleton] Error:', err);
+            return null;
+        }
+    })();
+
+    return settingsPromise;
 }

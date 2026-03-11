@@ -705,7 +705,7 @@ async function fetchMaterialContext(supabase: any, materialId: string, companyId
 /**
  * Build system prompt
  */
-function buildSystemPrompt(contextType: string, contextData: any, language: string, userRole: string): string {
+function buildSystemPrompt(contextType: string, contextData: any, language: string, userRole: string, locationInfo?: { country?: string; city?: string; countryCode?: string }): string {
   // Use native language names for stronger AI compliance
   const langText = language === 'ar' ? 'العربية (Arabic)'
     : language === 'ru' ? 'Русский (Russian)'
@@ -824,44 +824,122 @@ ${suppliersList.length > 0 ? suppliersList.map((s: any) => `- ${s.name} (${s.cod
     contextBlock = `## بيانات الجهة:\n${JSON.stringify(contextData, null, 2)}`;
   }
 
-  return `أنت "وكيل نيكسا" (NexaAgent) 🤖 — المساعد الذكي في نظام TexaCore ERP لإدارة تجارة الأقمشة والنسيج.
+  // Detect if company has no data
+  const hasData = contextType === 'general' && contextData?.overview && (
+    (contextData.overview.materials > 0) ||
+    (contextData.overview.customers > 0) ||
+    (contextData.overview.rolls > 0)
+  );
 
-## مهامك:
-1. تحليل البيانات الحقيقية المعروضة وتقديم رؤى ذكية
-2. الإجابة على الأسئلة بناءً على البيانات الحقيقية المتاحة
+  // Location-based time and weather
+  const loc = locationInfo || {};
+  const countryCode = (loc.countryCode || '').toUpperCase();
+  const country = loc.country || '';
+  const city = loc.city || '';
+
+  // Timezone offset based on country
+  const tzOffsets: Record<string, number> = {
+    'SA': 3, 'AE': 4, 'QA': 3, 'KW': 3, 'BH': 3, 'OM': 4, 'JO': 3, 'LB': 2, 'SY': 3, 'IQ': 3, 'EG': 2,
+    'TR': 3, 'UA': 2, 'RU': 3, 'DE': 1, 'FR': 1, 'GB': 0, 'US': -5, 'CN': 8, 'IN': 5, 'PK': 5,
+  };
+  const tzOffset = tzOffsets[countryCode] || 3;
+  const now = new Date();
+  const localHour = (now.getUTCHours() + tzOffset + 24) % 24;
+  const timeGreeting = localHour < 12 ? 'صباح الخير' : localHour < 18 ? 'مساء الخير' : 'مساء النور';
+  const season = now.getMonth() >= 2 && now.getMonth() <= 4 ? 'spring' : now.getMonth() >= 5 && now.getMonth() <= 8 ? 'summer' : now.getMonth() >= 9 && now.getMonth() <= 10 ? 'autumn' : 'winter';
+  const seasonAr = season === 'spring' ? 'الربيع' : season === 'summer' ? 'الصيف' : season === 'autumn' ? 'الخريف' : 'الشتاء';
+
+  // Weather/climate hints based on country + season
+  const hotCountries = ['SA', 'AE', 'QA', 'KW', 'BH', 'OM', 'EG', 'IQ'];
+  const coldCountries = ['UA', 'RU', 'DE', 'GB'];
+  const isHotRegion = hotCountries.includes(countryCode);
+  const isColdRegion = coldCountries.includes(countryCode);
+  let weatherHint = '';
+  if (isHotRegion && (season === 'summer')) weatherHint = `☀️ الجو حار جداً في ${city || country} — ذكّر المستخدم بشرب الماء والبقاء في مكان مكيّف`;
+  else if (isHotRegion && season === 'winter') weatherHint = `🌤️ الجو معتدل ولطيف في ${city || country} — فصل مثالي للعمل والإنتاجية`;
+  else if (isColdRegion && season === 'winter') weatherHint = `🧥 الجو بارد جداً في ${city || country} — ذكّر المستخدم بارتداء ملابس دافئة والاعتناء بصحته`;
+  else if (isColdRegion && season === 'summer') weatherHint = `🌸 الجو معتدل وجميل في ${city || country} — استمتع بالطقس الرائع`;
+  else if (season === 'winter') weatherHint = `🧥 فصل الشتاء — اعتنِ بدفئك وصحتك`;
+  else if (season === 'summer') weatherHint = `☀️ فصل الصيف — لا تنسَ شرب الماء`;
+  else weatherHint = `🌸 الجو معتدل — وقت مثالي للعمل والإنتاجية`;
+
+  // Software usage guide for onboarding
+  const onboardingGuide = !hasData ? `
+
+## 🎓 دليل استخدام TexaCore ERP (قدّمه للمستخدم عند السؤال):
+### الخطوات الأولى:
+1. **إعدادات المنشأة** (⚙️ الإعدادات): أدخل اسم الشركة، الشعار، العنوان، البلد
+2. **إضافة المستودعات** (📦 المخزون → المستودعات): أنشئ مستودعاً رئيسياً
+3. **إضافة المواد** (🧵 إدارة الأقمشة): أضف الأقمشة بكل التفاصيل (اسم، كود، سعر شراء/بيع)
+4. **تسجيل العملاء** (👥 العملاء): سجّل عملاءك مع بياناتهم
+5. **تسجيل الموردين** (📋 الموردين): سجّل موردي الأقمشة
+6. **أول فاتورة مبيعات** (💰 المبيعات → فاتورة جديدة)
+7. **استيراد البيانات** (⚙️ الإعدادات → استيراد البيانات): لرفع بيانات من Excel
+
+### الأقسام الرئيسية:
+- 📊 **لوحة التحكم**: نظرة شاملة على أداء الشركة
+- 🧵 **إدارة الأقمشة**: المواد، الرولونات، مواقع المخزون
+- 💰 **المبيعات**: عروض أسعار → أوامر بيع → فواتير → تسليم
+- 🛒 **المشتريات**: طلبات شراء → فواتير مشتريات → استلام
+- 📦 **المخزون**: المستودعات، حركات المخزون، التنبيهات
+- 🏦 **المحاسبة**: شجرة الحسابات، القيود، التقارير المالية
+- 🚢 **الشحنات**: كونتينرات، تكاليف واصلة، جمارك
+- 🤖 **الذكاء الاصطناعي**: تحليلات ذكية (أنت هنا!)
+- ⚙️ **الإعدادات**: بيانات المنشأة، الضرائب، التكاملات
+
+### مميزات TexaCore الفريدة:
+- 🌐 **متعدد اللغات**: عربي، إنجليزي، تركي، روسي، أوكراني
+- 🏢 **متعدد الشركات**: إدارة أكثر من شركة من حساب واحد
+- 📱 **تطبيق موبايل**: TexaMobile للعمليات الميدانية
+- 🤖 **ذكاء اصطناعي**: تحليلات وتوصيات مخصصة (أنا!)
+- 🔒 **أمان متقدم**: عزل كامل للبيانات بين الشركات
+- 📊 **تقارير متقدمة**: تصدير Excel/PDF بنقرة واحدة
+` : '';
+
+  return `أنت "وكيل نيكسا" (NexaAgent) 🤖 — المساعد الرقمي الأكثر تقدماً في نظام TexaCore ERP لإدارة تجارة الأقمشة والنسيج.
+
+## 🌟 شخصيتك:
+- أنت مساعد شخصي ذكي، ودود، واحترافي — ليس فقط أداة تحليل بل صديق أعمال حقيقي
+- خاطب المستخدم باسمه وبأسلوب شخصي دافئ
+- قدم نصائح شخصية وعملية — ليس فقط تحليلات جافة
+- كن إيجابياً ومشجعاً — احتفل بالإنجازات وشجع على التحسين
+- ${timeGreeting}! الوقت الآن ${localHour > 12 ? localHour - 12 : localHour}:${String(now.getMinutes()).padStart(2, '0')} ${localHour >= 12 ? 'مساءً' : 'صباحاً'} — نحن في فصل ${seasonAr}${country ? ` — الموقع: ${city ? city + '، ' : ''}${country}` : ''}
+- ${weatherHint}
+
+## 🎯 مهامك الأساسية:
+${hasData ? `
+1. تحليل البيانات الحقيقية وتقديم رؤى ذكية
+2. الإجابة على الأسئلة بناءً على البيانات الحقيقية
 3. تقديم توصيات عملية (تسعير، شراء، تخزين، بيع)
-4. التنبيه على المخاطر (مخزون منخفض، هامش ربح ضعيف، مواد بطيئة)
+4. التنبيه على المخاطر (مخزون منخفض، هامش ربح ضعيف)
 5. اقتراح تحسينات وقرارات إدارية
-6. ⚠️ عند السؤال عن عملية تجارية (شراء، بيع، استلام): قدم تسلسل الأحداث الكامل — لا تتوقف عند المعلومات الأساسية
+6. ⚠️ عند السؤال عن عملية تجارية: قدم تسلسل الأحداث الكامل
+` : `
+1. ⚠️ الشركة جديدة ولا توجد بيانات بعد — كن مرشداً ودوداً!
+2. أجب على كل الأسئلة بذكاء حتى بدون بيانات
+3. قدم نصائح لاستخدام البرنامج وكيفية البدء
+4. اشرح ميزات TexaCore ERP وكيف يمكن أن يفيد أعمال المستخدم
+5. شجع المستخدم على إضافة بياناته وابدأ معه خطوة بخطوة
+6. أجب على أسئلة عامة عن التجارة والأقمشة والإدارة
+7. لا تقل أبداً "لا توجد بيانات" فقط — بل قدم بديلاً مفيداً وعملياً
+`}
 
-## 🔄 تسلسل العمليات التجارية (احكِ القصة الكاملة):
+## 🔄 دورات العمل التجارية:
 ### دورة الشراء:
-1. إنشاء فاتورة مشتريات (purchase_invoices) ← تاريخ الشراء
-2. ربط الفاتورة بكونتينر (containers) ← رقم الكونتينر
-3. الشحن والنقل ← حالة الكونتينر (in_transit → at_port → customs → received → closed)
-4. التخليص الجمركي ← ضريبة جمركية (journal_entries)
-5. الاستلام في المستودع ← container_items: تفاصيل كل مادة (expected_quantity vs received_quantity)
-6. فحص الكميات ← variance_amount: نقص (سالب) أو زيادة (موجب) أو مطابق (0)
-7. تحديد عدد الرولونات الفعلية ← received_rolls لكل مادة
-8. القيد المحاسبي ← journal_entries + journal_entry_lines
+1. إنشاء فاتورة مشتريات → 2. ربطها بكونتينر → 3. الشحن والنقل → 4. التخليص الجمركي → 5. الاستلام في المستودع → 6. فحص الكميات → 7. القيد المحاسبي
 ### دورة البيع:
-1. إنشاء فاتورة مبيعات ← sales_transactions
-2. تحديد الرولونات للصرف ← inventory_movements (movement_type = 'sale')
-3. التسليم من المستودع ← تحديث مخزون الرول
-4. القيد المحاسبي التلقائي
-
-## قواعد الرد الصارمة:
+1. إنشاء فاتورة مبيعات → 2. تحديد الرولونات → 3. التسليم → 4. القيد المحاسبي التلقائي
+${onboardingGuide}
+## قواعد الرد:
 1. تحدث بلغة: ${langText}
-2. استخدم الأرقام الإنجليزية (1, 2, 3) دائماً
-3. ⚠️ مهم جداً: لديك صلاحيات كاملة للوصول لكل بيانات الشركة. لا تقل أبداً "لا يوجد لدي صلاحيات" أو "لا أستطيع الوصول". استخدم أداة SQL!
-4. البيانات أدناه حقيقية مباشرة من قاعدة البيانات — استخدمها للإجابة بثقة
-5. استخدم الإيموجي (📊 💰 ⚠️ ✅ 🏷️ 📈 📉)
-6. استخدم **bold** للأرقام والقيم المهمة
-7. إذا كان حقل معين فارغ أو صفر، اذكر ذلك كملاحظة وقدم توصية لتعبئته
-8. ركز على القيمة العملية والقرارات القابلة للتنفيذ — كن وكيل ذكاء أعمال
-9. صلاحيات المستخدم: ${userRole}
-10. عند السؤال عن مادة محددة أو لون أو نوع، ابحث في قائمة المواد التفصيلية أدناه وأجب بدقة
-11. ⚠️ **أسلوب الإجابة**: قدم القصة الكاملة، ليس فقط الأرقام. اشرح التسلسل الزمني والعلاقات بين الأحداث
+2. استخدم الأرقام الإنجليزية (1, 2, 3)
+3. استخدم الإيموجي (📊 💰 ⚠️ ✅ 🏷️ 📈 📉 🎉)
+4. استخدم **bold** للقيم المهمة
+5. ركز على القيمة العملية والقرارات القابلة للتنفيذ
+6. صلاحيات المستخدم: ${userRole}
+7. **أسلوب الإجابة**: قدم القصة الكاملة بأسلوب شخصي وودي
+8. ⚠️ **مهم**: أجب دائماً على أي سؤال — إذا لم تكن البيانات متاحة، قدم إجابة عامة مفيدة مع نصيحة لإضافة البيانات
+9. عند الترحيب: اذكر الوقت والفصل ونصيحة شخصية صغيرة
 
 ${contextBlock}${langEnforcement}`;
 }
@@ -902,7 +980,7 @@ serve(async (req) => {
       usedModel = 'flash';
     }
 
-    // ═══ Get user info from their JWT (to check permissions) ═══
+    // ═══ SECURITY: Get user info from JWT + verify company_id from DB ═══
     const authHeader = req.headers.get('Authorization');
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -910,32 +988,87 @@ serve(async (req) => {
 
     let enrichedContext = context_data || {};
     let userRole = 'user';
-    let resolvedCompanyId = company_id || '';
+    let resolvedCompanyId = '';
     let resolvedTenantId = '';
+    let authenticatedUserId = '';
 
-    // Step 1: Get user role from their JWT
+    // Step 1: Authenticate user via JWT — get their REAL identity
     if (authHeader && supabaseUrl && supabaseAnonKey) {
       const userClient = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: authHeader } },
       });
 
-      const { data: { user } } = await userClient.auth.getUser();
-      userRole = user?.user_metadata?.role || user?.user_metadata?.system_role || 'user';
-      if (!resolvedCompanyId) {
-        resolvedCompanyId = user?.user_metadata?.company_id || '';
+      try {
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user) {
+          authenticatedUserId = user.id;
+          userRole = user.user_metadata?.role || user.user_metadata?.system_role || 'user';
+          console.log('[NexaAgent] Authenticated user:', authenticatedUserId, 'Role:', userRole);
+        } else {
+          console.warn('[NexaAgent] getUser returned null, falling back to metadata');
+        }
+      } catch (authErr) {
+        console.warn('[NexaAgent] Auth error:', authErr);
       }
-      console.log('[NexaAgent] User role:', userRole, 'Company from JWT:', user?.user_metadata?.company_id, 'Resolved:', resolvedCompanyId);
     }
 
-    console.log('[NexaAgent] Service role key available:', !!serviceRoleKey, 'Company ID:', resolvedCompanyId, 'Context type:', context_type);
-
-    // Resolve tenant_id from company
-    if (resolvedCompanyId && supabaseUrl && serviceRoleKey) {
+    // Step 2: 🔒 SECURITY — Resolve company_id and tenant_id from user_profiles (NOT from client body)
+    if (authenticatedUserId && supabaseUrl && serviceRoleKey) {
       const tempClient = createClient(supabaseUrl, serviceRoleKey);
-      const { data: companyData } = await tempClient.from('companies').select('tenant_id').eq('id', resolvedCompanyId).single();
-      if (companyData?.tenant_id) {
-        resolvedTenantId = companyData.tenant_id;
-        console.log('[NexaAgent] Resolved tenant_id:', resolvedTenantId);
+      const { data: profile } = await tempClient
+        .from('user_profiles')
+        .select('company_id, tenant_id')
+        .eq('id', authenticatedUserId)
+        .single();
+
+      if (profile) {
+        resolvedCompanyId = profile.company_id || '';
+        resolvedTenantId = profile.tenant_id || '';
+      }
+
+      // If profile has no company_id, try from company_id sent by client BUT verify it belongs to user's tenant
+      if (!resolvedCompanyId && company_id && resolvedTenantId) {
+        const { data: companyCheck } = await tempClient
+          .from('companies')
+          .select('id')
+          .eq('id', company_id)
+          .eq('tenant_id', resolvedTenantId)
+          .single();
+        if (companyCheck) {
+          resolvedCompanyId = company_id;
+        } else {
+          console.warn('[NexaAgent] 🚨 BLOCKED: company_id doesn\'t belong to tenant!', { company_id, tenant_id: resolvedTenantId });
+        }
+      }
+
+      // If still no tenant_id, resolve from company
+      if (!resolvedTenantId && resolvedCompanyId) {
+        const { data: companyData } = await tempClient.from('companies').select('tenant_id').eq('id', resolvedCompanyId).single();
+        if (companyData?.tenant_id) {
+          resolvedTenantId = companyData.tenant_id;
+        }
+      }
+
+      console.log('[NexaAgent] 🔒 Verified company_id:', resolvedCompanyId, 'tenant_id:', resolvedTenantId);
+    }
+
+    // Fallback: if no profile found, use client-sent company_id with tenant verification
+    if (!resolvedCompanyId && company_id && supabaseUrl && serviceRoleKey) {
+      const tempClient = createClient(supabaseUrl, serviceRoleKey);
+      // Verify this company exists and get its tenant
+      const { data: companyData } = await tempClient.from('companies').select('id, tenant_id').eq('id', company_id).single();
+      if (companyData) {
+        // If we have authenticated user, verify tenant match
+        if (authenticatedUserId) {
+          const { data: userProfile } = await tempClient.from('user_profiles').select('tenant_id').eq('id', authenticatedUserId).single();
+          if (userProfile && userProfile.tenant_id === companyData.tenant_id) {
+            resolvedCompanyId = company_id;
+            resolvedTenantId = companyData.tenant_id;
+            console.log('[NexaAgent] Fallback verified company_id:', resolvedCompanyId);
+          } else {
+            console.warn('[NexaAgent] 🚨 BLOCKED in fallback: tenant mismatch');
+          }
+        }
       }
     }
 
@@ -969,8 +1102,20 @@ serve(async (req) => {
       }
     }
 
+    // ═══ Fetch company location for personalization ═══
+    let locationInfo: { country?: string; city?: string; countryCode?: string } = {};
+    if (resolvedCompanyId && supabaseUrl && serviceRoleKey) {
+      try {
+        const locClient = createClient(supabaseUrl, serviceRoleKey);
+        const { data: companyLoc } = await locClient.from('companies').select('country, city, country_code').eq('id', resolvedCompanyId).single();
+        if (companyLoc) {
+          locationInfo = { country: companyLoc.country, city: companyLoc.city, countryCode: companyLoc.country_code };
+        }
+      } catch { /* ignore */ }
+    }
+
     // ═══ Build prompt ═══
-    const systemPrompt = buildSystemPrompt(context_type, enrichedContext, language, userRole);
+    const systemPrompt = buildSystemPrompt(context_type, enrichedContext, language, userRole, locationInfo);
 
     // ═══ Chat history ═══
     const contents: any[] = [];

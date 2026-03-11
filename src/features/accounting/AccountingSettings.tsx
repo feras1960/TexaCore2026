@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
+import CurrencyManagementTab from './components/CurrencyManagementTab';
 
 // Types
 interface CompanySettings {
@@ -438,108 +439,114 @@ export default function AccountingSettings() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10" dir={direction}>
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-5xl mx-auto" dir={direction}>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-flex">
-          <TabsTrigger value="general" className="gap-2">
-            <Building2 className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'عام' : 'General'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="currencies" className="gap-2">
-            <Globe className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'العملات' : 'Currencies'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="tax" className="gap-2">
-            <Percent className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'الضرائب' : 'Tax'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="accounts" className="gap-2">
-            <Wallet className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'الحسابات' : 'Accounts'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="fiscal" className="gap-2">
-            <Calendar className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'السنوات المالية' : 'Fiscal Years'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="numbering" className="gap-2">
-            <Hash className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'الترقيم' : 'Numbering'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="editSettings" className="gap-2">
-            <Edit2 className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'التعديلات' : 'Edit Rules'}</span>
-          </TabsTrigger>
-          <TabsTrigger value="costCenters" className="gap-2">
-            <Landmark className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'مراكز التكلفة' : 'Cost Centers'}</span>
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={direction}>
+        <div className="overflow-x-auto -mx-1 px-1" dir={direction}>
+          <TabsList className="inline-flex w-auto min-w-full bg-gray-100/80 dark:bg-gray-800/50 p-1 rounded-xl gap-0.5 h-auto">
+            <TabsTrigger value="general" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Building2 className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'عام' : 'General'}
+            </TabsTrigger>
+            <TabsTrigger value="currencies" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-teal dark:data-[state=active]:text-erp-teal data-[state=active]:shadow-sm transition-all">
+              <Globe className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'العملات' : 'Currencies'}
+            </TabsTrigger>
+            <TabsTrigger value="tax" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Percent className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'الضرائب' : 'Tax'}
+            </TabsTrigger>
+            <TabsTrigger value="accounts" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Wallet className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'الحسابات' : 'Accounts'}
+            </TabsTrigger>
+            <TabsTrigger value="fiscal" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Calendar className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'السنوات المالية' : 'Fiscal Years'}
+            </TabsTrigger>
+            <TabsTrigger value="numbering" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Hash className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'الترقيم' : 'Numbering'}
+            </TabsTrigger>
+            <TabsTrigger value="editSettings" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Edit2 className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'التعديلات' : 'Edit Rules'}
+            </TabsTrigger>
+            <TabsTrigger value="costCenters" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+              <Landmark className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'مراكز التكلفة' : 'Cost Centers'}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* General Tab */}
         <TabsContent value="general" className="mt-6 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Display Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
+            <Card className="border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-4">
+                <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white">
                   <DollarSign className="w-5 h-5 text-erp-teal" />
                   {language === 'ar' ? 'تنسيق الأرقام' : 'Number Format'}
                 </CardTitle>
+                <CardDescription className="font-tajawal">
+                  {language === 'ar' ? 'إعدادات عرض الأرقام والتواريخ في النظام' : 'Number and date display settings'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>{language === 'ar' ? 'دقة الأرقام العشرية' : 'Decimal Places'}</Label>
+                  <Label className="font-tajawal text-sm">{language === 'ar' ? 'دقة الأرقام العشرية' : 'Decimal Places'}</Label>
                   <Select
                     value={String(settings.decimal_places)}
                     onValueChange={(v) => updateSetting('decimal_places', parseInt(v))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="font-tajawal">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0">0</SelectItem>
-                      <SelectItem value="2">2</SelectItem>
-                      <SelectItem value="3">3</SelectItem>
-                      <SelectItem value="4">4</SelectItem>
+                      <SelectItem value="0" className="font-tajawal">0</SelectItem>
+                      <SelectItem value="2" className="font-tajawal">2</SelectItem>
+                      <SelectItem value="3" className="font-tajawal">3</SelectItem>
+                      <SelectItem value="4" className="font-tajawal">4</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>{language === 'ar' ? 'تنسيق التاريخ' : 'Date Format'}</Label>
+                  <Label className="font-tajawal text-sm">{language === 'ar' ? 'تنسيق التاريخ' : 'Date Format'}</Label>
                   <Select
                     value={settings.date_format}
                     onValueChange={(v) => updateSetting('date_format', v)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="font-tajawal">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="DD/MM/YYYY">DD/MM/YYYY (31/01/2026)</SelectItem>
-                      <SelectItem value="MM/DD/YYYY">MM/DD/YYYY (01/31/2026)</SelectItem>
-                      <SelectItem value="YYYY-MM-DD">YYYY-MM-DD (2026-01-31)</SelectItem>
+                      <SelectItem value="DD/MM/YYYY" className="font-mono">DD/MM/YYYY (31/01/2026)</SelectItem>
+                      <SelectItem value="MM/DD/YYYY" className="font-mono">MM/DD/YYYY (01/31/2026)</SelectItem>
+                      <SelectItem value="YYYY-MM-DD" className="font-mono">YYYY-MM-DD (2026-01-31)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Tax Settings removed — now in TaxSystemTab */}
-
             {/* Workflow Settings */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
+            <Card className="border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-4">
+                <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white">
                   <FileText className="w-5 h-5 text-erp-teal" />
                   {language === 'ar' ? 'سير العمل' : 'Workflow'}
                 </CardTitle>
+                <CardDescription className="font-tajawal">
+                  {language === 'ar' ? 'إعدادات الترحيل التلقائي والموافقات' : 'Auto-posting and approval settings'}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex items-center justify-between">
+              <CardContent className="space-y-5">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'ترحيل تلقائي للقيود' : 'Auto-post Entries'}</Label>
-                    <p className="text-sm text-gray-500">
+                    <Label className="font-tajawal text-sm font-medium">{language === 'ar' ? 'ترحيل تلقائي للقيود' : 'Auto-post Entries'}</Label>
+                    <p className="text-xs text-gray-500 font-tajawal">
                       {language === 'ar'
                         ? 'ترحيل القيود تلقائياً بعد الحفظ'
                         : 'Auto-post entries after saving'}
@@ -550,10 +557,10 @@ export default function AccountingSettings() {
                     onCheckedChange={(v) => updateSetting('auto_post_entries', v)}
                   />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'طلب موافقة' : 'Require Approval'}</Label>
-                    <p className="text-sm text-gray-500">
+                    <Label className="font-tajawal text-sm font-medium">{language === 'ar' ? 'طلب موافقة' : 'Require Approval'}</Label>
+                    <p className="text-xs text-gray-500 font-tajawal">
                       {language === 'ar'
                         ? 'طلب موافقة قبل الترحيل'
                         : 'Require approval before posting'}
@@ -569,209 +576,14 @@ export default function AccountingSettings() {
           </div>
         </TabsContent>
 
-        {/* Currency Tab (NEW) */}
-        <TabsContent value="currencies" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Globe className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'إدارة العملات' : 'Currency Management'}
-              </CardTitle>
-              <CardDescription>
-                {t('currencySettingsDesc') || (language === 'ar' ? 'حدد العملات المدعومة والعملات الافتراضية لكل نظام' : 'Configure supported currencies and default module currencies')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              {/* Base Currency */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-base font-semibold text-erp-navy">{language === 'ar' ? 'العملة الأساسية' : 'Base Currency'}</Label>
-                  <Select
-                    value={settings.base_currency}
-                    onValueChange={(v) => {
-                      updateSetting('base_currency', v);
-                      // Ensure base currency is always supported
-                      if (!settings.supported_currencies?.includes(v)) {
-                        toggleSupportedCurrency(v);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="font-mono bg-slate-50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currencies.map(c => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.code} - {language === 'ar' ? c.name : c.nameEn}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-slate-500">
-                    {language === 'ar' ? 'العملة المستخدمة في التقارير المالية الرئيسية' : 'Currency used for main financial reporting'}
-                  </p>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Supported Currencies */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold text-erp-navy">
-                    {language === 'ar' ? 'العملات المفعلة' : 'Supported Currencies'}
-                    <Badge variant="outline" className="ms-2">
-                      {settings.supported_currencies?.length || 0}
-                    </Badge>
-                  </Label>
-                  {/* Search Input */}
-                  <div className="relative w-64">
-                    <Input
-                      placeholder={language === 'ar' ? 'ابحث عن عملة...' : 'Search currency...'}
-                      value={currencySearch}
-                      onChange={(e) => setCurrencySearch(e.target.value)}
-                      className="ps-9"
-                    />
-                    <Globe className="absolute start-3 top-2.5 w-4 h-4 text-slate-400" />
-                  </div>
-                </div>
-
-                {/* Currently Active Currencies */}
-                {settings.supported_currencies && settings.supported_currencies.length > 0 && (
-                  <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg">
-                    {settings.supported_currencies.map(code => {
-                      const currency = currencies.find(c => c.code === code);
-                      const isBase = code === settings.base_currency;
-                      return (
-                        <Badge
-                          key={code}
-                          variant={isBase ? "default" : "secondary"}
-                          className={`gap-1 ${!isBase ? 'cursor-pointer hover:bg-red-100 hover:text-red-700' : ''}`}
-                          onClick={() => !isBase && toggleSupportedCurrency(code)}
-                        >
-                          {currency?.symbol || code} {code}
-                          {!isBase && <span className="ms-1 text-xs">×</span>}
-                          {isBase && <span className="ms-1 text-xs">★</span>}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <p className="text-sm text-slate-500">
-                  {language === 'ar'
-                    ? 'انقر على العملة لإضافتها أو إزالتها من قائمة العملات المفعلة'
-                    : 'Click on a currency to add or remove it from supported currencies'}
-                </p>
-
-                {/* All Currencies Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-80 overflow-y-auto p-1">
-                  {currencies
-                    .filter(currency =>
-                      currencySearch === '' ||
-                      currency.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
-                      currency.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
-                      currency.nameEn.toLowerCase().includes(currencySearch.toLowerCase())
-                    )
-                    .map((currency) => {
-                      const isSelected = settings.supported_currencies?.includes(currency.code);
-                      const isBase = currency.code === settings.base_currency;
-                      return (
-                        <div
-                          key={currency.code}
-                          onClick={() => !isBase && toggleSupportedCurrency(currency.code)}
-                          className={`
-                            relative flex flex-col p-3 rounded-lg border-2 cursor-pointer transition-all
-                            ${isSelected
-                              ? 'border-erp-teal bg-erp-teal/5 shadow-sm'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'}
-                            ${isBase ? 'border-orange-300 bg-orange-50' : ''}
-                          `}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-bold font-mono text-base text-erp-navy">{currency.code}</span>
-                            <span className="text-lg">{currency.symbol}</span>
-                          </div>
-                          <span className="text-xs text-slate-600 truncate">
-                            {language === 'ar' ? currency.name : currency.nameEn}
-                          </span>
-                          {isSelected && (
-                            <CheckCircle2 className="absolute top-1 end-1 w-4 h-4 text-erp-teal" />
-                          )}
-                          {isBase && (
-                            <Badge variant="secondary" className="mt-1 w-fit text-[9px]">
-                              {language === 'ar' ? 'الأساسية' : 'Base'}
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Module Defaults */}
-              <div className="space-y-4">
-                <Label className="text-base font-semibold text-erp-navy">{language === 'ar' ? 'العملات الافتراضية للأنظمة' : 'Module Default Currencies'}</Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Sales */}
-                  <div className="space-y-2">
-                    <Label>{language === 'ar' ? 'المبيعات' : 'Sales'}</Label>
-                    <Select
-                      value={settings.default_sales_currency}
-                      onValueChange={(v) => updateSetting('default_sales_currency', v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {settings.supported_currencies?.map(code => (
-                          <SelectItem key={code} value={code}>{code}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Local Purchases */}
-                  <div className="space-y-2">
-                    <Label>{language === 'ar' ? 'المشتريات المحلية' : 'Local Purchases'}</Label>
-                    <Select
-                      value={settings.default_purchase_currency}
-                      onValueChange={(v) => updateSetting('default_purchase_currency', v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {settings.supported_currencies?.map(code => (
-                          <SelectItem key={code} value={code}>{code}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* International Purchases */}
-                  <div className="space-y-2">
-                    <Label>{language === 'ar' ? 'المشتريات الدولية' : 'International Purchases'}</Label>
-                    <Select
-                      value={settings.default_international_purchase_currency}
-                      onValueChange={(v) => updateSetting('default_international_purchase_currency', v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {settings.supported_currencies?.map(code => (
-                          <SelectItem key={code} value={code}>{code}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Currency Tab — Delegated to CurrencyManagementTab */}
+        <TabsContent value="currencies" className="mt-6">
+          <CurrencyManagementTab
+            settings={settings}
+            updateSetting={updateSetting}
+            currencies={currencies}
+            direction={direction}
+          />
         </TabsContent>
 
         {/* Default Accounts Tab — Enhanced */}
@@ -2081,13 +1893,22 @@ export default function AccountingSettings() {
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="gap-2 bg-erp-teal hover:bg-erp-teal/90"
+            className="bg-gradient-to-r from-erp-teal to-emerald-600 hover:from-erp-teal/90 hover:to-emerald-600/90 text-white font-tajawal px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-50 gap-2"
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {language === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {language === 'ar' ? 'جاري الحفظ...' : 'Saving...'}
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                {language === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+              </>
+            )}
           </Button>
         </div>
-      </Tabs>
-    </div>
+      </Tabs >
+    </div >
   );
 }

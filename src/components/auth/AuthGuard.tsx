@@ -7,7 +7,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export function AuthGuard() {
@@ -16,6 +16,68 @@ export function AuthGuard() {
   const [tenantValid, setTenantValid] = useState<boolean | null>(null);
   const [checkingTenant, setCheckingTenant] = useState(true);
   const [needsWizard, setNeedsWizard] = useState(false);
+  const [processingMagicLink, setProcessingMagicLink] = useState(false);
+  const magicLinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Detect & process magic link tokens ────────────
+  useEffect(() => {
+    const handleMagicLinkToken = async () => {
+      // Approach 1: token_hash in query params (from our custom Edge Function links)
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenHash = urlParams.get('token_hash');
+      const tokenType = urlParams.get('type');
+
+      if (tokenHash && tokenType) {
+        console.log('[AuthGuard] Token hash detected in query params, verifying...');
+        setProcessingMagicLink(true);
+        try {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: tokenType as 'magiclink' | 'email',
+          });
+          if (error) {
+            console.error('[AuthGuard] verifyOtp failed:', error.message);
+          } else {
+            console.log('[AuthGuard] Magic link verified successfully!', data.user?.email);
+          }
+        } catch (err) {
+          console.error('[AuthGuard] verifyOtp exception:', err);
+        }
+        // Clean URL params
+        window.history.replaceState(null, '', window.location.pathname);
+        // Give time for auth state to update
+        setTimeout(() => setProcessingMagicLink(false), 1000);
+        return;
+      }
+
+      // Approach 2: access_token in URL hash (standard Supabase redirect)
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        console.log('[AuthGuard] Access token detected in URL hash, waiting...');
+        setProcessingMagicLink(true);
+        magicLinkTimerRef.current = setTimeout(() => {
+          console.log('[AuthGuard] Hash processing timeout');
+          setProcessingMagicLink(false);
+        }, 5000);
+      }
+    };
+
+    handleMagicLinkToken();
+    return () => {
+      if (magicLinkTimerRef.current) clearTimeout(magicLinkTimerRef.current);
+    };
+  }, []);
+
+  // When authentication succeeds, clear magic link processing
+  useEffect(() => {
+    if (isAuthenticated && processingMagicLink) {
+      console.log('[AuthGuard] Login successful!');
+      setProcessingMagicLink(false);
+      if (magicLinkTimerRef.current) clearTimeout(magicLinkTimerRef.current);
+      // Clean up URL
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [isAuthenticated, processingMagicLink]);
 
   // Routes that don't require tenant validation (for new users)
   const wizardRoutes = ['/registration-wizard'];
@@ -88,7 +150,7 @@ export function AuthGuard() {
   }, [isAuthenticated, authUser, isSuperAdmin, isWizardRoute]);
 
   // Loading state
-  if (loading || checkingTenant) {
+  if (loading || checkingTenant || processingMagicLink) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="space-y-4 w-full max-w-md p-6">

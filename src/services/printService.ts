@@ -277,6 +277,7 @@ const LABELS: Record<string, Record<string, string>> = {
   debit_label: { ar: 'مدين', en: 'Debit', uk: 'Дебет', tr: 'Borç', de: 'Soll', it: 'Dare', pl: 'Winien', ro: 'Debit' },
   credit_label: { ar: 'دائن', en: 'Credit', uk: 'Кредит', tr: 'Alacak', de: 'Haben', it: 'Avere', pl: 'Ma', ro: 'Credit' },
   account_code_label: { ar: 'رمز الحساب', en: 'Account Code', uk: 'Код рахунку', tr: 'Hesap Kodu', de: 'Kontonr', it: 'Codice Conto', pl: 'Kod Konta', ro: 'Cod Cont' },
+  exchange_rate_label: { ar: 'سعر الصرف', en: 'Exchange Rate', uk: 'Курс обміну', ru: 'Курс', tr: 'Döviz Kuru', de: 'Wechselkurs', it: 'Tasso di Cambio', pl: 'Kurs Wymiany', ro: 'Curs Valutar' },
   account_name_label: { ar: 'اسم الحساب', en: 'Account Name', uk: 'Назва рахунку', tr: 'Hesap Adı', de: 'Kontoname', it: 'Nome Conto', pl: 'Nazwa Konta', ro: 'Nume Cont' },
   printed_at_label: { ar: 'طُبع بتاريخ', en: 'Printed on', uk: 'Надруковано', tr: 'Basılma tarihi', de: 'Gedruckt am', it: 'Stampato il', pl: 'Wydrukowano', ro: 'Tipărit la' },
   footer_text: { ar: 'شكراً لتعاملكم معنا', en: 'Thank you for your business', uk: 'Дякуємо за співпрацю', tr: 'İş birliğiniz için teşekkürler', de: 'Vielen Dank für Ihr Vertrauen', it: 'Grazie per la collaborazione', pl: 'Dziękujemy za współpracę', ro: 'Vă mulțumim pentru colaborare' },
@@ -425,6 +426,117 @@ class PrintService {
     if (error) throw error;
   }
 
+  // ─── Auto-Seed: Account Statement Template ───────────────────
+  async ensureAccountStatementTemplate(tenantId?: string): Promise<void> {
+    try {
+      const existing = await this.getTemplates('account_statement', tenantId);
+      if (existing.length > 0) return; // Already exists, don't create duplicates
+
+      const html = `<div class="document" dir="{{direction}}">
+  <div class="header">
+    <h1>{{company.name}}</h1>
+    <p class="sub">{{company.address}}</p>
+    <p class="sub">{{company.phone}} | {{company.email}}</p>
+  </div>
+  <div class="title"><h2>{{doc_title}}</h2></div>
+  <div class="account-info">
+    <div class="info-row"><span class="info-label">{{account_label}}:</span><span class="info-value">{{account.name}}</span></div>
+    <div class="info-row"><span class="info-label">{{account_code_label}}:</span><span class="info-value">{{account.code}}</span></div>
+    <div class="info-row"><span class="info-label">{{date_label}}:</span><span class="info-value">{{system.date}}</span></div>
+  </div>
+  <table class="lines" style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px">
+    <thead><tr style="background:#2c5282;color:#fff">
+      <th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">#</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{debit_label}}</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{credit_label}}</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{closing_balance_label}}</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{date_label}}</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{description_label}}</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{currency_label}}</th><th style="padding:8px 6px;font-weight:600;text-align:center;color:#fff">{{exchange_rate_label}}</th>
+    </tr></thead>
+    <tbody>{{ENTRIES_ROWS}}</tbody>
+  </table>
+  <div class="je-totals">
+    <div class="t-box" style="background:#e8edf5;border-radius:8px;padding:10px 20px;text-align:center;min-width:100px"><span class="num" style="font-size:16px;font-weight:700;display:block;color:#2c5282">{{account.total_debit}}</span><span class="label" style="font-size:10px;display:block;margin-top:4px;color:#555">{{total_debit_label}}</span></div>
+    <div class="t-box" style="background:#e8edf5;border-radius:8px;padding:10px 20px;text-align:center;min-width:100px"><span class="num" style="font-size:16px;font-weight:700;display:block;color:#2c5282">{{account.total_credit}}</span><span class="label" style="font-size:10px;display:block;margin-top:4px;color:#555">{{total_credit_label}}</span></div>
+    <div class="t-box highlight" style="background:#1a365d;border-radius:8px;padding:10px 20px;text-align:center;min-width:120px;border:2px solid #2c5282"><span class="num" style="font-size:18px;font-weight:700;display:block;color:#ffffff">{{account.closing_balance}}</span><span class="label" style="font-size:10px;display:block;margin-top:4px;color:#cbd5e0">{{closing_balance_label}}</span></div>
+  </div>
+  <div class="qr">{{QR_CODE}}</div>
+  <div class="footer">
+    <div class="sig-line"><div class="sig">{{SIGNATURE}}<br>{{accountant_label}}</div><div class="sig">{{STAMP}}<br>{{manager_label}}</div></div>
+    <p class="print-date">{{printed_at_label}}: {{system.date}} {{system.time}}</p>
+  </div>
+</div>`;
+
+      const css = `body{margin:0;padding:0;font-family:{{font_family}};direction:{{direction}};color:#333}
+.document{max-width:800px;margin:0 auto;padding:20px 30px}
+.header{text-align:center;padding-bottom:12px;border-bottom:3px solid #2c5282}
+.header h1{font-size:22px;margin:0 0 4px;color:#2c5282;font-weight:700}
+.header .sub{font-size:11px;color:#666;margin:2px 0}
+.title{text-align:center;margin:12px 0}
+.title h2{display:inline-block;font-size:16px;padding:6px 24px;border:2px solid #2c5282;color:#2c5282;border-radius:6px;margin:0}
+.account-info{background:#e8edf5;border-radius:8px;padding:10px 16px;margin:12px 0;display:flex;flex-wrap:wrap;gap:8px 24px}
+.info-row{display:flex;gap:6px;align-items:center}
+.info-label{font-size:12px;color:#555;font-weight:600}
+.info-value{font-size:13px;color:#1a1a1a;font-weight:700}
+table.lines{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+table.lines th{background:#2c5282;color:#fff;padding:8px 6px;font-weight:600;text-align:center}
+table.lines td{padding:6px;border-bottom:1px solid #e5e7eb;text-align:center}
+table.lines tr:nth-child(even){background:#f8fafc}
+table.lines tr:hover{background:#eef2ff}
+.je-totals{display:flex;justify-content:center;gap:16px;margin:16px 0}
+.je-totals .t-box{background:#e8edf5;border-radius:8px;padding:10px 20px;text-align:center;min-width:100px}
+.je-totals .t-box .num{font-size:16px;font-weight:700;display:block;color:#2c5282}
+.je-totals .t-box .label{font-size:10px;display:block;margin-top:4px;color:#555}
+.je-totals .t-box.highlight{background:#1a365d;border:2px solid #2c5282}
+.je-totals .t-box.highlight .num{color:#fff;font-size:18px}
+.je-totals .t-box.highlight .label{color:#cbd5e0}
+.qr{text-align:center;margin:16px 0}
+.footer{margin-top:20px;border-top:1px solid #ddd;padding-top:12px}
+.sig-line{display:flex;justify-content:space-around;margin-top:20px}
+.sig{text-align:center;min-width:100px;border-top:1px solid #999;padding-top:4px;font-size:11px}
+.print-date{text-align:center;font-size:9px;color:#999;margin-top:12px}`;
+
+      const variables = [
+        { key: 'company.name', label_ar: 'اسم الشركة', label_en: 'Company Name', type: 'text', group: 'company' },
+        { key: 'company.address', label_ar: 'العنوان', label_en: 'Address', type: 'text', group: 'company' },
+        { key: 'company.phone', label_ar: 'الهاتف', label_en: 'Phone', type: 'text', group: 'company' },
+        { key: 'company.email', label_ar: 'البريد', label_en: 'Email', type: 'text', group: 'company' },
+        { key: 'account.name', label_ar: 'اسم الحساب/الجهة', label_en: 'Account/Party Name', type: 'text', group: 'party' },
+        { key: 'account.code', label_ar: 'رمز الحساب', label_en: 'Account Code', type: 'text', group: 'party' },
+        { key: 'account.total_debit', label_ar: 'مجموع المدين', label_en: 'Total Debit', type: 'number', group: 'totals' },
+        { key: 'account.total_credit', label_ar: 'مجموع الدائن', label_en: 'Total Credit', type: 'number', group: 'totals' },
+        { key: 'account.closing_balance', label_ar: 'الرصيد الختامي', label_en: 'Closing Balance', type: 'number', group: 'totals' },
+        { key: 'system.date', label_ar: 'التاريخ', label_en: 'Date', type: 'date', group: 'system' },
+        { key: 'system.time', label_ar: 'الوقت', label_en: 'Time', type: 'text', group: 'system' },
+      ];
+
+      // Always create fresh template
+      await this.createTemplate({
+        doc_type: 'account_statement',
+        category: 'report',
+        name_ar: 'كشف حساب — افتراضي',
+        name_en: 'Account Statement — Default',
+        description_ar: 'قالب كشف الحساب مع تفاصيل الحركات والأرصدة',
+        description_en: 'Account statement template with transaction details and balances',
+        template_html: html,
+        template_css: css,
+        variables: variables as any,
+        paper_size: 'A4',
+        orientation: 'portrait',
+        margins: { top: 10, right: 10, bottom: 10, left: 10 },
+        include_qr: true,
+        include_header: true,
+        include_footer: true,
+        include_logo: true,
+        include_stamp: false,
+        include_signature: false,
+        is_default: true,
+        is_system: true,
+        is_active: true,
+        sort_order: 1,
+        tenant_id: tenantId || null,
+      });
+      console.log('[PrintService] ✅ Account Statement template refreshed');
+    } catch (err) {
+      console.warn('[PrintService] ⚠️ Could not create account statement template:', err);
+    }
+  }
+
   // ─── Company Print Settings ───────────────────────────────────
 
   async getCompanyPrintSettings(companyId: string): Promise<CompanyPrintSettings | null> {
@@ -486,12 +598,44 @@ class PrintService {
   }
 
   // ─── Generate Table Rows for Journal Entry Lines ──────────────
+  // Column order matches frontend: # | debit | credit | account | description | cost_center | currency | exchange_rate
 
   generateLinesRows(lines: any[], lang: string): string {
     if (!lines || !Array.isArray(lines) || lines.length === 0) return '';
     return lines.map((line, idx) => {
       const accountName = getLocalizedName(line.account || line, lang) || line.account_name || '—';
-      return `<tr><td>${idx + 1}</td><td>${line.account_code || ''}</td><td>${accountName}</td><td>${line.description || line.memo || ''}</td><td>${this.formatNum(line.debit ?? 0)}</td><td>${this.formatNum(line.credit ?? 0)}</td></tr>`;
+      const debitVal = line.debit ?? 0;
+      const creditVal = line.credit ?? 0;
+      const costCenter = line.cost_center_name || '—';
+      const currency = line.currency || '—';
+      const rate = line.exchange_rate ?? 1;
+      return `<tr><td>${idx + 1}</td><td>${debitVal ? this.formatNum(debitVal) : '—'}</td><td>${creditVal ? this.formatNum(creditVal) : '—'}</td><td>${accountName}</td><td>${line.description || line.memo || ''}</td><td>${costCenter}</td><td>${currency}</td><td>${rate !== 1 ? rate.toFixed(4) : '—'}</td></tr>`;
+    }).join('\n');
+  }
+
+  // ─── Generate Table Rows for Account Statement Entries ────────
+  // Column order: # | debit | credit | balance | date | description | currency
+
+  generateStatementRows(entries: any[], lang: string): string {
+    if (!entries || !Array.isArray(entries) || entries.length === 0) return '';
+    return entries.map((entry, idx) => {
+      const debit = Number(entry.debit) || 0;
+      const credit = Number(entry.credit) || 0;
+      const balance = entry.balance ?? entry.running_balance ?? 0;
+      const currency = entry.currency || '—';
+      const rate = Number(entry.exchange_rate) || 1;
+      const date = entry.date || entry.entry_date || '';
+      const desc = entry.description || '';
+      return `<tr>
+        <td>${idx + 1}</td>
+        <td style="color:${debit ? '#16a34a' : '#999'};font-weight:${debit ? '600' : '400'}">${debit ? this.formatNum(debit) : '—'}</td>
+        <td style="color:${credit ? '#dc2626' : '#999'};font-weight:${credit ? '600' : '400'}">${credit ? this.formatNum(credit) : '—'}</td>
+        <td style="font-weight:600;color:#1a365d">${this.formatNum(balance)}</td>
+        <td>${date}</td>
+        <td>${desc}</td>
+        <td>${currency}</td>
+        <td>${rate !== 1 ? rate.toFixed(4) : '—'}</td>
+      </tr>`;
     }).join('\n');
   }
 
@@ -655,11 +799,25 @@ class PrintService {
     if (data.invoice?.items || data.items) {
       html = html.replace(/{{ITEMS_ROWS}}/g, this.generateItemsRows(data.invoice?.items || data.items, lang));
     } else { html = html.replace(/{{ITEMS_ROWS}}/g, ''); }
-    if (data.account?.entries || data.entries) {
-      html = html.replace(/{{ENTRIES_ROWS}}/g, this.generateEntriesRows(data.account?.entries || data.entries, lang));
+    if (data.account?.entries) {
+      // Account Statement → use generateStatementRows (with running balance)
+      html = html.replace(/{{ENTRIES_ROWS}}/g, this.generateStatementRows(data.account.entries, lang));
+    } else if (data.entries) {
+      html = html.replace(/{{ENTRIES_ROWS}}/g, this.generateEntriesRows(data.entries, lang));
     } else { html = html.replace(/{{ENTRIES_ROWS}}/g, ''); }
     if (data.entry?.lines || data.lines) {
       html = html.replace(/{{LINES_ROWS}}/g, this.generateLinesRows(data.entry?.lines || data.lines, lang));
+      // Fix table header to match 8-column layout: # | debit | credit | account | description | cost_center | currency | rate
+      const l = lang || 'ar';
+      const debitLbl = LABELS.debit_label?.[l] || LABELS.debit_label?.['en'] || 'Debit';
+      const creditLbl = LABELS.credit_label?.[l] || LABELS.credit_label?.['en'] || 'Credit';
+      const acName = LABELS.account_name_label?.[l] || LABELS.account_name_label?.['en'] || 'Account';
+      const descLbl = LABELS.description_label?.[l] || LABELS.description_label?.['en'] || 'Description';
+      const ccLbl = l === 'ar' ? 'م.التكلفة' : 'Cost Center';
+      const currLbl = LABELS.currency_label?.[l] || LABELS.currency_label?.['en'] || 'Currency';
+      const rateLbl = l === 'ar' ? 'سعر الصرف' : 'Rate';
+      const headerHtml = `<thead><tr><th>#</th><th>${debitLbl}</th><th>${creditLbl}</th><th>${acName}</th><th>${descLbl}</th><th>${ccLbl}</th><th>${currLbl}</th><th>${rateLbl}</th></tr></thead>`;
+      html = html.replace(/<thead>[\s\S]*?<\/thead>/i, headerHtml);
     } else { html = html.replace(/{{LINES_ROWS}}/g, ''); }
 
     // QR Code
@@ -684,6 +842,94 @@ class PrintService {
     return { html, css };
   }
 
+  // ─── Extract backgrounds from CSS for print forcing ────────────
+  private extractBackgrounds(css: string): Array<{ selector: string; bg: string; color?: string }> {
+    const results: Array<{ selector: string; bg: string; color?: string }> = [];
+    // Match CSS rules with background properties (not inside @media)
+    const ruleRegex = /([^{}@]+)\{([^{}]*)\}/g;
+    let match;
+    while ((match = ruleRegex.exec(css)) !== null) {
+      const selector = match[1].trim();
+      const body = match[2];
+      // Skip @media and @page blocks
+      if (selector.includes('@') || !body) continue;
+      // Find background or background-color
+      const bgMatch = body.match(/background(?:-color)?\s*:\s*([^;!}]+)/);
+      if (bgMatch) {
+        const bg = bgMatch[1].trim();
+        if (bg && bg !== 'transparent' && bg !== 'none' && bg !== 'inherit') {
+          const colorMatch = body.match(/(?:^|;)\s*color\s*:\s*([^;!}]+)/);
+          results.push({ selector, bg, color: colorMatch?.[1]?.trim() });
+        }
+      }
+    }
+    return results;
+  }
+
+  // ─── Generate @media print CSS for forced backgrounds ──────────
+  private generatePrintForcedCSS(backgrounds: Array<{ selector: string; bg: string; color?: string }>): string {
+    if (backgrounds.length === 0) return '';
+    let rules = '\n/* ═══ Forced Print Backgrounds ═══ */\n@media print {\n';
+    for (const { selector, bg, color } of backgrounds) {
+      rules += `  ${selector} {\n`;
+      rules += `    background: ${bg} !important;\n`;
+      rules += `    -webkit-print-color-adjust: exact !important;\n`;
+      rules += `    print-color-adjust: exact !important;\n`;
+      // box-shadow:inset trick — Chrome ALWAYS prints box-shadows even without "Background graphics"
+      if (bg.startsWith('#') || bg.startsWith('rgb')) {
+        rules += `    box-shadow: inset 0 0 0 9999px ${bg} !important;\n`;
+      }
+      if (color) rules += `    color: ${color} !important;\n`;
+      rules += `  }\n`;
+    }
+    rules += '}\n';
+    return rules;
+  }
+
+  // ─── Post-process HTML to add inline background styles ─────────
+  private injectInlineBackgrounds(html: string, backgrounds: Array<{ selector: string; bg: string; color?: string }>): string {
+    let processed = html;
+    
+    for (const { selector, bg, color } of backgrounds) {
+      const inlineStyle = `background:${bg} !important;-webkit-print-color-adjust:exact !important;${bg.startsWith('#') || bg.startsWith('rgb') ? `box-shadow:inset 0 0 0 9999px ${bg} !important;` : ''}${color ? `color:${color} !important;` : ''}`;
+      
+      // Determine the TARGET element from the selector
+      // For compound selectors like "table.lines th", target is the LAST part ("th")
+      // For simple selectors like ".je-meta", target is the class itself
+      const parts = selector.trim().split(/\s+/);
+      const lastPart = parts[parts.length - 1]; // e.g. "th", ".t-box", "table.lines"
+      
+      // Check if last part is a bare tag (th, td, tr...)
+      const isBareTag = /^(th|td|tr|h[1-6])$/i.test(lastPart);
+      // Check if last part is a class selector (.je-meta, .t-box)
+      const classOnlyMatch = lastPart.match(/^\.([a-zA-Z_-][\w-]*)$/);
+      // Check if last part is tag.class (table.lines)
+      const tagClassMatch = lastPart.match(/^([a-z]+)\.([a-zA-Z_-][\w-]*)$/);
+      
+      if (isBareTag) {
+        // Target is a tag like "th" — only inject on those tags
+        const tag = lastPart.toLowerCase();
+        // Tags with existing style
+        const regexWithStyle = new RegExp(`<${tag}([^>]*)(style=")`, 'gi');
+        processed = processed.replace(regexWithStyle, `<${tag}$1style="${inlineStyle}`);
+        // Tags without style
+        const regexNoStyle = new RegExp(`<${tag}([ >])(?![^>]*style=)`, 'gi');
+        processed = processed.replace(regexNoStyle, `<${tag} style="${inlineStyle}"$1`);
+      } else if (classOnlyMatch) {
+        // Target is a class like ".je-meta" or ".t-box"
+        const className = classOnlyMatch[1];
+        // Elements with this class and existing style
+        const regexWithStyle = new RegExp(`(class="[^"]*\\b${className}\\b[^"]*"[^>]*)(style=")`, 'g');
+        processed = processed.replace(regexWithStyle, `$1style="${inlineStyle}`);
+        // Elements with this class without style
+        const regexNoStyle = new RegExp(`(class="[^"]*\\b${className}\\b[^"]*")(?![^>]*style=)`, 'g');
+        processed = processed.replace(regexNoStyle, `$1 style="${inlineStyle}"`);
+      }
+      // Skip tag.class compound selectors like "table.lines" — don't inject inline on the parent
+    }
+    return processed;
+  }
+
   // ─── Generate Full Preview HTML ───────────────────────────────
 
   async generatePreview(
@@ -697,6 +943,19 @@ class PrintService {
     const margins = template.margins;
     const lang = overrideLang || getPrintLanguage(countryCode);
 
+    // Fix colors in template CSS before processing (DB may have old colors)
+    const fixedCss = css
+      .replace(/#2c3e50/g, '#2c5282')   // Old dark → True navy blue
+      .replace(/#f8f9fa/g, '#e8edf5')   // Old gray → Soft blue-gray
+      .replace(/#1e3a5f/g, '#2c5282');  // Another dark → True navy blue
+
+    // Extract backgrounds from FIXED CSS and generate print overrides
+    const backgrounds = this.extractBackgrounds(fixedCss);
+    const printForcedCSS = this.generatePrintForcedCSS(backgrounds);
+    
+    // Post-process HTML to add inline background styles for maximum reliability
+    const processedHtml = this.injectInlineBackgrounds(html, backgrounds);
+
     return `<!DOCTYPE html>
 <html dir="${getDirection(lang)}">
 <head>
@@ -704,11 +963,49 @@ class PrintService {
   <title>${getDocTitle(template.doc_type, lang)}</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    /* ═══ Force Color Printing — Global ═══ */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
     @page { size: ${template.paper_size} ${template.orientation}; margin: ${margins.top}mm ${margins.right}mm ${margins.bottom}mm ${margins.left}mm; }
-    ${css}
+    ${fixedCss}
+    /* ═══ Color Override — True Navy Blue ═══ */
+    .header { border-bottom-color: #2c5282 !important; }
+    .header h1 { color: #2c5282 !important; }
+    .title h2 { color: #2c5282 !important; border-color: #2c5282 !important; }
+    table.lines th { background: #2c5282 !important; color: #fff !important; }
+    .je-meta, .je-totals .t-box { background: #e8edf5 !important; }
+    /* ═══ Totals Number Coloring ═══ */
+    .je-totals .t-box .num { color: #0f766e; }
+    .je-totals .t-box:first-child .num { color: #dc2626; }
+    .je-totals .t-box:last-child .num { color: #16a34a; }
+    /* ═══ Account Statement — Closing Balance Box Override ═══ */
+    ${template.doc_type === 'account_statement' ? `
+    .je-totals .t-box:last-child { background: #1a365d !important; border: 2px solid #2c5282 !important; }
+    .je-totals .t-box:last-child .num { color: #ffffff !important; font-size: 18px !important; }
+    .je-totals .t-box:last-child .label { color: #cbd5e0 !important; }
+    .je-totals .t-box.highlight { background: #1a365d !important; border: 2px solid #2c5282 !important; }
+    .je-totals .t-box.highlight .num { color: #ffffff !important; font-size: 18px !important; }
+    .je-totals .t-box.highlight .label { color: #cbd5e0 !important; }
+    ` : ''}
+    @media print {
+      table.lines th { background: #2c5282 !important; color: #fff !important; box-shadow: inset 0 0 0 9999px #2c5282 !important; }
+      .je-meta, .je-totals .t-box { background: #e8edf5 !important; box-shadow: inset 0 0 0 9999px #e8edf5 !important; }
+      .je-totals .t-box .num { color: #0f766e !important; }
+      .je-totals .t-box:first-child .num { color: #dc2626 !important; }
+      .je-totals .t-box:last-child .num { color: #16a34a !important; }
+      ${template.doc_type === 'account_statement' ? `
+      .je-totals .t-box:last-child { background: #1a365d !important; box-shadow: inset 0 0 0 9999px #1a365d !important; }
+      .je-totals .t-box:last-child .num { color: #ffffff !important; }
+      .je-totals .t-box:last-child .label { color: #cbd5e0 !important; }
+      ` : ''}
+    }
+    ${printForcedCSS}
   </style>
 </head>
-<body>${html}</body>
+<body>${processedHtml}</body>
 </html>`;
   }
 

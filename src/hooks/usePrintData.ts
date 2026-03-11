@@ -32,6 +32,8 @@ interface UsePrintDataProps {
     docType: string;     // 'sales_invoice' | 'purchase_invoice' | 'receipt_voucher' | etc.
     docId?: string;      // Document ID to load
     docData?: any;       // Or pass data directly (skip loading)
+    displayCurrency?: string;   // Target display currency for conversion
+    getConvertRate?: (from: string, to: string) => number;  // Rate lookup function
 }
 
 interface UsePrintDataReturn {
@@ -83,7 +85,7 @@ const PRINT_LANGUAGES = [
 // Hook Implementation
 // ═══════════════════════════════════════════════════════════════
 
-export function usePrintData({ docType, docId, docData }: UsePrintDataProps): UsePrintDataReturn {
+export function usePrintData({ docType, docId, docData, displayCurrency, getConvertRate }: UsePrintDataProps): UsePrintDataReturn {
     const { company, companyId } = useCompany();
     const tenantId = (company as any)?.tenant_id || null;
     const { language } = useLanguage();
@@ -104,14 +106,30 @@ export function usePrintData({ docType, docId, docData }: UsePrintDataProps): Us
 
         const load = async () => {
             try {
+                // Auto-seed account_statement template if missing
+                if (docType === 'account_statement') {
+                    await printService.ensureAccountStatementTemplate(tenantId || undefined);
+                }
+
                 const [tpls, settings] = await Promise.all([
                     printService.getTemplates(docType, tenantId || undefined),
                     printService.getCompanyPrintSettings(companyId),
                 ]);
-                setTemplates(tpls);
+
+                // Cleanup duplicate account_statement templates (keep only first)
+                let cleanedTpls = tpls;
+                if (docType === 'account_statement' && tpls.length > 1) {
+                    const duplicates = tpls.slice(1);
+                    for (const dup of duplicates) {
+                        try { await printService.deleteTemplate(dup.id); } catch { /* ignore RLS */ }
+                    }
+                    cleanedTpls = [tpls[0]];
+                }
+
+                setTemplates(cleanedTpls);
                 setPrintSettings(settings);
 
-                const def = tpls.find(t => t.is_default) || tpls[0] || null;
+                const def = cleanedTpls.find(t => t.is_default) || cleanedTpls[0] || null;
                 setDefaultTemplate(def);
             } catch (err: any) {
                 console.error('[usePrintData] Load templates error:', err);
@@ -153,6 +171,71 @@ export function usePrintData({ docType, docId, docData }: UsePrintDataProps): Us
 
         loadDoc();
     }, [docId, docData, docType, companyId, company, printSettings]);
+
+    // ─── Currency Conversion for Account Statements ──────────────
+    useEffect(() => {
+        if (!printData?.account || !displayCurrency || !getConvertRate) return;
+        
+        const acc = printData.account;
+
+        // Already converted to this exact currency → skip
+        if (acc._convertedTo === displayCurrency) return;
+
+        // Always use RAW (original) data for conversion — prevents cascading errors
+        // when switching between currencies (UAH → USD → EUR)
+        const rawEntries = acc._rawEntries || acc.entries || [];
+        const rawCurrency = acc._rawCurrency || acc.currency || 'USD';
+        const rawOpeningBalance = acc._rawOpeningBalance ?? acc.opening_balance ?? 0;
+
+        if (rawEntries.length === 0) return;
+
+        const convertAmount = (amount: number, fromCurrency: string): number => {
+            if (!fromCurrency || fromCurrency === displayCurrency) return amount;
+            const rate = getConvertRate(fromCurrency, displayCurrency);
+            return rate > 0 ? amount * rate : amount;
+        };
+
+        let runningBalance = convertAmount(Number(rawOpeningBalance) || 0, rawCurrency);
+
+        const convertedEntries = rawEntries.map((e: any) => {
+            const entryCurrency = e.currency || rawCurrency;
+            const debit = convertAmount(Number(e.debit) || 0, entryCurrency);
+            const credit = convertAmount(Number(e.credit) || 0, entryCurrency);
+            runningBalance += debit - credit;
+            
+            return {
+                ...e,
+                debit,
+                credit,
+                balance: runningBalance,
+                running_balance: runningBalance,
+                currency: displayCurrency,
+                exchange_rate: getConvertRate(entryCurrency, displayCurrency),
+            };
+        });
+
+        const totalDebit = convertedEntries.reduce((s: number, e: any) => s + (Number(e.debit) || 0), 0);
+        const totalCredit = convertedEntries.reduce((s: number, e: any) => s + (Number(e.credit) || 0), 0);
+
+        setPrintData(prev => ({
+            ...prev,
+            account: {
+                ...prev?.account,
+                // Preserve raw data for future re-conversions
+                _rawEntries: rawEntries,
+                _rawCurrency: rawCurrency,
+                _rawOpeningBalance: rawOpeningBalance,
+                // Set converted data
+                entries: convertedEntries,
+                total_debit: totalDebit,
+                total_credit: totalCredit,
+                closing_balance: runningBalance,
+                opening_balance: convertAmount(Number(rawOpeningBalance) || 0, rawCurrency),
+                currency: displayCurrency,
+                _convertedTo: displayCurrency,
+            },
+        }));
+    }, [displayCurrency, getConvertRate, printData?.account?._rawEntries, printData?.account?.entries?.length, printData?.account?._convertedTo]);
 
     // ─── Print Action ─────────────────────────────────────────────
     const print = useCallback(async (templateId: string, options?: Partial<PrintOptions>) => {
@@ -214,7 +297,7 @@ async function fetchDocumentData(docType: string, docId: string): Promise<any> {
         case 'journal_entry':
             return fetchJournalEntry(docId);
         case 'account_statement':
-            return { id: docId }; // Statement data loaded separately
+            return fetchAccountStatement(docId);
         case 'roll_label':
             return fetchRollData(docId);
         case 'container_label':
@@ -386,6 +469,114 @@ async function fetchContainerData(id: string): Promise<any> {
     return { ...data, supplier, items: [{ count: itemsCount }] };
 }
 
+async function fetchAccountStatement(docId: string): Promise<any> {
+    // Smart resolution: docId could be a supplier ID, customer ID, or account ID
+    let accountId: string | null = null;
+    let partyInfo: { name_ar?: string; name_en?: string; type?: string } | null = null;
+
+    // 1) Try suppliers FIRST (most common case from party sheet)
+    try {
+        const { data: supplier } = await supabase
+            .from('suppliers')
+            .select('id, name_ar, name_en, payable_account_id')
+            .eq('id', docId)
+            .maybeSingle();
+        if (supplier?.payable_account_id) {
+            accountId = supplier.payable_account_id;
+            partyInfo = { name_ar: supplier.name_ar, name_en: supplier.name_en, type: 'supplier' };
+        }
+    } catch { /* not a supplier */ }
+
+    // 2) Try customers
+    if (!accountId) {
+        try {
+            const { data: customer } = await supabase
+                .from('customers')
+                .select('id, name_ar, name_en, receivable_account_id')
+                .eq('id', docId)
+                .maybeSingle();
+            if (customer?.receivable_account_id) {
+                accountId = customer.receivable_account_id;
+                partyInfo = { name_ar: customer.name_ar, name_en: customer.name_en, type: 'customer' };
+            }
+        } catch { /* not a customer */ }
+    }
+
+    // 3) Fallback: maybe it IS a chart_of_accounts ID directly
+    if (!accountId) {
+        accountId = docId;
+    }
+
+    // 4) Fetch the account details (use SELECT * to avoid column name issues)
+    let account: any = null;
+    try {
+        const { data, error } = await supabase
+            .from('chart_of_accounts')
+            .select('*')
+            .eq('id', accountId)
+            .maybeSingle();
+        if (!error && data) account = data;
+    } catch { /* ignore */ }
+
+    if (!account) {
+        console.warn('[usePrintData] fetchAccountStatement: account not found for', docId, '→', accountId);
+        return null;
+    }
+
+    // 5) Fetch all posted journal entry lines for this account
+    let lines: any[] = [];
+    try {
+        const { data } = await supabase
+            .from('journal_entry_lines')
+            .select(`
+                id, debit, credit, description, currency, exchange_rate,
+                journal_entries!inner (
+                    id, entry_number, entry_date, description, status, currency
+                )
+            `)
+            .eq('account_id', accountId)
+            .eq('journal_entries.status', 'posted')
+            .order('created_at', { ascending: true });
+        lines = data || [];
+    } catch {
+        // Fallback: simple query without inner join filter
+        try {
+            const { data } = await supabase
+                .from('journal_entry_lines')
+                .select('id, debit, credit, description, currency, exchange_rate')
+                .eq('account_id', accountId)
+                .order('created_at', { ascending: true });
+            lines = data || [];
+        } catch { /* no lines */ }
+    }
+
+    // Build entries array
+    const entries = (lines || []).map((line: any) => ({
+        id: line.id,
+        entry_number: line.journal_entries?.entry_number || '',
+        date: line.journal_entries?.entry_date || '',
+        debit: Number(line.debit) || 0,
+        credit: Number(line.credit) || 0,
+        description: line.description || line.journal_entries?.description || '',
+        currency: line.currency || line.journal_entries?.currency || account.currency || '',
+        exchange_rate: Number(line.exchange_rate) || 1,
+    }));
+
+    // Sort by date 
+    entries.sort((a: any, b: any) => (a.date || '').localeCompare(b.date || ''));
+
+    return {
+        ...account,
+        // Override name with party name if came from supplier/customer
+        ...(partyInfo ? {
+            name_ar: partyInfo.name_ar || account.name_ar,
+            name_en: partyInfo.name_en || account.name_en,
+            party_type: partyInfo.type,
+        } : {}),
+        entries,
+    };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Data Mapper — Transform DB structure → Template variables
 // ═══════════════════════════════════════════════════════════════
@@ -541,6 +732,9 @@ function mapDocData(
                         description: line.description || line.memo || '',
                         debit: line.debit || line.debit_amount || 0,
                         credit: line.credit || line.credit_amount || 0,
+                        cost_center_name: line.cost_center?.name || line.cost_center_name || '',
+                        currency: line.currency || '',
+                        exchange_rate: line.exchange_rate || 1,
                     })),
                 },
             };
@@ -588,6 +782,36 @@ function mapDocData(
                     size: rawData.container_size || rawData.container_type || '',
                 },
             };
+
+        case 'account_statement': {
+            const entries = rawData.entries || [];
+            let runningBalance = Number(rawData.opening_balance) || 0;
+            const totalDebit = entries.reduce((s: number, e: any) => s + (Number(e.debit) || 0), 0);
+            const totalCredit = entries.reduce((s: number, e: any) => s + (Number(e.credit) || 0), 0);
+            const closingBalance = runningBalance + totalDebit - totalCredit;
+            return {
+                ...base,
+                account: {
+                    name: rawData.name_ar || rawData.name_en || rawData.name || '',
+                    name_ar: rawData.name_ar || rawData.name || '',
+                    name_en: rawData.name_en || '',
+                    code: rawData.account_code || rawData.code || '',
+                    type: rawData.account_type || '',
+                    currency: rawData.currency || '',
+                    opening_balance: rawData.opening_balance || 0,
+                    total_debit: totalDebit,
+                    total_credit: totalCredit,
+                    closing_balance: Math.round(closingBalance * 100) / 100,
+                    entries: entries.map((e: any, idx: number) => {
+                        runningBalance += (Number(e.debit) || 0) - (Number(e.credit) || 0);
+                        return {
+                            ...e,
+                            running_balance: Math.round(runningBalance * 100) / 100,
+                        };
+                    }),
+                },
+            };
+        }
 
         default:
             return { ...base, ...rawData };

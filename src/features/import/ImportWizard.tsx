@@ -40,7 +40,7 @@ interface ImportWizardProps {
 
 const STEPS: { id: WizardStep; label_ar: string; label_en: string; icon: React.ReactNode }[] = [
   { id: 'select-entity', label_ar: 'اختيار النوع', label_en: 'Select Type', icon: <FileSpreadsheet className="h-4 w-4" /> },
-  { id: 'upload', label_ar: 'رفع الملف', label_en: 'Upload File', icon: <Upload className="h-4 w-4" /> },
+  { id: 'upload', label_ar: 'رفع البيانات', label_en: 'Upload Data', icon: <Upload className="h-4 w-4" /> },
   { id: 'mapping', label_ar: 'مطابقة الأعمدة', label_en: 'Map Columns', icon: <FileSpreadsheet className="h-4 w-4" /> },
   { id: 'validation', label_ar: 'التحقق', label_en: 'Validate', icon: <CheckCircle className="h-4 w-4" /> },
   { id: 'preview', label_ar: 'المعاينة', label_en: 'Preview', icon: <FileSpreadsheet className="h-4 w-4" /> },
@@ -63,7 +63,9 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
     selectEntityType,
     downloadTemplate,
     uploadFile,
+    uploadGoogleSheet,
     updateColumnMapping,
+    updateImportRows,
     validateData,
     executeImport,
     updateOptions
@@ -105,6 +107,7 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
           <UploadStep
             entityDefinition={state.entityDefinition}
             onUpload={uploadFile}
+            onUploadGoogleSheet={uploadGoogleSheet}
             onDownloadTemplate={downloadTemplate}
             isLoading={state.isLoading}
             error={state.error}
@@ -159,6 +162,7 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
             entityType={state.entityType}
             options={state.options}
             onExecute={executeImport}
+            onUpdateRows={updateImportRows}
             isLoading={state.isLoading}
           />
         );

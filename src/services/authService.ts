@@ -51,7 +51,7 @@ export async function signInWithMetadata(
         .from('user_profiles')
         .select('tenant_id, company_id')
         .eq('id', authData.user.id)
-        .single();
+        .maybeSingle();
 
       profile = data;
 
@@ -167,7 +167,7 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
           .from('user_profiles')
           .select('tenant_id, company_id')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (profile) {
           tenantId = tenantId || profile.tenant_id;
@@ -272,7 +272,7 @@ export async function registerNewSubscriber(
       .from('user_profiles')
       .select('tenant_id, company_id')
       .eq('id', authData.user.id)
-      .single();
+      .maybeSingle();
 
     // 4. Update metadata
     if (profile) {

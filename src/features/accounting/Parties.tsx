@@ -25,13 +25,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Users, Truck, Building2, TrendingUp, TrendingDown,
   Plus, Phone, Star, FileText, MoreHorizontal, Eye,
-  CreditCard, Upload, ChevronDown,
+  CreditCard, Upload, ChevronDown, Coins,
+  Wallet, ArrowDownRight, ArrowUpRight,
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 // AddPartySheet removed — using UnifiedAccountingSheet in create mode instead
 import { ImportWizard } from '@/features/import';
-import QuickActionsBar from './components/QuickActionsBar';
 import { cn } from '@/lib/utils';
+import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,6 +93,19 @@ export default function Parties() {
   const { companyId } = useCompany();
   const { currencyCode: baseCurrency } = useCompanyCurrency(language as 'ar' | 'en');
   const isRTL = direction === 'rtl';
+  const { currencyOptions, getRate } = useViewCurrency();
+  const [displayCurrency, setDisplayCurrency] = useState<string>('all');
+
+  // Effective currency for display
+  const effectiveCurrency = displayCurrency !== 'all' ? displayCurrency : (baseCurrency || 'USD');
+  const isConverting = displayCurrency !== 'all';
+
+  // Convert amount from party currency to display currency
+  const convertBalance = useCallback((amount: number, fromCurrency: string): number => {
+    if (!isConverting || !fromCurrency || fromCurrency === displayCurrency) return amount;
+    const rate = getRate(fromCurrency, displayCurrency);
+    return rate > 0 ? amount * rate : amount;
+  }, [isConverting, displayCurrency, getRate]);
 
   // ─── State ───────────────────────────────────────────────────
   const [activeEntityTab, setActiveEntityTab] = useState<'suppliers' | 'customers'>('suppliers');
@@ -105,8 +119,9 @@ export default function Parties() {
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
+  const [quickDocType, setQuickDocType] = useState<string | null>(null);
 
-  // 🔄 Realtime
+  // 🔄 Realtime — جداول الجهات
   useRealtimeInvalidation({
     table: 'suppliers',
     companyId,
@@ -118,6 +133,18 @@ export default function Parties() {
     companyId,
     filter: companyId ? `company_id=eq.${companyId}` : undefined,
     queryKeys: [['parties_customers'], ['party_balances_customer']],
+  });
+  // 🔄 Realtime — تحديث الأرصدة عند ترحيل/إلغاء ترحيل القيود
+  useRealtimeInvalidation({
+    table: 'journal_entries',
+    companyId,
+    filter: companyId ? `company_id=eq.${companyId}` : undefined,
+    queryKeys: [['party_balances_supplier'], ['party_balances_customer']],
+  });
+  useRealtimeInvalidation({
+    table: 'journal_entry_lines',
+    companyId,
+    queryKeys: [['party_balances_supplier'], ['party_balances_customer']],
   });
 
   // ─── Fetch Suppliers ─────────────────────────────────────────
@@ -170,7 +197,7 @@ export default function Parties() {
       return partyBalanceService.getAllPartyBalances(companyId, 'supplier');
     },
     enabled: !!companyId,
-    staleTime: 30000,
+    staleTime: 10_000,  // 10 ثوانٍ — تحديث سريع للأرصدة
   });
 
   const { data: customerBalances = new Map() } = useQuery({
@@ -180,8 +207,10 @@ export default function Parties() {
       return partyBalanceService.getAllPartyBalances(companyId, 'customer');
     },
     enabled: !!companyId,
-    staleTime: 30000,
+    staleTime: 10_000,  // 10 ثوانٍ — تحديث سريع للأرصدة
   });
+
+
 
   // ─── Current data based on active tab ────────────────────────
   const currentData = activeEntityTab === 'suppliers' ? suppliers : customers;
@@ -235,14 +264,22 @@ export default function Parties() {
   // ─── Stats ───────────────────────────────────────────────────
   const stats = useMemo(() => {
     let totalSupplierPayable = 0;
-    supplierBalances.forEach(b => { totalSupplierPayable += b.balance; });
+    supplierBalances.forEach((b, partyId) => {
+      const party = suppliers.find(s => s.id === partyId);
+      const cur = party?.currency || baseCurrency || 'USD';
+      totalSupplierPayable += convertBalance(b.balance, cur);
+    });
     let totalCustomerReceivable = 0;
-    customerBalances.forEach(b => { totalCustomerReceivable += b.balance; });
+    customerBalances.forEach((b, partyId) => {
+      const party = customers.find(c => c.id === partyId);
+      const cur = party?.currency || baseCurrency || 'USD';
+      totalCustomerReceivable += convertBalance(b.balance, cur);
+    });
     return {
       customers: { total: customers.length, active: customers.filter(c => c.status === 'active').length, totalReceivables: totalCustomerReceivable },
       suppliers: { total: suppliers.length, active: suppliers.filter(s => s.status === 'active').length, totalPayables: totalSupplierPayable },
     };
-  }, [customers, suppliers, supplierBalances, customerBalances]);
+  }, [customers, suppliers, supplierBalances, customerBalances, convertBalance, baseCurrency]);
 
   // ─── Handlers ────────────────────────────────────────────────
   const handleRowClick = useCallback((row: Party) => {
@@ -355,8 +392,10 @@ export default function Parties() {
       width: '170px',
       cell: (row) => {
         const subLedger = currentBalances.get(row.id);
-        const balance = subLedger ? subLedger.balance : 0;
+        const rawBalance = subLedger ? subLedger.balance : 0;
         const cur = row.currency || baseCurrency || 'USD';
+        const balance = convertBalance(rawBalance, cur);
+        const displayCur = isConverting ? displayCurrency : cur;
         const isSupplier = activeEntityTab === 'suppliers';
         const color = balance > 0
           ? (isSupplier ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400')
@@ -366,7 +405,7 @@ export default function Parties() {
         return (
           <div className="flex flex-col items-end">
             <span className={cn("font-mono font-bold text-[14px] tracking-tight", color)} dir="ltr">
-              {getCurrencySymbol(cur)} {fmtAmount(balance)}
+              {getCurrencySymbol(displayCur)} {fmtAmount(balance)}
             </span>
             {balance > 0 && isSupplier && <span className="text-[10px] text-red-400">{isRTL ? 'مستحق لهم' : 'we owe'}</span>}
             {balance > 0 && !isSupplier && <span className="text-[10px] text-green-400">{isRTL ? 'مستحق لنا' : 'they owe'}</span>}
@@ -413,7 +452,7 @@ export default function Parties() {
         </Badge>
       ),
     },
-  ], [isRTL, currentBalances, baseCurrency, activeEntityTab]);
+  ], [isRTL, currentBalances, baseCurrency, activeEntityTab, convertBalance, isConverting, displayCurrency]);
 
   // ─── Actions ─────────────────────────────────────────────────
   const renderActions = useCallback((row: Party) => (
@@ -485,7 +524,25 @@ export default function Parties() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <QuickActionsBar />
+          {/* Quick action buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button variant="outline" className="h-9 px-3 gap-1.5 text-xs font-tajawal" onClick={() => setQuickDocType('receipt')}>
+              <ArrowDownRight className="w-3.5 h-3.5 text-green-600" />
+              {isRTL ? 'سندات القبض' : 'Receipts'}
+            </Button>
+            <Button variant="outline" className="h-9 px-3 gap-1.5 text-xs font-tajawal" onClick={() => setQuickDocType('payment')}>
+              <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
+              {isRTL ? 'المدفوعات' : 'Payments'}
+            </Button>
+            <Button variant="outline" className="h-9 px-3 gap-1.5 text-xs font-tajawal" onClick={() => setQuickDocType('cash')}>
+              <Wallet className="w-3.5 h-3.5 text-purple-600" />
+              {isRTL ? 'يومية صندوق' : 'Cash Journal'}
+            </Button>
+            <Button className="h-9 px-3 gap-1.5 text-xs font-tajawal bg-erp-teal hover:bg-erp-teal/90 text-white" onClick={() => setQuickDocType('journal')}>
+              <Plus className="w-3.5 h-3.5" />
+              {isRTL ? 'قيد يومية' : 'Journal Entry'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -510,7 +567,7 @@ export default function Parties() {
               <div>
                 <p className="text-xs text-green-600 dark:text-green-400 font-tajawal">{isRTL ? 'إجمالي المستحقات' : 'Total Receivables'}</p>
                 <p className="text-xl font-bold text-green-700 dark:text-green-300 font-mono mt-1">
-                  {getCurrencySymbol(baseCurrency || 'USD')} {fmtAmount(stats.customers.totalReceivables)}
+                  {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.customers.totalReceivables)}
                 </p>
               </div>
               <div className="p-3 bg-green-500 rounded-xl"><TrendingUp className="w-6 h-6 text-white" /></div>
@@ -537,7 +594,7 @@ export default function Parties() {
               <div>
                 <p className="text-xs text-rose-600 dark:text-rose-400 font-tajawal">{isRTL ? 'إجمالي المستحقات عليك' : 'Total Payables'}</p>
                 <p className="text-xl font-bold text-rose-700 dark:text-rose-300 font-mono mt-1">
-                  {getCurrencySymbol(baseCurrency || 'USD')} {fmtAmount(stats.suppliers.totalPayables)}
+                  {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.suppliers.totalPayables)}
                 </p>
               </div>
               <div className="p-3 bg-rose-500 rounded-xl"><TrendingDown className="w-6 h-6 text-white" /></div>
@@ -580,6 +637,33 @@ export default function Parties() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {/* Currency filter */}
+          {currencyOptions.length > 0 && (
+            <div className="flex items-center gap-1.5 ms-auto">
+              <Coins className="w-3.5 h-3.5 text-amber-500" />
+              <select
+                value={displayCurrency}
+                onChange={e => setDisplayCurrency(e.target.value)}
+                className={cn(
+                  "h-7 text-xs font-tajawal rounded-md border border-gray-200 dark:border-gray-700",
+                  "bg-white dark:bg-gray-900 px-2 pe-6 cursor-pointer",
+                  "focus:ring-1 focus:ring-erp-teal focus:border-erp-teal",
+                  isConverting && "ring-1 ring-amber-400 border-amber-400 bg-amber-50 dark:bg-amber-900/20"
+                )}
+              >
+                <option value="all">{isRTL ? 'كل العملات' : 'All Currencies'}</option>
+                {currencyOptions.map(c => {
+                  const meta = CURRENCY_META[c];
+                  return (
+                    <option key={c} value={c}>
+                      {meta?.flag || '🏳️'} {c} — {meta?.nameAr || meta?.nameEn || c}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* ─── NexaListTable ─── */}
@@ -662,6 +746,18 @@ export default function Parties() {
           defaultEntityType={activeEntityTab}
           onClose={() => setShowImportWizard(false)}
           onComplete={() => { setShowImportWizard(false); handleRefresh(); }}
+        />
+      )}
+      {/* ─── Quick Doc Sheet (Journal / Cash / Receipt / Payment) ─── */}
+      {quickDocType && (
+        <UnifiedAccountingSheet
+          isOpen={true}
+          onClose={() => setQuickDocType(null)}
+          docType={quickDocType as any}
+          mode="create"
+          companyId={companyId || undefined}
+          onRefresh={handleRefresh}
+          enableEditFlow
         />
       )}
     </div>

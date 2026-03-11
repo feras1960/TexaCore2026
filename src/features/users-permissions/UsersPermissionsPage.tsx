@@ -24,7 +24,7 @@ import { useRBAC } from '@/hooks/useRBAC';
 import { Loader2 } from 'lucide-react';
 import {
     ShieldCheck, Shield, Users, GitBranch,
-    ClipboardList, Truck,
+    ClipboardList,
     type LucideIcon
 } from 'lucide-react';
 
@@ -34,7 +34,6 @@ import {
 import UserGroupsSection from './components/UserGroupsSection';
 import UsersManagementTab from '@/features/settings/components/UsersManagementTab';
 import BranchesManagementTab from '@/features/settings/components/BranchesManagementTab';
-import DriversManagementTab from './components/DriversManagementTab';
 import AuditLogTab from './components/AuditLogTab';
 
 // ─── Tab Configuration ──────────────────────────────────────────────────
@@ -75,15 +74,6 @@ const PERMISSIONS_TABS: PermissionsTab[] = [
         labelEn: 'Branches',
         icon: GitBranch,
         component: BranchesManagementTab,
-        requiresRole: ['tenant_owner', 'company_admin', 'company_owner'],
-    },
-    {
-        id: 'drivers',
-        labelKey: 'usersPermissions.tabs.drivers',
-        labelAr: 'السائقون',
-        labelEn: 'Drivers',
-        icon: Truck,
-        component: DriversManagementTab,
         requiresRole: ['tenant_owner', 'company_admin', 'company_owner'],
     },
     {

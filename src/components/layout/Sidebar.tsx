@@ -41,13 +41,9 @@ export function Sidebar({ className }: SidebarProps) {
   // 🚀 PERFORMANCE: عرض جميع الموديولات فوراً أثناء التحميل (optimistic rendering)
   // بعد اكتمال التحميل، يتم تطبيق الفلترة الفعلية
   const filteredModules = STATIC_MODULES.filter(module => {
-    // أثناء التحميل، نعرض كل الموديولات المفعلة (optimistic)
+    // أثناء التحميل، نعرض فقط dashboard (بدل كل شيء)
     if (rbacLoading) {
-      // فقط نخفي الموديولات التي تتطلب super admin إذا كان المستخدم ليس super admin
-      if (module.requires_super_admin && !isSuperAdmin) {
-        return false;
-      }
-      return true;
+      return module.code === 'dashboard';
     }
 
     // 1. إذا كان الموديول يتطلب Super Admin (مدير المنصة)، نتحقق من الصلاحية

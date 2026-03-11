@@ -392,6 +392,19 @@
     "detail": "تفصيلي",
     "dueDate": "تاريخ الاستحقاق",
     "duplicateRow": "نسخ السطر",
+    "grid": {
+      "keyboardShortcuts": "اختصارات لوحة المفاتيح",
+      "navigation": "التنقل",
+      "nextRow": "الخلية التالية (أسفل)",
+      "nextColumn": "العمود التالي",
+      "navigateCells": "التنقل بين الخلايا",
+      "copy": "النسخ",
+      "copyAboveDown": "نسخ من فوق + أسفل",
+      "rows": "الصفوف",
+      "insertRow": "إدراج صف",
+      "clearCell": "مسح الخلية",
+      "swapDebitCredit": "نقل مدين↔دائن"
+    },
     "editAccount": "تعديل حساب",
     "editGroup": "تعديل المجموعة",
     "entry": {
@@ -674,7 +687,8 @@
       "attachments": "المرفقات",
       "form": "النموذج",
       "documents": "المستندات",
-      "analysis": "تحليلات الذكاء الاصطناعي"
+      "analysis": "تحليلات الذكاء الاصطناعي",
+      "accountingEntry": "القيد المحاسبي"
     },
     "details": "التفاصيل",
     "activity": "النشاط",
@@ -4348,6 +4362,15 @@
       "users": "المستخدمين",
       "branches": "الفروع",
       "auditLog": "سجل التدقيق"
+    }
+  },
+  "profile": {
+    "tabs": {
+      "personal": "المعلومات الشخصية",
+      "security": "الأمان",
+      "notifications": "الإشعارات",
+      "preferences": "التفضيلات",
+      "account": "الحساب"
     }
   }
 }

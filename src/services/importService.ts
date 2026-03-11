@@ -822,6 +822,123 @@ export const importService = {
    */
   async deleteImportJob(jobId: string): Promise<boolean> {
     return true;
+  },
+
+  /**
+   * استخراج معرّف Google Sheet من الرابط
+   */
+  extractGoogleSheetId(url: string): string | null {
+    // Support various formats:
+    // https://docs.google.com/spreadsheets/d/SHEET_ID/edit
+    // https://docs.google.com/spreadsheets/d/SHEET_ID/edit#gid=0
+    // https://docs.google.com/spreadsheets/d/SHEET_ID
+    const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+  },
+
+  /**
+   * جلب وتحليل بيانات من Google Sheet
+   * يعمل مع الشيتات المشاركة كـ "أي شخص لديه الرابط"
+   */
+  async parseGoogleSheet(url: string): Promise<ParsedFile | null> {
+    try {
+      const sheetId = this.extractGoogleSheetId(url);
+      if (!sheetId) {
+        console.error('Invalid Google Sheets URL');
+        return null;
+      }
+
+      // Extract gid (sheet tab) if present
+      const gidMatch = url.match(/[#&]gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : '0';
+
+      // Fetch as CSV (works for publicly shared sheets)
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        console.error('Failed to fetch Google Sheet:', response.status, response.statusText);
+        return null;
+      }
+
+      const csvText = await response.text();
+
+      if (!csvText || csvText.length < 10) {
+        console.error('Google Sheet returned empty data');
+        return null;
+      }
+
+      // Parse CSV using XLSX library (same as file parsing)
+      const wb = XLSX.read(csvText, { type: 'string' });
+      const wsName = wb.SheetNames[0];
+      const ws = wb.Sheets[wsName];
+
+      if (!ws) {
+        console.error('No worksheet found in Google Sheet data');
+        return null;
+      }
+
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][];
+
+      if (!rawData || rawData.length < 2) {
+        console.error('Google Sheet has less than 2 rows:', rawData?.length);
+        return null;
+      }
+
+      // Same header detection logic as parseFile
+      const firstRow = (rawData[0] as any[]).map(h => String(h || '').trim());
+      const isTechnicalHeaders = firstRow.length > 0 &&
+        firstRow.filter(h => h).length > 0 &&
+        firstRow.filter(h => h).every(h => /^[a-z][a-z0-9_]*$/i.test(h));
+
+      let headers: string[];
+      let dataStartIndex: number;
+
+      if (isTechnicalHeaders) {
+        headers = firstRow;
+        const secondRow = rawData.length > 1
+          ? (rawData[1] as any[]).map(h => String(h || '').trim())
+          : [];
+        const hasNumbers = secondRow.some(v => !isNaN(Number(v)) && Number(v) > 0);
+        const secondRowIsLabels = secondRow.length > 0 && secondRow.every(v => typeof v === 'string' || v === '');
+        dataStartIndex = (secondRowIsLabels && !hasNumbers) ? 2 : 1;
+      } else {
+        headers = firstRow;
+        dataStartIndex = 1;
+      }
+
+      const rows: Record<string, unknown>[] = [];
+      for (let i = dataStartIndex; i < rawData.length; i++) {
+        const row = rawData[i] as unknown[];
+        if (!row || row.every(cell => cell === null || cell === undefined || cell === '')) {
+          continue;
+        }
+
+        const rowObj: Record<string, unknown> = {};
+        headers.forEach((header, index) => {
+          if (header && row[index] !== undefined && row[index] !== null && row[index] !== '') {
+            rowObj[String(header).trim()] = row[index];
+          }
+        });
+
+        if (Object.keys(rowObj).length > 0) {
+          rows.push(rowObj);
+        }
+      }
+
+      console.log(`📊 Google Sheet parsed: ${headers.length} columns, ${rows.length} data rows`);
+
+      return {
+        headers: headers.filter(h => h),
+        rows,
+        total_rows: rows.length,
+        file_type: 'google_sheets'
+      };
+
+    } catch (error) {
+      console.error('Error parsing Google Sheet:', error);
+      return null;
+    }
   }
 };
 

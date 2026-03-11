@@ -130,6 +130,11 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         description: { ar: 'البلد', en: 'Country', tr: 'Ülke', ru: 'Страна', uk: 'Країна' }
       },
       {
+        field: 'currency', required: false, example: 'USD',
+        label: { ar: 'العملة', en: 'Currency', tr: 'Para Birimi', ru: 'Валюта', uk: 'Валюта' },
+        description: { ar: 'كود العملة (USD, UAH, EUR...)', en: 'Currency code (USD, UAH, EUR...)', tr: 'Para birimi kodu', ru: 'Код валюты', uk: 'Код валюти' }
+      },
+      {
         field: 'tax_number', required: false, example: 'UA123456789',
         label: { ar: 'الرقم الضريبي', en: 'Tax Number', tr: 'Vergi No', ru: 'ИНН', uk: 'ІПН' },
         description: { ar: 'رقم ضريبي', en: 'Tax ID', tr: 'Vergi numarası', ru: 'ИНН', uk: 'ІПН' }
@@ -247,6 +252,11 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         description: { ar: 'البلد', en: 'Country', tr: 'Ülke', ru: 'Страна', uk: 'Країна' }
       },
       {
+        field: 'currency', required: false, example: 'USD',
+        label: { ar: 'العملة', en: 'Currency', tr: 'Para Birimi', ru: 'Валюта', uk: 'Валюта' },
+        description: { ar: 'كود العملة (USD, UAH, EUR...)', en: 'Currency code (USD, UAH, EUR...)', tr: 'Para birimi kodu', ru: 'Код валюты', uk: 'Код валюти' }
+      },
+      {
         field: 'tax_number', required: false, example: 'UA987654321',
         label: { ar: 'الرقم الضريبي', en: 'Tax Number', tr: 'Vergi No', ru: 'ИНН', uk: 'ІПН' },
         description: { ar: 'رقم ضريبي', en: 'Tax ID', tr: 'Vergi numarası', ru: 'ИНН', uk: 'ІПН' }
@@ -257,9 +267,9 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         description: { ar: 'أيام', en: 'Days', tr: 'Gün', ru: 'Дни', uk: 'Дні' }
       },
       {
-        field: 'opening_balance', required: false, example: -10000,
+        field: 'opening_balance', required: false, example: 10000,
         label: { ar: 'الرصيد الافتتاحي', en: 'Opening Balance', tr: 'Açılış Bakiyesi', ru: 'Нач. сальдо', uk: 'Поч. сальдо' },
-        description: { ar: 'سالب = مستحق للمورد', en: 'Negative = owed to supplier', tr: 'Negatif = borçlu', ru: 'Отрицательное = должны поставщику', uk: 'Від\'ємне = борг постачальнику' }
+        description: { ar: 'موجب = مستحق للمورد', en: 'Positive = owed to supplier', tr: 'Pozitif = borçlu', ru: 'Положительное = должны поставщику', uk: 'Додатне = борг постачальнику' }
       },
       {
         field: 'notes', required: false, example: '',
@@ -362,6 +372,11 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         field: 'cost_price', required: false, example: 35,
         label: { ar: 'سعر التكلفة', en: 'Cost Price', tr: 'Maliyet', ru: 'Себестоимость', uk: 'Собівартість' },
         description: { ar: 'سعر التكلفة', en: 'Cost price', tr: 'Maliyet fiyatı', ru: 'Себестоимость', uk: 'Собівартість' }
+      },
+      {
+        field: 'currency', required: false, example: 'USD',
+        label: { ar: 'العملة', en: 'Currency', tr: 'Para Birimi', ru: 'Валюта', uk: 'Валюта' },
+        description: { ar: 'عملة الأسعار (USD, UAH, EUR...)', en: 'Price currency (USD, UAH, EUR...)', tr: 'Fiyat para birimi', ru: 'Валюта цен', uk: 'Валюта цін' }
       },
       {
         field: 'opening_qty', required: false, example: 500,

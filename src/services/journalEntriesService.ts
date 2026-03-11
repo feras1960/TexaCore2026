@@ -48,14 +48,25 @@ export interface CreateJournalEntryInput {
   description: string;
   reference_type?: string;
   reference_id?: string;
+  reference?: string;
+  entry_number?: string;
+  fund_account_id?: string;
+  total_amount?: number;
+  status?: 'draft' | 'posted' | 'cancelled';
+  is_posted?: boolean;
   lines: {
     account_id: string;
     debit: number;
     credit: number;
     description?: string;
     cost_center_id?: string;
-    party_type?: string | null;   // 'supplier' | 'customer'
-    party_id?: string | null;     // UUID of supplier or customer
+    currency?: string | null;
+    exchange_rate?: number;
+    link_type?: string | null;
+    invoice_id?: string | null;
+    party_type?: string | null;
+    party_id?: string | null;
+    is_fund_line?: boolean;  // ← سطر الصندوق التلقائي — يُخفى في تبويب القيد
   }[];
 }
 
@@ -174,12 +185,23 @@ export const journalEntriesService = {
       throw new Error('No tenant ID available');
     }
 
-    // Calculate totals
-    const totalDebit = input.lines.reduce((sum, line) => sum + (line.debit || 0), 0);
-    const totalCredit = input.lines.reduce((sum, line) => sum + (line.credit || 0), 0);
+    // ✅ فلترة الأسطر الفارغة قبل التحقق والإدخال
+    // (تمنع انتهاك قيد chk_debit_or_credit عند وجود صفوف فارغة في الشبكة)
+    const validLines = input.lines.filter(line =>
+      line.account_id &&
+      ((Number(line.debit) || 0) > 0 || (Number(line.credit) || 0) > 0)
+    );
 
-    // Validate balance
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    if (validLines.length < 2) {
+      throw new Error('يجب أن يحتوي القيد على بندين هيين على الأقل');
+    }
+
+    // Calculate totals in BASE CURRENCY (amount × exchange_rate)
+    const totalDebit  = validLines.reduce((sum, line) => sum + (line.debit  || 0) * (line.exchange_rate || 1), 0);
+    const totalCredit = validLines.reduce((sum, line) => sum + (line.credit || 0) * (line.exchange_rate || 1), 0);
+
+    // Validate balance in base currency
+    if (Math.abs(totalDebit - totalCredit) > 0.1) {
       throw new Error('القيد غير متوازن! يجب أن يكون إجمالي المدين يساوي إجمالي الدائن');
     }
 
@@ -200,10 +222,11 @@ export const journalEntriesService = {
         description: input.description,
         reference_type: input.reference_type || null,
         reference_id: input.reference_id || null,
-        total_debit: totalDebit,
-        total_credit: totalCredit,
-        status: 'draft',
-        is_posted: false,
+        total_debit: Math.round(totalDebit * 100) / 100,
+        total_credit: Math.round(totalCredit * 100) / 100,
+        status: input.status || 'draft',
+        is_posted: input.status === 'posted' || input.is_posted || false,
+        posted_at: input.status === 'posted' ? new Date().toISOString() : null,
       })
       .select()
       .single();
@@ -229,19 +252,31 @@ export const journalEntriesService = {
       }
     }
 
-    // Create lines
-    const linesData = input.lines.map((line, index) => ({
-      tenant_id: tenantId,
-      entry_id: entry.id,
-      line_number: index + 1,
-      account_id: line.account_id,
-      debit: line.debit || 0,
-      credit: line.credit || 0,
-      description: line.description || null,
-      cost_center_id: line.cost_center_id || null,
-      party_type: line.party_type || null,
-      party_id: line.party_id || null,
-    }));
+    // Create lines — store BASE currency in debit/credit (for RPC balance check)
+    // debit_fc/credit_fc store NATIVE/original amounts for display
+    const linesData = validLines.map((line, index) => {
+      const rate = Number(line.exchange_rate) || 1;
+      const debitBase  = Math.round((line.debit  || 0) * rate * 100) / 100;
+      const creditBase = Math.round((line.credit || 0) * rate * 100) / 100;
+      return {
+        tenant_id: tenantId,
+        entry_id: entry.id,
+        line_number: index + 1,
+        account_id: line.account_id,
+        debit:    debitBase,
+        credit:   creditBase,
+        debit_fc:  line.debit  || 0,
+        credit_fc: line.credit || 0,
+        description: line.description || null,
+        cost_center_id: line.cost_center_id || null,
+        party_type: line.party_type || null,
+        party_id: line.party_id || null,
+        currency: line.currency || null,
+        exchange_rate: rate,
+        is_fund_line: line.is_fund_line === true,  // ← علامة سطر الصندوق التلقائي
+      };
+    });
+
 
     const { data: lines, error: linesError } = await supabase
       .from('journal_entry_lines')
@@ -324,14 +359,26 @@ export const journalEntriesService = {
 
     // If lines are being updated, recalculate totals
     if (updates.lines) {
-      const totalDebit = updates.lines.reduce((sum, line) => sum + (line.debit || 0), 0);
-      const totalCredit = updates.lines.reduce((sum, line) => sum + (line.credit || 0), 0);
+      // ✅ فلترة الأسطر الفارغة قبل التحقق والإدخال
+      const validUpdateLines = updates.lines.filter(line =>
+        line.account_id &&
+        ((Number(line.debit) || 0) > 0 || (Number(line.credit) || 0) > 0)
+      );
 
-      if (Math.abs(totalDebit - totalCredit) > 0.01) {
+      // Update entry totals — base currency
+      const convDebit  = validUpdateLines.reduce((sum, line) => sum + (line.debit  || 0) * (line.exchange_rate || 1), 0);
+      const convCredit = validUpdateLines.reduce((sum, line) => sum + (line.credit || 0) * (line.exchange_rate || 1), 0);
+
+      if (Math.abs(convDebit - convCredit) > 0.1) {
         throw new Error('القيد غير متوازن!');
       }
 
-      // Update entry totals
+      const totalDebit  = Math.round(convDebit  * 100) / 100;
+      const totalCredit = Math.round(convCredit * 100) / 100;
+      // Update entry totals + status
+      const newStatus = (updates as any).status || undefined;
+      const isNowPosted = newStatus === 'posted';
+
       const { error: updateError } = await supabase
         .from('journal_entries')
         .update({
@@ -340,9 +387,15 @@ export const journalEntriesService = {
           description: updates.description,
           entry_date: updates.entry_date,
           entry_type: updates.entry_type,
+          ...(newStatus ? {
+            status: newStatus,
+            is_posted: isNowPosted,
+            posted_at: isNowPosted ? new Date().toISOString() : null,
+          } : {}),
         })
         .eq('id', id)
         .eq('tenant_id', tenantId);
+
 
       if (updateError) {
         throw updateError;
@@ -355,19 +408,30 @@ export const journalEntriesService = {
         .eq('entry_id', id)
         .eq('tenant_id', tenantId);
 
-      // Insert new lines
-      const linesData = updates.lines.map((line, index) => ({
-        tenant_id: tenantId,
-        entry_id: id,
-        line_number: index + 1,
-        account_id: line.account_id,
-        debit: line.debit || 0,
-        credit: line.credit || 0,
-        description: line.description || null,
-        cost_center_id: line.cost_center_id || null,
-        party_type: line.party_type || null,
-        party_id: line.party_id || null,
-      }));
+      // Insert new lines — BASE currency in debit/credit (for RPC), native in debit_fc/credit_fc
+      const linesData = validUpdateLines.map((line, index) => {
+        const rate = Number(line.exchange_rate) || 1;
+        const debitBase  = Math.round((line.debit  || 0) * rate * 100) / 100;
+        const creditBase = Math.round((line.credit || 0) * rate * 100) / 100;
+        return {
+          tenant_id: tenantId,
+          entry_id: id,
+          line_number: index + 1,
+          account_id: line.account_id,
+          debit:    debitBase,
+          credit:   creditBase,
+          debit_fc:  line.debit  || 0,
+          credit_fc: line.credit || 0,
+          description: line.description || null,
+          cost_center_id: line.cost_center_id || null,
+          party_type: line.party_type || null,
+          party_id: line.party_id || null,
+          currency: line.currency || null,
+          exchange_rate: rate,
+          is_fund_line: line.is_fund_line === true,  // ← علامة سطر الصندوق
+        };
+      });
+
 
       const { error: linesError } = await supabase
         .from('journal_entry_lines')
@@ -400,34 +464,28 @@ export const journalEntriesService = {
     const tenantId = await getCurrentTenantIdAsync();
     if (!tenantId) throw new Error('No tenant ID available');
 
-    // حماية: القيود المرتبطة بمستندات أخرى
-    const { data: entryCheck } = await supabase
-      .from('journal_entries')
-      .select('reference_type, entry_type')
-      .eq('id', id)
-      .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id || null;
 
-    const protectedRefs = ['container', 'purchase_invoice', 'sales_invoice', 'goods_receipt'];
-    const protectedTypes = ['container_expense', 'container_expense_reversal', 'auto', 'provisional'];
-    if (protectedRefs.includes(entryCheck?.reference_type) || protectedTypes.includes(entryCheck?.entry_type)) {
-      throw new Error('هذا القيد مرتبط بمستند آخر — التعديل متاح فقط من المصدر الأصلي');
+    // ✅ استخدام RPC المخصص الذي يعكس أرصدة chart_of_accounts ذرياً
+    // ثم يُعيد القيد إلى مسودة — في نفس الـ transaction
+    const { data, error } = await supabase.rpc('unpost_journal_entry', {
+      p_entry_id: id,
+      p_user_id:  userId,
+    });
+
+    if (error) {
+      throw new Error(error.message || 'فشل إلغاء الترحيل');
     }
 
-    const { error } = await supabase
-      .from('journal_entries')
-      .update({ status: 'draft', is_posted: false })
-      .eq('id', id)
-      .eq('tenant_id', tenantId);
-
-    if (error) throw error;
-
-    // 📜 Activity Log: تسجيل إلغاء الترحيل
+    // 📜 Activity Log
     activityLogService.logEvent({
       table: 'journal_entries',
       documentId: id,
       event: 'unposted',
-      userId: 'system',
-      userName: 'النظام',
+      userId: userId || 'system',
+      userName: 'المستخدم',
+      details: { lines_reversed: data?.lines_reversed },
     });
   },
 

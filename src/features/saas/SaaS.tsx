@@ -17,39 +17,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
-  Users,
-  Package,
-  Building2,
-  CreditCard,
+  Layers,
   Settings,
-  BarChart3,
-  UserCog,
-  Globe,
-  Ticket,
-  Gift,
   Crown,
-  Boxes
 } from 'lucide-react';
 
 // Direct imports for instant switching
-import Agents from './Agents';
-import Subscribers from './Subscribers';
-import { Companies } from './Companies';
 import { SaaSDashboard } from './SaaSDashboard';
-import Packages from './Packages';
-import Payments from './Payments';
-import WhiteLabel from './WhiteLabel';
-import Support from './Support';
-import Marketing from './Marketing';
-import Reports from './Reports';
+import PlatformsTab from './PlatformsTab';
 import SaaSSettings from './Settings';
-import Modules from './Modules';
 
 interface TabConfig {
-    id: string;
-    labelKey: string;
-    icon: React.ComponentType<{ className?: string }>;
-    component: React.ComponentType;
+  id: string;
+  labelKey: string;
+  icon: React.ComponentType<{ className?: string }>;
+  component: React.ComponentType;
 }
 
 export default function SaaS() {
@@ -62,16 +44,7 @@ export default function SaaS() {
     const path = location.pathname;
     if (path.startsWith('/saas')) {
       if (path === '/saas' || path === '/saas/') return 'dashboard';
-      if (path.includes('/subscribers')) return 'subscribers';
-      if (path.includes('/companies')) return 'companies';
-      if (path.includes('/packages')) return 'packages';
-      if (path.includes('/modules')) return 'modules';
-      if (path.includes('/agents')) return 'agents';
-      if (path.includes('/white-label')) return 'white-label';
-      if (path.includes('/payments')) return 'payments';
-      if (path.includes('/support') || path.includes('/notifications')) return 'support';
-      if (path.includes('/marketing') || path.includes('/coupons') || path.includes('/referrals')) return 'marketing';
-      if (path.includes('/reports') || path.includes('/analytics')) return 'reports';
+      if (path.includes('/platforms')) return 'platforms';
       if (path.includes('/settings') || path.includes('/webhooks')) return 'settings';
       return 'dashboard';
     }
@@ -92,18 +65,9 @@ export default function SaaS() {
 
   const tabs: TabConfig[] = useMemo(() => [
     { id: 'dashboard', labelKey: 'saas.dashboard.label', icon: LayoutDashboard, component: SaaSDashboard },
-    { id: 'subscribers', labelKey: 'saas.subscribers', icon: Building2, component: Subscribers },
-    { id: 'companies', labelKey: 'saas.companies', icon: Building2, component: Companies },
-    { id: 'packages', labelKey: 'saas.packages', icon: Package, component: Packages },
-    { id: 'modules', labelKey: 'saas.modules', icon: Boxes, component: Modules },
-    { id: 'agents', labelKey: 'saas.agents', icon: UserCog, component: Agents },
-    { id: 'white-label', labelKey: 'saas.whiteLabel', icon: Globe, component: WhiteLabel },
-    { id: 'payments', labelKey: 'saas.payments', icon: CreditCard, component: Payments },
-    { id: 'support', labelKey: 'saas.support', icon: Ticket, component: Support },
-    { id: 'marketing', labelKey: 'saas.marketing', icon: Gift, component: Marketing },
-    { id: 'reports', labelKey: 'saas.reports', icon: BarChart3, component: Reports },
+    { id: 'platforms', labelKey: language === 'ar' ? 'المنصات' : 'Platforms', icon: Layers, component: PlatformsTab },
     { id: 'settings', labelKey: 'saas.settings', icon: Settings, component: SaaSSettings },
-  ], []);
+  ], [language]);
 
   const handleTabChange = useCallback((tabId: string) => {
     if (tabId !== activeTab) {

@@ -5,6 +5,7 @@
  * ويحسب الرصيد التراكمي والمجاميع محلياً
  * 
  * يدعم: فلتر التواريخ + العملة + نوع الحركة + البحث
+ * يدعم: تحويل العملات — الحركات بسعر الصرف وقت العملية، والرصيد بالسعر الحالي
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -23,6 +24,11 @@ export interface CounterAccountInfo {
 // ═══ Extended Ledger Entry with Counter Account ═══
 export interface ExtendedLedgerEntry extends LedgerEntry {
     counterAccount: CounterAccountInfo;
+    // Original values (before currency conversion)
+    _originalDebit?: number;
+    _originalCredit?: number;
+    _originalBalance?: number;
+    _originalCurrency?: string;
 }
 
 // ═══ Entry Detail Line (for expanded row) ═══
@@ -43,6 +49,12 @@ export interface UseLedgerDataProps {
     accountId: string;
     companyId: string;
     enabled?: boolean; // لتأخير الجلب حتى يكون التبويب مفعّل
+    /** العملة المستهدفة لتحويل كشف الحساب إليها */
+    targetCurrency?: string;
+    /** العملة الأساسية للشركة */
+    baseCurrency?: string;
+    /** دالة البحث عن سعر الصرف الحالي */
+    lookupCurrentRate?: (fromCurrency: string, toCurrency: string) => number;
 }
 
 // ═══ Hook Return ═══
@@ -73,17 +85,24 @@ export interface UseLedgerDataReturn {
     refetch: () => void;
     // Expanded row detail fetching
     fetchEntryDetails: (journalEntryId: string) => Promise<EntryDetailLine[]>;
+    /** هل كشف الحساب محوّل لعملة مختلفة؟ */
+    isConverted: boolean;
+    /** العملة الحالية المعروضة */
+    displayCurrency: string;
 }
 
 export function useLedgerData({
     accountId,
     companyId,
     enabled = true,
+    targetCurrency,
+    baseCurrency,
+    lookupCurrentRate,
 }: UseLedgerDataProps): UseLedgerDataReturn {
 
     // ═══ State ═══
-    const [entries, setEntries] = useState<ExtendedLedgerEntry[]>([]);
-    const [stats, setStats] = useState<AccountStats | null>(null);
+    const [rawEntries, setRawEntries] = useState<ExtendedLedgerEntry[]>([]);
+    const [rawStats, setRawStats] = useState<AccountStats | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +111,8 @@ export function useLedgerData({
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [currency, setCurrency] = useState('');
-    const [status, setStatus] = useState<'all' | 'posted' | 'draft'>('all');
+    const [status, setStatus] = useState<'all' | 'posted' | 'draft'>('posted');
+
     const [entryType, setEntryType] = useState('');
     const [search, setSearch] = useState('');
 
@@ -140,8 +160,8 @@ export function useLedgerData({
 
     // ═══ Reset on Account Change ═══
     useEffect(() => {
-        setEntries([]);
-        setStats(null);
+        setRawEntries([]);
+        setRawStats(null);
     }, [accountId]);
 
     // ═══ Fetch Ledger Data ═══
@@ -157,7 +177,7 @@ export function useLedgerData({
                 companyId,
                 dateFrom: dateFrom || undefined,
                 dateTo: dateTo || undefined,
-                currency: currency || undefined,
+                // Don't filter by currency at query level — fetch all and convert client-side
                 status: status,
                 entryType: entryType || undefined,
                 search: search || undefined,
@@ -168,19 +188,15 @@ export function useLedgerData({
             // Enrich entries with counter account info
             const enrichedEntries = await enrichWithCounterAccounts(result.entries, currentAccountId);
 
-            // Check if account ID matches still (to prevent race conditions)
-            setEntries(currentEntries => {
-                // By doing this only via active check in useEffect, we are safer.
-                return enrichedEntries;
-            });
-            setStats(result.stats);
+            setRawEntries(enrichedEntries);
+            setRawStats(result.stats);
         } catch (err: any) {
             console.error('[LedgerTab] Error fetching ledger data:', err);
             setError(err?.message || 'Error fetching ledger data');
         } finally {
             setLoading(false);
         }
-    }, [companyId, enabled, dateFrom, dateTo, currency, status, entryType, search]);
+    }, [companyId, enabled, dateFrom, dateTo, status, entryType, search]);
 
     // ═══ Auto-fetch on filter change ═══
     useEffect(() => {
@@ -196,7 +212,7 @@ export function useLedgerData({
                     companyId,
                     dateFrom: dateFrom || undefined,
                     dateTo: dateTo || undefined,
-                    currency: currency || undefined,
+                    // Don't filter by currency at query level
                     status: status,
                     entryType: entryType || undefined,
                     search: search || undefined,
@@ -205,8 +221,8 @@ export function useLedgerData({
                 const enrichedEntries = await enrichWithCounterAccounts(result.entries, accountId);
 
                 if (active) {
-                    setEntries(enrichedEntries);
-                    setStats(result.stats);
+                    setRawEntries(enrichedEntries);
+                    setRawStats(result.stats);
                 }
             } catch (err: any) {
                 if (active) setError(err?.message || 'Error fetching ledger data');
@@ -218,7 +234,102 @@ export function useLedgerData({
         loadData();
 
         return () => { active = false; };
-    }, [accountId, companyId, enabled, dateFrom, dateTo, currency, status, entryType, search]);
+    }, [accountId, companyId, enabled, dateFrom, dateTo, status, entryType, search]);
+
+    // ═══════════════════════════════════════════
+    // Currency Conversion Logic — V2 (debit_fc/credit_fc aware)
+    //
+    // journal_entry_lines يخزّن حقلين لكل جانب:
+    //   debit/credit     → المبلغ بالعملة الأساسية (UAH) — دائماً
+    //   debit_fc/credit_fc → المبلغ بعملة المعاملة الأصلية (USD, EUR, etc)
+    //
+    // عند اختيار عملة مستهدفة:
+    //   - إذا العملة = عملة المعاملة الأصلية وfC موجود → نعرض debit_fc/credit_fc مباشرة
+    //   - إذا العملة مختلفة → نحوّل debit_fc (أو debit) × rate
+    //   - إذا العملة = العملة الأساسية → نعرض debit/credit بدون تحويل
+    // ═══════════════════════════════════════════
+
+    // Determine if conversion is active
+    const isConverted = !!(targetCurrency && lookupCurrentRate);
+    const displayCurrency = targetCurrency || baseCurrency || '';
+
+    // Convert entries for display
+    const entries: ExtendedLedgerEntry[] = useMemo(() => {
+        if (!isConverted || !targetCurrency || !lookupCurrentRate) return rawEntries;
+
+        let runningBalance = 0;
+
+        return rawEntries.map(entry => {
+            const entryCurrency = entry.currency || baseCurrency || '';
+            let convertedDebit: number;
+            let convertedCredit: number;
+
+            if (entryCurrency === targetCurrency) {
+                // ═══ العملة المطلوبة = عملة المعاملة الأصلية ═══
+                // استخدم debitFc/creditFc مباشرة (هذه هي المبالغ بالعملة الأصلية)
+                // مثال: دفعنا 1000 USD → debitFc=1000, debit=43890 → نعرض 1000
+                if (entry.debitFc != null || entry.creditFc != null) {
+                    convertedDebit = entry.debitFc || 0;
+                    convertedCredit = entry.creditFc || 0;
+                } else {
+                    // لا يوجد fc → المعاملة بالعملة الأساسية نفسها
+                    convertedDebit = entry.debit;
+                    convertedCredit = entry.credit;
+                }
+            } else if (entryCurrency === baseCurrency || !entryCurrency) {
+                // ═══ المعاملة بالعملة الأساسية → حوّل للعملة المطلوبة ═══
+                const rate = lookupCurrentRate(baseCurrency || '', targetCurrency);
+                convertedDebit = entry.debit * rate;
+                convertedCredit = entry.credit * rate;
+            } else {
+                // ═══ المعاملة بعملة مختلفة عن المطلوبة وعن الأساسية ═══
+                // حوّل من العملة الأصلية (fc) إلى العملة المطلوبة
+                const fcDebit = entry.debitFc != null ? entry.debitFc : entry.debit;
+                const fcCredit = entry.creditFc != null ? entry.creditFc : entry.credit;
+                const rate = lookupCurrentRate(entryCurrency, targetCurrency);
+                convertedDebit = fcDebit * rate;
+                convertedCredit = fcCredit * rate;
+            }
+
+            // Recalculate running balance with converted amounts
+            runningBalance = runningBalance + convertedDebit - convertedCredit;
+
+            return {
+                ...entry,
+                debit: Math.round(convertedDebit * 100) / 100,
+                credit: Math.round(convertedCredit * 100) / 100,
+                balance: Math.round(runningBalance * 100) / 100,
+                // Keep original values for reference
+                _originalDebit: entry.debit,
+                _originalCredit: entry.credit,
+                _originalBalance: entry.balance,
+                _originalCurrency: entry.currency,
+            };
+        });
+    }, [rawEntries, isConverted, targetCurrency, baseCurrency, lookupCurrentRate]);
+
+    // Convert stats for display
+    const stats: AccountStats | null = useMemo(() => {
+        if (!rawStats) return null;
+        if (!isConverted || !targetCurrency || !lookupCurrentRate) return rawStats;
+
+        // IMPORTANT: Compute stats from the CONVERTED entries, NOT from rawStats × rate
+        // rawStats.currentBalance mixes currencies (e.g., 17500 USD + 87560 UAH = 105060)
+        // which can't be converted by a single rate
+        const totalDebit = entries.reduce((sum, e) => sum + e.debit, 0);
+        const totalCredit = entries.reduce((sum, e) => sum + e.credit, 0);
+        const currentBalance = totalDebit - totalCredit;
+
+        return {
+            ...rawStats,
+            totalDebit: Math.round(totalDebit * 100) / 100,
+            totalCredit: Math.round(totalCredit * 100) / 100,
+            currentBalance: Math.round(currentBalance * 100) / 100,
+            openingBalance: 0, // Opening balance is folded into running balance
+            periodDebit: Math.round(totalDebit * 100) / 100,
+            periodCredit: Math.round(totalCredit * 100) / 100,
+        };
+    }, [rawStats, entries, isConverted, targetCurrency, lookupCurrentRate]);
 
     // ═══ Fetch Entry Details (for expanded row — lazy) ═══
     const fetchEntryDetails = useCallback(async (journalEntryId: string): Promise<EntryDetailLine[]> => {
@@ -275,6 +386,8 @@ export function useLedgerData({
         setDatePreset,
         refetch: () => fetchData(accountId),
         fetchEntryDetails,
+        isConverted,
+        displayCurrency,
     };
 }
 

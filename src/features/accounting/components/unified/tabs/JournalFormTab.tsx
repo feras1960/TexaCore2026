@@ -20,8 +20,8 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
-import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
-import { NexaDataTable } from '@/components/ui/nexa-data-table';
+import { useExchangeRateLookup, preloadExchangeRates } from '@/hooks/useExchangeRateLookup';
+import { AccountingGrid, type GridEditableColumn } from '@/components/ui/accounting-grid';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -162,10 +162,11 @@ export function JournalFormTab({
 }: JournalFormTabProps) {
     const { t, language, direction } = useLanguage();
     const { companyId: hookCompanyId } = useCompany();
-    const { currencyCode: companyCurrency } = useCompanyCurrency();
-    const { currencyOptions } = useViewCurrency();
-    const { autoPost } = useAccountingSettings();
-    const { lookupRate } = useExchangeRateLookup();
+    const { currencyCode: defaultCompanyCurrency } = useCompanyCurrency();
+    const { currencyOptions, getRate } = useViewCurrency();
+    const { autoPost, baseCurrency: accBaseCurrency } = useAccountingSettings();
+    const companyCurrency = accBaseCurrency || defaultCompanyCurrency;
+    const { lookupRate, lookupRateAsync } = useExchangeRateLookup();
     const isRTL = direction === 'rtl' || language === 'ar';
     const isReadOnly = mode === 'view';
     const isCreate = mode === 'create';
@@ -312,6 +313,16 @@ export function JournalFormTab({
 
             setLines(loadedLines.length > 0 ? loadedLines : []);
             setIsDataLoaded(true);
+
+            // ─── Pre-warm exchange rate cache ───
+            if (effectiveCompanyId) preloadExchangeRates(effectiveCompanyId);
+            const uniqueCurrencies = [...new Set(loadedLines.map((l: JournalLineRow) => l.currency).filter(Boolean))];
+            uniqueCurrencies.forEach((curr: string) => {
+                if (curr && curr !== companyCurrency) {
+                    lookupRateAsync(curr, companyCurrency); // fire-and-forget
+                }
+            });
+
         } else if (isCreate) {
             // Check for saved draft before starting fresh
             try {
@@ -353,7 +364,7 @@ export function JournalFormTab({
             setDescription('');
             setVoucherNo('');
             setStatus(autoPost ? 'posted' : 'draft');
-            setLines([]);
+            setLines(Array.from({ length: 8 }, () => createEmptyRow(companyCurrency)));
             setIsDataLoaded(true);
         }
     }, [data, mode, isEdit, isReadOnly, isCreate, docType, autoPost]);
@@ -644,45 +655,68 @@ export function JournalFormTab({
         return cols;
     }, [voucherType, language]);
 
-    // ─── Row factory for NexaDataTable ───
-    const handleAddRow = useCallback(() => {
-        const newRow = createEmptyRow(companyCurrency);
-        setLines(prev => [...prev, newRow]);
-        return newRow;
+    // ─── Row factory for AccountingGrid ───
+    const handleAddRow = useCallback((): JournalLineRow => {
+        return createEmptyRow(companyCurrency);
     }, [companyCurrency]);
 
-    const handleInsertRow = useCallback((index: number) => {
-        const newRow = createEmptyRow(companyCurrency);
-        setLines(prev => {
-            const copy = [...prev];
-            copy.splice(index + 1, 0, newRow);
-            return copy;
-        });
-        return newRow;
+    const handleInsertRow = useCallback((index: number): JournalLineRow => {
+        return createEmptyRow(companyCurrency);
+        void index;
     }, [companyCurrency]);
 
-    // ─── Save handler for NexaDataTable ───
-    const handleNexaSave = useCallback(async (updatedData: JournalLineRow[]) => {
-        // Update local state with the cleaned data
-        setLines(updatedData);
+    // ─── AccountingGrid onChange bridge ───
+    const handleLinesChange = useCallback((updatedRows: JournalLineRow[]) => {
+        setLines(updatedRows);
     }, []);
 
-    // ─── Data change handler (real-time cell edits) ───
-    // Detects currency changes and auto-fills exchange rate
-    const handleDataChange = useCallback((updatedData: JournalLineRow[]) => {
-        // Detect currency changes and auto-fill exchange rate
-        const enriched = updatedData.map((row, idx) => {
-            const oldRow = lines[idx];
-            // If currency changed and it's different from the old value
-            if (oldRow && row.currency && row.currency !== oldRow.currency) {
-                // Auto-lookup exchange rate
-                const rate = lookupRate(row.currency, companyCurrency);
-                return { ...row, exchange_rate: rate };
+    // ─── Cell Change Interceptor (Fires before saving to NexaDataTable) ───
+    const handleCellChange = useCallback((rowIndex: number, colKey: string, newValue: unknown, currentRow: JournalLineRow): JournalLineRow | void => {
+        let newRow = { ...currentRow };
+        let modified = false;
+
+        if (colKey === 'currency' && typeof newValue === 'string') {
+            const targetCurrency = newValue || companyCurrency;
+            newRow.currency = targetCurrency;
+            
+            console.log(`[JournalFormTab] Currency changed to ${targetCurrency}. Base currency is: ${companyCurrency}`);
+
+            if (targetCurrency === companyCurrency) {
+                console.log(`[JournalFormTab] Target equals base currency. Rate is 1.0`);
+                newRow.exchange_rate = 1;
+                modified = true;
+            } else {
+                let rate = lookupRate(targetCurrency, companyCurrency);
+                console.log(`[JournalFormTab] lookupRate returned:`, rate);
+                if (rate === 1) rate = getRate(targetCurrency, companyCurrency);
+                console.log(`[JournalFormTab] getRate returned:`, rate);
+                
+                if (rate !== 1) {
+                    newRow.exchange_rate = rate;
+                    modified = true;
+                    console.log(`[JournalFormTab] Rate found synchronously:`, rate);
+                } else {
+                    console.log(`[JournalFormTab] Fallback to async fetch...`);
+                    // Try to wait for async but inform user if needed
+                    // (we don't import toast here, so we'll just log and rely on the async update) // Wait, I can import toast, but let's just do it silently and let the async setLines handle it.
+                    // Wait, if it's setLines, in NexaDataTable, the parent updating setLines doesn't update editedData while editing (unless we fixed it in nexa-data-table.tsx, which we did!)
+                    
+                    lookupRateAsync(targetCurrency, companyCurrency).then(asyncRate => {
+                        console.log(`[JournalFormTab] asyncRate fetched target=${targetCurrency} base=${companyCurrency} rate=${asyncRate}`);
+                        if (asyncRate && asyncRate !== 1) {
+                            setLines(prev => prev.map((l, i) => 
+                                i === rowIndex && l.currency === targetCurrency
+                                    ? { ...l, exchange_rate: asyncRate }
+                                    : l
+                            ));
+                        }
+                    });
+                }
             }
-            return row;
-        });
-        setLines(enriched);
-    }, [lines, lookupRate, companyCurrency]);
+        }
+
+        return modified ? newRow : undefined;
+    }, [companyCurrency, lookupRate, getRate, lookupRateAsync]);
 
     // ─── Status helpers ───
     const getStatusColor = (s: string) => {
@@ -800,14 +834,23 @@ export function JournalFormTab({
                     {/* Live Balance Summary */}
                     <div className="flex items-center gap-3 text-xs font-mono">
                         <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-muted-foreground">{t('accounting.debit') || 'م'}</span>
-                            <span className="font-bold text-green-600">{totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                                {voucherType === 'cash' || voucherType === 'payment'
+                                    ? (isRTL ? 'مدفوعات' : 'Out')
+                                    : (t('accounting.debit') || 'م')}
+                            </span>
+                            <span className="font-bold text-red-600">{totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-muted-foreground">{t('accounting.credit') || 'د'}</span>
-                            <span className="font-bold text-red-600">{totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                                {voucherType === 'cash' || voucherType === 'receipt'
+                                    ? (isRTL ? 'مقبوضات' : 'In')
+                                    : (t('accounting.credit') || 'د')}
+                            </span>
+                            <span className="font-bold text-green-600">{totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                         </div>
-                        {!isBalanced && !isReadOnly ? (
+                        {/* تحذير عدم التوازن — فقط للقيود اليومية */}
+                        {voucherType === 'journal' && !isBalanced && !isReadOnly ? (
                             <Badge variant="destructive" className="animate-pulse text-[10px] h-5 px-1.5">
                                 {Math.abs(totals.debit - totals.credit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </Badge>
@@ -815,6 +858,7 @@ export function JournalFormTab({
                             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] h-5 px-1.5">✓</Badge>
                         ) : null}
                     </div>
+
 
                     {/* Draft Status */}
                     {!isReadOnly && draftStatus !== 'idle' && (
@@ -900,64 +944,73 @@ export function JournalFormTab({
                 </div>
             )}
 
-            {/* ─── 4. NexaDataTable Grid (fills remaining space) ─── */}
+            {/* ─── 4. AccountingGrid (fills remaining space) ─── */}
             <div
-                className="flex-1 min-h-0"
+                className="flex-1 min-h-0 overflow-auto"
                 onKeyDown={(e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                         e.preventDefault();
                     }
                 }}
             >
-                <NexaDataTable
-                    key={`nexa-${voucherType}`}
-                    data={lines}
+                <AccountingGrid<JournalLineRow>
+                    rows={lines}
+                    onChange={handleLinesChange}
                     columns={columns}
+                    editableColumns={editableColumns as GridEditableColumn[]}
                     isRTL={isRTL}
-                    persistKey={`accounting-${voucherType}-lines-v4`}
 
-                    // Excel Mode - no pagination, scrollable
-                    enableExcelMode={true}
-                    enablePagination={false}
-                    maxHeight="100%"
-
-                    // Totals Footer
-                    showTotalsFooter={true}
+                    // Debit / Credit configuration
                     debitKey="debit"
                     creditKey="credit"
+
+                    // Totals Footer
+                    showTotalsFooter={!isReadOnly}
                     showAmountInWords={true}
 
-                    // Sequence Number
-                    enableSequenceNumber={true}
+                    // ── Footer labels حسب نوع الوثيقة ──
+                    footerDebitLabel={
+                        voucherType === 'cash' || voucherType === 'payment'
+                            ? (isRTL ? 'إجمالي المدفوعات' : 'Total Payments')
+                            : undefined
+                    }
+                    footerCreditLabel={
+                        voucherType === 'cash' || voucherType === 'receipt'
+                            ? (isRTL ? 'إجمالي المقبوضات' : 'Total Receipts')
+                            : undefined
+                    }
+                    // إخفاء الرصيد لليومية الصندوق/المقبوضات/المدفوعات (يتوازن مع الصندوق تلقائياً)
+                    hideFooterBalance={voucherType !== 'journal'}
 
-                    // Edit Mode
-                    enableEditMode={!isReadOnly}
-                    enableInstantEdit={!isReadOnly}
-                    editableColumns={editableColumns}
-                    onSave={handleNexaSave}
-                    onDataChange={handleDataChange}
+                    // Row management
                     onAddRow={handleAddRow}
                     onInsertRow={handleInsertRow}
-                    initialEmptyRows={isCreate ? 8 : 0}
+                    onDeleteRow={(_, __) => { void __; }}
+                    initialEmptyRows={0}
                     emptyRowsThreshold={3}
                     autoAddRowsCount={3}
-                    editModeExtraRows={isEdit ? 5 : 0}
-                    cleanEmptyRowsOnSave={true}
                     canDeleteRows={!isReadOnly}
 
-                    // Accounting Balance Shortcut
-                    enableBalanceShortcut={true}
+                    // Cell change interceptor (currency → exchange rate sync)
+                    onCellChange={!isReadOnly ? handleCellChange : undefined}
 
-                    // Keyboard Help Panel
+                    // Accounting Balance Shortcut (Ctrl+B / * Enter / double-click)
+                    // فقط للقيود اليومية — الصندوق يتوازن تلقائياً مع الصندوق
+                    enableBalanceShortcut={voucherType === 'journal'}
+                    hideBalanceWarning={voucherType !== 'journal'}
+
+                    // Keyboard Help
                     showKeyboardHelp={!isReadOnly}
+                    isReadOnly={isReadOnly}
 
-                    // Search & Export (view mode only)
-                    enableSearch={isReadOnly}
-                    enableExport={isReadOnly}
+                    // Company
+                    companyId={effectiveCompanyId || undefined}
 
                     // Empty message
                     emptyMessage={isRTL ? 'لا توجد بنود' : 'No line items'}
+                    maxHeight="100%"
                 />
+
             </div>
 
             {/* ─── 5. Meta Info (View Mode) ─── */}

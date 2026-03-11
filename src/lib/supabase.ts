@@ -30,6 +30,18 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// 🔐 Admin Supabase client (service_role key) — for admin operations only
+// Uses separate storage key so it doesn't affect user session
+const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+export const supabaseAdmin = serviceRoleKey
+  ? createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+  : null;
+
 // ============================================
 // Multi-Tenant Helper Functions
 // ============================================

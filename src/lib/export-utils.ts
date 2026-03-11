@@ -273,7 +273,11 @@ function generateProfessionalHTML(options: ExportOptions, mode: 'pdf' | 'print')
     <title>${title}</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; 
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
         
         @page {
             size: A4 portrait;
@@ -286,9 +290,10 @@ function generateProfessionalHTML(options: ExportOptions, mode: 'pdf' | 'print')
         
         @media print {
             .no-print { display: none !important; }
-            html, body { 
+            *, html, body, table, th, td, tr, div, span, p, h1, h2, h3 { 
                 -webkit-print-color-adjust: exact !important; 
                 print-color-adjust: exact !important;
+                color-adjust: exact !important;
             }
             
             /* Running footer - fixed at bottom of every page */
@@ -575,13 +580,64 @@ export function printTable(options: ExportOptions): void {
     win.document.close();
 }
 
-// === Google Sheets ===
-export function openInGoogleSheets(options: ExportOptions): void {
-    exportToExcel({ ...options, filename: `${options.filename || 'export'}_google_sheets` });
-    alert(options.isRTL
-        ? `✅ تم تحميل ملف Excel\n\n📌 لفتحه في Google Sheets:\n1. افتح Google Drive\n2. ارفع الملف\n3. افتحه بـ Google Sheets`
-        : `✅ Excel downloaded\n\n📌 To open in Google Sheets:\n1. Open Google Drive\n2. Upload file\n3. Open with Google Sheets`
-    );
+// === Google Sheets (Direct API) ===
+export async function openInGoogleSheets(options: ExportOptions & { companyId?: string; supabaseClient?: any; language?: string }): Promise<{ url?: string; error?: string }> {
+    const { columns, data, companyId, supabaseClient, filename = 'export', title, isRTL = true, language } = options;
+
+    // If no supabase client or company, fallback to Excel download
+    if (!supabaseClient || !companyId) {
+        exportToExcel({ ...options, filename: `${filename}_google_sheets` });
+        const msg = isRTL
+            ? '📥 تم تحميل ملف Excel\n\nللفتح مباشرة في Google Sheets:\nاربط حسابك في الإعدادات → التكاملات'
+            : '📥 Excel downloaded\n\nTo open directly in Google Sheets:\nConnect your account in Settings → Integrations';
+        alert(msg);
+        return { error: 'not_connected' };
+    }
+
+    try {
+        const headers = columns.map(col => col.header);
+        const rows = data.map(row =>
+            columns.map(col => {
+                const value = row[col.key];
+                if (value === null || value === undefined) return '';
+                return value;
+            })
+        );
+
+        const { data: result, error } = await supabaseClient.functions.invoke('google-integration', {
+            body: {
+                action: 'export_sheet',
+                company_id: companyId,
+                title: title || filename,
+                subtitle: options.subtitle || '',
+                company_name: options.companyInfo?.name || '',
+                headers,
+                rows,
+                isRTL,
+                language: language || (isRTL ? 'ar' : 'en'),
+            }
+        });
+
+        if (error) throw error;
+        if (result?.error) throw new Error(result.error);
+
+        if (result?.spreadsheetUrl) {
+            window.open(result.spreadsheetUrl, '_blank');
+            return { url: result.spreadsheetUrl };
+        }
+
+        throw new Error('No URL returned');
+    } catch (err: any) {
+        // If not connected, fallback to Excel
+        if (err.message?.includes('NOT_CONNECTED') || err.message?.includes('not connected')) {
+            exportToExcel({ ...options, filename: `${filename}_google_sheets` });
+            const msg = isRTL
+                ? '📥 تم تحميل ملف Excel\n\nللفتح مباشرة في Google Sheets:\nاربط حسابك في الإعدادات → التكاملات'
+                : '📥 Excel downloaded\n\nTo open directly in Google Sheets:\nConnect your account in Settings → Integrations';
+            alert(msg);
+        }
+        return { error: err.message };
+    }
 }
 
 export const exportUtils = { toExcel: exportToExcel, toPDF: exportToPDF, print: printTable, toGoogleSheets: openInGoogleSheets };

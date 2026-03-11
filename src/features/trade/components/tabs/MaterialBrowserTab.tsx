@@ -29,6 +29,7 @@ import type { CustomerPricingProfile, PriceListItem, ResolvedPrice } from '@/hoo
 import type { PreferredRoll } from '@/contexts/CartContext';
 import { useTaxDefaults, computeTaxAmount, resolveItemTaxRate } from '@/features/trade/hooks/useTaxDefaults';
 import { useCompany } from '@/hooks/useCompany';
+import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,8 @@ interface MaterialBrowserTabProps {
     };
     /** Document currency */
     currency?: string;
+    /** Exchange rate: 1 doc-currency = X base-currency.  Used to convert base prices to doc currency. */
+    exchangeRate?: number;
     /** Trade mode: sales, purchase, transfer */
     tradeMode?: string;
     /** Read only mode */
@@ -108,6 +111,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     onAddItem,
     customerPricing,
     currency: currencyProp = '',
+    exchangeRate: exchangeRateProp = 1,
     tradeMode,
     readOnly = false,
     sourceWarehouseId,
@@ -118,7 +122,22 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const { company, companyId } = useCompany();
     // Currency priority: prop (from document) > company default
     const currency = currencyProp || company?.default_currency || 'USD';
+    const companyCurrency = company?.default_currency || 'USD';
     const isTransfer = tradeMode === 'transfer';
+
+    // ─── Price Conversion ───
+    // Material prices are stored in the material's OWN currency (e.g. USD).
+    // We convert from material.currency → invoice currency using exchange rates.
+    // Formula: displayPrice = materialPrice × lookupRate(materialCurrency, invoiceCurrency)
+    const { lookupRate: lookupExRate } = useExchangeRateLookup();
+    const convertPrice = useCallback((basePrice: number, fromCurrency: string) => {
+        if (!fromCurrency || fromCurrency === currency) return basePrice;
+        const rate = lookupExRate(fromCurrency, currency);
+        if (rate > 0 && Math.abs(rate - 1) > 0.0001) {
+            return Math.round(basePrice * rate * 10000) / 10000;
+        }
+        return basePrice;
+    }, [currency, lookupExRate]);
 
     // ─── Tax Defaults ───
     const { data: taxDefaults } = useTaxDefaults(companyId);
@@ -333,22 +352,27 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         preferred_rolls: PreferredRoll[];
         currency: string;
     }) => {
+        // Price arrives from AddToCartDialog already converted to invoice currency
+        const unitPrice = item.unit_price;
+
         // Resolve discount
         let discount = 0;
         if (customerPricing?.resolvePrice) {
-            const resolved = customerPricing.resolvePrice(item.material_id, item.quantity, item.unit_price);
+            const resolved = customerPricing.resolvePrice(item.material_id, item.quantity, unitPrice);
             discount = resolved.discountPercent;
         }
 
-        const discountAmount = (discount / 100) * item.quantity * item.unit_price;
-        const subtotal = item.quantity * item.unit_price;
+        const discountAmount = (discount / 100) * item.quantity * unitPrice;
+        const subtotal = item.quantity * unitPrice;
         const netAfterDiscount = subtotal - discountAmount;
 
         // 🔑 القاعدة الذهبية: ضريبة المادة → ضريبة الشركة → 0%
-        // البحث عن tax_rate المادة من المواد المحملة
         const materialData = materials.find(m => m.id === item.material_id);
         const resolved = resolveItemTaxRate(materialData?.tax_rate, companyTaxRate, companyTaxEnabled);
         const taxAmt = computeTaxAmount(netAfterDiscount, resolved.rate);
+
+        // Get exchange rate for invoice currency → base currency
+        const exRate = currency !== companyCurrency ? lookupExRate(currency, companyCurrency) : 1;
 
         const newItem: InvoiceLineItem = {
             id: generateLineItemId(),
@@ -358,14 +382,15 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
             material_name_en: item.material_name_en,
             quantity: item.quantity,
             unit: item.unit,
-            unit_price: item.unit_price,
+            unit_price: unitPrice,
             discount_percent: discount,
             discount_amount: discountAmount,
             subtotal,
             tax_rate: resolved.rate,
             tax_amount: taxAmt,
             total: netAfterDiscount + taxAmt,
-            currency: item.currency,
+            currency: currency,
+            exchange_rate: exRate,
             warehouse_id: item.warehouse_id,
             warehouse_name_ar: item.warehouse_name_ar,
             notes: '',
@@ -373,7 +398,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         };
 
         onAddItem(newItem);
-    }, [customerPricing, onAddItem, companyTaxRate, companyTaxEnabled, materials, currency]);
+    }, [customerPricing, onAddItem, companyTaxRate, companyTaxEnabled, materials, currency, companyCurrency, lookupExRate]);
 
     /** Quick add (for materials with no stock → no warehouse) */
     const handleQuickAdd = useCallback((material: MaterialSearchResult) => {
@@ -640,16 +665,18 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                         const isStockLoading = warehouseStockLoading.has(material.id);
                         const warehouseStock = warehouseStockCache[material.id] || [];
 
-                        // Resolve price for display
-                        let displayPrice = material.selling_price;
+                        // Resolve price for display — then convert to document currency
+                        let basePriceRaw = material.selling_price;
                         let priceSource: 'price_list' | 'base_price' | 'manual' = 'base_price';
                         if (customerPricing?.resolvePrice) {
                             const resolved = customerPricing.resolvePrice(
                                 material.id, 1, material.selling_price
                             );
-                            displayPrice = resolved.unitPrice;
+                            basePriceRaw = resolved.unitPrice;
                             priceSource = resolved.source;
                         }
+                        // Convert to document currency
+                        const displayPrice = convertPrice(basePriceRaw, material.currency || companyCurrency);
 
                         const isLowStock = material.stock_qty > 0 && material.stock_qty <= material.min_stock;
 
@@ -1408,7 +1435,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                             </div>
                                                             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
                                                                 <span className="text-gray-400 block">{t('سعر الشراء', 'Purchase')}</span>
-                                                                <span className="font-mono font-medium">{material.purchase_price.toFixed(2)}</span>
+                                                                <span className="font-mono font-medium">{convertPrice(material.purchase_price, material.currency || companyCurrency).toFixed(2)}</span>
                                                             </div>
                                                             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-md p-2">
                                                                 <span className="text-gray-400 block">{t('الحد الأدنى', 'Min Stock')}</span>
@@ -1442,7 +1469,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                         name_ar: dialogMaterial.name_ar,
                         name_en: dialogMaterial.name_en,
                         code: dialogMaterial.code,
-                        price: dialogMaterial.selling_price,
+                        price: convertPrice(dialogMaterial.selling_price, dialogMaterial.currency || companyCurrency),
                         unit: dialogMaterial.unit,
                         currency: currency,
                     }}

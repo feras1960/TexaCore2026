@@ -152,6 +152,7 @@ export function UnifiedAccountingSheet({
     const [hasChanges, setHasChanges] = useState(false);
     const [attachmentCount, setAttachmentCount] = useState<number>(0);
     const [activityCount, setActivityCount] = useState<number>(0);
+    const [displayCurrency, setDisplayCurrency] = useState<string>('all');
 
     // ═══ Confirmation Workflow State ═══
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -386,15 +387,17 @@ export function UnifiedAccountingSheet({
                     currencyCode = companyRow?.default_currency || '';
                 }
 
-                // 3) جلب سطور القيود
+                // 3) جلب سطور القيود (مع العملة لتحويل متعدد العملات)
                 const { data: lines, error } = await supabase
                     .from('journal_entry_lines')
                     .select(`
                         debit,
                         credit,
+                        currency,
                         journal_entries (
                             entry_date,
-                            status
+                            status,
+                            currency
                         )
                     `)
                     .eq('account_id', accountId);
@@ -407,11 +410,66 @@ export function UnifiedAccountingSheet({
                     return status === 'posted';
                 });
 
-                const totalDebit = postedLines.reduce((s: number, l: any) => s + (l.debit || 0), 0);
-                const totalCredit = postedLines.reduce((s: number, l: any) => s + (l.credit || 0), 0);
-                const transactionCount = postedLines.length;
+                // جلب أسعار الصرف من DB لتحويل العملات المختلفة
+                let ratesMap: Record<string, number> = {};
+                if (currencyCode) {
+                    const compId = acctRow?.company_id || initialData?.company_id;
+                    if (compId) {
+                        const { data: rates } = await supabase
+                            .from('exchange_rates')
+                            .select('from_currency, to_currency, buy_rate')
+                            .eq('company_id', compId)
+                            .eq('is_active', true)
+                            .order('effective_from', { ascending: false });
+                        if (rates) {
+                            // Build latest rate map (first occurrence = latest due to descending order)
+                            for (const r of rates) {
+                                const key = `${r.from_currency}-${r.to_currency}`;
+                                if (!ratesMap[key]) ratesMap[key] = r.buy_rate;
+                            }
+                        }
+                    }
+                }
 
-                // الرصيد الصحيح = افتتاحي + مدين - دائن
+                // Helper to get exchange rate between two currencies
+                const getRate = (from: string, to: string): number => {
+                    if (from === to) return 1;
+                    const directKey = `${from}-${to}`;
+                    if (ratesMap[directKey]) return ratesMap[directKey];
+                    // Try inverse
+                    const inverseKey = `${to}-${from}`;
+                    if (ratesMap[inverseKey]) return 1 / ratesMap[inverseKey];
+                    // Try pivot through common currencies
+                    for (const pivot of ['USD', 'EUR', 'UAH', 'SAR']) {
+                        const fromToPivot = ratesMap[`${from}-${pivot}`] || (ratesMap[`${pivot}-${from}`] ? 1 / ratesMap[`${pivot}-${from}`] : 0);
+                        const pivotToTarget = ratesMap[`${pivot}-${to}`] || (ratesMap[`${to}-${pivot}`] ? 1 / ratesMap[`${to}-${pivot}`] : 0);
+                        if (fromToPivot > 0 && pivotToTarget > 0) {
+                            return fromToPivot * pivotToTarget;
+                        }
+                    }
+                    return 1; // Fallback
+                };
+
+                let totalDebit = 0;
+                let totalCredit = 0;
+                let transactionCount = postedLines.length;
+
+                for (const l of postedLines as any[]) {
+                    const lineCurrency = l.currency || l.journal_entries?.currency || currencyCode;
+                    const debit = l.debit || 0;
+                    const credit = l.credit || 0;
+
+                    if (lineCurrency === currencyCode || !currencyCode) {
+                        totalDebit += debit;
+                        totalCredit += credit;
+                    } else {
+                        const rate = getRate(lineCurrency, currencyCode);
+                        totalDebit += debit * rate;
+                        totalCredit += credit * rate;
+                    }
+                }
+
+                // الرصيد الصحيح = افتتاحي + مدين - دائن (بعد التحويل)
                 const openingBalance = initialData?.opening_balance || 0;
                 const correctBalance = openingBalance + totalDebit - totalCredit;
 
@@ -428,11 +486,11 @@ export function UnifiedAccountingSheet({
                     const finalCurrency = currencyCode || prev?.currency || '';
                     return {
                         ...prev,
-                        total_debit: totalDebit,
-                        total_credit: totalCredit,
+                        total_debit: Math.round(totalDebit * 100) / 100,
+                        total_credit: Math.round(totalCredit * 100) / 100,
                         transaction_count: transactionCount,
                         last_activity: lastActivity,
-                        current_balance: correctBalance,
+                        current_balance: Math.round(correctBalance * 100) / 100,
                         currency: finalCurrency,
                     };
                 });
@@ -565,26 +623,29 @@ export function UnifiedAccountingSheet({
         }
     }, [activeDocId]);
 
-    // Set hasChanges to true in create mode to enable Save button
+    // hasChanges is set ONLY when the user actually modifies data (via handleChange)
+    // We use a ref to skip the very first onChange that fires from initializing empty rows
+    const skipInitialOnChangeRef = useRef(false);
     useEffect(() => {
-        if (mode === 'create') {
-            setHasChanges(true);
+        if (mode === 'create' || mode === 'edit') {
+            setHasChanges(false); // start clean — user must actually type something
+            skipInitialOnChangeRef.current = true; // skip next onChange (empty rows init)
         }
     }, [mode]);
 
     // Handle mode change
     const handleModeChange = useCallback((newMode: SheetMode) => {
         setMode(newMode);
-        // Enable save button when entering edit mode
         if (newMode === 'edit') {
-            setHasChanges(true);
+            // Don't mark dirty immediately — wait for first real user change
+            // (skipInitialOnChangeRef is already set by the mode useEffect)
             // ═══ Reset to appropriate tab when entering edit mode ═══
-            // For materials, edit mode uses 'basicInfo' as the first tab
             const editDefaultTab = config.tabs.find(t => t.showInModes?.includes('edit'))?.id || defaultTab || config.defaultTab;
             setActiveTab(editDefaultTab);
         }
         onModeChange?.(newMode);
     }, [onModeChange, defaultTab, config.defaultTab, config.tabs]);
+
 
     // ═══ Document Type Flags ═══
     const isAccountingDocType = useMemo(() => ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType), [docType]);
@@ -749,6 +810,8 @@ export function UnifiedAccountingSheet({
         openDocs, setOpenDocs, setActiveDocId,
         activeTab,
         stats: config.stats,
+        onDisplayCurrencyChange: setDisplayCurrency,
+        skipInitialOnChangeRef,
     });
 
     // ═══ Close with Unsaved Changes Guard ═══
@@ -891,7 +954,27 @@ export function UnifiedAccountingSheet({
                                                             return language === 'ar' ? title.ar : title.en;
                                                         })()
                                                     ) : (
-                                                        language === 'ar' ? (data?.nameAr || data?.name_ar || data?.name) : (data?.name_en || data?.name) || t(config.titleKey)
+                                                        // عنوان ذكي لأنواع المستندات المحاسبية
+                                                        (() => {
+                                                            if (isAccountingDocType) {
+                                                                const accountingTitles: Record<string, { ar: string; en: string }> = {
+                                                                    journal:    { ar: 'قيد يومية', en: 'Journal Entry' },
+                                                                    cash:       { ar: 'يومية الصندوق', en: 'Cash Journal' },
+                                                                    receipt:    { ar: 'سند قبض', en: 'Receipt Voucher' },
+                                                                    payment:    { ar: 'سند صرف', en: 'Payment Voucher' },
+                                                                    transfer:   { ar: 'تحويل بنكي', en: 'Bank Transfer' },
+                                                                    exchange:   { ar: 'صرف عملة', en: 'Currency Exchange' },
+                                                                    debit_note: { ar: 'مذكرة مدين', en: 'Debit Note' },
+                                                                    credit_note:{ ar: 'مذكرة دائن', en: 'Credit Note' },
+                                                                };
+                                                                const docTitle = accountingTitles[docType];
+                                                                if (docTitle) return language === 'ar' ? docTitle.ar : docTitle.en;
+                                                            }
+                                                            return (language === 'ar'
+                                                                ? (data?.nameAr || data?.name_ar || data?.name)
+                                                                : (data?.name_en || data?.name)) || t(config.titleKey);
+                                                        })()
+
                                                     )}
                                                 </h2>
 
@@ -1026,6 +1109,7 @@ export function UnifiedAccountingSheet({
                                                 : (data?.grand_total ?? data?.total_amount ?? data?.current_balance ?? data?.balance ?? data?.total)
                                             }
                                             currency={data?.currency || ''}
+                                            displayCurrency={displayCurrency !== 'all' ? displayCurrency : undefined}
                                             // Mode
                                             onModeChange={handleModeChange}
                                             onCancelEdit={() => {
@@ -1037,6 +1121,7 @@ export function UnifiedAccountingSheet({
                                             showConfirmAction={isTradeDocType && docType !== 'trade_container'}
                                             confirmationStatus={data?.confirmation_status}
                                             tradeMode={tradeMode as 'sales' | 'purchase'}
+                                            isAccountingDocType={isAccountingDocType}
                                         />
                                     )}
 
@@ -1192,34 +1277,44 @@ export function UnifiedAccountingSheet({
                                     mode={mode}
                                     variant="default"
                                 >
-                                    {/* Entry/Form tabs manage their own scroll — no ScrollArea wrapper */}
-                                    {(activeTab === 'entry' || activeTab === 'form') ? (
-                                        <div className="flex-1 h-full overflow-hidden">
-                                            {visibleTabs.map((tab) => (
-                                                <TabsContent
+                                    {/* ✅ plain divs — لا Radix TabsContent — حالة المكوّنات محفوظة دائماً
+                                         JournalVoucherTab لا تُلغى عند التنقل بين التبويبات */}
+                                    <div className="flex-1 h-full overflow-hidden relative">
+                                        {visibleTabs.map((tab) => {
+                                            const isActive = activeTab === tab.id;
+                                            const isEntryType = ['entry', 'form'].includes(tab.id);
+                                            // التبويبات الثقيلة: lazy — لا تُحمَّل إلا عند الطلب الأول
+                                            const isLazy = ['activity', 'attachments', 'ledger', 'ledger_account'].includes(tab.id);
+                                            if (isLazy && !isActive) return null;
+
+                                            return (
+                                                <div
                                                     key={tab.id}
-                                                    value={tab.id}
-                                                    className="m-0 outline-none h-full"
+                                                    role="tabpanel"
+                                                    aria-labelledby={`tab-${tab.id}`}
+                                                    className={cn(
+                                                        'absolute inset-0 flex flex-col',
+                                                        isActive ? 'z-10' : 'z-0 pointer-events-none'
+                                                    )}
+                                                    style={{ visibility: isActive ? 'visible' : 'hidden' }}
                                                 >
-                                                    {activeTab === tab.id && renderTabContent(tab.id)}
-                                                </TabsContent>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <ScrollArea className="flex-1 h-full">
-                                            <div className="p-4">
-                                                {visibleTabs.map((tab) => (
-                                                    <TabsContent
-                                                        key={tab.id}
-                                                        value={tab.id}
-                                                        className="m-0 outline-none"
-                                                    >
-                                                        {activeTab === tab.id && renderTabContent(tab.id)}
-                                                    </TabsContent>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    )}
+                                                    {/* entry/form: بلا ScrollArea (تدير scroll داخلياً) */}
+                                                    {/* باقي التبويبات: ScrollArea مع padding */}
+                                                    {isEntryType ? (
+                                                        <div className="flex-1 h-full overflow-hidden">
+                                                            {renderTabContent(tab.id)}
+                                                        </div>
+                                                    ) : (
+                                                        <ScrollArea className="flex-1 h-full">
+                                                            <div className="p-4">
+                                                                {renderTabContent(tab.id)}
+                                                            </div>
+                                                        </ScrollArea>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </SheetTabs>
                             )}
                         </div>
