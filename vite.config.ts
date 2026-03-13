@@ -42,7 +42,7 @@ export default defineConfig({
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
         // Exclude HTML from precache — always fetch fresh from network
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
