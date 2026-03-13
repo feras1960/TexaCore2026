@@ -11,7 +11,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -24,13 +24,15 @@ import {
     Settings,
 } from 'lucide-react';
 
-// Direct imports (no lazy loading) for instant switching
+import { lazy } from 'react';
+
+// Dashboard loads immediately, rest lazy-loaded on first visit
 import PurchasesDashboard from './pages/PurchasesDashboard';
-import SuppliersList from './pages/SuppliersList';
-import PurchaseInvoicesList from './pages/PurchaseInvoicesList';
-import PaymentsList from './pages/PaymentsList';
-import ContainersList from './pages/ContainersList';
-import PurchasesSettings from './pages/PurchasesWorkflowSettings';
+const SuppliersList = lazy(() => import('./pages/SuppliersList'));
+const PurchaseInvoicesList = lazy(() => import('./pages/PurchaseInvoicesList'));
+const PaymentsList = lazy(() => import('./pages/PaymentsList'));
+const ContainersList = lazy(() => import('./pages/ContainersList'));
+const PurchasesSettings = lazy(() => import('./pages/PurchasesWorkflowSettings'));
 
 // Tab configuration type
 interface TabConfig {
@@ -164,7 +166,9 @@ export default function PurchasesPage() {
                                 contentVisibility: isActive ? 'visible' : 'hidden',
                             }}
                         >
-                            <TabComponent />
+                            <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /></div>}>
+                                <TabComponent />
+                            </Suspense>
                         </div>
                     );
                 })}

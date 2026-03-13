@@ -91,6 +91,7 @@ const SOURCE_CONFIG: Record<string, { icon: React.ElementType; label_ar: string;
     container: { icon: Ship, label_ar: 'كونتينر', label_en: 'Container', badgeColor: 'border-blue-200 dark:border-blue-800/50 text-blue-600 dark:text-blue-400' },
     purchase_invoice: { icon: ShoppingBag, label_ar: 'فاتورة مشتريات', label_en: 'Purchase', badgeColor: 'border-orange-200 dark:border-orange-800/50 text-orange-600 dark:text-orange-400' },
     sales_invoice: { icon: ShoppingCart, label_ar: 'فاتورة مبيعات', label_en: 'Sale', badgeColor: 'border-green-200 dark:border-green-800/50 text-green-600 dark:text-green-400' },
+    recurring_entry: { icon: Clock, label_ar: 'قيد متكرر', label_en: 'Recurring', badgeColor: 'border-indigo-200 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400' },
     default: { icon: FileText, label_ar: 'عام', label_en: 'General', badgeColor: 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400' },
 };
 

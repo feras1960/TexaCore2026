@@ -1,614 +1,599 @@
-import React, { useState, useEffect, useMemo } from 'react';
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 🔄 RecurringEntriesPage — صفحة القيود المتكررة
+ * ════════════════════════════════════════════════════════════════
+ * بنمط NexaListTable — جدول احترافي + بطاقات إحصائية
+ * ════════════════════════════════════════════════════════════════
+ */
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import {
-    RefreshCw, Plus, Clock, CheckCircle2, XCircle,
-    Loader2, Search, Play, Pause, History, FileText,
-    MoreHorizontal, Eye
+    RefreshCw, Plus, CheckCircle2, Pause, Play,
+    Loader2, Zap, Calendar, Hash, DollarSign,
+    AlertCircle, FileText, Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useToast } from '@/components/ui/use-toast';
-import { motion } from 'framer-motion';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { useCompany } from '@/hooks/useCompany';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
+import { UnifiedAccountingSheet } from './components/unified/UnifiedAccountingSheet';
 
-// Shared Components
-import { AccountingPageHeader } from './components/shared/AccountingPageHeader';
-import { AccountingStatsCard } from './components/shared/AccountingStatsCard';
-import { StatusBadge } from './components/shared/StatusBadge';
-import { DataTable, Column } from './components/shared/DataTable';
-
-// Types
 interface RecurringEntry {
     id: string;
     code: string;
     name_ar: string;
     name_en: string;
     description?: string;
-    frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+    frequency: string;
     day_of_month?: number;
     day_of_week?: number;
     next_run_date: string;
     last_run_date?: string;
-    total_amount: number;
+    amount: number;
     currency: string;
-    status: 'active' | 'paused' | 'completed' | 'cancelled';
+    status: string;
     requires_approval: boolean;
+    auto_post: boolean;
+    times_executed: number;
+    max_executions?: number;
+    start_date: string;
+    end_date?: string;
     created_at: string;
 }
 
-interface RecurringHistory {
-    id: string;
-    recurring_entry_id: string;
-    scheduled_date: string;
-    execution_date?: string;
-    status: 'pending' | 'approved' | 'rejected' | 'executed' | 'failed';
-    journal_entry_id?: string;
-    approved_by?: string;
-    rejected_reason?: string;
-    created_at: string;
-}
+const FREQUENCY_LABELS: Record<string, { ar: string; en: string }> = {
+    daily: { ar: 'يومي', en: 'Daily' },
+    weekly: { ar: 'أسبوعي', en: 'Weekly' },
+    bi_weekly: { ar: 'نصف شهري', en: 'Bi-weekly' },
+    monthly: { ar: 'شهري', en: 'Monthly' },
+    quarterly: { ar: 'ربع سنوي', en: 'Quarterly' },
+    semi_annual: { ar: 'نصف سنوي', en: 'Semi-annual' },
+    yearly: { ar: 'سنوي', en: 'Yearly' },
+};
 
-interface PendingApproval {
-    id: string;
-    recurring_entry_id: string;
-    entry_name: string;
-    scheduled_date: string;
-    total_amount: number;
-    currency: string;
-    created_at: string;
-}
-
-// Module-level flag: persists across component remounts (unlike ref/state)
-let _historyTableExists: boolean | null = null;
+const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; labelAr: string; labelEn: string; color: string; bg: string }> = {
+    active: { icon: Play, labelAr: 'نشط', labelEn: 'Active', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
+    draft: { icon: FileText, labelAr: 'مسودة', labelEn: 'Draft', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200' },
+    paused: { icon: Pause, labelAr: 'متوقف', labelEn: 'Paused', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
+    completed: { icon: CheckCircle2, labelAr: 'مكتمل', labelEn: 'Completed', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
+    cancelled: { icon: AlertCircle, labelAr: 'ملغي', labelEn: 'Cancelled', color: 'text-red-600', bg: 'bg-red-50 border-red-200' },
+};
 
 export default function RecurringEntriesPage() {
     const { t, language, direction } = useLanguage();
-    const { toast } = useToast();
+    const isRTL = direction === 'rtl';
+    const { companyId } = useCompany();
 
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('templates');
     const [entries, setEntries] = useState<RecurringEntry[]>([]);
-    const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
-    const [history, setHistory] = useState<RecurringHistory[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Sort state
+    const [sortField, setSortField] = useState<string>('created_at');
+    const [sortAsc, setSortAsc] = useState(false);
+
+    // Sheet state
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [sheetMode, setSheetMode] = useState<'view' | 'edit' | 'create'>('create');
     const [selectedEntry, setSelectedEntry] = useState<RecurringEntry | null>(null);
-    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-    const [isApprovalOpen, setIsApprovalOpen] = useState(false);
-    const [selectedApproval, setSelectedApproval] = useState<PendingApproval | null>(null);
-    const [rejectionReason, setRejectionReason] = useState('');
-    const [processing, setProcessing] = useState(false);
 
-    // Load data
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    // ═══ Load Data ═══
+    const loadData = useCallback(async () => {
+        if (!companyId) {
+            console.warn('[RecurringEntries] No companyId available');
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
-            // Load recurring entries
-            const { data: entriesData, error: entriesError } = await supabase
+            console.log('[RecurringEntries] Loading for company:', companyId);
+            const { data: entriesData, error } = await supabase
                 .from('recurring_entries')
                 .select('*')
+                .eq('company_id', companyId)
                 .order('created_at', { ascending: false });
 
-            if (entriesError) {
-                // Table doesn't exist yet - skip all related queries
-                console.warn('recurring_entries table not available:', entriesError.message);
+            console.log('[RecurringEntries] Result:', { count: entriesData?.length, error: error?.message });
+
+            if (error) {
+                console.error('[RecurringEntries] Load error:', error);
+                toast.error(isRTL ? `خطأ في تحميل البيانات: ${error.message}` : `Load error: ${error.message}`);
                 return;
             }
 
-            if (entriesData) setEntries(entriesData);
-
-            // Skip recurring_entry_history queries if we already know the table doesn't exist
-            if (_historyTableExists === false) {
-                // Already checked - table doesn't exist, skip silently
-            } else {
-                // First time - check availability with lightweight query
-                if (_historyTableExists === null) {
-                    const { error: historyTableCheck } = await supabase
-                        .from('recurring_entry_history')
-                        .select('id')
-                        .limit(0);
-                    _historyTableExists = !historyTableCheck;
-                }
-
-                if (_historyTableExists) {
-                    // Load pending approvals
-                    const { data: pendingData } = await supabase
-                        .from('recurring_entry_history')
-                        .select(`
-                            id,
-                            recurring_entry_id,
-                            scheduled_date,
-                            created_at,
-                            recurring_entries (
-                                name_ar,
-                                name_en,
-                                total_amount,
-                                currency
-                            )
-                        `)
-                        .eq('status', 'pending')
-                        .order('scheduled_date');
-
-                    if (pendingData) {
-                        setPendingApprovals(pendingData.map(p => ({
-                            id: p.id,
-                            recurring_entry_id: p.recurring_entry_id,
-                            entry_name: language === 'ar'
-                                ? (p.recurring_entries as any)?.name_ar
-                                : (p.recurring_entries as any)?.name_en,
-                            scheduled_date: p.scheduled_date,
-                            total_amount: (p.recurring_entries as any)?.total_amount || 0,
-                            currency: (p.recurring_entries as any)?.currency || '',
-                            created_at: p.created_at,
-                        })));
-                    }
-
-                    // Load recent history
-                    const { data: historyData } = await supabase
-                        .from('recurring_entry_history')
-                        .select('*')
-                        .order('created_at', { ascending: false })
-                        .limit(50);
-
-                    if (historyData) setHistory(historyData);
-                }
+            if (entriesData) {
+                console.log('[RecurringEntries] Loaded entries:', entriesData);
+                setEntries(entriesData);
             }
-        } catch (error) {
-            // Silently handle - tables may not exist yet
-            // Don't show toast since Keep All Mounted loads this even when tab isn't visible
-            console.warn('Recurring entries tables not available:', error);
+        } catch (error: any) {
+            console.error('[RecurringEntries] Exception:', error);
+            toast.error(error?.message || 'Failed to load');
         } finally {
             setLoading(false);
         }
-    };
+    }, [companyId, isRTL]);
 
-    // Filter entries
-    const filteredEntries = useMemo(() => {
-        return entries.filter(entry => {
-            const matchesSearch =
-                entry.name_ar?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                entry.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                entry.code?.toLowerCase().includes(searchQuery.toLowerCase());
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
-            const matchesStatus = statusFilter === 'all' || entry.status === statusFilter;
-
-            return matchesSearch && matchesStatus;
-        });
-    }, [entries, searchQuery, statusFilter]);
-
-    // Stats
+    // ═══ Statistics ═══
     const stats = useMemo(() => {
-        return {
-            total: entries.length,
-            active: entries.filter(e => e.status === 'active').length,
-            paused: entries.filter(e => e.status === 'paused').length,
-            pendingCount: pendingApprovals.length,
-        };
-    }, [entries, pendingApprovals]);
+        const total = entries.length;
+        const active = entries.filter(e => e.status === 'active').length;
+        const paused = entries.filter(e => e.status === 'paused').length;
+        const totalAmount = entries.filter(e => e.status === 'active').reduce((s, e) => s + (Number(e.amount) || 0), 0);
+        return { total, active, paused, totalAmount };
+    }, [entries]);
 
-    const getFrequencyLabel = (freq: string) => {
-        return t(`recurringEntries.frequency_${freq}`) || freq;
+    // ═══ Format helpers ═══
+    const formatDate = (dateStr: string | null | undefined) => {
+        if (!dateStr) return '—';
+        try {
+            return new Date(dateStr).toLocaleDateString('en-US', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+            });
+        } catch {
+            return dateStr;
+        }
     };
 
-    const formatCurrency = (amount: number, currency = '') => {
+    const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency,
             minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
         }).format(amount);
     };
 
-    const formatDate = (date: string) => {
-        return new Date(date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
+    // ═══ Sort handler ═══
+    const handleSort = (field: string) => {
+        if (sortField === field) {
+            setSortAsc(!sortAsc);
+        } else {
+            setSortField(field);
+            setSortAsc(true);
+        }
+    };
+
+    // ═══ Sorted and filtered data ═══
+    const filteredData = useMemo(() => {
+        let result = [...entries];
+
+        // Search
+        if (searchTerm) {
+            const q = searchTerm.toLowerCase();
+            result = result.filter(e =>
+                (e.name_ar || '').toLowerCase().includes(q) ||
+                (e.name_en || '').toLowerCase().includes(q) ||
+                (e.description || '').toLowerCase().includes(q) ||
+                (e.code || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Sort
+        result.sort((a: any, b: any) => {
+            let aVal = a[sortField];
+            let bVal = b[sortField];
+            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+            if (aVal < bVal) return sortAsc ? -1 : 1;
+            if (aVal > bVal) return sortAsc ? 1 : -1;
+            return 0;
         });
+
+        return result;
+    }, [entries, searchTerm, sortField, sortAsc]);
+
+    // ═══ Actions ═══
+    const handleNewEntry = () => {
+        setSelectedEntry(null);
+        setSheetMode('create');
+        setSheetOpen(true);
     };
 
-    const handleApprove = async (approval: PendingApproval) => {
-        setProcessing(true);
+    const handleViewEntry = async (entry: RecurringEntry) => {
+        setSelectedEntry(entry);
+        setSheetMode('view');
+
+        // Fetch lines from recurring_entry_lines
         try {
-            const { error } = await supabase.rpc('approve_recurring_entry', {
-                p_history_id: approval.id,
-                p_user_id: null
-            });
+            const { data: linesData } = await supabase
+                .from('recurring_entry_lines')
+                .select('*')
+                .eq('recurring_entry_id', entry.id)
+                .order('line_number', { ascending: true });
 
-            if (error) throw error;
+            if (linesData && linesData.length > 0) {
+                // Fetch account names
+                const accountIds = [...new Set(linesData.map(l => l.account_id).filter(Boolean))];
+                let accountMap: Record<string, any> = {};
+                if (accountIds.length > 0) {
+                    const { data: accounts } = await supabase
+                        .from('chart_of_accounts')
+                        .select('id, name_ar, name_en, account_code')
+                        .in('id', accountIds);
+                    if (accounts) {
+                        for (const a of accounts) accountMap[a.id] = a;
+                    }
+                }
 
-            toast({
-                title: t('recurringEntries.messages.approved'),
-                description: t('recurringEntries.messages.entryExecuted'),
-            });
+                const mappedLines = linesData.map(line => {
+                    const acct = accountMap[line.account_id] || {};
+                    return {
+                        ...line,
+                        account_name: acct.name_ar || acct.name_en || '',
+                        account_code: acct.account_code || '',
+                        account: acct,
+                    };
+                });
 
-            loadData();
-            setIsApprovalOpen(false);
-        } catch (error) {
-            console.error('Error approving:', error);
-            toast({
-                title: t('recurringEntries.messages.error'),
-                description: t('recurringEntries.messages.approveError'),
-                variant: 'destructive',
-            });
-        } finally {
-            setProcessing(false);
+                // Store lines in the entry for the sheet
+                setSelectedEntry(prev => prev ? { ...prev, lines: mappedLines } as any : null);
+            }
+        } catch (err) {
+            console.error('[RecurringEntries] Failed to load lines:', err);
         }
+
+        setSheetOpen(true);
     };
 
-    const handleReject = async (approval: PendingApproval) => {
-        if (!rejectionReason.trim()) {
-            toast({
-                title: t('recurringEntries.messages.required'),
-                description: t('recurringEntries.messages.enterReason'),
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        setProcessing(true);
+    const handleExecuteNow = async (entry: RecurringEntry) => {
         try {
-            const { error } = await supabase.rpc('reject_recurring_entry', {
-                p_history_id: approval.id,
-                p_user_id: null,
-                p_reason: rejectionReason
+            // Create history record then execute
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
+
+            // First create a history record with auto_approved
+            const { data: historyData, error: historyErr } = await supabase
+                .from('recurring_entry_history')
+                .insert({
+                    tenant_id: (entry as any).tenant_id,
+                    recurring_entry_id: entry.id,
+                    scheduled_date: new Date().toISOString().split('T')[0],
+                    amount: entry.amount,
+                    approval_status: 'auto_approved',
+                    status: 'pending',
+                })
+                .select('id')
+                .single();
+
+            if (historyErr) throw historyErr;
+
+            // Execute via RPC
+            const { data: result, error: execErr } = await supabase.rpc('execute_recurring_entry', {
+                p_history_id: historyData.id,
+                p_user_id: userId,
             });
 
-            if (error) throw error;
+            if (execErr) throw execErr;
 
-            toast({
-                title: t('recurringEntries.messages.rejected'),
-                description: t('recurringEntries.messages.entryRejected'),
-            });
-
-            loadData();
-            setIsApprovalOpen(false);
-            setRejectionReason('');
-        } catch (error) {
-            console.error('Error rejecting:', error);
-            toast({
-                title: t('recurringEntries.messages.error'),
-                description: t('recurringEntries.messages.rejectError'),
-                variant: 'destructive',
-            });
-        } finally {
-            setProcessing(false);
+            if (result?.success) {
+                toast.success(isRTL ? '✅ تم تنفيذ القيد وإنشاء قيد محاسبي' : '✅ Entry executed successfully');
+                loadData();
+            } else {
+                toast.error(result?.error || (isRTL ? 'فشل التنفيذ' : 'Execution failed'));
+            }
+        } catch (err: any) {
+            console.error('[Execute]', err);
+            toast.error(err?.message || 'Error');
         }
     };
 
-    const handleProcessDue = async () => {
-        setProcessing(true);
-        try {
-            const { data, error } = await supabase.rpc('process_due_recurring_entries');
+    const handleToggleStatus = async (entry: RecurringEntry) => {
+        const newStatus = entry.status === 'active' ? 'paused' : 'active';
+        const { error } = await supabase
+            .from('recurring_entries')
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', entry.id);
 
-            if (error) throw error;
-
-            toast({
-                title: t('recurringEntries.messages.processed'),
-                description: t('recurringEntries.messages.entriesCreated').replace('{count}', String(data || 0)),
-            });
-
+        if (error) {
+            toast.error(error.message);
+        } else {
+            toast.success(
+                newStatus === 'active'
+                    ? (isRTL ? '✅ تم تفعيل القيد' : '✅ Activated')
+                    : (isRTL ? '⏸ تم إيقاف القيد مؤقتاً' : '⏸ Paused')
+            );
             loadData();
-        } catch (error) {
-            console.error('Error processing:', error);
-            toast({
-                title: t('recurringEntries.messages.error'),
-                description: t('recurringEntries.messages.processError'),
-                variant: 'destructive',
-            });
-        } finally {
-            setProcessing(false);
         }
     };
 
-    // Columns for Templates
-    const templateColumns: Column<RecurringEntry>[] = [
-        {
-            header: t('recurringEntries.name'),
-            cell: (row) => (
-                <div>
-                    <p className="font-medium">{language === 'ar' ? row.name_ar : row.name_en}</p>
-                    <p className="text-xs text-muted-foreground">{row.code}</p>
-                </div>
-            )
-        },
-        {
-            header: t('recurringEntries.frequency'),
-            cell: (row) => <Badge variant="outline">{getFrequencyLabel(row.frequency)}</Badge>
-        },
-        {
-            header: t('recurringEntries.amount'),
-            cell: (row) => <span className="font-mono font-medium">{formatCurrency(row.total_amount, row.currency)}</span>
-        },
-        {
-            header: t('recurringEntries.nextRun'),
-            cell: (row) => formatDate(row.next_run_date)
-        },
-        {
-            header: t('recurringEntries.status._'),
-            cell: (row) => <StatusBadge status={row.status} />
-        },
-        {
-            header: '',
-            cell: (row) => (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => { setSelectedEntry(row); setIsDetailsOpen(true); }}>
-                            <Eye className="w-4 h-4 me-2" />
-                            {t('recurringEntries.viewDetails')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            {row.status === 'active' ? (
-                                <><Pause className="w-4 h-4 me-2" />{t('recurringEntries.pause')}</>
-                            ) : (
-                                <><Play className="w-4 h-4 me-2" />{t('recurringEntries.activate')}</>
-                            )}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )
+    const handleDelete = async (entry: RecurringEntry) => {
+        if (!confirm(isRTL ? 'هل تريد حذف هذا القيد المتكرر؟' : 'Delete this recurring entry?')) return;
+        const { error } = await supabase.from('recurring_entries').delete().eq('id', entry.id);
+        if (error) {
+            toast.error(error.message);
+        } else {
+            toast.success(isRTL ? 'تم الحذف' : 'Deleted');
+            loadData();
         }
-    ];
+    };
 
-    // Columns for History
-    const historyColumns: Column<RecurringHistory>[] = [
-        {
-            header: t('recurringEntries.scheduledDate'),
-            cell: (row) => formatDate(row.scheduled_date)
-        },
-        {
-            header: t('recurringEntries.executionDate'),
-            cell: (row) => row.execution_date ? formatDate(row.execution_date) : '-'
-        },
-        {
-            header: t('recurringEntries.status._'),
-            cell: (row) => <StatusBadge status={row.status} />
-        },
-        {
-            header: t('recurringEntries.entryNumber'),
-            cell: (row) => row.journal_entry_id ? (
-                <Badge variant="outline" className="font-mono">
-                    {row.journal_entry_id.slice(0, 8)}...
-                </Badge>
-            ) : '-'
-        }
-    ];
+    // ═══ Sheet data ═══
+    const sheetData = useMemo(() => {
+        if (!selectedEntry) return { type: 'recurring' };
+        return {
+            ...selectedEntry,
+            type: 'recurring',
+        };
+    }, [selectedEntry]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <Loader2 className="w-8 h-8 animate-spin text-erp-teal" />
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-6 pb-10" dir={direction}>
-            <AccountingPageHeader
-                title={t('recurringEntries.title')}
-                description={t('recurringEntries.description')}
-            >
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={handleProcessDue}
-                        disabled={processing}
-                        className="gap-2"
-                    >
-                        {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                        {t('recurringEntries.processDue')}
-                    </Button>
-                    <Button className="gap-2 bg-erp-teal hover:bg-erp-teal/90">
-                        <Plus className="w-4 h-4" />
-                        {t('recurringEntries.newEntry')}
-                    </Button>
-                </div>
-            </AccountingPageHeader>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <AccountingStatsCard
-                    title={t('recurringEntries.total')}
-                    value={stats.total}
-                    icon={RefreshCw}
-                    variant="blue"
-                />
-                <AccountingStatsCard
-                    title={t('recurringEntries.active')}
-                    value={stats.active}
-                    icon={CheckCircle2}
-                    variant="green"
-                />
-                <AccountingStatsCard
-                    title={t('recurringEntries.paused')}
-                    value={stats.paused}
-                    icon={Pause}
-                    variant="orange"
-                />
-                <AccountingStatsCard
-                    title={t('recurringEntries.pending')}
-                    value={stats.pendingCount}
-                    icon={Clock}
-                    variant={stats.pendingCount > 0 ? "red" : "default"}
-                />
-            </div>
-
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                {/* Simplified Tabs List */}
-                <TabsList className="w-full sm:w-auto">
-                    <TabsTrigger value="templates" className="flex-1 sm:flex-none">{t('recurringEntries.templates')}</TabsTrigger>
-                    <TabsTrigger value="pending" className="flex-1 sm:flex-none">
-                        {t('recurringEntries.pending')}
-                        {stats.pendingCount > 0 && (
-                            <Badge variant="destructive" className="ms-2 rounded-full px-1.5 py-0 text-[10px]">{stats.pendingCount}</Badge>
+    // ═══ NexaListTable Columns ═══
+    const columns: NexaListColumn<RecurringEntry>[] = useMemo(() => {
+        const cols: NexaListColumn<RecurringEntry>[] = [
+            {
+                id: 'name_ar',
+                header: isRTL ? 'اسم القيد' : 'Entry Name',
+                width: 'min-w-[200px]',
+                sortable: true,
+                sortKey: 'name_ar',
+                cell: (row) => (
+                    <div className="flex flex-col">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100 text-[13px]">
+                            {isRTL ? row.name_ar : (row.name_en || row.name_ar)}
+                        </span>
+                        {row.description && (
+                            <span className="text-[11px] text-gray-500 truncate max-w-[200px]">
+                                {row.description}
+                            </span>
                         )}
-                    </TabsTrigger>
-                    <TabsTrigger value="history" className="flex-1 sm:flex-none">{t('recurringEntries.history')}</TabsTrigger>
-                </TabsList>
-
-                {/* Templates Tab */}
-                <TabsContent value="templates" className="mt-6 space-y-4">
-                    <DataTable
-                        data={filteredEntries}
-                        columns={templateColumns}
-                        actions={
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder={t('recurringEntries.status._')} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">{t('recurringEntries.all')}</SelectItem>
-                                    <SelectItem value="active">{t('recurringEntries.active')}</SelectItem>
-                                    <SelectItem value="paused">{t('recurringEntries.paused')}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        }
-                    />
-                </TabsContent>
-
-                {/* Pending Approvals Tab */}
-                <TabsContent value="pending" className="mt-6">
-                    {pendingApprovals.length === 0 ? (
-                        <Card className="py-12 border-dashed">
-                            <CardContent className="text-center">
-                                <CheckCircle2 className="w-12 h-12 mx-auto text-green-300 mb-4" />
-                                <h3 className="text-lg font-semibold text-muted-foreground">
-                                    {t('recurringEntries.noPending')}
-                                </h3>
-                                <p className="text-sm text-muted-foreground mt-2">
-                                    {t('recurringEntries.noPendingDesc')}
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {pendingApprovals.map((approval, index) => (
-                                <motion.div
-                                    key={approval.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                >
-                                    <Card className="hover:shadow-md transition-shadow">
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className="w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/20 flex items-center justify-center">
-                                                    <Clock className="w-5 h-5 text-yellow-600" />
-                                                </div>
-                                                <div className="text-end">
-                                                    <p className="font-bold font-mono">
-                                                        {formatCurrency(approval.total_amount, approval.currency)}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {formatDate(approval.created_at)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="mb-4">
-                                                <h4 className="font-semibold line-clamp-1">{approval.entry_name}</h4>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {t('recurringEntries.scheduledFor')} {formatDate(approval.scheduled_date)}
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => { setSelectedApproval(approval); setIsApprovalOpen(true); }}
-                                                    className="flex-1 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                                                >
-                                                    <XCircle className="w-4 h-4 me-2" />
-                                                    {t('common.reject')}
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleApprove(approval)}
-                                                    disabled={processing}
-                                                    className="flex-1 bg-green-600 hover:bg-green-700"
-                                                >
-                                                    {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 me-2" />}
-                                                    {t('common.approve')}
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </motion.div>
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-
-                {/* History Tab */}
-                <TabsContent value="history" className="mt-6">
-                    <DataTable
-                        data={history}
-                        columns={historyColumns}
-                    />
-                </TabsContent>
-            </Tabs>
-
-            {/* Rejection Dialog */}
-            <Sheet open={isApprovalOpen} onOpenChange={setIsApprovalOpen}>
-                <SheetContent className="w-full sm:max-w-md" side={direction === 'rtl' ? 'left' : 'right'}>
-                    <SheetHeader>
-                        <SheetTitle className="flex items-center gap-2 text-red-600">
-                            <XCircle className="w-5 h-5" />
-                            {t('recurringEntries.rejectEntry')}
-                        </SheetTitle>
-                        <SheetDescription>
-                            {selectedApproval?.entry_name}
-                        </SheetDescription>
-                    </SheetHeader>
-
-                    <div className="mt-6 space-y-4">
-                        <div className="space-y-2">
-                            <Label>{t('recurringEntries.rejectionReason')}</Label>
-                            <Textarea
-                                value={rejectionReason}
-                                onChange={(e) => setRejectionReason(e.target.value)}
-                                placeholder={t('recurringEntries.rejectionPlaceholder')}
-                                rows={4}
-                            />
-                        </div>
                     </div>
-
-                    <SheetFooter className="mt-6">
-                        <Button variant="outline" onClick={() => setIsApprovalOpen(false)}>
-                            {t('recurringEntries.cancel')}
+                ),
+            },
+            {
+                id: 'status',
+                header: isRTL ? 'الحالة' : 'Status',
+                sortable: true,
+                sortKey: 'status',
+                cell: (row) => {
+                    const cfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.draft;
+                    const Icon = cfg.icon;
+                    return (
+                        <Badge variant="outline" className={cn('text-[11px] py-0.5', cfg.color, cfg.bg)}>
+                            <Icon className="w-3 h-3 me-1" />
+                            {isRTL ? cfg.labelAr : cfg.labelEn}
+                        </Badge>
+                    );
+                },
+            },
+            {
+                id: 'frequency',
+                header: isRTL ? 'التكرار' : 'Frequency',
+                sortable: true,
+                sortKey: 'frequency',
+                cell: (row) => {
+                    const freq = FREQUENCY_LABELS[row.frequency] || { ar: row.frequency, en: row.frequency };
+                    return (
+                        <span className="text-[12px] text-purple-600 font-medium">
+                            <RefreshCw className="w-3 h-3 inline me-1" />
+                            {isRTL ? freq.ar : freq.en}
+                        </span>
+                    );
+                },
+            },
+            {
+                id: 'amount',
+                header: isRTL ? 'المبلغ' : 'Amount',
+                sortable: true,
+                sortKey: 'amount',
+                align: 'center',
+                cell: (row) => (
+                    <span className="font-mono font-bold text-[13px] text-gray-900 dark:text-gray-100" dir="ltr">
+                        {formatCurrency(row.amount)} {row.currency}
+                    </span>
+                ),
+            },
+            {
+                id: 'next_run_date',
+                header: isRTL ? 'التنفيذ القادم' : 'Next Run',
+                sortable: true,
+                sortKey: 'next_run_date',
+                cell: (row) => (
+                    <span className="text-[12px] text-gray-600 dark:text-gray-400">
+                        <Calendar className="w-3 h-3 inline me-1" />
+                        {formatDate(row.next_run_date)}
+                    </span>
+                ),
+            },
+            {
+                id: 'times_executed',
+                header: isRTL ? 'مرات التنفيذ' : 'Executions',
+                sortable: true,
+                sortKey: 'times_executed',
+                align: 'center',
+                cell: (row) => (
+                    <span className="font-mono text-[12px]">
+                        <Hash className="w-3 h-3 inline me-1 text-gray-400" />
+                        {row.times_executed || 0}
+                        {row.max_executions ? ` / ${row.max_executions}` : ''}
+                    </span>
+                ),
+            },
+            {
+                id: 'actions',
+                header: isRTL ? 'إجراءات' : 'Actions',
+                align: 'center',
+                cell: (row) => (
+                    <div className="flex items-center gap-1 justify-center">
+                        {row.status === 'active' && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => { e.stopPropagation(); handleExecuteNow(row); }}
+                                className="h-7 px-2 text-purple-600 hover:bg-purple-50 hover:text-purple-700"
+                                title={isRTL ? 'تنفيذ الآن' : 'Execute Now'}
+                            >
+                                <Zap className="w-3.5 h-3.5 me-1" />
+                                <span className="text-[11px]">{isRTL ? 'تنفيذ' : 'Run'}</span>
+                            </Button>
+                        )}
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); handleToggleStatus(row); }}
+                            className={cn(
+                                "h-7 px-2",
+                                row.status === 'active'
+                                    ? "text-amber-600 hover:bg-amber-50"
+                                    : "text-emerald-600 hover:bg-emerald-50"
+                            )}
+                            title={row.status === 'active' ? (isRTL ? 'إيقاف' : 'Pause') : (isRTL ? 'تفعيل' : 'Activate')}
+                        >
+                            {row.status === 'active' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                         </Button>
                         <Button
-                            variant="destructive"
-                            onClick={() => selectedApproval && handleReject(selectedApproval)}
-                            disabled={processing}
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                            className="h-7 px-2 text-red-500 hover:bg-red-50 hover:text-red-700"
+                            title={isRTL ? 'حذف' : 'Delete'}
                         >
-                            {processing ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <XCircle className="w-4 h-4 me-2" />}
-                            {t('recurringEntries.confirmReject')}
+                            <AlertCircle className="w-3.5 h-3.5" />
                         </Button>
-                    </SheetFooter>
-                </SheetContent>
-            </Sheet>
+                    </div>
+                ),
+            },
+        ];
+
+        return cols;
+    }, [isRTL, entries]);
+
+    return (
+        <div className="space-y-4">
+            {/* ═══ Header ═══ */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
+                        <RefreshCw className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                            {isRTL ? 'القيود المتكررة' : 'Recurring Entries'}
+                        </h2>
+                        <p className="text-xs text-gray-500">
+                            {isRTL ? 'إدارة القيود الدورية والمجدولة' : 'Manage scheduled and recurring entries'}
+                        </p>
+                    </div>
+                </div>
+                <Button
+                    onClick={handleNewEntry}
+                    className="gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-md shadow-purple-500/20"
+                >
+                    <Plus className="w-4 h-4" />
+                    {isRTL ? 'قيد متكرر جديد' : 'New Recurring Entry'}
+                </Button>
+            </div>
+
+            {/* ═══ Stats Cards ═══ */}
+            <div className="grid grid-cols-4 gap-3">
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-900">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] text-gray-500 mb-1">{isRTL ? 'الإجمالي' : 'Total'}</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.total}</p>
+                            </div>
+                            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                                <Calendar className="w-5 h-5 text-purple-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-white to-emerald-50/30 dark:from-gray-800 dark:to-gray-900">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] text-gray-500 mb-1">{isRTL ? 'نشط' : 'Active'}</p>
+                                <p className="text-2xl font-bold text-emerald-600">{stats.active}</p>
+                            </div>
+                            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-white to-amber-50/30 dark:from-gray-800 dark:to-gray-900">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] text-gray-500 mb-1">{isRTL ? 'متوقف' : 'Paused'}</p>
+                                <p className="text-2xl font-bold text-amber-600">{stats.paused}</p>
+                            </div>
+                            <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                                <Pause className="w-5 h-5 text-amber-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-white to-indigo-50/30 dark:from-gray-800 dark:to-gray-900">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] text-gray-500 mb-1">{isRTL ? 'إجمالي شهري' : 'Monthly Total'}</p>
+                                <p className="text-lg font-bold text-indigo-600 font-mono" dir="ltr">{formatCurrency(stats.totalAmount)}</p>
+                            </div>
+                            <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                                <DollarSign className="w-5 h-5 text-indigo-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* ═══ NexaListTable ═══ */}
+            <NexaListTable
+                data={filteredData}
+                columns={columns}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder={isRTL ? 'بحث في القيود المتكررة...' : 'Search recurring entries...'}
+                totalCount={filteredData.length}
+                countLabel={isRTL ? 'قيد' : 'entries'}
+                sortField={sortField}
+                sortAsc={sortAsc}
+                onSort={handleSort}
+                onRowClick={(row) => handleViewEntry(row)}
+                getRowKey={(row: any) => row.id}
+                isLoading={loading}
+                emptyIcon={<RefreshCw className="w-12 h-12 text-gray-300" />}
+                emptyMessage={isRTL ? 'لا توجد قيود متكررة' : 'No recurring entries'}
+                showFooter={true}
+                footerLeftText={`${filteredData.length} ${isRTL ? 'قيد متكرر' : 'recurring entries'}`}
+                footerRightContent={
+                    <div className="flex items-center gap-4 text-xs font-mono font-bold">
+                        <span className="text-emerald-600">
+                            {isRTL ? 'نشط: ' : 'Active: '}{stats.active}
+                        </span>
+                        <span className="text-purple-600">
+                            {isRTL ? 'إجمالي: ' : 'Total: '}{formatCurrency(stats.totalAmount)}
+                        </span>
+                    </div>
+                }
+                isRTL={isRTL}
+                direction={direction}
+            />
+
+            {/* ═══ UnifiedAccountingSheet ═══ */}
+            <UnifiedAccountingSheet
+                key={`recurring-${selectedEntry?.id || 'new'}-${sheetOpen}`}
+                isOpen={sheetOpen}
+                onClose={() => {
+                    setSheetOpen(false);
+                    setSelectedEntry(null);
+                    // Reload data after close with small delay to ensure DB write completes
+                    setTimeout(() => loadData(), 300);
+                }}
+                docType="recurring"
+                mode={sheetMode}
+                data={sheetData}
+                documentId={selectedEntry?.id}
+                onRefresh={loadData}
+            />
         </div>
     );
 }

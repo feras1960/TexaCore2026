@@ -51,7 +51,7 @@ import AccountingSettings from './AccountingSettings';
 import BudgetPage from './BudgetPage';
 import VATSettlement from './VATSettlement';
 import EquityPartnersPage from './EquityPartnersPage';
-const RecurringEntriesPage = lazy(() => import('./RecurringEntriesPage'));
+import RecurringEntriesPage from './RecurringEntriesPage';
 
 // Tab configuration type
 interface TabConfig {
@@ -165,7 +165,7 @@ export default function Accounting() {
     },
     {
       id: 'recurring',
-      labelKey: 'accounting.recurring',
+      labelKey: 'accounting.recurring.title',
       icon: RefreshCw,
       component: RecurringEntriesPage,
     },

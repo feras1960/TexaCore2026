@@ -59,16 +59,15 @@ interface CurrencyDetailSheetProps {
 // ─── Sub-tab definition ──────────────────────────────────────
 interface SubTab {
     id: string;
-    labelAr: string;
-    labelEn: string;
+    tKey: string;
     icon: React.ElementType;
 }
 
 const SUB_TABS: SubTab[] = [
-    { id: 'overview', labelAr: 'نظرة عامة', labelEn: 'Overview', icon: DollarSign },
-    { id: 'history', labelAr: 'سجل الأسعار', labelEn: 'Rate History', icon: History },
-    { id: 'cross-rates', labelAr: 'الأسعار المتقاطعة', labelEn: 'Cross Rates', icon: ArrowRightLeft },
-    { id: 'settings', labelAr: 'الإعدادات', labelEn: 'Settings', icon: Settings },
+    { id: 'overview', tKey: 'currency.overview', icon: DollarSign },
+    { id: 'history', tKey: 'currency.rateHistory', icon: History },
+    { id: 'cross-rates', tKey: 'currency.crossRates', icon: ArrowRightLeft },
+    { id: 'settings', tKey: 'currency.settings', icon: Settings },
 ];
 
 // ─── Main Component ──────────────────────────────────────────
@@ -82,7 +81,7 @@ export default function CurrencyDetailSheet({
     currencies,
     onlineRates,
 }: CurrencyDetailSheetProps) {
-    const { language } = useLanguage();
+    const { language, t, direction } = useLanguage();
     const isAr = language === 'ar';
     const { company } = useCompany();
     const { toast } = useToast();
@@ -189,7 +188,7 @@ export default function CurrencyDetailSheet({
         const displayBuy = parseFloat(buyRate);
         const displaySell = parseFloat(sellRate);
         if (isNaN(displayBuy) || isNaN(displaySell) || displayBuy <= 0 || displaySell <= 0) {
-            toast({ title: isAr ? 'خطأ' : 'Error', description: isAr ? 'أدخل أسعار صحيحة' : 'Enter valid rates', variant: 'destructive' });
+            toast({ title: t('currency.error'), description: t('currency.enterValidRates'), variant: 'destructive' });
             return;
         }
         // Convert display format to technical format for DB storage
@@ -218,15 +217,15 @@ export default function CurrencyDetailSheet({
                 is_active: true,
             });
             toast({
-                title: isAr ? '✅ تم الحفظ' : '✅ Saved',
-                description: isAr ? `تم تسجيل سعر جديد لـ ${currencyCode}` : `New rate recorded for ${currencyCode}`,
+                title: t('currency.saved'),
+                description: `${t('currency.newRateRecorded')} ${currencyCode}`,
             });
             loadCurrentRate();
             loadRateHistory();
             onRateUpdated?.();
         } catch (err) {
             console.error('Failed to save rate:', err);
-            toast({ title: isAr ? 'خطأ' : 'Error', description: isAr ? 'فشل حفظ الأسعار' : 'Failed to save rates', variant: 'destructive' });
+            toast({ title: t('currency.error'), description: t('currency.failedToSave'), variant: 'destructive' });
         }
     };
 
@@ -245,8 +244,8 @@ export default function CurrencyDetailSheet({
             setSellRate(displayRate);
             setMarginPercent(0);
             toast({
-                title: isAr ? 'تم العودة' : 'Reset',
-                description: isAr ? 'تم العودة للسعر الأونلاين التلقائي' : 'Switched back to automatic online rate',
+                title: t('currency.resetDone'),
+                description: t('currency.resetToOnline'),
             });
             loadRateHistory();
             onRateUpdated?.();
@@ -265,8 +264,8 @@ export default function CurrencyDetailSheet({
             setSellRate('');
             setMarginPercent(0);
             toast({
-                title: isAr ? 'تم الحذف' : 'Removed',
-                description: isAr ? 'تم إزالة السعر اليدوي' : 'Manual rate removed',
+                title: t('currency.removed'),
+                description: t('currency.manualRateRemoved'),
             });
             onRateUpdated?.();
         } catch (err) {
@@ -290,28 +289,28 @@ export default function CurrencyDetailSheet({
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                     {
-                        label: isAr ? 'السعر الأونلاين' : 'Online Rate',
+                        label: t('currency.onlineRate'),
                         value: onlineRateDisplay ? onlineRateDisplay.toFixed(2) : '—',
                         subLabel: `1 ${currencyCode} = ${onlineRateDisplay ? onlineRateDisplay.toFixed(2) : '?'} ${baseCurrency}`,
                         icon: Globe,
                         color: 'text-green-600 bg-green-50 dark:bg-green-900/20',
                     },
                     {
-                        label: isAr ? 'سعر الشراء' : 'Buy Rate',
+                        label: t('currency.buyRate'),
                         value: buyNum > 0 ? buyNum.toFixed(2) : '—',
-                        subLabel: isAr ? `نشتري 1 ${currencyCode} بـ ${buyNum > 0 ? buyNum.toFixed(2) : '?'} ${baseCurrency}` : `We buy 1 ${currencyCode} for ${buyNum > 0 ? buyNum.toFixed(2) : '?'} ${baseCurrency}`,
+                        subLabel: `${t('currency.weBuy')} 1 ${currencyCode} = ${buyNum > 0 ? buyNum.toFixed(2) : '?'} ${baseCurrency}`,
                         icon: TrendingUp,
                         color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
                     },
                     {
-                        label: isAr ? 'سعر البيع' : 'Sell Rate',
+                        label: t('currency.sellRate'),
                         value: sellNum > 0 ? sellNum.toFixed(2) : '—',
-                        subLabel: isAr ? `نبيع 1 ${currencyCode} بـ ${sellNum > 0 ? sellNum.toFixed(2) : '?'} ${baseCurrency}` : `We sell 1 ${currencyCode} for ${sellNum > 0 ? sellNum.toFixed(2) : '?'} ${baseCurrency}`,
+                        subLabel: `${t('currency.weSell')} 1 ${currencyCode} = ${sellNum > 0 ? sellNum.toFixed(2) : '?'} ${baseCurrency}`,
                         icon: ArrowUpDown,
                         color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20',
                     },
                     {
-                        label: isAr ? 'هامش الربح' : 'Spread',
+                        label: t('currency.spread'),
                         value: spreadPercent > 0 ? `${spreadPercent.toFixed(2)}%` : '—',
                         subLabel: spread > 0 ? `${spread.toFixed(2)} ${baseCurrency}` : '',
                         icon: BarChart3,
@@ -349,7 +348,7 @@ export default function CurrencyDetailSheet({
                         {/* 1 Foreign = X Local (main display like exchange apps) */}
                         <div className="text-center space-y-1.5 border-e border-gray-200 dark:border-gray-700 pe-6">
                             <p className="text-xs text-gray-500 font-tajawal">
-                                {isAr ? `1 ${currencyCode} بالعملة المحلية` : `1 ${currencyCode} in local currency`}
+                                {`1 ${currencyCode} ${t('currency.inLocalCurrency')}`}
                             </p>
                             <div className="text-3xl font-bold font-mono text-erp-navy dark:text-white">
                                 {midNum > 0 ? midNum.toFixed(2) : (onlineRateDisplay?.toFixed(2) || '—')}
@@ -361,7 +360,7 @@ export default function CurrencyDetailSheet({
                         {/* 1 Local = X Foreign (technical rate) */}
                         <div className="text-center space-y-1.5">
                             <p className="text-xs text-gray-500 font-tajawal">
-                                {isAr ? `1 ${baseCurrency} بالعملة الأجنبية` : `1 ${baseCurrency} in foreign currency`}
+                                {`1 ${baseCurrency} ${t('currency.inForeignCurrency')}`}
                             </p>
                             <div className="text-3xl font-bold font-mono text-gray-600 dark:text-gray-300">
                                 {midNum > 0 ? (1 / midNum).toFixed(6) : (onlineRateTechnical?.toFixed(6) || '—')}
@@ -379,7 +378,7 @@ export default function CurrencyDetailSheet({
                 <CardContent className="p-5 space-y-5">
                     <h4 className="text-sm font-bold font-tajawal text-gray-900 dark:text-white flex items-center gap-2">
                         <Settings className="w-4 h-4 text-erp-teal" />
-                        {isAr ? 'تحديد أسعار الصرف' : 'Set Exchange Rates'}
+                        {t('currency.setExchangeRates')}
                     </h4>
 
                     {/* Online Rate Reference */}
@@ -389,7 +388,7 @@ export default function CurrencyDetailSheet({
                                 <div className="flex items-center gap-2">
                                     <Globe className="w-4 h-4 text-green-600 dark:text-green-400" />
                                     <span className="text-sm font-tajawal text-green-700 dark:text-green-300">
-                                        {isAr ? `السعر الأونلاين: 1 ${currencyCode} =` : `Online: 1 ${currencyCode} =`}
+                                        {`${t('currency.onlineRateLabel')}: 1 ${currencyCode} =`}
                                     </span>
                                 </div>
                                 <span className="font-mono font-bold text-green-700 dark:text-green-300">
@@ -405,7 +404,7 @@ export default function CurrencyDetailSheet({
                             <div className="flex items-center justify-between">
                                 <Label className="font-tajawal text-sm flex items-center gap-1.5">
                                     <Percent className="w-3.5 h-3.5 text-erp-teal" />
-                                    {isAr ? 'هامش الربح على الصرف' : 'Exchange Margin'}
+                                    {t('currency.exchangeMargin')}
                                 </Label>
                                 <Badge variant="outline" className="font-mono text-xs">
                                     {marginPercent.toFixed(2)}%
@@ -438,9 +437,7 @@ export default function CurrencyDetailSheet({
                                 className="w-full font-tajawal text-xs border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/20"
                             >
                                 <RefreshCw className="w-3.5 h-3.5 me-1.5" />
-                                {isAr
-                                    ? `تطبيق السعر الأونلاين مع هامش ${marginPercent}%`
-                                    : `Apply online rate with ${marginPercent}% margin`}
+                                {`${t('currency.applyOnlineWithMargin')} ${marginPercent}%`}
                             </Button>
                         </div>
                     )}
@@ -450,7 +447,7 @@ export default function CurrencyDetailSheet({
                         <div className="space-y-2">
                             <Label className="font-tajawal text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
                                 <TrendingUp className="w-3 h-3" />
-                                {isAr ? `سعر شراء 1 ${currencyCode}` : `Buy Price for 1 ${currencyCode}`}
+                                {`${t('currency.buyPriceFor')} 1 ${currencyCode}`}
                             </Label>
                             <Input
                                 type="number"
@@ -463,13 +460,13 @@ export default function CurrencyDetailSheet({
                                 placeholder={`${baseCurrency}`}
                             />
                             <p className="text-[10px] text-gray-400 font-tajawal">
-                                {isAr ? 'نشتري' : 'We buy'} 1 {currencyCode} = {buyRate || '?'} {baseCurrency}
+                                {t('currency.weBuy')} 1 {currencyCode} = {buyRate || '?'} {baseCurrency}
                             </p>
                         </div>
                         <div className="space-y-2">
                             <Label className="font-tajawal text-sm text-purple-600 dark:text-purple-400 flex items-center gap-1">
                                 <ArrowUpDown className="w-3 h-3" />
-                                {isAr ? `سعر بيع 1 ${currencyCode}` : `Sell Price for 1 ${currencyCode}`}
+                                {`${t('currency.sellPriceFor')} 1 ${currencyCode}`}
                             </Label>
                             <Input
                                 type="number"
@@ -482,7 +479,7 @@ export default function CurrencyDetailSheet({
                                 placeholder={`${baseCurrency}`}
                             />
                             <p className="text-[10px] text-gray-400 font-tajawal">
-                                {isAr ? 'نبيع' : 'We sell'} 1 {currencyCode} = {sellRate || '?'} {baseCurrency}
+                                {t('currency.weSell')} 1 {currencyCode} = {sellRate || '?'} {baseCurrency}
                             </p>
                         </div>
                     </div>
@@ -491,15 +488,15 @@ export default function CurrencyDetailSheet({
                     {buyNum > 0 && sellNum > 0 && (
                         <div className="grid grid-cols-3 gap-3">
                             <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-center">
-                                <p className="text-[10px] text-gray-500 font-tajawal mb-1">{isAr ? `متوسط 1 ${currencyCode}` : `Mid 1 ${currencyCode}`}</p>
+                                <p className="text-[10px] text-gray-500 font-tajawal mb-1">{`${t('currency.mid')} 1 ${currencyCode}`}</p>
                                 <p className="font-mono font-bold text-sm">{midNum.toFixed(2)} <span className="text-[10px] text-gray-400">{baseCurrency}</span></p>
                             </div>
                             <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-center">
-                                <p className="text-[10px] text-gray-500 font-tajawal mb-1">{isAr ? 'الفرق' : 'Spread'}</p>
+                                <p className="text-[10px] text-gray-500 font-tajawal mb-1">{t('currency.difference')}</p>
                                 <p className="font-mono font-bold text-sm text-amber-600">{spread.toFixed(2)} <span className="text-[10px]">{baseCurrency}</span></p>
                             </div>
                             <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-center">
-                                <p className="text-[10px] text-gray-500 font-tajawal mb-1">{isAr ? 'الهامش' : 'Margin'}</p>
+                                <p className="text-[10px] text-gray-500 font-tajawal mb-1">{t('currency.margin')}</p>
                                 <p className="font-mono font-bold text-sm text-green-600">{spreadPercent.toFixed(2)}%</p>
                             </div>
                         </div>
@@ -512,7 +509,7 @@ export default function CurrencyDetailSheet({
                             className="flex-1 bg-erp-teal hover:bg-erp-teal/90 text-white font-tajawal text-sm"
                         >
                             <Save className="w-4 h-4 me-1.5" />
-                            {isAr ? 'حفظ الأسعار' : 'Save Rates'}
+                            {t('currency.saveRates')}
                         </Button>
                         {currentDbRate && onlineRateDisplay && (
                             <Button
@@ -521,7 +518,7 @@ export default function CurrencyDetailSheet({
                                 className="text-green-600 border-green-200 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-900/20 font-tajawal text-sm"
                             >
                                 <Globe className="w-4 h-4 me-1.5" />
-                                {isAr ? 'عودة للتلقائي' : 'Auto'}
+                                {t('currency.autoRate')}
                             </Button>
                         )}
                         {currentDbRate && (
@@ -531,7 +528,7 @@ export default function CurrencyDetailSheet({
                                 className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20 font-tajawal text-sm"
                             >
                                 <Trash2 className="w-4 h-4 me-1.5" />
-                                {isAr ? 'حذف' : 'Delete'}
+                                {t('common.delete')}
                             </Button>
                         )}
                     </div>
@@ -548,20 +545,20 @@ export default function CurrencyDetailSheet({
                     {rateHistory.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                            <p className="font-tajawal text-sm">{isAr ? 'لا يوجد سجل أسعار بعد' : 'No rate history yet'}</p>
+                            <p className="font-tajawal text-sm">{t('currency.noRateHistory')}</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'التاريخ' : 'Date'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'الشراء' : 'Buy'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'البيع' : 'Sell'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'المتوسط' : 'Mid'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'الهامش' : 'Margin'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'المصدر' : 'Source'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'الحالة' : 'Status'}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.date')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.buy')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.sell')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.midRate')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.margin')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.source')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.status')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -596,17 +593,17 @@ export default function CurrencyDetailSheet({
                                             <td className="px-4 py-3 font-mono text-xs text-amber-600">{rate.margin_percent?.toFixed(2)}%</td>
                                             <td className="px-4 py-3">
                                                 <Badge variant="outline" className="text-[10px] font-tajawal">
-                                                    {rate.source === 'manual' ? (isAr ? 'يدوي' : 'Manual') : rate.source}
+                                                    {rate.source === 'manual' ? t('currency.manual') : rate.source}
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-3">
                                                 {rate.is_active ? (
                                                     <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0 font-tajawal">
-                                                        {isAr ? 'فعال' : 'Active'}
+                                                        {t('currency.active')}
                                                     </Badge>
                                                 ) : (
                                                     <Badge variant="secondary" className="text-[10px] font-tajawal">
-                                                        {isAr ? 'منتهي' : 'Expired'}
+                                                        {t('currency.expired')}
                                                     </Badge>
                                                 )}
                                             </td>
@@ -632,12 +629,12 @@ export default function CurrencyDetailSheet({
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
-                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{isAr ? 'العملة' : 'Currency'}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">{t('currency.currencyLabel')}</th>
                                         <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">
                                             {isAr ? `1 ${currencyCode} =` : `1 ${currencyCode} =`}
                                         </th>
                                         <th className="text-start font-tajawal font-medium text-gray-500 px-4 py-2.5 text-xs">
-                                            {isAr ? `مقابل ${baseCurrency}` : `vs ${baseCurrency}`}
+                                            {`${t('currency.vs')} ${baseCurrency}`}
                                         </th>
                                     </tr>
                                 </thead>
@@ -702,23 +699,23 @@ export default function CurrencyDetailSheet({
             <Card className="border-gray-200 dark:border-gray-700">
                 <CardContent className="p-5 space-y-4">
                     <h4 className="text-sm font-bold font-tajawal text-gray-900 dark:text-white">
-                        {isAr ? 'معلومات العملة' : 'Currency Information'}
+                        {t('currency.currencyInfo')}
                     </h4>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                            <span className="text-gray-500 font-tajawal">{isAr ? 'الكود' : 'Code'}:</span>
+                            <span className="text-gray-500 font-tajawal">{t('currency.code')}:</span>
                             <span className="ms-2 font-mono font-bold">{currencyCode}</span>
                         </div>
                         <div>
-                            <span className="text-gray-500 font-tajawal">{isAr ? 'الرمز' : 'Symbol'}:</span>
+                            <span className="text-gray-500 font-tajawal">{t('currency.symbol')}:</span>
                             <span className="ms-2 text-lg">{cur?.symbol}</span>
                         </div>
                         <div>
-                            <span className="text-gray-500 font-tajawal">{isAr ? 'الاسم (عربي)' : 'Name (Arabic)'}:</span>
+                            <span className="text-gray-500 font-tajawal">{t('currency.nameAr')}:</span>
                             <span className="ms-2 font-tajawal">{cur?.name}</span>
                         </div>
                         <div>
-                            <span className="text-gray-500 font-tajawal">{isAr ? 'الاسم (إنجليزي)' : 'Name (English)'}:</span>
+                            <span className="text-gray-500 font-tajawal">{t('currency.nameEn')}:</span>
                             <span className="ms-2">{cur?.nameEn}</span>
                         </div>
                     </div>
@@ -729,10 +726,10 @@ export default function CurrencyDetailSheet({
                 <CardContent className="p-5 space-y-3">
                     <h4 className="text-sm font-bold font-tajawal text-red-600 dark:text-red-400 flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4" />
-                        {isAr ? 'منطقة الخطر' : 'Danger Zone'}
+                        {t('currency.dangerZone')}
                     </h4>
                     <p className="text-xs text-gray-500 font-tajawal">
-                        {isAr ? 'إزالة العملة ستحذفها من قائمة العملات المدعومة — لا يمكن الإزالة إذا كانت مستخدمة في حركات' : 'Removing the currency will delete it from supported currencies — cannot remove if used in transactions'}
+                        {t('currency.dangerWarning')}
                     </p>
                     <Button
                         variant="outline"
@@ -744,7 +741,7 @@ export default function CurrencyDetailSheet({
                         }}
                     >
                         <Trash2 className="w-3.5 h-3.5 me-1" />
-                        {isAr ? 'إزالة العملة' : 'Remove Currency'}
+                        {t('currency.removeCurrency')}
                     </Button>
                 </CardContent>
             </Card>
@@ -766,7 +763,7 @@ export default function CurrencyDetailSheet({
     return (
         <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
             <SheetContent
-                side={isAr ? 'left' : 'right'}
+                side={direction === 'rtl' ? 'left' : 'right'}
                 className="w-full sm:w-[90vw] md:w-[80vw] lg:w-[65vw] xl:w-[55vw] max-w-[900px] p-0 border-0 [&>button]:hidden"
             >
                 {/* Header — Gradient Banner */}
@@ -798,10 +795,10 @@ export default function CurrencyDetailSheet({
                     {/* Quick Stats in Header */}
                     <div className="flex items-center gap-3 mt-4 flex-wrap">
                         {[
-                            { label: isAr ? 'أونلاين' : 'Online', value: onlineRateDisplay ? onlineRateDisplay.toFixed(2) : '—' },
-                            { label: isAr ? 'شراء' : 'Buy', value: buyNum > 0 ? buyNum.toFixed(2) : '—' },
-                            { label: isAr ? 'بيع' : 'Sell', value: sellNum > 0 ? sellNum.toFixed(2) : '—' },
-                            { label: isAr ? 'هامش' : 'Spread', value: spreadPercent > 0 ? `${spreadPercent.toFixed(1)}%` : '—' },
+                            { label: t('currency.online'), value: onlineRateDisplay ? onlineRateDisplay.toFixed(2) : '—' },
+                            { label: t('currency.buy'), value: buyNum > 0 ? buyNum.toFixed(2) : '—' },
+                            { label: t('currency.sell'), value: sellNum > 0 ? sellNum.toFixed(2) : '—' },
+                            { label: t('currency.spread'), value: spreadPercent > 0 ? `${spreadPercent.toFixed(1)}%` : '—' },
                         ].map(s => (
                             <div key={s.label} className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm">
                                 <span className="text-lg font-bold text-white font-mono">{s.value}</span>
@@ -827,7 +824,7 @@ export default function CurrencyDetailSheet({
                                     )}
                                 >
                                     <tab.icon className="w-3.5 h-3.5" />
-                                    {isAr ? tab.labelAr : tab.labelEn}
+                                    {t(tab.tKey)}
                                 </button>
                             ))}
                         </div>

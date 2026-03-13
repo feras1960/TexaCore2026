@@ -4,9 +4,6 @@
 			"path": "../.."
 		},
 		{
-			"path": "../../../../Downloads/ERP-Sytem-12-2025-28-01-2026"
-		},
-		{
 			"path": "../../../texacore-store"
 		},
 		{
@@ -14,6 +11,9 @@
 		},
 		{
 			"path": "../../../texacore-astro"
+		},
+		{
+			"path": "../../../ERP-Sytem-12-2025-28-01-2026"
 		}
 	],
 	"settings": {}

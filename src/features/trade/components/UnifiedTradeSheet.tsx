@@ -10,8 +10,9 @@
  * ✅ يحتفظ بالبيانات المشتركة عند التبديل
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
+import { useNexaContext } from '@/providers/NexaContextProvider';
 import { UnifiedDocType } from '@/features/accounting/components/unified/types';
 import { TransactionStageTimeline } from '@/components/transactions';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -188,11 +189,27 @@ export const UnifiedTradeSheet: React.FC<UnifiedTradeSheetProps> = ({
 }) => {
     const { isRTL } = useLanguage();
     const [activeType, setActiveType] = useState<string>(type);
+    const { pushContext } = useNexaContext();
 
     // Reset type when prop changes
     React.useEffect(() => {
         setActiveType(type);
     }, [type]);
+
+    // Push context when sheet opens with existing data
+    useEffect(() => {
+        if (open && initialData?.party_name && (initialData?.customer_id || initialData?.party_id)) {
+            const partyId = initialData.customer_id || initialData.supplier_id || initialData.party_id;
+            const contextType = mode === 'sales' ? 'customer_in_invoice' : 'supplier_in_purchase';
+            pushContext(contextType, partyId, initialData.party_name, {
+                mode,
+                party_type: mode === 'sales' ? 'customer' : 'supplier',
+                party_name: initialData.party_name,
+                document_currency: initialData.currency || '',
+                document_stage: initialData.stage || currentStage || 'draft',
+            });
+        }
+    }, [open, initialData?.party_name]);
 
     // Check if user can select a specific type
     const canSelectType = useCallback((dt: DocTypeDef): { allowed: boolean; reason?: string } => {

@@ -266,66 +266,97 @@ export function ChartOfAccounts() {
     ? (CURRENCY_SYMBOLS[selectedCurrency] || selectedCurrency)
     : '$';
 
-  // ═══ Multi-currency account balances (accounts receiving entries in multiple currencies) ═══
-  const [multiCurrencyMap, setMultiCurrencyMap] = useState<Map<string, Array<{ currency: string, balance: number }>>>(new Map());
+  // ═══ RPC-based account balances — single source of truth ═══
+  // balance = FC (native currency), balance_base = base currency (always balanced)
+  const [rpcBalances, setRpcBalances] = useState<Map<string, {
+    total_debit: number;
+    total_credit: number;
+    balance: number;
+    balance_base: number;
+    currency: string;
+    transaction_count: number;
+    last_activity: string | null;
+  }>>(new Map());
 
   useEffect(() => {
-    if (!companyId) return;
-    const fetchMultiCurrencyBalances = async () => {
+    if (!companyId || accounts.length === 0) return;
+    const fetchAllBalances = async () => {
       try {
-        const { data, error } = await supabase.rpc('get_multi_currency_balances', {
+        const { data, error } = await supabase.rpc('get_all_account_balances_fc', {
           p_company_id: companyId,
         });
-        if (error || !data) return;
-        const map = new Map<string, Array<{ currency: string, balance: number }>>();
+        if (error || !data) {
+          console.warn('[ChartOfAccounts] RPC get_all_account_balances_fc error:', error?.message);
+          return;
+        }
+        const map = new Map<string, any>();
         (data as any[]).forEach((row: any) => {
-          const existing = map.get(row.account_id) || [];
-          existing.push({ currency: row.currency, balance: Number(row.net_balance) });
-          map.set(row.account_id, existing);
+          map.set(row.account_id, {
+            total_debit: Number(row.total_debit) || 0,
+            total_credit: Number(row.total_credit) || 0,
+            balance: Number(row.balance) || 0,
+            balance_base: Number(row.balance_base) || 0,
+            currency: row.currency || '',
+            transaction_count: Number(row.transaction_count) || 0,
+            last_activity: row.last_activity,
+          });
         });
-        setMultiCurrencyMap(map);
+        setRpcBalances(map);
       } catch (e) {
-        console.warn('Failed to fetch multi-currency balances:', e);
+        console.warn('[ChartOfAccounts] Failed to fetch RPC balances:', e);
       }
     };
-    fetchMultiCurrencyBalances();
+    fetchAllBalances();
   }, [companyId, accounts]);
 
-  // ═══ Enhanced convertBalance: handles multi-currency accounts ═══
-  const enhancedConvertBalance = useCallback((amount: number, currency: string, accountId?: string): number => {
-    // If this account has multi-currency breakdown, use it instead
-    if (accountId && multiCurrencyMap.has(accountId)) {
-      const entries = multiCurrencyMap.get(accountId)!;
-      if (selectedCurrency === 'all') {
-        // No conversion — return raw balance
-        return amount;
-      }
-      // Sum each currency's balance after converting to selected currency
-      return entries.reduce((sum, entry) => {
-        return sum + convertAmount(entry.balance, entry.currency);
-      }, 0);
-    }
-    // Normal single-currency conversion
-    if (!currency || selectedCurrency === 'all') return amount;
-    return convertAmount(amount, currency);
-  }, [multiCurrencyMap, selectedCurrency, convertAmount]);
+  // ═══ Accounts with RPC balances overlaid ═══
+  // Uses balance_base (base currency) for current_balance — guaranteed balanced
+  // For non-base currency views, convertAmount converts from base currency
+  const baseCurrency = company?.default_currency || 'UAH';
 
-  // ═══ Financial Stats (by account_code prefix) — with currency conversion ═══
+  const accountsWithRpcBalances = useMemo(() => {
+    if (rpcBalances.size === 0) return accounts;
+    return accounts.map(a => {
+      const rpc = rpcBalances.get(a.id);
+      if (!rpc) return a;
+      return {
+        ...a,
+        // Use balance_base for tree calculations (always balanced)
+        current_balance: rpc.balance_base,
+        // Keep base currency for conversion
+        currency_code: baseCurrency,
+        currency: baseCurrency,
+        // Store FC balance for display purposes
+        _balance_fc: rpc.balance,
+        _currency_fc: rpc.currency,
+      };
+    });
+  }, [accounts, rpcBalances, baseCurrency]);
+
+  // ═══ Convert balance from base currency to display currency ═══
+  const enhancedConvertBalance = useCallback((amount: number, _currency: string, _accountId?: string): number => {
+    // amount is already in base currency (from balance_base)
+    // Convert to selected display currency
+    if (selectedCurrency === baseCurrency) return amount;
+    return convertAmount(amount, baseCurrency);
+  }, [selectedCurrency, convertAmount, baseCurrency]);
+
+  // ═══ Financial Stats (by account_code prefix) — using balance_base ═══
   const financialStats = useMemo(() => {
     const getRootCode = (account: Account): string => {
       const code = account.code || (account as any).account_code || '';
       return code.charAt(0);
     };
 
-    // Only leaf accounts (non-group), excluding SUM accounts to avoid double-counting
-    const leafAccounts = accounts.filter(a => !a.is_group && !(a as any).is_summary_account);
+    // Only leaf accounts (non-group), excluding SUM accounts
+    const leafAccounts = accountsWithRpcBalances.filter(a => !a.is_group && !(a as any).is_summary_account);
 
-    // Helper: get balance converted to selected currency (with multi-currency support)
+    // Helper: balance_base → optionally converted to display currency
     const getConvertedBalance = (a: Account): number => {
-      const balance = a.current_balance ?? 0;
-      if (balance === 0 && !multiCurrencyMap.has(a.id)) return 0;
-      const acctCurrency = a.currency_code || a.currency || company?.default_currency || '';
-      return enhancedConvertBalance(balance, acctCurrency, a.id);
+      const balance = a.current_balance ?? 0; // This is balance_base now
+      if (balance === 0) return 0;
+      if (selectedCurrency === baseCurrency) return balance;
+      return convertAmount(balance, baseCurrency);
     };
 
     const totalAssets = leafAccounts
@@ -352,10 +383,10 @@ export function ChartOfAccounts() {
 
     const totalAll = totalAssets + totalExpenses + totalLiabilities + totalEquity + totalRevenue;
     const balanceDiff = Math.abs(totalAll);
+    // Always balanced because balance_base sums to zero (guaranteed by journal entries)
     const isBalanced = balanceDiff < 0.02;
 
-    // ═══ Trial Balance: Debit = all positive balances, Credit = abs(all negative balances) ═══
-    // This correctly handles ALL accounts regardless of their type
+    // ═══ Trial Balance: Debit = all positive, Credit = abs(all negative) ═══
     let debitSide = 0;
     let creditSide = 0;
     leafAccounts.forEach(a => {
@@ -381,9 +412,39 @@ export function ChartOfAccounts() {
       balanceDiff,
       isBalanced,
     };
-  }, [accounts, selectedCurrency, enhancedConvertBalance, company?.default_currency, multiCurrencyMap]);
+  }, [accountsWithRpcBalances, selectedCurrency, convertAmount, baseCurrency]);
 
-  // ═══ Net Profit Protection: hidden + password ═══
+  // ═══ Trial Balance from Backend RPC — 100% guaranteed balanced ═══
+  const [trialBalance, setTrialBalance] = useState<{
+    total_debit: number;
+    total_credit: number;
+    balance_diff: number;
+    is_balanced: boolean;
+    base_currency: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!companyId) return;
+    const fetchTrialBalance = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_trial_balance_base', {
+          p_company_id: companyId,
+        });
+        if (error || !data || data.length === 0) return;
+        const row = data[0];
+        setTrialBalance({
+          total_debit: Number(row.total_debit) || 0,
+          total_credit: Number(row.total_credit) || 0,
+          balance_diff: Number(row.balance_diff) || 0,
+          is_balanced: row.is_balanced,
+          base_currency: row.base_currency || 'UAH',
+        });
+      } catch (e) {
+        console.warn('[ChartOfAccounts] Trial balance RPC error:', e);
+      }
+    };
+    fetchTrialBalance();
+  }, [companyId, accounts]);
   const canSeeProfitCard = hasAnyRole(['super_admin', 'tenant_owner', 'company_owner']);
   const [profitRevealed, setProfitRevealed] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -454,7 +515,7 @@ export function ChartOfAccounts() {
 
   // Filter accounts based on search query and filters
   const filteredAccounts = useMemo(() => {
-    let filtered = accounts;
+    let filtered = accountsWithRpcBalances;
 
     // Search filter
     if (searchQuery) {
@@ -493,7 +554,7 @@ export function ChartOfAccounts() {
     // if (selectedCurrency && selectedCurrency !== 'all') { ... }
 
     return filtered;
-  }, [accounts, searchQuery, accountTypeFilter, statusFilter, selectedCurrency, company?.default_currency]);
+  }, [accountsWithRpcBalances, searchQuery, accountTypeFilter, statusFilter, selectedCurrency, company?.default_currency]);
 
 
 
@@ -781,7 +842,7 @@ export function ChartOfAccounts() {
           value={activeAccounts}
           icon={CheckCircle2}
         />
-        {/* 4. إجمالي المدين = الأصول + المصروفات */}
+        {/* 4. إجمالي المدين — sum of positive balances (assets + equity) */}
         <StatCard
           label={language === 'ar' ? 'إجمالي المدين' : 'Total Debit'}
           value={financialStats.debitSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -789,7 +850,7 @@ export function ChartOfAccounts() {
           type="positive"
           prefix={currencySymbol}
         />
-        {/* 5. إجمالي الدائن = الخصوم + حقوق الملكية + الإيرادات */}
+        {/* 5. إجمالي الدائن — sum of abs(negative balances) = liabilities */}
         <StatCard
           label={language === 'ar' ? 'إجمالي الدائن' : 'Total Credit'}
           value={financialStats.creditSide.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -797,12 +858,13 @@ export function ChartOfAccounts() {
           type="info"
           prefix={currencySymbol}
         />
-        {/* 6. ميزان المراجعة */}
+        {/* 6. ميزان المراجعة — always balanced (balance_base sums to zero) */}
         <StatCard
           label={language === 'ar' ? 'ميزان المراجعة' : 'Trial Balance'}
-          value={financialStats.isBalanced
-            ? (language === 'ar' ? '✅ متوازن' : '✅ Balanced')
-            : `❌ ${language === 'ar' ? 'فرق' : 'Diff'}: ${financialStats.balanceDiff.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+          value={
+            financialStats.isBalanced
+              ? (language === 'ar' ? '✅ متوازن' : '✅ Balanced')
+              : `❌ ${language === 'ar' ? 'فرق' : 'Diff'}: ${financialStats.balanceDiff.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
           }
           icon={Shield}
           type={financialStats.isBalanced ? 'positive' : 'warning'}
@@ -980,7 +1042,6 @@ export function ChartOfAccounts() {
                 <SelectValue placeholder={t('common.currency')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t('common.all')}</SelectItem>
                 {currencyOptions.map((code) => (
                   <SelectItem key={code} value={code}>
                     {code}
@@ -1235,7 +1296,6 @@ export function ChartOfAccounts() {
           collapseAll={collapseAll}
           searchQuery={searchQuery}
           convertBalance={selectedCurrency !== 'all' ? convertAmount : undefined}
-          multiCurrencyMap={multiCurrencyMap}
           enhancedConvertBalance={selectedCurrency !== 'all' ? enhancedConvertBalance : undefined}
           onExpandStateChange={() => {
             setExpandAll(undefined);

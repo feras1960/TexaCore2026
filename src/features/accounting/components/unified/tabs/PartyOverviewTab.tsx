@@ -116,6 +116,7 @@ interface PartyOverviewTabProps {
     mode: SheetMode;
     onChange: (updates: any) => void;
     companyId?: string;
+    docType?: string;
 }
 
 // ═══ Accordion Section ═══
@@ -195,7 +196,7 @@ function Field({ label, hint, children, required }: {
 // ═══════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════
-export function PartyOverviewTab({ data, mode, onChange, companyId }: PartyOverviewTabProps) {
+export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: PartyOverviewTabProps) {
     const { language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
     const isAr = language === 'ar';
@@ -204,7 +205,8 @@ export function PartyOverviewTab({ data, mode, onChange, companyId }: PartyOverv
     const { fmtAmount } = useNumberFormat();
 
     // ─── Detect if this is an ACCOUNT from chart_of_accounts (not a party) ───
-    const isAccountMode = !!(data?.account_code || data?.account_type_id || data?.is_group !== undefined);
+    const isFundMode = docType === 'fund';
+    const isAccountMode = isFundMode || !!(data?.account_code || data?.account_type_id || data?.is_group !== undefined);
 
     // ─── Determine party type from data (only relevant for party mode) ───
     const partyType: 'customer' | 'supplier' = data?._partyType || data?.party_type || data?.type || 'customer';
@@ -326,6 +328,66 @@ export function PartyOverviewTab({ data, mode, onChange, companyId }: PartyOverv
     const handleChange = useCallback((field: string, value: any) => {
         onChange({ [field]: value });
     }, [onChange]);
+
+    // ═══ Fund Mode: Auto-init parent_id & account_type_id on create ═══
+    const [fundAutoInitDone, setFundAutoInitDone] = useState(false);
+    useEffect(() => {
+        if (!isFundMode || mode !== 'create' || fundAutoInitDone) return;
+        const cId = companyId || data?.company_id;
+        if (!cId) return;
+
+        const autoInit = async () => {
+            const isBankFund = data?.is_bank_account;
+            const parentCode = isBankFund ? '112' : '111';
+
+            // Find parent account
+            const { data: parentAcct } = await supabase
+                .from('chart_of_accounts')
+                .select('id, account_code, name_ar, name_en, account_type_id')
+                .eq('company_id', cId)
+                .eq('account_code', parentCode)
+                .single();
+
+            if (parentAcct) {
+                // Set parent
+                onChange({ parent_id: parentAcct.id });
+                setParentInfo(parentAcct);
+
+                // Auto-set account_type_id from parent
+                if (parentAcct.account_type_id) {
+                    onChange({ account_type_id: parentAcct.account_type_id });
+                }
+
+                // Auto-generate next code
+                const { data: siblings } = await supabase
+                    .from('chart_of_accounts')
+                    .select('account_code')
+                    .eq('company_id', cId)
+                    .eq('parent_id', parentAcct.id);
+
+                if (siblings && siblings.length > 0) {
+                    const codes = siblings
+                        .map((s: any) => parseInt(s.account_code))
+                        .filter((n: number) => !isNaN(n));
+                    const nextCode = codes.length > 0 ? (Math.max(...codes) + 1).toString() : parentCode + '1';
+                    onChange({ account_code: nextCode });
+                } else {
+                    onChange({ account_code: parentCode + '1' });
+                }
+
+                // Set is_group to false and is_cash/is_bank flags
+                onChange({ is_group: false });
+                if (isBankFund) {
+                    onChange({ is_bank_account: true, is_cash_account: false });
+                } else {
+                    onChange({ is_cash_account: true, is_bank_account: false });
+                }
+            }
+            setFundAutoInitDone(true);
+        };
+
+        autoInit();
+    }, [isFundMode, mode, fundAutoInitDone, companyId, data?.company_id, data?.is_bank_account]);
 
     // ─── The entity type (individual/company) — party mode ───
     const entityType = data?.customer_type || data?.supplier_type || 'wholesale';

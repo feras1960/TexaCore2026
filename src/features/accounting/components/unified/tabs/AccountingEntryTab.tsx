@@ -142,6 +142,19 @@ export function AccountingEntryTab({
                 />
             );
 
+        // 9. Recurring Entry (Uses Journal Form — same debit/credit lines)
+        case 'recurring':
+            return (
+                <JournalVoucherTab
+                    data={data}
+                    mode={mode}
+                    onChange={onChange}
+                    onSaveComplete={onSaveComplete}
+                    companyId={companyId}
+                    docType={docType}
+                />
+            );
+
         default:
             return (
                 <div className="p-8 text-center text-muted-foreground">

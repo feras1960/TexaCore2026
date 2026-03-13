@@ -247,7 +247,7 @@ export function NexaAgentTab({ data, mode }: NexaAgentTabProps) {
             // Fetch customer info for credit limit
             const { data: customer } = await supabase
                 .from('customers')
-                .select('credit_limit, balance, category')
+                .select('credit_limit, balance')
                 .eq('id', customerId)
                 .single();
 

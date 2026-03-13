@@ -87,8 +87,9 @@ export function StatCard({
     <motion.div
       className={cn(
         'rounded-xl border p-4 transition-colors hover:shadow-md',
-        styles.bg,
-        styles.border,
+        // Skip default bg/border if custom className has gradient (glass cards)
+        className?.includes('bg-gradient') ? '' : styles.bg,
+        className?.includes('bg-gradient') ? '' : styles.border,
         className
       )}
       initial={{ opacity: 0, y: 20 }}

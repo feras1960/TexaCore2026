@@ -1348,7 +1348,7 @@ export function JournalVoucherTab({
                     <div className="h-5 w-px bg-gradient-to-b from-transparent via-slate-600 to-transparent" />
 
                     {/* Balance Section */}
-                    {docType === 'journal' ? (
+                    {(docType === 'journal' || docType === 'recurring') ? (
                         /* القيود اليومية: الفرق بين المدين والدائن */
                         <div className={cn(
                             "flex items-center gap-2 px-3 py-1 rounded-lg transition-all duration-500",

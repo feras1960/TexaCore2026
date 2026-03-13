@@ -176,7 +176,7 @@ export function EnhancedActionToolbar({
 }: EnhancedActionToolbarProps) {
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
-    const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
+    const tl = (tKey: string) => t(tKey);
     const isEditMode = mode === 'edit';
     const isCreateMode = mode === 'create';
     const isViewMode = mode === 'view';
@@ -283,13 +283,13 @@ export function EnhancedActionToolbar({
                                 className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
                             >
                                 <ShieldCheck className="w-4 h-4" />
-                                <span>{language === 'ar' ? 'حفظ وتأكيد' : 'Save & Confirm'}</span>
+                                <span>{t('actions.saveAndConfirm')}</span>
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
                             <p>{tradeMode === 'purchase'
-                                ? (language === 'ar' ? 'تأكيد الفاتورة وإرسال إشعار لأمين المستودع للاستلام' : 'Confirm invoice and notify warehouse keeper for receipt')
-                                : (language === 'ar' ? 'تأكيد الفاتورة وإرسال إشعار لأمين المستودع لتجهيز الطلب' : 'Confirm invoice and notify warehouse keeper to prepare order')
+                                ? t('actions.confirmPurchaseTooltip')
+                                : t('actions.confirmSalesTooltip')
                             }</p>
                         </TooltipContent>
                     </Tooltip>
@@ -311,15 +311,15 @@ export function EnhancedActionToolbar({
                             >
                                 <CheckCircle className="w-4 h-4" />
                                 <span>{isReceivedOrPartial
-                                    ? (language === 'ar' ? 'ترحيل (بالمستلم)' : 'Post (received)')
+                                    ? t('actions.postReceived')
                                     : (t('accounting.post') || 'ترحيل واعتماد')
                                 }</span>
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
                             <p>{isReceivedOrPartial
-                                ? (language === 'ar' ? 'ترحيل القيد بالكميات المستلمة فعلياً' : 'Post using actual received quantities')
-                                : (t('accounting.postAndConfirm') || 'اعتماد المستند وترحيل القيد المالي')
+                                ? t('actions.postReceivedTooltip')
+                                : (t('accounting.postAndConfirm') || t('actions.postConfirmTooltip'))
                             }</p>
                         </TooltipContent>
                     </Tooltip>
@@ -367,7 +367,7 @@ export function EnhancedActionToolbar({
             {isViewMode && isPartiallyReceived && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                     <PackageCheck className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? 'مُستلم جزئياً' : 'Partially Received'}</span>
+                    <span>{t('actions.partiallyReceived')}</span>
                 </div>
             )}
 
@@ -383,14 +383,11 @@ export function EnhancedActionToolbar({
                                 className="gap-1.5 bg-gradient-to-r from-slate-600 to-gray-700 hover:from-slate-700 hover:to-gray-800 text-white font-semibold shadow-md shadow-slate-500/30"
                             >
                                 <LockKeyhole className="w-4 h-4" />
-                                <span>{language === 'ar' ? 'إغلاق الحاوية' : 'Close Container'}</span>
+                                <span>{t('actions.closeContainer')}</span>
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p>{language === 'ar'
-                                ? 'إغلاق الحاوية نهائياً — تسكير دورة الحياة للمرجعية والتقارير'
-                                : 'Close container permanently — lock lifecycle for reference and reports'
-                            }</p>
+                            <p>{t('actions.closeContainerTooltip')}</p>
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
@@ -400,7 +397,7 @@ export function EnhancedActionToolbar({
             {isViewMode && isContainerClosed && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                     <LockKeyhole className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? 'مغلق — للمرجعية فقط' : 'Closed — Reference only'}</span>
+                    <span>{t('actions.closedRefOnly')}</span>
                 </div>
             )}
 
@@ -431,8 +428,55 @@ export function EnhancedActionToolbar({
             {/* ✅ Save & Post — only for non-sales postable docs (purchases) */}
             {/* ✅ Save Only — for EDIT mode on sales invoices (posting tied to warehouse) */}
             {
-                // ─── Accounting documents: حفظ مسودة + تسجيل ───
-                (isEditMode || isCreateMode) && isAccountingDocType && (
+                // ─── Recurring entries: حفظ وتفعيل (بدون ترحيل محاسبي) ───
+                (isEditMode || isCreateMode) && docType === 'recurring' && (
+                    <>
+                        {/* Save Draft */}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => onAction('save')}
+                                        disabled={disabled || loading}
+                                        className="gap-1.5 border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                        <span>{t('actions.saveDraft')}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{t('actions.saveDraftRecurringTooltip')}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        {/* Save & Activate */}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => onAction('save_activate')}
+                                        disabled={disabled || loading}
+                                        className="gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-semibold shadow-md shadow-purple-500/20"
+                                    >
+                                        <RefreshCw className="w-4 h-4" />
+                                        <span>{t('actions.saveAndActivate')}</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{t('actions.saveActivateTooltip')}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </>
+                )
+            }
+            {
+                // ─── Accounting documents (غير القيود المتكررة): حفظ مسودة + تسجيل ───
+                (isEditMode || isCreateMode) && isAccountingDocType && docType !== 'recurring' && (
                     <>
                         {/* Save Draft */}
                         <TooltipProvider>
@@ -450,7 +494,7 @@ export function EnhancedActionToolbar({
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>{language === 'ar' ? 'حفظ القيد كمسودة دون ترحيل' : 'Save as draft without posting'}</p>
+                                    <p>{t('actions.saveDraftTooltip')}</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -466,11 +510,11 @@ export function EnhancedActionToolbar({
                                         className="gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold shadow-md shadow-emerald-500/20"
                                     >
                                         <CheckCircle className="w-4 h-4" />
-                                        <span>{language === 'ar' ? 'تسجيل' : 'Register'}</span>
+                                        <span>{t('actions.register')}</span>
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>{language === 'ar' ? 'حفظ القيد وترحيله مباشرةً' : 'Save and post the entry immediately'}</p>
+                                    <p>{t('actions.registerTooltip')}</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -495,14 +539,11 @@ export function EnhancedActionToolbar({
                                             className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
                                         >
                                             <ShieldCheck className="w-4 h-4" />
-                                            <span>{language === 'ar' ? 'حفظ وتأكيد' : 'Save & Confirm'}</span>
+                                            <span>{t('actions.saveAndConfirm')}</span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{language === 'ar'
-                                            ? 'حفظ الفاتورة وتأكيدها — سيتم إشعار أمين المستودع لتجهيز الطلب'
-                                            : 'Save and confirm — warehouse keeper will be notified to prepare the order'
-                                        }</p>
+                                        <p>{t('actions.saveConfirmTooltip')}</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -525,11 +566,11 @@ export function EnhancedActionToolbar({
                                             className="gap-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-md shadow-blue-500/20"
                                         >
                                             <Save className="w-4 h-4" />
-                                            <span>{language === 'ar' ? 'حفظ' : 'Save'}</span>
+                                            <span>{t('common.save')}</span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{language === 'ar' ? 'حفظ التعديلات — الترحيل يتم عبر التسليم من المستودع' : 'Save changes — posting happens via warehouse delivery'}</p>
+                                        <p>{t('actions.saveEditTooltip')}</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -550,14 +591,11 @@ export function EnhancedActionToolbar({
                                             className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
                                         >
                                             <ShieldCheck className="w-4 h-4" />
-                                            <span>{language === 'ar' ? 'حفظ وتأكيد' : 'Save & Confirm'}</span>
+                                            <span>{t('actions.saveAndConfirm')}</span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{language === 'ar'
-                                            ? 'حفظ الفاتورة وتأكيدها — سيتم إشعار أمين المستودع لتجهيز الطلب'
-                                            : 'Save and confirm — warehouse keeper will be notified to prepare the order'
-                                        }</p>
+                                        <p>{t('actions.saveConfirmTooltip')}</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -577,11 +615,11 @@ export function EnhancedActionToolbar({
                                             className="gap-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-sm"
                                         >
                                             <CheckCircle className="w-4 h-4" />
-                                            <span>{language === 'ar' ? 'حفظ وترحيل' : 'Save & Post'}</span>
+                                            <span>{t('actions.saveAndPost')}</span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{language === 'ar' ? 'حفظ المستند وترحيله فوراً' : 'Save and post document immediately'}</p>
+                                        <p>{t('actions.savePostTooltip')}</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -600,11 +638,11 @@ export function EnhancedActionToolbar({
                                         className="gap-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-semibold shadow-md shadow-blue-500/20"
                                     >
                                         <Save className="w-4 h-4" />
-                                        <span>{language === 'ar' ? 'حفظ' : 'Save'}</span>
+                                        <span>{t('common.save')}</span>
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>{language === 'ar' ? 'حفظ المستند' : 'Save document'}</p>
+                                    <p>{t('actions.saveTooltip')}</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -653,7 +691,7 @@ export function EnhancedActionToolbar({
                                     {isContainerClosed ? (
                                         <>
                                             <Lock className="w-4 h-4" />
-                                            <span className="hidden lg:inline">{language === 'ar' ? 'مغلق نهائياً' : 'Locked'}</span>
+                                            <span className="hidden lg:inline">{t('actions.lockedPermanently')}</span>
                                         </>
                                     ) : (isReceivedDoc || isPosted) && !canEditReceived ? (
                                         <>
@@ -671,10 +709,10 @@ export function EnhancedActionToolbar({
                             <TooltipContent>
                                 <p>
                                     {isContainerClosed
-                                        ? (language === 'ar' ? 'الكونتينر مغلق — لا يمكن تعديل إذن الاستلام' : 'Container is closed — receipt is permanently locked')
+                                        ? t('actions.containerLockedTooltip')
                                         : (isReceivedDoc || isPosted) && !canEditReceived
-                                            ? (t('messages.docLocked') || 'المستند مقفل لا يمكن تعديله')
-                                            : (t('common.edit') || 'تعديل')
+                                            ? (t('messages.docLocked') || t('common.locked'))
+                                            : (t('common.edit'))
                                     }
                                 </p>
                             </TooltipContent>
@@ -1027,6 +1065,7 @@ function PrintExportDropdown({
 }) {
     const printDocType = DOC_TYPE_MAP[docType] || docType;
     const isAr = language === 'ar';
+    const { t } = useLanguage();
 
     const { companyId } = useCompany();
     const { getRate } = useViewCurrency();
@@ -1048,9 +1087,9 @@ function PrintExportDropdown({
         setPrinting(true);
         try {
             await printFn(templateId);
-            toast.success(isAr ? 'جاري الطباعة...' : 'Printing...');
+            toast.success(t('actions.printing'));
         } catch (err: any) {
-            toast.error(err.message || (isAr ? 'خطأ في الطباعة' : 'Print error'));
+            toast.error(err.message || t('actions.printError'));
         } finally {
             setPrinting(false);
         }
@@ -1075,11 +1114,11 @@ function PrintExportDropdown({
             const entry = printData.entry;
             const columns: ExportColumn[] = [
                 { key: 'index', header: '#', width: 5 },
-                { key: 'account_code', header: isAr ? 'رمز الحساب' : 'Account Code', width: 15 },
-                { key: 'account_name', header: isAr ? 'اسم الحساب' : 'Account Name', width: 25 },
-                { key: 'description', header: isAr ? 'البيان' : 'Description', width: 30 },
-                { key: 'debit', header: isAr ? 'مدين' : 'Debit', width: 15, type: 'debit' },
-                { key: 'credit', header: isAr ? 'دائن' : 'Credit', width: 15, type: 'credit' },
+                { key: 'account_code', header: t('export.accountCode'), width: 15 },
+                { key: 'account_name', header: t('export.accountName'), width: 25 },
+                { key: 'description', header: t('export.description'), width: 30 },
+                { key: 'debit', header: t('export.debit'), width: 15, type: 'debit' },
+                { key: 'credit', header: t('export.credit'), width: 15, type: 'credit' },
             ];
 
             const data = (entry.lines || []).map((line: any, idx: number) => ({
@@ -1095,7 +1134,7 @@ function PrintExportDropdown({
             data.push({
                 index: '',
                 account_code: '',
-                account_name: isAr ? 'الإجمالي' : 'Total',
+                account_name: t('export.total'),
                 description: '',
                 debit: entry.total_debit || 0,
                 credit: entry.total_credit || 0,
@@ -1103,7 +1142,7 @@ function PrintExportDropdown({
 
             return {
                 filename: entry.number || 'journal-entry',
-                title: `${isAr ? 'قيد يومية' : 'Journal Entry'} - ${entry.number || ''}`,
+                title: `${t('export.journalEntry')} - ${entry.number || ''}`,
                 subtitle: entry.description || '',
                 isRTL,
                 columns,
@@ -1121,14 +1160,14 @@ function PrintExportDropdown({
             const partyName = printData.customer?.name || printData.supplier?.name || '';
             const columns: ExportColumn[] = [
                 { key: 'index', header: '#', width: 5 },
-                { key: 'name', header: isAr ? 'الصنف' : 'Item', width: 25 },
-                { key: 'description', header: isAr ? 'الوصف' : 'Description', width: 25 },
-                { key: 'quantity', header: isAr ? 'الكمية' : 'Qty', width: 10 },
-                { key: 'unit', header: isAr ? 'الوحدة' : 'Unit', width: 8 },
-                { key: 'unit_price', header: isAr ? 'السعر' : 'Price', width: 12, type: 'currency' },
-                { key: 'discount', header: isAr ? 'الخصم' : 'Discount', width: 10 },
-                { key: 'tax_amount', header: isAr ? 'الضريبة' : 'Tax', width: 10, type: 'currency' },
-                { key: 'line_total', header: isAr ? 'المجموع' : 'Total', width: 15, type: 'currency' },
+                { key: 'name', header: t('export.item'), width: 25 },
+                { key: 'description', header: t('export.description'), width: 25 },
+                { key: 'quantity', header: t('export.qty'), width: 10 },
+                { key: 'unit', header: t('export.unit'), width: 8 },
+                { key: 'unit_price', header: t('export.price'), width: 12, type: 'currency' },
+                { key: 'discount', header: t('export.discount'), width: 10 },
+                { key: 'tax_amount', header: t('export.tax'), width: 10, type: 'currency' },
+                { key: 'line_total', header: t('export.lineTotal'), width: 15, type: 'currency' },
             ];
 
             const data = (inv.items || []).map((item: any, idx: number) => ({
@@ -1145,7 +1184,7 @@ function PrintExportDropdown({
 
             // Totals row
             data.push({
-                index: '', name: '', description: isAr ? 'الإجمالي' : 'Total',
+                index: '', name: '', description: t('export.total'),
                 quantity: '', unit: '', unit_price: '', discount: '',
                 tax_amount: inv.tax_amount || 0,
                 line_total: inv.total || 0,
@@ -1153,7 +1192,7 @@ function PrintExportDropdown({
 
             return {
                 filename: inv.number || 'invoice',
-                title: `${isAr ? 'فاتورة' : 'Invoice'} ${inv.number || ''}`,
+                title: `${t('export.invoice')} ${inv.number || ''}`,
                 subtitle: partyName,
                 isRTL,
                 columns,
@@ -1167,18 +1206,18 @@ function PrintExportDropdown({
         if (printData.voucher) {
             const v = printData.voucher;
             const columns: ExportColumn[] = [
-                { key: 'field', header: isAr ? 'الحقل' : 'Field', width: 20 },
-                { key: 'value', header: isAr ? 'القيمة' : 'Value', width: 35 },
+                { key: 'field', header: t('export.field'), width: 20 },
+                { key: 'value', header: t('export.value'), width: 35 },
             ];
 
             const data = [
-                { field: isAr ? 'رقم السند' : 'Voucher No', value: v.number || '' },
-                { field: isAr ? 'التاريخ' : 'Date', value: v.date || '' },
-                { field: isAr ? 'الجهة' : 'Party', value: printData.party?.name || '' },
-                { field: isAr ? 'المبلغ' : 'Amount', value: v.amount || 0 },
-                { field: isAr ? 'العملة' : 'Currency', value: v.currency || '' },
-                { field: isAr ? 'طريقة الدفع' : 'Payment Method', value: v.payment_method || '' },
-                { field: isAr ? 'البيان' : 'Description', value: v.description || '' },
+                { field: t('export.voucherNo'), value: v.number || '' },
+                { field: t('export.date'), value: v.date || '' },
+                { field: t('export.party'), value: printData.party?.name || '' },
+                { field: t('export.amount'), value: v.amount || 0 },
+                { field: t('export.currency'), value: v.currency || '' },
+                { field: t('export.paymentMethod'), value: v.payment_method || '' },
+                { field: t('export.description'), value: v.description || '' },
             ].filter(r => r.value);
 
             return {
@@ -1200,13 +1239,13 @@ function PrintExportDropdown({
             
             const columns: ExportColumn[] = [
                 { key: 'index', header: '#', width: 5 },
-                { key: 'debit', header: isAr ? 'مدين' : 'Debit', width: 15, type: 'debit' },
-                { key: 'credit', header: isAr ? 'دائن' : 'Credit', width: 15, type: 'credit' },
-                { key: 'balance', header: isAr ? 'الرصيد' : 'Balance', width: 15, type: 'currency' },
-                { key: 'date', header: isAr ? 'التاريخ' : 'Date', width: 12 },
-                { key: 'description', header: isAr ? 'البيان' : 'Description', width: 30 },
-                { key: 'currency', header: isAr ? 'العملة' : 'Currency', width: 10 },
-                { key: 'exchange_rate', header: isAr ? 'سعر الصرف' : 'Exchange Rate', width: 12 },
+                { key: 'debit', header: t('export.debit'), width: 15, type: 'debit' },
+                { key: 'credit', header: t('export.credit'), width: 15, type: 'credit' },
+                { key: 'balance', header: t('accounting.balance') || 'Balance', width: 15, type: 'currency' },
+                { key: 'date', header: t('export.date'), width: 12 },
+                { key: 'description', header: t('export.description'), width: 30 },
+                { key: 'currency', header: t('export.currency'), width: 10 },
+                { key: 'exchange_rate', header: t('accounting.exchangeRate') || 'Exchange Rate', width: 12 },
             ];
 
             // Use raw entries for conversion, or converted entries if already done
@@ -1240,7 +1279,7 @@ function PrintExportDropdown({
                     credit: '',
                     balance: runningBalance,
                     date: '',
-                    description: isAr ? 'الرصيد الافتتاحي' : 'Opening Balance',
+                    description: t('export.openingBalance'),
                     currency: targetCurrency || '',
                     exchange_rate: '',
                 });
@@ -1279,7 +1318,7 @@ function PrintExportDropdown({
                 credit: totalCredit,
                 balance: runningBalance,
                 date: '',
-                description: isAr ? 'الإجمالي' : 'Total',
+                description: t('export.total'),
                 currency: '',
                 exchange_rate: '',
             });
@@ -1289,7 +1328,7 @@ function PrintExportDropdown({
 
             return {
                 filename: `statement-${accountName}`,
-                title: `${isAr ? 'كشف حساب' : 'Account Statement'} - ${accountName}`,
+                title: `${t('export.accountStatement')} - ${accountName}`,
                 subtitle: (acc.code ? `${acc.code} - ${accountName}` : accountName) + currencyLabel,
                 isRTL,
                 columns,
@@ -1303,8 +1342,8 @@ function PrintExportDropdown({
 
         // ═══ Fallback: generic key-value ═══
         const columns: ExportColumn[] = [
-            { key: 'field', header: isAr ? 'الحقل' : 'Field', width: 20 },
-            { key: 'value', header: isAr ? 'القيمة' : 'Value', width: 35 },
+            { key: 'field', header: t('export.field'), width: 20 },
+            { key: 'value', header: t('export.value'), width: 35 },
         ];
 
         const skipKeys = new Set(['company', 'system', '_printSettings', 'id']);
@@ -1313,24 +1352,24 @@ function PrintExportDropdown({
             .map(([k, v]) => ({ field: k, value: String(v) }));
 
         return { filename: 'export', isRTL, columns, data, companyInfo };
-    }, [printData, isAr, isRTL]);
+    }, [printData, language, isRTL]);
 
     // ─── Export to Excel ───
     const handleExportExcel = React.useCallback(() => {
         const opts = buildExportFromPrintData();
         if (!opts) {
-            toast.error(isAr ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            toast.error(t('export.noDataToExport'));
             return;
         }
         exportToExcel(opts);
-        toast.success(isAr ? 'تم تصدير Excel بنجاح' : 'Excel exported successfully');
-    }, [buildExportFromPrintData, isAr]);
+        toast.success(t('export.excelSuccess'));
+    }, [buildExportFromPrintData]);
 
     // ─── Export to Google Sheets ───
     const handleExportGoogleSheets = React.useCallback(async () => {
         const opts = buildExportFromPrintData();
         if (!opts) {
-            toast.error(isAr ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            toast.error(t('export.noDataToExport'));
             return;
         }
         await openInGoogleSheets({
@@ -1339,12 +1378,12 @@ function PrintExportDropdown({
             supabaseClient: supabase,
             language,
         });
-    }, [buildExportFromPrintData, isAr, companyId, language]);
+    }, [buildExportFromPrintData, companyId, language]);
 
     // ─── Export to PDF (via print template) ───
     const handleExportPDF = React.useCallback(async () => {
         if (!defaultTemplate) {
-            toast.error(isAr ? 'لا يوجد قالب طباعة' : 'No print template');
+            toast.error(t('export.noPrintTemplate'));
             return;
         }
         try {
@@ -1356,11 +1395,11 @@ function PrintExportDropdown({
                 win.focus();
                 setTimeout(() => win.print(), 500);
             }
-            toast.success(isAr ? 'اختر "حفظ كـ PDF" من خيارات الطباعة' : 'Select "Save as PDF" from print options');
+            toast.success(t('export.savePdfHint'));
         } catch (err: any) {
-            toast.error(err.message || (isAr ? 'خطأ في التصدير' : 'Export error'));
+            toast.error(err.message || t('export.exportError'));
         }
-    }, [defaultTemplate, previewFn, isAr]);
+    }, [defaultTemplate, previewFn]);
 
     return (
         <>
@@ -1373,7 +1412,7 @@ function PrintExportDropdown({
                         disabled={disabled || loading}
                     >
                         {(loading || printing) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                        <span className="hidden sm:inline">{isAr ? 'طباعة' : 'Print'}</span>
+                        <span className="hidden sm:inline">{t('export.print')}</span>
                         <ChevronDown className="w-3.5 h-3.5" />
                     </Button>
                 </DropdownMenuTrigger>
@@ -1382,7 +1421,7 @@ function PrintExportDropdown({
                     {templates.length > 0 && (
                         <>
                             <DropdownMenuLabel className="text-xs text-muted-foreground">
-                                {isAr ? '🖨️ طباعة' : '🖨️ Print'}
+                                {t('export.printIcon')}
                             </DropdownMenuLabel>
                             <DropdownMenuGroup>
                                 {templates.map(tpl => (
@@ -1395,7 +1434,7 @@ function PrintExportDropdown({
                                             {isAr ? tpl.name_ar : (tpl.name_en || tpl.name_ar)}
                                         </span>
                                         {tpl.is_default && (
-                                            <Badge variant="secondary" className="text-[10px] ms-2">{isAr ? 'افتراضي' : 'Default'}</Badge>
+                                            <Badge variant="secondary" className="text-[10px] ms-2">{t('export.default')}</Badge>
                                         )}
                                     </DropdownMenuItem>
                                 ))}
@@ -1405,7 +1444,7 @@ function PrintExportDropdown({
 
                     {templates.length === 0 && (
                         <DropdownMenuItem disabled className="text-muted-foreground text-sm">
-                            {isAr ? 'لا توجد قوالب طباعة' : 'No print templates'}
+                            {t('export.noPrintTemplates')}
                         </DropdownMenuItem>
                     )}
 
@@ -1413,11 +1452,11 @@ function PrintExportDropdown({
 
                     {/* Export Section */}
                     <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        {isAr ? '📤 تصدير' : '📤 Export'}
+                        {t('export.exportSection')}
                     </DropdownMenuLabel>
                     <DropdownMenuItem onClick={handleExportExcel} className="gap-2 cursor-pointer">
                         <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                        <span>{isAr ? 'تصدير Excel' : 'Export to Excel'}</span>
+                        <span>{t('export.exportExcel')}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleExportGoogleSheets} className="gap-2 cursor-pointer">
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -1427,11 +1466,11 @@ function PrintExportDropdown({
                             <rect x="6" y="15" width="8" height="2" rx="0.5" fill="white" />
                             <rect x="11" y="7" width="2" height="10" rx="0.5" fill="white" opacity="0.6" />
                         </svg>
-                        <span>{isAr ? 'فتح في Google Sheets' : 'Open in Google Sheets'}</span>
+                        <span>{t('export.openGoogleSheets')}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
                         <FileText className="w-4 h-4 text-red-600" />
-                        <span>{isAr ? 'تصدير PDF' : 'Export to PDF'}</span>
+                        <span>{t('export.exportPdf')}</span>
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
@@ -1439,7 +1478,7 @@ function PrintExportDropdown({
                     {/* Advanced Options */}
                     <DropdownMenuItem onClick={() => setDialogOpen(true)} className="gap-2">
                         <Eye className="w-4 h-4" />
-                        {isAr ? 'خيارات متقدمة' : 'Advanced Options'}
+                        {t('export.advancedOptions')}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

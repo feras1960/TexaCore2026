@@ -97,7 +97,14 @@ export function Sidebar({ className }: SidebarProps) {
             const Icon = module.icon || Package;
 
             // اسم الموديول حسب اللغة
-            const moduleName = language === 'ar' ? module.name_ar : module.name_en;
+            const moduleName = (() => {
+              switch (language) {
+                case 'ar': return module.name_ar;
+                case 'ru': return module.name_ru || module.name_en;
+                case 'uk': return module.name_uk || module.name_en;
+                default: return module.name_en;
+              }
+            })();
 
             // إذا كان الموديول غير مفعل، عرض زر Upgrade
             if (!module.is_enabled) {

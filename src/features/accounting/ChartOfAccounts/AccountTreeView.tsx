@@ -49,7 +49,6 @@ interface AccountTreeViewProps {
   height?: string;
   searchQuery?: string;
   convertBalance?: (amount: number, currency: string) => number;
-  multiCurrencyMap?: Map<string, Array<{ currency: string, balance: number }>>;
   enhancedConvertBalance?: (amount: number, currency: string, accountId?: string) => number;
 }
 
@@ -72,7 +71,6 @@ function TreeNode({
   convertBalance,
   siblings,
   enhancedConvertBalance,
-  multiCurrencyMap,
 }: {
   node: AccountTreeNode;
   level?: number;
@@ -91,7 +89,6 @@ function TreeNode({
   convertBalance?: (amount: number, currency: string) => number;
   siblings?: AccountTreeNode[];  // siblings (parent's children) — needed for SUM accounts
   enhancedConvertBalance?: (amount: number, currency: string, accountId?: string) => number;
-  multiCurrencyMap?: Map<string, Array<{ currency: string, balance: number }>>;
 }) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children && node.children.length > 0;
@@ -368,7 +365,6 @@ function TreeNode({
                 convertBalance={convertBalance}
                 siblings={node.children}
                 enhancedConvertBalance={enhancedConvertBalance}
-                multiCurrencyMap={multiCurrencyMap}
               />
             ))}
         </div>
@@ -390,7 +386,6 @@ export function AccountTreeView({
   height,
   searchQuery,
   convertBalance,
-  multiCurrencyMap,
   enhancedConvertBalance,
 }: AccountTreeViewProps) {
   const { t, direction, language } = useLanguage();
@@ -833,7 +828,6 @@ export function AccountTreeView({
                       focusedId={focusedId}
                       convertBalance={convertBalance}
                       enhancedConvertBalance={enhancedConvertBalance}
-                      multiCurrencyMap={multiCurrencyMap}
                     />
                   ))
                 )}

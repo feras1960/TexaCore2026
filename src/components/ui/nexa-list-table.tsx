@@ -34,6 +34,7 @@ import { Search, XCircle, ArrowUpDown, FileText, ChevronDown, ChevronRight } fro
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
     ColorMarkerPalette,
     MARKER_COLORS,
@@ -285,6 +286,8 @@ export function NexaListTable<T>({
 
     className,
 }: NexaListTableProps<T>) {
+    const { t, direction: langDirection } = useLanguage();
+    const effectiveDirection = direction || langDirection;
     const totalCols = (showRowNumbers ? 1 : 0) + columns.length + (renderActions ? 1 : 0);
 
     // ═══ Expandable Row State ═══
@@ -337,7 +340,7 @@ export function NexaListTable<T>({
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => onSearchChange(e.target.value)}
-                                placeholder={searchPlaceholder || (isRTL ? 'بحث...' : 'Search...')}
+                                placeholder={searchPlaceholder || t('common.search') + '...'}
                                 className="w-full h-9 ps-9 pe-3 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-gray-400"
                             />
                         </div>
@@ -349,7 +352,7 @@ export function NexaListTable<T>({
                             date={dateRange}
                             setDate={onDateRangeChange}
                             className="w-auto"
-                            align={isRTL ? 'end' : 'start'}
+                            align={effectiveDirection === 'rtl' ? 'end' : 'start'}
                         />
                     )}
 
@@ -357,14 +360,14 @@ export function NexaListTable<T>({
                     {totalCount !== undefined && (
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                             <span className="font-mono font-semibold text-gray-600 dark:text-gray-300">{data.length}</span>
-                            <span>{countLabel || (isRTL ? 'سجل' : 'records')}</span>
+                            <span>{countLabel || t('common.records')}</span>
                             {isBackgroundLoading && (
                                 <span className="flex items-center gap-1 text-[10px] text-indigo-400 animate-pulse">
                                     <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
-                                    {backgroundLoadingLabel || (isRTL ? 'جاري تحميل المزيد...' : 'Loading more...')}
+                                    {backgroundLoadingLabel || t('common.loading')}
                                 </span>
                             )}
                         </div>
@@ -380,7 +383,7 @@ export function NexaListTable<T>({
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        {filtersLabel || (isRTL ? 'فلاتر' : 'Filters')}
+                        {filtersLabel || t('common.filter')}
                     </span>
 
                     <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
@@ -400,7 +403,7 @@ export function NexaListTable<T>({
                                     style={{
                                         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
                                         backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: `${isRTL ? 'left' : 'right'} 8px center`,
+                                        backgroundPosition: `${effectiveDirection === 'rtl' ? 'left' : 'right'} 8px center`,
                                     }}
                                 >
                                     {(filter.options || []).map((opt) => (
@@ -415,7 +418,7 @@ export function NexaListTable<T>({
                                 <>
                                     <input
                                         type="number"
-                                        placeholder={filter.minPlaceholder || (isRTL ? 'من' : 'Min')}
+                                        placeholder={filter.minPlaceholder || t('common.from')}
                                         value={filter.minValue || ''}
                                         onChange={(e) => filter.onMinChange?.(e.target.value)}
                                         className="h-8 w-24 px-2.5 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all shadow-sm placeholder:text-gray-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -423,7 +426,7 @@ export function NexaListTable<T>({
                                     <span className="text-[10px] text-gray-300">–</span>
                                     <input
                                         type="number"
-                                        placeholder={filter.maxPlaceholder || (isRTL ? 'إلى' : 'Max')}
+                                        placeholder={filter.maxPlaceholder || t('common.to')}
                                         value={filter.maxValue || ''}
                                         onChange={(e) => filter.onMaxChange?.(e.target.value)}
                                         className="h-8 w-24 px-2.5 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all shadow-sm placeholder:text-gray-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -440,7 +443,7 @@ export function NexaListTable<T>({
                             className="flex items-center gap-1 text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors ms-auto bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 px-2.5 py-1.5 rounded-md"
                         >
                             <XCircle className="w-3.5 h-3.5" />
-                            {clearFiltersLabel || (isRTL ? 'مسح الفلاتر' : 'Clear All')}
+                            {clearFiltersLabel || t('common.clear')}
                         </button>
                     )}
                 </div>
@@ -448,7 +451,7 @@ export function NexaListTable<T>({
 
             {/* ═══ Table ═══ */}
             <div className="flex-1 overflow-auto">
-                <table className="w-full text-sm table-auto" dir={direction}>
+                <table className="w-full text-sm table-auto" dir={effectiveDirection}>
                     {/* ─── Header ─── */}
                     <thead className="sticky top-0 z-10">
                         <tr className="bg-gradient-to-b from-slate-50 to-gray-50 dark:from-gray-800 dark:to-gray-850 border-b-2 border-gray-200 dark:border-gray-700">
@@ -528,14 +531,14 @@ export function NexaListTable<T>({
                                     <div className="flex flex-col items-center gap-2">
                                         {emptyIcon || <FileText className="w-10 h-10 text-gray-200 dark:text-gray-700" />}
                                         <p className="text-sm text-gray-400 font-medium">
-                                            {emptyMessage || (isRTL ? 'لا توجد بيانات' : 'No data found')}
+                                            {emptyMessage || t('common.noData')}
                                         </p>
                                         {showClearSearchInEmpty && searchTerm && onSearchChange && (
                                             <button
                                                 onClick={() => onSearchChange('')}
                                                 className="text-xs text-indigo-500 hover:underline"
                                             >
-                                                {clearSearchLabel || (isRTL ? 'مسح البحث' : 'Clear search')}
+                                                {clearSearchLabel || t('common.clear')}
                                             </button>
                                         )}
                                     </div>
@@ -596,8 +599,8 @@ export function NexaListTable<T>({
                                                                 boxShadow: `0 0 0 2px ${markerBorder}`,
                                                             } : undefined}
                                                             title={markerColor
-                                                                ? (isRTL ? 'انقر لإزالة التعليم' : 'Click to remove marker')
-                                                                : (isRTL ? 'انقر للتعليم' : 'Click to mark')}
+                                                                ? t('table.removeMarker')
+                                                                : t('table.addMarker')}
                                                         >
                                                             {idx + 1}
                                                         </button>
@@ -670,8 +673,8 @@ export function NexaListTable<T>({
                     <span className="text-gray-400">
                         {footerLeftText || (
                             isRTL
-                                ? `عرض ${data.length} ${totalCount !== undefined ? `من ${totalCount}` : ''} ${countLabel || 'سجل'}`
-                                : `Showing ${data.length} ${totalCount !== undefined ? `of ${totalCount}` : ''} ${countLabel || 'records'}`
+                                ? `${t('common.showing') || 'عرض'} ${data.length} ${totalCount !== undefined ? `${t('common.of') || 'من'} ${totalCount}` : ''} ${countLabel || t('common.records')}`
+                                : `${t('common.showing') || 'Showing'} ${data.length} ${totalCount !== undefined ? `${t('common.of') || 'of'} ${totalCount}` : ''} ${countLabel || t('common.records')}`
                         )}
                     </span>
                     {footerRightContent && (

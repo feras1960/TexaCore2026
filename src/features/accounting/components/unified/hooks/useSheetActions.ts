@@ -155,7 +155,8 @@ export function useAccountingSave(
     mode: SheetMode,
     t: (key: string) => string,
 ) {
-    const isAccountingDocType = ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType);
+    const isAccountingDocType = ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note', 'recurring'].includes(docType);
+    const isRecurring = docType === 'recurring';
 
     return useCallback(async (saveData: any) => {
         if (!isAccountingDocType) return;
@@ -169,6 +170,172 @@ export function useAccountingSave(
             toast.error(t('accounting.errors.noCompany') || 'يجب تحديد الشركة');
             return;
         }
+
+        // ═══ RECURRING ENTRY — حفظ في جداول مستقلة ═══
+        if (isRecurring) {
+            // Filter empty lines
+            const finalLines = (saveData.lines || []).filter((l: any) =>
+                l.account_id && ((Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0)
+            );
+
+            // Validation: at least 2 lines
+            if (finalLines.length < 2) {
+                toast.error(t('accounting.errors.saveFailed') || 'فشل الحفظ', {
+                    description: t('accounting.errors.minLinesRequired') || 'يجب إدخال بندين على الأقل',
+                });
+                return;
+            }
+
+            // Balance check
+            const totalDebit = finalLines.reduce((s: number, l: any) => s + (Number(l.debit) || 0), 0);
+            const totalCredit = finalLines.reduce((s: number, l: any) => s + (Number(l.credit) || 0), 0);
+            if (Math.abs(totalDebit - totalCredit) > 0.1) {
+                toast.error(t('accounting.errors.notBalanced') || 'القيد غير متوازن!', {
+                    description: `${t('accounting.debit') || 'مدين'}: ${totalDebit.toFixed(2)} ≠ ${t('accounting.credit') || 'دائن'}: ${totalCredit.toFixed(2)}`,
+                });
+                return;
+            }
+
+            // Get tenant_id
+            const { data: companyData } = await supabase
+                .from('companies')
+                .select('tenant_id')
+                .eq('id', saveCompanyId)
+                .single();
+
+            const tenantId = companyData?.tenant_id;
+            if (!tenantId) {
+                toast.error('Could not resolve tenant');
+                return;
+            }
+
+            const startDate = saveData.start_date || new Date().toISOString().split('T')[0];
+
+            // ═══ Smart next_run_date calculation ═══
+            let nextRunDate = saveData.next_run_date || startDate;
+            if (!saveData.next_run_date) {
+                const freq = saveData.frequency || 'monthly';
+                const dayOfMonth = saveData.day_of_month;
+                const now = new Date();
+
+                if (freq === 'monthly' && dayOfMonth) {
+                    // Set to day_of_month of current or next month
+                    const thisMonth = new Date(now.getFullYear(), now.getMonth(), dayOfMonth);
+                    if (thisMonth > now) {
+                        nextRunDate = thisMonth.toISOString().split('T')[0];
+                    } else {
+                        // Next month
+                        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, dayOfMonth);
+                        nextRunDate = nextMonth.toISOString().split('T')[0];
+                    }
+                } else if (freq === 'weekly' && saveData.day_of_week != null) {
+                    // Set to next occurrence of day_of_week (0=Sun, 1=Mon, ...)
+                    const target = saveData.day_of_week;
+                    const current = now.getDay();
+                    const daysUntil = (target - current + 7) % 7 || 7;
+                    const nextDate = new Date(now);
+                    nextDate.setDate(nextDate.getDate() + daysUntil);
+                    nextRunDate = nextDate.toISOString().split('T')[0];
+                } else if (freq === 'yearly' && saveData.month_of_year && dayOfMonth) {
+                    // Set to specific month and day
+                    let targetYear = now.getFullYear();
+                    const target = new Date(targetYear, saveData.month_of_year - 1, dayOfMonth);
+                    if (target <= now) targetYear++;
+                    nextRunDate = new Date(targetYear, saveData.month_of_year - 1, dayOfMonth).toISOString().split('T')[0];
+                }
+            }
+
+            // Build recurring entry record
+            const recurringRecord = {
+                tenant_id: tenantId,
+                company_id: saveCompanyId,
+                name_ar: saveData.name_ar || saveData.description || 'قيد متكرر',
+                name_en: saveData.name_en || saveData.name_ar || 'Recurring Entry',
+                description: saveData.description || '',
+                frequency: saveData.frequency || 'monthly',
+                interval_value: saveData.interval_value || 1,
+                day_of_month: saveData.day_of_month || (saveData.frequency === 'monthly' || !saveData.frequency ? 1 : null),
+                day_of_week: saveData.day_of_week || null,
+                month_of_year: saveData.month_of_year || null,
+                start_date: startDate,
+                end_date: saveData.end_date || null,
+                next_run_date: nextRunDate,
+                max_executions: saveData.max_executions || null,
+                amount: totalDebit,
+                currency: saveData.currency || 'UAH',
+                requires_approval: saveData.requires_approval ?? true,
+                auto_post: saveData.auto_post ?? false,
+                notify_days_before: saveData.notify_days_before ?? 3,
+                status: saveData.status || 'active',
+            };
+
+            const entryId = saveData.id || documentId;
+
+            if (mode === 'edit' && entryId) {
+                // Update existing
+                const { error } = await supabase
+                    .from('recurring_entries')
+                    .update(recurringRecord)
+                    .eq('id', entryId);
+
+                if (error) throw error;
+
+                // Delete old lines and re-insert
+                await supabase.from('recurring_entry_lines').delete().eq('recurring_entry_id', entryId);
+
+                const linesToInsert = finalLines.map((line: any, idx: number) => ({
+                    tenant_id: tenantId,
+                    recurring_entry_id: entryId,
+                    line_number: idx + 1,
+                    account_id: line.account_id,
+                    debit: Number(line.debit) || 0,
+                    credit: Number(line.credit) || 0,
+                    description: line.description || '',
+                    cost_center_id: line.cost_center_id || null,
+                }));
+
+                const { error: linesError } = await supabase
+                    .from('recurring_entry_lines')
+                    .insert(linesToInsert);
+
+                if (linesError) throw linesError;
+
+                return entryId;
+            } else {
+                // Create new
+                const { data: newEntry, error } = await supabase
+                    .from('recurring_entries')
+                    .insert(recurringRecord)
+                    .select('id')
+                    .single();
+
+                if (error) throw error;
+
+                const newId = newEntry.id;
+
+                // Insert lines
+                const linesToInsert = finalLines.map((line: any, idx: number) => ({
+                    tenant_id: tenantId,
+                    recurring_entry_id: newId,
+                    line_number: idx + 1,
+                    account_id: line.account_id,
+                    debit: Number(line.debit) || 0,
+                    credit: Number(line.credit) || 0,
+                    description: line.description || '',
+                    cost_center_id: line.cost_center_id || null,
+                }));
+
+                const { error: linesError } = await supabase
+                    .from('recurring_entry_lines')
+                    .insert(linesToInsert);
+
+                if (linesError) throw linesError;
+
+                return newId;
+            }
+        }
+
+        // ═══ STANDARD JOURNAL ENTRY SAVE (existing logic) ═══
 
         // Import service dynamically
         const { journalEntriesService } = await import('@/services/journalEntriesService');
@@ -306,7 +473,7 @@ export function useAccountingSave(
             return result?.id;
         }
 
-    }, [isAccountingDocType, docType, companyId, documentId, mode, t]);
+    }, [isAccountingDocType, isRecurring, docType, companyId, documentId, mode, t]);
 }
 
 // ═══ Trade Save Handler ═══
@@ -1045,6 +1212,7 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     break;
 
                 case 'save_post':
+                case 'save_activate':
                 case 'save': {
                     // ═══ Account Save (create/edit) ═══
                     if (docType === 'account') {
@@ -1108,6 +1276,93 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         } catch (err: any) {
                             console.error('[Account Save Error]', err);
                             toast.error(language === 'ar' ? 'فشل حفظ الحساب' : 'Failed to save account', {
+                                description: err.message || '',
+                            });
+                        } finally {
+                            setLoading(false);
+                        }
+                        return;
+                    }
+
+                    // ═══ Fund Save (cash/bank account) ═══
+                    if (docType === 'fund') {
+                        if (!data?.name_ar) {
+                            toast.error(language === 'ar' ? 'اسم الصندوق/البنك بالعربية مطلوب' : 'Arabic name is required');
+                            return;
+                        }
+
+                        setLoading(true);
+                        try {
+                            const isBankFund = data?.is_bank_account || data?.fund_type === 'bank';
+                            const parentCode = isBankFund ? '112' : '111';
+
+                            // Find the parent account (111 for cash, 112 for bank)
+                            let parentId = data?.parent_id;
+                            if (!parentId && companyId) {
+                                const { data: parentAcct } = await supabase
+                                    .from('chart_of_accounts')
+                                    .select('id')
+                                    .eq('company_id', companyId)
+                                    .eq('account_code', parentCode)
+                                    .single();
+                                if (parentAcct) parentId = parentAcct.id;
+                            }
+
+                            const { accountsService } = await import('@/services/accountsService');
+
+                            if (mode === 'create') {
+                                await accountsService.create({
+                                    company_id: companyId || data.company_id || '',
+                                    account_code: data.account_code || data.code || '',
+                                    name_ar: data.name_ar,
+                                    name_en: data.name_en || undefined,
+                                    name_ru: data.name_ru || undefined,
+                                    name_uk: data.name_uk || undefined,
+                                    name_ro: data.name_ro || undefined,
+                                    name_pl: data.name_pl || undefined,
+                                    name_tr: data.name_tr || undefined,
+                                    name_de: data.name_de || undefined,
+                                    name_it: data.name_it || undefined,
+                                    account_type_id: data.account_type_id || undefined,
+                                    parent_id: parentId || undefined,
+                                    is_group: false,
+                                    level: parentId ? 3 : 2,
+                                    currency: data.currency || undefined,
+                                    description: data.description || undefined,
+                                    is_cash_account: !isBankFund,
+                                    is_bank_account: isBankFund,
+                                });
+                            } else {
+                                await accountsService.update(data.id, {
+                                    account_code: data.account_code || data.code,
+                                    name_ar: data.name_ar,
+                                    name_en: data.name_en || undefined,
+                                    name_ru: data.name_ru || undefined,
+                                    name_uk: data.name_uk || undefined,
+                                    name_ro: data.name_ro || undefined,
+                                    name_pl: data.name_pl || undefined,
+                                    name_tr: data.name_tr || undefined,
+                                    name_de: data.name_de || undefined,
+                                    name_it: data.name_it || undefined,
+                                    account_type_id: data.account_type_id,
+                                    parent_id: parentId || data.parent_id || undefined,
+                                    currency: data.currency,
+                                    description: data.description || undefined,
+                                });
+                            }
+                            toast.success(language === 'ar'
+                                ? (isBankFund ? '✅ تم حفظ البنك بنجاح' : '✅ تم حفظ الصندوق بنجاح')
+                                : (isBankFund ? '✅ Bank saved successfully' : '✅ Fund saved successfully')
+                            );
+                            setHasChanges(false);
+                            // Invalidate funds and chart of accounts cache
+                            queryClient.invalidateQueries({ queryKey: ['accounting', 'funds'] });
+                            queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                            if (onSave) await onSave(data);
+                            setMode('view');
+                        } catch (err: any) {
+                            console.error('[Fund Save Error]', err);
+                            toast.error(language === 'ar' ? 'فشل حفظ الصندوق/البنك' : 'Failed to save fund/bank', {
                                 description: err.message || '',
                             });
                         } finally {
@@ -1273,9 +1528,13 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     if (onSave) {
                         await onSave(data);
                     } else if (isAccountingDocType) {
+                        // ─── Recurring: set status based on action ───
+                        const savePayload = docType === 'recurring'
+                            ? { ...data, status: actionId === 'save_activate' ? 'active' : 'draft', _post: false }
+                            : { ...data, _post: false };
                         // ─── Accounting: احفظ دائماً كمسودة أولاً لضمان الحصول على الـ ID ───
                         // (الترحيل يتم لاحقاً عبر RPC منفصل إذا كان save_post)
-                        const createdId = await handleAccountingSave({ ...data, _post: false });
+                        const createdId = await handleAccountingSave(savePayload);
                         console.log('[Register] handleAccountingSave returned ID:', createdId);
                         if (createdId) {
                             savedResult = { id: createdId };
@@ -1289,8 +1548,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     } else if (isTradeDocType) {
                         savedResult = await handleTradeSave(data);
                     }
-                    // Only show generic save toast for draft saves (not for Register which shows its own)
-                    if (actionId !== 'save_post' || !isAccountingDocType) {
+                    // Only show generic save toast for draft saves (not for Register or Recurring which show their own)
+                    if ((actionId !== 'save_post' || !isAccountingDocType) && docType !== 'recurring') {
                         toast.success(t('messages.savedSuccessfully') || 'تم الحفظ بنجاح');
                     }
                     setHasChanges(false);
@@ -1299,7 +1558,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     let manualPostSuccess = false;
 
                     // Accounting docs: استخدام RPC الرسمي للترحيل — يُحدِّث chart_of_accounts أيضاً
-                    if (actionId === 'save_post' && isAccountingDocType) {
+                    // ⚠️ القيود المتكررة لا يتم ترحيلها — هي قوالب فقط، التنفيذ عبر execute_recurring_entry
+                    if (actionId === 'save_post' && isAccountingDocType && docType !== 'recurring') {
                         // ✅ نستخدم الـ ID المُرجَع من الحفظ أولاً، ثم ID المستند الحالي
                         const docId = savedResult?.id || data?.id || documentId;
                         if (docId) {
@@ -1421,7 +1681,15 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                     }
 
                     // After-save mode transitions
-                    if (mode === 'create' && isAccountingDocType && actionId === 'save') {
+                    // ═══ RECURRING: يغلق الشيت ويرجع للقائمة ═══
+                    if (docType === 'recurring') {
+                        toast.success(
+                            actionId === 'save_activate'
+                                ? (language === 'ar' ? '✅ تم حفظ وتفعيل القيد المتكرر' : '✅ Recurring entry saved & activated')
+                                : (language === 'ar' ? '✅ تم حفظ القيد المتكرر كمسودة' : '✅ Recurring entry saved as draft')
+                        );
+                        onClose();
+                    } else if (mode === 'create' && isAccountingDocType && actionId === 'save') {
                         // Draft save in create mode: reset for new entry
                         setData({});
                         setTimeout(() => setData({ type: docType }), 50);
@@ -1517,6 +1785,51 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         break;
                     }
 
+                    // ═══ Fund Delete Protection ═══
+                    if (docType === 'fund') {
+                        // Check for transactions via RPC balance
+                        if (data?.transaction_count > 0 || data?.total_debit > 0 || data?.total_credit > 0) {
+                            toast.error(
+                                language === 'ar'
+                                    ? '🚫 لا يمكن حذف هذا الصندوق/البنك — عليه حركات محاسبية'
+                                    : '🚫 Cannot delete this fund/bank — it has transactions',
+                                { duration: 5000 }
+                            );
+                            break;
+                        }
+
+                        const isBankDel = data?.is_bank_account;
+                        const fundLabel = isBankDel
+                            ? (language === 'ar' ? 'البنك' : 'bank')
+                            : (language === 'ar' ? 'الصندوق' : 'fund');
+
+                        const confirmedFund = window.confirm(
+                            language === 'ar'
+                                ? `هل أنت متأكد من حذف ${fundLabel} "${data?.name_ar || data?.name}"?\n\nسيتم إلغاء تفعيله.`
+                                : `Are you sure you want to delete ${fundLabel} "${data?.name_en || data?.name}"?\n\nIt will be deactivated.`
+                        );
+                        if (confirmedFund) {
+                            setLoading(true);
+                            try {
+                                const { accountsService } = await import('@/services/accountsService');
+                                await accountsService.delete(data.id);
+                                toast.success(language === 'ar' ? `تم حذف ${fundLabel}` : `${fundLabel} deleted`);
+                                queryClient.invalidateQueries({ queryKey: ['accounting', 'funds'] });
+                                queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                                if (onSave) await onSave(data);
+                                onClose();
+                            } catch (err: any) {
+                                toast.error(
+                                    language === 'ar' ? `فشل حذف ${fundLabel}` : `Failed to delete ${fundLabel}`,
+                                    { description: err.message || '' }
+                                );
+                            } finally {
+                                setLoading(false);
+                            }
+                        }
+                        break;
+                    }
+
                     // ══ Business Rule: Cannot delete executed trade documents ══
                     // - Purchase: received/posted → must use Purchase Return
                     // - Sales:    delivered/invoiced/posted → must use Sales Return
@@ -1570,6 +1883,34 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             await onDelete();
                             toast.success(t('messages.deletedSuccessfully') || 'تم الحذف بنجاح');
                             onClose();
+                        }
+                    } else if (docType === 'recurring' && (documentId || data?.id)) {
+                        // ─── Recurring: حذف من recurring_entries ───
+                        const docId = documentId || data?.id;
+                        const confirmed = window.confirm(
+                            language === 'ar'
+                                ? 'هل أنت متأكد من حذف هذا القيد المتكرر؟\n\nلا يمكن التراجع عن هذا الإجراء.'
+                                : 'Are you sure you want to delete this recurring entry?\n\nThis action cannot be undone.'
+                        );
+                        if (confirmed) {
+                            setLoading(true);
+                            try {
+                                // Delete lines first
+                                await supabase.from('recurring_entry_lines').delete().eq('recurring_entry_id', docId);
+                                // Delete history
+                                await supabase.from('recurring_entry_history').delete().eq('recurring_entry_id', docId);
+                                // Delete main record
+                                const { error } = await supabase.from('recurring_entries').delete().eq('id', docId);
+                                if (error) throw error;
+                                toast.success(language === 'ar' ? '🗑️ تم حذف القيد المتكرر' : '🗑️ Recurring entry deleted');
+                                onClose();
+                            } catch (err: any) {
+                                toast.error(
+                                    language === 'ar' ? `فشل الحذف: ${err.message}` : `Delete failed: ${err.message}`
+                                );
+                            } finally {
+                                setLoading(false);
+                            }
                         }
                     } else if (isAccountingDocType && (documentId || data?.id)) {
                         // ─── Accounting: حذف القيد من journal_entries ───

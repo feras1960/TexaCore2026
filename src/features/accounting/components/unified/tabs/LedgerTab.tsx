@@ -88,16 +88,41 @@ export function LedgerTab({
     const { supportedCurrencies, baseCurrency: settingsBaseCurrency } = useAccountingSettings();
     const { getRate } = useViewCurrency();
 
-    // Local currency state for this tab — always starts as 'all' (no conversion)
-    const [localCurrency, setLocalCurrency] = useState<string>('all');
+    // Local currency state — starts empty, will be set to account's currency on mount
+    const [localCurrency, setLocalCurrency] = useState<string>('');
+    const [accountCurrency, setAccountCurrency] = useState<string>('');
+
+    // 🆕 Auto-set to account's own currency from chart_of_accounts
+    useEffect(() => {
+        if (!accountId) return;
+        const fetchAccountCurrency = async () => {
+            try {
+                const { data: acct } = await supabase
+                    .from('chart_of_accounts')
+                    .select('currency')
+                    .eq('id', accountId)
+                    .single();
+                const cur = acct?.currency || settingsBaseCurrency || currency || 'USD';
+                setAccountCurrency(cur);
+                // Only set if not already set by user
+                setLocalCurrency(prev => prev || cur);
+            } catch {
+                const fallback = settingsBaseCurrency || currency || 'USD';
+                setAccountCurrency(fallback);
+                setLocalCurrency(prev => prev || fallback);
+            }
+        };
+        fetchAccountCurrency();
+    }, [accountId, settingsBaseCurrency, currency]);
 
     // Build lookupCurrentRate using getRate (independent of global selectedCurrency)
     const lookupCurrentRate = useCallback((fromCurrency: string, toCurrency: string): number => {
         return getRate(fromCurrency, toCurrency);
     }, [getRate]);
 
-    const effectiveTargetCurrency = localCurrency !== 'all' ? localCurrency : undefined;
     const effectiveBaseCurrency = settingsBaseCurrency || currency || 'USD';
+    // Convert only when target differs from base
+    const effectiveTargetCurrency = localCurrency && localCurrency !== effectiveBaseCurrency ? localCurrency : undefined;
 
     // ═══ Data Hook ═══
     const {
@@ -476,24 +501,31 @@ export function LedgerTab({
             });
         }
 
-        // Currency filter — shows company supported currencies
-        if (supportedCurrencies.length > 0) {
-            f.push({
-                id: 'currency',
-                label: isRTL ? 'العملة' : 'Currency',
-                type: 'select' as const,
-                value: localCurrency,
-                onChange: (v: string) => {
-                    setLocalCurrency(v);
-                    onDisplayCurrencyChange?.(v);
-                    // Also set the hook filter for reference
-                    setCurrency(v === 'all' ? '' : v);
-                },
-                options: [
-                    { value: 'all', label: isRTL ? 'كل العملات' : 'All Currencies' },
-                    ...supportedCurrencies.map((c: string) => ({ value: c, label: c })),
-                ],
-            });
+        // Currency filter — shows company supported currencies + account base currency
+        {
+            // Build unique currency options: account currency + base + supported
+            const currencyOptions = new Set<string>();
+            if (accountCurrency) currencyOptions.add(accountCurrency);
+            if (effectiveBaseCurrency) currencyOptions.add(effectiveBaseCurrency);
+            supportedCurrencies.forEach((c: string) => currencyOptions.add(c));
+
+            if (currencyOptions.size > 0) {
+                f.push({
+                    id: 'currency',
+                    label: isRTL ? 'العملة' : 'Currency',
+                    type: 'select' as const,
+                    value: localCurrency || accountCurrency || effectiveBaseCurrency,
+                    onChange: (v: string) => {
+                        setLocalCurrency(v);
+                        onDisplayCurrencyChange?.(v);
+                        setCurrency(v);
+                    },
+                    options: [...currencyOptions].map(c => ({
+                        value: c,
+                        label: c + (c === accountCurrency ? (isRTL ? ' (الحساب)' : ' (Account)') : ''),
+                    })),
+                });
+            }
         }
 
         // Monthly groups toggle
@@ -510,7 +542,10 @@ export function LedgerTab({
         });
 
         return f;
-    }, [isRTL, movementFilter, showMonthlyGroups, partyMode, entryTypeFilter, supportedCurrencies, filters.currency]);
+    }, [isRTL, movementFilter, showMonthlyGroups, partyMode, entryTypeFilter, supportedCurrencies, localCurrency, accountCurrency, effectiveBaseCurrency]);
+
+    // Active display currency
+    const activeCurrency = localCurrency || accountCurrency || effectiveBaseCurrency;
 
     // ═══ Footer Content ═══
     const footerRight = useMemo(() => {
@@ -551,10 +586,13 @@ export function LedgerTab({
                             {stats.currentBalance >= 0 ? (isRTL ? 'م' : 'D') : (isRTL ? 'د' : 'C')}
                         </span>
                     </span>
+                    <span className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded">
+                        {activeCurrency}
+                    </span>
                 </div>
             </div>
         );
-    }, [stats, isRTL]);
+    }, [stats, isRTL, activeCurrency]);
 
     return (
         <div className="flex flex-col gap-2 h-full overflow-y-auto">
@@ -585,7 +623,7 @@ export function LedgerTab({
                     <SummaryCard
                         label={isRTL ? 'الرصيد الحالي' : 'Current Balance'}
                         value={formatNumber(Math.abs(stats.currentBalance))}
-                        suffix={stats.currentBalance >= 0 ? (isRTL ? 'مدين' : 'Dr') : (isRTL ? 'دائن' : 'Cr')}
+                        suffix={`${stats.currentBalance >= 0 ? (isRTL ? 'مدين' : 'Dr') : (isRTL ? 'دائن' : 'Cr')} ${activeCurrency}`}
                         icon={<Minus className="w-4 h-4" />}
                         color={stats.currentBalance >= 0 ? 'emerald' : 'red'}
                         isRTL={isRTL}
@@ -687,14 +725,14 @@ export function LedgerTab({
                 totalCount={entries.length}
                 countLabel={isRTL ? 'حركة' : 'entries'}
                 filters={nexaFilters}
-                hasActiveFilters={movementFilter !== 'all' || !showMonthlyGroups || localCurrency !== 'all' || (partyMode && viewMode !== 'chronological') || (partyMode && entryTypeFilter !== 'all')}
+                hasActiveFilters={movementFilter !== 'all' || !showMonthlyGroups || (localCurrency !== accountCurrency && localCurrency !== '') || (partyMode && viewMode !== 'chronological') || (partyMode && entryTypeFilter !== 'all')}
                 onClearFilters={() => {
                     setMovementFilter('all');
                     setShowMonthlyGroups(true);
                     setViewMode('chronological');
                     setEntryTypeFilter('all');
-                    setLocalCurrency('all');
-                    setCurrency('');
+                    setLocalCurrency(accountCurrency || effectiveBaseCurrency);
+                    setCurrency(accountCurrency || effectiveBaseCurrency);
                 }}
                 filtersLabel={isRTL ? 'فلاتر' : 'Filters'}
                 clearFiltersLabel={isRTL ? 'مسح الفلاتر' : 'Clear All'}

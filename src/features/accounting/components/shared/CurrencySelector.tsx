@@ -11,6 +11,7 @@ interface CurrencySelectorProps {
     className?: string;
     showAllOption?: boolean;
     useCompanyCurrenciesHook?: boolean;  // If true, fetch from company settings
+    disabled?: boolean;
 }
 
 export function CurrencySelector({
@@ -19,7 +20,8 @@ export function CurrencySelector({
     options,
     className,
     showAllOption = true,
-    useCompanyCurrenciesHook = true
+    useCompanyCurrenciesHook = true,
+    disabled = false,
 }: CurrencySelectorProps) {
     const { t, language } = useLanguage();
     const companyCurrencies = useCompanyCurrencies();
@@ -40,7 +42,7 @@ export function CurrencySelector({
     };
 
     return (
-        <Select value={value} onValueChange={onValueChange} disabled={isLoading}>
+        <Select value={value} onValueChange={onValueChange} disabled={isLoading || disabled}>
             <SelectTrigger className={`h-9 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 min-w-[140px] ${className}`}>
                 {isLoading ? (
                     <Loader2 className="w-4 h-4 me-2 animate-spin text-gray-400" />
@@ -71,7 +73,8 @@ export function SmartCurrencySelector({
     value,
     onValueChange,
     className,
-    showAllOption = false
+    showAllOption = false,
+    disabled = false,
 }: Omit<CurrencySelectorProps, 'options' | 'useCompanyCurrenciesHook'>) {
     return (
         <CurrencySelector
@@ -80,6 +83,7 @@ export function SmartCurrencySelector({
             className={className}
             showAllOption={showAllOption}
             useCompanyCurrenciesHook={true}
+            disabled={disabled}
         />
     );
 }

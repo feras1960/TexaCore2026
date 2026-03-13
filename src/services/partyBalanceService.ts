@@ -114,11 +114,15 @@ export const partyBalanceService = {
                 party_id,
                 debit,
                 credit,
+                debit_fc,
+                credit_fc,
+                currency,
+                exchange_rate,
                 entry:journal_entries!inner(id, company_id, status, is_posted)
             `)
             .eq('party_type', partyType)
             .not('party_id', 'is', null)
-            .eq('journal_entries.is_posted', true);   // ⚠️ فلتر DB مباشر — فقط المرحّلة
+            .eq('journal_entries.is_posted', true);
 
         if (error) {
             console.error('❌ Error fetching party balances:', error);
@@ -129,7 +133,6 @@ export const partyBalanceService = {
 
         for (const row of (data || [])) {
             const entry = row.entry as any;
-            // Double protection: DB filter + JS filter
             if (!entry || entry.company_id !== companyId || !entry.is_posted) continue;
 
             const pid = row.party_id;
@@ -143,14 +146,29 @@ export const partyBalanceService = {
                 transaction_count: 0,
             };
 
-            existing.total_debit += Number(row.debit || 0);
-            existing.total_credit += Number(row.credit || 0);
+            // ═══ Smart FC Recovery — same logic as useLedgerData V3 ═══
+            // debit/credit = base currency (UAH), debit_fc/credit_fc = native currency (e.g. USD)
+            const debit = Number(row.debit || 0);
+            const credit = Number(row.credit || 0);
+            const debitFc = row.debit_fc != null ? Number(row.debit_fc) : null;
+            const creditFc = row.credit_fc != null ? Number(row.credit_fc) : null;
+            const rate = Number(row.exchange_rate || 1);
+
+            // Use FC if valid (>0 or debit/credit is 0). Otherwise recover via base ÷ rate.
+            const hasValidDebitFc = debitFc != null && (debitFc > 0 || debit === 0);
+            const hasValidCreditFc = creditFc != null && (creditFc > 0 || credit === 0);
+
+            const effectiveDebit = hasValidDebitFc ? debitFc! : (rate > 1 ? debit / rate : debit);
+            const effectiveCredit = hasValidCreditFc ? creditFc! : (rate > 1 ? credit / rate : credit);
+
+            existing.total_debit += effectiveDebit;
+            existing.total_credit += effectiveCredit;
             existing.transaction_count++;
 
             if (partyType === 'supplier') {
-                existing.balance = existing.total_credit - existing.total_debit;
+                existing.balance = Math.round((existing.total_credit - existing.total_debit) * 100) / 100;
             } else {
-                existing.balance = existing.total_debit - existing.total_credit;
+                existing.balance = Math.round((existing.total_debit - existing.total_credit) * 100) / 100;
             }
 
             balanceMap.set(pid, existing);
@@ -244,11 +262,15 @@ export const partyBalanceService = {
             .select(`
                 debit,
                 credit,
+                debit_fc,
+                credit_fc,
+                currency,
+                exchange_rate,
                 entry:journal_entries!inner(id, company_id, status, is_posted)
             `)
             .eq('party_type', partyType)
             .eq('party_id', partyId)
-            .eq('journal_entries.is_posted', true);  // ⚠️ فلتر DB مباشر — فقط المرحّلة
+            .eq('journal_entries.is_posted', true);
 
         if (error) {
             console.error('❌ Error in manual balance query:', error);
@@ -267,21 +289,30 @@ export const partyBalanceService = {
 
         for (const row of (data || [])) {
             const entry = row.entry as any;
-            // Double protection: DB filter + JS filter
             if (!entry || entry.company_id !== companyId || !entry.is_posted) continue;
-            totalDebit += Number(row.debit || 0);
-            totalCredit += Number(row.credit || 0);
+
+            const debit = Number(row.debit || 0);
+            const credit = Number(row.credit || 0);
+            const debitFc = row.debit_fc != null ? Number(row.debit_fc) : null;
+            const creditFc = row.credit_fc != null ? Number(row.credit_fc) : null;
+            const rate = Number(row.exchange_rate || 1);
+
+            const hasValidDebitFc = debitFc != null && (debitFc > 0 || debit === 0);
+            const hasValidCreditFc = creditFc != null && (creditFc > 0 || credit === 0);
+
+            totalDebit += hasValidDebitFc ? debitFc! : (rate > 1 ? debit / rate : debit);
+            totalCredit += hasValidCreditFc ? creditFc! : (rate > 1 ? credit / rate : credit);
             txCount++;
         }
 
         const balance = partyType === 'supplier'
-            ? totalCredit - totalDebit    // positive = we owe them
-            : totalDebit - totalCredit;   // positive = they owe us
+            ? totalCredit - totalDebit
+            : totalDebit - totalCredit;
 
         return {
             party_id: partyId,
-            total_debit: totalDebit,
-            total_credit: totalCredit,
+            total_debit: Math.round(totalDebit * 100) / 100,
+            total_credit: Math.round(totalCredit * 100) / 100,
             balance: Math.round(balance * 100) / 100,
             transaction_count: txCount,
         };

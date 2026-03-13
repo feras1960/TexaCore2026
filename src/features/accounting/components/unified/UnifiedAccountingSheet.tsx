@@ -360,8 +360,8 @@ export function UnifiedAccountingSheet({
         }
     }, [initialData]);
 
-    // ═══ Auto-fetch Account Stats (total_debit, total_credit, transaction_count) ═══
-    // يجلب الإحصائيات الحقيقية للحساب من journal_entry_lines عند فتح الشيت
+    // ═══ Auto-fetch Account Stats via Backend RPC ═══
+    // مصدر واحد للحقيقة — الحسابات تتم في Backend فقط
     useEffect(() => {
         if (docType !== 'account') return;
         const accountId = initialData?.id || documentId;
@@ -369,128 +369,40 @@ export function UnifiedAccountingSheet({
 
         const fetchAccountStats = async () => {
             try {
-                // 1) جلب عملة الحساب من chart_of_accounts (الحقل اسمه currency وليس currency_code)
-                const { data: acctRow } = await supabase
-                    .from('chart_of_accounts')
-                    .select('currency, company_id')
-                    .eq('id', accountId)
-                    .single();
-
-                // 2) Fallback: عملة الشركة الأساسية (الحقل default_currency في جدول companies)
-                let currencyCode = acctRow?.currency || '';
-                if (!currencyCode && acctRow?.company_id) {
-                    const { data: companyRow } = await supabase
-                        .from('companies')
-                        .select('default_currency')
-                        .eq('id', acctRow.company_id)
+                // Get company_id from account or initialData
+                let companyId = initialData?.company_id;
+                if (!companyId) {
+                    const { data: acctRow } = await supabase
+                        .from('chart_of_accounts')
+                        .select('company_id')
+                        .eq('id', accountId)
                         .single();
-                    currencyCode = companyRow?.default_currency || '';
+                    companyId = acctRow?.company_id;
                 }
+                if (!companyId) return;
 
-                // 3) جلب سطور القيود (مع العملة لتحويل متعدد العملات)
-                const { data: lines, error } = await supabase
-                    .from('journal_entry_lines')
-                    .select(`
-                        debit,
-                        credit,
-                        currency,
-                        journal_entries (
-                            entry_date,
-                            status,
-                            currency
-                        )
-                    `)
-                    .eq('account_id', accountId);
-
-                if (error || !lines) return;
-
-                // فلترة المرحّلة فقط — استثناء cancelled و voided
-                const postedLines = lines.filter((l: any) => {
-                    const status = l.journal_entries?.status;
-                    return status === 'posted';
+                // ═══ Single RPC call — all calculation in Backend ═══
+                const { data: balanceData, error } = await supabase.rpc('get_account_balance_fc', {
+                    p_account_id: accountId,
+                    p_company_id: companyId,
                 });
 
-                // جلب أسعار الصرف من DB لتحويل العملات المختلفة
-                let ratesMap: Record<string, number> = {};
-                if (currencyCode) {
-                    const compId = acctRow?.company_id || initialData?.company_id;
-                    if (compId) {
-                        const { data: rates } = await supabase
-                            .from('exchange_rates')
-                            .select('from_currency, to_currency, buy_rate')
-                            .eq('company_id', compId)
-                            .eq('is_active', true)
-                            .order('effective_from', { ascending: false });
-                        if (rates) {
-                            // Build latest rate map (first occurrence = latest due to descending order)
-                            for (const r of rates) {
-                                const key = `${r.from_currency}-${r.to_currency}`;
-                                if (!ratesMap[key]) ratesMap[key] = r.buy_rate;
-                            }
-                        }
-                    }
+                if (error || !balanceData || balanceData.length === 0) {
+                    console.warn('[Account Stats] RPC error or no data:', error?.message);
+                    return;
                 }
 
-                // Helper to get exchange rate between two currencies
-                const getRate = (from: string, to: string): number => {
-                    if (from === to) return 1;
-                    const directKey = `${from}-${to}`;
-                    if (ratesMap[directKey]) return ratesMap[directKey];
-                    // Try inverse
-                    const inverseKey = `${to}-${from}`;
-                    if (ratesMap[inverseKey]) return 1 / ratesMap[inverseKey];
-                    // Try pivot through common currencies
-                    for (const pivot of ['USD', 'EUR', 'UAH', 'SAR']) {
-                        const fromToPivot = ratesMap[`${from}-${pivot}`] || (ratesMap[`${pivot}-${from}`] ? 1 / ratesMap[`${pivot}-${from}`] : 0);
-                        const pivotToTarget = ratesMap[`${pivot}-${to}`] || (ratesMap[`${to}-${pivot}`] ? 1 / ratesMap[`${to}-${pivot}`] : 0);
-                        if (fromToPivot > 0 && pivotToTarget > 0) {
-                            return fromToPivot * pivotToTarget;
-                        }
-                    }
-                    return 1; // Fallback
-                };
-
-                let totalDebit = 0;
-                let totalCredit = 0;
-                let transactionCount = postedLines.length;
-
-                for (const l of postedLines as any[]) {
-                    const lineCurrency = l.currency || l.journal_entries?.currency || currencyCode;
-                    const debit = l.debit || 0;
-                    const credit = l.credit || 0;
-
-                    if (lineCurrency === currencyCode || !currencyCode) {
-                        totalDebit += debit;
-                        totalCredit += credit;
-                    } else {
-                        const rate = getRate(lineCurrency, currencyCode);
-                        totalDebit += debit * rate;
-                        totalCredit += credit * rate;
-                    }
-                }
-
-                // الرصيد الصحيح = افتتاحي + مدين - دائن (بعد التحويل)
-                const openingBalance = initialData?.opening_balance || 0;
-                const correctBalance = openingBalance + totalDebit - totalCredit;
-
-                // آخر تاريخ حركة مرحّلة
-                const dates = postedLines
-                    .map((l: any) => l.journal_entries?.entry_date)
-                    .filter(Boolean)
-                    .sort()
-                    .reverse();
-                const lastActivity = dates[0] || null;
+                const result = balanceData[0];
 
                 setData((prev: any) => {
-                    // لا تستبدل العملة إذا كانت القيمة الجديدة فارغة
-                    const finalCurrency = currencyCode || prev?.currency || '';
+                    const finalCurrency = result.currency || prev?.currency || '';
                     return {
                         ...prev,
-                        total_debit: Math.round(totalDebit * 100) / 100,
-                        total_credit: Math.round(totalCredit * 100) / 100,
-                        transaction_count: transactionCount,
-                        last_activity: lastActivity,
-                        current_balance: Math.round(correctBalance * 100) / 100,
+                        total_debit: Number(result.total_debit) || 0,
+                        total_credit: Number(result.total_credit) || 0,
+                        transaction_count: Number(result.transaction_count) || 0,
+                        last_activity: result.last_activity || null,
+                        current_balance: Number(result.balance) || 0,
                         currency: finalCurrency,
                     };
                 });
@@ -648,7 +560,7 @@ export function UnifiedAccountingSheet({
 
 
     // ═══ Document Type Flags ═══
-    const isAccountingDocType = useMemo(() => ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType), [docType]);
+    const isAccountingDocType = useMemo(() => ['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note', 'recurring'].includes(docType), [docType]);
 
     // ═══ Save Handlers (extracted to useSheetActions) ═══
     const handleAccountingSave = useAccountingSave(docType, resolvedCompanyId, documentId, mode, t);

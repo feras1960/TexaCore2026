@@ -1,20 +1,22 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  EcommercePage — لوحة تحكم المتجر الإلكتروني (الصفحة الرئيسية)
+ *  EcommercePage — المتجر الإلكتروني (Unified Tabs Pattern)
  * ═══════════════════════════════════════════════════════════════
- *  8 تبويبات: Dashboard, Orders, Customers, Products, Pricing,
+ *  Uses MainTabsBar matching Accounting / Warehouse pattern
+ *  8 tabs: Dashboard, Orders, Customers, Products, Pricing,
  *  Shipping, SEO/Marketing, Settings
  * ═══════════════════════════════════════════════════════════════
  */
 
-import React, { useState } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { useLanguage } from '@/app/providers/LanguageProvider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     LayoutDashboard, ShoppingCart, Users, Package,
-    Tag, Truck, Search, Settings, ExternalLink, Globe,
+    Tag, Truck, Search, Settings,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+
 import EcommerceDashboard from './components/EcommerceDashboard';
 import EcommerceOrders from './components/EcommerceOrders';
 import EcommerceCustomers from './components/EcommerceCustomers';
@@ -24,88 +26,106 @@ import EcommerceShipping from './components/EcommerceShipping';
 import EcommerceSEO from './components/EcommerceSEO';
 import EcommerceSettings from './components/EcommerceSettings';
 
-const TABS = [
-    { id: 'dashboard', label_ar: 'لوحة التحكم', label_en: 'Dashboard', icon: LayoutDashboard },
-    { id: 'orders', label_ar: 'الطلبات', label_en: 'Orders', icon: ShoppingCart },
-    { id: 'customers', label_ar: 'العملاء', label_en: 'Customers', icon: Users },
-    { id: 'products', label_ar: 'المنتجات', label_en: 'Products', icon: Package },
-    { id: 'pricing', label_ar: 'التسعير والعروض', label_en: 'Pricing & Offers', icon: Tag },
-    { id: 'shipping', label_ar: 'الشحن والدفع', label_en: 'Shipping & Payment', icon: Truck },
-    { id: 'seo', label_ar: 'SEO والتسويق', label_en: 'SEO & Marketing', icon: Search },
-    { id: 'settings', label_ar: 'إعدادات المتجر', label_en: 'Store Settings', icon: Settings },
-];
+interface TabConfig {
+    id: string;
+    labelKey: string;
+    icon: React.ComponentType<{ className?: string }>;
+    component: React.ComponentType;
+}
 
 export default function EcommercePage() {
-    const { t, direction } = useLanguage();
-    const isRTL = direction === 'rtl';
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const { t: _t } = useLanguage();
+    const location = useLocation();
+    const navigate = useNavigate();
 
-    // Store URL - reads from env or config
-    const storeUrl = import.meta.env.VITE_STORE_URL || 'http://localhost:3000';
+    const getActiveTab = useCallback(() => {
+        const path = location.pathname;
+        if (path.endsWith('/ecommerce') || path.endsWith('/ecommerce/')) return 'dashboard';
+        if (path.includes('/orders')) return 'orders';
+        if (path.includes('/customers')) return 'customers';
+        if (path.includes('/products')) return 'products';
+        if (path.includes('/pricing')) return 'pricing';
+        if (path.includes('/shipping')) return 'shipping';
+        if (path.includes('/seo')) return 'seo';
+        if (path.includes('/settings')) return 'settings';
+        return 'dashboard';
+    }, [location.pathname]);
+
+    const [activeTab, setActiveTab] = useState(getActiveTab);
+    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
+
+    useEffect(() => {
+        const newTab = getActiveTab();
+        setActiveTab(newTab);
+        setVisitedTabs(prev => {
+            if (prev.has(newTab)) return prev;
+            return new Set(prev).add(newTab);
+        });
+    }, [getActiveTab]);
+
+    const tabs: TabConfig[] = useMemo(() => [
+        { id: 'dashboard', labelKey: 'ecommerce.tabs.dashboard', icon: LayoutDashboard, component: EcommerceDashboard },
+        { id: 'orders', labelKey: 'ecommerce.tabs.orders', icon: ShoppingCart, component: EcommerceOrders },
+        { id: 'customers', labelKey: 'ecommerce.tabs.customers', icon: Users, component: EcommerceCustomers },
+        { id: 'products', labelKey: 'ecommerce.tabs.products', icon: Package, component: EcommerceProducts },
+        { id: 'pricing', labelKey: 'ecommerce.tabs.pricing', icon: Tag, component: EcommercePricing },
+        { id: 'shipping', labelKey: 'ecommerce.tabs.shipping', icon: Truck, component: EcommerceShipping },
+        { id: 'seo', labelKey: 'ecommerce.tabs.seo', icon: Search, component: EcommerceSEO },
+        { id: 'settings', labelKey: 'ecommerce.tabs.settings', icon: Settings, component: EcommerceSettings },
+    ], []);
+
+    const handleTabChange = useCallback((tabId: string) => {
+        if (tabId !== activeTab) {
+            setActiveTab(tabId);
+            setVisitedTabs(prev => {
+                if (prev.has(tabId)) return prev;
+                return new Set(prev).add(tabId);
+            });
+            const path = tabId === 'dashboard' ? '/ecommerce' : `/ecommerce/${tabId}`;
+            navigate(path, { replace: true });
+        }
+    }, [activeTab, navigate]);
+
+    const tabsForBar = useMemo(() =>
+        tabs.map(({ id, labelKey, icon }) => ({ id, labelKey, icon })) as { id: string; labelKey: string; icon?: any }[],
+        [tabs]
+    );
 
     return (
-        <div className="space-y-4 animate-in fade-in duration-500 pb-10" dir={direction}>
-            {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-                        {isRTL ? 'المتجر الإلكتروني' : 'E-Commerce'}
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                        {isRTL ? 'إدارة المتجر — الطلبات — العملاء — الشحن' : 'Manage Store — Orders — Customers — Shipping'}
-                    </p>
-                </div>
-                <div className="flex gap-2">
-                    <a href={storeUrl} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm" className="gap-2">
-                            <Globe className="w-4 h-4" />
-                            {isRTL ? 'فتح المتجر' : 'Open Store'}
-                            <ExternalLink className="w-3 h-3" />
-                        </Button>
-                    </a>
-                </div>
-            </div>
+        <div className="space-y-6">
+            {/* MainTabsBar — matching Accounting / Warehouse / HR pattern */}
+            <MainTabsBar
+                tabs={tabsForBar}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                variant="underline"
+            />
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} dir={direction}>
-                <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
-                    {TABS.map(tab => (
-                        <TabsTrigger
+            {/* Keep Visited Mounted Pattern */}
+            <div className="relative">
+                {tabs.map((tab) => {
+                    const TabComponent = tab.component;
+                    const isActive = activeTab === tab.id;
+                    const wasVisited = visitedTabs.has(tab.id);
+                    if (!wasVisited) return null;
+
+                    return (
+                        <div
                             key={tab.id}
-                            value={tab.id}
-                            className="flex items-center gap-1.5 text-xs sm:text-sm py-2 px-3 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-sm transition-all"
+                            role="tabpanel"
+                            aria-labelledby={`tab-${tab.id}`}
+                            aria-hidden={!isActive}
+                            className={isActive ? 'block' : 'hidden'}
+                            style={{
+                                contain: isActive ? 'none' : 'strict',
+                                contentVisibility: isActive ? 'visible' : 'hidden',
+                            }}
                         >
-                            <tab.icon className="w-4 h-4" />
-                            <span className="hidden sm:inline">{isRTL ? tab.label_ar : tab.label_en}</span>
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
-
-                <TabsContent value="dashboard" className="mt-4">
-                    <EcommerceDashboard />
-                </TabsContent>
-                <TabsContent value="orders" className="mt-4">
-                    <EcommerceOrders />
-                </TabsContent>
-                <TabsContent value="customers" className="mt-4">
-                    <EcommerceCustomers />
-                </TabsContent>
-                <TabsContent value="products" className="mt-4">
-                    <EcommerceProducts />
-                </TabsContent>
-                <TabsContent value="pricing" className="mt-4">
-                    <EcommercePricing />
-                </TabsContent>
-                <TabsContent value="shipping" className="mt-4">
-                    <EcommerceShipping />
-                </TabsContent>
-                <TabsContent value="seo" className="mt-4">
-                    <EcommerceSEO />
-                </TabsContent>
-                <TabsContent value="settings" className="mt-4">
-                    <EcommerceSettings />
-                </TabsContent>
-            </Tabs>
+                            <TabComponent />
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

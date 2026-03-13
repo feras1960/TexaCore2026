@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import { useNexaContext } from '@/providers/NexaContextProvider';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -71,6 +72,7 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
     const { language, direction } = useLanguage();
     const isAr = language === 'ar';
     const isCreate = !data.id; // Check if creating new document
+    const { pushContext } = useNexaContext();
 
     // Set Default Date only if creating
     useEffect(() => {
@@ -171,6 +173,17 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
             onChange('customer_id', val);
         } else {
             onChange('supplier_id' as any, val);
+        }
+        // Push context to NexaPro Agent
+        const party = partyList.find(p => p.id === val);
+        if (party) {
+            const contextType = mode === 'sales' ? 'customer_in_invoice' : 'supplier_in_purchase';
+            pushContext(contextType, val, party.name, {
+                mode,
+                party_type: mode === 'sales' ? 'customer' : 'supplier',
+                party_name: party.name,
+                document_currency: data.currency || baseCurrency,
+            });
         }
     };
 

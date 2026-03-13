@@ -33,6 +33,7 @@ export type UnifiedDocType =
     | 'goods_receipt'  // استلام مواد مخزنية (Material/Goods Receipt)
     | 'sales_delivery' // تسليم مبيعات (Sales Delivery — roll picking)
     | 'credit_note'   // إشعار دائن
+    | 'recurring'      // قيد متكرر
     | 'roll';          // رولون قماش (Fabric Roll)
 
 // Mode of the sheet

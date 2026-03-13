@@ -61,7 +61,7 @@ export default function CurrencyManagementTab({
     currencies,
     direction,
 }: CurrencyManagementTabProps) {
-    const { language } = useLanguage();
+    const { language, t } = useLanguage();
     const isAr = language === 'ar';
     const { company } = useCompany();
     const { toast } = useToast();
@@ -116,12 +116,12 @@ export default function CurrencyManagementTab({
                 setOnlineRates(result.rates);
                 setLastFetchLabel(ExchangeRateOnlineService.getTimeSinceLastFetch(baseCurrency, isAr));
                 toast({
-                    title: isAr ? '✅ تم التحديث' : '✅ Updated',
-                    description: isAr ? 'تم جلب أسعار الصرف الأونلاين بنجاح' : 'Online exchange rates updated successfully',
+                    title: t('currencyMgmt.updated'),
+                    description: t('currencyMgmt.onlineRatesSuccess'),
                 });
             }
         } catch {
-            toast({ title: isAr ? 'خطأ' : 'Error', description: isAr ? 'فشل جلب الأسعار' : 'Failed to fetch rates', variant: 'destructive' });
+            toast({ title: t('common.error') || 'Error', description: t('currencyMgmt.fetchFailed'), variant: 'destructive' });
         } finally {
             setFetchingRates(false);
         }
@@ -145,7 +145,7 @@ export default function CurrencyManagementTab({
         const current = supportedCurrencies;
         if (current.includes(code)) {
             if (code === baseCurrency) {
-                toast({ title: isAr ? 'لا يمكن الحذف' : 'Cannot Remove', description: isAr ? 'لا يمكن إزالة العملة الأساسية' : 'Cannot remove base currency', variant: 'destructive' });
+                toast({ title: t('currencyMgmt.cannotRemove'), description: t('currencyMgmt.cannotRemoveBase'), variant: 'destructive' });
                 return;
             }
             updateSetting('supported_currencies', current.filter(c => c !== code));
@@ -192,10 +192,10 @@ export default function CurrencyManagementTab({
                     </div>
                     <div className="flex-1">
                         <h3 className="font-tajawal font-bold text-lg text-erp-navy dark:text-white">
-                            {isAr ? 'إدارة العملات وأسعار الصرف' : 'Currency & Exchange Rate Management'}
+                            {t('currencyMgmt.title')}
                         </h3>
                         <p className="font-tajawal text-sm text-gray-500 mt-1">
-                            {isAr ? 'أضف العملات التي تتعامل بها الشركة وتابع أسعار الصرف' : 'Add currencies your company deals with and monitor exchange rates'}
+                            {t('currencyMgmt.subtitle')}
                         </p>
                         <div className="flex items-center gap-2.5 mt-3 flex-wrap">
                             <Badge variant="outline" className="font-tajawal font-mono bg-erp-teal/10 text-erp-teal border-erp-teal/30 px-3 py-1 text-xs">
@@ -203,7 +203,7 @@ export default function CurrencyManagementTab({
                                 {(() => { const bc = currencies.find(c => c.code === baseCurrency); return bc ? ` — ${isAr ? bc.name : bc.nameEn}` : ''; })()}
                             </Badge>
                             <Badge variant="outline" className="font-tajawal bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-700 px-3 py-1 text-xs">
-                                {isAr ? `${supportedCurrencies.length} عملة مفعلة` : `${supportedCurrencies.length} active`}
+                                {`${supportedCurrencies.length} ${t('currencyMgmt.activeCount')}`}
                             </Badge>
                             {lastFetchLabel && (
                                 <Badge variant="outline" className="font-tajawal bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-700 px-3 py-1 text-xs">
@@ -216,11 +216,11 @@ export default function CurrencyManagementTab({
                     <div className="flex gap-2 flex-shrink-0">
                         <Button variant="outline" size="sm" onClick={fetchOnlineRates} disabled={fetchingRates} className="font-tajawal text-xs gap-1.5 rounded-lg border-erp-teal/30 text-erp-teal hover:bg-erp-teal/5">
                             <RefreshCw className={`w-3.5 h-3.5 ${fetchingRates ? 'animate-spin' : ''}`} />
-                            {isAr ? 'تحديث الأسعار' : 'Refresh Rates'}
+                            {t('currencyMgmt.refreshRates')}
                         </Button>
                         <Button size="sm" onClick={() => { setShowAddDialog(true); setSearchQuery(''); }} className="font-tajawal text-xs gap-1.5 rounded-lg bg-erp-teal hover:bg-erp-teal/90 text-white">
                             <Plus className="w-3.5 h-3.5" />
-                            {isAr ? 'إضافة عملة' : 'Add Currency'}
+                            {t('currencyMgmt.addCurrency')}
                         </Button>
                     </div>
                 </div>
@@ -231,12 +231,12 @@ export default function CurrencyManagementTab({
                 <CardHeader className="pb-4">
                     <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white text-base">
                         <DollarSign className="w-5 h-5 text-erp-teal" />
-                        {isAr ? 'العملة الأساسية (المحلية)' : 'Base Currency (Local)'}
+                        {t('currencyMgmt.baseCurrency')}
                     </CardTitle>
                     <CardDescription className="font-tajawal">
                         {hasJournalEntries
-                            ? (isAr ? '🔒 لا يمكن تغيير العملة الأساسية بعد وجود حركات محاسبية' : '🔒 Cannot change base currency after journal entries exist')
-                            : (isAr ? 'العملة المستخدمة في التقارير المالية — تُقفل بعد أول قيد' : 'Currency for financial reports — locked after first entry')}
+                            ? t('currencyMgmt.baseCurrencyLocked')
+                            : t('currencyMgmt.baseCurrencyHint')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -256,7 +256,7 @@ export default function CurrencyManagementTab({
                         {hasJournalEntries && (
                             <div className="flex items-center gap-1.5 mt-2 text-amber-600 dark:text-amber-400">
                                 <Lock className="w-3.5 h-3.5" />
-                                <span className="text-xs font-tajawal">{isAr ? 'مقفلة — يوجد قيود محاسبية' : 'Locked — journal entries exist'}</span>
+                                <span className="text-xs font-tajawal">{t('currencyMgmt.lockedEntries')}</span>
                             </div>
                         )}
                     </div>
@@ -270,10 +270,10 @@ export default function CurrencyManagementTab({
                         <div>
                             <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white text-base">
                                 <ArrowRightLeft className="w-5 h-5 text-erp-teal" />
-                                {isAr ? 'العملات المفعلة وأسعار الصرف' : 'Active Currencies & Exchange Rates'}
+                                {t('currencyMgmt.activeCurrencies')}
                             </CardTitle>
                             <CardDescription className="font-tajawal mt-1">
-                                {isAr ? 'اضغط على أي عملة لفتح شيت التفاصيل (الشراء والبيع والهامش)' : 'Click any currency to open detail sheet (buy, sell, margin)'}
+                                {t('currencyMgmt.clickToOpen')}
                             </CardDescription>
                         </div>
                     </div>
@@ -282,10 +282,10 @@ export default function CurrencyManagementTab({
                     {supportedCurrencies.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                            <p className="font-tajawal text-sm">{isAr ? 'لم يتم إضافة عملات بعد' : 'No currencies added yet'}</p>
+                            <p className="font-tajawal text-sm">{t('currencyMgmt.noCurrencies')}</p>
                             <Button variant="outline" size="sm" className="mt-3 font-tajawal text-xs" onClick={() => setShowAddDialog(true)}>
                                 <Plus className="w-3.5 h-3.5 me-1" />
-                                {isAr ? 'أضف عملة' : 'Add Currency'}
+                                {t('currencyMgmt.addCurrency')}
                             </Button>
                         </div>
                     ) : (
@@ -293,18 +293,18 @@ export default function CurrencyManagementTab({
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
-                                        <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">{isAr ? 'العملة' : 'Currency'}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">{t('export.currency')}</th>
                                         <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">
-                                            <span className="flex items-center gap-1">{isAr ? `1 عملة = ? ${baseCurrency}` : `1 X = ? ${baseCurrency}`}</span>
+                                            <span className="flex items-center gap-1">{`1 X = ? ${baseCurrency}`}</span>
                                         </th>
                                         <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">
-                                            <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {isAr ? 'شراء' : 'Buy'}</span>
+                                            <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {t('currency.buy') || (isAr ? 'شراء' : 'Buy')}</span>
                                         </th>
                                         <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">
-                                            <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> {isAr ? 'بيع' : 'Sell'}</span>
+                                            <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> {t('currency.sell') || (isAr ? 'بيع' : 'Sell')}</span>
                                         </th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">{isAr ? 'المصدر' : 'Source'}</th>
-                                        <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">{isAr ? 'الهامش' : 'Margin'}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">{t('currency.source') || (isAr ? 'المصدر' : 'Source')}</th>
+                                        <th className="text-start font-tajawal font-medium text-gray-500 dark:text-gray-400 px-4 py-2.5 text-xs">{t('currency.margin') || (isAr ? 'الهامش' : 'Margin')}</th>
                                         <th className="px-4 py-2.5 w-10"></th>
                                     </tr>
                                 </thead>
@@ -371,15 +371,15 @@ export default function CurrencyManagementTab({
                                                 <td className="px-4 py-3">
                                                     {isBase ? (
                                                         <Badge className="font-tajawal text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0">
-                                                            {isAr ? 'أساسية' : 'Base'}
+                                                            {t('currency.baseCurrency') || (isAr ? 'أساسية' : 'Base')}
                                                         </Badge>
                                                     ) : rate?.source === 'manual' ? (
                                                         <Badge className="font-tajawal text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-0">
-                                                            {isAr ? 'يدوي' : 'Manual'}
+                                                            {t('currency.manual') || (isAr ? 'يدوي' : 'Manual')}
                                                         </Badge>
                                                     ) : rate?.source === 'online' ? (
                                                         <Badge className="font-tajawal text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0">
-                                                            {isAr ? 'أونلاين' : 'Online'}
+                                                            {t('currency.online') || (isAr ? 'أونلاين' : 'Online')}
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="secondary" className="font-tajawal text-[10px]">—</Badge>
@@ -423,16 +423,16 @@ export default function CurrencyManagementTab({
                 <CardHeader className="pb-4">
                     <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white text-base">
                         <Settings className="w-5 h-5 text-erp-teal" />
-                        {isAr ? 'العملات الافتراضية للأنظمة' : 'Module Default Currencies'}
+                        {t('currency.moduleDefaults') || (isAr ? 'العملات الافتراضية للأنظمة' : 'Module Default Currencies')}
                     </CardTitle>
                     <CardDescription className="font-tajawal">
-                        {isAr ? 'العملة المختارة تلقائياً عند إنشاء مستند جديد' : 'Auto-selected currency when creating a new document'}
+                        {t('currency.moduleDefaultsHint') || (isAr ? 'العملة المختارة تلقائياً عند إنشاء مستند جديد' : 'Auto-selected currency when creating a new document')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                            <Label className="font-tajawal text-sm">{isAr ? 'المبيعات' : 'Sales'}</Label>
+                            <Label className="font-tajawal text-sm">{t('accounting.sales') || (isAr ? 'المبيعات' : 'Sales')}</Label>
                             <Select value={settings.default_sales_currency} onValueChange={(v) => updateSetting('default_sales_currency', v)}>
                                 <SelectTrigger className="font-tajawal"><SelectValue /></SelectTrigger>
                                 <SelectContent>
@@ -443,7 +443,7 @@ export default function CurrencyManagementTab({
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="font-tajawal text-sm">{isAr ? 'المشتريات المحلية' : 'Local Purchases'}</Label>
+                            <Label className="font-tajawal text-sm">{t('accounting.localPurchases') || (isAr ? 'المشتريات المحلية' : 'Local Purchases')}</Label>
                             <Select value={settings.default_purchase_currency} onValueChange={(v) => updateSetting('default_purchase_currency', v)}>
                                 <SelectTrigger className="font-tajawal"><SelectValue /></SelectTrigger>
                                 <SelectContent>
@@ -454,7 +454,7 @@ export default function CurrencyManagementTab({
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="font-tajawal text-sm">{isAr ? 'المشتريات الدولية' : 'Intl. Purchases'}</Label>
+                            <Label className="font-tajawal text-sm">{t('accounting.intlPurchases') || (isAr ? 'المشتريات الدولية' : 'Intl. Purchases')}</Label>
                             <Select value={settings.default_international_purchase_currency} onValueChange={(v) => updateSetting('default_international_purchase_currency', v)}>
                                 <SelectTrigger className="font-tajawal"><SelectValue /></SelectTrigger>
                                 <SelectContent>
@@ -476,7 +476,7 @@ export default function CurrencyManagementTab({
                             <div className="flex items-center justify-between">
                                 <h3 className="font-tajawal font-bold text-lg text-erp-navy dark:text-white flex items-center gap-2">
                                     <Plus className="w-5 h-5 text-erp-teal" />
-                                    {isAr ? 'إضافة عملة جديدة' : 'Add New Currency'}
+                                    {t('currencyMgmt.addCurrency')}
                                 </h3>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setShowAddDialog(false)}>
                                     <X className="w-4 h-4" />
@@ -484,7 +484,7 @@ export default function CurrencyManagementTab({
                             </div>
                             <div className="relative mt-3">
                                 <Input
-                                    placeholder={isAr ? 'ابحث عن عملة... (USD, يورو, ليرة)' : 'Search currency... (USD, Euro, Lira)'}
+                                    placeholder={isAr ? 'ابحث عن عملة... (USD, يورو, ليرة)' : t('common.search') + '... (USD, Euro)'}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="ps-9 font-tajawal text-sm h-10"
@@ -528,7 +528,7 @@ export default function CurrencyManagementTab({
                                     )
                                 ).length === 0 && (
                                         <div className="text-center py-8 text-gray-400 font-tajawal text-sm">
-                                            {isAr ? 'لم يتم العثور على عملات' : 'No currencies found'}
+                                            {t('common.noData') || 'No currencies found'}
                                         </div>
                                     )}
                             </div>

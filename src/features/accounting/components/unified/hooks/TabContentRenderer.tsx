@@ -90,6 +90,10 @@ const RollOverviewTab = lazy(() => import('../tabs/RollOverviewTab').then(m => (
 const RollMovementsTab = lazy(() => import('../tabs/RollMovementsTab').then(m => ({ default: m.RollMovementsTab })));
 const RollLocationTab = lazy(() => import('../tabs/RollLocationTab').then(m => ({ default: m.RollLocationTab })));
 
+// Recurring — القيود المتكررة
+const RecurringScheduleTab = lazy(() => import('../tabs/RecurringScheduleTab').then(m => ({ default: m.RecurringScheduleTab })));
+const RecurringHistoryTab = lazy(() => import('../tabs/RecurringHistoryTab').then(m => ({ default: m.RecurringHistoryTab })));
+
 // ═══ Loading fallback ═══
 function TabLoading() {
     return (
@@ -177,7 +181,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
             // ═══ Accounting Entry Tabs ═══
             case 'entry':
             case 'form':
-                if (['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType)) {
+                if (['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note', 'recurring'].includes(docType)) {
                     return (
                         <AccountingEntryTab
                             data={data}
@@ -204,7 +208,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                 if (docType === 'material') {
                     return <MaterialOverviewTab data={data} mode={mode} groups={options?.groups} onChange={onChange} />;
                 }
-                if (docType === 'party' || docType === 'account') {
+                if (docType === 'party' || docType === 'account' || docType === 'fund') {
                     return (
                         <Suspense fallback={<TabLoading />}>
                             <PartyOverviewTab
@@ -212,6 +216,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 mode={mode}
                                 onChange={onChange}
                                 companyId={companyId}
+                                docType={docType}
                             />
                         </Suspense>
                     );
@@ -404,6 +409,38 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'roll_location':
                 return <RollLocationTab data={data} language={language} />;
+
+            // ═══ Recurring Entry Tabs ═══
+            case 'schedule':
+                return (
+                    <RecurringScheduleTab
+                        data={data}
+                        mode={mode}
+                        onChange={(field: string, value: any) => onChange({ [field]: value })}
+                    />
+                );
+
+            case 'history':
+                return (
+                    <RecurringHistoryTab
+                        data={data}
+                        onOpenJournalEntry={(journalEntryId) => {
+                            // Open journal entry in MDI
+                            setOpenDocs(prev => {
+                                const exists = prev.some(d => d.id === journalEntryId);
+                                if (exists) return prev;
+                                return [...prev, {
+                                    id: journalEntryId,
+                                    type: 'journal' as const,
+                                    title: `JV-${journalEntryId.slice(0, 6)}`,
+                                    data: null,
+                                    isClosable: true,
+                                }];
+                            });
+                            setActiveDocId(journalEntryId);
+                        }}
+                    />
+                );
 
             case 'ledger': {
                 // For parties, use their accounting sub-account ID

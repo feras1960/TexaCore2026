@@ -74,6 +74,8 @@ export interface CreateAccountInput {
   level?: number;
   currency?: string;
   description?: string;
+  is_cash_account?: boolean;
+  is_bank_account?: boolean;
 }
 
 /**

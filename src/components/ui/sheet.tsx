@@ -13,7 +13,7 @@ interface SheetProps extends React.ComponentPropsWithoutRef<typeof SheetPrimitiv
 const Sheet = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Root>,
   SheetProps
->(({ modal = true, ...props }, _ref) => (
+>(({ modal = false, ...props }, _ref) => (
   <SheetPrimitive.Root modal={modal} {...props} />
 ))
 Sheet.displayName = "Sheet"
@@ -30,7 +30,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50 bg-black/15 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:duration-150 data-[state=open]:duration-200",
+      "fixed inset-0 z-50 bg-black/15 pointer-events-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:duration-150 data-[state=open]:duration-200",
       className
     )}
     {...props}
@@ -70,9 +70,19 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, disableAnimation, overlayClassName, preventCloseOnOutsideClick, ...props }, ref) => (
+>(({ side = "right", className, children, disableAnimation, overlayClassName, preventCloseOnOutsideClick, ...props }, ref) => {
+  // Prevent sheet from closing when clicking inside NexaPro Agent
+  const handleInteractOutside = (e: Event) => {
+    const target = e.target as HTMLElement;
+    if (target?.closest?.('#nexa-copilot-root')) {
+      e.preventDefault();
+      return;
+    }
+    if (preventCloseOnOutsideClick) e.preventDefault();
+  };
+
+  return (
   <SheetPortal>
-    {/* Hide overlay completely when preventCloseOnOutsideClick is true */}
     {!preventCloseOnOutsideClick && (
       <SheetOverlay
         className={cn(
@@ -83,8 +93,7 @@ const SheetContent = React.forwardRef<
     )}
     <SheetPrimitive.Content
       ref={ref}
-      onInteractOutside={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
-      onPointerDownOutside={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
+      onInteractOutside={handleInteractOutside}
       onEscapeKeyDown={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
       className={cn(
         sheetVariants({ side }),
@@ -96,7 +105,8 @@ const SheetContent = React.forwardRef<
       {children}
     </SheetPrimitive.Content>
   </SheetPortal>
-))
+  );
+})
 SheetContent.displayName = SheetPrimitive.Content.displayName
 
 const SheetHeader = ({

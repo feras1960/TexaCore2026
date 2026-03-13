@@ -433,6 +433,7 @@ export const purchaseAccountingService = {
         // 7. Construct Journal Entry Lines
         // ═══════════════════════════════════════════════
         const invoiceRef = invoice.invoice_no || invoice.invoice_number || '-';
+        const invoiceCurrency = invoice.currency || null;
         const lines = [];
 
         // Line 1: Debit — Container Account (Goods in Transit) OR Purchases/COGS
@@ -450,6 +451,7 @@ export const purchaseAccountingService = {
                 credit: 0,
                 description: memo ? `${lineDesc} - ${memo}` : lineDesc,
                 cost_center_id: null,
+                currency: invoiceCurrency,
                 // NOTE: party_id NOT set on debit line — only on credit (payable) line
                 // to avoid double-counting in sub-ledger reports
             });
@@ -462,7 +464,8 @@ export const purchaseAccountingService = {
                 debit: Math.round(effectiveTax * 100) / 100,
                 credit: 0,
                 description: `ضريبة فاتورة مشتريات #${invoiceRef}`,
-                cost_center_id: null
+                cost_center_id: null,
+                currency: invoiceCurrency,
             });
         }
 
@@ -480,6 +483,7 @@ export const purchaseAccountingService = {
                 credit: Math.round(effectiveTotal * 100) / 100,
                 description: memo ? `${lineDesc} - ${memo}` : lineDesc,
                 cost_center_id: null,
+                currency: invoiceCurrency,
                 party_type: invoice.supplier_id ? 'supplier' : null,
                 party_id: invoice.supplier_id || null,
             });

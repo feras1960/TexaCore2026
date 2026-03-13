@@ -1,16 +1,14 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * 🏭 Warehouse Dashboard - Real Data Version
- * لوحة تحكم المستودعات - بيانات حقيقية
+ * 🏭 WarehouseDashboard — لوحة المستودعات (Glass Design)
  * ════════════════════════════════════════════════════════════════
- * 
- * ⚡ يستخدم بيانات حقيقية من warehouseService:
- * - getDashboardStats() - الإحصائيات
- * - getLowStockItems() - تنبيهات نقص المخزون
- * - getPendingTransfers() - التحويلات المعلقة
- * - getWarehouseCapacity() - سعة المستودعات
- * - getInventoryMovements() - آخر النشاطات
- * 
+ *
+ * Design: Glass pattern — navy → orange gradient
+ *   - Header with Quick Actions
+ *   - 8 KPI glass cards
+ *   - Low stock alerts + Pending transfers + Capacity
+ *   - Recent activity + Realtime via useWarehouseDashboard
+ *
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -22,56 +20,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
+import { StatsGrid, StatCard } from '@/components/shared/stats/StatCard';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    Warehouse,
-    Package,
-    Boxes,
-    TrendingUp,
-    AlertTriangle,
-    Calendar,
-    Truck,
-    Activity,
-    Plus,
-    RefreshCw,
-    ArrowRightLeft,
-    Clock,
-    Layers,
-    FileText,
-    ClipboardCheck,
-    Settings2
+    Warehouse, Package, Boxes, TrendingUp, AlertTriangle,
+    Calendar, Truck, Activity, Plus, ArrowRightLeft, Clock,
+    Layers, FileText, ClipboardCheck, Hash,
 } from 'lucide-react';
-
-// Types for real data
-interface DashboardStats {
-    totalWarehouses: number;
-    totalMaterials: number;
-    totalRolls: number;
-    activeReservations: number;
-    pendingDeliveries: number;
-    lowStockItems: number;
-}
-
-interface LowStockItem {
-    id: string;
-    roll_number: string;
-    current_length: number;
-    material?: {
-        id: string;
-        name_ar: string;
-        name_en: string;
-    };
-    warehouse?: {
-        id: string;
-        name_ar: string;
-    };
-}
+import { cn } from '@/lib/utils';
 
 interface PendingTransfer {
     id: string;
@@ -81,453 +39,331 @@ interface PendingTransfer {
     created_at: string;
 }
 
-interface WarehouseCapacity {
-    id: string;
-    name: string;
-    usedCapacity: number;
-    totalCapacity: number;
-    percentage: number;
-}
-
-interface InventoryMovement {
-    id: string;
-    movement_type: string;
-    movement_date: string;
-    roll?: { id: string; roll_number: string };
-    warehouse?: { id: string; name_ar: string };
-}
-
 export default function WarehouseDashboard() {
     const { t, language, direction } = useLanguage();
+    const isAr = language === 'ar';
     const { companyId } = useAuth();
 
-    // ⚡ React Query: all dashboard data cached & managed
     const {
-        stats,
-        lowStockItems,
-        warehouseCapacity,
-        recentActivity,
-        loading,
-        error,
-        refetch: refetchDashboard,
+        stats, lowStockItems, warehouseCapacity, recentActivity,
+        loading, error, refetch: refetchDashboard,
     } = useWarehouseDashboard();
 
-    // Pending transfers placeholder (not implemented yet in service)
     const pendingTransfers: PendingTransfer[] = [];
 
-    // Loading skeleton
-    const StatSkeleton = () => (
-        <div className="flex items-center gap-3 pe-5 border-e border-gray-200 dark:border-slate-700">
-            <Skeleton className="w-5 h-5 rounded" />
-            <div>
-                <Skeleton className="h-4 w-20 mb-1" />
-                <Skeleton className="h-6 w-16" />
-            </div>
-        </div>
-    );
-
-    const CardSkeleton = () => (
-        <Card className="bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800">
-            <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-4 rounded" />
+    // Loading
+    if (loading) {
+        return (
+            <div className="space-y-6" dir={direction}>
+                <div className="bg-gradient-to-r from-erp-navy via-orange-800 to-erp-navy p-6 rounded-2xl animate-pulse h-24" />
+                <div className="grid grid-cols-4 gap-4">
+                    {[...Array(8)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-gray-100 animate-pulse" />)}
                 </div>
-                <Skeleton className="h-8 w-16 mt-2" />
-                <Skeleton className="h-3 w-32 mt-2" />
-            </CardContent>
-        </Card>
-    );
+            </div>
+        );
+    }
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500" dir={direction}>
-            {/* Header with Quick Actions */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-                    {t('warehouse.dashboard.title') || (language === 'ar' ? 'لوحة المستودعات' : 'Warehouse Dashboard')}
-                </h1>
-                <div className="flex items-center gap-2 flex-wrap">
-                    {/* Refresh */}
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 gap-2"
-                        onClick={refetchDashboard}
-                        disabled={loading}
-                    >
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                        <span className="hidden md:inline">{language === 'ar' ? 'تحديث' : 'Refresh'}</span>
-                    </Button>
+        <div className="space-y-6" dir={direction}>
+            {/* ─ Header — Glass Gradient (Navy → Orange) ── */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-erp-navy via-orange-800 to-erp-navy p-6 rounded-2xl shadow-lg">
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-orange-400/15 blur-2xl" />
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-orange-400/10 blur-2xl" />
+                <div className="absolute top-1/2 right-1/4 w-20 h-20 rounded-full bg-white/5 blur-xl" />
 
-                    {/* Settings */}
-                    <Button variant="outline" size="sm" className="h-9 gap-2">
-                        <Settings2 className="w-5 h-5" />
-                        <span className="hidden md:inline">{language === 'ar' ? 'تخصيص' : 'Customize'}</span>
-                    </Button>
+                <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+                                <Warehouse className="w-6 h-6 text-orange-300" />
+                            </div>
+                            <h1 className="text-2xl font-bold text-white font-cairo">
+                                {isAr ? 'لوحة المستودعات' : 'Warehouse Dashboard'}
+                            </h1>
+                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                LIVE
+                            </span>
+                        </div>
+                        <p className="text-sm text-orange-200/80 font-tajawal ps-12">
+                            {isAr ? 'نظرة عامة على المخزون والمستودعات والحركات' : 'Overview of inventory, warehouses, and movements'}
+                        </p>
+                    </div>
 
                     {/* Quick Actions */}
-                    <Button variant="outline" size="sm" className="h-9 gap-2">
-                        <Truck className="w-5 h-5" />
-                        <span className="hidden md:inline">{language === 'ar' ? 'استلام' : 'Receive'}</span>
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-9 gap-2">
-                        <FileText className="w-5 h-5" />
-                        <span className="hidden md:inline">{language === 'ar' ? 'تسليم' : 'Dispatch'}</span>
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-9 gap-2">
-                        <ArrowRightLeft className="w-5 h-5" />
-                        <span className="hidden md:inline">{language === 'ar' ? 'تحويل' : 'Transfer'}</span>
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-9 gap-2">
-                        <ClipboardCheck className="w-5 h-5" />
-                        <span className="hidden md:inline">{language === 'ar' ? 'جرد' : 'Audit'}</span>
-                    </Button>
-
-                    {/* Add Menu */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button size="sm" className="h-9 gap-2 bg-erp-teal hover:bg-erp-teal/90">
-                                <Plus className="w-5 h-5" />
-                                {language === 'ar' ? 'إضافة' : 'Add'}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem className="gap-2">
-                                <Package className="w-4 h-4" />
-                                {language === 'ar' ? 'مادة جديدة' : 'New Material'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2">
-                                <Layers className="w-4 h-4" />
-                                {language === 'ar' ? 'مجموعة جديدة' : 'New Category'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2">
-                                <Warehouse className="w-4 h-4" />
-                                {language === 'ar' ? 'مستودع جديد' : 'New Warehouse'}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <Truck className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'استلام' : 'Receive'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <FileText className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'تسليم' : 'Dispatch'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <ArrowRightLeft className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'تحويل' : 'Transfer'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <ClipboardCheck className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'جرد' : 'Audit'}
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button size="sm" className="bg-orange-500/80 hover:bg-orange-500 border-0 text-white text-xs">
+                                    <Plus className="w-3.5 h-3.5 me-1.5" />
+                                    {isAr ? 'إضافة' : 'Add'}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem className="gap-2">
+                                    <Package className="w-4 h-4" />
+                                    {isAr ? 'مادة جديدة' : 'New Material'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2">
+                                    <Layers className="w-4 h-4" />
+                                    {isAr ? 'مجموعة جديدة' : 'New Category'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2">
+                                    <Warehouse className="w-4 h-4" />
+                                    {isAr ? 'مستودع جديد' : 'New Warehouse'}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
             </div>
 
-            {/* Error State */}
+            {/* Error */}
             {error && (
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="text-red-600 dark:text-red-400">{error}</p>
                     <Button variant="outline" size="sm" className="mt-2" onClick={refetchDashboard}>
-                        {language === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+                        {isAr ? 'إعادة المحاولة' : 'Retry'}
                     </Button>
                 </div>
             )}
 
-            {/* Unified Stats Bar */}
-            <div className="flex flex-wrap items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-lg border border-gray-100 dark:border-slate-800">
-                {loading ? (
-                    <>
-                        <StatSkeleton />
-                        <StatSkeleton />
-                        <StatSkeleton />
-                        <StatSkeleton />
-                    </>
-                ) : stats && (
-                    <>
-                        {/* Total Materials */}
-                        <div className="flex items-center gap-3 pe-5 border-e border-gray-200 dark:border-slate-700">
-                            <Package className="w-5 h-5 text-blue-500/70" />
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'إجمالي المواد' : 'Total Materials'}</p>
-                                <p className="font-mono text-xl font-bold text-erp-navy dark:text-white">
-                                    {stats.totalMaterials.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
+            {/* ─ KPIs Row 1 — Inventory (Glass) ── */}
+            {stats && (
+                <>
+                    <StatsGrid cols={4}>
+                        <StatCard
+                            label={isAr ? 'إجمالي المواد' : 'Total Materials'}
+                            value={stats.totalMaterials}
+                            type="info"
+                            icon={Package}
+                            className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                        <StatCard
+                            label={isAr ? 'الرولونات' : 'Rolls'}
+                            value={stats.totalRolls}
+                            type="neutral"
+                            icon={Boxes}
+                            className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                        <StatCard
+                            label={isAr ? 'المستودعات' : 'Warehouses'}
+                            value={stats.totalWarehouses}
+                            type="positive"
+                            icon={Warehouse}
+                            className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                        <StatCard
+                            label={isAr ? 'تنبيهات نقص' : 'Low Stock'}
+                            value={stats.lowStockItems}
+                            type={stats.lowStockItems > 0 ? 'negative' : 'positive'}
+                            icon={AlertTriangle}
+                            className="bg-gradient-to-br from-red-50/80 to-rose-50/50 dark:from-red-950/30 dark:to-rose-950/20 backdrop-blur-sm border border-red-100/50 dark:border-red-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                    </StatsGrid>
 
-                        {/* Total Rolls */}
-                        <div className="flex items-center gap-3 pe-5 border-e border-gray-200 dark:border-slate-700">
-                            <Boxes className="w-5 h-5 text-purple-500/70" />
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'الرولونات' : 'Rolls'}</p>
-                                <p className="font-mono text-xl font-bold text-erp-navy dark:text-white">
-                                    {stats.totalRolls.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
+                    <StatsGrid cols={4}>
+                        <StatCard
+                            label={isAr ? 'حجوزات نشطة' : 'Active Reservations'}
+                            value={stats.activeReservations}
+                            type="warning"
+                            icon={Calendar}
+                            className="bg-gradient-to-br from-amber-50/80 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 backdrop-blur-sm border border-amber-100/50 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                        <StatCard
+                            label={isAr ? 'تسليمات معلقة' : 'Pending Deliveries'}
+                            value={stats.pendingDeliveries}
+                            type="info"
+                            icon={Truck}
+                            className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                        <StatCard
+                            label={isAr ? 'تحويلات معلقة' : 'Pending Transfers'}
+                            value={pendingTransfers.length}
+                            type="neutral"
+                            icon={ArrowRightLeft}
+                            className="bg-gradient-to-br from-orange-50/80 to-amber-50/50 dark:from-orange-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-orange-100/50 dark:border-orange-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                        <StatCard
+                            label={isAr ? 'آخر النشاطات' : 'Recent Movements'}
+                            value={recentActivity.length}
+                            type="neutral"
+                            icon={Activity}
+                            className="bg-gradient-to-br from-slate-50/80 to-gray-50/50 dark:from-slate-950/30 dark:to-gray-950/20 backdrop-blur-sm border border-slate-100/50 dark:border-slate-800/30 shadow-sm hover:shadow-md transition-all"
+                        />
+                    </StatsGrid>
+                </>
+            )}
 
-                        {/* Active Reservations */}
-                        <div className="flex items-center gap-3 pe-5 border-e border-gray-200 dark:border-slate-700">
-                            <Calendar className="w-5 h-5 text-orange-500/70" />
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'حجوزات نشطة' : 'Active Reservations'}</p>
-                                <p className="font-mono text-xl font-bold text-erp-navy dark:text-white">
-                                    {stats.activeReservations}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Low Stock Alerts */}
-                        <div className="flex items-center gap-3">
-                            <AlertTriangle className="w-5 h-5 text-red-500/70" />
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تنبيهات نقص' : 'Low Stock'}</p>
-                                <p className={`font-mono text-xl font-bold ${stats.lowStockItems > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                    {stats.lowStockItems}
-                                </p>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {/* KPI Cards Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {loading ? (
-                    <>
-                        <CardSkeleton />
-                        <CardSkeleton />
-                        <CardSkeleton />
-                        <CardSkeleton />
-                    </>
-                ) : stats && (
-                    <>
-                        {/* Warehouses */}
-                        <Card className="bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 hover:border-erp-teal/50 transition-all">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                        {language === 'ar' ? 'المستودعات' : 'Warehouses'}
-                                    </span>
-                                    <Warehouse className="w-4 h-4 text-blue-500" />
-                                </div>
-                                <p className="text-3xl font-bold font-mono text-erp-navy dark:text-white mt-2">
-                                    {stats.totalWarehouses}
-                                </p>
-                                <div className="flex items-center gap-1 mt-2">
-                                    <TrendingUp className="w-3 h-3 text-green-500" />
-                                    <span className="text-[10px] text-gray-400">{language === 'ar' ? 'نشط' : 'Active'}</span>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Total Rolls */}
-                        <Card className="bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 hover:border-erp-teal/50 transition-all">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                        {language === 'ar' ? 'الرولونات' : 'Rolls'}
-                                    </span>
-                                    <Boxes className="w-4 h-4 text-purple-500" />
-                                </div>
-                                <p className="text-3xl font-bold font-mono text-erp-navy dark:text-white mt-2">
-                                    {stats.totalRolls.toLocaleString()}
-                                </p>
-                            </CardContent>
-                        </Card>
-
-                        {/* Active Reservations */}
-                        <Card className="bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 hover:border-erp-teal/50 transition-all">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                        {language === 'ar' ? 'حجوزات نشطة' : 'Active Reservations'}
-                                    </span>
-                                    <Calendar className="w-4 h-4 text-orange-500" />
-                                </div>
-                                <p className="text-3xl font-bold font-mono text-erp-navy dark:text-white mt-2">
-                                    {stats.activeReservations}
-                                </p>
-                            </CardContent>
-                        </Card>
-
-                        {/* Pending Deliveries */}
-                        <Card className="bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 hover:border-erp-teal/50 transition-all">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                        {language === 'ar' ? 'تسليمات معلقة' : 'Pending Deliveries'}
-                                    </span>
-                                    <Truck className="w-4 h-4 text-cyan-500" />
-                                </div>
-                                <p className="text-3xl font-bold font-mono text-erp-navy dark:text-white mt-2">
-                                    {stats.pendingDeliveries}
-                                </p>
-                            </CardContent>
-                        </Card>
-                    </>
-                )}
-            </div>
-
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* ─ Main Content Grid (Glass) ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Low Stock Alerts */}
-                <Card className="lg:col-span-1 border-none shadow-sm">
-                    <CardHeader className="pb-3 border-b border-gray-100 dark:border-slate-800">
-                        <CardTitle className="font-cairo text-base text-erp-navy dark:text-white flex items-center gap-2">
+                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
+                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-red-500" />
-                            {language === 'ar' ? 'تنبيهات نقص المخزون' : 'Low Stock Alerts'}
-                            {!loading && (
-                                <Badge variant="destructive" className="text-[10px] h-5 ms-auto">
-                                    {lowStockItems.length}
-                                </Badge>
-                            )}
+                            {isAr ? 'تنبيهات نقص المخزون' : 'Low Stock Alerts'}
+                            <Badge variant="destructive" className="text-[10px] h-5 ms-auto">
+                                {lowStockItems.length}
+                            </Badge>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-3">
-                        {loading ? (
-                            <div className="space-y-2">
-                                <Skeleton className="h-16 w-full" />
-                                <Skeleton className="h-16 w-full" />
-                            </div>
-                        ) : lowStockItems.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-green-500" />
-                                <p className="text-sm">{language === 'ar' ? 'لا توجد تنبيهات' : 'No alerts'}</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {lowStockItems.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-100 dark:border-red-800">
-                                        <div>
-                                            <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                                                {item.material?.name_ar || item.roll_number}
-                                            </p>
-                                            <p className="text-[10px] text-gray-500 font-mono">{item.roll_number}</p>
+                    <CardContent className="p-0">
+                        <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
+                            {lowStockItems.length === 0 ? (
+                                <div className="p-8 text-center text-gray-400">
+                                    <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                                    <p className="text-sm font-tajawal">{isAr ? 'لا توجد تنبيهات' : 'No alerts'}</p>
+                                </div>
+                            ) : (
+                                lowStockItems.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between px-5 py-3 hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="p-1.5 rounded-lg bg-red-100 text-red-700">
+                                                <Package className="w-3.5 h-3.5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-tajawal font-medium truncate">{item.material?.name_ar || item.roll_number}</p>
+                                                <p className="text-[11px] text-gray-400 font-mono">{item.roll_number}</p>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="text-sm font-bold text-red-600">{item.current_length}m</span>
-                                            <span className="text-[10px] text-gray-400 block">{item.warehouse?.name_ar}</span>
+                                        <div className="text-end shrink-0 ms-3">
+                                            <span className="font-mono text-sm font-bold text-red-600">{item.current_length}m</span>
+                                            <p className="text-[10px] text-gray-400 font-tajawal">{item.warehouse?.name_ar}</p>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                ))
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
                 {/* Pending Transfers */}
-                <Card className="lg:col-span-1 border-none shadow-sm">
-                    <CardHeader className="pb-3 border-b border-gray-100 dark:border-slate-800">
-                        <CardTitle className="font-cairo text-base text-erp-navy dark:text-white flex items-center gap-2">
+                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
+                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Clock className="w-4 h-4 text-amber-500" />
-                            {language === 'ar' ? 'التحويلات المعلقة' : 'Pending Transfers'}
-                            {!loading && (
-                                <Badge variant="outline" className="text-[10px] h-5 bg-amber-50 text-amber-700 border-amber-200 ms-auto">
-                                    {pendingTransfers.length}
-                                </Badge>
-                            )}
+                            {isAr ? 'التحويلات المعلقة' : 'Pending Transfers'}
+                            <Badge variant="secondary" className="text-[10px] h-5 bg-amber-50 text-amber-700 border-0 ms-auto">
+                                {pendingTransfers.length}
+                            </Badge>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-3">
-                        {loading ? (
-                            <div className="space-y-2">
-                                <Skeleton className="h-16 w-full" />
-                                <Skeleton className="h-16 w-full" />
-                            </div>
-                        ) : pendingTransfers.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                <ArrowRightLeft className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                                <p className="text-sm">{language === 'ar' ? 'لا توجد تحويلات معلقة' : 'No pending transfers'}</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {pendingTransfers.map((transfer) => (
-                                    <div key={transfer.id} className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/10 rounded-md border border-amber-100 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/20 cursor-pointer transition-colors">
-                                        <div>
-                                            <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                                                {transfer.from_warehouse?.name_ar} → {transfer.to_warehouse?.name_ar}
-                                            </p>
-                                            <p className="text-[10px] text-gray-500 font-mono">{transfer.id}</p>
+                    <CardContent className="p-0">
+                        <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
+                            {pendingTransfers.length === 0 ? (
+                                <div className="p-8 text-center text-gray-400">
+                                    <ArrowRightLeft className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                    <p className="text-sm font-tajawal">{isAr ? 'لا توجد تحويلات معلقة' : 'No pending transfers'}</p>
+                                </div>
+                            ) : (
+                                pendingTransfers.map((transfer) => (
+                                    <div key={transfer.id} className="flex items-center justify-between px-5 py-3 hover:bg-amber-50/50 transition-colors">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
+                                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-tajawal font-medium">{transfer.from_warehouse?.name_ar} → {transfer.to_warehouse?.name_ar}</p>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="text-sm font-bold text-amber-600">{transfer.quantity}</span>
-                                            <span className="text-[10px] text-gray-400 block">
-                                                {new Date(transfer.created_at).toLocaleDateString()}
-                                            </span>
+                                        <div className="text-end shrink-0 ms-3">
+                                            <span className="font-mono text-sm font-bold text-amber-600">{transfer.quantity}</span>
+                                            <p className="text-[10px] text-gray-400 font-mono">{new Date(transfer.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                ))
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
                 {/* Warehouse Capacity */}
-                <Card className="lg:col-span-1 border-none shadow-sm">
-                    <CardHeader className="pb-3 border-b border-gray-100 dark:border-slate-800">
-                        <CardTitle className="font-cairo text-base text-erp-navy dark:text-white flex items-center gap-2">
-                            <Warehouse className="w-4 h-4 text-blue-500" />
-                            {language === 'ar' ? 'سعة المستودعات' : 'Warehouse Capacity'}
+                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
+                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
+                            <Warehouse className="w-4 h-4 text-orange-500" />
+                            {isAr ? 'سعة المستودعات' : 'Warehouse Capacity'}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-3">
-                        {loading ? (
-                            <div className="space-y-3">
-                                <Skeleton className="h-8 w-full" />
-                                <Skeleton className="h-8 w-full" />
-                                <Skeleton className="h-8 w-full" />
-                            </div>
-                        ) : warehouseCapacity.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                <Warehouse className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                                <p className="text-sm">{language === 'ar' ? 'لا توجد مستودعات' : 'No warehouses'}</p>
+                    <CardContent className="pt-4 space-y-3">
+                        {warehouseCapacity.length === 0 ? (
+                            <div className="text-center py-4 text-gray-400">
+                                <Warehouse className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                <p className="text-sm font-tajawal">{isAr ? 'لا توجد مستودعات' : 'No warehouses'}</p>
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {warehouseCapacity.map((wh) => (
-                                    <div key={wh.id} className="space-y-1">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-gray-600 dark:text-gray-400">{wh.name}</span>
-                                            <span className="font-mono text-gray-500">{wh.percentage}%</span>
-                                        </div>
-                                        <Progress
-                                            value={wh.percentage}
-                                            className={`h-2 ${wh.percentage > 80 ? '[&>div]:bg-red-500' : wh.percentage > 60 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
-                                        />
+                            warehouseCapacity.map((wh) => (
+                                <div key={wh.id} className="space-y-1.5">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600 dark:text-gray-400 font-tajawal">{wh.name}</span>
+                                        <span className="font-mono text-xs text-gray-500">{wh.percentage}%</span>
                                     </div>
-                                ))}
-                            </div>
+                                    <Progress
+                                        value={wh.percentage}
+                                        className={`h-2 ${wh.percentage > 80 ? '[&>div]:bg-red-500' : wh.percentage > 60 ? '[&>div]:bg-amber-500' : '[&>div]:bg-green-500'}`}
+                                    />
+                                </div>
+                            ))
                         )}
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Recent Activity */}
-            <Card className="border-none shadow-sm">
-                <CardHeader className="pb-3 border-b border-gray-100 dark:border-slate-800">
-                    <CardTitle className="font-cairo text-base text-erp-navy dark:text-white flex items-center gap-2">
-                        <Activity className="w-4 h-4" />
-                        {language === 'ar' ? 'آخر النشاطات' : 'Recent Activity'}
+            {/* ─ Recent Activity (Glass) ── */}
+            <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
+                    <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-orange-500" />
+                        {isAr ? 'آخر النشاطات' : 'Recent Activity'}
                     </CardTitle>
+                    <Badge variant="secondary" className="text-[11px] font-mono bg-orange-50 text-orange-600 border-0">
+                        {recentActivity.length}
+                    </Badge>
                 </CardHeader>
-                <CardContent className="p-4">
-                    {loading ? (
-                        <div className="space-y-2">
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-10 w-full" />
-                            <Skeleton className="h-10 w-full" />
-                        </div>
-                    ) : recentActivity.length === 0 ? (
-                        <div className="flex items-center justify-center py-8 text-muted-foreground">
-                            <p>{language === 'ar' ? 'لا يوجد نشاط بعد' : 'No activity yet'}</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {recentActivity.map((activity) => (
-                                <div key={activity.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-slate-800 rounded-md">
-                                    <div className="flex items-center gap-3">
-                                        <ArrowRightLeft className="w-4 h-4 text-gray-400" />
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                                {activity.movement_type} - {activity.roll?.roll_number}
+                <CardContent className="p-0">
+                    <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
+                        {recentActivity.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 font-tajawal">
+                                {isAr ? 'لا يوجد نشاط بعد' : 'No activity yet'}
+                            </div>
+                        ) : (
+                            recentActivity.map((act) => (
+                                <div key={act.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="p-1.5 rounded-lg bg-orange-100 text-orange-700">
+                                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-tajawal font-medium">
+                                                {act.movement_type} - {act.roll?.roll_number}
                                             </p>
-                                            <p className="text-xs text-gray-500">{activity.warehouse?.name_ar}</p>
+                                            <p className="text-[11px] text-gray-400 font-tajawal">{act.warehouse?.name_ar}</p>
                                         </div>
                                     </div>
-                                    <span className="text-xs text-gray-400">
-                                        {new Date(activity.movement_date).toLocaleDateString()}
+                                    <span className="text-[11px] text-gray-400 font-mono shrink-0">
+                                        {new Date(act.movement_date).toLocaleDateString()}
                                     </span>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            ))
+                        )}
+                    </div>
                 </CardContent>
             </Card>
         </div>

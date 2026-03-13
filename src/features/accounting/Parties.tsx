@@ -100,7 +100,8 @@ export default function Parties() {
   const effectiveCurrency = displayCurrency !== 'all' ? displayCurrency : (baseCurrency || 'USD');
   const isConverting = displayCurrency !== 'all';
 
-  // Convert amount from party currency to display currency
+  // ═══ partyBalanceService now returns balances in NATIVE currency (e.g. USD for USD parties) ═══
+  // Convert from party's native currency → display currency (only when filter is active)
   const convertBalance = useCallback((amount: number, fromCurrency: string): number => {
     if (!isConverting || !fromCurrency || fromCurrency === displayCurrency) return amount;
     const rate = getRate(fromCurrency, displayCurrency);
@@ -312,7 +313,7 @@ export default function Parties() {
   const columns: NexaListColumn<Party>[] = useMemo(() => [
     {
       id: 'code',
-      header: isRTL ? 'الرمز' : 'Code',
+      header: t('table.code') || 'Code',
       sortable: true,
       sortKey: 'code',
       width: '110px',
@@ -324,7 +325,7 @@ export default function Parties() {
     },
     {
       id: 'name',
-      header: isRTL ? 'الاسم' : 'Name',
+      header: t('table.name') || 'Name',
       sortable: true,
       sortKey: 'name',
       cell: (row) => (
@@ -354,7 +355,7 @@ export default function Parties() {
     },
     {
       id: 'phone',
-      header: isRTL ? 'الهاتف' : 'Phone',
+      header: t('common.phone') || 'Phone',
       width: '140px',
       cell: (row) => {
         const phone = row.phone || row.mobile;
@@ -370,7 +371,7 @@ export default function Parties() {
     },
     {
       id: 'currency',
-      header: isRTL ? 'العملة' : 'Currency',
+      header: t('export.currency') || 'Currency',
       width: '90px',
       align: 'center',
       cell: (row) => {
@@ -385,7 +386,7 @@ export default function Parties() {
     },
     {
       id: 'balance',
-      header: isRTL ? 'الرصيد' : 'Balance',
+      header: t('stats.balance') || 'Balance',
       align: 'end',
       sortable: true,
       sortKey: 'balance',
@@ -420,7 +421,7 @@ export default function Parties() {
     },
     {
       id: 'last_txn',
-      header: isRTL ? 'آخر حركة' : 'Last Txn',
+      header: t('table.lastTxn') || 'Last Txn',
       width: '110px',
       align: 'center',
       cell: (row) => {
@@ -435,7 +436,7 @@ export default function Parties() {
     },
     {
       id: 'status',
-      header: isRTL ? 'الحالة' : 'Status',
+      header: t('table.status') || 'Status',
       width: '100px',
       align: 'center',
       cell: (row) => (
@@ -448,7 +449,7 @@ export default function Parties() {
               : "bg-gray-100 text-gray-500"
           )}
         >
-          {row.status === 'active' ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'غير نشط' : 'Inactive')}
+          {row.status === 'active' ? t('status.active') : t('status.inactive')}
         </Badge>
       ),
     },
@@ -493,10 +494,10 @@ export default function Parties() {
           <Building2 className="w-7 h-7 text-erp-teal" />
           <div>
             <h1 className="text-xl font-bold text-erp-navy dark:text-white leading-tight font-cairo">
-              {isRTL ? 'الجهات' : 'Parties'}
+              {t('pages.parties.title')}
             </h1>
             <p className="text-xs text-gray-400 mt-0.5 font-tajawal">
-              {isRTL ? 'إدارة العملاء والموردين والذمم المدينة والدائنة' : 'Manage customers, suppliers, receivables & payables'}
+              {t('pages.parties.subtitle')}
             </p>
           </div>
         </div>
@@ -508,7 +509,7 @@ export default function Parties() {
               className="rounded-e-none gap-2 px-4 h-9 text-white shadow-sm bg-erp-teal hover:bg-erp-teal/90"
             >
               <Plus className="w-4 h-4" />
-              {activeEntityTab === 'suppliers' ? (isRTL ? 'إضافة مورد' : 'Add Supplier') : (isRTL ? 'إضافة عميل' : 'Add Customer')}
+              {activeEntityTab === 'suppliers' ? t('pages.parties.addSupplier') : t('pages.parties.addCustomer')}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -528,19 +529,19 @@ export default function Parties() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <Button variant="outline" className="h-9 px-3 gap-1.5 text-xs font-tajawal" onClick={() => setQuickDocType('receipt')}>
               <ArrowDownRight className="w-3.5 h-3.5 text-green-600" />
-              {isRTL ? 'سندات القبض' : 'Receipts'}
+              {t('pages.parties.receipts')}
             </Button>
             <Button variant="outline" className="h-9 px-3 gap-1.5 text-xs font-tajawal" onClick={() => setQuickDocType('payment')}>
               <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
-              {isRTL ? 'المدفوعات' : 'Payments'}
+              {t('pages.parties.payments')}
             </Button>
             <Button variant="outline" className="h-9 px-3 gap-1.5 text-xs font-tajawal" onClick={() => setQuickDocType('cash')}>
               <Wallet className="w-3.5 h-3.5 text-purple-600" />
-              {isRTL ? 'يومية صندوق' : 'Cash Journal'}
+              {t('pages.parties.cashJournal')}
             </Button>
             <Button className="h-9 px-3 gap-1.5 text-xs font-tajawal bg-erp-teal hover:bg-erp-teal/90 text-white" onClick={() => setQuickDocType('journal')}>
               <Plus className="w-3.5 h-3.5" />
-              {isRTL ? 'قيد يومية' : 'Journal Entry'}
+              {t('pages.parties.journalEntry')}
             </Button>
           </div>
         </div>
@@ -552,9 +553,9 @@ export default function Parties() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 font-tajawal">{isRTL ? 'إجمالي العملاء' : 'Total Customers'}</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-tajawal">{t('pages.parties.totalCustomers')}</p>
                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 font-mono mt-1">{stats.customers.total}</p>
-                <p className="text-xs text-blue-500">{stats.customers.active} {isRTL ? 'نشط' : 'active'}</p>
+                <p className="text-xs text-blue-500">{stats.customers.active} {t('pages.parties.active')}</p>
               </div>
               <div className="p-3 bg-blue-500 rounded-xl"><Users className="w-6 h-6 text-white" /></div>
             </div>
@@ -565,7 +566,7 @@ export default function Parties() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-green-600 dark:text-green-400 font-tajawal">{isRTL ? 'إجمالي المستحقات' : 'Total Receivables'}</p>
+                <p className="text-xs text-green-600 dark:text-green-400 font-tajawal">{t('pages.parties.totalReceivables')}</p>
                 <p className="text-xl font-bold text-green-700 dark:text-green-300 font-mono mt-1">
                   {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.customers.totalReceivables)}
                 </p>
@@ -579,9 +580,9 @@ export default function Parties() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-orange-600 dark:text-orange-400 font-tajawal">{isRTL ? 'إجمالي الموردين' : 'Total Suppliers'}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 font-tajawal">{t('pages.parties.totalSuppliers')}</p>
                 <p className="text-2xl font-bold text-orange-700 dark:text-orange-300 font-mono mt-1">{stats.suppliers.total}</p>
-                <p className="text-xs text-orange-500">{stats.suppliers.active} {isRTL ? 'نشط' : 'active'}</p>
+                <p className="text-xs text-orange-500">{stats.suppliers.active} {t('pages.parties.active')}</p>
               </div>
               <div className="p-3 bg-orange-500 rounded-xl"><Truck className="w-6 h-6 text-white" /></div>
             </div>
@@ -592,7 +593,7 @@ export default function Parties() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-tajawal">{isRTL ? 'إجمالي المستحقات عليك' : 'Total Payables'}</p>
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-tajawal">{t('pages.parties.totalPayables')}</p>
                 <p className="text-xl font-bold text-rose-700 dark:text-rose-300 font-mono mt-1">
                   {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.suppliers.totalPayables)}
                 </p>
@@ -611,12 +612,12 @@ export default function Parties() {
             <TabsList className="bg-white dark:bg-gray-900 p-1 border border-gray-200 dark:border-gray-800 rounded-lg">
               <TabsTrigger value="suppliers" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white text-xs px-4 h-8 font-tajawal">
                 <Truck className="w-4 h-4" />
-                {isRTL ? 'الموردين' : 'Suppliers'}
+                {t('pages.parties.suppliers')}
                 <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 ms-1.5 text-[10px] px-1.5 py-0 h-4">{stats.suppliers.total}</Badge>
               </TabsTrigger>
               <TabsTrigger value="customers" className="gap-2 data-[state=active]:bg-erp-navy data-[state=active]:text-white text-xs px-4 h-8 font-tajawal">
                 <Users className="w-4 h-4" />
-                {isRTL ? 'العملاء' : 'Customers'}
+                {t('pages.parties.customers')}
                 <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 ms-1.5 text-[10px] px-1.5 py-0 h-4">{stats.customers.total}</Badge>
               </TabsTrigger>
             </TabsList>
@@ -626,14 +627,14 @@ export default function Parties() {
           <Tabs value={activeStatusTab} onValueChange={setActiveStatusTab} dir={direction}>
             <TabsList className="bg-muted/50 p-1 rounded-lg">
               <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-7 font-tajawal">
-                {isRTL ? 'الكل' : 'All'}
+                {t('common.all') || 'All'}
                 <Badge variant="secondary" className="ms-1.5 text-[10px] px-1.5 py-0 h-4 bg-gray-200/60">{currentData.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-7 text-emerald-600 font-tajawal">
-                {isRTL ? 'نشط' : 'Active'}
+                {t('status.active') || 'Active'}
               </TabsTrigger>
               <TabsTrigger value="inactive" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-7 text-gray-500 font-tajawal">
-                {isRTL ? 'غير نشط' : 'Inactive'}
+                {t('status.inactive') || 'Inactive'}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -652,7 +653,7 @@ export default function Parties() {
                   isConverting && "ring-1 ring-amber-400 border-amber-400 bg-amber-50 dark:bg-amber-900/20"
                 )}
               >
-                <option value="all">{isRTL ? 'كل العملات' : 'All Currencies'}</option>
+                <option value="all">{t('pages.parties.allCurrencies')}</option>
                 {currencyOptions.map(c => {
                   const meta = CURRENCY_META[c];
                   return (
@@ -682,7 +683,7 @@ export default function Parties() {
           onRowClick={handleRowClick}
           getRowKey={(row) => row.id}
           isLoading={isLoading}
-          emptyMessage={activeEntityTab === 'suppliers' ? (isRTL ? 'لا يوجد موردين' : 'No suppliers found') : (isRTL ? 'لا يوجد عملاء' : 'No customers found')}
+          emptyMessage={activeEntityTab === 'suppliers' ? t('pages.parties.noSuppliers') : t('pages.parties.noCustomers')}
           showFooter={true}
           footerLeftText={
             isRTL

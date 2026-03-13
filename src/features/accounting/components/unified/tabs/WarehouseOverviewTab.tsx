@@ -153,7 +153,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
     // ═══ Add keeper ═══
     const addKeeper = async (user: any) => {
         if (keepers.find(k => k.user_id === user.id)) {
-            toast.info(isAr ? 'المستخدم مضاف بالفعل' : 'User already added');
+            toast.info(t('warehouse.userAlreadyAdded'));
             return;
         }
         const newKeeper: WarehouseKeeper = {
@@ -182,7 +182,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
         setKeepers(prev => [...prev, newKeeper]);
         setUserSearch('');
         setUserResults([]);
-        toast.success(isAr ? 'تم إضافة أمين المستودع' : 'Keeper added');
+        toast.success(t('warehouse.keeperAdded'));
     };
 
     // ═══ Remove keeper ═══
@@ -194,7 +194,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                 .eq('user_id', userId);
         }
         setKeepers(prev => prev.filter(k => k.user_id !== userId));
-        toast.success(isAr ? 'تم إزالة أمين المستودع' : 'Keeper removed');
+        toast.success(t('warehouse.keeperRemoved'));
     };
 
     // ═══ Toggle primary ═══
@@ -306,17 +306,17 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                             <div className="space-y-1">
                                 <Label className="text-xs text-gray-500 flex items-center gap-1">
                                     <GitBranch className="w-3 h-3" />
-                                    {isAr ? 'الفرع' : 'Branch'}
+                                    {t('warehouse.branch')}
                                 </Label>
                                 <Select
                                     value={data?.branch_id || '_none'}
                                     onValueChange={(v) => handleChange('branch_id', v === '_none' ? null : v)}
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder={isAr ? 'اختر الفرع' : 'Select branch'} />
+                                        <SelectValue placeholder={t('warehouse.selectBranch')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="_none">{isAr ? '— بدون فرع —' : '— No branch —'}</SelectItem>
+                                        <SelectItem value="_none">{t('warehouse.noBranch')}</SelectItem>
                                         {branches.map(b => (
                                             <SelectItem key={b.id} value={b.id}>
                                                 {isAr ? b.name : (b.name_en || b.name)}
@@ -328,7 +328,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                             </div>
                         ) : (
                             <InfoRow
-                                label={isAr ? 'الفرع' : 'Branch'}
+                                label={t('warehouse.branch')}
                                 value={
                                     currentBranch ? (
                                         <Badge variant="outline" className="text-xs gap-1">
@@ -337,7 +337,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                             {currentBranch.is_main && ' ⭐'}
                                         </Badge>
                                     ) : (
-                                        <span className="text-gray-400">{isAr ? 'غير محدد' : 'Not assigned'}</span>
+                                        <span className="text-gray-400">{t('warehouse.notAssigned')}</span>
                                     )
                                 }
                             />
@@ -471,7 +471,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                     <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-indigo-500" />
                         <CardTitle className="text-sm font-medium">
-                            {isAr ? 'أمناء المستودع' : 'Warehouse Keepers'}
+                            {t('warehouse.keepers')}
                         </CardTitle>
                         <Badge variant="outline" className="text-[10px]">{keepers.length}</Badge>
                         <div className="ms-auto">
@@ -492,8 +492,8 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                             >
                                 <UserPlus className="w-3.5 h-3.5" />
                                 {showUserPicker
-                                    ? (isAr ? 'إغلاق' : 'Close')
-                                    : (isAr ? 'إضافة أمين' : 'Add Keeper')}
+                                    ? t('common.close')
+                                    : t('warehouse.addKeeper')}
                             </Button>
                         </div>
                     </div>
@@ -507,7 +507,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                 <Input
                                     value={userSearch}
                                     onChange={e => handleUserSearch(e.target.value)}
-                                    placeholder={isAr ? 'بحث بالاسم أو البريد...' : 'Search by name or email...'}
+                                    placeholder={t('warehouse.searchNameEmail')}
                                     className="h-8 text-sm pe-9 bg-white dark:bg-slate-800"
                                 />
                                 {searchingUsers
@@ -520,8 +520,8 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                 {userResults.length === 0 ? (
                                     <div className="text-center py-3 text-xs text-gray-400">
                                         {searchingUsers
-                                            ? (isAr ? 'جارٍ البحث...' : 'Searching...')
-                                            : (isAr ? 'لا توجد نتائج' : 'No results')}
+                                            ? t('warehouse.searching')
+                                            : t('warehouse.noResults')}
                                     </div>
                                 ) : (
                                     userResults.map(user => {
@@ -549,7 +549,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                                 </div>
                                                 {alreadyAdded && (
                                                     <Badge variant="secondary" className="text-[9px] shrink-0">
-                                                        {isAr ? '✅ مضاف' : '✅ Added'}
+                                                        {t('warehouse.added')}
                                                     </Badge>
                                                 )}
                                             </button>
@@ -563,12 +563,12 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                     {/* Keepers List */}
                     {keepersLoading ? (
                         <div className="flex items-center gap-2 text-xs text-gray-400 py-4 justify-center">
-                            <Loader2 className="w-4 h-4 animate-spin" />{isAr ? 'جارٍ التحميل...' : 'Loading...'}
+                            <Loader2 className="w-4 h-4 animate-spin" />{t('warehouse.loadingText')}
                         </div>
                     ) : keepers.length === 0 ? (
                         <div className="text-center py-4 text-xs text-gray-400">
                             <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                            {isAr ? 'لم يتم تعيين أمناء لهذا المستودع' : 'No keepers assigned to this warehouse'}
+                            {t('warehouse.noKeepers')}
                         </div>
                     ) : (
                         <div className="space-y-2">
@@ -582,7 +582,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                         <button
                                             type="button"
                                             onClick={() => togglePrimary(keeper.user_id)}
-                                            title={isAr ? 'تعيين كأمين رئيسي' : 'Set as primary'}
+                                            title={t('warehouse.setPrimary')}
                                             className="shrink-0"
                                         >
                                             <Crown className={cn(
@@ -602,7 +602,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                         {/* Primary badge */}
                                         {keeper.is_primary && (
                                             <Badge className="text-[9px] bg-amber-100 text-amber-700 border-amber-200 shrink-0">
-                                                {isAr ? 'رئيسي' : 'Primary'}
+                                                {t('warehouse.primary')}
                                             </Badge>
                                         )}
 
@@ -612,9 +612,9 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="keeper" className="text-xs">{isAr ? 'أمين مستودع' : 'Keeper'}</SelectItem>
-                                                <SelectItem value="manager" className="text-xs">{isAr ? 'مدير مستودع' : 'Manager'}</SelectItem>
-                                                <SelectItem value="assistant" className="text-xs">{isAr ? 'مساعد' : 'Assistant'}</SelectItem>
+                                                <SelectItem value="keeper" className="text-xs">{t('warehouse.keeper')}</SelectItem>
+                                                <SelectItem value="manager" className="text-xs">{t('warehouse.manager')}</SelectItem>
+                                                <SelectItem value="assistant" className="text-xs">{t('warehouse.assistant')}</SelectItem>
                                             </SelectContent>
                                         </Select>
 

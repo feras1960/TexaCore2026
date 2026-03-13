@@ -16,6 +16,8 @@ import { Plus, Save, RefreshCw } from 'lucide-react';
 import type { Account, CreateAccountInput } from '@/services/accountsService';
 import { accountsService } from '@/services/accountsService';
 import { SmartCurrencySelector } from '../components/shared/CurrencySelector';
+import { supabase } from '@/lib/supabase';
+import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 
 // Account type from database
 interface AccountType {
@@ -67,6 +69,8 @@ export function AddAccountSheet({
   const [loading, setLoading] = useState(false);
   const [accountTypes, setAccountTypes] = useState<AccountType[]>([]);
   const [accountTypesLoading, setAccountTypesLoading] = useState(true);
+  const [hasTransactions, setHasTransactions] = useState(false);
+  const { baseCurrency: settingsBaseCurrency } = useAccountingSettings();
 
   const [formData, setFormData] = useState<FormData>({
     company_id: companyId || '',
@@ -77,9 +81,29 @@ export function AddAccountSheet({
     parent_id: parentAccount?.id,
     level: parentAccount ? parentAccount.level + 1 : 1,
     is_group: false,
-    currency: '',
+    currency: settingsBaseCurrency || '',
     description: '',
   });
+
+  // 🆕 Check if account has transactions (to protect currency change)
+  useEffect(() => {
+    if (!editingAccount?.id) {
+      setHasTransactions(false);
+      return;
+    }
+    const checkTransactions = async () => {
+      try {
+        const { count } = await supabase
+          .from('journal_entry_lines')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', editingAccount.id);
+        setHasTransactions((count || 0) > 0);
+      } catch {
+        setHasTransactions(false);
+      }
+    };
+    checkTransactions();
+  }, [editingAccount?.id]);
 
   // Fetch account types from database
   useEffect(() => {
@@ -135,7 +159,7 @@ export function AddAccountSheet({
         parent_id: parentAccount?.id,
         level: parentAccount ? parentAccount.level + 1 : 1,
         is_group: isGroupMode || false,
-        currency: '',
+        currency: settingsBaseCurrency || '',
         description: '',
       });
     }
@@ -266,8 +290,8 @@ export function AddAccountSheet({
     }
 
     // Validate required fields
-    if (!formData.code || !formData.name || !formData.account_type_id) {
-      alert(t('accounting.errors.fillRequiredFields') || 'Please fill all required fields.');
+    if (!formData.code || !formData.name || !formData.account_type_id || !formData.currency) {
+      alert(t('accounting.errors.fillRequiredFields') || 'Please fill all required fields (including currency).');
       return;
     }
 
@@ -486,16 +510,36 @@ export function AddAccountSheet({
             </Label>
           </div>
 
-          {/* Currency */}
+          {/* Currency — 🆕 إجبارية + حماية من التعديل */}
           <div className="space-y-2">
-            <Label htmlFor="currency">{t('accounting.account.currency')}</Label>
+            <Label htmlFor="currency">
+              {t('accounting.account.currency')} *
+              {editingAccount && hasTransactions && (
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 ms-1">
+                  🔒 {language === 'ar' ? 'مقفل — يوجد حركات' : 'Locked — has transactions'}
+                </span>
+              )}
+            </Label>
             <SmartCurrencySelector
               value={formData.currency}
               onValueChange={(value) =>
                 setFormData((prev) => ({ ...prev, currency: value }))
               }
               showAllOption={false}
+              disabled={editingAccount ? hasTransactions : false}
             />
+            {!formData.currency && (
+              <p className="text-[10px] text-red-500">
+                {language === 'ar' ? '⚠️ العملة مطلوبة — يرجى اختيار عملة الحساب' : '⚠️ Currency is required'}
+              </p>
+            )}
+            {editingAccount && hasTransactions && (
+              <p className="text-[10px] text-amber-500">
+                {language === 'ar'
+                  ? 'ℹ️ لا يمكن تغيير العملة لأن الحساب يحتوي على حركات مالية'
+                  : 'ℹ️ Currency cannot be changed — account has financial transactions'}
+              </p>
+            )}
           </div>
 
           {/* Actions */}

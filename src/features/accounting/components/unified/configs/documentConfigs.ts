@@ -108,94 +108,130 @@ export const accountConfig: DocumentConfig = {
     ],
 };
 
-// Fund Configuration - تكوين الصناديق
+// Fund Configuration - تكوين الصناديق والبنوك
 export const fundConfig: DocumentConfig = {
     type: 'fund',
     titleKey: 'accounting.fund.title',
     subtitleKey: 'accounting.fund.subtitle',
     icon: 'Wallet',
     iconColor: 'bg-emerald-600',
-    defaultTab: 'transactions',
-    supportsModes: ['view', 'edit'],
+    defaultTab: 'overview',
+    supportsModes: ['view', 'edit', 'create'],
     headerFields: ['name', 'type', 'balance', 'currency'],
     tabs: [
         {
             id: 'overview',
             labelKey: 'accounting.tabs.overview',
             icon: 'LayoutDashboard',
-            component: 'FundOverviewTab',
+            component: 'PartyOverviewTab',
         },
         {
-            id: 'transactions',
-            labelKey: 'accounting.tabs.transactions',
-            icon: 'ArrowRightLeft',
-            component: 'FundTransactionsTab',
+            id: 'ledger',
+            labelKey: 'accounting.tabs.ledger',
+            icon: 'FileText',
+            component: 'LedgerTab',
         },
         {
-            id: 'currencies',
-            labelKey: 'accounting.tabs.currencies',
-            icon: 'DollarSign',
-            component: 'FundCurrenciesTab',
+            id: 'activity',
+            labelKey: 'accounting.tabs.activity',
+            icon: 'Clock',
+            component: 'ActivityLogTab',
         },
-
+        {
+            id: 'attachments',
+            labelKey: 'accounting.tabs.attachments',
+            icon: 'Paperclip',
+            component: 'AttachmentsTab',
+        },
     ],
     actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
         {
             id: 'receipt',
             labelKey: 'accounting.quickReceipt',
             icon: 'ArrowDownRight',
             variant: 'default',
+            showInModes: ['view'],
         },
         {
             id: 'payment',
             labelKey: 'accounting.quickPayment',
             icon: 'ArrowUpRight',
             variant: 'outline',
+            showInModes: ['view'],
         },
         {
-            id: 'transfer',
-            labelKey: 'accounting.transfer',
-            icon: 'ArrowRightLeft',
+            id: 'edit',
+            labelKey: 'actions.edit',
+            icon: 'Edit',
             variant: 'outline',
+            showInModes: ['view'],
         },
         {
             id: 'print',
             labelKey: 'actions.print',
             icon: 'Printer',
             variant: 'ghost',
+            showInModes: ['view'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
+            showInModes: ['view'],
         },
     ],
     stats: [
         {
             id: 'balance',
-            labelKey: 'accounting.account.balance',
-            valueKey: 'balance',
+            labelKey: 'accounting.current_balance',
+            descriptionKey: 'accounting.stats.balance_desc',
+            valueKey: 'current_balance',
             icon: 'Wallet',
             format: 'currency',
             colorClass: 'text-erp-navy',
         },
         {
-            id: 'deposits',
-            labelKey: 'accounting.deposits',
-            valueKey: 'totalDeposits',
-            icon: 'ArrowDownRight',
+            id: 'debit',
+            labelKey: 'accounting.totalDebit',
+            descriptionKey: 'accounting.stats.debit_desc',
+            valueKey: 'total_debit',
+            icon: 'ArrowUpRight',
             format: 'currency',
             colorClass: 'text-green-600',
         },
         {
-            id: 'withdrawals',
-            labelKey: 'accounting.withdrawals',
-            valueKey: 'totalWithdrawals',
-            icon: 'ArrowUpRight',
+            id: 'credit',
+            labelKey: 'accounting.totalCredit',
+            descriptionKey: 'accounting.stats.credit_desc',
+            valueKey: 'total_credit',
+            icon: 'ArrowDownRight',
             format: 'currency',
             colorClass: 'text-red-600',
         },
         {
-            id: 'todayChange',
-            labelKey: 'accounting.todayChange',
-            valueKey: 'todayChange',
-            icon: 'TrendingUp',
-            format: 'currency',
+            id: 'transactions',
+            labelKey: 'accounting.transactionCount',
+            descriptionKey: 'accounting.stats.transactions_desc',
+            valueKey: 'transaction_count',
+            icon: 'Hash',
+            format: 'number',
         },
     ],
 };
@@ -1336,6 +1372,123 @@ export const rollConfig: DocumentConfig = {
 
 // Add roll to main config map
 (documentConfigs as any)['roll'] = rollConfig;
+
+// ═══════════════════════════════════════════════════════════
+// Recurring Entry Config — شيت القيد المتكرر
+// ═══════════════════════════════════════════════════════════
+export const recurringConfig: DocumentConfig = {
+    type: 'recurring',
+    titleKey: 'accounting.recurring.title',
+    subtitleKey: 'accounting.recurring.subtitle',
+    icon: 'RefreshCw',
+    iconColor: 'bg-purple-600',
+    defaultTab: 'entry',
+    supportsModes: ['view', 'edit', 'create'],
+    headerFields: ['code', 'name_ar', 'frequency', 'status', 'next_run_date'],
+    tabs: [
+        {
+            id: 'entry',
+            labelKey: 'accounting.tabs.entry',
+            icon: 'FileEdit',
+            component: 'JournalEntryTab',
+        },
+        {
+            id: 'schedule',
+            labelKey: 'accounting.recurring.schedule',
+            icon: 'Calendar',
+            component: 'RecurringScheduleTab',
+        },
+        {
+            id: 'history',
+            labelKey: 'accounting.recurring.history',
+            icon: 'History',
+            component: 'RecurringHistoryTab',
+            showInModes: ['view'],
+        },
+        {
+            id: 'attachments',
+            labelKey: 'accounting.tabs.attachments',
+            icon: 'Paperclip',
+            component: 'AttachmentsTab',
+            showInModes: ['view', 'edit'],
+        },
+    ],
+    actions: [
+        {
+            id: 'save',
+            labelKey: 'actions.save',
+            icon: 'Save',
+            variant: 'default',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'cancel',
+            labelKey: 'actions.cancel',
+            icon: 'X',
+            variant: 'outline',
+            showInModes: ['create', 'edit'],
+        },
+        {
+            id: 'edit',
+            labelKey: 'actions.edit',
+            icon: 'Edit',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+        {
+            id: 'execute',
+            labelKey: 'accounting.recurring.executeNow',
+            icon: 'Zap',
+            variant: 'default',
+            showInModes: ['view'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
+            showInModes: ['view'],
+        },
+    ],
+    stats: [
+        {
+            id: 'amount',
+            labelKey: 'accounting.recurring.amount',
+            valueKey: 'amount',
+            icon: 'DollarSign',
+            format: 'currency',
+            colorClass: 'text-indigo-600',
+        },
+        {
+            id: 'frequency',
+            labelKey: 'accounting.recurring.frequencyLabel',
+            valueKey: 'frequency',
+            icon: 'RefreshCw',
+            format: 'number',
+        },
+        {
+            id: 'executed',
+            labelKey: 'accounting.recurring.executed',
+            valueKey: 'times_executed',
+            icon: 'CheckCircle',
+            format: 'number',
+            colorClass: 'text-green-600',
+        },
+        {
+            id: 'next',
+            labelKey: 'accounting.recurring.nextRun',
+            valueKey: 'next_run_date',
+            icon: 'Calendar',
+            format: 'date',
+            colorClass: 'text-purple-600',
+        },
+    ],
+};
+
+// Add recurring to main config map
+(documentConfigs as any)['recurring'] = recurringConfig;
 
 // Get config by type — with optional tradeMode for smart tab selection
 export function getDocumentConfig(type: string, tradeMode?: 'sales' | 'purchase' | 'transfer'): DocumentConfig {

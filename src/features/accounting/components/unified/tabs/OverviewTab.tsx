@@ -126,7 +126,7 @@ export function OverviewTab({
         fetchEditData();
     }, [isEditable, companyId, data?.company_id]);
 
-    // ═══ Compute converted balance for account's own currency ═══
+    // ═══ Compute balance via Backend RPC — مصدر واحد للحقيقة ═══
     useEffect(() => {
         if (!data?.id || isCreate) return;
         const accountCurrency = data?.currency || '';
@@ -137,55 +137,38 @@ export function OverviewTab({
 
         const computeCorrectBalance = async () => {
             try {
-                const { data: lines, error } = await supabase
-                    .from('journal_entry_lines')
-                    .select(`
-                        debit,
-                        credit,
-                        currency,
-                        journal_entries!inner ( currency, status )
-                    `)
-                    .eq('account_id', data.id)
-                    .neq('journal_entries.status', 'cancelled')
-                    .neq('journal_entries.status', 'voided');
-
-                if (error || !lines) {
+                const compId = companyId || data?.company_id;
+                if (!compId) {
                     setConvertedBalance(null);
                     return;
                 }
 
-                let totalDebit = 0;
-                let totalCredit = 0;
+                // ═══ Single RPC call — all calculation in Backend ═══
+                const { data: balanceData, error } = await supabase.rpc('get_account_balance_fc', {
+                    p_account_id: data.id,
+                    p_company_id: compId,
+                });
 
-                for (const line of lines as any[]) {
-                    const lineCurrency = line.currency || line.journal_entries?.currency || accountCurrency;
-                    const debit = line.debit || 0;
-                    const credit = line.credit || 0;
-
-                    if (lineCurrency === accountCurrency) {
-                        totalDebit += debit;
-                        totalCredit += credit;
-                    } else {
-                        // Convert to account currency using getRate
-                        const rate = getRate(lineCurrency, accountCurrency);
-                        totalDebit += debit * rate;
-                        totalCredit += credit * rate;
-                    }
+                if (error || !balanceData || balanceData.length === 0) {
+                    console.warn('[OverviewTab] RPC error:', error?.message);
+                    setConvertedBalance(null);
+                    return;
                 }
 
+                const result = balanceData[0];
                 setConvertedBalance({
-                    totalDebit: Math.round(totalDebit * 100) / 100,
-                    totalCredit: Math.round(totalCredit * 100) / 100,
-                    balance: Math.round((totalDebit - totalCredit + (data?.opening_balance || 0)) * 100) / 100,
+                    totalDebit: Number(result.total_debit) || 0,
+                    totalCredit: Number(result.total_credit) || 0,
+                    balance: Number(result.balance) || 0,
                 });
             } catch (err) {
-                console.error('[OverviewTab] Error computing converted balance:', err);
+                console.error('[OverviewTab] Error computing balance:', err);
                 setConvertedBalance(null);
             }
         };
 
         computeCorrectBalance();
-    }, [data?.id, data?.currency, data?.opening_balance, isCreate, getRate]);
+    }, [data?.id, data?.currency, isCreate, companyId]);
 
     // Build enhanced data with converted balances for stats display
     const enhancedData = useMemo(() => {

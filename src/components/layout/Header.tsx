@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart, Calculator, Bot } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import { formatShortcut, formatShortcutRange, useLanguageShortcuts } from '@/hoo
 import { cn } from '@/lib/utils';
 import { SupportedLanguage, getLanguageConfig } from '@/i18n/config';
 import { useCart } from '@/contexts/CartContext';
+import { useNexaContext } from '@/providers/NexaContextProvider';
 
 export function Header() {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ export function Header() {
   // Get current language config for display
   const currentLangConfig = getLanguageConfig(language);
   const { computed, actions: cartActions } = useCart();
+  const nexaCtx = useNexaContext();
 
   const handleLogout = async () => {
     await logout();
@@ -75,6 +77,52 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* 💱 Currency Calculator Quick Access */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                onClick={() => {
+                  window.dispatchEvent(new KeyboardEvent('keydown', { 
+                    key: 'e', ctrlKey: true, bubbles: true 
+                  }));
+                }}
+              >
+                <Calculator className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <div className="flex items-center gap-2">
+                <span>{direction === 'rtl' ? 'حاسبة العملات' : 'Currency Calculator'}</span>
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-gray-100 dark:bg-gray-700 rounded">
+                  {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+E
+                </kbd>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 🤖 NexaPro AI Assistant */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("h-10 w-10 relative", nexaCtx.isOpen && 'bg-indigo-50 dark:bg-indigo-950')}
+                onClick={nexaCtx.toggleCopilot}
+              >
+                <Bot className="h-5 w-5 text-indigo-500" />
+                {nexaCtx.hasNewInsight && (
+                  <span className="absolute -top-0.5 -end-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-white animate-pulse" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {direction === 'rtl' ? 'وكيل نيكسا AI' : 'NexaPro AI'}
+            </TooltipContent>
+          </Tooltip>
+
           {/* Language Switcher with Short Code Badge */}
           <DropdownMenu>
             <Tooltip>

@@ -84,7 +84,7 @@ interface MotionSheetProps extends React.ComponentPropsWithoutRef<typeof SheetPr
 const MotionSheet = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Root>,
   MotionSheetProps
->(({ modal = true, ...props }, _ref) => (
+>(({ modal = false, ...props }, _ref) => (
   <SheetPrimitive.Root modal={modal} {...props} />
 ))
 MotionSheet.displayName = "MotionSheet"
@@ -113,7 +113,7 @@ const MotionSheetOverlay = React.forwardRef<
           animate="visible"
           exit="exit"
           className={cn(
-            "fixed inset-0 z-50 bg-black/20",
+            "fixed inset-0 z-50 bg-black/20 pointer-events-none",
             className
           )}
           {...props}
@@ -193,6 +193,16 @@ const MotionSheetContent = React.forwardRef<
     return variants
   }, [side, springConfig])
 
+  // Prevent dismiss (closing) when clicking NexaPro Agent
+  const handleInteractOutside = React.useCallback((e: Event) => {
+    const target = e.target as HTMLElement;
+    if (target?.closest?.('#nexa-copilot-root')) {
+      e.preventDefault();
+      return;
+    }
+    if (preventCloseOnOutsideClick) e.preventDefault();
+  }, [preventCloseOnOutsideClick]);
+
   return (
     <MotionSheetPortal>
       {/* Animated Overlay */}
@@ -206,7 +216,7 @@ const MotionSheetContent = React.forwardRef<
                 animate="visible"
                 exit="exit"
                 className={cn(
-                  "fixed inset-0 z-50 bg-black/20",
+                  "fixed inset-0 z-50 bg-black/20 pointer-events-none",
                   overlayClassName
                 )}
               />
@@ -219,8 +229,7 @@ const MotionSheetContent = React.forwardRef<
       <AnimatePresence mode="wait">
         {isOpen && (
           <SheetPrimitive.Content asChild forceMount
-            onInteractOutside={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
-            onPointerDownOutside={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
+            onInteractOutside={handleInteractOutside}
             onEscapeKeyDown={preventCloseOnOutsideClick ? (e) => e.preventDefault() : undefined}
           >
             <motion.div

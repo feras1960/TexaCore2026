@@ -1,306 +1,345 @@
 /**
- * ═══════════════════════════════════════════════════════════════
- *  EcommerceDashboard — لوحة معلومات المتجر
- * ═══════════════════════════════════════════════════════════════
- *  إحصائيات حية من Supabase: الطلبات، المبيعات، العملاء
- *  الطلبات الأخيرة، الأكثر مبيعاً، السلات المهجورة
- * ═══════════════════════════════════════════════════════════════
+ * ════════════════════════════════════════════════════════════════
+ * 🛒 EcommerceDashboard — لوحة المتجر الإلكتروني (Glass Design)
+ * ════════════════════════════════════════════════════════════════
+ *
+ * Design: Glass pattern — navy → rose gradient
+ *   - Header with Quick Actions + LIVE badge
+ *   - 8 KPI glass cards
+ *   - Recent orders + Top products
+ *   - Realtime via Supabase channel
+ *
+ * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { StatsGrid, StatCard } from '@/components/shared/stats/StatCard';
 import { supabase } from '@/lib/supabase';
 import {
     ShoppingCart, Package, Users, DollarSign, TrendingUp,
-    Eye, Clock, AlertCircle, CheckCircle, Truck, Star,
-    RefreshCw, ExternalLink, ShoppingBag, Tag, BarChart3,
-    ArrowUpRight, Loader2,
+    Clock, AlertCircle, CheckCircle, Truck, Star,
+    ShoppingBag, Tag, BarChart3, Globe, Hash,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-interface DashboardStats {
-    totalSales: number;
-    newOrders: number;
-    totalCustomers: number;
-    pendingOrders: number;
-    currency: string;
-}
-
-interface RecentOrder {
-    id: string;
-    order_number: string;
-    customer_name: string;
-    total_amount: number;
-    status: string;
-    payment_status: string;
-    currency: string;
-    created_at: string;
-}
-
-interface TopProduct {
-    product_name: any;
-    total_sold: number;
-    total_revenue: number;
-}
-
-const STATUS_CONFIG: Record<string, { label: string; labelEn: string; color: string; icon: any }> = {
-    pending: { label: 'في الانتظار', labelEn: 'Pending', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
-    confirmed: { label: 'مؤكد', labelEn: 'Confirmed', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: CheckCircle },
-    processing: { label: 'قيد التجهيز', labelEn: 'Processing', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', icon: Package },
-    shipped: { label: 'تم الشحن', labelEn: 'Shipped', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: Truck },
-    delivered: { label: 'تم التسليم', labelEn: 'Delivered', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle },
-    completed: { label: 'مكتمل', labelEn: 'Completed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle },
-    cancelled: { label: 'ملغى', labelEn: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: AlertCircle },
+const STATUS_CONFIG: Record<string, { label: string; labelEn: string; className: string }> = {
+    pending:    { label: 'في الانتظار',   labelEn: 'Pending',    className: 'bg-amber-100 text-amber-700' },
+    confirmed:  { label: 'مؤكد',         labelEn: 'Confirmed',  className: 'bg-blue-100 text-blue-700' },
+    processing: { label: 'قيد التجهيز',   labelEn: 'Processing', className: 'bg-indigo-100 text-indigo-700' },
+    shipped:    { label: 'تم الشحن',      labelEn: 'Shipped',    className: 'bg-purple-100 text-purple-700' },
+    delivered:  { label: 'تم التسليم',    labelEn: 'Delivered',  className: 'bg-emerald-100 text-emerald-700' },
+    completed:  { label: 'مكتمل',        labelEn: 'Completed',  className: 'bg-emerald-100 text-emerald-700' },
+    cancelled:  { label: 'ملغى',         labelEn: 'Cancelled',  className: 'bg-red-100 text-red-700' },
 };
 
+interface RecentOrder {
+    id: string; order_number: string; customer_name: string;
+    total_amount: number; status: string; payment_status: string;
+    currency: string; created_at: string;
+}
+interface TopProduct { product_name: any; total_sold: number; total_revenue: number; }
+
 export default function EcommerceDashboard() {
-    const { direction } = useLanguage();
-    const isRTL = direction === 'rtl';
+    const { direction, language } = useLanguage();
+    const isAr = language === 'ar';
+    const { companyId } = useCompany();
+
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<DashboardStats>({ totalSales: 0, newOrders: 0, totalCustomers: 0, pendingOrders: 0, currency: 'UAH' });
+    const [totalSales, setTotalSales] = useState(0);
+    const [totalOrders, setTotalOrders] = useState(0);
+    const [totalCustomers, setTotalCustomers] = useState(0);
+    const [pendingOrders, setPendingOrders] = useState(0);
+    const [shippedOrders, setShippedOrders] = useState(0);
+    const [completedOrders, setCompletedOrders] = useState(0);
+    const [avgOrderValue, setAvgOrderValue] = useState(0);
+    const [currency, setCurrency] = useState('UAH');
     const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
     const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
 
-    const fetchDashboard = async () => {
+    const fetchDashboard = useCallback(async () => {
         setLoading(true);
         try {
-            // 1. Recent orders
             const { data: orders } = await supabase
                 .from('ecommerce_orders')
-                .select('id, order_number, customer_name, total_amount, status, payment_status, currency, created_at')
-                .order('created_at', { ascending: false })
-                .limit(10);
+                .select('id, order_number, customer_name, total_amount, status, payment_status, currency, created_at, customer_phone')
+                .order('created_at', { ascending: false });
 
-            setRecentOrders(orders || []);
+            const allOrders = orders || [];
+            setRecentOrders(allOrders.slice(0, 8).map(o => ({
+                id: o.id, order_number: o.order_number, customer_name: o.customer_name,
+                total_amount: o.total_amount, status: o.status, payment_status: o.payment_status,
+                currency: o.currency, created_at: o.created_at,
+            })));
 
-            // 2. Stats from orders
-            const { data: allOrders } = await supabase
-                .from('ecommerce_orders')
-                .select('total_amount, status, customer_phone, currency');
+            const validOrders = allOrders.filter(o => !['cancelled', 'returned'].includes(o.status));
+            const sales = validOrders.reduce((s, o) => s + (o.total_amount || 0), 0);
+            setTotalSales(sales);
+            setTotalOrders(allOrders.length);
+            setPendingOrders(allOrders.filter(o => o.status === 'pending').length);
+            setShippedOrders(allOrders.filter(o => o.status === 'shipped').length);
+            setCompletedOrders(allOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length);
+            setTotalCustomers(new Set(allOrders.map(o => o.customer_phone)).size);
+            setAvgOrderValue(validOrders.length > 0 ? sales / validOrders.length : 0);
+            setCurrency(allOrders[0]?.currency || 'UAH');
 
-            if (allOrders) {
-                const totalSales = allOrders
-                    .filter(o => !['cancelled', 'returned'].includes(o.status))
-                    .reduce((sum, o) => sum + (o.total_amount || 0), 0);
-                const pendingOrders = allOrders.filter(o => o.status === 'pending').length;
-                const uniqueCustomers = new Set(allOrders.map(o => o.customer_phone)).size;
-                const currency = allOrders[0]?.currency || 'UAH';
-
-                setStats({
-                    totalSales,
-                    newOrders: allOrders.length,
-                    totalCustomers: uniqueCustomers,
-                    pendingOrders,
-                    currency,
-                });
-            }
-
-            // 3. Top products from order items
             const { data: items } = await supabase
                 .from('ecommerce_order_items')
                 .select('product_name, quantity, total_price');
-
-            if (items && items.length > 0) {
-                const productMap: Record<string, { name: any; sold: number; revenue: number }> = {};
-                items.forEach(item => {
-                    const key = JSON.stringify(item.product_name);
-                    if (!productMap[key]) productMap[key] = { name: item.product_name, sold: 0, revenue: 0 };
-                    productMap[key].sold += item.quantity;
-                    productMap[key].revenue += item.total_price;
+            if (items?.length) {
+                const map: Record<string, { name: any; sold: number; rev: number }> = {};
+                items.forEach(it => {
+                    const k = JSON.stringify(it.product_name);
+                    if (!map[k]) map[k] = { name: it.product_name, sold: 0, rev: 0 };
+                    map[k].sold += it.quantity;
+                    map[k].rev += it.total_price;
                 });
-                const sorted = Object.values(productMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-                setTopProducts(sorted.map(p => ({ product_name: p.name, total_sold: p.sold, total_revenue: p.revenue })));
+                setTopProducts(Object.values(map).sort((a, b) => b.rev - a.rev).slice(0, 5)
+                    .map(p => ({ product_name: p.name, total_sold: p.sold, total_revenue: p.rev })));
             }
-        } catch (err) {
-            console.error('Dashboard fetch error:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+        } catch (err) { console.error('Ecommerce dashboard error:', err); }
+        finally { setLoading(false); }
+    }, []);
 
-    useEffect(() => { fetchDashboard(); }, []);
+    useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat(isRTL ? 'ar-SA' : 'en-US', { maximumFractionDigits: 2 }).format(val);
-    };
+    // Realtime
+    useEffect(() => {
+        const channel = supabase
+            .channel('ecommerce-dashboard-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'ecommerce_orders' }, () => fetchDashboard())
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [fetchDashboard]);
 
+    const fmt = (val: number) => new Intl.NumberFormat(isAr ? 'ar-SA' : 'en-US', { maximumFractionDigits: 0 }).format(val);
     const getName = (name: any) => {
         if (!name) return '-';
         if (typeof name === 'string') return name;
-        return name[isRTL ? 'ar' : 'en'] || name.ar || name.en || '-';
+        return name[isAr ? 'ar' : 'en'] || name.ar || name.en || '-';
     };
-
-    const timeAgo = (dateStr: string) => {
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const mins = Math.floor(diff / 60000);
-        if (mins < 60) return isRTL ? `منذ ${mins} دقيقة` : `${mins}m ago`;
+    const timeAgo = (d: string) => {
+        const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+        if (mins < 60) return isAr ? `منذ ${mins} دقيقة` : `${mins}m ago`;
         const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return isRTL ? `منذ ${hrs} ساعة` : `${hrs}h ago`;
-        const days = Math.floor(hrs / 24);
-        return isRTL ? `منذ ${days} يوم` : `${days}d ago`;
+        if (hrs < 24) return isAr ? `منذ ${hrs} ساعة` : `${hrs}h ago`;
+        return isAr ? `منذ ${Math.floor(hrs / 24)} يوم` : `${Math.floor(hrs / 24)}d ago`;
     };
 
-    const statCards = [
-        { label: isRTL ? 'إجمالي المبيعات' : 'Total Sales', value: formatCurrency(stats.totalSales), suffix: stats.currency, icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-        { label: isRTL ? 'الطلبات' : 'Orders', value: stats.newOrders.toString(), icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-        { label: isRTL ? 'العملاء' : 'Customers', value: stats.totalCustomers.toString(), icon: Users, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-        { label: isRTL ? 'طلبات معلقة' : 'Pending', value: stats.pendingOrders.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-    ];
-
-    if (loading) {
+    if (loading && !recentOrders.length) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 className="w-8 h-8 animate-spin text-erp-teal" />
+            <div className="space-y-6" dir={direction}>
+                <div className="bg-gradient-to-r from-erp-navy via-rose-800 to-erp-navy p-6 rounded-2xl animate-pulse h-24" />
+                <div className="grid grid-cols-4 gap-4">
+                    {[...Array(8)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-gray-100 animate-pulse" />)}
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Stats Bar */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {statCards.map((stat, i) => (
-                    <Card key={i} className="border-0 shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{stat.label}</p>
-                                    <p className="text-xl font-bold text-erp-navy dark:text-white font-mono">
-                                        {stat.value}
-                                        {stat.suffix && <span className="text-xs text-gray-400 ms-1">{stat.suffix}</span>}
-                                    </p>
-                                </div>
+        <div className="space-y-6" dir={direction}>
+            {/* ─ Header — Glass Gradient (Navy → Rose) ── */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-erp-navy via-rose-800 to-erp-navy p-6 rounded-2xl shadow-lg">
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-rose-400/15 blur-2xl" />
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-rose-400/10 blur-2xl" />
+                <div className="absolute top-1/2 right-1/4 w-20 h-20 rounded-full bg-white/5 blur-xl" />
+
+                <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+                                <Globe className="w-6 h-6 text-rose-300" />
                             </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                            <h1 className="text-2xl font-bold text-white font-cairo">
+                                {isAr ? 'لوحة المتجر الإلكتروني' : 'E-Commerce Dashboard'}
+                            </h1>
+                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                LIVE
+                            </span>
+                        </div>
+                        <p className="text-sm text-rose-200/80 font-tajawal ps-12">
+                            {isAr ? 'نظرة عامة على الطلبات والمبيعات والمنتجات' : 'Overview of orders, sales, and products'}
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <Package className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'إضافة منتج' : 'Add Product'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <Tag className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'عرض جديد' : 'New Offer'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
+                            <Truck className="w-3.5 h-3.5 me-1.5" />
+                            {isAr ? 'تتبع الشحنات' : 'Track Shipments'}
+                        </Button>
+                    </div>
+                </div>
             </div>
 
-            {/* Main Grid */}
+            {/* ─ KPIs Row 1 (Glass) ── */}
+            <StatsGrid cols={4}>
+                <StatCard
+                    label={isAr ? 'إجمالي المبيعات' : 'Total Sales'}
+                    value={totalSales}
+                    type="positive"
+                    icon={DollarSign}
+                    formatValue={(v) => `${fmt(Number(v))} ${currency}`}
+                    className="bg-gradient-to-br from-emerald-50/80 to-green-50/50 dark:from-emerald-950/30 dark:to-green-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+                <StatCard
+                    label={isAr ? 'إجمالي الطلبات' : 'Total Orders'}
+                    value={totalOrders}
+                    type="info"
+                    icon={ShoppingCart}
+                    className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+                <StatCard
+                    label={isAr ? 'العملاء' : 'Customers'}
+                    value={totalCustomers}
+                    type="neutral"
+                    icon={Users}
+                    className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+                <StatCard
+                    label={isAr ? 'طلبات معلقة' : 'Pending Orders'}
+                    value={pendingOrders}
+                    type="warning"
+                    icon={Clock}
+                    className="bg-gradient-to-br from-amber-50/80 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 backdrop-blur-sm border border-amber-100/50 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+            </StatsGrid>
+
+            {/* ─ KPIs Row 2 (Glass) ── */}
+            <StatsGrid cols={4}>
+                <StatCard
+                    label={isAr ? 'متوسط قيمة الطلب' : 'Avg. Order Value'}
+                    value={avgOrderValue}
+                    type="neutral"
+                    icon={BarChart3}
+                    formatValue={(v) => `${fmt(Number(v))} ${currency}`}
+                    className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+                <StatCard
+                    label={isAr ? 'قيد الشحن' : 'In Shipping'}
+                    value={shippedOrders}
+                    type="info"
+                    icon={Truck}
+                    className="bg-gradient-to-br from-indigo-50/80 to-blue-50/50 dark:from-indigo-950/30 dark:to-blue-950/20 backdrop-blur-sm border border-indigo-100/50 dark:border-indigo-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+                <StatCard
+                    label={isAr ? 'طلبات مكتملة' : 'Completed'}
+                    value={completedOrders}
+                    type="positive"
+                    icon={CheckCircle}
+                    className="bg-gradient-to-br from-teal-50/80 to-emerald-50/50 dark:from-teal-950/30 dark:to-emerald-950/20 backdrop-blur-sm border border-teal-100/50 dark:border-teal-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+                <StatCard
+                    label={isAr ? 'أفضل المنتجات' : 'Top Products'}
+                    value={topProducts.length}
+                    type="neutral"
+                    icon={Star}
+                    className="bg-gradient-to-br from-rose-50/80 to-pink-50/50 dark:from-rose-950/30 dark:to-pink-950/20 backdrop-blur-sm border border-rose-100/50 dark:border-rose-800/30 shadow-sm hover:shadow-md transition-all"
+                />
+            </StatsGrid>
+
+            {/* ─ Charts Row (Glass) ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Recent Orders */}
-                <Card className="lg:col-span-2 border-0 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-3">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <ShoppingBag className="w-5 h-5 text-blue-600" />
-                            {isRTL ? 'الطلبات الأخيرة' : 'Recent Orders'}
+                {/* Recent Orders — 2 cols */}
+                <Card className="lg:col-span-2 border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
+                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
+                            <ShoppingBag className="w-4 h-4 text-rose-500" />
+                            {isAr ? 'الطلبات الأخيرة' : 'Recent Orders'}
                         </CardTitle>
-                        <Button variant="ghost" size="sm" onClick={fetchDashboard} className="gap-1.5 text-xs">
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            {isRTL ? 'تحديث' : 'Refresh'}
-                        </Button>
+                        <Badge variant="secondary" className="text-[11px] font-mono bg-rose-50 text-rose-600 border-0">
+                            {totalOrders}
+                        </Badge>
                     </CardHeader>
-                    <CardContent>
-                        {recentOrders.length === 0 ? (
-                            <div className="text-center py-8 text-gray-400">
-                                <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                <p className="text-sm">{isRTL ? 'لا توجد طلبات بعد' : 'No orders yet'}</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2.5">
-                                {recentOrders.slice(0, 6).map(order => {
+                    <CardContent className="p-0">
+                        <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
+                            {recentOrders.length === 0 ? (
+                                <div className="p-8 text-center text-gray-400">
+                                    <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm font-tajawal">{isAr ? 'لا توجد طلبات بعد' : 'No orders yet'}</p>
+                                </div>
+                            ) : (
+                                recentOrders.map(order => {
                                     const sc = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
                                     return (
-                                        <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                                    <Package className="w-4 h-4 text-blue-600" />
+                                        <div key={order.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700">
+                                                    <Package className="w-3.5 h-3.5" />
                                                 </div>
-                                                <div>
-                                                    <p className="font-medium text-sm text-erp-navy dark:text-white">{order.order_number}</p>
-                                                    <p className="text-xs text-gray-500">{order.customer_name}</p>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-tajawal font-medium">{order.order_number}</p>
+                                                    <p className="text-[11px] text-gray-400">{order.customer_name}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <Badge className={`text-[10px] ${sc.color}`}>
-                                                    {isRTL ? sc.label : sc.labelEn}
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <Badge className={cn("text-[10px] px-1.5 py-0 h-4 font-tajawal", sc.className)}>
+                                                    {isAr ? sc.label : sc.labelEn}
                                                 </Badge>
                                                 <div className="text-end">
-                                                    <p className="font-semibold text-sm text-erp-navy dark:text-white font-mono">
-                                                        {formatCurrency(order.total_amount)} <span className="text-[10px] text-gray-400">{order.currency}</span>
+                                                    <p className="font-mono text-sm font-bold text-erp-navy dark:text-white">
+                                                        {fmt(order.total_amount)} <span className="text-[10px] text-gray-400">{order.currency}</span>
                                                     </p>
-                                                    <p className="text-[10px] text-gray-500">{timeAgo(order.created_at)}</p>
+                                                    <p className="text-[10px] text-gray-400">{timeAgo(order.created_at)}</p>
                                                 </div>
                                             </div>
                                         </div>
                                     );
-                                })}
-                            </div>
-                        )}
+                                })
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
-                {/* Top Products */}
-                <Card className="border-0 shadow-sm">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <Star className="w-5 h-5 text-yellow-500" />
-                            {isRTL ? 'الأكثر مبيعاً' : 'Top Selling'}
+                {/* Top Products — 1 col */}
+                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
+                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
+                            <Star className="w-4 h-4 text-amber-500" />
+                            {isAr ? 'الأكثر مبيعاً' : 'Top Selling'}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-4 space-y-3">
                         {topProducts.length === 0 ? (
-                            <div className="text-center py-8 text-gray-400">
-                                <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                <p className="text-xs">{isRTL ? 'لا توجد مبيعات بعد' : 'No sales data yet'}</p>
+                            <div className="text-center py-4 text-gray-400">
+                                <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                                <p className="text-sm font-tajawal">{isAr ? 'لا توجد مبيعات بعد' : 'No sales data'}</p>
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {topProducts.map((product, i) => (
-                                    <div key={i} className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2.5">
-                                            <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs font-medium">
-                                                {i + 1}
-                                            </span>
-                                            <div>
-                                                <p className="font-medium text-sm text-erp-navy dark:text-white">{getName(product.product_name)}</p>
-                                                <p className="text-xs text-gray-500">{product.total_sold} {isRTL ? 'مبيعات' : 'sold'}</p>
-                                            </div>
+                            topProducts.map((p, i) => (
+                                <div key={i} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className={cn(
+                                            "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold",
+                                            i === 0 ? "bg-amber-100 text-amber-700" : i === 1 ? "bg-gray-100 text-gray-600" : "bg-orange-50 text-orange-600"
+                                        )}>{i + 1}</span>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-tajawal truncate">{getName(p.product_name)}</p>
+                                            <p className="text-[11px] text-gray-400">{p.total_sold} {isAr ? 'مبيعات' : 'sold'}</p>
                                         </div>
-                                        <p className="font-semibold text-sm text-erp-navy dark:text-white font-mono">
-                                            {formatCurrency(product.total_revenue)} <span className="text-[10px] text-gray-400">{stats.currency}</span>
-                                        </p>
                                     </div>
-                                ))}
-                            </div>
+                                    <span className="font-mono text-sm font-bold text-rose-600 shrink-0">
+                                        {fmt(p.total_revenue)} {currency}
+                                    </span>
+                                </div>
+                            ))
                         )}
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Quick Actions */}
-            <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base font-semibold">
-                        {isRTL ? 'إجراءات سريعة' : 'Quick Actions'}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <Button variant="outline" className="h-20 flex flex-col gap-2 text-gray-600 dark:text-gray-400 hover:border-erp-teal hover:text-erp-teal transition-all">
-                            <Package className="w-6 h-6" />
-                            <span className="text-xs">{isRTL ? 'إضافة منتج' : 'Add Product'}</span>
-                        </Button>
-                        <Button variant="outline" className="h-20 flex flex-col gap-2 text-gray-600 dark:text-gray-400 hover:border-erp-teal hover:text-erp-teal transition-all">
-                            <Tag className="w-6 h-6" />
-                            <span className="text-xs">{isRTL ? 'عرض جديد' : 'New Offer'}</span>
-                        </Button>
-                        <Button variant="outline" className="h-20 flex flex-col gap-2 text-gray-600 dark:text-gray-400 hover:border-erp-teal hover:text-erp-teal transition-all">
-                            <Truck className="w-6 h-6" />
-                            <span className="text-xs">{isRTL ? 'تتبع الشحنات' : 'Track Shipments'}</span>
-                        </Button>
-                        <Button variant="outline" className="h-20 flex flex-col gap-2 text-erp-teal border-erp-teal/30 hover:bg-erp-teal/10 transition-all">
-                            <BarChart3 className="w-6 h-6" />
-                            <span className="text-xs">{isRTL ? 'التقارير' : 'Reports'}</span>
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }

@@ -169,24 +169,29 @@ export default function PurchasesDashboard() {
     const fetchData = useCallback(async () => {
         if (!companyId) return;
         try {
-            // Fetch ALL transactions (no currency filter — we convert)
-            const { data: txs } = await supabase
-                .from('purchase_transactions')
-                .select('id, stage, supplier_id, supplier_name, currency, total_amount, created_at')
-                .eq('company_id', companyId);
-            const allRows = txs || [];
+            // Run all queries in PARALLEL for faster loading
+            const [txsRes, ctrsRes, supsRes] = await Promise.all([
+                supabase
+                    .from('purchase_transactions')
+                    .select('id, stage, supplier_id, supplier_name, currency, total_amount, created_at')
+                    .eq('company_id', companyId),
+                supabase.from('containers').select('id, status').eq('company_id', companyId),
+                supabase.from('suppliers').select('id, name_ar, name_en').eq('company_id', companyId),
+            ]);
+
+            const allRows = txsRes.data || [];
+            const containers = ctrsRes.data || [];
+            const allSups = supsRes.data || [];
 
             // Discover available currencies
             const currs = [...new Set(allRows.map(r => r.currency).filter(Boolean))] as string[];
             if (currs.length > 0) {
-                // Always include base currency in available list
                 const allCurrs = baseCurrency && !currs.includes(baseCurrency)
                     ? [baseCurrency, ...currs]
                     : currs;
                 setAvailableCurrencies(allCurrs);
             }
 
-            // No currency filtering — ALL transactions are used, amounts are converted
             const rows = allRows;
 
             // Date filter bounds for date-based KPIs
@@ -241,8 +246,6 @@ export default function PurchasesDashboard() {
             setYearlyPurchasesLastYear(lastYearRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0));
 
             // ── Containers ──
-            const { data: ctrs } = await supabase.from('containers').select('id, status').eq('company_id', companyId);
-            const containers = ctrs || [];
             setInTransit(containers.filter(c => ['in_transit', 'at_port', 'shipped'].includes(c.status)).length);
 
             const ctrMap: Record<string, number> = {};
@@ -257,10 +260,6 @@ export default function PurchasesDashboard() {
 
             // ── Suppliers — use name_ar / name_en from suppliers table ──
             const supMap: Record<string, string> = {};
-            const { data: allSups } = await supabase
-                .from('suppliers')
-                .select('id, name_ar, name_en')
-                .eq('company_id', companyId);
             allSups?.forEach(s => {
                 supMap[s.id] = isAr
                     ? (s.name_ar || s.name_en || '')
@@ -319,11 +318,9 @@ export default function PurchasesDashboard() {
                 }))
             );
 
-            // ── Recent — show all, display converted amounts ──
-            const { data: recentData } = await supabase.from('purchase_transactions')
-                .select('id, stage, supplier_id, supplier_name, total_amount, currency, created_at')
-                .eq('company_id', companyId).order('created_at', { ascending: false }).limit(5);
-            setRecent((recentData || []).map(r => ({
+            // ── Recent — reuse already-fetched data, sort client-side ──
+            const recentRows = [...allRows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+            setRecent(recentRows.map(r => ({
                 id: r.id, stage: r.stage,
                 supplierName: supMap[r.supplier_id] || r.supplier_name || (isAr ? 'مورد' : 'Supplier'),
                 amount: r.total_amount || 0,
@@ -380,7 +377,7 @@ export default function PurchasesDashboard() {
         };
     }, [companyId, fetchData]);
 
-    const handleRefresh = () => { setIsRefreshing(true); fetchData(); };
+
 
     const pctChange = totalLastMonth > 0 ? ((totalPurchases - totalLastMonth) / totalLastMonth * 100) : undefined;
     const yearlyPctChange = yearlyPurchasesLastYear > 0 ? ((yearlyPurchases - yearlyPurchasesLastYear) / yearlyPurchasesLastYear * 100) : undefined;
@@ -404,67 +401,68 @@ export default function PurchasesDashboard() {
     // ═════════════════════════════════════════════════════════════
     return (
         <div className="space-y-6" dir={direction}>
-            {/* ─ Header Bar — same pattern as Dashboard.tsx ── */}
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-                            {isAr ? 'لوحة المشتريات' : 'Purchases Dashboard'}
-                        </h1>
-                        {isLive && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                LIVE
-                            </span>
-                        )}
+            {/* ─ Header Bar — Glass Gradient ── */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-erp-navy via-indigo-800 to-erp-navy p-6 rounded-2xl shadow-lg">
+                {/* Decorative glass circles */}
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-erp-teal/10 blur-2xl" />
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-indigo-400/10 blur-2xl" />
+                <div className="absolute top-1/2 right-1/4 w-20 h-20 rounded-full bg-white/5 blur-xl" />
+
+                <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+                                <ShoppingBag className="w-6 h-6 text-erp-teal" />
+                            </div>
+                            <h1 className="text-2xl font-bold text-white font-cairo">
+                                {isAr ? 'لوحة المشتريات' : 'Purchases Dashboard'}
+                            </h1>
+                            {isLive && (
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    LIVE
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-sm text-indigo-200/80 font-tajawal ps-12">
+                            {isAr ? 'نظرة عامة على عمليات الشراء والموردين' : 'Overview of purchasing operations and suppliers'}
+                        </p>
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                        {isAr ? 'نظرة عامة على عمليات الشراء والموردين' : 'Overview of purchasing operations and suppliers'}
-                    </p>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                    {/* Date Range Filter */}
-                    <DateRangePicker
-                        date={dateRange}
-                        setDate={setDateRange}
-                        className="w-full lg:w-auto"
-                        align="end"
-                    />
+                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                        {/* Date Range Filter */}
+                        <DateRangePicker
+                            date={dateRange}
+                            setDate={setDateRange}
+                            className="w-full lg:w-auto [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-white/20 [&_button]:text-white [&_button]:hover:bg-white/20"
+                            align="end"
+                        />
 
-                    {/* Currency Filter */}
-                    <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-                        <SelectTrigger className="w-full lg:w-[175px] bg-white dark:bg-gray-800 h-10 text-sm border-gray-200 dark:border-gray-700">
-                            <Coins className="w-4 h-4 me-2 text-gray-400" />
-                            <SelectValue placeholder={isAr ? 'كل العملات' : 'All Currencies'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">
-                                🌍 {isAr ? 'كل العملات (محوّلة)' : 'All (Converted)'}
-                            </SelectItem>
-                            {availableCurrencies.map(c => {
-                                const m = CURRENCY_META[c];
-                                return (
-                                    <SelectItem key={c} value={c}>
-                                        {m?.flag || '🏳️'} {isAr ? m?.nameAr : m?.nameEn} ({c})
-                                    </SelectItem>
-                                );
-                            })}
-                        </SelectContent>
-                    </Select>
-
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleRefresh}
-                        className={cn("h-10 w-10 border-gray-200 dark:border-gray-700", isRefreshing && "animate-spin")}
-                    >
-                        <RefreshCw className="w-4 h-4 text-gray-500" />
-                    </Button>
+                        {/* Currency Filter */}
+                        <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+                            <SelectTrigger className="w-full lg:w-[175px] bg-white/10 backdrop-blur-sm h-10 text-sm border-white/20 text-white hover:bg-white/20 transition-colors">
+                                <Coins className="w-4 h-4 me-2 text-erp-teal" />
+                                <SelectValue placeholder={isAr ? 'كل العملات' : 'All Currencies'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">
+                                    🌍 {isAr ? 'كل العملات (محوّلة)' : 'All (Converted)'}
+                                </SelectItem>
+                                {availableCurrencies.map(c => {
+                                    const m = CURRENCY_META[c];
+                                    return (
+                                        <SelectItem key={c} value={c}>
+                                            {m?.flag || '🏳️'} {isAr ? m?.nameAr : m?.nameEn} ({c})
+                                        </SelectItem>
+                                    );
+                                })}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </div>
 
-            {/* ─ Stats Grid Row 1 — Financial KPIs ── */}
+            {/* ─ Stats Grid Row 1 — Financial KPIs (Glass Cards) ── */}
             <StatsGrid cols={4}>
                 <StatCard
                     label={isAr ? 'مشتريات الشهر' : 'This Month'}
@@ -474,6 +472,7 @@ export default function PurchasesDashboard() {
                     changeLabel={isAr ? 'عن الشهر السابق' : 'vs last month'}
                     icon={ShoppingBag}
                     formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
+                    className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
                     label={isAr ? 'مشتريات السنة' : 'This Year'}
@@ -483,6 +482,7 @@ export default function PurchasesDashboard() {
                     changeLabel={isAr ? 'عن السنة السابقة' : 'vs last year'}
                     icon={TrendingUp}
                     formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
+                    className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
                     label={isAr ? 'متوسط الفاتورة' : 'Avg. Invoice'}
@@ -490,6 +490,7 @@ export default function PurchasesDashboard() {
                     type="neutral"
                     icon={BarChart3}
                     formatValue={(val) => `${sym} ${Math.round(Number(val)).toLocaleString()}`}
+                    className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
                     label={isAr ? 'غير مدفوع' : 'Unpaid'}
@@ -498,22 +499,25 @@ export default function PurchasesDashboard() {
                     icon={AlertTriangle}
                     formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
                     suffix={unpaidCount > 0 ? `(${unpaidCount})` : ''}
+                    className="bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 backdrop-blur-sm border border-amber-100/50 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all"
                 />
             </StatsGrid>
 
-            {/* ─ Stats Grid Row 2 — Operational KPIs ── */}
+            {/* ─ Stats Grid Row 2 — Operational KPIs (Glass Cards) ── */}
             <StatsGrid cols={4}>
                 <StatCard
                     label={isAr ? 'إجمالي الفواتير' : 'Total Invoices'}
                     value={totalInvoices}
                     type="neutral"
                     icon={Hash}
+                    className="bg-gradient-to-br from-slate-50/80 to-gray-50/50 dark:from-slate-950/30 dark:to-gray-950/20 backdrop-blur-sm border border-slate-100/50 dark:border-slate-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
                     label={isAr ? 'طلبات معلقة' : 'Pending Orders'}
                     value={pendingOrders}
                     type="warning"
                     icon={Clock}
+                    className="bg-gradient-to-br from-yellow-50/80 to-amber-50/50 dark:from-yellow-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-yellow-100/50 dark:border-yellow-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
                     label={isAr ? 'كونتينرات بالطريق' : 'In Transit'}
@@ -521,20 +525,22 @@ export default function PurchasesDashboard() {
                     type="info"
                     icon={Ship}
                     suffix={isAr ? 'كونتينر' : 'containers'}
+                    className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
                     label={isAr ? 'الموردين النشطين' : 'Active Suppliers'}
                     value={`${activeSuppliers}/${totalSuppliers}`}
                     type="positive"
                     icon={Users}
+                    className="bg-gradient-to-br from-teal-50/80 to-emerald-50/50 dark:from-teal-950/30 dark:to-emerald-950/20 backdrop-blur-sm border border-teal-100/50 dark:border-teal-800/30 shadow-sm hover:shadow-md transition-all"
                 />
             </StatsGrid>
 
-            {/* ─ Charts Row ── */}
+            {/* ─ Charts Row (Glass) ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Monthly Trend — 2 cols */}
-                <Card className="lg:col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                <Card className="lg:col-span-2 border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-erp-teal" />
                             {isAr ? 'المشتريات الشهرية' : 'Monthly Purchases'}
@@ -583,8 +589,8 @@ export default function PurchasesDashboard() {
                 </Card>
 
                 {/* Stages Breakdown — 1 col */}
-                <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Package className="w-4 h-4 text-erp-teal" />
                             {isAr ? 'حالة الفواتير' : 'Invoice Status'}
@@ -627,8 +633,8 @@ export default function PurchasesDashboard() {
             {/* ─ Bottom Row ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Recent Purchases */}
-                <Card className="lg:col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                <Card className="lg:col-span-2 border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <FileText className="w-4 h-4 text-erp-teal" />
                             {isAr ? 'أحدث عمليات الشراء' : 'Recent Purchases'}
@@ -677,8 +683,8 @@ export default function PurchasesDashboard() {
                 </Card>
 
                 {/* Top Suppliers */}
-                <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Star className="w-4 h-4 text-amber-500" />
                             {isAr ? 'أفضل الموردين' : 'Top Suppliers'}
@@ -721,7 +727,7 @@ export default function PurchasesDashboard() {
 
             {/* Container chips (if any) */}
             {containerStatuses.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3 p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+                <div className="flex flex-wrap items-center gap-3 p-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm rounded-2xl border border-gray-100/50 dark:border-gray-800/50 shadow-sm">
                     <Ship className="w-4 h-4 text-gray-400" />
                     <span className="text-sm font-tajawal text-gray-500">{isAr ? 'الكونتينرات:' : 'Containers:'}</span>
                     {containerStatuses.map(cs => (

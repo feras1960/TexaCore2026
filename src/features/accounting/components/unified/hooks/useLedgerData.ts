@@ -237,21 +237,32 @@ export function useLedgerData({
     }, [accountId, companyId, enabled, dateFrom, dateTo, status, entryType, search]);
 
     // ═══════════════════════════════════════════
-    // Currency Conversion Logic — V2 (debit_fc/credit_fc aware)
+    // Currency Conversion Logic — V3 (Smart FC Recovery)
     //
     // journal_entry_lines يخزّن حقلين لكل جانب:
     //   debit/credit     → المبلغ بالعملة الأساسية (UAH) — دائماً
     //   debit_fc/credit_fc → المبلغ بعملة المعاملة الأصلية (USD, EUR, etc)
     //
-    // عند اختيار عملة مستهدفة:
-    //   - إذا العملة = عملة المعاملة الأصلية وfC موجود → نعرض debit_fc/credit_fc مباشرة
-    //   - إذا العملة مختلفة → نحوّل debit_fc (أو debit) × rate
-    //   - إذا العملة = العملة الأساسية → نعرض debit/credit بدون تحويل
+    // 🔑 القاعدة الأساسية:
+    //   debit = debit_fc × exchange_rate
+    //   لذلك: debit_fc = debit ÷ exchange_rate (عند عدم وجود fc)
+    //
+    // الحالات:
+    //   1. المطلوب = العملة الأساسية → debit/credit مباشرة
+    //   2. المطلوب = عملة المعاملة + FC موجود → debit_fc/credit_fc مباشرة
+    //   3. المطلوب = عملة المعاملة + FC مفقود → استرجاع: debit ÷ exchange_rate
+    //   4. المطلوب ≠ عملة المعاملة → FC × rate(عملة_المعاملة → المطلوب)
     // ═══════════════════════════════════════════
 
     // Determine if conversion is active
     const isConverted = !!(targetCurrency && lookupCurrentRate);
     const displayCurrency = targetCurrency || baseCurrency || '';
+
+    // Helper: recover FC from base amount using exchange_rate
+    const recoverFc = (baseAmount: number, exchangeRate: number): number => {
+        if (!baseAmount || !exchangeRate || exchangeRate === 0) return baseAmount;
+        return baseAmount / exchangeRate;
+    };
 
     // Convert entries for display
     const entries: ExtendedLedgerEntry[] = useMemo(() => {
@@ -261,34 +272,65 @@ export function useLedgerData({
 
         return rawEntries.map(entry => {
             const entryCurrency = entry.currency || baseCurrency || '';
+            const rate = entry.exchangeRate || 1;
             let convertedDebit: number;
             let convertedCredit: number;
 
-            if (entryCurrency === targetCurrency) {
-                // ═══ العملة المطلوبة = عملة المعاملة الأصلية ═══
-                // استخدم debitFc/creditFc مباشرة (هذه هي المبالغ بالعملة الأصلية)
-                // مثال: دفعنا 1000 USD → debitFc=1000, debit=43890 → نعرض 1000
-                if (entry.debitFc != null || entry.creditFc != null) {
-                    convertedDebit = entry.debitFc || 0;
-                    convertedCredit = entry.creditFc || 0;
+            // ═══ Case 1: المطلوب = العملة الأساسية → عرض مباشر ═══
+            if (targetCurrency === baseCurrency) {
+                convertedDebit = entry.debit;
+                convertedCredit = entry.credit;
+
+            // ═══ Case 2+3: المطلوب = عملة المعاملة ═══
+            } else if (entryCurrency === targetCurrency) {
+                // Check if FC values are actually meaningful
+                // debit_fc=0 && debit>0 means FC field wasn't populated correctly
+                const hasValidDebitFc = entry.debitFc != null && (entry.debitFc > 0 || entry.debit === 0);
+                const hasValidCreditFc = entry.creditFc != null && (entry.creditFc > 0 || entry.credit === 0);
+                const hasValidFc = hasValidDebitFc || hasValidCreditFc;
+
+                if (hasValidFc) {
+                    // Case 2: FC موجود وصحيح → استخدم مباشرة
+                    convertedDebit = hasValidDebitFc ? (entry.debitFc || 0) : 0;
+                    convertedCredit = hasValidCreditFc ? (entry.creditFc || 0) : 0;
+                } else if (rate > 1) {
+                    // Case 3a: FC مفقود/صفر + سعر صرف > 1
+                    // فحص: هل debit مخزّن بالعملة الأساسية (مضروب بالـ rate) أو بالعملة الأصلية؟
+                    // قيود قديمة قد تخزّن المبلغ الأصلي في debit بدون ضربه بالـ rate
+                    // إذا debit ÷ rate أقل بكثير من debit → المبلغ مضروب بالـ rate
+                    // إذا debit ÷ rate صغير جداً → المبلغ مخزّن كعملة أصلية مباشرة
+                    const recoveredDebit = recoverFc(entry.debit, rate);
+                    const recoveredCredit = recoverFc(entry.credit, rate);
+                    
+                    // هيوريستيك: إذا المبلغ المسترجع منطقي (> 0.01) → استخدمه
+                    // إذا المقسوم صغير جداً → المبلغ الأصلي مخزّن مباشرة في debit
+                    if (recoveredDebit > 0.01 || recoveredCredit > 0.01) {
+                        convertedDebit = recoveredDebit;
+                        convertedCredit = recoveredCredit;
+                    } else {
+                        convertedDebit = entry.debit;
+                        convertedCredit = entry.credit;
+                    }
                 } else {
-                    // لا يوجد fc → المعاملة بالعملة الأساسية نفسها
+                    // لا FC + لا سعر صرف حقيقي → المبلغ مخزّن بالعملة الأصلية مباشرة
                     convertedDebit = entry.debit;
                     convertedCredit = entry.credit;
                 }
+
+            // ═══ Case 4a: المعاملة بالعملة الأساسية → حوّل للمطلوب ═══
             } else if (entryCurrency === baseCurrency || !entryCurrency) {
-                // ═══ المعاملة بالعملة الأساسية → حوّل للعملة المطلوبة ═══
-                const rate = lookupCurrentRate(baseCurrency || '', targetCurrency);
-                convertedDebit = entry.debit * rate;
-                convertedCredit = entry.credit * rate;
+                const convRate = lookupCurrentRate(baseCurrency || '', targetCurrency);
+                convertedDebit = entry.debit * convRate;
+                convertedCredit = entry.credit * convRate;
+
+            // ═══ Case 4b: المعاملة بعملة ثالثة → استرجع FC ثم حوّل ═══
             } else {
-                // ═══ المعاملة بعملة مختلفة عن المطلوبة وعن الأساسية ═══
-                // حوّل من العملة الأصلية (fc) إلى العملة المطلوبة
-                const fcDebit = entry.debitFc != null ? entry.debitFc : entry.debit;
-                const fcCredit = entry.creditFc != null ? entry.creditFc : entry.credit;
-                const rate = lookupCurrentRate(entryCurrency, targetCurrency);
-                convertedDebit = fcDebit * rate;
-                convertedCredit = fcCredit * rate;
+                // Get FC amount (or recover from base ÷ rate)
+                const fcDebit = entry.debitFc != null ? entry.debitFc : recoverFc(entry.debit, rate);
+                const fcCredit = entry.creditFc != null ? entry.creditFc : recoverFc(entry.credit, rate);
+                const convRate = lookupCurrentRate(entryCurrency, targetCurrency);
+                convertedDebit = fcDebit * convRate;
+                convertedCredit = fcCredit * convRate;
             }
 
             // Recalculate running balance with converted amounts

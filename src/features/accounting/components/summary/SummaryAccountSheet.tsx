@@ -146,12 +146,12 @@ export function SummaryAccountSheet({
     const PartyIcon = getPartyIcon(partyType);
     const partyColor = getPartyColor(partyType);
 
-    // ═══ Fetch sub-accounts + debit/credit from journal entry lines ═══
+    // ═══ Fetch sub-accounts + balances from RPC ═══
     const fetchSubAccounts = useCallback(async () => {
         if (!data?.parent_id) return;
         setLoading(true);
         try {
-            // 1. جلب الحسابات الفرعية مع العملة
+            // 1. جلب الحسابات الفرعية
             const { data: accounts, error } = await supabase
                 .from('chart_of_accounts')
                 .select('*')
@@ -162,32 +162,32 @@ export function SummaryAccountSheet({
             if (error) throw error;
             const accts = accounts || [];
 
-            // 2. جلب إجمالي المدين والدائن من القيود
-            if (accts.length > 0) {
-                const accountIds = accts.map(a => a.id);
-                const { data: jelData } = await supabase
-                    .from('journal_entry_lines')
-                    .select('account_id, debit, credit, journal_entries!inner(status)')
-                    .in('account_id', accountIds)
-                    .eq('journal_entries.status', 'posted');
-
-                // تجميع المدين والدائن لكل حساب
-                const debitCreditMap = new Map<string, { debit: number; credit: number; count: number }>();
-                (jelData || []).forEach((line: any) => {
-                    const existing = debitCreditMap.get(line.account_id) || { debit: 0, credit: 0, count: 0 };
-                    existing.debit += Number(line.debit || 0);
-                    existing.credit += Number(line.credit || 0);
-                    existing.count += 1;
-                    debitCreditMap.set(line.account_id, existing);
+            // 2. جلب الأرصدة الحقيقية من RPC (FC balance — native currency)
+            if (accts.length > 0 && resolvedCompanyId) {
+                const { data: rpcData } = await supabase.rpc('get_all_account_balances_fc', {
+                    p_company_id: resolvedCompanyId,
                 });
 
-                // دمج البيانات
-                const enriched: PartySubAccount[] = accts.map(a => ({
-                    ...a,
-                    total_debit: debitCreditMap.get(a.id)?.debit || 0,
-                    total_credit: debitCreditMap.get(a.id)?.credit || 0,
-                    transaction_count: debitCreditMap.get(a.id)?.count || 0,
-                }));
+                // Build RPC balance map
+                const rpcMap = new Map<string, any>();
+                (rpcData || []).forEach((row: any) => {
+                    rpcMap.set(row.account_id, row);
+                });
+
+                // Merge: use RPC for balances (FC = native currency amounts)
+                const enriched: PartySubAccount[] = accts.map(a => {
+                    const rpc = rpcMap.get(a.id);
+                    return {
+                        ...a,
+                        // Use FC balance from RPC (accurate native currency)
+                        current_balance: rpc ? Number(rpc.balance) || 0 : a.current_balance || 0,
+                        currency: rpc?.currency || a.currency || 'USD',
+                        // FC debit/credit (native currency, not base!)
+                        total_debit: rpc ? Number(rpc.total_debit) || 0 : 0,
+                        total_credit: rpc ? Number(rpc.total_credit) || 0 : 0,
+                        transaction_count: rpc ? Number(rpc.transaction_count) || 0 : 0,
+                    };
+                });
                 setSubAccounts(enriched);
             } else {
                 setSubAccounts([]);
@@ -197,7 +197,7 @@ export function SummaryAccountSheet({
         } finally {
             setLoading(false);
         }
-    }, [data?.parent_id]);
+    }, [data?.parent_id, resolvedCompanyId]);
 
     useEffect(() => {
         if (isOpen && data) {

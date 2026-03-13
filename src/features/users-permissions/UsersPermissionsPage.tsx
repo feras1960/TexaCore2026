@@ -162,24 +162,31 @@ export default function UsersPermissionsPage() {
             transition={{ duration: 0.3 }}
             className="space-y-6"
         >
-            {/* ── Page Header ───────────────────────────────────── */}
-            <div className="flex items-center gap-4 px-1">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-600 to-emerald-600 flex items-center justify-center shadow-lg">
-                    <ShieldCheck className="w-6 h-6 text-white" />
+            {/* ── Page Header — Glass Gradient (Navy → Teal) ──── */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-erp-navy via-teal-800 to-erp-navy p-6 rounded-2xl shadow-lg">
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-teal-400/15 blur-2xl" />
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-teal-400/10 blur-2xl" />
+
+                <div className="relative z-10 flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+                                <ShieldCheck className="w-6 h-6 text-teal-300" />
+                            </div>
+                            <h1 className="text-2xl font-bold text-white font-cairo">
+                                {isAr ? 'المستخدمون والصلاحيات' : 'Users & Permissions'}
+                            </h1>
+                        </div>
+                        <p className="text-sm text-teal-200/80 font-tajawal ps-12">
+                            {isAr
+                                ? 'إدارة مجموعات المستخدمين، المستخدمين، الفروع، والصلاحيات'
+                                : 'Manage user groups, users, branches, and permissions'}
+                        </p>
+                    </div>
+                    {rbacLoading && (
+                        <Loader2 className="w-5 h-5 animate-spin text-teal-300" />
+                    )}
                 </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-tajawal">
-                        {isAr ? 'المستخدمون والصلاحيات' : 'Users & Permissions'}
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal">
-                        {isAr
-                            ? 'إدارة مجموعات المستخدمين، المستخدمين، الفروع، والصلاحيات'
-                            : 'Manage user groups, users, branches, and permissions'}
-                    </p>
-                </div>
-                {rbacLoading && (
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400 ms-auto" />
-                )}
             </div>
 
             {/* ── Tabs Bar (MainTabsBar — underline variant) ───── */}

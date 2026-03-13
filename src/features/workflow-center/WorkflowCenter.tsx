@@ -317,70 +317,71 @@ export default function WorkflowCenter() {
     // ========== الرندر ==========
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-950 dark:to-gray-900">
-            {/* الهيدر */}
-            <div className="sticky top-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-800/50">
-                <div className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            {/* زر الرجوع (يظهر في المحرر فقط) */}
-                            {activeTab === 'editor' && selectedModuleId && (
-                                <Button variant="ghost" size="icon" onClick={handleBack} className="h-9 w-9">
-                                    {isRTL ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-                                </Button>
-                            )}
+            {/* الهيدر — Glass Gradient (Navy → Indigo) */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-erp-navy via-indigo-800 to-erp-navy p-6 rounded-2xl shadow-lg mb-6">
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-indigo-400/15 blur-2xl" />
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-purple-400/10 blur-2xl" />
 
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                                    <GitBranch className="w-5 h-5 text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-                                        {activeTab === 'editor' && selectedModule
-                                            ? `${language === 'ar' ? selectedModule.config.titleAr : selectedModule.config.titleEn}`
-                                            : 'مركز إدارة سير العمل'
-                                        }
-                                    </h1>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {activeTab === 'editor' && selectedModule
-                                            ? (language === 'ar' ? selectedModule.config.descriptionAr : selectedModule.config.descriptionEn)
-                                            : 'إدارة موحدة لجميع مسارات العمل والأتمتة'
-                                        }
-                                    </p>
-                                </div>
+                <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        {/* زر الرجوع (يظهر في المحرر فقط) */}
+                        {activeTab === 'editor' && selectedModuleId && (
+                            <Button variant="ghost" size="icon" onClick={handleBack} className="h-9 w-9 text-white/80 hover:text-white hover:bg-white/10">
+                                {isRTL ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                            </Button>
+                        )}
+
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+                                <GitBranch className="w-6 h-6 text-indigo-300" />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-bold text-white font-cairo">
+                                    {activeTab === 'editor' && selectedModule
+                                        ? `${language === 'ar' ? selectedModule.config.titleAr : selectedModule.config.titleEn}`
+                                        : (language === 'ar' ? 'مركز إدارة سير العمل' : 'Workflow Center')
+                                    }
+                                </h1>
+                                <p className="text-xs text-indigo-200/80">
+                                    {activeTab === 'editor' && selectedModule
+                                        ? (language === 'ar' ? selectedModule.config.descriptionAr : selectedModule.config.descriptionEn)
+                                        : (language === 'ar' ? 'إدارة موحدة لجميع مسارات العمل والأتمتة' : 'Unified workflow and automation management')
+                                    }
+                                </p>
                             </div>
                         </div>
+                    </div>
 
-                        {/* التبويبات الرئيسية */}
-                        <div className="flex items-center gap-2">
-                            <div className="bg-gray-100/80 dark:bg-gray-800/80 rounded-xl p-1 flex gap-1">
-                                <Button
-                                    variant={activeTab === 'overview' ? 'default' : 'ghost'}
-                                    size="sm"
-                                    onClick={() => { setActiveTab('overview'); setSelectedModuleId(null); }}
-                                    className={cn(
-                                        'h-8 gap-1.5 text-xs rounded-lg',
-                                        activeTab === 'overview' && 'bg-white dark:bg-gray-700 shadow-sm'
-                                    )}
-                                >
-                                    <LayoutDashboard className="w-3.5 h-3.5" />
-                                    نظرة عامة
-                                </Button>
-                                <Button
-                                    variant={activeTab === 'scenarios' ? 'default' : 'ghost'}
-                                    size="sm"
-                                    onClick={() => { setActiveTab('scenarios'); setSelectedModuleId(null); }}
-                                    className={cn(
-                                        'h-8 gap-1.5 text-xs rounded-lg',
-                                        activeTab === 'scenarios' && 'bg-white dark:bg-gray-700 shadow-sm'
-                                    )}
-                                >
-                                    <Zap className="w-3.5 h-3.5" />
-                                    السيناريوهات
-                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
-                                        {totalStats.activeScenarios}
-                                    </Badge>
-                                </Button>
-                            </div>
+                    {/* التبويبات الرئيسية */}
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-1 flex gap-1">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { setActiveTab('overview'); setSelectedModuleId(null); }}
+                                className={cn(
+                                    'h-8 gap-1.5 text-xs rounded-lg text-white/80 hover:text-white hover:bg-white/10',
+                                    activeTab === 'overview' && 'bg-white/20 text-white shadow-sm'
+                                )}
+                            >
+                                <LayoutDashboard className="w-3.5 h-3.5" />
+                                {language === 'ar' ? 'نظرة عامة' : 'Overview'}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { setActiveTab('scenarios'); setSelectedModuleId(null); }}
+                                className={cn(
+                                    'h-8 gap-1.5 text-xs rounded-lg text-white/80 hover:text-white hover:bg-white/10',
+                                    activeTab === 'scenarios' && 'bg-white/20 text-white shadow-sm'
+                                )}
+                            >
+                                <Zap className="w-3.5 h-3.5" />
+                                {language === 'ar' ? 'السيناريوهات' : 'Scenarios'}
+                                <Badge className="text-[9px] px-1.5 py-0 bg-white/20 text-white border-0">
+                                    {totalStats.activeScenarios}
+                                </Badge>
+                            </Button>
                         </div>
                     </div>
                 </div>
