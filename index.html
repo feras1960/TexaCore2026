@@ -34,6 +34,24 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // 🔧 Force cleanup stale Service Workers (one-time fix)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          registrations.forEach(function(registration) {
+            registration.unregister().then(function() {
+              console.log('[SW] Unregistered stale service worker');
+            });
+          });
+        });
+        // Clear all caches
+        if (window.caches) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) { caches.delete(name); });
+          });
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
