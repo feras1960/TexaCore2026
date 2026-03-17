@@ -13,9 +13,10 @@
     "typecheck": "tsc --noEmit",
     "scan": "i18next-scanner --config i18next-scanner.config.cjs",
     "scan:accounting": "i18next-scanner --config i18next-scanner.accounting.config.cjs",
-    "sync:translations": "node scripts/sync-translations.cjs",
-    "check:translations": "node scripts/check-translations.cjs",
-    "validate": "npm run typecheck && npm run lint && npm run check:translations",
+    "i18n:doctor": "node scripts/translation-health/i18n-doctor.cjs",
+    "i18n:check": "node scripts/translation-health/i18n-doctor.cjs --check",
+    "i18n:fix": "node scripts/translation-health/i18n-doctor.cjs --fix",
+    "validate": "npm run typecheck && npm run lint && npm run i18n:check",
     "prepare": "husky install || true",
     "pre-commit": "npm run validate",
     "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
