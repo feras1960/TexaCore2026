@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "اختر باقتك",
+    "step4Description": "ابدأ بفترة تجريبية مجانية واختر الباقة المناسبة لك",
+    "monthly": "شهري",
+    "yearly": "سنوي",
+    "month": "شهر",
+    "year": "سنة",
+    "save": "وفر",
+    "discount50": "خصم 50% على الإطلاق",
+    "freeMonths": "شهرين مجاناً",
+    "mostPopular": "الأكثر شعبية",
+    "selectPlan": "الرجاء اختيار الباقة",
+    "planNote": "يمكنك تغيير الباقة أو الترقية في أي وقت من لوحة التحكم",
+    
+    "plans": {
+      "starter": {
+        "name": "الباقة الأساسية",
+        "description": "مثالية للشركات الصغيرة والمشاريع الناشئة",
+        "feature1": "شركة واحدة",
+        "feature2": "5 مستخدمين",
+        "feature3": "50 فرع",
+        "feature4": "10 GB تخزين",
+        "feature5": "14 يوم تجريبي"
+      },
+      "professional": {
+        "name": "الباقة الاحترافية",
+        "description": "للشركات المتنامية والمتوسطة",
+        "feature1": "3 شركات",
+        "feature2": "20 مستخدم",
+        "feature3": "200 فرع",
+        "feature4": "100 GB تخزين",
+        "feature5": "30 يوم تجريبي",
+        "feature6": "دعم ذو أولوية"
+      },
+      "enterprise": {
+        "name": "باقة المؤسسات",
+        "description": "للمؤسسات الكبيرة والشركات متعددة الفروع",
+        "feature1": "غير محدود",
+        "feature2": "500 GB تخزين",
+        "feature3": "30 يوم تجريبي",
+        "feature4": "White Label",
+        "feature5": "API Access",
+        "feature6": "دعم مخصص"
+      }
+    }
+  }
+}

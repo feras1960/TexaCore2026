@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "Ласкаво просимо",
+    "hello": "Привіт",
+    "logout": "Вийти",
+    "loading": "Завантаження",
+    "refresh": "Оновити",
+    "error": "Помилка",
+    "success": "Успіх",
+    "cancel": "Скасувати",
+    "save": "Зберегти",
+    "delete": "Видалити",
+    "edit": "Редагувати",
+    "add": "Додати",
+    "search": "Пошук",
+    "filter": "Фільтр",
+    "sort": "Сортування",
+    "close": "Закрити",
+    "back": "Назад",
+    "next": "Далі",
+    "previous": "Попередній",
+    "submit": "Надіслати",
+    "confirm": "Підтвердити"
+  },
+  
+  "auth": {
+    "login": "Увійти",
+    "email": "Електронна пошта",
+    "password": "Пароль",
+    "forgotPassword": "Забули пароль?",
+    "rememberMe": "Запам'ятати мене",
+    "biometricLogin": "Вхід за біометрією",
+    "loginError": "Помилка входу",
+    "invalidCredentials": "Невірний email або пароль",
+    "emailRequired": "Email обов'язковий",
+    "passwordRequired": "Пароль обов'язковий",
+    "loginSuccess": "Вхід виконано успішно"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "Панель адміністратора",
+      "welcome": "Ласкаво просимо",
+      "systemStats": "Статистика системи",
+      "recentActivities": "Останні дії",
+      "quickActions": "Швидкі дії",
+      "totalUsers": "Користувачі",
+      "activeCompanies": "Компанії",
+      "totalRevenue": "Дохід",
+      "growthRate": "Темп зростання",
+      "addUser": "Додати користувача",
+      "settings": "Налаштування",
+      "reports": "Звіти"
+    },
+    
+    "cashier": {
+      "title": "Панель касира",
+      "quickSummary": "Коротка зведення",
+      "todayTransactions": "Сьогоднішні транзакції",
+      "balance": "Баланс",
+      "deposit": "Депозит",
+      "withdraw": "Зняття",
+      "transfer": "Переказ",
+      "transactions": "Транзакції"
+    },
+    
+    "driver": {
+      "title": "Панель водія",
+      "todayStats": "Статистика за сьогодні",
+      "deliveries": "Доставки",
+      "completed": "Завершено",
+      "pending": "В очікуванні",
+      "distance": "Відстань",
+      "deliveryRequests": "Запити на доставку"
+    },
+    
+    "warehouse": {
+      "title": "Панель складу",
+      "inventory": "Інвентар",
+      "lowStock": "Низький запас",
+      "movements": "Рухи"
+    }
+  },
+  
+  "roles": {
+    "admin": "Системний адміністратор",
+    "full_admin": "Повний адміністратор",
+    "cashier": "Касир",
+    "driver": "Водій",
+    "warehouse_keeper": "Комірник",
+    "warehouse_manager": "Менеджер складу",
+    "accountant": "Бухгалтер",
+    "sales_rep": "Торговий представник",
+    "purchasing_manager": "Менеджер з закупівель"
+  },
+  
+  "errors": {
+    "networkError": "Помилка мережі",
+    "serverError": "Помилка сервера",
+    "notFound": "Не знайдено",
+    "unauthorized": "Неавторизований",
+    "forbidden": "Заборонено",
+    "invalidInput": "Невірне введення",
+    "tryAgain": "Спробуйте ще раз"
+  },
+  
+  "messages": {
+    "dataLoaded": "Дані завантажено",
+    "dataSaved": "Дані збережено",
+    "dataDeleted": "Дані видалено",
+    "operationSuccess": "Операція успішна",
+    "operationFailed": "Операція не вдалася"
+  },
+  
+  "date": {
+    "today": "Сьогодні",
+    "yesterday": "Вчора",
+    "tomorrow": "Завтра",
+    "thisWeek": "Цього тижня",
+    "thisMonth": "Цього місяця",
+    "thisYear": "Цього року"
+  },
+  
+  "notifications": {
+    "title": "Сповіщення",
+    "newCount": "{{count}} нове сповіщення",
+    "newCount_plural": "{{count}} нових сповіщень",
+    "markAllRead": "Позначити всі як прочитані",
+    "noNotifications": "Немає сповіщень",
+    "noNotificationsSubtitle": "Нові сповіщення з'являться тут",
+    "types": {
+      "success": "Успішно збережено",
+      "newUser": "Новий користувач",
+      "warning": "Попередження",
+      "report": "Новий звіт",
+      "transaction": "Нова транзакція"
+    },
+    "messages": {
+      "accountSaved": "Зміни у вашому обліковому записі успішно збережено",
+      "userAdded": "Новий користувач доданий до системи",
+      "lowStock": "Низький запас для деяких продуктів",
+      "reportReady": "Щомісячний звіт про продажі готовий до перевірки",
+      "transactionComplete": "Фінансова транзакція успішно завершена"
+    },
+    "time": {
+      "now": "Зараз",
+      "minutesAgo": "{{count}} хвилину тому",
+      "minutesAgo_plural": "{{count}} хвилин тому",
+      "hoursAgo": "{{count}} годину тому",
+      "hoursAgo_plural": "{{count}} годин тому",
+      "yesterday": "Вчора",
+      "daysAgo": "{{count}} день тому",
+      "daysAgo_plural": "{{count}} днів тому"
+    }
+  },
+  
+  "settings": {
+    "title": "Налаштування",
+    "sections": {
+      "account": "Обліковий запис",
+      "preferences": "Переваги",
+      "app": "Додаток"
+    },
+    "account": {
+      "profile": "Профіль",
+      "profileSubtitle": "Перегляд та оновлення інформації",
+      "changePassword": "Змінити пароль",
+      "changePasswordSubtitle": "Оновити пароль"
+    },
+    "preferences": {
+      "notifications": "Сповіщення",
+      "notificationsSubtitle": "Увімкнути push-сповіщення",
+      "biometric": "Біометрія",
+      "biometricSubtitle": "Вхід за біометрією",
+      "darkMode": "Темна тема",
+      "darkModeSubtitle": "Увімкнути темну тему"
+    },
+    "app": {
+      "language": "Мова",
+      "languageValue": "Українська",
+      "help": "Допомога та підтримка",
+      "helpSubtitle": "FAQ та підтримка",
+      "about": "Про додаток",
+      "aboutSubtitle": "Версія {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "Вийти"
+  },
+  
+  "profile": {
+    "title": "Профіль",
+    "info": {
+      "name": "Повне ім'я",
+      "email": "Електронна пошта",
+      "role": "Роль",
+      "memberSince": "Учасник з",
+      "lastLogin": "Останній вхід",
+      "phone": "Номер телефону",
+      "language": "Мова",
+      "company": "Компанія"
+    },
+    "actions": {
+      "updateInfo": "Оновити інформацію",
+      "security": "Налаштування безпеки"
+    }
+  },
+  
+  "quickActions": {
+    "title": "Швидкі дії",
+    "subtitle": "Швидкі ярлики для загальних операцій",
+    "actions": {
+      "addUser": "Додати користувача",
+      "newDeposit": "Новий депозит",
+      "newWithdrawal": "Нове зняття",
+      "startRoute": "Почати маршрут",
+      "completeDelivery": "Завершити доставку",
+      "scanProduct": "Сканувати продукт",
+      "checkInventory": "Перевірити інвентар"
+    }
+  },
+  
+  "languages": {
+    "ar": "Арабська",
+    "en": "Англійська",
+    "de": "Німецька",
+    "tr": "Турецька",
+    "ru": "Російська",
+    "uk": "Українська",
+    "it": "Італійська",
+    "pl": "Польська",
+    "ro": "Румунська",
+    "fr": "Французька"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "Alegeți planul dvs.",
+    "step4Description": "Începeți cu o perioadă de probă gratuită și alegeți planul potrivit",
+    "monthly": "Lunar",
+    "yearly": "Anual",
+    "month": "lună",
+    "year": "an",
+    "save": "Economisiți",
+    "discount50": "Reducere de lansare 50%",
+    "freeMonths": "2 luni gratuite",
+    "mostPopular": "Cel mai popular",
+    "selectPlan": "Vă rugăm să selectați un plan",
+    "planNote": "Puteți schimba sau îmbunătăți planul în orice moment din tabloul de bord",
+    
+    "plans": {
+      "starter": {
+        "name": "Plan Starter",
+        "description": "Perfect pentru afaceri mici și startup-uri",
+        "feature1": "1 companie",
+        "feature2": "5 utilizatori",
+        "feature3": "50 filiale",
+        "feature4": "10 GB stocare",
+        "feature5": "Perioadă de probă de 14 zile"
+      },
+      "professional": {
+        "name": "Plan Professional",
+        "description": "Pentru afaceri în creștere și de dimensiuni medii",
+        "feature1": "3 companii",
+        "feature2": "20 utilizatori",
+        "feature3": "200 filiale",
+        "feature4": "100 GB stocare",
+        "feature5": "Perioadă de probă de 30 zile",
+        "feature6": "Suport prioritar"
+      },
+      "enterprise": {
+        "name": "Plan Enterprise",
+        "description": "Pentru întreprinderi mari și companii cu mai multe filiale",
+        "feature1": "Nelimitat",
+        "feature2": "500 GB stocare",
+        "feature3": "Perioadă de probă de 30 zile",
+        "feature4": "White Label",
+        "feature5": "Acces API",
+        "feature6": "Suport dedicat"
+      }
+    }
+  }
+}

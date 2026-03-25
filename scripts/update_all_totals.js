@@ -1,0 +1,77 @@
+
+import pg from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const { Client } = pg;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function loadEnv() {
+    const env = {};
+    ['.env', '.env.local'].forEach(file => {
+        try {
+            const envPath = path.resolve(__dirname, `../${file}`);
+            if (fs.existsSync(envPath)) {
+                const content = fs.readFileSync(envPath, 'utf8');
+                content.split('\n').forEach(line => {
+                    const parts = line.split('=');
+                    if (parts.length >= 2) {
+                        const key = parts[0].trim();
+                        const value = parts.slice(1).join('=').trim().replace(/"/g, '');
+                        if (key && !key.startsWith('#')) {
+                            env[key] = value;
+                        }
+                    }
+                });
+            }
+        } catch (e) { }
+    });
+    return env;
+}
+
+const env = loadEnv();
+let connectionString = env.DATABASE_URL;
+if (connectionString && connectionString.includes('?')) {
+    connectionString = connectionString.split('?')[0];
+}
+
+const client = new Client({
+    connectionString,
+    ssl: { rejectUnauthorized: false }
+});
+
+async function updateAllTotals() {
+    try {
+        await client.connect();
+        console.log('Connected to Postgres.');
+
+        console.log('Updating totals for ALL journal entries...');
+
+        // Update debit/credit from lines sum
+        const res = await client.query(`
+        WITH sums AS (
+            SELECT 
+                entry_id,
+                COALESCE(SUM(debit), 0) as d, 
+                COALESCE(SUM(credit), 0) as c 
+            FROM journal_entry_lines 
+            GROUP BY entry_id
+        )
+        UPDATE journal_entries je
+        SET total_debit = sums.d, total_credit = sums.c 
+        FROM sums 
+        WHERE je.id = sums.entry_id
+    `);
+
+        console.log(`Updated ${res.rowCount} entries.`);
+
+    } catch (err) {
+        console.error('Error:', err);
+    } finally {
+        await client.end();
+    }
+}
+
+updateAllTotals();

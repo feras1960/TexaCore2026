@@ -1,0 +1,234 @@
+{
+  "common": {
+    "welcome": "مرحباً",
+    "hello": "مرحبا",
+    "logout": "تسجيل الخروج",
+    "loading": "جارٍ التحميل",
+    "refresh": "تحديث",
+    "error": "خطأ",
+    "success": "نجاح",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "search": "بحث",
+    "filter": "تصفية",
+    "sort": "ترتيب",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "submit": "إرسال",
+    "confirm": "تأكيد"
+  },
+  
+  "auth": {
+    "login": "تسجيل الدخول",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "rememberMe": "تذكرني",
+    "biometricLogin": "تسجيل الدخول بالبصمة",
+    "loginError": "خطأ في تسجيل الدخول",
+    "invalidCredentials": "البريد الإلكتروني أو كلمة المرور خاطئة",
+    "emailRequired": "البريد الإلكتروني مطلوب",
+    "passwordRequired": "كلمة المرور مطلوبة",
+    "loginSuccess": "تم تسجيل الدخول بنجاح"
+  },
+  
+  "dashboard": {
+    "admin": {
+      "title": "لوحة تحكم المدير",
+      "welcome": "مرحباً",
+      "systemStats": "إحصائيات النظام",
+      "recentActivities": "النشاطات الأخيرة",
+      "quickActions": "إجراءات سريعة",
+      "totalUsers": "المستخدمين",
+      "activeCompanies": "الشركات",
+      "totalRevenue": "الإيرادات",
+      "growthRate": "معدل النمو",
+      "addUser": "إضافة مستخدم",
+      "settings": "الإعدادات",
+      "reports": "التقارير"
+    },
+    
+    "cashier": {
+      "title": "لوحة تحكم الكاشير",
+      "quickSummary": "ملخص سريع",
+      "todayTransactions": "المعاملات اليوم",
+      "balance": "الرصيد",
+      "deposit": "إيداع",
+      "withdraw": "سحب",
+      "transfer": "تحويل",
+      "transactions": "المعاملات"
+    },
+    
+    "driver": {
+      "title": "لوحة تحكم السائق",
+      "todayStats": "إحصائيات اليوم",
+      "deliveries": "التوصيلات",
+      "completed": "مكتمل",
+      "pending": "قيد الانتظار",
+      "distance": "المسافة",
+      "deliveryRequests": "طلبات التوصيل"
+    },
+    
+    "warehouse": {
+      "title": "لوحة تحكم المستودع",
+      "inventory": "المخزون",
+      "lowStock": "مخزون منخفض",
+      "movements": "الحركات"
+    }
+  },
+  
+  "roles": {
+    "admin": "مدير النظام",
+    "full_admin": "مدير عام",
+    "cashier": "كاشير",
+    "driver": "سائق",
+    "warehouse_keeper": "أمين المستودع",
+    "warehouse_manager": "مدير المستودع",
+    "accountant": "محاسب",
+    "sales_rep": "مندوب مبيعات",
+    "purchasing_manager": "مدير المشتريات"
+  },
+  
+  "errors": {
+    "networkError": "خطأ في الاتصال",
+    "serverError": "خطأ في الخادم",
+    "notFound": "غير موجود",
+    "unauthorized": "غير مصرح",
+    "forbidden": "ممنوع",
+    "invalidInput": "إدخال غير صحيح",
+    "tryAgain": "حاول مرة أخرى"
+  },
+  
+  "messages": {
+    "dataLoaded": "تم تحميل البيانات",
+    "dataSaved": "تم حفظ البيانات",
+    "dataDeleted": "تم حذف البيانات",
+    "operationSuccess": "تمت العملية بنجاح",
+    "operationFailed": "فشلت العملية"
+  },
+  
+  "date": {
+    "today": "اليوم",
+    "yesterday": "أمس",
+    "tomorrow": "غداً",
+    "thisWeek": "هذا الأسبوع",
+    "thisMonth": "هذا الشهر",
+    "thisYear": "هذا العام"
+  },
+  
+  "notifications": {
+    "title": "الإشعارات",
+    "newCount": "{{count}} إشعار جديد",
+    "newCount_plural": "{{count}} إشعار جديد",
+    "markAllRead": "تحديد الكل كمقروء",
+    "noNotifications": "لا توجد إشعارات",
+    "noNotificationsSubtitle": "سيتم عرض الإشعارات الجديدة هنا",
+    "types": {
+      "success": "تم الحفظ بنجاح",
+      "newUser": "مستخدم جديد",
+      "warning": "تنبيه",
+      "report": "تقرير جديد",
+      "transaction": "معاملة جديدة"
+    },
+    "messages": {
+      "accountSaved": "تم حفظ التغييرات على حسابك بنجاح",
+      "userAdded": "تم إضافة مستخدم جديد للنظام",
+      "lowStock": "المخزون منخفض لبعض المنتجات",
+      "reportReady": "تقرير المبيعات الشهري جاهز للمراجعة",
+      "transactionComplete": "تم إتمام معاملة مالية بنجاح"
+    },
+    "time": {
+      "now": "الآن",
+      "minutesAgo": "منذ {{count}} دقيقة",
+      "minutesAgo_plural": "منذ {{count}} دقائق",
+      "hoursAgo": "منذ {{count}} ساعة",
+      "hoursAgo_plural": "منذ {{count}} ساعات",
+      "yesterday": "أمس",
+      "daysAgo": "منذ {{count}} يوم",
+      "daysAgo_plural": "منذ {{count}} أيام"
+    }
+  },
+  
+  "settings": {
+    "title": "الإعدادات",
+    "sections": {
+      "account": "الحساب",
+      "preferences": "التفضيلات",
+      "app": "التطبيق"
+    },
+    "account": {
+      "profile": "الملف الشخصي",
+      "profileSubtitle": "عرض وتحديث معلوماتك",
+      "changePassword": "تغيير كلمة المرور",
+      "changePasswordSubtitle": "تحديث كلمة المرور"
+    },
+    "preferences": {
+      "notifications": "الإشعارات",
+      "notificationsSubtitle": "تفعيل الإشعارات الفورية",
+      "biometric": "البصمة",
+      "biometricSubtitle": "تسجيل الدخول بالبصمة",
+      "darkMode": "الوضع الليلي",
+      "darkModeSubtitle": "تفعيل المظهر الداكن"
+    },
+    "app": {
+      "language": "اللغة",
+      "languageValue": "العربية",
+      "help": "المساعدة والدعم",
+      "helpSubtitle": "الأسئلة الشائعة والدعم",
+      "about": "حول التطبيق",
+      "aboutSubtitle": "الإصدار {{version}}",
+      "version": "1.0.0"
+    },
+    "logout": "تسجيل الخروج"
+  },
+  
+  "profile": {
+    "title": "الملف الشخصي",
+    "info": {
+      "name": "الاسم الكامل",
+      "email": "البريد الإلكتروني",
+      "role": "الدور",
+      "memberSince": "عضو منذ",
+      "lastLogin": "آخر تسجيل دخول",
+      "phone": "رقم الهاتف",
+      "language": "اللغة",
+      "company": "الشركة"
+    },
+    "actions": {
+      "updateInfo": "تحديث المعلومات",
+      "security": "إعدادات الأمان"
+    }
+  },
+  
+  "quickActions": {
+    "title": "إجراءات سريعة",
+    "subtitle": "اختصارات سريعة للعمليات الشائعة",
+    "actions": {
+      "addUser": "إضافة مستخدم",
+      "newDeposit": "إيداع جديد",
+      "newWithdrawal": "سحب جديد",
+      "startRoute": "بدء المسار",
+      "completeDelivery": "إكمال التوصيل",
+      "scanProduct": "مسح منتج",
+      "checkInventory": "جرد المخزون"
+    }
+  },
+  
+  "languages": {
+    "ar": "العربية",
+    "en": "الإنجليزية",
+    "de": "الألمانية",
+    "tr": "التركية",
+    "ru": "الروسية",
+    "uk": "الأوكرانية",
+    "it": "الإيطالية",
+    "pl": "البولندية",
+    "ro": "الرومانية",
+    "fr": "الفرنسية"
+  }
+}

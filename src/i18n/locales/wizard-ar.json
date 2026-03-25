@@ -1,0 +1,126 @@
+{
+  "wizard": {
+    "step": "الخطوة",
+    "selectBusinessType": "يرجى اختيار نوع العمل",
+    "companyNameRequired": "اسم الشركة مطلوب",
+    "registrationFailed": "فشل التسجيل",
+    "completing": "جاري الإكمال...",
+    "complete": "إكمال",
+    "success": "تم إكمال التسجيل بنجاح!",
+    "successFabric": "تم إنشاء شركتين بنجاح - حقيقية وتجريبية!",
+    "fabricNote": "📌 سيتم إنشاء شركتين لك: حقيقية للعمل الفعلي، وتجريبية للاختبارات والتجارب",
+    "fabricSummary": "سيتم إنشاء شركتين: حقيقية (للعمل الفعلي) وتجريبية (للاختبارات)",
+    "summary": "ملخص",
+    "businessType": "نوع العمل",
+    "companyName": "اسم الشركة",
+    "companyNamePlaceholder": "شركة التجارة المتحدة",
+    "address": "العنوان",
+    "addressPlaceholder": "الشارع، المبنى، الحي",
+    "city": "المدينة",
+    "cityPlaceholder": "الرياض",
+    "country": "الدولة",
+    "countryPlaceholder": "SA",
+    "phone": "الهاتف",
+    "website": "الموقع الإلكتروني",
+    "currency": "العملة",
+    "fiscalYearStart": "بداية السنة المالية",
+    "step1": {
+      "title": "اختر نوع عملك",
+      "description": "اختر نوع النشاط التجاري الذي يناسب شركتك"
+    },
+    "step2": {
+      "title": "معلومات الشركة",
+      "description": "أدخل التفاصيل الأساسية لشركتك"
+    },
+    "step3": {
+      "title": "الإعدادات المالية",
+      "description": "حدد العملة وبداية السنة المالية"
+    },
+    "businessTypes": {
+      "general": {
+        "name": "عام",
+        "description": "أعمال عامة ومتنوعة"
+      },
+      "fabric": {
+        "name": "أقمشة",
+        "description": "تجارة الأقمشة والمنسوجات"
+      },
+      "exchange": {
+        "name": "صرافة",
+        "description": "تحويلات مالية وصرافة"
+      },
+      "healthcare": {
+        "name": "صحة",
+        "description": "خدمات طبية وصحية"
+      },
+      "ecommerce": {
+        "name": "تجارة إلكترونية",
+        "description": "متجر إلكتروني أونلاين"
+      }
+    },
+    "selectChartTemplate": "اختر نوع الشجرة المحاسبية",
+    "chartTemplate": "الشجرة المحاسبية",
+    "chartSimple": "الشجرة القياسية",
+    "chartSimpleDesc": "مناسبة للشركات الصغيرة والخدمية. حسابات أساسية ومختصرة.",
+    "chartSimpleNote": "يمكنك ترقيتها لاحقاً إلى الموسعة",
+    "chartExtended": "الشجرة الموسعة",
+    "chartExtendedDesc": "شجرة كاملة ومفصلة. مناسبة للشركات التجارية والصناعية الكبيرة.",
+    "chartFabric": "شجرة الأقمشة المتخصصة 🧵",
+    "chartFabricDesc": "خصيصاً لشركات الأقمشة. تشمل تفاصيل: المخزون (خام/تام)، الإكسسوارات، والآلات.",
+    "mainCurrency": "العملة الرئيسية",
+    "fabricCurrencyNote": "الشركة التجريبية ستكون بالدولار",
+    "step4Title": "اختر باقتك",
+    "step4Description": "اختر الخطة التي تناسب حجم أعمالك",
+    "billingMonthly": "شهري",
+    "billingYearly": "سنوي",
+    "savePercent": "وفر 20%",
+    "mostPopular": "الأكثر شيوعاً",
+    "planSelect": "اختيار الباقة",
+    "planSelected": "تم الاختيار",
+    "plans": {
+      "starter": {
+        "name": "الأساسية",
+        "description": "للشركات الناشئة والصغيرة",
+        "feature1": "مستخدم واحد",
+        "feature2": "حسابات أساسية",
+        "feature3": "فواتير غير محدودة",
+        "feature4": "دعم عبر البريد الإلكتروني"
+      },
+      "professional": {
+        "name": "المحترفة",
+        "description": "للشركات المتنامية",
+        "feature1": "5 مستخدمين",
+        "feature2": "حسابات متقدمة ومخزون",
+        "feature3": "إدارة أصول",
+        "feature4": "دعم فني ذو أولوية"
+      },
+      "enterprise": {
+        "name": "المؤسسات",
+        "description": "للشركات الكبيرة",
+        "feature1": "مستخدمين غير محدودين",
+        "feature2": "كل المميزات والخصائص",
+        "feature3": "ربط API مخصص",
+        "feature4": "مدير حساب خاص"
+      }
+    }
+  },
+  "settings": {
+    "companySwitcher": {
+      "title": "التنقل بين الشركات",
+      "description": "تبديل الشركة النشطة حالياً",
+      "currentCompany": "الشركة الحالية",
+      "availableCompanies": "الشركات المتاحة",
+      "current": "الحالية",
+      "switch": "التبديل",
+      "loadError": "فشل تحميل الشركات",
+      "switchError": "فشل تبديل الشركة",
+      "switchSuccess": "تم تبديل الشركة بنجاح",
+      "singleCompany": "لديك شركة واحدة فقط",
+      "fabricInfo": "💡 شركات الأقمشة لديها بيئتين: حقيقية للعمل الفعلي، وتجريبية للاختبارات",
+      "types": {
+        "production": "حقيقية",
+        "testing": "تجريبية"
+      }
+    }
+  }
+}

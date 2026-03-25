@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 فحص RLS السريع - TexaCore</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #4ade80;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        .card h2 {
+            color: #60a5fa;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .stat-box {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-box.warning {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: rgba(251, 191, 36, 0.3);
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #4ade80;
+        }
+        .stat-label {
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        th {
+            background: rgba(96, 165, 250, 0.2);
+            color: #60a5fa;
+        }
+        tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .check { color: #4ade80; }
+        .cross { color: #f87171; }
+        .dash { color: #6b7280; }
+        .btn {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #4ade80;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .sql-code {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            color: #c9d1d9;
+            white-space: pre-wrap;
+            direction: ltr;
+            text-align: left;
+        }
+        .copy-btn {
+            background: #374151;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+        .copy-btn:hover {
+            background: #4b5563;
+        }
+        .instructions {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .instructions ol {
+            margin: 0;
+            padding-right: 20px;
+        }
+        .instructions li {
+            margin-bottom: 10px;
+        }
+        a {
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 فحص سياسات RLS - TexaCore ERP</h1>
+        
+        <div class="card">
+            <h2>📋 تعليمات الفحص</h2>
+            <div class="instructions">
+                <ol>
+                    <li>افتح <a href="https://supabase.com/dashboard/project/wzkklenfsaepegymfxfz/sql" target="_blank">Supabase SQL Editor</a></li>
+                    <li>انسخ الاستعلام أدناه</li>
+                    <li>الصقه في SQL Editor واضغط Run</li>
+                    <li>راجع النتائج للتأكد من حالة السياسات</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 استعلام الفحص السريع</h2>
+            <div class="sql-code" id="sqlQuery">-- =====================================================
+-- AUDIT_quick.sql - فحص RLS السريع
+-- تاريخ: 2026-02-05
+-- =====================================================
+
+-- 1. الملخص العام
+SELECT 
+    '📊 ملخص النظام' as report,
+    (SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public') as total_tables,
+    (SELECT COUNT(*) FROM pg_policies WHERE schemaname = 'public') as total_policies,
+    (SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = 'public') as total_triggers;
+
+-- 2. حالة RLS لكل جدول (أول 50 جدول)
+SELECT 
+    t.tablename as table_name,
+    CASE WHEN c.relrowsecurity THEN '✓' ELSE '✗' END as rls_enabled,
+    COALESCE(p.cnt, 0) as policies_count,
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=t.tablename AND column_name='tenant_id') THEN '✓' ELSE '-' END as has_tenant_id,
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=t.tablename AND column_name='company_id') THEN '✓' ELSE '-' END as has_company_id
+FROM pg_tables t
+LEFT JOIN pg_class c ON t.tablename = c.relname AND c.relnamespace = 'public'::regnamespace
+LEFT JOIN (SELECT tablename, COUNT(*) cnt FROM pg_policies WHERE schemaname='public' GROUP BY tablename) p ON t.tablename = p.tablename
+WHERE t.schemaname = 'public'
+ORDER BY t.tablename
+LIMIT 50;</div>
+            <button class="copy-btn" onclick="copySQL()">📋 نسخ الاستعلام</button>
+        </div>
+
+        <div class="card">
+            <h2>🎯 النتائج المتوقعة (بناءً على التوثيق)</h2>
+            <div class="summary-grid">
+                <div class="stat-box">
+                    <div class="stat-number">185</div>
+                    <div class="stat-label">إجمالي الجداول</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">740</div>
+                    <div class="stat-label">سياسات RLS</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">214+</div>
+                    <div class="stat-label">التريغرات</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">تغطية RLS</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📝 استعلام تفصيلي للمشاكل</h2>
+            <div class="sql-code" id="detailedQuery">-- استعلام كشف المشاكل
+-- ═══════════════════════════════════════════════════════════════
+
+-- 1. جداول بدون RLS مفعّل
+SELECT '⚠️ جداول بدون RLS' as issue, t.tablename
+FROM pg_tables t
+LEFT JOIN pg_class c ON t.tablename = c.relname AND c.relnamespace = 'public'::regnamespace
+WHERE t.schemaname = 'public' AND (c.relrowsecurity IS NULL OR c.relrowsecurity = false);
+
+-- 2. جداول بدون سياسات
+SELECT '⚠️ جداول بدون سياسات' as issue, t.tablename
+FROM pg_tables t
+WHERE t.schemaname = 'public'
+AND NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.tablename);
+
+-- 3. جداول ب tenant_id بدون فهرس
+SELECT '⚠️ جداول بـ tenant_id بدون فهرس' as issue, c.table_name
+FROM information_schema.columns c
+WHERE c.table_schema = 'public' AND c.column_name = 'tenant_id'
+AND NOT EXISTS (
+    SELECT 1 FROM pg_indexes i
+    WHERE i.schemaname = 'public' AND i.tablename = c.table_name AND i.indexdef LIKE '%tenant_id%'
+);</div>
+            <button class="copy-btn" onclick="copyDetailedSQL()">📋 نسخ الاستعلام التفصيلي</button>
+        </div>
+
+        <div class="card">
+            <h2>✅ قائمة الفحص</h2>
+            <table>
+                <tr>
+                    <th>البند</th>
+                    <th>الحالة المتوقعة</th>
+                    <th>التحقق</th>
+                </tr>
+                <tr>
+                    <td>RLS مفعّل على كل الجداول</td>
+                    <td>185 جدول</td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>كل جدول لديه 4 سياسات (CRUD)</td>
+                    <td>740 سياسة</td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>أعمدة tenant_id مفهرسة</td>
+                    <td>137 فهرس</td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>أعمدة company_id مفهرسة</td>
+                    <td>83 فهرس</td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>تريغرات الحماية فعّالة</td>
+                    <td>214+ تريغر</td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function copySQL() {
+            const sql = document.getElementById('sqlQuery').innerText;
+            navigator.clipboard.writeText(sql).then(() => {
+                alert('✅ تم نسخ الاستعلام!');
+            });
+        }
+        
+        function copyDetailedSQL() {
+            const sql = document.getElementById('detailedQuery').innerText;
+            navigator.clipboard.writeText(sql).then(() => {
+                alert('✅ تم نسخ الاستعلام التفصيلي!');
+            });
+        }
+    </script>
+</body>
+</html>

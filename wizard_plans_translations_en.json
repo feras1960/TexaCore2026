@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "Choose Your Plan",
+    "step4Description": "Start with a free trial and select the plan that suits you",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "month": "month",
+    "year": "year",
+    "save": "Save",
+    "discount50": "50% Launch Discount",
+    "freeMonths": "2 months free",
+    "mostPopular": "Most Popular",
+    "selectPlan": "Please select a plan",
+    "planNote": "You can change or upgrade your plan anytime from the dashboard",
+    
+    "plans": {
+      "starter": {
+        "name": "Starter Plan",
+        "description": "Perfect for small businesses and startups",
+        "feature1": "1 company",
+        "feature2": "5 users",
+        "feature3": "50 branches",
+        "feature4": "10 GB storage",
+        "feature5": "14-day trial"
+      },
+      "professional": {
+        "name": "Professional Plan",
+        "description": "For growing and medium-sized businesses",
+        "feature1": "3 companies",
+        "feature2": "20 users",
+        "feature3": "200 branches",
+        "feature4": "100 GB storage",
+        "feature5": "30-day trial",
+        "feature6": "Priority support"
+      },
+      "enterprise": {
+        "name": "Enterprise Plan",
+        "description": "For large enterprises and multi-branch companies",
+        "feature1": "Unlimited",
+        "feature2": "500 GB storage",
+        "feature3": "30-day trial",
+        "feature4": "White Label",
+        "feature5": "API Access",
+        "feature6": "Dedicated support"
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "wizard": {
+    "step4Title": "Wybierz swój plan",
+    "step4Description": "Rozpocznij od bezpłatnego okresu próbnego i wybierz odpowiedni plan",
+    "monthly": "Miesięcznie",
+    "yearly": "Rocznie",
+    "month": "miesiąc",
+    "year": "rok",
+    "save": "Oszczędź",
+    "discount50": "50% zniżki na start",
+    "freeMonths": "2 miesiące gratis",
+    "mostPopular": "Najpopularniejszy",
+    "selectPlan": "Proszę wybrać plan",
+    "planNote": "Możesz zmienić lub ulepszyć swój plan w dowolnym momencie z panelu",
+    
+    "plans": {
+      "starter": {
+        "name": "Plan Starter",
+        "description": "Idealny dla małych firm i startupów",
+        "feature1": "1 firma",
+        "feature2": "5 użytkowników",
+        "feature3": "50 oddziałów",
+        "feature4": "10 GB przestrzeni",
+        "feature5": "14-dniowy okres próbny"
+      },
+      "professional": {
+        "name": "Plan Professional",
+        "description": "Dla rozwijających się i średnich firm",
+        "feature1": "3 firmy",
+        "feature2": "20 użytkowników",
+        "feature3": "200 oddziałów",
+        "feature4": "100 GB przestrzeni",
+        "feature5": "30-dniowy okres próbny",
+        "feature6": "Priorytetowe wsparcie"
+      },
+      "enterprise": {
+        "name": "Plan Enterprise",
+        "description": "Dla dużych przedsiębiorstw i firm wielooddziałowych",
+        "feature1": "Nieograniczony",
+        "feature2": "500 GB przestrzeni",
+        "feature3": "30-dniowy okres próbny",
+        "feature4": "White Label",
+        "feature5": "Dostęp do API",
+        "feature6": "Dedykowane wsparcie"
+      }
+    }
+  }
+}

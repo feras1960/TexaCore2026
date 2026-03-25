@@ -1,0 +1,785 @@
+/**
+ * ═══════════════════════════════════════════════════════════════
+ * 🛒 Sales Transaction Service
+ * ═══════════════════════════════════════════════════════════════
+ * خدمة إدارة دورة المبيعات الموحدة
+ * CRUD + Stage Transitions + Items Management
+ * ═══════════════════════════════════════════════════════════════
+ */
+
+import { supabase } from '@/lib/supabase';
+import { activityLogService } from './activityLogService';
+import { telegramNotify } from './telegramNotificationService';
+import type {
+    SalesTransaction,
+    SalesTransactionItem,
+    CreateSalesTransactionInput,
+    TransactionItemInput,
+    TransactionFilter,
+    StageTransitionResult,
+    AdvanceStageInput,
+} from '@/types/transactions';
+
+
+// ═══════════════════════════════════════════════════════════════
+// 🛒 CRUD — العمليات الأساسية
+// ═══════════════════════════════════════════════════════════════
+
+export const salesTransactionService = {
+
+    /**
+     * إنشاء معاملة مبيعات جديدة (مسودة)
+     */
+    async create(input: CreateSalesTransactionInput): Promise<SalesTransaction | null> {
+        const { data, error } = await supabase
+            .from('sales_transactions')
+            .insert({
+                tenant_id: input.tenant_id,
+                company_id: input.company_id,
+                branch_id: input.branch_id || null,
+                customer_id: input.customer_id || null,
+                customer_name: input.customer_name || null,
+                salesperson_id: input.salesperson_id || null,
+                salesperson_name: input.salesperson_name || null,
+                warehouse_id: input.warehouse_id || null,
+                currency: input.currency || 'SAR',
+                exchange_rate: input.exchange_rate || 1,
+                doc_date: input.doc_date || new Date().toISOString().split('T')[0],
+                due_date: input.due_date || null,
+                payment_terms_days: input.payment_terms_days || 30,
+                is_pos: input.is_pos || false,
+                notes: input.notes || null,
+                internal_notes: input.internal_notes || null,
+                tags: input.tags || [],
+                stage: 'draft',
+                created_by: input.created_by || null,
+                created_by_name: input.created_by_name || null,
+                auto_update_stock: input.auto_update_stock || false,
+                stock_warehouse_id: input.stock_warehouse_id || null,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ خطأ في إنشاء معاملة المبيعات:', error.message);
+            return null;
+        }
+
+        // 📜 Activity Log: تسجيل الإنشاء
+        if (data) {
+            activityLogService.logEvent({
+                table: 'sales_transactions',
+                documentId: data.id,
+                event: 'created',
+                userId: input.created_by || 'system',
+                userName: input.created_by_name || 'النظام',
+            });
+        }
+
+        return data as SalesTransaction;
+    },
+
+
+    /**
+     * جلب معاملة مبيعات واحدة مع البنود + رولونات التسليم
+     */
+    async fetchById(id: string): Promise<SalesTransaction | null> {
+        const { data, error } = await supabase
+            .from('sales_transactions')
+            .select(`
+        *,
+        items:sales_transaction_items(*)
+      `)
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            console.error('❌ خطأ في جلب المعاملة:', error.message);
+            return null;
+        }
+
+        // Enrich items with delivery rolls + warehouse name
+        if (data && data.items?.length > 0 && ['delivered', 'posted', 'in_delivery', 'completed', 'confirmed'].includes(data.stage)) {
+            let rollsByMat: Record<string, any[]> = {};
+            let deliveryWarehouseId: string | null = null;
+            let deliveryWarehouseNameAr: string | null = null;
+            let deliveryWarehouseNameEn: string | null = null;
+
+            // ── الطريقة 1: عبر delivery_notes + delivery_note_items (بدون embed — استعلامات منفصلة) ──
+            try {
+                const { data: deliveryNotes } = await supabase
+                    .from('delivery_notes')
+                    .select('id, warehouse_id')
+                    .eq('sales_order_id', id);
+
+                if (deliveryNotes && deliveryNotes.length > 0) {
+                    // اسم المستودع من أول إذن تسليم
+                    const firstDn = deliveryNotes[0];
+                    if (firstDn.warehouse_id) {
+                        deliveryWarehouseId = firstDn.warehouse_id;
+                        const { data: wh } = await supabase
+                            .from('warehouses').select('name_ar, name_en')
+                            .eq('id', firstDn.warehouse_id).maybeSingle();
+                        deliveryWarehouseNameAr = wh?.name_ar || null;
+                        deliveryWarehouseNameEn = wh?.name_en || null;
+                    }
+
+                    // جلب بنود إذونات التسليم
+                    const dnIds = deliveryNotes.map((d: any) => d.id);
+                    const { data: dnItems } = await supabase
+                        .from('delivery_note_items')
+                        .select('roll_id, material_id, quantity_delivered')
+                        .in('delivery_note_id', dnIds)
+                        .not('roll_id', 'is', null);
+
+                    if (dnItems && dnItems.length > 0) {
+                        const rollIds = dnItems.map((d: any) => d.roll_id).filter(Boolean);
+                        const { data: rollsData } = await supabase
+                            .from('fabric_rolls')
+                            .select('id, roll_number, current_length, status, color_name')
+                            .in('id', rollIds);
+                        const rollMap = new Map((rollsData || []).map((r: any) => [r.id, r]));
+
+                        for (const di of dnItems) {
+                            if (!di.material_id || !di.roll_id) continue;
+                            const roll = rollMap.get(di.roll_id);
+                            if (!roll) continue;
+                            if (!rollsByMat[di.material_id]) rollsByMat[di.material_id] = [];
+                            rollsByMat[di.material_id].push({
+                                roll_id: roll.id,
+                                roll_number: roll.roll_number,
+                                length: di.quantity_delivered || roll.current_length,
+                                status: roll.status,
+                                color_name: roll.color_name || undefined,
+                            });
+                        }
+                    }
+                }
+            } catch { /* ignore */ }
+
+            // الطريقة 2: (inventory_movements لا تحتوي على roll_id) — تُحذف
+
+            // ── الطريقة 3 (fallback): fabric_rolls بحالة sold للمواد ──
+            if (Object.keys(rollsByMat).length === 0) {
+                const materialIds = [...new Set(data.items.map((i: any) => i.material_id).filter(Boolean))];
+                if (materialIds.length > 0) {
+                    const { data: rolls } = await supabase
+                        .from('fabric_rolls')
+                        .select('id, roll_number, current_length, status, material_id, color_name')
+                        .in('material_id', materialIds)
+                        .in('status', ['sold', 'delivered']);
+                    if (rolls && rolls.length > 0) {
+                        for (const r of rolls) {
+                            if (!rollsByMat[r.material_id]) rollsByMat[r.material_id] = [];
+                            rollsByMat[r.material_id].push({
+                                roll_id: r.id,
+                                roll_number: r.roll_number,
+                                length: r.current_length,
+                                status: r.status,
+                                color_name: r.color_name || undefined,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // ── جلب اسم المستودع إن لم يُجلب بعد ──
+            if (deliveryWarehouseId && !deliveryWarehouseNameAr) {
+                try {
+                    const { data: wh } = await supabase
+                        .from('warehouses').select('name_ar, name_en').eq('id', deliveryWarehouseId).maybeSingle();
+                    if (wh) { deliveryWarehouseNameAr = wh.name_ar; deliveryWarehouseNameEn = wh.name_en; }
+                } catch { /* ignore */ }
+            }
+
+            // ── تطبيق البيانات على البنود ──
+            data.items = data.items.map((item: any) => ({
+                ...item,
+                delivery_rolls: rollsByMat[item.material_id] || [],
+                // نُعيّن اسم المستودع من إذن التسليم (الأدق) أو المعاملة
+                warehouse_name_ar: deliveryWarehouseNameAr || item.warehouse_name_ar || null,
+                warehouse_name_en: deliveryWarehouseNameEn || item.warehouse_name_en || null,
+            }));
+
+            // تحديث اسم مستودع المعاملة الرئيسي أيضاً
+            if (deliveryWarehouseNameAr) {
+                (data as any).delivery_warehouse_name_ar = deliveryWarehouseNameAr;
+                (data as any).delivery_warehouse_name_en = deliveryWarehouseNameEn;
+                (data as any).delivery_warehouse_id = deliveryWarehouseId;
+            }
+        }
+
+        return data as SalesTransaction;
+    },
+
+
+    /**
+     * جلب قائمة المعاملات مع فلاتر
+     */
+    async fetchAll(
+        companyId: string,
+        filters: TransactionFilter = {}
+    ): Promise<{ data: SalesTransaction[]; count: number }> {
+        let query = supabase
+            .from('sales_transactions')
+            .select('*', { count: 'exact' })
+            .eq('company_id', companyId)
+            .eq('is_active', true);
+
+        // الفلاتر
+        if (filters.stage) {
+            query = query.eq('stage', filters.stage);
+        }
+        if (filters.stages && filters.stages.length > 0) {
+            query = query.in('stage', filters.stages);
+        }
+        if (filters.customer_id) {
+            query = query.eq('customer_id', filters.customer_id);
+        }
+        if (filters.salesperson_id) {
+            query = query.eq('salesperson_id', filters.salesperson_id);
+        }
+        if (filters.is_return !== undefined) {
+            query = query.eq('is_return', filters.is_return);
+        }
+        if (filters.is_posted !== undefined) {
+            query = query.eq('is_posted', filters.is_posted);
+        }
+        if (filters.date_from) {
+            query = query.gte('doc_date', filters.date_from);
+        }
+        if (filters.date_to) {
+            query = query.lte('doc_date', filters.date_to);
+        }
+        if (filters.min_amount) {
+            query = query.gte('total_amount', filters.min_amount);
+        }
+        if (filters.max_amount) {
+            query = query.lte('total_amount', filters.max_amount);
+        }
+        if (filters.search) {
+            query = query.or(
+                `customer_name.ilike.%${filters.search}%,` +
+                `invoice_no.ilike.%${filters.search}%,` +
+                `order_no.ilike.%${filters.search}%,` +
+                `quotation_no.ilike.%${filters.search}%,` +
+                `notes.ilike.%${filters.search}%`
+            );
+        }
+
+        // الترتيب
+        const sortBy = filters.sort_by || 'created_at';
+        const sortOrder = filters.sort_order === 'asc' ? true : false;
+        query = query.order(sortBy, { ascending: sortOrder });
+
+        // التصفح
+        if (filters.page && filters.page_size) {
+            const from = (filters.page - 1) * filters.page_size;
+            const to = from + filters.page_size - 1;
+            query = query.range(from, to);
+        }
+
+        const { data, error, count } = await query;
+
+        if (error) {
+            console.error('❌ خطأ في جلب المعاملات:', error.message);
+            return { data: [], count: 0 };
+        }
+
+        return {
+            data: (data || []) as SalesTransaction[],
+            count: count || 0,
+        };
+    },
+
+
+    /**
+     * تحديث معاملة (في مرحلة المسودة فقط)
+     */
+    async update(
+        id: string,
+        updates: Partial<SalesTransaction>,
+        expectedVersion?: number
+    ): Promise<SalesTransaction | null> {
+        const { id: _id, items: _items, version: _v, balance: _b, ...cleanUpdates } = updates as any;
+
+        let query = supabase
+            .from('sales_transactions')
+            .update(cleanUpdates)
+            .eq('id', id);
+
+        // ✅ Optimistic Locking
+        if (expectedVersion !== undefined) {
+            query = query.eq('version', expectedVersion);
+        }
+
+        const { data, error } = await query.select().single();
+
+        if (error) {
+            if (error.code === 'PGRST116') {
+                console.error('⚠️ تضارب في التعديل — يرجى إعادة تحميل البيانات');
+                return null;
+            }
+            console.error('❌ خطأ في تحديث المعاملة:', error.message);
+            return null;
+        }
+
+        return data as SalesTransaction;
+    },
+
+
+    /**
+     * حذف معاملة (soft delete)
+     */
+    async softDelete(id: string): Promise<boolean> {
+        const { error } = await supabase
+            .from('sales_transactions')
+            .update({ is_active: false })
+            .eq('id', id)
+            .eq('stage', 'draft');
+
+        if (error) {
+            console.error('❌ خطأ في حذف المعاملة:', error.message);
+            return false;
+        }
+        return true;
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🔄 Stage Transitions — تحويل المراحل
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * تحويل مرحلة المعاملة — تستدعي الـ database function
+     */
+    async advanceStage(input: AdvanceStageInput): Promise<StageTransitionResult> {
+        const { data, error } = await supabase.rpc('advance_transaction_stage', {
+            p_type: 'sale',
+            p_transaction_id: input.transaction_id,
+            p_new_stage: input.new_stage,
+            p_user_id: input.user_id,
+            p_user_name: input.user_name || null,
+            p_notes: input.notes || null,
+            p_cancellation_reason: input.cancellation_reason || null,
+        });
+
+        if (error) {
+            console.error('❌ خطأ في تحويل المرحلة:', error.message);
+            return { success: false, error: error.message };
+        }
+
+        // 📜 Activity Log: تسجيل تحويل المرحلة
+        const stageEventMap: Record<string, string> = {
+            confirmed: 'confirmed',
+            delivered: 'delivered',
+            cancelled: 'cancelled',
+        };
+        const logEvent = stageEventMap[input.new_stage];
+        if (logEvent) {
+            activityLogService.logEvent({
+                table: 'sales_transactions',
+                documentId: input.transaction_id,
+                event: logEvent as any,
+                userId: input.user_id,
+                userName: input.user_name || '',
+                details: { new_stage: input.new_stage, notes: input.notes },
+            });
+        }
+
+        // 📱 Telegram: إرسال إشعار عند تأكيد أو تسليم فاتورة
+        if (['confirmed', 'delivered', 'order'].includes(input.new_stage)) {
+            this._sendSalesStageNotification(input).catch(() => { });
+        }
+
+        return data as StageTransitionResult;
+    },
+
+
+    /**
+     * جلب سجل المراحل لمعاملة
+     */
+    async fetchStageHistory(transactionId: string) {
+        const { data, error } = await supabase
+            .from('transaction_stage_log')
+            .select('*')
+            .eq('transaction_type', 'sale')
+            .eq('transaction_id', transactionId)
+            .order('performed_at', { ascending: true });
+
+        if (error) {
+            console.error('❌ خطأ في جلب سجل المراحل:', error.message);
+            return [];
+        }
+
+        return data || [];
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📋 Items — إدارة البنود
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * إضافة بنود لمعاملة
+     */
+    async addItems(
+        transactionId: string,
+        items: TransactionItemInput[]
+    ): Promise<SalesTransactionItem[]> {
+        const rows = items.map((item, index) => ({
+            transaction_id: transactionId,
+            line_number: index + 1,
+            product_id: item.product_id || null,
+            material_id: item.material_id || null,
+            item_code: item.item_code || null,
+            description: item.description || null,
+            description_ar: item.description_ar || null,
+            quantity: item.quantity,
+            unit: item.unit || 'piece',
+            unit_price: item.unit_price,
+            discount_amount: item.discount_amount || 0,
+            discount_percent: item.discount_percent || 0,
+            tax_rate: item.tax_rate || 0,
+            tax_amount: ((item.quantity * item.unit_price) - (item.discount_amount || 0)) * ((item.tax_rate || 0) / 100),
+            subtotal: (item.quantity * item.unit_price) - (item.discount_amount || 0),
+            total: ((item.quantity * item.unit_price) - (item.discount_amount || 0)) * (1 + ((item.tax_rate || 0) / 100)),
+            color_id: item.color_id || null,
+            color_name: item.color_name || null,
+            roll_id: item.roll_id || null,
+            roll_code: item.roll_code || null,
+            rolls_count: item.rolls_count || null,
+            warehouse_id: item.warehouse_id || null,
+            notes: item.notes || null,
+        }));
+
+        const { data, error } = await supabase
+            .from('sales_transaction_items')
+            .insert(rows)
+            .select();
+
+        if (error) {
+            console.error('❌ خطأ في إضافة البنود:', error.message);
+            return [];
+        }
+
+        await this.recalculateTotals(transactionId);
+
+        return (data || []) as SalesTransactionItem[];
+    },
+
+
+    /**
+     * تحديث بند واحد
+     */
+    async updateItem(
+        itemId: string,
+        updates: Partial<TransactionItemInput>
+    ): Promise<SalesTransactionItem | null> {
+        const { data, error } = await supabase
+            .from('sales_transaction_items')
+            .update(updates)
+            .eq('id', itemId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ خطأ في تحديث البند:', error.message);
+            return null;
+        }
+
+        if (data) {
+            await this.recalculateTotals(data.transaction_id);
+        }
+
+        return data as SalesTransactionItem;
+    },
+
+
+    /**
+     * حذف بند
+     */
+    async deleteItem(itemId: string, transactionId: string): Promise<boolean> {
+        const { error } = await supabase
+            .from('sales_transaction_items')
+            .delete()
+            .eq('id', itemId);
+
+        if (error) {
+            console.error('❌ خطأ في حذف البند:', error.message);
+            return false;
+        }
+
+        await this.recalculateTotals(transactionId);
+        return true;
+    },
+
+
+    /**
+     * استبدال كل البنود
+     */
+    async replaceItems(
+        transactionId: string,
+        items: TransactionItemInput[]
+    ): Promise<SalesTransactionItem[]> {
+        await supabase
+            .from('sales_transaction_items')
+            .delete()
+            .eq('transaction_id', transactionId);
+
+        if (items.length > 0) {
+            return this.addItems(transactionId, items);
+        }
+
+        await this.recalculateTotals(transactionId);
+        return [];
+    },
+
+
+    /**
+     * جلب بنود معاملة
+     */
+    async fetchItems(transactionId: string): Promise<SalesTransactionItem[]> {
+        const { data, error } = await supabase
+            .from('sales_transaction_items')
+            .select('*')
+            .eq('transaction_id', transactionId)
+            .order('line_number', { ascending: true });
+
+        if (error) {
+            console.error('❌ خطأ في جلب البنود:', error.message);
+            return [];
+        }
+
+        return (data || []) as SalesTransactionItem[];
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🧮 الحسابات — Recalculate
+    // ═══════════════════════════════════════════════════════════════
+
+    async recalculateTotals(transactionId: string): Promise<void> {
+        const items = await this.fetchItems(transactionId);
+
+        const subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+        const taxAmount = items.reduce((sum, item) => sum + Number(item.tax_amount || 0), 0);
+        const totalAmount = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
+
+        await supabase
+            .from('sales_transactions')
+            .update({
+                subtotal,
+                tax_amount: taxAmount,
+                total_amount: totalAmount,
+            })
+            .eq('id', transactionId);
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🖨️ تتبع الطباعة
+    // ═══════════════════════════════════════════════════════════════
+
+    async recordPrint(id: string, userId: string): Promise<void> {
+        const { data: current } = await supabase
+            .from('sales_transactions')
+            .select('printed_count')
+            .eq('id', id)
+            .single();
+
+        if (current) {
+            await supabase
+                .from('sales_transactions')
+                .update({
+                    printed_count: (current.printed_count || 0) + 1,
+                    last_printed_at: new Date().toISOString(),
+                    last_printed_by: userId,
+                })
+                .eq('id', id);
+
+            // 📜 Activity Log: تسجيل الطباعة
+            activityLogService.logEvent({
+                table: 'sales_transactions',
+                documentId: id,
+                event: 'printed',
+                userId,
+                userName: '',
+                details: { print_count: (current.printed_count || 0) + 1 },
+            });
+        }
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // ⏰ تتبع التذكيرات
+    // ═══════════════════════════════════════════════════════════════
+
+    async recordReminder(id: string): Promise<void> {
+        const { data: current } = await supabase
+            .from('sales_transactions')
+            .select('reminder_count')
+            .eq('id', id)
+            .single();
+
+        if (current) {
+            await supabase
+                .from('sales_transactions')
+                .update({
+                    reminder_count: (current.reminder_count || 0) + 1,
+                    last_reminder_sent_at: new Date().toISOString(),
+                })
+                .eq('id', id);
+        }
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🔄 المرتجعات
+    // ═══════════════════════════════════════════════════════════════
+
+    async createReturn(
+        originalId: string,
+        input: CreateSalesTransactionInput
+    ): Promise<SalesTransaction | null> {
+        const result = await this.create({
+            ...input,
+        });
+
+        if (result) {
+            await supabase
+                .from('sales_transactions')
+                .update({
+                    original_transaction_id: originalId,
+                    is_return: true,
+                })
+                .eq('id', result.id);
+
+            return this.fetchById(result.id);
+        }
+
+        return null;
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📊 إحصاءات
+    // ═══════════════════════════════════════════════════════════════
+
+    async getStageStats(companyId: string): Promise<Record<string, number>> {
+        const { data, error } = await supabase
+            .from('sales_transactions')
+            .select('stage')
+            .eq('company_id', companyId)
+            .eq('is_active', true);
+
+        if (error || !data) return {};
+
+        const stats: Record<string, number> = {};
+        data.forEach(row => {
+            stats[row.stage] = (stats[row.stage] || 0) + 1;
+        });
+
+        return stats;
+    },
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📱 Telegram Notification Helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    async _sendSalesStageNotification(input: AdvanceStageInput): Promise<void> {
+        try {
+            // Fetch transaction data (includes company_id + shipping details)
+            const { data: tx } = await supabase
+                .from('sales_transactions')
+                .select(`
+                    id, document_number, invoice_no, order_no, 
+                    customer_name, customer_id, total_amount, currency, 
+                    warehouse_id, company_id,
+                    shipping_method, shipping_address,
+                    driver_name, driver_phone,
+                    delivery_method, notes
+                `)
+                .eq('id', input.transaction_id)
+                .single();
+            if (!tx) return;
+
+            // Fetch items WITH material_id and color
+            const { data: items } = await supabase
+                .from('sales_transaction_items')
+                .select('material_id, description, description_ar, quantity, unit, unit_price, color_name, rolls_count')
+                .eq('transaction_id', input.transaction_id);
+
+            // Fetch warehouse name
+            let warehouseName = '';
+            if (tx.warehouse_id) {
+                const { data: wh } = await supabase
+                    .from('warehouses')
+                    .select('name_ar')
+                    .eq('id', tx.warehouse_id)
+                    .maybeSingle();
+                warehouseName = wh?.name_ar || '';
+            }
+
+            // Fetch customer phone
+            let customerPhone = '';
+            if (tx.customer_id) {
+                const { data: cust } = await supabase
+                    .from('customers')
+                    .select('phone')
+                    .eq('id', tx.customer_id)
+                    .maybeSingle();
+                customerPhone = cust?.phone || '';
+            }
+
+            const docNo = tx.invoice_no || tx.order_no || tx.document_number || tx.id.substring(0, 8);
+            const richItems = (items || []).map((i: any) => ({
+                materialId: i.material_id || undefined,
+                name: i.description_ar || i.description || '-',
+                qty: i.quantity || 0,
+                unit: i.unit || 'م',
+                rolls: i.rolls_count || undefined,
+                color: i.color_name || undefined,
+            }));
+
+            if (input.new_stage === 'confirmed' || input.new_stage === 'order') {
+                // 📦 Rich warehouse picking order (with bin locations!)
+                telegramNotify.warehousePickingOrder(tx.company_id, {
+                    orderNumber: docNo,
+                    customerName: tx.customer_name || '-',
+                    customerPhone: customerPhone || undefined,
+                    warehouseId: tx.warehouse_id || undefined,
+                    warehouseName: warehouseName || undefined,
+                    items: richItems,
+                    totalAmount: tx.total_amount || 0,
+                    currency: tx.currency || 'TRY',
+                    shippingMethod: tx.delivery_method || tx.shipping_method || undefined,
+                    shippingAddress: tx.shipping_address || undefined,
+                    driverName: tx.driver_name || undefined,
+                    driverPhone: tx.driver_phone || undefined,
+                    notes: tx.notes || undefined,
+                    createdBy: input.user_name || undefined,
+                });
+            }
+
+            if (input.new_stage === 'delivered') {
+                // Also notify customer if they have Telegram
+                if (tx.customer_id) {
+                    telegramNotify.customerGoodsReady(tx.company_id, {
+                        customerId: tx.customer_id,
+                        customerName: tx.customer_name || '',
+                        invoiceNumber: docNo,
+                        items: richItems,
+                        totalQty: richItems.reduce((s, i) => s + i.qty, 0),
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('[SalesService] Telegram notification failed (non-blocking):', err);
+        }
+    },
+
+};
+
+export default salesTransactionService;

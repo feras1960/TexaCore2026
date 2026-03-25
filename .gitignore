@@ -1,0 +1,88 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+dist-ssr
+build
+*.local
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.mcp
+.env.mcp.*
+!.env.mcp.template
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing
+coverage
+*.lcov
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+.eslintcache
+.cache
+*.log
+.vite
+
+# Supabase
+.supabase
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cursor
+.cursor
+
+# Database backups and environment files
+backups/
+.env.local
+.env
+.env.local.backup
+.pgpass
+
+# ═══ Security: Dev scripts with hardcoded credentials ═══
+audit_coa_system.js
+audit_coa.ts
+check_tables.ts
+check_invoice_status.js
+test-backend.js
+test-useModules.js
+test_drafts.js
+rewrite_receipts.js
+split.js
+scripts/debug-*.ts
+scripts/verify-*.ts
+scripts/check_*.ts
+
+# ═══ AI/Agent directories ═══
+.gemini/
+.cursor/
+
+# ═══ n8n workflows (may contain API keys) ═══
+n8n-workflows/
+
+# Google OAuth secrets
+client_secret_*.json
