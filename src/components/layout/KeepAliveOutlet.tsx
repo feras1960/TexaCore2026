@@ -54,15 +54,34 @@ const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> 
   '/dev/charts-lab': () => import('@/pages/ChartsLab'),
 };
 
-// Prefetch priority order (most-used pages first)
-const PREFETCH_ORDER = [
-  '/', '/accounting', '/sales', '/purchases', '/warehouse',
-  '/crm', '/hr', '/ecommerce', '/ai-analytics', '/inspiration-studio',
-  '/system-config', '/users-permissions', '/workflows',
+// ═══ Prefetch Tiers — Parallel Loading Strategy ═══
+// Tier 1: Data-heavy, daily-use pages → load ALL in parallel (1.5s)
+const TIER_1_CRITICAL = [
+  '/accounting',  // شجرة الحسابات + لوحة المحاسبة
+  '/sales',       // المبيعات
+  '/purchases',   // المشتريات
+  '/warehouse',   // المستودعات + المخزون
+  '/inventory',   // المخزون (alias)
+  '/crm',         // العملاء والموردين
+];
+
+// Tier 2: Important but less frequent → load in parallel (4s)
+const TIER_2_IMPORTANT = [
+  '/hr',                  // الموارد البشرية
+  '/ecommerce',           // المتجر الإلكتروني
+  '/ai-analytics',        // تحليلات الذكاء الاصطناعي
+  '/inspiration-studio',  // استوديو الإلهام
+  '/system-config',       // إعدادات النظام
+  '/users-permissions',   // المستخدمين والصلاحيات
+  '/workflows',           // سير العمل
+  '/exchange',            // الصرافة
+];
+
+// Tier 3: Secondary — sequential loading to save resources (8s)
+const TIER_3_SECONDARY = [
   '/saas', '/fabric', '/pharmacy', '/healthcare',
-  '/doctors', '/restaurant', '/gold', '/website', '/exchange',
-  '/activity-log', '/profile',
-  '/dev/charts-lab',
+  '/doctors', '/restaurant', '/gold', '/website',
+  '/activity-log', '/profile', '/dev/charts-lab',
 ];
 
 // Resolve the route key from the current pathname
@@ -97,40 +116,60 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
     }
   }, [currentKey]);
 
-  // ⚡ Background Prefetch — load ALL pages after initial idle
+  // ⚡ 3-Tier Parallel Prefetch — Critical pages load FAST
   useEffect(() => {
     if (prefetchStarted.current) return;
     prefetchStarted.current = true;
 
-    // Wait 3 seconds for the current page to fully load and settle
-    const startDelay = setTimeout(() => {
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    // Helper: mount a batch of routes in parallel
+    const mountBatch = (routes: string[]) => {
+      const toMount = routes.filter(r => ROUTE_MAP[r] && !mountedRoutes.has(r));
+      if (toMount.length === 0) return;
+      setMountedRoutes(prev => {
+        const next = new Set(prev);
+        toMount.forEach(r => next.add(r));
+        return next;
+      });
+    };
+
+    // 🔴 Tier 1: Critical — ALL in parallel after 1.5s
+    timeouts.push(setTimeout(() => {
+      mountBatch(TIER_1_CRITICAL);
+      console.log(`⚡ [KeepAlive] Tier 1: ${TIER_1_CRITICAL.length} critical pages loaded in parallel`);
+    }, 1500));
+
+    // 🟡 Tier 2: Important — ALL in parallel after 4s
+    timeouts.push(setTimeout(() => {
+      mountBatch(TIER_2_IMPORTANT);
+      console.log(`⚡ [KeepAlive] Tier 2: ${TIER_2_IMPORTANT.length} important pages loaded in parallel`);
+    }, 4000));
+
+    // 🟢 Tier 3: Secondary — sequential with 500ms gaps after 8s
+    timeouts.push(setTimeout(() => {
       let index = 0;
-
-      const prefetchNext = () => {
-        if (index >= PREFETCH_ORDER.length) return;
-
-        const routeKey = PREFETCH_ORDER[index];
-        index++;
-
-        // Skip if already mounted or same as current
-        if (mountedRoutes.has(routeKey)) {
-          prefetchNext(); // Skip to next immediately
+      const loadNext = () => {
+        if (index >= TIER_3_SECONDARY.length) {
+          console.log(`⚡ [KeepAlive] Tier 3: All secondary pages loaded`);
           return;
         }
-
-        // Use requestIdleCallback to avoid blocking UI
+        const routeKey = TIER_3_SECONDARY[index];
+        index++;
+        if (!ROUTE_MAP[routeKey] || mountedRoutes.has(routeKey)) {
+          loadNext();
+          return;
+        }
         const schedule = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 50));
         schedule(() => {
           setMountedRoutes(prev => new Set(prev).add(routeKey));
-          // Stagger: wait 800ms before prefetching next page
-          setTimeout(prefetchNext, 800);
+          setTimeout(loadNext, 500);
         });
       };
+      loadNext();
+    }, 8000));
 
-      prefetchNext();
-    }, 3000);
-
-    return () => clearTimeout(startDelay);
+    return () => timeouts.forEach(clearTimeout);
   }, []);
 
   // Get or create lazy component
