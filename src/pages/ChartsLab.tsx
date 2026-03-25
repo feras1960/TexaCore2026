@@ -3,6 +3,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useTheme } from '@/app/providers/ThemeProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DevLabNav } from '@/features/componentLab/DevLabNav';
+import { SafeChartContainer } from '@/components/ui/SafeChartContainer';
 
 // 1. Recharts
 import { AreaChart as RechartsAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
@@ -316,7 +317,7 @@ export default function ChartsLabPage() {
                   <CardTitle className="text-sm font-semibold text-blue-600 dark:text-blue-400">Area Chart</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[250px] w-full mt-4 text-xs">
+                  <SafeChartContainer className="h-[250px] w-full mt-4 text-xs" fallbackHeight="250px">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsAreaChart data={monthlyData}>
                         <defs>
@@ -332,7 +333,7 @@ export default function ChartsLabPage() {
                         <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRechart)" />
                       </RechartsAreaChart>
                     </ResponsiveContainer>
-                  </div>
+                  </SafeChartContainer>
                 </CardContent>
               </Card>
 
@@ -342,7 +343,7 @@ export default function ChartsLabPage() {
                   <CardTitle className="text-sm font-semibold text-blue-600 dark:text-blue-400">Simple Bar Chart</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[250px] w-full mt-4 text-xs">
+                  <SafeChartContainer className="h-[250px] w-full mt-4 text-xs" fallbackHeight="250px">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={monthlyData}>
                         <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -352,7 +353,7 @@ export default function ChartsLabPage() {
                         <Bar dataKey="secondary" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                  </div>
+                  </SafeChartContainer>
                 </CardContent>
               </Card>
 
@@ -424,13 +425,13 @@ export default function ChartsLabPage() {
                 </div>
                 <div className="mt-4">
                   {/* Decorative mini sparkline using Recharts */}
-                  <div className="h-10 w-full opacity-60">
+                  <SafeChartContainer className="h-10 w-full opacity-60" fallbackHeight="40px">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsAreaChart data={monthlyData.slice(-4)}>
                         <Area type="monotone" dataKey="value" stroke={isDark ? '#10b981' : '#047857'} strokeWidth={2} fillOpacity={0.2} fill={isDark ? '#10b981' : '#047857'} />
                       </RechartsAreaChart>
                     </ResponsiveContainer>
-                  </div>
+                  </SafeChartContainer>
                 </div>
               </div>
 
