@@ -65,6 +65,7 @@ interface IntegrationConfig {
     // Telegram
     bot_token?: string;
     bot_username?: string;
+    chat_id?: string;
     // Google
     connected_email?: string;
     connected_name?: string;
@@ -607,7 +608,7 @@ export default function IntegrationsTab() {
 
             {/* ═══ Add/Edit Wizard Dialog ═══ */}
             <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[540px] max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             {wizardType && (() => { const def = INTEGRATION_DEFS[wizardType]; const IC = def.icon; return <IC className={`w-5 h-5 text-${def.color}-500`} />; })()}
@@ -721,6 +722,52 @@ export default function IntegrationsTab() {
                             {/* Telegram Fields */}
                             {wizardType === 'telegram' && (
                                 <>
+                                    {/* ═══ Setup Guide ═══ */}
+                                    {!formData.connected && (
+                                        <div className="bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/40 rounded-xl p-4 space-y-3">
+                                            <p className="text-xs font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                                                <Bot className="w-4 h-4" />
+                                                {isAr ? '📋 كيفية إنشاء بوت تلغرام' : '📋 How to Create a Telegram Bot'}
+                                            </p>
+                                            <ol className={cn("text-[11px] text-blue-700 dark:text-blue-400 space-y-2", isAr && "text-right")} dir={isAr ? 'rtl' : 'ltr'}>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="min-w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold mt-0.5">1</span>
+                                                    <span>{isAr
+                                                        ? 'افتح تلغرام وابحث عن @BotFather ثم ابدأ محادثة معه'
+                                                        : 'Open Telegram, search for @BotFather and start a chat'}</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="min-w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold mt-0.5">2</span>
+                                                    <span>{isAr
+                                                        ? 'أرسل الأمر /newbot واختر اسماً للبوت (مثال: TexaCore Bot)'
+                                                        : 'Send /newbot command and choose a name (e.g., TexaCore Bot)'}</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="min-w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold mt-0.5">3</span>
+                                                    <span>{isAr
+                                                        ? 'اختر اسم مستخدم ينتهي بـ bot (مثال: texacore_erp_bot)'
+                                                        : 'Choose a username ending with bot (e.g., texacore_erp_bot)'}</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="min-w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold mt-0.5">4</span>
+                                                    <span>{isAr
+                                                        ? 'سيعطيك BotFather التوكن — انسخه والصقه أدناه'
+                                                        : 'BotFather will give you a token — copy and paste it below'}</span>
+                                                </li>
+                                            </ol>
+                                            <a
+                                                href="https://t.me/BotFather"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                {isAr ? 'فتح BotFather مباشرة' : 'Open BotFather directly'}
+                                            </a>
+                                        </div>
+                                    )}
+
+                                    {/* Token Field */}
                                     <div className="space-y-1.5">
                                         <Label className="text-xs font-semibold flex items-center gap-1">
                                             <Shield className="w-3 h-3 text-blue-500" /> Bot Token
@@ -737,15 +784,78 @@ export default function IntegrationsTab() {
                                                 {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                             </button>
                                         </div>
-                                        <p className="text-[10px] text-gray-400">{isAr ? 'احصل على Token من @BotFather على تلغرام' : 'Get token from @BotFather on Telegram'}</p>
+                                        <p className="text-[10px] text-gray-400">{isAr ? 'التوكن الذي حصلت عليه من @BotFather' : 'The token you received from @BotFather'}</p>
                                     </div>
+
+                                    {/* Connected Bot Info */}
                                     {formData.bot_username && (
-                                        <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                        <div className="flex items-center gap-2 p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800/40">
                                             <Bot className="w-4 h-4 text-blue-500" />
                                             <span className="text-sm font-mono text-blue-700 dark:text-blue-300">@{formData.bot_username}</span>
                                             <Badge variant="outline" className="text-[10px] border-green-400 text-green-600">✅</Badge>
                                         </div>
                                     )}
+
+                                    <Separator />
+
+                                    {/* Chat ID */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold flex items-center gap-1">
+                                            <Send className="w-3 h-3 text-blue-500" /> {isAr ? 'Chat ID (معرف المحادثة)' : 'Chat ID'}
+                                        </Label>
+                                        <Input
+                                            value={formData.chat_id || ''}
+                                            onChange={e => setFormData(p => ({ ...p, chat_id: e.target.value }))}
+                                            placeholder="-1001234567890"
+                                            className="h-9 text-sm font-mono" dir="ltr"
+                                        />
+                                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2.5 space-y-1.5">
+                                            <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+                                                {isAr ? '📌 كيف تحصل على Chat ID:' : '📌 How to get Chat ID:'}
+                                            </p>
+                                            <ul className={cn("text-[10px] text-gray-500 space-y-0.5", isAr ? "list-none" : "list-disc list-inside")}>
+                                                <li>{isAr ? '• أرسل رسالة لبوتك على تلغرام' : 'Send a message to your bot on Telegram'}</li>
+                                                <li>{isAr ? '• أو أضف البوت لمجموعة/قناة للإشعارات الجماعية' : 'Or add the bot to a group/channel for team alerts'}</li>
+                                                <li>{isAr ? '• ثم افتح: api.telegram.org/bot[TOKEN]/getUpdates' : 'Then open: api.telegram.org/bot[TOKEN]/getUpdates'}</li>
+                                                <li>{isAr ? '• ابحث عن "chat":{"id": ...} وانسخ الرقم' : 'Find "chat":{"id": ...} and copy the number'}</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <Separator />
+
+                                    {/* ═══ Available Features ═══ */}
+                                    <div className="space-y-2.5">
+                                        <p className="text-xs font-bold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                                            <Zap className="w-3.5 h-3.5 text-amber-500" />
+                                            {isAr ? 'الميزات المتاحة عبر البوت' : 'Available Bot Features'}
+                                        </p>
+                                        <div className="grid grid-cols-1 gap-1.5">
+                                            {[
+                                                { icon: '📦', titleAr: 'تنبيهات المبيعات', titleEn: 'Sales Alerts', descAr: 'إشعار فوري عند إنشاء فاتورة بيع أو تحصيل جديد', descEn: 'Instant notification on new sales invoice or payment' },
+                                                { icon: '🛒', titleAr: 'تنبيهات المشتريات', titleEn: 'Purchase Alerts', descAr: 'إشعار عند وصول كونتينر أو فاتورة شراء جديدة', descEn: 'Alert on container arrival or new purchase invoice' },
+                                                { icon: '📊', titleAr: 'تقارير المحاسبة', titleEn: 'Accounting Reports', descAr: 'ملخص يومي للإيرادات والمصروفات والأرصدة', descEn: 'Daily summary of revenue, expenses, and balances' },
+                                                { icon: '🏭', titleAr: 'تنبيهات المخزون', titleEn: 'Inventory Alerts', descAr: 'تنبيه عند انخفاض المخزون تحت الحد الأدنى', descEn: 'Alert when stock falls below minimum level' },
+                                                { icon: '🚢', titleAr: 'تتبع الشحنات', titleEn: 'Shipment Tracking', descAr: 'تحديثات حالة الكونتينرات والشحنات', descEn: 'Container and shipment status updates' },
+                                                { icon: '💱', titleAr: 'تنبيهات الصرافة', titleEn: 'Exchange Alerts', descAr: 'إشعار عند تغير أسعار الصرف بشكل ملحوظ', descEn: 'Alert on significant exchange rate changes' },
+                                                { icon: '👥', titleAr: 'نشاط CRM', titleEn: 'CRM Activity', descAr: 'إشعار عند تحويل عميل محتمل أو صفقة جديدة', descEn: 'Notification on lead conversion or new deal' },
+                                                { icon: '📋', titleAr: 'ملخص يومي', titleEn: 'Daily Summary', descAr: 'تقرير يومي شامل يُرسل في الوقت المحدد', descEn: 'Comprehensive daily report at scheduled time' },
+                                            ].map((feature, i) => (
+                                                <div key={i} className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                                    <span className="text-base mt-0.5">{feature.icon}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                                                            {isAr ? feature.titleAr : feature.titleEn}
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-400 leading-relaxed">
+                                                            {isAr ? feature.descAr : feature.descEn}
+                                                        </p>
+                                                    </div>
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </>
                             )}
 
