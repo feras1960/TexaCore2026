@@ -84,7 +84,19 @@ export default function CustomersList() {
         table: 'customers',
         companyId,
         filter: companyId ? `company_id=eq.${companyId}` : undefined,
-        queryKeys: [['customers_list']],
+        queryKeys: [['customers_list'], ['customer_balances_subledger']],
+    });
+    // 🔄 Realtime — تحديث الأرصدة عند ترحيل/إلغاء ترحيل القيود
+    useRealtimeInvalidation({
+        table: 'journal_entries',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['customer_balances_subledger']],
+    });
+    useRealtimeInvalidation({
+        table: 'journal_entry_lines',
+        companyId,
+        queryKeys: [['customer_balances_subledger']],
     });
 
     // ─── State ───────────────────────────────────────────────────
@@ -154,7 +166,7 @@ export default function CustomersList() {
             return partyBalanceService.getAllPartyBalances(companyId, 'customer');
         },
         enabled: !!companyId,
-        staleTime: 30000,
+        staleTime: 10_000,  // 10 ثوانٍ — تحديث سريع للأرصدة
     });
 
     // ─── Filtered Data ───────────────────────────────────────────
@@ -494,15 +506,28 @@ export default function CustomersList() {
             {/* ─── Detail Sheet ─── */}
             {isSheetOpen && (
                 <UnifiedAccountingSheet
-                    documentId={selectedCustomer?.id || 'new'}
                     docType="party"
                     mode={sheetMode}
-                    data={selectedCustomer ? { ...selectedCustomer, type: 'customer' } : { type: 'customer', status: 'active' }}
+                    data={selectedCustomer ? {
+                        ...selectedCustomer,
+                        type: 'customer',
+                        _partyType: 'customer',
+                        party_type: 'customer',
+                        current_balance: customerBalances.get(selectedCustomer.id)?.balance || 0,
+                        is_active: selectedCustomer.status === 'active',
+                        name: selectedCustomer.name_ar || selectedCustomer.name_en || selectedCustomer.name,
+                        currency: selectedCustomer.currency || baseCurrency,
+                    } : {
+                        _partyType: 'customer',
+                        type: 'customer',
+                        is_active: true,
+                    }}
                     isOpen={isSheetOpen}
                     onClose={() => {
                         setIsSheetOpen(false);
                         setSelectedCustomer(null);
                     }}
+                    companyId={companyId || undefined}
                 />
             )}
         </div>

@@ -33,6 +33,7 @@ import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/us
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
+import { partyBalanceService, type PartyBalance } from '@/services/partyBalanceService';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -92,7 +93,19 @@ export default function SuppliersList() {
         table: 'suppliers',
         companyId,
         filter: companyId ? `company_id=eq.${companyId}` : undefined,
-        queryKeys: [['suppliers_list'], ['suppliers_map']],
+        queryKeys: [['suppliers_list'], ['suppliers_map'], ['party_balances_supplier_purchases']],
+    });
+    // 🔄 Realtime — تحديث الأرصدة عند ترحيل/إلغاء ترحيل القيود
+    useRealtimeInvalidation({
+        table: 'journal_entries',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['party_balances_supplier_purchases']],
+    });
+    useRealtimeInvalidation({
+        table: 'journal_entry_lines',
+        companyId,
+        queryKeys: [['party_balances_supplier_purchases']],
     });
 
     // ─── State ───────────────────────────────────────────────────
@@ -156,39 +169,15 @@ export default function SuppliersList() {
         staleTime: 60000,
     });
 
-    // ─── Fetch Real Balances from chart_of_accounts via payable_account_id ─
+    // ─── Fetch Sub-Ledger Balances (same as Parties.tsx) ─────────
     const { data: supplierBalances = new Map() } = useQuery({
-        queryKey: ['supplier_balances_coa', companyId],
+        queryKey: ['party_balances_supplier_purchases', companyId],
         queryFn: async () => {
-            if (!companyId) return new Map<string, number>();
-            // Get all suppliers with payable_account_id
-            const { data: sups } = await supabase
-                .from('suppliers')
-                .select('id, payable_account_id')
-                .eq('company_id', companyId)
-                .not('payable_account_id', 'is', null);
-
-            if (!sups || sups.length === 0) return new Map<string, number>();
-
-            const accountIds = sups.map(s => s.payable_account_id).filter(Boolean);
-            const { data: accounts } = await supabase
-                .from('chart_of_accounts')
-                .select('id, current_balance')
-                .in('id', accountIds);
-
-            const accountBalMap = new Map<string, number>();
-            (accounts || []).forEach((a: any) => accountBalMap.set(a.id, Number(a.current_balance || 0)));
-
-            const result = new Map<string, number>();
-            sups.forEach((s: any) => {
-                if (s.payable_account_id && accountBalMap.has(s.payable_account_id)) {
-                    result.set(s.id, accountBalMap.get(s.payable_account_id)!);
-                }
-            });
-            return result;
+            if (!companyId) return new Map<string, PartyBalance>();
+            return partyBalanceService.getAllPartyBalances(companyId, 'supplier');
         },
         enabled: !!companyId,
-        staleTime: 30000,
+        staleTime: 10_000,
     });
 
     // ─── Filtered Data (status tabs + date range + search + sort) ─
@@ -426,8 +415,9 @@ export default function SuppliersList() {
             sortable: true,
             sortKey: 'balance',
             cell: (row) => {
-                // 🔑 Use chart_of_accounts.current_balance via payable_account_id
-                const balance = supplierBalances.get(row.id) || 0;
+                // 🔑 Use partyBalanceService — native currency balances from journal lines
+                const subLedger = supplierBalances.get(row.id);
+                const balance = subLedger ? subLedger.balance : 0;
                 const cur = row.currency || baseCurrency || 'USD';
                 const color = balance > 0
                     ? 'text-red-600 dark:text-red-400'
@@ -441,6 +431,11 @@ export default function SuppliersList() {
                         </span>
                         {balance > 0 && <span className="text-[10px] text-red-400">{isRTL ? 'مستحق لهم' : 'we owe'}</span>}
                         {balance < 0 && <span className="text-[10px] text-green-400">{isRTL ? 'دفعنا أكثر' : 'overpaid'}</span>}
+                        {subLedger && subLedger.transaction_count > 0 && (
+                            <span className="text-[9px] text-gray-300 mt-0.5">
+                                {subLedger.transaction_count} {isRTL ? 'حركة' : 'txn'}
+                            </span>
+                        )}
                     </div>
                 );
             },
@@ -615,12 +610,16 @@ export default function SuppliersList() {
                     data={{
                         ...selectedSupplier,
                         party_type: 'supplier',
+                        _partyType: 'supplier',
+                        type: 'supplier',
                         name: selectedSupplier.name_ar || selectedSupplier.name_en || selectedSupplier.name,
                         code: selectedSupplier.code,
-                        balance: supplierBalances.get(selectedSupplier.id) || 0,
+                        current_balance: supplierBalances.get(selectedSupplier.id)?.balance || 0,
+                        is_active: selectedSupplier.status === 'active',
                         currency: selectedSupplier.currency || baseCurrency,
                     }}
                     mode="view"
+                    companyId={companyId || undefined}
                 />
             )}
         </div>
