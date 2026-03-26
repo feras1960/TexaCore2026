@@ -515,7 +515,7 @@ export const ContainerMainTab: React.FC<ContainerMainTabProps> = ({
                                 {(data.eta || data.expected_arrival_date) && !routeOpen && (
                                     <Badge variant="outline" className="text-[10px] gap-1">
                                         <Calendar className="w-2.5 h-2.5" />
-                                        ETA: {new Date(data.eta || data.expected_arrival_date).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
+                                        ETA: {new Date(data.eta || data.expected_arrival_date).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
                                     </Badge>
                                 )}
                             </div>

@@ -90,7 +90,7 @@ export const BillingPage: React.FC = () => {
   // تنسيق التاريخ
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', {
+    return new Date(dateStr).toLocaleDateString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -99,7 +99,7 @@ export const BillingPage: React.FC = () => {
 
   // تنسيق المبلغ
   const formatAmount = (amount: number, currency: string = 'USD') => {
-    return new Intl.NumberFormat(language === 'ar' ? 'ar-SA' : 'en-US', {
+    return new Intl.NumberFormat(language === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
       style: 'currency',
       currency,
     }).format(amount);

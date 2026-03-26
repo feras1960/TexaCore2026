@@ -339,9 +339,48 @@ export default function UsersManagementTab() {
         setEditingUser(user);
         setIsAddMode(false);
 
-        // Load user's resource access
+        // Check if user has owner/admin roles — they have IMPLICIT full access
+        // so user_resource_access table is empty for them
+        const OWNER_ROLES = ['tenant_owner', 'company_owner', 'company_admin'];
+        const isOwnerOrAdmin = user.roles.some(r => OWNER_ROLES.includes(r.code));
+
+        // Load user's resource access + MFA status
         try {
-            const resources = await rbacService.getUserAccessibleResources(user.id);
+            const [resources, mfaResult] = await Promise.all([
+                rbacService.getUserAccessibleResources(user.id),
+                supabase
+                    .from('mfa_user_settings')
+                    .select('is_enabled, totp_verified')
+                    .eq('user_id', user.id)
+                    .maybeSingle(),
+            ]);
+
+            let mfaEnabled = mfaResult.data?.is_enabled || mfaResult.data?.totp_verified || false;
+
+            // If custom table has no record, check Supabase Auth native MFA
+            // (only works for the currently logged-in user)
+            if (!mfaEnabled && authUser?.id === user.id) {
+                try {
+                    const { data: factors } = await supabase.auth.mfa.listFactors();
+                    mfaEnabled = factors?.totp?.some(f => f.status === 'verified') ?? false;
+                } catch { /* ignore — not available for other users */ }
+            }
+
+            // For owner/admin users: auto-select ALL resources (implicit full access)
+            const selectedBranches = isOwnerOrAdmin && (resources.branch?.length || 0) === 0
+                ? branches.map(b => b.id)
+                : resources.branch?.map(r => r.resource_id) || [];
+
+            const selectedWarehouses = isOwnerOrAdmin && (resources.warehouse?.length || 0) === 0
+                ? warehouses.map(w => w.id)
+                : resources.warehouse?.map(r => r.resource_id) || [];
+
+            const selectedFunds = isOwnerOrAdmin && (resources.cash_account?.length || 0) === 0
+                ? funds.map(f => f.id)
+                : resources.cash_account?.map(r => r.resource_id) || [];
+
+            const primaryBranch = resources.branch?.find(r => r.is_primary)?.resource_id
+                || (isOwnerOrAdmin && branches.length > 0 ? branches[0].id : '');
 
             setFormData({
                 email: user.email,
@@ -349,12 +388,12 @@ export default function UsersManagementTab() {
                 phone: (user as any).phone || '',
                 selectedCompany: user.company_id || companyId || '',
                 selectedRoles: user.roles.map(r => r.id),
-                selectedBranches: resources.branch?.map(r => r.resource_id) || [],
-                selectedWarehouses: resources.warehouse?.map(r => r.resource_id) || [],
-                selectedFunds: resources.cash_account?.map(r => r.resource_id) || [],
-                primaryBranch: resources.branch?.find(r => r.is_primary)?.resource_id || '',
+                selectedBranches,
+                selectedWarehouses,
+                selectedFunds,
+                primaryBranch,
                 is_active: user.is_active,
-                require_mfa: false,
+                require_mfa: mfaEnabled,
             });
         } catch (error) {
             console.error('Error loading user resources:', error);
@@ -364,10 +403,11 @@ export default function UsersManagementTab() {
                 phone: (user as any).phone || '',
                 selectedCompany: user.company_id || companyId || '',
                 selectedRoles: user.roles.map(r => r.id),
-                selectedBranches: [],
-                selectedWarehouses: [],
-                selectedFunds: [],
-                primaryBranch: '',
+                // For owners on error, still select all
+                selectedBranches: isOwnerOrAdmin ? branches.map(b => b.id) : [],
+                selectedWarehouses: isOwnerOrAdmin ? warehouses.map(w => w.id) : [],
+                selectedFunds: isOwnerOrAdmin ? funds.map(f => f.id) : [],
+                primaryBranch: isOwnerOrAdmin && branches.length > 0 ? branches[0].id : '',
                 is_active: user.is_active,
                 require_mfa: false,
             });

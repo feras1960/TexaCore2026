@@ -81,7 +81,7 @@ function numberToArabicWords(num: number): string {
         return (isNegative ? 'سالب ' : '') + millionWord + (remainder ? ' و' + numberToArabicWords(remainder) : '');
     }
 
-    return num.toLocaleString('ar-SA');
+    return num.toLocaleString('ar-u-nu-latn');
 }
 
 // === Number to English Words ===

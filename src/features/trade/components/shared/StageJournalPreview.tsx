@@ -660,6 +660,23 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
     const taxRate = taxDefaults?.rate ?? 0;
     const taxEnabled = taxDefaults?.isEnabled ?? false;
 
+    // ─── Fetch journal entry header (entry_number) when journalEntryId exists ─────
+    const { data: journalEntryMeta } = useQuery({
+        queryKey: ['journal_entry_meta', journalEntryId],
+        queryFn: async () => {
+            if (!journalEntryId) return null;
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .select('entry_number, status, entry_date')
+                .eq('id', journalEntryId)
+                .single();
+            if (error || !data) return null;
+            return data;
+        },
+        enabled: !!journalEntryId,
+        staleTime: 120000,
+    });
+
     // ─── Fetch ACTUAL journal entry lines when journalEntryId exists ─────
     const { data: actualJournalLines } = useQuery({
         queryKey: ['actual_journal_lines', journalEntryId],
@@ -770,8 +787,13 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
                         <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-semibold">
+                        <h4 className="text-sm font-semibold flex items-center gap-2">
                             {isRTL ? 'معاينة القيد المحاسبي' : 'Journal Entry Preview'}
+                            {journalEntryMeta?.entry_number && (
+                                <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[10px] font-mono">
+                                    {journalEntryMeta.entry_number}
+                                </Badge>
+                            )}
                         </h4>
                         <p className="text-[10px] text-gray-400">
                             {actualJournalLines

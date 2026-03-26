@@ -264,14 +264,14 @@ export function ActivityTabV2({
         if (diffHours < 24) return isRTL ? `منذ ${diffHours} ساعة` : `${diffHours}h ago`;
         if (diffDays < 7) return isRTL ? `منذ ${diffDays} يوم` : `${diffDays}d ago`;
 
-        return date.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', {
+        return date.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
             month: 'short', day: 'numeric', year: diffDays > 365 ? 'numeric' : undefined,
             hour: '2-digit', minute: '2-digit',
         });
     };
 
     const formatFullDate = (timestamp: string): string => {
-        return new Date(timestamp).toLocaleString(isRTL ? 'ar-SA' : 'en-US', {
+        return new Date(timestamp).toLocaleString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
             year: 'numeric', month: 'long', day: 'numeric',
             hour: '2-digit', minute: '2-digit',
         });

@@ -117,7 +117,7 @@ export default function EcommerceDashboard() {
         return () => { supabase.removeChannel(channel); };
     }, [fetchDashboard]);
 
-    const fmt = (val: number) => new Intl.NumberFormat(isAr ? 'ar-SA' : 'en-US', { maximumFractionDigits: 0 }).format(val);
+    const fmt = (val: number) => new Intl.NumberFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { maximumFractionDigits: 0 }).format(val);
     const getName = (name: any) => {
         if (!name) return '-';
         if (typeof name === 'string') return name;

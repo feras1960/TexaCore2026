@@ -47,7 +47,7 @@ export const receiptConfig: SheetConfig = {
     title: (data) => data.voucherNo || `RCV-${data.id}`,
     subtitle: (data) => {
         const customerName = data.customerName || data.party_name || '';
-        const date = data.date ? new Date(data.date).toLocaleDateString('ar-SA') : '';
+        const date = data.date ? new Date(data.date).toLocaleDateString('ar-u-nu-latn') : '';
         return `${customerName} - ${date}`;
     },
     icon: DollarSign,
@@ -99,7 +99,7 @@ export const receiptConfig: SheetConfig = {
             icon: Calendar,
             value: (data) => {
                 if (!data.date) return '-';
-                return new Date(data.date).toLocaleDateString('ar-SA');
+                return new Date(data.date).toLocaleDateString('ar-u-nu-latn');
             },
             color: 'purple',
         },

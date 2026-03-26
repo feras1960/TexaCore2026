@@ -64,7 +64,7 @@ export function formatPercentage(num: number, decimals: number = 1): string {
 export function formatDate(date: Date | string, locale: string = 'en-US'): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   // For Arabic, we use ar-u-nu-latn to force Latin (English) numerals
-  const effectiveLocale = locale === 'ar-SA' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
+  const effectiveLocale = locale === 'ar-u-nu-latn' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
 
   return new Intl.DateTimeFormat(effectiveLocale, {
     year: 'numeric',
@@ -79,7 +79,7 @@ export function formatDate(date: Date | string, locale: string = 'en-US'): strin
 export function formatShortDate(date: Date | string, locale: string = 'en-US'): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   // For Arabic, we use ar-u-nu-latn to force Latin (English) numerals
-  const effectiveLocale = locale === 'ar-SA' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
+  const effectiveLocale = locale === 'ar-u-nu-latn' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
 
   return new Intl.DateTimeFormat(effectiveLocale, {
     year: 'numeric',
@@ -106,7 +106,7 @@ export function formatTime(date: Date | string, locale: string = 'en-US'): strin
  */
 export function formatDateTime(date: Date | string, locale: string = 'en-US'): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  const effectiveLocale = locale === 'ar-SA' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
+  const effectiveLocale = locale === 'ar-u-nu-latn' || locale === 'ar' ? 'ar-u-nu-latn' : locale;
 
   return new Intl.DateTimeFormat(effectiveLocale, {
     year: 'numeric',

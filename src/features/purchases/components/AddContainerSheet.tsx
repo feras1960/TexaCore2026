@@ -68,7 +68,7 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
         eta: '',
         containerSize: '40ft',
         containerType: 'dry',
-        status: 'ordered',
+        status: 'draft',
         notes: '',
     });
 
@@ -139,11 +139,11 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                     shipping_company: formData.shippingLine,
                     shipping_line: formData.shippingLine,
                     vessel_name: formData.vesselName,
-                    etd: formData.etd || null,
-                    eta: formData.eta || null,
+                    departure_date: formData.etd || null,
+                    expected_arrival_date: formData.eta || null,
                     container_size: formData.containerSize,
                     container_type: formData.containerType,
-                    status: 'ordered',
+                    status: 'draft',
                     notes: formData.notes,
                     goods_currency: companyCurrency || undefined,
                 })
@@ -160,6 +160,12 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                     .in('id', selectedInvoices);
 
                 if (invoiceError) throw invoiceError;
+
+                // ✅ Auto-advance: draft → booked when invoices are linked at creation
+                await supabase
+                    .from('containers')
+                    .update({ status: 'booked' })
+                    .eq('id', container.id);
             }
 
             return container;
@@ -183,7 +189,7 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                 eta: '',
                 containerSize: '40ft',
                 containerType: 'dry',
-                status: 'ordered',
+                status: 'draft',
                 notes: '',
             });
             setSelectedInvoices([]);

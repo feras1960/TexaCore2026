@@ -228,7 +228,7 @@ function TestScenariosSection({ companyId, isAr, telegramConnected }: { companyI
                         totalCost: 185000,
                         currency: '$',
                         warehouseName: isAr ? 'المستودع الرئيسي' : 'Main Warehouse',
-                        arrivalDate: new Date().toLocaleDateString('ar-SA'),
+                        arrivalDate: new Date().toLocaleDateString('ar-u-nu-latn'),
                         invoices: [
                             { number: 'PI-2026-112', amount: 62500, items: 5 },
                             { number: 'PI-2026-113', amount: 48000, items: 4 },
@@ -298,7 +298,7 @@ function TestScenariosSection({ companyId, isAr, telegramConnected }: { companyI
                         customerName: isAr ? 'شركة النسيج العربي (تجريبي)' : 'Arab Textile Co (Test)',
                         amount: 34500,
                         currency: '₺',
-                        dueDate: new Date(Date.now() + 2 * 86400000).toLocaleDateString('ar-SA'),
+                        dueDate: new Date(Date.now() + 2 * 86400000).toLocaleDateString('ar-u-nu-latn'),
                         daysLeft: 2,
                     });
                     break;

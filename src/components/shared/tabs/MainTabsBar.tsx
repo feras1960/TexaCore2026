@@ -25,7 +25,7 @@ export function MainTabsBar({
   className,
   variant = 'underline',
 }: MainTabsBarProps) {
-  const { t } = useLanguage();
+  const { t, direction } = useLanguage();
 
   const variantStyles = {
     default: {
@@ -51,7 +51,7 @@ export function MainTabsBar({
   const styles = variantStyles[variant];
 
   return (
-    <div className={cn('flex gap-1 overflow-x-auto scrollbar-hide', styles.container, className)}>
+    <div dir={direction} className={cn('flex gap-1 overflow-x-auto scrollbar-hide', styles.container, className)}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         const Icon = tab.icon;

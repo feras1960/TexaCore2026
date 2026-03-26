@@ -104,7 +104,7 @@ function WithdrawalCard({
             <div className="flex items-center gap-2 mt-1">
               <Calendar className="w-3 h-3 text-gray-400" />
               <span className="text-xs text-gray-500">
-                {new Date(withdrawal.date).toLocaleDateString(isArabic ? 'ar-SA' : 'en-US')}
+                {new Date(withdrawal.date).toLocaleDateString(isArabic ? 'ar-u-nu-latn' : 'en-US')}
               </span>
             </div>
           </div>
@@ -146,7 +146,7 @@ function WithdrawalCard({
       {withdrawal.processed_at && (
         <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
           <CheckCircle className="w-3 h-3 text-green-500" />
-          {isArabic ? 'تم التنفيذ:' : 'Processed:'} {new Date(withdrawal.processed_at).toLocaleDateString(isArabic ? 'ar-SA' : 'en-US')}
+          {isArabic ? 'تم التنفيذ:' : 'Processed:'} {new Date(withdrawal.processed_at).toLocaleDateString(isArabic ? 'ar-u-nu-latn' : 'en-US')}
         </div>
       )}
     </div>

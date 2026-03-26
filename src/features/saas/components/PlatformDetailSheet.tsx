@@ -340,7 +340,7 @@ export default function PlatformDetailSheet({
                                     <div>
                                         <div className="text-sm font-medium text-gray-900 dark:text-white">{tenant.name}</div>
                                         <div className="text-[10px] text-gray-400">
-                                            {new Date(tenant.created_at).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')}
+                                            {new Date(tenant.created_at).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-US')}
                                         </div>
                                     </div>
                                 </div>

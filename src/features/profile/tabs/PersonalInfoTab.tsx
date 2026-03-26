@@ -124,7 +124,7 @@ export default function PersonalInfoTab() {
 
     const formatDate = (date?: string) => {
         if (!date) return '-';
-        return new Date(date).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
+        return new Date(date).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-US', {
             year: 'numeric', month: 'long', day: 'numeric'
         });
     };

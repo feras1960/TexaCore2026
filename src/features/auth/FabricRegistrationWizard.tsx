@@ -194,7 +194,7 @@ export default function FabricRegistrationWizard() {
               </tr>
               <tr>
                 <td style="padding:10px 0;font-size:14px;color:#6b7280;text-align:right;">📅 تاريخ التفعيل:</td>
-                <td style="padding:10px 0;font-size:14px;color:#1f2937;font-weight:600;text-align:right;">${new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
+                <td style="padding:10px 0;font-size:14px;color:#1f2937;font-weight:600;text-align:right;">${new Date().toLocaleDateString('ar-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' })}</td>
               </tr>
             </table>
           </div>

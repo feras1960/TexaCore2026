@@ -716,7 +716,7 @@ export default function WorkflowCenter() {
                                                     {scenario.lastTriggered && (
                                                         <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
                                                             <Clock className="w-3 h-3" />
-                                                            آخر تشغيل: {new Date(scenario.lastTriggered).toLocaleString('ar')}
+                                                            آخر تشغيل: {new Date(scenario.lastTriggered).toLocaleString('ar-u-nu-latn')}
                                                         </p>
                                                     )}
                                                 </div>

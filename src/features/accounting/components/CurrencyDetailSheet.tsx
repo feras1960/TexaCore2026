@@ -570,12 +570,12 @@ export default function CurrencyDetailSheet({
                                             <td className="px-4 py-3">
                                                 <div>
                                                     <span className="font-mono text-xs">
-                                                        {new Date(rate.effective_from).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
+                                                        {new Date(rate.effective_from).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-US', {
                                                             year: 'numeric', month: '2-digit', day: '2-digit',
                                                         })}
                                                     </span>
                                                     <p className="text-[10px] text-gray-400 font-mono">
-                                                        {new Date(rate.effective_from).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', {
+                                                        {new Date(rate.effective_from).toLocaleTimeString(isAr ? 'ar-u-nu-latn' : 'en-US', {
                                                             hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
                                                         })}
                                                     </p>

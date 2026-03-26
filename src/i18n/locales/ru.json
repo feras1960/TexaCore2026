@@ -854,7 +854,16 @@
     "postAndConfirm": "Провести и подтвердить",
     "systemProtected": "Защищено системой",
     "total": "Итого",
-    "unbalanced_entry": "Несбалансированная запись"
+    "unbalanced_entry": "Несбалансированная запись",
+    "settingsTabs": {
+      "general": "Общие",
+      "currencies": "Валюты",
+      "accounts": "Счета",
+      "fiscal": "Финансовые годы",
+      "numbering": "Нумерация",
+      "editSettings": "Правила редактирования",
+      "costCenters": "Центры затрат"
+    }
   },
   "accounts": "Счета",
   "accountsPayable": "Кредиторская задолженность",
@@ -5297,7 +5306,8 @@
       "print": "Печать",
       "import": "Импорт данных",
       "aiLanguages": "ИИ и языки",
-      "announcements": "Объявления"
+      "announcements": "Объявления",
+      "usersPermissions": "Пользователи и права"
     },
     "companySwitcher": {
       "availableCompanies": "Доступные компании",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STATIC_MODULES } from '@/config/modules';
 import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -156,6 +156,17 @@ export default function AccountingSettings() {
   const { canSeeModule, isPlatformAdmin } = useRBAC();
 
   const [activeTab, setActiveTab] = useState('general');
+
+  // MainTabsBar config for sub-tabs
+  const accountingSubTabs = useMemo(() => [
+    { id: 'general', labelKey: 'accounting.settingsTabs.general', icon: Building2 },
+    { id: 'currencies', labelKey: 'accounting.settingsTabs.currencies', icon: Globe },
+    { id: 'accounts', labelKey: 'accounting.settingsTabs.accounts', icon: Wallet },
+    { id: 'fiscal', labelKey: 'accounting.settingsTabs.fiscal', icon: Calendar },
+    { id: 'numbering', labelKey: 'accounting.settingsTabs.numbering', icon: Hash },
+    { id: 'editSettings', labelKey: 'accounting.settingsTabs.editSettings', icon: Edit2 },
+    { id: 'costCenters', labelKey: 'accounting.settingsTabs.costCenters', icon: Landmark },
+  ], []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -492,44 +503,18 @@ export default function AccountingSettings() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-5xl mx-auto" dir={direction}>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={direction}>
-        <div className="overflow-x-auto -mx-1 px-1" dir={direction}>
-          <TabsList className="inline-flex w-auto min-w-full bg-gray-100/80 dark:bg-gray-800/50 p-1 rounded-xl gap-0.5 h-auto">
-            <TabsTrigger value="general" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
-              <Building2 className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'عام' : 'General'}
-            </TabsTrigger>
-            <TabsTrigger value="currencies" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-teal dark:data-[state=active]:text-erp-teal data-[state=active]:shadow-sm transition-all">
-              <Globe className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'العملات' : 'Currencies'}
-            </TabsTrigger>
+      {/* Sub-tabs bar — underline variant */}
+      <MainTabsBar
+        tabs={accountingSubTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        variant="underline"
+      />
 
-            <TabsTrigger value="accounts" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
-              <Wallet className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'الحسابات' : 'Accounts'}
-            </TabsTrigger>
-            <TabsTrigger value="fiscal" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
-              <Calendar className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'السنوات المالية' : 'Fiscal Years'}
-            </TabsTrigger>
-            <TabsTrigger value="numbering" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
-              <Hash className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'الترقيم' : 'Numbering'}
-            </TabsTrigger>
-            <TabsTrigger value="editSettings" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
-              <Edit2 className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'التعديلات' : 'Edit Rules'}
-            </TabsTrigger>
-            <TabsTrigger value="costCenters" className="font-tajawal gap-1.5 px-3 py-2 text-xs rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-erp-navy dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
-              <Landmark className="w-3.5 h-3.5" />
-              {language === 'ar' ? 'مراكز التكلفة' : 'Cost Centers'}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <div>
 
         {/* General Tab */}
-        <TabsContent value="general" className="mt-6 space-y-6">
+        <div className={activeTab === 'general' ? 'mt-6 space-y-6' : 'hidden'}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Display Settings */}
             <Card className="border-gray-200 dark:border-gray-700">
@@ -622,21 +607,21 @@ export default function AccountingSettings() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        </div>
 
         {/* Currency Tab — Delegated to CurrencyManagementTab */}
-        <TabsContent value="currencies" className="mt-6">
+        <div className={activeTab === 'currencies' ? 'mt-6' : 'hidden'}>
           <CurrencyManagementTab
             settings={settings}
             updateSetting={updateSetting}
             currencies={currencies}
             direction={direction}
           />
-        </TabsContent>
+        </div>
 
         {/* Default Accounts Tab — Enhanced */}
 
-        <TabsContent value="accounts" className="mt-6 space-y-6">
+        <div className={activeTab === 'accounts' ? 'mt-6 space-y-6' : 'hidden'}>
           {/* Status Summary */}
           {(() => {
             const accountFields: string[] = [
@@ -1273,10 +1258,10 @@ export default function AccountingSettings() {
               </Card>
             </>
           )}
-        </TabsContent>
+        </div>
 
         {/* Fiscal Years Tab */}
-        <TabsContent value="fiscal" className="mt-6 space-y-6">
+        <div className={activeTab === 'fiscal' ? 'mt-6 space-y-6' : 'hidden'}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">
@@ -1344,10 +1329,10 @@ export default function AccountingSettings() {
               ))
             )}
           </div>
-        </TabsContent>
+        </div>
 
         {/* Numbering Tab */}
-        <TabsContent value="numbering" className="mt-6">
+        <div className={activeTab === 'numbering' ? 'mt-6' : 'hidden'}>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1413,10 +1398,10 @@ export default function AccountingSettings() {
               </Alert>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
         {/* Edit Settings Tab (NEW) */}
-        <TabsContent value="editSettings" className="mt-6 space-y-6">
+        <div className={activeTab === 'editSettings' ? 'mt-6 space-y-6' : 'hidden'}>
           {/* Fiscal Year Mode */}
           <Card className="border-2">
             <CardHeader>
@@ -1745,10 +1730,10 @@ export default function AccountingSettings() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
         {/* ═══ Cost Centers Tab ═══ */}
-        <TabsContent value="costCenters" className="mt-6 space-y-6">
+        <div className={activeTab === 'costCenters' ? 'mt-6 space-y-6' : 'hidden'}>
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -1939,7 +1924,7 @@ export default function AccountingSettings() {
               </p>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
         {/* Permissions removed — now in SystemConfigPage tabs */}
 
@@ -1963,7 +1948,7 @@ export default function AccountingSettings() {
             )}
           </Button>
         </div>
-      </Tabs >
+      </div>
     </div >
   );
 }

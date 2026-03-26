@@ -179,12 +179,12 @@ function formatDateTime(isoString: string | null | undefined, locale: string): {
         if (isNaN(d.getTime())) {
             return { date: locale === 'ar' ? 'تاريخ غير صالح' : 'Invalid date', time: '' };
         }
-        const date = d.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+        const date = d.toLocaleDateString(locale === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
         });
-        const time = d.toLocaleTimeString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+        const time = d.toLocaleTimeString(locale === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
             hour: '2-digit',
             minute: '2-digit',
         });

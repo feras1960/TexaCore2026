@@ -3346,7 +3346,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                 ? <span>●</span>
                                 : <Check className="w-3 h-3" />
                             }
-                            {isRTL ? '١ · إضافة المصاريف' : '1 · Add Expenses'}
+                            {isRTL ? '1 · إضافة المصاريف' : '1 · Add Expenses'}
                         </div>
                         <span className="text-gray-300 dark:text-gray-600">→</span>
 
@@ -3363,7 +3363,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                 ? isClosed ? <Check className="w-3 h-3" /> : <Lock className="w-3 h-3" />
                                 : <span>●</span>
                             }
-                            {isRTL ? '٢ · توزيع + تثبيت' : '2 · Distribute & Lock'}
+                            {isRTL ? '2 · توزيع + تثبيت' : '2 · Distribute & Lock'}
                         </div>
                         <span className="text-gray-300 dark:text-gray-600">→</span>
 
@@ -3375,7 +3375,7 @@ export const ContainerExpensesTab: React.FC<ContainerExpensesTabProps> = ({
                                 : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
                         )}>
                             {isClosed ? <Check className="w-3 h-3" /> : <span>●</span>}
-                            {isRTL ? '٣ · إغلاق الكونتينر' : '3 · Close Container'}
+                            {isRTL ? '3 · إغلاق الكونتينر' : '3 · Close Container'}
                         </div>
                     </div>
 

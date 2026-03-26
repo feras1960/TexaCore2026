@@ -340,7 +340,7 @@ export function MaterialRollsTab({ data }: MaterialRollsTabProps) {
                 <div className="flex items-center gap-1 text-sm text-gray-600">
                     <Calendar className="w-3 h-3" />
                     {new Date(row.original.received_date).toLocaleDateString(
-                        language === 'ar' ? 'ar-SA' : 'en-US'
+                        language === 'ar' ? 'ar-u-nu-latn' : 'en-US'
                     )}
                 </div>
             ),

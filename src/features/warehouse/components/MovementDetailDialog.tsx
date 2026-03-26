@@ -276,7 +276,7 @@ export function MovementDetailDialog({
     const fmtDate = (d: string) => {
         if (!d) return '—';
         try {
-            return new Date(d).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', {
+            return new Date(d).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
                 year: 'numeric', month: 'long', day: 'numeric',
             });
         } catch { return d; }

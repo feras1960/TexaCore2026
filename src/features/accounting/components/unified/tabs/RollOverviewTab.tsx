@@ -113,7 +113,7 @@ export function RollOverviewTab({ data, language: langProp }: RollOverviewTabPro
     const availableLength = Number(roll.available_length) || Math.max(0, currentLength - reservedLength);
 
     // Date formats
-    const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', {
+    const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-GB', {
         year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     }) : null;
 

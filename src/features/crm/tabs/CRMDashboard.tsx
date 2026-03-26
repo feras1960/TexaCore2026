@@ -174,7 +174,7 @@ export default function CRMDashboard() {
         const d = subMonths(now, i);
         const mStart = startOfMonth(d);
         const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const label = new Intl.DateTimeFormat(isAr ? 'ar-SA' : 'en-US', { month: 'short' }).format(d);
+        const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
         const count = allCustomers.filter(c => {
           const cd = new Date(c.created_at);
           return cd >= mStart && cd <= mEnd;

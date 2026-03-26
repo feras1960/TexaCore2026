@@ -151,7 +151,7 @@ export function ResultStep({
             <span className="text-muted-foreground">{t('import.startTime')}</span>
             <span className="font-medium">
               {importJob.started_at 
-                ? new Date(importJob.started_at).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US')
+                ? new Date(importJob.started_at).toLocaleString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US')
                 : '-'}
             </span>
           </div>
@@ -159,7 +159,7 @@ export function ResultStep({
             <span className="text-muted-foreground">{t('import.endTime')}</span>
             <span className="font-medium">
               {importJob.completed_at 
-                ? new Date(importJob.completed_at).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US')
+                ? new Date(importJob.completed_at).toLocaleString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US')
                 : '-'}
             </span>
           </div>

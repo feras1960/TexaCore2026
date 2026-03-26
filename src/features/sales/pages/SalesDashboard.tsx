@@ -186,7 +186,7 @@ export default function SalesDashboard() {
         const d = subMonths(now, i);
         const mStart = startOfMonth(d);
         const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const label = new Intl.DateTimeFormat(isAr ? 'ar-SA' : 'en-US', { month: 'short' }).format(d);
+        const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
         const mRows = allRows.filter(r => {
           const rd = new Date(r.created_at);
           return rd >= mStart && rd <= mEnd && r.stage !== 'cancelled';

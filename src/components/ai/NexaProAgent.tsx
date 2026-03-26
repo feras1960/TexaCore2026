@@ -191,7 +191,7 @@ function CopilotPanel({ companyId, isAr, language, currentPage, currentPageLabel
 
     // Date/time helpers
     const formatTime = useCallback((date: Date) => {
-        return new Date(date).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        return new Date(date).toLocaleTimeString(isAr ? 'ar-u-nu-latn' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     }, [isAr]);
 
     const formatDate = useCallback((date: Date) => {
@@ -201,7 +201,7 @@ function CopilotPanel({ companyId, isAr, language, currentPage, currentPageLabel
         const d = new Date(date);
         if (d.toDateString() === today.toDateString()) return isAr ? 'اليوم' : 'Today';
         if (d.toDateString() === yesterday.toDateString()) return isAr ? 'أمس' : 'Yesterday';
-        return d.toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
+        return d.toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' });
     }, [isAr]);
 
     // Memory from messages

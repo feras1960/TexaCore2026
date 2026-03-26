@@ -521,7 +521,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
 
     // ─── Format helpers ───────────────────
     const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US') : '-';
+    const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US') : '-';
 
     const getExpenseTypeInfo = (type: string) => EXPENSE_TYPES.find(t => t.value === type);
     const getStatusLabel = (status: string) => {
@@ -1067,7 +1067,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
                                 </div>
                                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-2 text-center font-medium">
                                     {isRTL
-                                        ? `✅ قيد فعلي مؤكد — ${actualJournalEntry.entry_number} — بتاريخ ${actualJournalEntry.entry_date ? new Date(actualJournalEntry.entry_date).toLocaleDateString('ar-SA') : ''}`
+                                        ? `✅ قيد فعلي مؤكد — ${actualJournalEntry.entry_number} — بتاريخ ${actualJournalEntry.entry_date ? new Date(actualJournalEntry.entry_date).toLocaleDateString('ar-u-nu-latn') : ''}`
                                         : `✅ Confirmed journal entry — ${actualJournalEntry.entry_number} — ${actualJournalEntry.entry_date ? new Date(actualJournalEntry.entry_date).toLocaleDateString('en-US') : ''}`}
                                 </p>
                             </>

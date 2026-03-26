@@ -237,7 +237,7 @@ export function ActivityTab({
         if (diffHours < 24) return isRTL ? `منذ ${diffHours} ساعة` : `${diffHours}h ago`;
         if (diffDays < 7) return isRTL ? `منذ ${diffDays} يوم` : `${diffDays}d ago`;
 
-        return eventDate.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', {
+        return eventDate.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
     };

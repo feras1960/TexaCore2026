@@ -549,7 +549,7 @@ export default function PipelineBoard() {
                 if (diffDays === 0) label = isRTL ? 'اليوم' : 'Today';
                 else if (diffDays === 1) label = isRTL ? 'أمس' : 'Yesterday';
                 else if (diffDays < 7) label = isRTL ? `منذ ${diffDays} أيام` : `${diffDays}d ago`;
-                else label = d.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
+                else label = d.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' });
                 return (
                     <div className="flex items-center gap-1.5 text-xs text-gray-500">
                         <Clock className="w-3 h-3" /> {label}
@@ -568,7 +568,7 @@ export default function PipelineBoard() {
         if (diffDays === 0) return isRTL ? 'اليوم' : 'Today';
         if (diffDays === 1) return isRTL ? 'أمس' : 'Yesterday';
         if (diffDays < 7) return isRTL ? `منذ ${diffDays} أيام` : `${diffDays}d ago`;
-        return d.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
+        return d.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' });
     };
 
     // Quick create a new trade doc (no customer pre-selected)

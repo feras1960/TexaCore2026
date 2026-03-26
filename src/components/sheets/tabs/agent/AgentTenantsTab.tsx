@@ -111,7 +111,7 @@ function TenantCard({
         </div>
         <div className="flex items-center gap-1 text-gray-500">
           <Calendar className="w-3 h-3" />
-          <span>{new Date(tenant.created_at).toLocaleDateString(isArabic ? 'ar-SA' : 'en-US')}</span>
+          <span>{new Date(tenant.created_at).toLocaleDateString(isArabic ? 'ar-u-nu-latn' : 'en-US')}</span>
         </div>
       </div>
 

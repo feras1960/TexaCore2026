@@ -140,7 +140,7 @@ export function formatLargeNumber(num: number): string {
     return (num / 1000).toFixed(1) + ' ألف';
   }
   
-  return num.toLocaleString('ar-SA');
+  return num.toLocaleString('ar-u-nu-latn');
 }
 
 export default numberToArabicWords;

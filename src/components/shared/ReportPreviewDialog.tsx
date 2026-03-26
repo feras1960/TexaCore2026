@@ -278,7 +278,7 @@ export function ReportPreviewDialog({
   const formatDate = () => {
     const now = new Date();
     if (language === 'ar') {
-      return now.toLocaleDateString('ar-SA', {
+      return now.toLocaleDateString('ar-u-nu-latn', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',

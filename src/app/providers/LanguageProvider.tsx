@@ -50,7 +50,7 @@ function detectBrowserLanguage(): SupportedLanguage {
       return lang as SupportedLanguage;
     }
 
-    // Check language without region (e.g., 'en-US' -> 'en', 'ar-SA' -> 'ar')
+    // Check language without region (e.g., 'en-US' -> 'en', 'ar-u-nu-latn' -> 'ar')
     const baseLang = lang.split('-')[0].toLowerCase();
     if (SUPPORTED_CODES.includes(baseLang as SupportedLanguage)) {
       return baseLang as SupportedLanguage;

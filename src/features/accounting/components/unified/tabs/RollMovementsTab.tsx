@@ -50,14 +50,14 @@ const getMovCfg = (type: string) => movementConfig[type] || {
 
 function fmtDate(d?: string, isAr = false) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', {
+    return new Date(d).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-GB', {
         year: 'numeric', month: 'short', day: 'numeric',
     });
 }
 
 function fmtTime(d?: string, isAr = false) {
     if (!d) return '';
-    return new Date(d).toLocaleTimeString(isAr ? 'ar-SA' : 'en-GB', {
+    return new Date(d).toLocaleTimeString(isAr ? 'ar-u-nu-latn' : 'en-GB', {
         hour: '2-digit', minute: '2-digit',
     });
 }

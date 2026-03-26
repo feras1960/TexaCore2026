@@ -85,7 +85,7 @@ export function ContactOverviewTab({ data, mode, onChange }: ContactOverviewTabP
         {
             label: isRTL ? 'آخر نشاط' : 'Last Activity',
             value: data.last_interaction_at
-                ? new Date(data.last_interaction_at).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })
+                ? new Date(data.last_interaction_at).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })
                 : '—',
             icon: Clock,
             color: 'text-gray-500',
@@ -348,7 +348,7 @@ export function ContactOverviewTab({ data, mode, onChange }: ContactOverviewTabP
                             </p>
                             {data.converted_at && (
                                 <p className="text-xs text-emerald-500">
-                                    {new Date(data.converted_at).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US')}
+                                    {new Date(data.converted_at).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US')}
                                 </p>
                             )}
                         </div>

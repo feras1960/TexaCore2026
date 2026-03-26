@@ -262,7 +262,7 @@ export default function ContactsTable() {
                 if (diffDays === 0) label = isRTL ? 'اليوم' : 'Today';
                 else if (diffDays === 1) label = isRTL ? 'أمس' : 'Yesterday';
                 else if (diffDays < 7) label = isRTL ? `منذ ${diffDays} أيام` : `${diffDays}d ago`;
-                else label = d.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' });
+                else label = d.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' });
 
                 return (
                     <div className="flex items-center gap-1.5 text-xs text-gray-500">

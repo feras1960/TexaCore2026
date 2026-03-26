@@ -1186,7 +1186,7 @@ export function MaterialReceiptDialog({
                             {completedReceiptInfo.completedAt && (
                                 <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">
                                     {new Date(completedReceiptInfo.completedAt).toLocaleDateString(
-                                        isRTL ? 'ar-SA' : 'en-US',
+                                        isRTL ? 'ar-u-nu-latn' : 'en-US',
                                         { year: 'numeric', month: 'short', day: 'numeric' }
                                     )}
                                 </span>

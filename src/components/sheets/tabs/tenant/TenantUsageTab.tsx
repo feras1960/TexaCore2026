@@ -260,7 +260,7 @@ export function TenantUsageTab({ data, docType: _docType, language, t, onRefresh
               </div>
               <div className="font-medium text-gray-900 dark:text-white text-sm">
                 {new Date(activityStats.lastActive).toLocaleDateString(
-                  isArabic ? 'ar-SA' : 'en-US'
+                  isArabic ? 'ar-u-nu-latn' : 'en-US'
                 )}
               </div>
             </div>

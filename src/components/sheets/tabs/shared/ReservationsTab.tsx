@@ -142,7 +142,7 @@ export function ReservationsTab({ data, language, onAction, onRowClick }: Reserv
                     <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {reservation.date ? new Date(reservation.date).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US') : '-'}
+                        {reservation.date ? new Date(reservation.date).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US') : '-'}
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />

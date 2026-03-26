@@ -706,7 +706,7 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                             {/* Creation date */}
                             <Field label={t('تاريخ الإنشاء', 'Created At')}>
                                 <p className="text-sm mt-1">
-                                    {data?.created_at ? new Date(data.created_at).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', {
+                                    {data?.created_at ? new Date(data.created_at).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-US', {
                                         year: 'numeric', month: 'short', day: 'numeric'
                                     }) : '—'}
                                 </p>

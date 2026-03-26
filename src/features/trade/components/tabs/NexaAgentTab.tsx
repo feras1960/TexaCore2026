@@ -441,7 +441,7 @@ export function NexaAgentTab({ data, mode }: NexaAgentTabProps) {
         // Order history
         if (q.includes('طلب') || q.includes('order') || q.includes('تاريخ') || q.includes('history')) {
             return lang === 'ar'
-                ? `📊 **ملخص الطلبات:**\n\n• إجمالي الطلبات: **${insight.totalOrders}** طلب\n• إجمالي الإيرادات: **${insight.totalRevenue.toLocaleString()}**\n• متوسط قيمة الطلب: **${insight.avgOrderValue.toLocaleString()}**\n• آخر طلب: **${insight.lastOrderDate ? new Date(insight.lastOrderDate).toLocaleDateString('ar') : 'لا يوجد'}**\n• الاتجاه: **${insight.orderTrend === 'increasing' ? '📈 تصاعدي' : insight.orderTrend === 'decreasing' ? '📉 تنازلي' : '➡️ مستقر'}**`
+                ? `📊 **ملخص الطلبات:**\n\n• إجمالي الطلبات: **${insight.totalOrders}** طلب\n• إجمالي الإيرادات: **${insight.totalRevenue.toLocaleString()}**\n• متوسط قيمة الطلب: **${insight.avgOrderValue.toLocaleString()}**\n• آخر طلب: **${insight.lastOrderDate ? new Date(insight.lastOrderDate).toLocaleDateString('ar-u-nu-latn') : 'لا يوجد'}**\n• الاتجاه: **${insight.orderTrend === 'increasing' ? '📈 تصاعدي' : insight.orderTrend === 'decreasing' ? '📉 تنازلي' : '➡️ مستقر'}**`
                 : `📊 **Order Summary:**\n\n• Total Orders: **${insight.totalOrders}**\n• Total Revenue: **${insight.totalRevenue.toLocaleString()}**\n• Avg Order Value: **${insight.avgOrderValue.toLocaleString()}**\n• Last Order: **${insight.lastOrderDate ? new Date(insight.lastOrderDate).toLocaleDateString('en') : 'None'}**\n• Trend: **${insight.orderTrend === 'increasing' ? '📈 Increasing' : insight.orderTrend === 'decreasing' ? '📉 Decreasing' : '➡️ Stable'}**`;
         }
 

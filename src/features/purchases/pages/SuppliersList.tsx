@@ -107,6 +107,13 @@ export default function SuppliersList() {
         companyId,
         queryKeys: [['party_balances_supplier_purchases']],
     });
+    // 🔄 Realtime — تحديث إحصائيات المشتريات عند تغيير حالة الفواتير
+    useRealtimeInvalidation({
+        table: 'purchase_transactions',
+        companyId,
+        filter: companyId ? `company_id=eq.${companyId}` : undefined,
+        queryKeys: [['suppliers_purchase_stats'], ['party_balances_supplier_purchases']],
+    });
 
     // ─── State ───────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState('all');
@@ -154,19 +161,22 @@ export default function SuppliersList() {
                 .eq('company_id', companyId);
 
             const stats: Record<string, { invoiceCount: number; totalAmount: number; unpaid: number }> = {};
+            const COUNTABLE_STAGES = ['posted', 'received', 'paid', 'partially_paid', 'completed'];
             (data || []).forEach((tx: any) => {
                 if (!tx.supplier_id) return;
+                // Only count posted/finalized invoices — drafts and confirmed don't count
+                if (!COUNTABLE_STAGES.includes(tx.stage)) return;
                 if (!stats[tx.supplier_id]) stats[tx.supplier_id] = { invoiceCount: 0, totalAmount: 0, unpaid: 0 };
                 stats[tx.supplier_id].invoiceCount++;
                 stats[tx.supplier_id].totalAmount += Number(tx.total_amount || 0);
-                if (!['paid', 'cancelled'].includes(tx.stage)) {
+                if (!['paid', 'completed'].includes(tx.stage)) {
                     stats[tx.supplier_id].unpaid += Number(tx.total_amount || 0);
                 }
             });
             return stats;
         },
         enabled: !!companyId,
-        staleTime: 60000,
+        staleTime: 10_000,
     });
 
     // ─── Fetch Sub-Ledger Balances (same as Parties.tsx) ─────────

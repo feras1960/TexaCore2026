@@ -206,7 +206,7 @@ export default function TransfersPage() {
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '—';
         try {
-            return new Intl.DateTimeFormat(language === 'ar' ? 'ar-SA' : 'en-US', {
+            return new Intl.DateTimeFormat(language === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
                 day: 'numeric', month: 'short', year: 'numeric',
             }).format(new Date(dateStr));
         } catch {

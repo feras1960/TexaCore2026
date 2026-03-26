@@ -674,7 +674,7 @@ export function MaterialMovementsTab({ data, onOpenDocument }: MaterialMovements
     const fmtDate = (d: string) => {
         if (!d) return '—';
         try {
-            return new Date(d).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            return new Date(d).toLocaleDateString(isAr ? 'ar-u-nu-latn' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
         } catch { return d; }
     };
 

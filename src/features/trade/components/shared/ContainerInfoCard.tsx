@@ -168,7 +168,7 @@ export const ContainerInfoCard: React.FC<ContainerInfoCardProps> = ({
                         {details.eta && (
                             <div className={cn("flex items-center gap-1", isRTL && "flex-row-reverse")}>
                                 <Calendar className="w-3 h-3 text-gray-400" />
-                                <span>ETA: {new Date(details.eta).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}</span>
+                                <span>ETA: {new Date(details.eta).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}</span>
                             </div>
                         )}
 
@@ -176,7 +176,7 @@ export const ContainerInfoCard: React.FC<ContainerInfoCardProps> = ({
                         {details.etd && !details.eta && (
                             <div className={cn("flex items-center gap-1", isRTL && "flex-row-reverse")}>
                                 <Calendar className="w-3 h-3 text-gray-400" />
-                                <span>ETD: {new Date(details.etd).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}</span>
+                                <span>ETD: {new Date(details.etd).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}</span>
                             </div>
                         )}
 

@@ -46,7 +46,7 @@ export const exchangeConfig: SheetConfig = {
     // Header
     title: (data) => data.voucherNo || `EXC-${data.id}`,
     subtitle: (data) => {
-        const date = data.date ? new Date(data.date).toLocaleDateString('ar-SA') : '';
+        const date = data.date ? new Date(data.date).toLocaleDateString('ar-u-nu-latn') : '';
         const currencies = data.sourceCurrency && data.targetCurrency
             ? `${data.sourceCurrency} → ${data.targetCurrency}`
             : '';

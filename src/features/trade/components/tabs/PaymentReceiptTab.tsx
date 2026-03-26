@@ -315,7 +315,7 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
 
     // ─── Format helpers ───────────────────
     const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US') : '-';
+    const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US') : '-';
     const statusLabel = (s: string) => {
         const map: Record<string, { ar: string; en: string }> = {
             pending: { ar: 'قيد الانتظار', en: 'Pending' },

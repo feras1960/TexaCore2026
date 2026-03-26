@@ -945,7 +945,16 @@
     "postAndConfirm": "ترحيل وتأكيد",
     "systemProtected": "محمي من النظام",
     "total": "المجموع",
-    "unbalanced_entry": "القيد غير متوازن"
+    "unbalanced_entry": "القيد غير متوازن",
+    "settingsTabs": {
+      "general": "عام",
+      "currencies": "العملات",
+      "accounts": "الحسابات",
+      "fiscal": "السنوات المالية",
+      "numbering": "الترقيم",
+      "editSettings": "التعديلات",
+      "costCenters": "مراكز التكلفة"
+    }
   },
   "accounts": "الحسابات",
   "accountsPayable": "الذمم الدائنة",
@@ -5183,7 +5192,8 @@
       "announcements": "الإعلانات",
       "print": "الطباعة",
       "import": "استيراد البيانات",
-      "aiLanguages": "الذكاء الاصطناعي"
+      "aiLanguages": "الذكاء الاصطناعي",
+      "usersPermissions": "المستخدمون والصلاحيات"
     },
     "companySwitcher": {
       "availableCompanies": "Available Companies",

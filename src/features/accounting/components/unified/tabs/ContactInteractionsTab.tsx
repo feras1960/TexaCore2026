@@ -247,9 +247,9 @@ export function ContactInteractionsTab({ data }: ContactInteractionsTabProps) {
                                             </Badge>
                                         )}
                                         <span className="text-[11px] text-gray-400 ms-auto">
-                                            {date.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
+                                            {date.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
                                             {' '}
-                                            {date.toLocaleTimeString(isRTL ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                                            {date.toLocaleTimeString(isRTL ? 'ar-u-nu-latn' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     </div>
                                     {interaction.subject && (

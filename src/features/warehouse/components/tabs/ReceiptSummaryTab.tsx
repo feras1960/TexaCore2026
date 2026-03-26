@@ -407,7 +407,7 @@ export const ReceiptSummaryTab: React.FC<ReceiptSummaryTabProps> = ({
 
     const formatDate = (d: string) => {
         try {
-            return new Date(d).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', {
+            return new Date(d).toLocaleDateString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',

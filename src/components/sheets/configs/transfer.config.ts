@@ -45,7 +45,7 @@ export const transferConfig: SheetConfig = {
     // Header
     title: (data) => data.voucherNo || `TRF-${data.id}`,
     subtitle: (data) => {
-        const date = data.date ? new Date(data.date).toLocaleDateString('ar-SA') : '';
+        const date = data.date ? new Date(data.date).toLocaleDateString('ar-u-nu-latn') : '';
         return date;
     },
     icon: ArrowRightLeft,

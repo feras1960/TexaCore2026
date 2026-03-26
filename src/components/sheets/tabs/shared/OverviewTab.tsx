@@ -125,13 +125,13 @@ function InfoRow({ field, data, language, t, onLinkClick }: InfoRowProps) {
       case 'date':
         return (
           <span className="font-mono text-sm">
-            {new Date(value).toLocaleDateString(isArabic ? 'ar-SA' : 'en-US')}
+            {new Date(value).toLocaleDateString(isArabic ? 'ar-u-nu-latn' : 'en-US')}
           </span>
         );
       case 'datetime':
         return (
           <span className="font-mono text-sm">
-            {new Date(value).toLocaleString(isArabic ? 'ar-SA' : 'en-US')}
+            {new Date(value).toLocaleString(isArabic ? 'ar-u-nu-latn' : 'en-US')}
           </span>
         );
       case 'number':

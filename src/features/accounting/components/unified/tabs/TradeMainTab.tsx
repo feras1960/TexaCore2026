@@ -575,7 +575,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                 {docDate && (
                                     <Badge variant="outline" className="text-[10px] gap-1 hidden sm:flex">
                                         <Calendar className="w-2.5 h-2.5" />
-                                        {new Date(docDate).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
+                                        {new Date(docDate).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
                                     </Badge>
                                 )}
                                 {docCurrency && (
@@ -877,40 +877,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                     />
                 ) : (
                     <>
-                        {/* ═══ Delivery/Receipt Output Section — appears after delivery/receipt ═══ */}
-                        {isDeliveredStage && (
-                            <Collapsible defaultOpen={true}>
-                                <CollapsibleTrigger className={cn(
-                                    "flex items-center gap-2 w-full px-4 py-3 rounded-lg border transition-colors group",
-                                    tradeMode === 'purchase'
-                                        ? "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800 hover:from-emerald-100 hover:to-teal-100 dark:hover:from-emerald-950/50 dark:hover:to-teal-950/30"
-                                        : "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-950/50 dark:hover:to-indigo-950/30"
-                                )}>
-                                    <Truck className={cn("w-5 h-5", tradeMode === 'purchase' ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400")} />
-                                    <span className={cn("text-sm font-bold", tradeMode === 'purchase' ? "text-emerald-800 dark:text-emerald-300" : "text-blue-800 dark:text-blue-300")}>
-                                        {tradeMode === 'purchase'
-                                            ? (isRTL ? 'البضاعة المستلمة — مدخلات المستودع' : 'Received Goods — Warehouse Input')
-                                            : (isRTL ? 'الفاتورة المسلمة — مخرجات المستودع' : 'Delivered Invoice — Warehouse Output')}
-                                    </span>
-                                    <ChevronDown className={cn("w-4 h-4 ms-auto transition-transform group-data-[state=closed]:rotate-[-90deg]", tradeMode === 'purchase' ? "text-emerald-500" : "text-blue-500")} />
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="mt-2">
-                                    <DeliveryOutputView
-                                        items={(lineItems as any[]).map(item => ({
-                                            ...item,
-                                            delivered_qty: (item as any).delivered_qty || 0,
-                                            delivery_rolls: (item as any).delivery_rolls || [],
-                                        }))}
-                                        currency={data.currency || companyCurrency || 'SAR'}
-                                        tradeMode={tradeMode as 'sales' | 'purchase'}
-                                        defaultWarehouseNameAr={resolvedDeliveryWhAr || undefined}
-                                        defaultWarehouseNameEn={resolvedDeliveryWhEn || undefined}
-                                    />
-                                </CollapsibleContent>
-                            </Collapsible>
-                        )}
-
-                        {/* ═══ Original Invoice Section ═══ */}
+                        {/* ═══ Original Invoice Section — always on top ═══ */}
                         {isDeliveredStage ? (
                             <Collapsible defaultOpen={false}>
                                 <CollapsibleTrigger className="flex items-center gap-2 w-full px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800/40 dark:to-gray-800/20 rounded-lg border border-gray-200 dark:border-gray-700 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-800/60 dark:hover:to-gray-800/40 transition-colors group">
@@ -952,6 +919,39 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                 isInternational={tradeMode === 'purchase' && data.receipt_mode === 'international'}
                                 priceResolver={tradeMode === 'sales' && currentPartyId ? customerPricing.resolvePrice : undefined}
                             />
+                        )}
+
+                        {/* ═══ Delivery/Receipt Output Section — appears after delivery/receipt, below original invoice ═══ */}
+                        {isDeliveredStage && (
+                            <Collapsible defaultOpen={false}>
+                                <CollapsibleTrigger className={cn(
+                                    "flex items-center gap-2 w-full px-4 py-3 rounded-lg border transition-colors group",
+                                    tradeMode === 'purchase'
+                                        ? "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800 hover:from-emerald-100 hover:to-teal-100 dark:hover:from-emerald-950/50 dark:hover:to-teal-950/30"
+                                        : "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-950/50 dark:hover:to-indigo-950/30"
+                                )}>
+                                    <Truck className={cn("w-5 h-5", tradeMode === 'purchase' ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400")} />
+                                    <span className={cn("text-sm font-bold", tradeMode === 'purchase' ? "text-emerald-800 dark:text-emerald-300" : "text-blue-800 dark:text-blue-300")}>
+                                        {tradeMode === 'purchase'
+                                            ? (isRTL ? 'البضاعة المستلمة — مدخلات المستودع' : 'Received Goods — Warehouse Input')
+                                            : (isRTL ? 'الفاتورة المسلمة — مخرجات المستودع' : 'Delivered Invoice — Warehouse Output')}
+                                    </span>
+                                    <ChevronDown className={cn("w-4 h-4 ms-auto transition-transform group-data-[state=closed]:rotate-[-90deg]", tradeMode === 'purchase' ? "text-emerald-500" : "text-blue-500")} />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-2">
+                                    <DeliveryOutputView
+                                        items={(lineItems as any[]).map(item => ({
+                                            ...item,
+                                            delivered_qty: (item as any).delivered_qty || 0,
+                                            delivery_rolls: (item as any).delivery_rolls || [],
+                                        }))}
+                                        currency={data.currency || companyCurrency || 'SAR'}
+                                        tradeMode={tradeMode as 'sales' | 'purchase'}
+                                        defaultWarehouseNameAr={resolvedDeliveryWhAr || undefined}
+                                        defaultWarehouseNameEn={resolvedDeliveryWhEn || undefined}
+                                    />
+                                </CollapsibleContent>
+                            </Collapsible>
                         )}
                     </>
                 )}

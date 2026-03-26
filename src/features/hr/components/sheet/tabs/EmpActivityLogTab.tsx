@@ -171,7 +171,7 @@ export default function EmpActivityLogTab({ employeeId, data, isRTL }: Props) {
 
     // Group by date
     const grouped = filteredActivities.reduce<Record<string, ActivityEntry[]>>((acc, a) => {
-        const dateKey = new Date(a.date).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', {
+        const dateKey = new Date(a.date).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
             year: 'numeric', month: 'long', day: 'numeric'
         });
         if (!acc[dateKey]) acc[dateKey] = [];

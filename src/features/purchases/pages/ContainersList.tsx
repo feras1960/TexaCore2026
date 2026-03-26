@@ -260,6 +260,11 @@ export default function ContainersList() {
                 const sup = c.supplier_id ? supplierMap[c.supplier_id] : null;
                 return {
                     ...c,
+                    // Map DB column names → UI field names
+                    eta: c.eta || c.expected_arrival_date || null,
+                    etd: c.etd || c.departure_date || null,
+                    port_of_loading: c.port_of_loading || c.origin_port || null,
+                    port_of_discharge: c.port_of_discharge || c.destination_port || null,
                     supplier: sup || null,
                     supplier_display: sup
                         ? (language === 'ar'

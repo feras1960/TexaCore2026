@@ -100,7 +100,7 @@ export function NotesTab({ data, language, onAction }: NotesTabProps) {
                       {note.createdAt && (
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {new Date(note.createdAt).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US')}
+                          {new Date(note.createdAt).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US')}
                         </span>
                       )}
                       {note.author && (

@@ -39,8 +39,31 @@ import { PurchasePaymentTab } from './PurchasePaymentTab';
 import { PurchaseExpensesTab } from './PurchaseExpensesTab';
 import { ContainerInfoCard } from '../shared/ContainerInfoCard';
 import { ContainerStatusStepper } from '../ContainerStatusStepper';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
-// ═══ Section visibility config ═══
+// ═══ Small badge that fetches and displays the journal entry number ═══
+const JournalEntryNumberBadge: React.FC<{ journalEntryId: string }> = ({ journalEntryId }) => {
+    const { data: entryNumber } = useQuery({
+        queryKey: ['je_number_badge', journalEntryId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .select('entry_number')
+                .eq('id', journalEntryId)
+                .single();
+            return error ? null : data?.entry_number;
+        },
+        enabled: !!journalEntryId,
+        staleTime: 300000,
+    });
+    if (!entryNumber) return null;
+    return (
+        <Badge variant="outline" className="text-[10px] font-mono bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800">
+            {entryNumber}
+        </Badge>
+    );
+};
 interface SectionVisibility {
     supplier: boolean;
     supplierReadOnly: boolean;
@@ -257,9 +280,12 @@ export const SupplierFinanceTab: React.FC<SupplierFinanceTabProps> = ({
                     isRTL={isRTL}
                     badge={
                         data?.journal_entry_id
-                            ? <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 text-[10px]">
-                                {isRTL ? 'مُرحّل' : 'Posted'}
-                            </Badge>
+                            ? <div className="flex items-center gap-1">
+                                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 text-[10px]">
+                                    {isRTL ? 'مُرحّل' : 'Posted'}
+                                </Badge>
+                                <JournalEntryNumberBadge journalEntryId={data.journal_entry_id} />
+                            </div>
                             : data?.is_posted || currentStage === 'posted'
                                 ? <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 text-[10px]">
                                     {isRTL ? 'مُرحّل' : 'Posted'}

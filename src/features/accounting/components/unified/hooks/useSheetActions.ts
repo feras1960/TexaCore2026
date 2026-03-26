@@ -540,7 +540,7 @@ export function useTradeSave(
                     supplier_id: saveData.supplier_id || saveData.party_id || null,
                     container_size: saveData.container_size || '40ft',
                     container_type: saveData.container_type || 'dry',
-                    status: saveData.status || 'ordered',
+                    status: saveData.status || 'draft',
                     order_date: saveData.date || new Date().toISOString(),
                     departure_date: saveData.etd || saveData.departure_date || null,
                     expected_arrival_date: saveData.eta || saveData.expected_arrival_date || null,
@@ -565,7 +565,7 @@ export function useTradeSave(
                     supplier_id: saveData.supplier_id || saveData.party_id || null,
                     container_size: saveData.container_size || '40ft',
                     container_type: saveData.container_type || 'dry',
-                    status: saveData.status || 'ordered',
+                    status: saveData.status,
                     departure_date: saveData.etd || saveData.departure_date || null,
                     expected_arrival_date: saveData.eta || saveData.expected_arrival_date || null,
                     notes: saveData.notes || saveData.remarks || null,
@@ -701,6 +701,9 @@ function invalidateTradeQueries(queryClient: ReturnType<typeof useQueryClient>) 
     queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
     queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
     queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+    // ── Purchase/Sales Stats — تحديث إحصائيات الموردين/العملاء ──
+    queryClient.invalidateQueries({ queryKey: ['suppliers_purchase_stats'] });
+    queryClient.invalidateQueries({ queryKey: ['customers_sales_stats'] });
 }
 
 
@@ -2907,6 +2910,20 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                                 { fromStage: currentStage }
                                             );
 
+                                            // ═══ Assign permanent number if still DRAFT ═══
+                                            let postPermanentNumber = '';
+                                            const currentInvoiceNo = data?.invoice_no || '';
+                                            if (!currentInvoiceNo || currentInvoiceNo.startsWith('DRAFT-')) {
+                                                try {
+                                                    const { TradeService } = await import('@/features/trade/services/TradeService');
+                                                    const postCompanyId = data?.company_id || companyId;
+                                                    postPermanentNumber = await TradeService.assignPermanentNumber(docId, 'purchase_invoice', postCompanyId);
+                                                    console.log(`📝 [Post] Permanent number assigned: ${postPermanentNumber}`);
+                                                } catch (numErr) {
+                                                    console.error('[Post] Failed to assign permanent number:', numErr);
+                                                }
+                                            }
+
                                             // Update data with journal entry info
                                             setData((prev: any) => ({
                                                 ...prev,
@@ -2915,6 +2932,7 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                                 status: 'posted',
                                                 is_posted: true,
                                                 posted_at: new Date().toISOString(),
+                                                ...(postPermanentNumber ? { invoice_no: postPermanentNumber } : {}),
                                             }));
 
                                             // Show success with posting source info
@@ -2963,6 +2981,36 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                         .update(isTransaction ? { stage: 'posted' } : { status: 'posted' })
                                         .eq('id', docId);
                                     if (error) throw error;
+                                }
+                                // ═══ Assign permanent number for ANY trade doc still having DRAFT- number ═══
+                                {
+                                    const currentNo = data?.invoice_no || data?.order_number || data?.quotation_number || '';
+                                    if (!currentNo || currentNo.startsWith('DRAFT-')) {
+                                        try {
+                                            const { TradeService } = await import('@/features/trade/services/TradeService');
+                                            const TRADE_TYPE_MAP_POST: Record<string, Record<string, string>> = {
+                                                sales: { trade_invoice: 'invoice', trade_order: 'order', trade_quotation: 'quotation', trade_return: 'sales_return' },
+                                                purchase: { trade_invoice: 'purchase_invoice', trade_order: 'purchase_order', trade_quotation: 'purchase_quotation', trade_receipt: 'purchase_receipt', trade_return: 'purchase_return' },
+                                            };
+                                            const postServiceDocType = TRADE_TYPE_MAP_POST[modeKey]?.[docType] || (modeKey === 'purchase' ? 'purchase_invoice' : 'invoice');
+                                            const postCompanyId = data?.company_id || companyId;
+                                            const postPermNum = await TradeService.assignPermanentNumber(docId, postServiceDocType, postCompanyId);
+                                            if (postPermNum) {
+                                                const numFieldMap: Record<string, string> = {
+                                                    purchase_invoice: 'invoice_no', invoice: 'invoice_no',
+                                                    purchase_order: 'order_number', order: 'order_number',
+                                                    purchase_quotation: 'quotation_number', quotation: 'quotation_number',
+                                                    purchase_receipt: 'receipt_number', purchase_return: 'return_number', sales_return: 'return_number',
+                                                };
+                                                const nfKey = numFieldMap[postServiceDocType] || 'invoice_no';
+                                                // Update local state with new number
+                                                setData((prev: any) => prev ? { ...prev, [nfKey]: postPermNum } : prev);
+                                                console.log(`📝 [Post] Permanent number assigned: ${postPermNum}`);
+                                            }
+                                        } catch (numErr) {
+                                            console.error('[Post] Failed to assign permanent number:', numErr);
+                                        }
+                                    }
                                 }
                                 // For non-purchase-invoice docs, set posted state and show toast
                                 // (purchase invoices already handled above with their own setData + toast)

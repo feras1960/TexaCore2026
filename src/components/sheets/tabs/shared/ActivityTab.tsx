@@ -80,7 +80,7 @@ function ActivityItemRow({ activity, language, t: _t, isLast }: ActivityItemProp
     if (diffDays < 7) {
       return isArabic ? `منذ ${diffDays} يوم` : `${diffDays} days ago`;
     }
-    return date.toLocaleDateString(isArabic ? 'ar-SA' : 'en-US');
+    return date.toLocaleDateString(isArabic ? 'ar-u-nu-latn' : 'en-US');
   };
 
   return (

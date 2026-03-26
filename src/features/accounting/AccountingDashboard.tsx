@@ -234,7 +234,7 @@ export default function AccountingDashboard() {
           for (let i = 5; i >= 0; i--) {
             const d = subMonths(new Date(), i);
             const key = format(d, 'yyyy-MM');
-            const label = new Intl.DateTimeFormat(isAr ? 'ar-SA' : 'en-US', { month: 'short' }).format(d);
+            const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
             const bucket = monthlyMap.get(key) || { revenue: 0, expenses: 0 };
             monthlyData.push({ label, revenue: Math.abs(bucket.revenue), expenses: Math.abs(bucket.expenses) });
           }

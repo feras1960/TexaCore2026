@@ -433,7 +433,7 @@ export function DocumentsTab({
                         {doc.created_at && (
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(doc.created_at).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US')}
+                            {new Date(doc.created_at).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US')}
                           </span>
                         )}
                       </div>

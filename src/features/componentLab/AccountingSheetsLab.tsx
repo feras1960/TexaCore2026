@@ -176,7 +176,7 @@ const DEMO_TABLE_COLUMNS: ColumnDef<DemoTableRow>[] = [
         size: 120,
         cell: ({ row }) => (
             <span className="font-mono font-medium">
-                {row.original.balance.toLocaleString('ar-SA')} ر.س
+                {row.original.balance.toLocaleString('ar-u-nu-latn')} ر.س
             </span>
         )
     },

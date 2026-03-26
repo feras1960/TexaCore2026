@@ -215,7 +215,7 @@ export function JournalOverviewTab({ data, language, onAction: _onAction }: Jour
               <div>
                 <p className="text-xs text-gray-500">{isRTL ? 'التاريخ' : 'Date'}</p>
                 <p className="font-semibold text-gray-800 dark:text-gray-200">
-                  {data.date ? new Date(data.date).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US') : '-'}
+                  {data.date ? new Date(data.date).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US') : '-'}
                 </p>
               </div>
             </div>

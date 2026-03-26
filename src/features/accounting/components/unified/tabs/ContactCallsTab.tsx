@@ -156,10 +156,10 @@ export function ContactCallsTab({ data }: ContactCallsTabProps) {
                                         {/* Meta */}
                                         <div className="text-end shrink-0">
                                             <p className="text-[11px] text-gray-400">
-                                                {date.toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
+                                                {date.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}
                                             </p>
                                             <p className="text-[11px] text-gray-400">
-                                                {date.toLocaleTimeString(isRTL ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                                                {date.toLocaleTimeString(isRTL ? 'ar-u-nu-latn' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                                             </p>
                                             {call.duration_seconds && call.duration_seconds > 0 && (
                                                 <p className="text-[11px] text-gray-500 font-mono mt-0.5 flex items-center gap-1 justify-end">

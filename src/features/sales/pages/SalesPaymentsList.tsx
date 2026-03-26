@@ -110,7 +110,7 @@ export default function SalesPaymentsList() {
         {
             accessorKey: 'voucher_date',
             header: t('table.date') || 'Date',
-            cell: (info: any) => <span className="text-gray-600 font-mono text-xs">{new Date(info.getValue()).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</span>
+            cell: (info: any) => <span className="text-gray-600 font-mono text-xs">{new Date(info.getValue()).toLocaleDateString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US')}</span>
         },
         {
             accessorKey: 'customer_name',

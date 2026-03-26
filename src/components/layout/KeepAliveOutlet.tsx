@@ -45,7 +45,7 @@ const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> 
 
   // Settings & Admin
   '/system-config': () => import('@/features/settings/SystemConfigPage'),
-  '/users-permissions': () => import('@/features/users-permissions/UsersPermissionsPage'),
+  '/users-permissions': () => import('@/features/settings/SystemConfigPage'), // Redirect: now a tab inside Settings
   '/workflows': () => import('@/features/workflow-center/WorkflowCenter'),
   '/activity-log': () => import('@/features/admin/activityLog/ActivityLog'),
   '/profile': () => import('@/features/profile/UserProfilePage'),

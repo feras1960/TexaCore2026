@@ -838,7 +838,16 @@
     "createdAt": "Дата створення",
     "searchTransactions": "Пошук операцій...",
     "quickReceipt": "Швидке надходження",
-    "quickPayment": "Швидкий платіж"
+    "quickPayment": "Швидкий платіж",
+    "settingsTabs": {
+      "general": "Загальні",
+      "currencies": "Валюти",
+      "accounts": "Рахунки",
+      "fiscal": "Фінансові роки",
+      "numbering": "Нумерація",
+      "editSettings": "Правила редагування",
+      "costCenters": "Центри витрат"
+    }
   },
   "accounts": "Рахунки",
   "accountsPayable": "Кредиторская задолженность",
@@ -4992,7 +5001,8 @@
       "print": "Друк",
       "import": "Імпорт даних",
       "aiLanguages": "ШІ та мови",
-      "announcements": "Объявления"
+      "announcements": "Объявления",
+      "usersPermissions": "Користувачі та права"
     },
     "companySwitcher": {
       "availableCompanies": "Доступные компанії",

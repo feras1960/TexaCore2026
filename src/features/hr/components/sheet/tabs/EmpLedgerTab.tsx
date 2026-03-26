@@ -199,7 +199,7 @@ export default function EmpLedgerTab({ data, isRTL }: Props) {
             width: 'w-24',
             cell: (row) => (
                 <span className="font-mono text-xs text-muted-foreground">
-                    {new Date(row.date).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {new Date(row.date).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
                 </span>
             ),
         },

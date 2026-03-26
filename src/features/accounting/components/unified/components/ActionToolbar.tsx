@@ -829,6 +829,7 @@ export function EnhancedActionToolbar({
                 language={language}
                 isRTL={isRTL}
                 displayCurrency={displayCurrency}
+                tradeMode={tradeMode}
             />
 
             {/* QR Popover */}
@@ -1154,6 +1155,7 @@ function PrintExportDropdown({
     language,
     isRTL,
     displayCurrency,
+    tradeMode,
 }: {
     docType: string;
     docId: string;
@@ -1162,8 +1164,12 @@ function PrintExportDropdown({
     language: string;
     isRTL: boolean;
     displayCurrency?: string;
+    tradeMode?: 'sales' | 'purchase' | 'transfer';
 }) {
-    const printDocType = DOC_TYPE_MAP[docType] || docType;
+    // Smart doc type resolution: trade_invoice maps to sales or purchase based on tradeMode
+    const printDocType = docType === 'trade_invoice'
+        ? (tradeMode === 'purchase' ? 'purchase_invoice' : 'sales_invoice')
+        : (DOC_TYPE_MAP[docType] || docType);
     const isAr = language === 'ar';
     const { t } = useLanguage();
 

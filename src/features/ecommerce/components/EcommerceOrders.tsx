@@ -132,7 +132,7 @@ export default function EcommerceOrders() {
     const ordersByStage = (stageId: string) => filteredOrders.filter(o => o.status === stageId);
 
     const formatCurrency = (val: number, currency: string) =>
-        new Intl.NumberFormat(isRTL ? 'ar-SA' : 'en-US', { maximumFractionDigits: 2 }).format(val) + ` ${currency}`;
+        new Intl.NumberFormat(isRTL ? 'ar-u-nu-latn' : 'en-US', { maximumFractionDigits: 2 }).format(val) + ` ${currency}`;
 
     const getName = (name: any) => {
         if (!name) return '-';

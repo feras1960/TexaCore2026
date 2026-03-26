@@ -170,7 +170,7 @@ export const STATIC_MODULES: StaticModule[] = [
     name_ru: 'Пользователи и права',
     name_uk: 'Користувачі та права',
     icon: ShieldCheck,
-    path: '/users-permissions',
+    path: '/system-config/users-permissions', // Now a tab inside Settings
     is_enabled: true,
     requires_upgrade: false,
     is_core: true

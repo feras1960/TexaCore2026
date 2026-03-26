@@ -55,13 +55,15 @@ const STAGE_META: Record<string, { ar: string; en: string; badge: string; color:
 
 const CONTAINER_META: Record<string, { ar: string; en: string; color: string }> = {
     draft: { ar: 'مسودة', en: 'Draft', color: '#9CA3AF' },
-    ordered: { ar: 'تم الطلب', en: 'Ordered', color: '#8B5CF6' },
-    shipped: { ar: 'تم الشحن', en: 'Shipped', color: '#3B82F6' },
-    in_transit: { ar: 'بالطريق', en: 'In Transit', color: '#0EA5E9' },
-    at_port: { ar: 'في الميناء', en: 'At Port', color: '#F59E0B' },
-    customs: { ar: 'تخليص', en: 'Customs', color: '#F97316' },
-    cleared: { ar: 'تم التخليص', en: 'Cleared', color: '#10B981' },
-    received: { ar: 'تم الاستلام', en: 'Received', color: '#6366F1' },
+    booked: { ar: 'تم الحجز', en: 'Booked', color: '#0EA5E9' },
+    loading: { ar: 'جاري التحميل', en: 'Loading', color: '#D97706' },
+    in_transit: { ar: 'بالبحر', en: 'In Transit', color: '#2563EB' },
+    at_port: { ar: 'في الميناء', en: 'At Port', color: '#7C3AED' },
+    customs: { ar: 'بالجمركة', en: 'Customs', color: '#EA580C' },
+    cleared: { ar: 'تم التخليص', en: 'Cleared', color: '#059669' },
+    in_receiving: { ar: 'قيد الاستلام', en: 'Receiving', color: '#0D9488' },
+    received: { ar: 'تم الاستلام', en: 'Received', color: '#16A34A' },
+    closed: { ar: 'مغلق', en: 'Closed', color: '#6B7280' },
 };
 
 // ═════════════════════════════════════════════════════════════════
@@ -230,7 +232,7 @@ export default function PurchasesDashboard() {
             setYearlyPurchasesLastYear(lastYearRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0));
 
             // ── Containers ──
-            setInTransit(containers.filter(c => ['in_transit', 'at_port', 'shipped'].includes(c.status)).length);
+            setInTransit(containers.filter(c => !['received', 'closed'].includes(c.status)).length);
 
             const ctrMap: Record<string, number> = {};
             containers.forEach(c => { ctrMap[c.status] = (ctrMap[c.status] || 0) + 1; });
@@ -561,11 +563,11 @@ export default function PurchasesDashboard() {
                     className="bg-gradient-to-br from-yellow-50/80 to-amber-50/50 dark:from-yellow-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-yellow-100/50 dark:border-yellow-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'كونتينرات بالطريق' : 'In Transit'}
+                    label={isAr ? 'حاويات نشطة' : 'Active Containers'}
                     value={inTransit}
                     type="info"
                     icon={Ship}
-                    suffix={isAr ? 'كونتينر' : 'containers'}
+                    suffix={isAr ? 'حاوية' : 'containers'}
                     className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard

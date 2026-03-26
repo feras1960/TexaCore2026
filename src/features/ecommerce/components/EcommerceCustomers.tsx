@@ -63,7 +63,7 @@ export default function EcommerceCustomers() {
         !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)
     );
 
-    const formatCurrency = (val: number) => new Intl.NumberFormat(isRTL ? 'ar-SA' : 'en-US', { maximumFractionDigits: 2 }).format(val);
+    const formatCurrency = (val: number) => new Intl.NumberFormat(isRTL ? 'ar-u-nu-latn' : 'en-US', { maximumFractionDigits: 2 }).format(val);
 
     if (loading) {
         return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;

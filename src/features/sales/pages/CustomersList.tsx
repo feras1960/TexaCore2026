@@ -143,12 +143,15 @@ export default function CustomersList() {
                 .eq('company_id', companyId);
 
             const stats: Record<string, { invoiceCount: number; totalAmount: number; unpaid: number }> = {};
+            const COUNTABLE_STAGES = ['posted', 'delivered', 'paid', 'partially_paid', 'completed'];
             (data || []).forEach((tx: any) => {
                 if (!tx.customer_id) return;
+                // Only count posted/finalized invoices — drafts and confirmed don't count
+                if (!COUNTABLE_STAGES.includes(tx.stage)) return;
                 if (!stats[tx.customer_id]) stats[tx.customer_id] = { invoiceCount: 0, totalAmount: 0, unpaid: 0 };
                 stats[tx.customer_id].invoiceCount++;
                 stats[tx.customer_id].totalAmount += Number(tx.total_amount || 0);
-                if (!['paid', 'cancelled'].includes(tx.stage)) {
+                if (!['paid', 'completed'].includes(tx.stage)) {
                     stats[tx.customer_id].unpaid += Number(tx.total_amount || 0);
                 }
             });

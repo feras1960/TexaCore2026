@@ -59,7 +59,7 @@ export const journalEntryConfig: SheetConfig = {
   // Header
   title: (data) => data.voucherNo || data.entry_number || 'Journal Entry',
   subtitle: (data) => {
-    const date = data.date ? new Date(data.date).toLocaleDateString('ar-SA') : '';
+    const date = data.date ? new Date(data.date).toLocaleDateString('ar-u-nu-latn') : '';
     return date;
   },
   icon: FileText,

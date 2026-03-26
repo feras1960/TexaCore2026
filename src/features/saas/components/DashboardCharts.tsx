@@ -22,7 +22,7 @@ export function SubscribersGrowthChart({ data }: SubscribersGrowthChartProps) {
   const formattedData = data.map((item) => ({
     ...item,
     monthLabel: new Date(item.month + '-01').toLocaleDateString(
-      language === 'ar' ? 'ar-SA' : 'en-US',
+      language === 'ar' ? 'ar-u-nu-latn' : 'en-US',
       { month: 'short', year: '2-digit' }
     ),
   }));
@@ -87,7 +87,7 @@ export function RevenueTrendChart({ data, currency }: RevenueTrendChartProps) {
   const formattedData = data.map((item) => ({
     ...item,
     monthLabel: new Date(item.month + '-01').toLocaleDateString(
-      language === 'ar' ? 'ar-SA' : 'en-US',
+      language === 'ar' ? 'ar-u-nu-latn' : 'en-US',
       { month: 'short', year: '2-digit' }
     ),
   }));
@@ -428,7 +428,7 @@ export function RecentPaymentsTable({ data, currency, onEdit, onView, onDelete }
                     </td>
                     <td className="py-3 text-start text-xs text-muted-foreground">
                       {new Date(payment.collection_date).toLocaleDateString(
-                        language === 'ar' ? 'ar-SA' : 'en-US',
+                        language === 'ar' ? 'ar-u-nu-latn' : 'en-US',
                         { year: 'numeric', month: 'short', day: 'numeric' }
                       )}
                     </td>

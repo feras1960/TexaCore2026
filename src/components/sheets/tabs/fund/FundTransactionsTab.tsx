@@ -128,7 +128,7 @@ export function FundTransactionsTab({ data, language, onAction: _onAction, onRow
                   >
                     <TableCell className="border border-slate-200 dark:border-slate-700 px-3">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {tx.date ? new Date(tx.date).toLocaleDateString(isRTL ? 'ar-SA' : 'en-US') : '-'}
+                        {tx.date ? new Date(tx.date).toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US') : '-'}
                       </span>
                     </TableCell>
                     <TableCell className="border border-slate-200 dark:border-slate-700 px-3">

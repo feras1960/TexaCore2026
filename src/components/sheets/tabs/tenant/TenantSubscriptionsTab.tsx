@@ -64,7 +64,7 @@ function SubscriptionCard({
   const StatusIcon = statusConfig.icon;
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(isArabic ? 'ar-SA' : 'en-US');
+    return new Date(dateStr).toLocaleDateString(isArabic ? 'ar-u-nu-latn' : 'en-US');
   };
 
   const daysRemaining = useMemo(() => {

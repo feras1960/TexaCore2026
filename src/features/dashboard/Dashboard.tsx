@@ -86,7 +86,7 @@ const processChartData = (sales: any[], purchases: any[], isAr: boolean, targetC
     const historicalDate = new Date(d);
     historicalDate.setMonth(d.getMonth() - i);
     const monthKey = `${historicalDate.getFullYear()}-${String(historicalDate.getMonth() + 1).padStart(2, '0')}`;
-    const monthFormatter = new Intl.DateTimeFormat(isAr ? 'ar-SA' : 'en-US', { month: 'short' });
+    const monthFormatter = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' });
     monthsData.set(monthKey, { name: monthFormatter.format(historicalDate), sales: 0, purchases: 0 });
   }
   sales?.forEach(invoice => {

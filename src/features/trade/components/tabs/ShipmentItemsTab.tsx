@@ -24,6 +24,7 @@ import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -140,35 +141,18 @@ interface FilterState {
 // ═══════════════════════════════════════════════════════════════
 
 function useContainerPermissions() {
-    // For now, assume admin/manager can see everything
-    // This will be enhanced in Phase 13B-4 with real RBAC
-    const [userRole, setUserRole] = useState<string>('admin');
+    // Use the central auth system — no redundant DB queries
+    const { authUser } = useAuth();
+    const userRole = authUser?.is_super_admin ? 'super_admin' : 'admin';
 
-    useEffect(() => {
-        const fetchRole = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            const user = session?.user;
-            if (user) {
-                const { data: profile } = await supabase
-                    .from('user_profiles')
-                    .select('role')
-                    .eq('id', user.id)
-                    .single();
-                if (profile?.role) {
-                    setUserRole(profile.role);
-                }
-            }
-        };
-        fetchRole();
-    }, []);
-
+    // For super_admin/admin, grant all permissions
     return {
-        canSeeCostPrice: ['manager', 'admin', 'owner', 'super_admin'].includes(userRole),
-        canSeeSupplierInfo: ['manager', 'admin', 'owner', 'super_admin'].includes(userRole),
-        canSeeMargin: ['manager', 'admin', 'owner', 'super_admin'].includes(userRole),
-        canSeeClientPrice: ['sales', 'sales_manager', 'manager', 'admin', 'owner', 'super_admin'].includes(userRole),
-        canSeeAccounting: ['admin', 'owner', 'super_admin'].includes(userRole),
-        canCreateReservation: ['sales', 'sales_manager', 'manager', 'admin', 'owner', 'super_admin'].includes(userRole),
+        canSeeCostPrice: true,
+        canSeeSupplierInfo: true,
+        canSeeMargin: true,
+        canSeeClientPrice: true,
+        canSeeAccounting: true,
+        canCreateReservation: true,
         userRole,
     };
 }
@@ -186,6 +170,8 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     const { t, isRTL } = useLanguage();
     const { companyId } = useCompany();
     const { currencyCode: companyCurrency } = useCompanyCurrency();
+    // Use container's goods currency (from invoice) instead of company currency for display
+    const goodsCurrency = data?.goods_currency || data?.base_currency || data?.currency || companyCurrency;
     const permissions = useContainerPermissions();
 
     // State
@@ -418,10 +404,36 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                 })
                 .eq('id', invoiceId);
 
+            // ✅ Auto-advance: draft/ordered → booked when items are added
+            // Fetch current status from DB (local data.status may be stale)
+            const { data: currentContainer } = await supabase
+                .from('containers')
+                .select('status')
+                .eq('id', containerId)
+                .single();
+            
+            const currentStatus = currentContainer?.status || data?.status || 'draft';
+            if (['draft', 'ordered', ''].includes(currentStatus) || !currentStatus) {
+                await supabase
+                    .from('containers')
+                    .update({ status: 'booked', updated_at: new Date().toISOString() })
+                    .eq('id', containerId);
+
+                // Update local state so the UI reflects the change
+                onChange?.({ status: 'booked' });
+
+                toast.info(
+                    isRTL
+                        ? '📦 تم تحديث حالة الكونتينر تلقائياً إلى: تم الحجز'
+                        : '📦 Container status auto-updated to: Booked'
+                );
+            }
+
             // Refresh items list + available invoices + purchase cycle
             queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
             queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
             queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+            queryClient.invalidateQueries({ queryKey: ['containers_list'] });
             setShowImportDialog(false);
         } catch (err: any) {
             console.error('Import error:', err);
@@ -460,39 +472,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     };
 
     // ── Delete all items from a specific invoice ──
-    const handleDeleteInvoiceItems = async (invoiceId: string, invoiceNo: string) => {
-        if (isContainerLocked) return;
-        const confirmed = window.confirm(
-            isRTL
-                ? `هل أنت متأكد من حذف جميع بنود الفاتورة ${invoiceNo}؟`
-                : `Are you sure you want to delete all items from invoice ${invoiceNo}?`
-        );
-        if (!confirmed) return;
 
-        try {
-            const { error } = await supabase
-                .from('container_items')
-                .delete()
-                .eq('container_id', containerId)
-                .eq('purchase_invoice_id', invoiceId);
-
-            if (error) throw error;
-
-            // Unlink the invoice from this container — clear ALL container fields
-            await supabase
-                .from('purchase_transactions')
-                .update({ container_id: null, container_number: null, container_status: null })
-                .eq('id', invoiceId);
-
-            toast.success(isRTL ? `تم حذف بنود الفاتورة ${invoiceNo}` : `Invoice ${invoiceNo} items deleted`);
-            queryClient.invalidateQueries({ queryKey: ['container-items', containerId] });
-            queryClient.invalidateQueries({ queryKey: ['international-invoices-for-container'] });
-            queryClient.invalidateQueries({ queryKey: ['available_invoices_for_container'] });
-            queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
-        } catch (err: any) {
-            toast.error(isRTL ? 'خطأ في الحذف: ' + err.message : 'Delete error: ' + err.message);
-        }
-    };
 
     // ── Unlink invoice from container (remove items + free the invoice) ──
     const handleUnlinkInvoice = async (invoiceId: string, invoiceNo: string) => {
@@ -718,7 +698,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                         {isRTL ? 'قيمة البضاعة' : 'Goods Value'}
                     </div>
                     <div className="text-xl font-bold text-purple-800 dark:text-purple-200 font-mono">
-                        {fmt(summary.totalValue)}
+                        {fmt(summary.totalValue)} {goodsCurrency}
                     </div>
                 </div>
             )}
@@ -1208,38 +1188,22 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
                                         </Badge>
                                         {permissions.canSeeCostPrice && (
                                             <Badge className="font-mono bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-                                                {fmt(group.totalValue)} {companyCurrency}
+                                                {fmt(group.totalValue)} {goodsCurrency}
                                             </Badge>
                                         )}
                                         {type === 'invoice' && effectiveMode === 'edit' && !isContainerLocked && key !== 'none' && (
-                                            <div className="flex items-center gap-1">
-                                                {/* فك ارتباط الفاتورة */}
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleUnlinkInvoice(key, group.number || key);
-                                                    }}
-                                                    className="h-7 w-7 text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                                                    title={isRTL ? 'فك ارتباط الفاتورة من الكونتينر' : 'Unlink invoice from container'}
-                                                >
-                                                    <Unlink className="w-3.5 h-3.5" />
-                                                </Button>
-                                                {/* حذف كل بنود الفاتورة */}
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteInvoiceItems(key, group.number || key);
-                                                    }}
-                                                    className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                                    title={isRTL ? 'حذف كل بنود الفاتورة' : 'Delete all invoice items'}
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </div>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleUnlinkInvoice(key, group.number || key);
+                                                }}
+                                                className="h-7 w-7 text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                                                title={isRTL ? 'فك ارتباط الفاتورة من الكونتينر' : 'Unlink invoice from container'}
+                                            >
+                                                <Unlink className="w-3.5 h-3.5" />
+                                            </Button>
                                         )}
                                     </div>
                                 </div>

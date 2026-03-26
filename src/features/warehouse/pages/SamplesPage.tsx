@@ -97,7 +97,7 @@ export default function SamplesPage() {
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '—';
         try {
-            return new Date(dateStr).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US');
+            return new Date(dateStr).toLocaleDateString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US');
         } catch {
             return dateStr;
         }

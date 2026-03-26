@@ -308,8 +308,11 @@ export const purchaseAccountingService = {
             missingAccounts.push('حساب الذمم الدائنة / الموردين (Accounts Payable)');
         }
 
+        // ═══ Tax: Skip VAT for international/import invoices ═══
+        // Import invoices pay tax at customs — NOT recorded in the purchase JE
+        const isInternational = invoice.receipt_mode === 'international';
         let taxAccountId: string | null = null;
-        if (invoice.tax_amount > 0) {
+        if (invoice.tax_amount > 0 && !isInternational) {
             taxAccountId = defaults.default_tax_input_account_id;
             if (!taxAccountId) {
                 missingAccounts.push('حساب ضريبة المدخلات (VAT Input Account)');
@@ -394,13 +397,14 @@ export const purchaseAccountingService = {
 
                     // USE RECEIVED QTY for accounting
                     const lineSubtotal = receivedQty * unitPrice;
-                    const lineTax = lineSubtotal * (taxRate / 100);
+                    // International imports: tax paid at customs, NOT here
+                    const lineTax = isInternational ? 0 : lineSubtotal * (taxRate / 100);
                     effectiveSubtotal += lineSubtotal;
                     effectiveTax += lineTax;
                 } else {
                     // No receipt data for this item — use invoice amount
                     const lineSubtotal = Number(item.subtotal || invoiceQty * unitPrice);
-                    const lineTax = Number(item.tax_amount || 0);
+                    const lineTax = isInternational ? 0 : Number(item.tax_amount || 0);
                     effectiveSubtotal += lineSubtotal;
                     effectiveTax += lineTax;
 
@@ -425,8 +429,11 @@ export const purchaseAccountingService = {
         } else {
             // ── Invoice-Based Posting: use invoice amounts directly ──
             effectiveSubtotal = Number(invoice.subtotal || 0);
-            effectiveTax = Number(invoice.tax_amount || 0);
-            effectiveTotal = Number(invoice.total_amount || 0);
+            // For international imports: tax is paid at customs, not recorded here
+            effectiveTax = isInternational ? 0 : Number(invoice.tax_amount || 0);
+            effectiveTotal = isInternational
+                ? effectiveSubtotal  // International: credit supplier for subtotal only
+                : Number(invoice.total_amount || 0);
         }
 
         // ═══════════════════════════════════════════════
@@ -458,7 +465,8 @@ export const purchaseAccountingService = {
         }
 
         // Line 2: Debit — VAT Input (Tax amount)
-        if (effectiveTax > 0 && taxAccountId) {
+        // ⚠️ Skipped for international imports — tax is paid at customs
+        if (effectiveTax > 0 && taxAccountId && !isInternational) {
             lines.push({
                 account_id: taxAccountId,
                 debit: Math.round(effectiveTax * 100) / 100,

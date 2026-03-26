@@ -760,7 +760,7 @@ export default function PurchaseInvoicesList() {
                                             const curr = doc.currency || companyCurrency || 'USD';
                                             const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
                                             const isConfirmedPlus = ['confirmed', 'received', 'posted'].includes(stage);
-                                            const isDelivered = stage === 'received' || stage === 'posted';
+                                            const isDelivered = stage === 'received';
 
                                             // Date & elapsed time
                                             const createdAt = new Date(doc.created_at);
@@ -881,8 +881,8 @@ export default function PurchaseInvoicesList() {
                                                             // الحالة الحقيقية من stage في purchase_transactions
                                                             const receiptStatus =
                                                                 doc.receipt_status ||
-                                                                (stage === 'received' || stage === 'posted' ? 'received' :
-                                                                    stage === 'confirmed' ? 'pending' : null);
+                                                                (stage === 'received' ? 'received' :
+                                                                    ['confirmed', 'posted'].includes(stage) ? 'pending' : null);
                                                             const cfg: Record<string, { label_ar: string; label_en: string; cls: string; icon: string }> = {
                                                                 received: { label_ar: 'مستلم ✔', label_en: 'Received ✔', cls: 'bg-green-50 text-green-700 border-green-200', icon: '✅' },
                                                                 partial: { label_ar: 'جزئي', label_en: 'Partial', cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: '🔶' },
@@ -987,8 +987,8 @@ export default function PurchaseInvoicesList() {
                                 // ═══ Receipt Status — from purchase_transactions directly ═══
                                 const receiptStatus =
                                     doc.receipt_status ||
-                                    (stage === 'received' || stage === 'posted' ? 'received' :
-                                        stage === 'confirmed' ? 'pending' : null);
+                                    (stage === 'received' ? 'received' :
+                                        ['confirmed', 'posted'].includes(stage) ? 'pending' : null);
                                 const receiptCfg: Record<string, { label: string; cls: string }> = {
                                     received: { label: isRTL ? '✅ مستلم' : '✅ Received', cls: 'text-green-700 bg-green-50' },
                                     partial: { label: isRTL ? '🔶 جزئي' : '🔶 Partial', cls: 'text-amber-700 bg-amber-50' },

@@ -897,7 +897,16 @@
     "postAndConfirm": "Post And Confirm",
     "systemProtected": "System Protected",
     "total": "Total",
-    "unbalanced_entry": "Unbalanced Entry"
+    "unbalanced_entry": "Unbalanced Entry",
+    "settingsTabs": {
+      "general": "General",
+      "currencies": "Currencies",
+      "accounts": "Accounts",
+      "fiscal": "Fiscal Years",
+      "numbering": "Numbering",
+      "editSettings": "Edit Rules",
+      "costCenters": "Cost Centers"
+    }
   },
   "accounts": "Accounts",
   "accountsPayable": "Accounts Payable",
@@ -4331,7 +4340,7 @@
       "next": "Next",
       "processing": "Processing"
     },
-    "discount50": "Discount50",
+    "discount50": "50% off launch discount",
     "emailInvalid": "Email Invalid",
     "emailRequired": "Email Required",
     "errors": {
@@ -4344,7 +4353,7 @@
       "title": "Fabric Store Information"
     },
     "fillAllFields": "Fill All Fields",
-    "freeMonths": "Free Months",
+    "freeMonths": "2 months free",
     "labels": {
       "chartTemplate": "Chart of Accounts Template",
       "chartTemplateExtended": "Extended Fabric Chart",
@@ -4366,9 +4375,9 @@
     },
     "localCurrencyRequired": "Local Currency Required",
     "mainCurrencyRequired": "Main Currency Required",
-    "month": "Month",
+    "month": "month",
     "monthly": "Monthly",
-    "planNote": "Plan Note",
+    "planNote": "You can change or upgrade your plan anytime from the dashboard",
     "plans": {
       "enterprise": {
         "name": "Enterprise",
@@ -4408,13 +4417,7 @@
     },
     "subtitle": "Complete your information to get started",
     "year": "year",
-    "yearly": "Yearly",
-    "monthly": "Monthly",
-    "planNote": "You can change or upgrade your plan anytime from the dashboard",
-    "discount50": "50% off launch discount",
-    "freeMonths": "2 months free",
-    "mostPopular": "Most Popular",
-    "month": "month"
+    "yearly": "Yearly"
   },
   "parties": {
     "title": "Parties",
@@ -4828,7 +4831,8 @@
       "announcements": "Announcements",
       "print": "Printing",
       "import": "Data Import",
-      "aiLanguages": "AI & Languages"
+      "aiLanguages": "AI & Languages",
+      "usersPermissions": "Users & Permissions"
     },
     "companySwitcher": {
       "availableCompanies": "Available Companies",

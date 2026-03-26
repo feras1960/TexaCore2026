@@ -39,7 +39,7 @@ import {
     Link2, Printer, FileUp,
     FileSpreadsheet, Users, TrendingUp,
     CheckCircle2, XCircle, Clock, Plus,
-    X as XIcon, Bot,
+    X as XIcon, Bot, ShieldCheck,
     type LucideIcon
 } from 'lucide-react';
 
@@ -55,6 +55,7 @@ import IntegrationsTab from './components/IntegrationsTab';
 import NotificationsSettingsTab from './components/NotificationsSettingsTab';
 import PrintSettingsTab from './components/PrintSettingsTab';
 import AILanguageSettingsTab from './components/AILanguageSettingsTab';
+import UsersPermissionsSettingsTab from './components/UsersPermissionsSettingsTab';
 import CompanyAnnouncementsTab from './tabs/CompanyAnnouncementsTab';
 import { ImportWizard } from '@/features/import';
 import { useLanguage as useImportLang } from '@/app/providers/LanguageProvider';
@@ -260,7 +261,7 @@ interface ConfigTab {
 }
 
 const CONFIG_TABS: ConfigTab[] = [
-    // ─ Company & Tax ─────────────────────────────
+    // ─ 1. Company Profile ─────────────────────────
     {
         id: 'company',
         labelKey: 'settings.tabs.company',
@@ -270,16 +271,7 @@ const CONFIG_TABS: ConfigTab[] = [
         component: CompanyProfileTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
-    {
-        id: 'tax',
-        labelKey: 'settings.tabs.tax',
-        labelAr: 'الضرائب والأنظمة',
-        labelEn: 'Tax System',
-        icon: Globe,
-        component: TaxSystemTab,
-        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
-    },
-    // ─ Module Settings ───────────────────────────
+    // ─ 2. Accounting ──────────────────────────────
     {
         id: 'accounting',
         labelKey: 'settings.tabs.accounting',
@@ -289,6 +281,7 @@ const CONFIG_TABS: ConfigTab[] = [
         component: AccountingSettings,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
+    // ─ 3. Warehouse ───────────────────────────────
     {
         id: 'warehouse',
         labelKey: 'settings.tabs.warehouse',
@@ -298,6 +291,7 @@ const CONFIG_TABS: ConfigTab[] = [
         component: WarehouseSettingsPage,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin', 'branch_manager'],
     },
+    // ─ 4. Sales ───────────────────────────────────
     {
         id: 'sales',
         labelKey: 'settings.tabs.sales',
@@ -307,6 +301,27 @@ const CONFIG_TABS: ConfigTab[] = [
         component: SalesWorkflowSettings,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
+    // ─ 5. Tax System ──────────────────────────────
+    {
+        id: 'tax',
+        labelKey: 'settings.tabs.tax',
+        labelAr: 'الضرائب والأنظمة',
+        labelEn: 'Tax System',
+        icon: Globe,
+        component: TaxSystemTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    // ─ 6. Users & Permissions (nested sub-tabs) ──
+    {
+        id: 'users-permissions',
+        labelKey: 'settings.tabs.usersPermissions',
+        labelAr: 'المستخدمون والصلاحيات',
+        labelEn: 'Users & Permissions',
+        icon: ShieldCheck,
+        component: UsersPermissionsSettingsTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    // ─ 7. Integrations ────────────────────────────
     {
         id: 'integrations',
         labelKey: 'settings.tabs.integrations',
@@ -316,33 +331,17 @@ const CONFIG_TABS: ConfigTab[] = [
         component: IntegrationsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
+    // ─ 8. AI & Languages ─────────────────────────
     {
-        id: 'print',
-        labelKey: 'settings.tabs.print',
-        labelAr: 'الطباعة',
-        labelEn: 'Printing',
-        icon: Printer,
-        component: PrintSettingsTab,
+        id: 'ai-languages',
+        labelKey: 'settings.tabs.aiLanguages',
+        labelAr: 'الذكاء الاصطناعي',
+        labelEn: 'AI & Languages',
+        icon: Bot,
+        component: AILanguageSettingsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
-    {
-        id: 'notifications',
-        labelKey: 'settings.tabs.notifications',
-        labelAr: 'الإشعارات',
-        labelEn: 'Notifications',
-        icon: Bell,
-        component: NotificationsSettingsTab,
-        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
-    },
-    {
-        id: 'announcements',
-        labelKey: 'settings.tabs.announcements',
-        labelAr: 'الإعلانات',
-        labelEn: 'Announcements',
-        icon: Megaphone,
-        component: CompanyAnnouncementsTab,
-        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
-    },
+    // ─ 9. Data Import ─────────────────────────────
     {
         id: 'import',
         labelKey: 'settings.tabs.import',
@@ -352,13 +351,34 @@ const CONFIG_TABS: ConfigTab[] = [
         component: ImportDataTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
+    // ─ 10. Notifications ─────────────────────────
     {
-        id: 'ai-languages',
-        labelKey: 'settings.tabs.aiLanguages',
-        labelAr: 'الذكاء الاصطناعي',
-        labelEn: 'AI & Languages',
-        icon: Bot,
-        component: AILanguageSettingsTab,
+        id: 'notifications',
+        labelKey: 'settings.tabs.notifications',
+        labelAr: 'الإشعارات',
+        labelEn: 'Notifications',
+        icon: Bell,
+        component: NotificationsSettingsTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    // ─ 11. Printing ──────────────────────────────
+    {
+        id: 'print',
+        labelKey: 'settings.tabs.print',
+        labelAr: 'الطباعة',
+        labelEn: 'Printing',
+        icon: Printer,
+        component: PrintSettingsTab,
+        requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
+    },
+    // ─ 12. Announcements ─────────────────────────
+    {
+        id: 'announcements',
+        labelKey: 'settings.tabs.announcements',
+        labelAr: 'الإعلانات',
+        labelEn: 'Announcements',
+        icon: Megaphone,
+        component: CompanyAnnouncementsTab,
         requiresRole: ['super_admin', 'tenant_owner', 'company_admin'],
     },
 ];
@@ -387,8 +407,8 @@ export default function SystemConfigPage() {
 
     const [activeTab, setActiveTab] = useState(getActiveTab);
 
-    // ⚡ PERFORMANCE: Only mount tabs when first visited
-    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab()]));
+    // ⚡ PERFORMANCE: Only mount tabs when first visited, except 'accounting' which we pre-mount for faster UX
+    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([getActiveTab(), 'accounting']));
 
     // Sync tab with URL changes
     useEffect(() => {
