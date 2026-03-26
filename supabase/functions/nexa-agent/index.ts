@@ -100,9 +100,40 @@ serve(async (req) => {
     if (authenticatedUserId && supabaseUrl && serviceRoleKey) {
       try {
         const tempAdmin = createClient(supabaseUrl, serviceRoleKey);
-        const { data: roleData } = await tempAdmin.from('user_role_assignments').select('role:roles(code)').eq('user_id', authenticatedUserId).limit(1).single();
-        if (roleData?.role?.code) userRole = roleData.role.code;
-      } catch { /* fallback to JWT role */ }
+
+        // 1. Try user_roles table (correct table name) — may have multiple roles
+        const { data: rolesData } = await tempAdmin
+          .from('user_roles')
+          .select('role:roles(code, level)')
+          .eq('user_id', authenticatedUserId)
+          .eq('is_active', true);
+
+        if (rolesData && rolesData.length > 0) {
+          // Pick highest-priority admin role if multiple exist
+          const ROLE_PRIORITY = ['super_admin', 'tenant_owner', 'company_owner', 'company_admin'];
+          const roleCodes = rolesData
+            .map((r: any) => r.role?.code)
+            .filter(Boolean);
+          const bestRole = ROLE_PRIORITY.find(r => roleCodes.includes(r)) || roleCodes[0];
+          if (bestRole) userRole = bestRole;
+        }
+
+        // 2. Fallback: if still 'user', check if this user is the tenant owner via email
+        if (userRole === 'user') {
+          const { data: { user: authUser } } = await tempAdmin.auth.admin.getUserById(authenticatedUserId);
+          if (authUser?.email) {
+            const { data: tenantMatch } = await tempAdmin
+              .from('tenants')
+              .select('id')
+              .eq('owner_email', authUser.email)
+              .maybeSingle();
+            if (tenantMatch) {
+              userRole = 'tenant_owner';
+              console.log('[NexaPro] 🔑 User detected as tenant_owner via owner_email match');
+            }
+          }
+        }
+      } catch (e) { console.warn('[NexaPro] Role detection fallback error:', e); }
     }
 
     // Get company_id from profile
