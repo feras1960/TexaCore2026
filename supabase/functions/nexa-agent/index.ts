@@ -43,6 +43,7 @@ serve(async (req) => {
       message, language = 'ar', context_type = 'general', context_id,
       context_data, chat_history = [], complexity = 'auto',
       company_id, stream = false, conversation_summary,
+      client_role,
     } = await req.json()
 
     const apiKey = Deno.env.get("GOOGLE_AI_KEY")
@@ -134,6 +135,12 @@ serve(async (req) => {
           }
         }
       } catch (e) { console.warn('[NexaPro] Role detection fallback error:', e); }
+    }
+
+    // 3. Final fallback: use client-provided role (from frontend RBAC — same DB source, JWT-authenticated)
+    if (userRole === 'user' && client_role && client_role !== 'user') {
+      userRole = client_role;
+      console.log('[NexaPro] 🔑 Using client_role from frontend RBAC:', userRole);
     }
 
     // Get company_id from profile

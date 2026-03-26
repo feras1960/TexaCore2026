@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
+import { useRBAC } from '@/hooks/useRBAC';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -83,7 +84,7 @@ function SmartCard({ title, icon, iconColor, summaryLeft, summaryRight, children
 // ═══════════════════════════════════════════
 // Smart Analytics Column — AI-Powered Cards
 // ═══════════════════════════════════════════
-function AnalyticsColumn({ companyId, language, isAr, userName }: { companyId: string; language: string; isAr: boolean; userName: string }) {
+function AnalyticsColumn({ companyId, language, isAr, userName, userRole }: { companyId: string; language: string; isAr: boolean; userName: string; userRole: string }) {
     const [insights, setInsights] = useState<Record<string, string>>({});
     const [insightsLoading, setInsightsLoading] = useState(false);
     const [insightsLoaded, setInsightsLoaded] = useState(false);
@@ -170,7 +171,7 @@ Be concise and actionable (3-5 lines per section).`;
             let error: any = null;
             for (let attempt = 0; attempt < 2; attempt++) {
                 const result = await supabase.functions.invoke('nexa-agent', {
-                    body: { message: prompt, language, context_type: 'general', complexity: 'flash', company_id: companyId },
+                    body: { message: prompt, language, context_type: 'general', complexity: 'flash', company_id: companyId, client_role: userRole },
                 });
                 data = result.data;
                 error = result.error;
@@ -339,7 +340,7 @@ Be concise and actionable (3-5 lines per section).`;
 // ═══════════════════════════════════════════
 // Chat Panel (Left in RTL)
 // ═══════════════════════════════════════════
-function ChatPanel({ companyId, language, isAr }: { companyId: string; language: string; isAr: boolean }) {
+function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string; language: string; isAr: boolean; userRole: string }) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -503,6 +504,7 @@ function ChatPanel({ companyId, language, isAr }: { companyId: string; language:
                     message: msg, language, context_type: contextType, context_id: contextId,
                     chat_history: recentHistory, complexity: selectedModel, company_id: companyId,
                     conversation_summary: conversationMemory || undefined,
+                    client_role: userRole,
                 },
             });
 
@@ -672,7 +674,13 @@ function ChatPanel({ companyId, language, isAr }: { companyId: string; language:
 export default function AIAnalyticsPage() {
     const { t, language } = useLanguage();
     const { companyId, user } = useAuth();
+    const { userRoles } = useRBAC();
     const isAr = language === 'ar';
+
+    // Get the highest-priority role code for the AI agent
+    const ROLE_PRIORITY = ['super_admin', 'tenant_owner', 'company_owner', 'company_admin'];
+    const userRoleCodes = userRoles.map(r => r.code);
+    const bestRole = ROLE_PRIORITY.find(r => userRoleCodes.includes(r)) || userRoleCodes[0] || 'user';
 
     // Extract user display name
     const userName = user?.user_metadata?.full_name
@@ -721,10 +729,10 @@ export default function AIAnalyticsPage() {
             {/* ═══ 50/50 Split: Chat | Smart Cards ═══ */}
             <div className="flex gap-4 flex-1 min-h-0">
                 <div className="w-1/2 flex flex-col min-h-0">
-                    <ChatPanel companyId={companyId || ''} language={language} isAr={isAr} />
+                    <ChatPanel companyId={companyId || ''} language={language} isAr={isAr} userRole={bestRole} />
                 </div>
                 <div className="w-1/2 flex flex-col min-h-0">
-                    <AnalyticsColumn companyId={companyId || ''} language={language} isAr={isAr} userName={userName} />
+                    <AnalyticsColumn companyId={companyId || ''} language={language} isAr={isAr} userName={userName} userRole={bestRole} />
                 </div>
             </div>
         </div>
