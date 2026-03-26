@@ -20,7 +20,7 @@ import {
   Pill,
   Stethoscope,
   GitBranch,
-  ShieldCheck,
+
   PanelTop,
   Sparkles,
 } from 'lucide-react';
@@ -163,18 +163,6 @@ export const STATIC_MODULES: StaticModule[] = [
   },
 
   // ═══ الإدارة والنظام ═══
-  {
-    code: 'users_permissions',
-    name_ar: 'المستخدمون والصلاحيات',
-    name_en: 'Users & Permissions',
-    name_ru: 'Пользователи и права',
-    name_uk: 'Користувачі та права',
-    icon: ShieldCheck,
-    path: '/system-config/users-permissions', // Now a tab inside Settings
-    is_enabled: true,
-    requires_upgrade: false,
-    is_core: true
-  },
   {
     code: 'workflow_center',
     name_ar: 'سير العمل',
