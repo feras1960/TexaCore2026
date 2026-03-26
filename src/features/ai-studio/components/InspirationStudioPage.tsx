@@ -117,8 +117,8 @@ function DesignControls({
               className={cn(
                 'px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
                 settings.fabricType === ft
-                  ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/50'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  ? 'bg-violet-500/20 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/50'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
               )}
             >
               {t(getFabricTypeKey(ft))}
@@ -145,8 +145,8 @@ function DesignControls({
               className={cn(
                 'px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-start',
                 settings.applicationMethod === am
-                  ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 ring-1 ring-amber-500/50'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
               )}
             >
               {t(getApplicationMethodKey(am))}
@@ -174,8 +174,8 @@ function DesignControls({
                     className={cn(
                       'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200',
                       settings.season === s
-                        ? 'bg-teal-500/20 text-teal-300 ring-1 ring-teal-500/50'
-                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                        ? 'bg-teal-500/20 text-teal-600 dark:text-teal-300 ring-1 ring-teal-500/50'
+                        : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
                     )}
                   >
                     {icons[s]}
@@ -196,8 +196,8 @@ function DesignControls({
                   className={cn(
                     'px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
                     settings.patternStyle === ps
-                      ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/50'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 ring-1 ring-rose-500/50'
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   {t(getPatternStyleKey(ps))}
@@ -218,8 +218,8 @@ function DesignControls({
               className={cn(
                 'h-8 px-2.5 rounded-lg border-2 text-[10px] font-medium transition-all duration-200 hover:scale-105 flex items-center gap-1',
                 selectedColors.includes('__original__')
-                  ? 'border-white ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 scale-105'
-                  : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/30'
+                  ? 'border-emerald-500 dark:border-white ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 scale-105'
+                  : 'border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/30'
               )}
             >
               {selectedColors.includes('__original__') && <Check className="w-3 h-3" />}
@@ -235,8 +235,8 @@ function DesignControls({
                     className={cn(
                       'w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110 flex items-center justify-center',
                       isSelected
-                        ? 'border-white ring-2 ring-violet-500/50 scale-110'
-                        : 'border-white/10 hover:border-white/30'
+                        ? 'border-violet-500 dark:border-white ring-2 ring-violet-500/50 scale-110'
+                        : 'border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/30'
                     )}
                     style={{ backgroundColor: color }}
                   >
@@ -254,7 +254,7 @@ function DesignControls({
                 </div>
               );
             })}
-            <label className="w-8 h-8 rounded-lg border-2 border-dashed border-white/20 hover:border-violet-400/50 flex items-center justify-center cursor-pointer transition-colors">
+            <label className="w-8 h-8 rounded-lg border-2 border-dashed border-gray-300 dark:border-white/20 hover:border-violet-400/50 flex items-center justify-center cursor-pointer transition-colors">
               <input
                 type="color"
                 className="sr-only"
@@ -270,7 +270,7 @@ function DesignControls({
 
           {/* تطبيق اللون على */}
           <div>
-            <span className="text-[10px] text-gray-500 mb-1.5 block">تطبيق اللون على</span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 mb-1.5 block">تطبيق اللون على</span>
             <div className="grid grid-cols-3 gap-1">
               {(['base', 'motif', 'both'] as const).map(target => (
                 <button
@@ -279,8 +279,8 @@ function DesignControls({
                   className={cn(
                     'px-2 py-1.5 rounded-lg text-[10px] font-medium transition-all',
                     settings.colorTarget === target || (!(settings.colorTarget) && target === 'base')
-                      ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/50'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      ? 'bg-violet-500/20 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/50'
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
                   )}
                 >
                   {target === 'base' ? 'الخلفية' : target === 'motif' ? 'النقشة' : 'الاثنين'}
@@ -290,7 +290,7 @@ function DesignControls({
           </div>
 
           {selectedColors.length > 0 && (
-            <div className="text-[10px] text-violet-300 flex items-center gap-1">
+            <div className="text-[10px] text-violet-600 dark:text-violet-300 flex items-center gap-1">
               <Check className="w-3 h-3" />
               {selectedColors.filter(c => c !== '__original__').length > 0 
                 ? `${selectedColors.length} ${selectedColors.includes('__original__') ? '(+أصلي)' : ''} — سيتم إنشاء ${selectedColors.length} صور`
@@ -303,7 +303,7 @@ function DesignControls({
       {/* مشهد العرض */}
       <ControlSection title={t('inspirationStudio.sceneTypes._') || 'مشهد العرض'} icon={<Eye className="w-4 h-4" />}>
         {/* عرض القماش */}
-        <span className="text-[9px] font-semibold text-amber-400/70 uppercase tracking-wider mb-1 block">🏪 عرض القماش</span>
+        <span className="text-[9px] font-semibold text-amber-500/70 dark:text-amber-400/70 uppercase tracking-wider mb-1 block">🏪 عرض القماش</span>
         <div className="grid grid-cols-2 gap-1.5 mb-3">
           {FABRIC_DISPLAY_SCENES.map(st => (
             <button
@@ -312,8 +312,8 @@ function DesignControls({
               className={cn(
                 'px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
                 settings.sceneType === st
-                  ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 ring-1 ring-amber-500/50'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
               )}
             >
               {SCENE_LABELS[st]}
@@ -321,7 +321,7 @@ function DesignControls({
           ))}
         </div>
         {/* منتجات */}
-        <span className="text-[9px] font-semibold text-sky-400/70 uppercase tracking-wider mb-1 block">👗 منتجات</span>
+        <span className="text-[9px] font-semibold text-sky-500/70 dark:text-sky-400/70 uppercase tracking-wider mb-1 block">👗 منتجات</span>
         <div className="grid grid-cols-2 gap-1.5">
           {PRODUCT_SCENES.map(st => (
             <button
@@ -330,8 +330,8 @@ function DesignControls({
               className={cn(
                 'px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
                 settings.sceneType === st
-                  ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/50'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  ? 'bg-sky-500/20 text-sky-600 dark:text-sky-300 ring-1 ring-sky-500/50'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
               )}
             >
               {SCENE_LABELS[st]}
@@ -354,8 +354,8 @@ function DesignControls({
               className={cn(
                 'flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs font-medium transition-all duration-200',
                 (settings.aspectRatio || 'landscape') === fmt.value
-                  ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/50'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  ? 'bg-violet-500/20 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/50'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-200'
               )}
             >
               <span className="text-lg leading-none">{fmt.icon}</span>
@@ -370,7 +370,7 @@ function DesignControls({
       <button
         onClick={onCompositeGenerate}
         disabled={!onCompositeGenerate}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-300 hover:from-amber-500/20 hover:to-orange-500/20 hover:border-amber-500/40 text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-300 hover:from-amber-500/20 hover:to-orange-500/20 hover:border-amber-500/40 text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <LayoutGrid className="w-4 h-4" />
         صورة مشتركة — 14 مشهد
@@ -382,7 +382,7 @@ function DesignControls({
           value={settings.customPromptHint || ''}
           onChange={(e) => onSettingsChange({ customPromptHint: e.target.value })}
           placeholder={t('inspirationStudio.save.descriptionPlaceholder')}
-          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-xs text-gray-200 placeholder-gray-600 focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50 outline-none resize-none h-16"
+          className="w-full px-3 py-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-xs text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50 outline-none resize-none h-16"
         />
       </ControlSection>
     </div>
@@ -397,8 +397,8 @@ function ControlSection({ title, icon, children, badge }: {
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
-        <span className="text-violet-400">{icon}</span>
+      <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+        <span className="text-violet-500 dark:text-violet-400">{icon}</span>
         {title}
         {badge && <span className="ms-auto">{badge}</span>}
       </div>
@@ -456,10 +456,10 @@ function HeroCanvas({
         </div>
       )}
 
-      <div className="relative flex-1 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-950 to-black rounded-2xl overflow-auto border border-white/5 group" style={{ maxHeight: 'calc(100vh - 140px)' }}>
+      <div className="relative flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-gray-900 dark:via-gray-950 dark:to-black rounded-2xl overflow-auto border border-gray-200 dark:border-white/5 group" style={{ maxHeight: 'calc(100vh - 140px)' }}>
         {/* Subtle grid pattern background */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+        <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.03]"
+          style={{ backgroundImage: 'radial-gradient(circle, rgba(128,128,128,0.3) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         />
 
         {imageUrl ? (
@@ -495,14 +495,14 @@ function HeroCanvas({
 
           {/* ═══ Action Toolbar — Always visible over the image ═══ */}
           {!isGenerating && (
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 z-30 flex items-center gap-1 bg-black/90 backdrop-blur-xl rounded-xl px-2 py-2 border border-white/15 shadow-2xl shadow-black/50 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 z-30 flex items-center gap-1 bg-white/90 dark:bg-black/90 backdrop-blur-xl rounded-xl px-2 py-2 border border-gray-200 dark:border-white/15 shadow-2xl shadow-black/10 dark:shadow-black/50 animate-in slide-in-from-bottom-4 duration-500">
               <ToolbarButton icon={<RefreshCw className="w-3.5 h-3.5" />} label={'تنوع جديد'} onClick={onGenerate} />
               <div className="w-px h-5 bg-white/10" />
               <ToolbarButton icon={<SaveIcon className="w-3.5 h-3.5" />} label={'حفظ'} onClick={onSave} />
               <ToolbarButton icon={<Download className="w-3.5 h-3.5" />} label={'تنزيل'} onClick={onExport} />
               <ToolbarButton icon={<Share2 className="w-3.5 h-3.5" />} label={'مشاركة'} onClick={onExport} />
               <div className="w-px h-5 bg-white/10" />
-              <span className="text-[9px] text-emerald-400/70 px-1 flex items-center gap-0.5"><Check className="w-2.5 h-2.5" />محفوظ</span>
+              <span className="text-[9px] text-emerald-600 dark:text-emerald-400/70 px-1 flex items-center gap-0.5"><Check className="w-2.5 h-2.5" />محفوظ</span>
             </div>
           )}
         </>
@@ -526,8 +526,8 @@ function HeroCanvas({
                 <Sparkles className="w-14 h-14 text-violet-400" />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-white mb-2">{t('inspirationStudio.title')}</h3>
-                <p className="text-gray-500 text-sm max-w-md">{t('inspirationStudio.subtitle')}</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('inspirationStudio.title')}</h3>
+                <p className="text-gray-400 dark:text-gray-500 text-sm max-w-md">{t('inspirationStudio.subtitle')}</p>
               </div>
               {error && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 max-w-md animate-in fade-in duration-500">
@@ -556,7 +556,7 @@ function HeroCanvas({
 function ToolbarButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <Button size="sm" variant="ghost" onClick={onClick}
-      className="text-gray-300 hover:text-white hover:bg-white/10 gap-1.5 text-xs px-2.5 py-1.5 h-auto rounded-lg transition-all">
+      className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 gap-1.5 text-xs px-2.5 py-1.5 h-auto rounded-lg transition-all">
       {icon} {label}
     </Button>
   );
@@ -615,44 +615,44 @@ function SaveDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-gray-900 border-white/10 text-white max-w-md">
+      <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
+          <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
             <SaveIcon className="w-5 h-5 text-violet-400" />
             {t('inspirationStudio.save.title')}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">{t('inspirationStudio.save.designTitle')}</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{t('inspirationStudio.save.designTitle')}</label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t('inspirationStudio.save.designTitlePlaceholder')}
-              className="bg-white/5 border-white/10 text-white placeholder-gray-600 text-sm"
+              className="bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 text-sm"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">{t('inspirationStudio.save.description')}</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{t('inspirationStudio.save.description')}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('inspirationStudio.save.descriptionPlaceholder')}
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:ring-1 focus:ring-violet-500/50 outline-none resize-none h-20"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:ring-1 focus:ring-violet-500/50 outline-none resize-none h-20"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">{t('inspirationStudio.save.tags')}</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{t('inspirationStudio.save.tags')}</label>
             <Input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder={t('inspirationStudio.save.tagsPlaceholder')}
-              className="bg-white/5 border-white/10 text-white placeholder-gray-600 text-sm"
+              className="bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 text-sm"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white">
+          <Button variant="ghost" onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             <X className="w-4 h-4 mr-1" /> {t('messages.discardAndClose')}
           </Button>
           <Button onClick={handleSave} disabled={saving}
@@ -708,9 +708,9 @@ function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-gray-900 border-white/10 text-white max-w-sm">
+      <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white max-w-sm">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
+          <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
             <Share2 className="w-5 h-5 text-violet-400" />
             {t('inspirationStudio.export.title')}
           </DialogTitle>
@@ -721,7 +721,7 @@ function ExportDialog({
               key={opt.key}
               onClick={opt.onClick}
               className={cn(
-                'flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br border border-white/5 transition-all hover:ring-1 hover:scale-[1.02]',
+                'flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br border border-gray-100 dark:border-white/5 transition-all hover:ring-1 hover:scale-[1.02]',
                 opt.color
               )}
             >
@@ -761,7 +761,7 @@ function DeskView({ t, onLoadDesign }: {
             placeholder={t('inspirationStudio.gallery.title')}
             value={filters.searchQuery || ''}
             onChange={(e) => setFilters({ ...filters, searchQuery: e.target.value })}
-            className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50 outline-none"
+            className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50 outline-none"
           />
         </div>
 
@@ -772,15 +772,15 @@ function DeskView({ t, onLoadDesign }: {
             className={cn(
               'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
               filters.sortBy === opt.key
-                ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/50'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'bg-violet-500/20 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/50'
+                : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
             )}
           >
             {opt.label}
           </button>
         ))}
 
-        <Badge variant="outline" className="text-gray-400 border-white/10 text-xs">
+        <Badge variant="outline" className="text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 text-xs">
           {totalCount} {t('inspirationStudio.customerTaste.totalDesigns')}
         </Badge>
       </div>
@@ -802,7 +802,7 @@ function DeskView({ t, onLoadDesign }: {
               <button
                 key={concept.id}
                 onClick={() => onLoadDesign(concept)}
-                className="group relative aspect-square rounded-xl overflow-hidden border border-white/5 hover:border-violet-500/50 transition-all duration-300 hover:scale-[1.03] bg-gray-900 animate-in fade-in duration-500"
+                className="group relative aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 hover:border-violet-500/50 transition-all duration-300 hover:scale-[1.03] bg-gray-50 dark:bg-gray-900 animate-in fade-in duration-500"
                 style={{ animationDelay: `${idx * 50}ms` }}
               >
                 {concept.image_url ? (
@@ -865,10 +865,10 @@ function SourceSelector({
   }, [onSourceChange]);
 
   return (
-    <div className="p-4 border-b border-white/5">
+    <div className="p-4 border-b border-gray-200 dark:border-white/5">
       <div className="flex items-center gap-2 mb-3">
         <ImagePlus className="w-4 h-4 text-violet-400" />
-        <span className="text-sm font-semibold text-gray-200">{t('inspirationStudio.sources.title')}</span>
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t('inspirationStudio.sources.title')}</span>
       </div>
 
       {sourceImageUrl ? (
@@ -888,7 +888,7 @@ function SourceSelector({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 border-dashed border-white/10 text-gray-400 hover:text-white hover:border-violet-500/50 gap-1.5 text-xs h-24 flex-col"
+            className="flex-1 border-dashed border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white hover:border-violet-500/50 gap-1.5 text-xs h-24 flex-col"
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="w-5 h-5" />
@@ -897,7 +897,7 @@ function SourceSelector({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 border-dashed border-white/10 text-gray-400 hover:text-white hover:border-emerald-500/50 gap-1.5 text-xs h-24 flex-col"
+            className="flex-1 border-dashed border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white hover:border-emerald-500/50 gap-1.5 text-xs h-24 flex-col"
             onClick={() => setShowMaterialPicker(true)}
           >
             <Package className="w-5 h-5" />
@@ -915,7 +915,7 @@ function SourceSelector({
             <Sparkles className="w-3 h-3 text-violet-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] font-semibold text-violet-300">{t('inspirationStudio.analyzing') || 'جاري تحليل القماش...'}</span>
+            <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-300">{t('inspirationStudio.analyzing') || 'جاري تحليل القماش...'}</span>
             <span className="text-[9px] text-gray-500">نوع القماش · الألوان · آلية الصنع</span>
           </div>
         </div>
@@ -923,7 +923,7 @@ function SourceSelector({
       {!isAnalyzing && sourceImageUrl && analysisComplete && (
         <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg animate-in fade-in duration-300">
           <Check className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-[10px] text-emerald-300 font-medium">تحليل مكتمل ✓</span>
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-300 font-medium">تحليل مكتمل ✓</span>
         </div>
       )}
 
@@ -986,9 +986,9 @@ function MaterialPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-gray-900 border-white/10 text-white max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10 text-gray-900 dark:text-white max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
+          <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
             <Package className="w-5 h-5 text-emerald-400" />
             {t('inspirationStudio.sources.fromSystem')}
           </DialogTitle>
@@ -1000,7 +1000,7 @@ function MaterialPickerDialog({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="..."
-            className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-200 placeholder-gray-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
+            className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 outline-none focus:ring-1 focus:ring-emerald-500/50"
           />
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -1014,7 +1014,7 @@ function MaterialPickerDialog({
                 <button
                   key={m.id}
                   onClick={() => onSelect(m.image_url)}
-                  className="aspect-square rounded-lg overflow-hidden border border-white/5 hover:border-emerald-500/50 transition-all hover:scale-[1.03]"
+                  className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-white/5 hover:border-emerald-500/50 transition-all hover:scale-[1.03]"
                 >
                   <img src={m.image_url} alt="" className="w-full h-full object-cover" />
                 </button>
@@ -1376,31 +1376,31 @@ export default function InspirationStudioPage() {
   return (
     <div
       className={cn(
-        'flex flex-col bg-gray-950 text-white',
+        'flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white',
         isFullscreen ? 'fixed inset-0 z-50' : 'h-[calc(100vh-64px)]'
       )}
       dir={direction}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-gray-950/90 backdrop-blur-md shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-white/5 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white leading-tight">{t('inspirationStudio.title')}</h1>
-            <p className="text-[10px] text-gray-500 leading-tight">{t('inspirationStudio.subtitle')}</p>
+            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">{t('inspirationStudio.title')}</h1>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">{t('inspirationStudio.subtitle')}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Tab Toggle */}
-          <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/5">
+          <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-0.5 border border-gray-200 dark:border-white/5">
             <button
               onClick={() => setActiveTab('studio')}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200',
-                activeTab === 'studio' ? 'bg-violet-500/20 text-violet-300 shadow-sm' : 'text-gray-400 hover:text-white'
+                activeTab === 'studio' ? 'bg-white dark:bg-violet-500/20 text-violet-600 dark:text-violet-300 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white'
               )}
             >
               <Wand2 className="w-3.5 h-3.5" /> {t('inspirationStudio.newDesign')}
@@ -1409,19 +1409,19 @@ export default function InspirationStudioPage() {
               onClick={() => setActiveTab('desk')}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200',
-                activeTab === 'desk' ? 'bg-violet-500/20 text-violet-300 shadow-sm' : 'text-gray-400 hover:text-white'
+                activeTab === 'desk' ? 'bg-white dark:bg-violet-500/20 text-violet-600 dark:text-violet-300 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white'
               )}
             >
               <LayoutGrid className="w-3.5 h-3.5" /> {t('inspirationStudio.gallery.title')}
             </button>
           </div>
 
-          <div className="w-px h-6 bg-white/10" />
+          <div className="w-px h-6 bg-gray-200 dark:bg-white/10" />
 
-          <Button size="icon" variant="ghost" className="text-gray-400 hover:text-white w-8 h-8" onClick={toggleFullscreen} title={t('inspirationStudio.fullscreen')}>
+          <Button size="icon" variant="ghost" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white w-8 h-8" onClick={toggleFullscreen} title={t('inspirationStudio.fullscreen')}>
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>
-          <Button size="icon" variant="ghost" className="text-gray-400 hover:text-white w-8 h-8" onClick={openInNewWindow} title={t('inspirationStudio.openNewWindow')}>
+          <Button size="icon" variant="ghost" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white w-8 h-8" onClick={openInNewWindow} title={t('inspirationStudio.openNewWindow')}>
             <ExternalLink className="w-4 h-4" />
           </Button>
         </div>
@@ -1433,16 +1433,16 @@ export default function InspirationStudioPage() {
           <>
             {/* Side Panel */}
             <div className={cn(
-              'w-72 border-white/5 bg-gray-900/50 flex flex-col shrink-0',
+              'w-72 border-gray-200 dark:border-white/5 bg-white/70 dark:bg-gray-900/50 flex flex-col shrink-0',
               isRTL ? 'border-l' : 'border-r'
             )}>
               <SourceSelector sourceImageUrl={sourceImageUrl} onSourceChange={setSourceImageUrl} t={t} isAnalyzing={isAnalyzing} analysisComplete={!!fabricAnalysis} />
 
               {/* ═══ Generation Mode Toggle ═══ */}
-              <div className="p-3 border-b border-white/5">
+              <div className="p-3 border-b border-gray-200 dark:border-white/5">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Layers className="w-3.5 h-3.5 text-violet-400" />
-                  <span className="text-[11px] font-semibold text-gray-300">{t('inspirationStudio.mode') || 'Generation Mode'}</span>
+                  <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{t('inspirationStudio.mode') || 'Generation Mode'}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {([
@@ -1455,8 +1455,8 @@ export default function InspirationStudioPage() {
                       className={cn(
                         'flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all duration-200 text-center',
                         settings.generationMode === m.mode
-                          ? 'bg-violet-500/20 border-violet-500/40 text-violet-300 shadow-sm shadow-violet-500/10'
-                          : 'bg-white/[0.02] border-white/5 text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                          ? 'bg-violet-500/20 border-violet-500/40 text-violet-600 dark:text-violet-300 shadow-sm shadow-violet-500/10'
+                          : 'bg-gray-50 dark:bg-white/[0.02] border-gray-200 dark:border-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-600 dark:hover:text-gray-300'
                       )}
                     >
                       {m.icon}
@@ -1470,7 +1470,7 @@ export default function InspirationStudioPage() {
               {/* DesignControls — unified controls per mode */}
               <DesignControls settings={settings} onSettingsChange={handleSettingsChange} t={t} isRTL={isRTL} analyzedColors={fabricAnalysis?.colors || []} selectedColors={selectedColors} onColorSelect={handleColorSelect} onCompositeGenerate={sourceImageUrl ? handleCompositeGenerate : undefined} />
               {/* Generate Buttons */}
-              <div className="p-3 border-t border-white/5 mt-auto space-y-2">
+              <div className="p-3 border-t border-gray-200 dark:border-white/5 mt-auto space-y-2">
                 {/* Batch count selector */}
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-gray-500">{t('inspirationStudio.batchCount') || 'Variations'}:</span>
@@ -1481,8 +1481,8 @@ export default function InspirationStudioPage() {
                       className={cn(
                         'w-7 h-7 rounded-lg text-xs font-bold transition-all',
                         batchCount === n
-                          ? 'bg-violet-500/30 text-violet-300 ring-1 ring-violet-500/50'
-                          : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'
+                          ? 'bg-violet-500/30 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/50'
+                          : 'bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-300'
                       )}
                     >
                       {n}
@@ -1515,8 +1515,8 @@ export default function InspirationStudioPage() {
                 <div className="shrink-0">
                   <div className="flex items-center gap-2 mb-2">
                     <LayoutGrid className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="text-xs font-semibold text-gray-300">{t('inspirationStudio.version.variation') || 'Variations'}</span>
-                    <Badge variant="outline" className="text-[10px] border-white/10 text-gray-500">{batchResults.filter(r => r.url).length}/{batchResults.length}</Badge>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{t('inspirationStudio.version.variation') || 'Variations'}</span>
+                    <Badge variant="outline" className="text-[10px] border-gray-200 dark:border-white/10 text-gray-500">{batchResults.filter(r => r.url).length}/{batchResults.length}</Badge>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     {batchResults.map((br, idx) => (
@@ -1532,13 +1532,13 @@ export default function InspirationStudioPage() {
                         )}
                       >
                         {br.loading ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-900">
                             <div className="w-8 h-8 border-3 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
                           </div>
                         ) : br.url ? (
                           <img src={br.url} alt="" className="w-full h-full object-cover" />
                         ) : br.error ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-red-400">
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-900 text-red-400">
                             <X className="w-5 h-5" />
                           </div>
                         ) : null}
@@ -1606,7 +1606,7 @@ export default function InspirationStudioPage() {
 
               {/* ═══ Fixed Bottom Toolbar — visible when batch results exist ═══ */}
               {isBatchMode && generatedImageUrl && !isGenerating && !isBatchGenerating && (
-                <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 flex items-center gap-1.5 bg-black/90 backdrop-blur-xl rounded-xl px-3 py-2.5 border border-white/15 shadow-2xl shadow-black/50 animate-in slide-in-from-bottom-6 duration-500">
+                <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 flex items-center gap-1.5 bg-white/90 dark:bg-black/90 backdrop-blur-xl rounded-xl px-3 py-2.5 border border-gray-200 dark:border-white/15 shadow-2xl shadow-black/10 dark:shadow-black/50 animate-in slide-in-from-bottom-6 duration-500">
                   <ToolbarButton icon={<RefreshCw className="w-4 h-4" />} label={'تنوع جديد'} onClick={handleGenerate} />
                   <div className="w-px h-5 bg-white/10" />
                   <ToolbarButton icon={<SaveIcon className="w-4 h-4" />} label={'حفظ'} onClick={() => setShowSaveDialog(true)} />
