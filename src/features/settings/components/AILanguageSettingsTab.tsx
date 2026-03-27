@@ -90,30 +90,41 @@ export default function AILanguageSettingsTab() {
         report_time_evening: '18:00',
     });
 
-    // Load current settings + linked users + system users
+    // Load ALL data in parallel for fast page load
     useEffect(() => {
         if (!companyId) return;
         (async () => {
             setLoading(true);
-            // Load company settings
-            const { data, error } = await supabase
-                .from('companies')
-                .select('settings, integrations')
-                .eq('id', companyId)
-                .single();
+            
+            // Run ALL queries in parallel
+            const [companyRes, connectionsRes, usersRes, whsRes, reportsRes] = await Promise.all([
+                supabase.from('companies').select('settings, integrations').eq('id', companyId).single(),
+                supabase.from('telegram_connections').select('*').eq('company_id', companyId).eq('is_active', true).order('created_at', { ascending: false }),
+                supabase.from('user_profiles').select('id, full_name, email, role').eq('company_id', companyId).order('full_name'),
+                supabase.from('warehouses').select('id, name_ar, name_en').eq('company_id', companyId).eq('is_active', true).order('name_ar'),
+                supabase.from('ai_daily_reports').select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used').eq('company_id', companyId).order('generated_at', { ascending: false }).limit(5),
+            ]);
 
+            // Process company settings
+            const { data, error } = companyRes;
             if (!error && data) {
                 if (data.settings && typeof data.settings === 'object') {
                     if ((data.settings as any).notification_preferences) {
                         setNotifPrefs(prev => ({ ...prev, ...(data.settings as any).notification_preferences }));
+                        const np = (data.settings as any).notification_preferences;
+                        if (np.report_time_morning || np.report_time_evening) {
+                            setReportSchedule(prev => ({
+                                ...prev,
+                                morning_time: np.report_time_morning || prev.morning_time,
+                                evening_time: np.report_time_evening || prev.evening_time,
+                            }));
+                        }
                     }
                 }
                 if (data.integrations && typeof data.integrations === 'object') {
                     const intg = data.integrations as any;
                     setIntegrations(intg);
-                    if (intg.telegram?.bot_token) {
-                        setTgBotToken(intg.telegram.bot_token);
-                    }
+                    if (intg.telegram?.bot_token) setTgBotToken(intg.telegram.bot_token);
                     if (intg.telegram?.webhook_active && intg.telegram?.bot_username) {
                         setTgConnected(true);
                         setTgBotUsername(intg.telegram.bot_username);
@@ -122,34 +133,14 @@ export default function AILanguageSettingsTab() {
                 }
             }
 
-            // Load linked Telegram connections
-            const { data: connections } = await supabase
-                .from('telegram_connections')
-                .select('*')
-                .eq('company_id', companyId)
-                .eq('is_active', true)
-                .order('created_at', { ascending: false });
-
-            // Load system users for linking
-            const { data: users } = await supabase
-                .from('user_profiles')
-                .select('id, full_name, email, role')
-                .eq('company_id', companyId)
-                .order('full_name');
+            // Process users + warehouses
+            const users = usersRes.data;
             if (users) setSystemUsers(users);
+            if (whsRes.data) setWarehouses(whsRes.data);
 
-            // Load warehouses for assignment dropdown
-            const { data: whs } = await supabase
-                .from('warehouses')
-                .select('id, name_ar, name_en')
-                .eq('company_id', companyId)
-                .eq('is_active', true)
-                .order('name_ar');
-            if (whs) setWarehouses(whs);
-
-            // Enrich connections with user profile data
-            if (connections) {
-                const enriched = connections.map(c => {
+            // Process telegram connections
+            if (connectionsRes.data) {
+                const enriched = connectionsRes.data.map(c => {
                     const profile = users?.find(u => u.id === c.user_id);
                     return { ...c, user_profiles: profile || null };
                 });
@@ -157,20 +148,12 @@ export default function AILanguageSettingsTab() {
                 setLinkedGroups(enriched.filter(c => c.connection_type !== 'private'));
             }
 
+            // Process reports
+            if (reportsRes.data) setLastReports(reportsRes.data);
+
             setLoading(false);
         })();
     }, [companyId]);
-
-    // Load NexaIntelligence reports
-    useEffect(() => {
-        if (!companyId) return;
-        supabase.from('ai_daily_reports')
-            .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
-            .eq('company_id', companyId)
-            .order('generated_at', { ascending: false })
-            .limit(5)
-            .then(({ data }) => { if (data) setLastReports(data); });
-    }, [companyId, generatingReport]);
 
     const handleSave = async () => {
         if (!companyId) return;
@@ -612,6 +595,11 @@ export default function AILanguageSettingsTab() {
             });
             if (error) throw error;
             toast.success(isAr ? `✅ تم إنشاء التقرير ${type === 'morning' ? 'الصباحي' : 'المسائي'} — ${data?.tasks_created || 0} مهام` : `✅ ${type} report created — ${data?.tasks_created || 0} tasks`);
+            // Reload reports
+            const { data: fresh } = await supabase.from('ai_daily_reports')
+                .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
+                .eq('company_id', companyId).order('generated_at', { ascending: false }).limit(5);
+            if (fresh) setLastReports(fresh);
         } catch (err: any) {
             toast.error(isAr ? '❌ فشل إنشاء التقرير' : '❌ Report generation failed');
             console.error(err);
