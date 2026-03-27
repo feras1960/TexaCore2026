@@ -37,6 +37,7 @@ interface SubTab {
 }
 
 const SUB_TABS: SubTab[] = [
+    { id: 'reports', labelAr: '🧠 تقارير NexaIntelligence', labelEn: '🧠 NexaIntelligence Reports', icon: <Sparkles className="w-3.5 h-3.5" /> },
     { id: 'telegram-users', labelAr: 'مستخدمو Telegram', labelEn: 'Telegram Users', icon: <Users className="w-3.5 h-3.5" /> },
 ];
 
@@ -47,7 +48,7 @@ export default function AILanguageSettingsTab() {
     const navigate = useNavigate();
     const isAr = language === 'ar';
 
-    const [activeSubTab, setActiveSubTab] = useState('telegram-users');
+    const [activeSubTab, setActiveSubTab] = useState('reports');
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [hasChanges, setHasChanges] = useState(false);
@@ -578,6 +579,144 @@ export default function AILanguageSettingsTab() {
         </div>
     );
 
+    // ═══ NexaIntelligence Report Settings ═══
+    const [reportSchedule, setReportSchedule] = useState({
+        morning_enabled: true,
+        morning_time: notifPrefs.report_time_morning || '08:00',
+        evening_enabled: true,
+        evening_time: notifPrefs.report_time_evening || '18:00',
+    });
+    const [generatingReport, setGeneratingReport] = useState<string | null>(null);
+    const [lastReports, setLastReports] = useState<any[]>([]);
+
+    // Load recent reports
+    useEffect(() => {
+        if (!companyId) return;
+        supabase.from('ai_daily_reports')
+            .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
+            .eq('company_id', companyId)
+            .order('generated_at', { ascending: false })
+            .limit(5)
+            .then(({ data }) => { if (data) setLastReports(data); });
+    }, [companyId, generatingReport]);
+
+    const handleGenerateReport = async (type: 'morning' | 'evening') => {
+        if (!companyId || generatingReport) return;
+        setGeneratingReport(type);
+        try {
+            const { data: comp } = await supabase.from('companies').select('tenant_id').eq('id', companyId).single();
+            const { data, error } = await supabase.functions.invoke('nexa-intelligence', {
+                body: { report_type: type, company_id: companyId, tenant_id: comp?.tenant_id },
+            });
+            if (error) throw error;
+            toast.success(isAr ? `✅ تم إنشاء التقرير ${type === 'morning' ? 'الصباحي' : 'المسائي'} — ${data?.tasks_created || 0} مهام` : `✅ ${type} report created — ${data?.tasks_created || 0} tasks`);
+        } catch (err: any) {
+            toast.error(isAr ? '❌ فشل إنشاء التقرير' : '❌ Report generation failed');
+            console.error(err);
+        } finally {
+            setGeneratingReport(null);
+        }
+    };
+
+    const renderReportSettings = () => (
+        <div className="space-y-4">
+            {/* Generate Report Now */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        {isAr ? '🧠 تقارير NexaIntelligence' : '🧠 NexaIntelligence Reports'}
+                    </CardTitle>
+                    <CardDescription className="text-[11px]">
+                        {isAr ? 'تقارير ذكية يومية محللة بـ Claude Opus — مخصصة لكل موظف حسب دوره' : 'Daily AI reports powered by Claude Opus — personalized per employee role'}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {/* Manual Generate */}
+                    <div className="flex gap-3">
+                        <Button variant="outline" onClick={() => handleGenerateReport('morning')}
+                            disabled={!!generatingReport}
+                            className="flex-1 gap-2 h-10 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400">
+                            {generatingReport === 'morning' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sun className="w-4 h-4" />}
+                            {isAr ? 'إنشاء تقرير صباحي' : 'Generate Morning Report'}
+                        </Button>
+                        <Button variant="outline" onClick={() => handleGenerateReport('evening')}
+                            disabled={!!generatingReport}
+                            className="flex-1 gap-2 h-10 border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-400">
+                            {generatingReport === 'evening' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Moon className="w-4 h-4" />}
+                            {isAr ? 'إنشاء تقرير مسائي' : 'Generate Evening Report'}
+                        </Button>
+                    </div>
+
+                    {/* Schedule Settings */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                    <Sun className="w-3.5 h-3.5" /> {isAr ? 'التقرير الصباحي' : 'Morning Report'}
+                                </Label>
+                                <Switch checked={reportSchedule.morning_enabled}
+                                    onCheckedChange={v => { setReportSchedule(p => ({...p, morning_enabled: v})); setHasChanges(true); }}
+                                    className="scale-75" />
+                            </div>
+                            <input type="time" value={reportSchedule.morning_time}
+                                onChange={e => { setReportSchedule(p => ({...p, morning_time: e.target.value})); setHasChanges(true); }}
+                                className="w-full h-8 text-xs rounded-md border border-amber-200 dark:border-amber-700 bg-white dark:bg-gray-900 px-2 text-center" />
+                        </div>
+                        <div className="p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                                    <Moon className="w-3.5 h-3.5" /> {isAr ? 'التقرير المسائي' : 'Evening Report'}
+                                </Label>
+                                <Switch checked={reportSchedule.evening_enabled}
+                                    onCheckedChange={v => { setReportSchedule(p => ({...p, evening_enabled: v})); setHasChanges(true); }}
+                                    className="scale-75" />
+                            </div>
+                            <input type="time" value={reportSchedule.evening_time}
+                                onChange={e => { setReportSchedule(p => ({...p, evening_time: e.target.value})); setHasChanges(true); }}
+                                className="w-full h-8 text-xs rounded-md border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-900 px-2 text-center" />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Recent Reports */}
+            {lastReports.length > 0 && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <CalendarDays className="w-4 h-4 text-blue-500" />
+                            {isAr ? 'آخر التقارير' : 'Recent Reports'}
+                            <Badge className="bg-blue-100 text-blue-700 text-[10px]">{lastReports.length}</Badge>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {lastReports.map(rpt => (
+                                <div key={rpt.id} className="px-4 py-3 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            {rpt.report_type === 'morning' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+                                            <span className="text-xs font-medium">{rpt.report_date}</span>
+                                            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4",
+                                                rpt.report_type === 'morning' ? 'border-amber-300 text-amber-600' : 'border-indigo-300 text-indigo-600')}>
+                                                {rpt.report_type === 'morning' ? (isAr ? 'صباحي' : 'Morning') : (isAr ? 'مسائي' : 'Evening')}
+                                            </Badge>
+                                        </div>
+                                        <span className="text-[10px] text-gray-400">{rpt.tokens_used} tokens</span>
+                                    </div>
+                                    {rpt.manager_summary && (
+                                        <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{rpt.manager_summary.substring(0, 150)}...</p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    );
+
 
     // ─── Main Render ──────────────────────────────────────────
     return (
@@ -605,8 +744,21 @@ export default function AILanguageSettingsTab() {
                 )}
             </div>
 
+            {/* Sub-tabs */}
+            <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+                {SUB_TABS.map(tab => (
+                    <button key={tab.id} onClick={() => setActiveSubTab(tab.id)}
+                        className={cn('flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-all',
+                            activeSubTab === tab.id ? 'border-purple-500 text-purple-700 dark:text-purple-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
+                        {tab.icon}
+                        {isAr ? tab.labelAr : tab.labelEn}
+                    </button>
+                ))}
+            </div>
+
             {/* Content */}
-            {renderTelegramUsersTab()}
+            {activeSubTab === 'reports' && renderReportSettings()}
+            {activeSubTab === 'telegram-users' && renderTelegramUsersTab()}
         </div>
     );
 }
