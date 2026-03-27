@@ -69,6 +69,16 @@ export default function AILanguageSettingsTab() {
     const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
     const [savingPrefs, setSavingPrefs] = useState<string | null>(null);
 
+    // NexaIntelligence state (must be before any early returns)
+    const [reportSchedule, setReportSchedule] = useState({
+        morning_enabled: true,
+        morning_time: '08:00',
+        evening_enabled: true,
+        evening_time: '18:00',
+    });
+    const [generatingReport, setGeneratingReport] = useState<string | null>(null);
+    const [lastReports, setLastReports] = useState<any[]>([]);
+
     // Notification preferences
     const [notifPrefs, setNotifPrefs] = useState({
         daily_report: true,
@@ -150,6 +160,17 @@ export default function AILanguageSettingsTab() {
             setLoading(false);
         })();
     }, [companyId]);
+
+    // Load NexaIntelligence reports
+    useEffect(() => {
+        if (!companyId) return;
+        supabase.from('ai_daily_reports')
+            .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
+            .eq('company_id', companyId)
+            .order('generated_at', { ascending: false })
+            .limit(5)
+            .then(({ data }) => { if (data) setLastReports(data); });
+    }, [companyId, generatingReport]);
 
     const handleSave = async () => {
         if (!companyId) return;
@@ -580,25 +601,6 @@ export default function AILanguageSettingsTab() {
     );
 
     // ═══ NexaIntelligence Report Settings ═══
-    const [reportSchedule, setReportSchedule] = useState({
-        morning_enabled: true,
-        morning_time: notifPrefs.report_time_morning || '08:00',
-        evening_enabled: true,
-        evening_time: notifPrefs.report_time_evening || '18:00',
-    });
-    const [generatingReport, setGeneratingReport] = useState<string | null>(null);
-    const [lastReports, setLastReports] = useState<any[]>([]);
-
-    // Load recent reports
-    useEffect(() => {
-        if (!companyId) return;
-        supabase.from('ai_daily_reports')
-            .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
-            .eq('company_id', companyId)
-            .order('generated_at', { ascending: false })
-            .limit(5)
-            .then(({ data }) => { if (data) setLastReports(data); });
-    }, [companyId, generatingReport]);
 
     const handleGenerateReport = async (type: 'morning' | 'evening') => {
         if (!companyId || generatingReport) return;

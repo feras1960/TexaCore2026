@@ -436,13 +436,14 @@ function ChatPanel({ companyId, language, isAr, userRole, userName }: { companyI
             // Fetch today's NexaIntelligence report
             try {
                 const today = new Date().toISOString().split('T')[0];
-                const { data: report } = await supabase.from('ai_daily_reports')
+                const { data: reports } = await supabase.from('ai_daily_reports')
                     .select('full_analysis, employee_reports, manager_summary, report_type, generated_at')
                     .eq('company_id', companyId)
                     .eq('report_date', today)
                     .order('generated_at', { ascending: false })
-                    .limit(1)
-                    .single();
+                    .limit(1);
+
+                const report = reports?.[0];
 
                 if (report?.manager_summary) {
                     const isAdmin = ['tenant_owner','company_owner','super_admin','company_admin'].includes(userRole);
