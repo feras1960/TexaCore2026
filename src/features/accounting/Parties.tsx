@@ -149,8 +149,10 @@ export default function Parties() {
   });
 
   // ─── Fetch Suppliers ─────────────────────────────────────────
-  const { data: suppliers = [], isLoading: suppLoading, refetch: refetchSuppliers } = useQuery({
-    queryKey: ['parties_suppliers', companyId, language],
+  // ⚡ language removed from queryKey — raw data is language-independent
+  //    Localized `name` is computed at render time via useMemo below
+  const { data: rawSuppliers = [], isPending: suppPending, refetch: refetchSuppliers } = useQuery({
+    queryKey: ['parties_suppliers', companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -162,7 +164,6 @@ export default function Parties() {
       return (data || []).map((s: any) => ({
         ...s,
         type: 'supplier' as const,
-        name: getLocalizedName(s, language),
       })) as Party[];
     },
     enabled: !!companyId,
@@ -170,8 +171,8 @@ export default function Parties() {
   });
 
   // ─── Fetch Customers ─────────────────────────────────────────
-  const { data: customers = [], isLoading: custLoading, refetch: refetchCustomers } = useQuery({
-    queryKey: ['parties_customers', companyId, language],
+  const { data: rawCustomers = [], isPending: custPending, refetch: refetchCustomers } = useQuery({
+    queryKey: ['parties_customers', companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -183,12 +184,23 @@ export default function Parties() {
       return (data || []).map((c: any) => ({
         ...c,
         type: 'customer' as const,
-        name: getLocalizedName(c, language),
       })) as Party[];
     },
     enabled: !!companyId,
     staleTime: 30_000,
   });
+
+  // ─── Compute localized names at RENDER time (not query time) ──
+  // This ensures names update instantly when language changes
+  // without triggering a new network fetch
+  const suppliers = useMemo(() =>
+    rawSuppliers.map(s => ({ ...s, name: getLocalizedName(s, language) })),
+    [rawSuppliers, language]
+  );
+  const customers = useMemo(() =>
+    rawCustomers.map(c => ({ ...c, name: getLocalizedName(c, language) })),
+    [rawCustomers, language]
+  );
 
   // ─── Fetch Sub-Ledger Balances ───────────────────────────────
   const { data: supplierBalances = new Map() } = useQuery({
@@ -216,7 +228,10 @@ export default function Parties() {
   // ─── Current data based on active tab ────────────────────────
   const currentData = activeEntityTab === 'suppliers' ? suppliers : customers;
   const currentBalances = activeEntityTab === 'suppliers' ? supplierBalances : customerBalances;
-  const isLoading = activeEntityTab === 'suppliers' ? suppLoading : custLoading;
+  // ⚡ isPending (not isLoading!) — shows skeletons even when `enabled: false`
+  //    isLoading = isPending && isFetching → false when query is disabled
+  //    isPending = no cached data yet → true when waiting for companyId
+  const isLoading = activeEntityTab === 'suppliers' ? suppPending : custPending;
 
   // ─── Filtered + Sorted Data ──────────────────────────────────
   const filteredData = useMemo(() => {
@@ -332,30 +347,34 @@ export default function Parties() {
       header: t('table.name') || 'Name',
       sortable: true,
       sortKey: 'name',
-      cell: (row) => (
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0",
-            row.type === 'supplier'
-              ? "bg-gradient-to-br from-orange-500 to-red-600"
-              : "bg-gradient-to-br from-blue-500 to-indigo-600"
-          )}>
-            {(row.name || '?').charAt(0).toUpperCase()}
+      cell: (row) => {
+        // Compute localized name at render time for maximum reliability
+        const displayName = row.name || getLocalizedName(row, language);
+        return (
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0",
+              row.type === 'supplier'
+                ? "bg-gradient-to-br from-orange-500 to-red-600"
+                : "bg-gradient-to-br from-blue-500 to-indigo-600"
+            )}>
+              {(displayName || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm text-gray-800 dark:text-white line-clamp-1 font-tajawal">
+                {displayName || '—'}
+              </p>
+              {row.account ? (
+                <span className="text-[10px] text-gray-400 font-mono">
+                  {row.account.account_code} - {isRTL ? row.account.name_ar : row.account.name_en}
+                </span>
+              ) : row.email ? (
+                <span className="text-[10px] text-gray-400">{row.email}</span>
+              ) : null}
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-gray-800 dark:text-white line-clamp-1 font-tajawal">
-              {row.name || '—'}
-            </p>
-            {row.account ? (
-              <span className="text-[10px] text-gray-400 font-mono">
-                {row.account.account_code} - {isRTL ? row.account.name_ar : row.account.name_en}
-              </span>
-            ) : row.email ? (
-              <span className="text-[10px] text-gray-400">{row.email}</span>
-            ) : null}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       id: 'phone',
@@ -457,7 +476,7 @@ export default function Parties() {
         </Badge>
       ),
     },
-  ], [isRTL, currentBalances, baseCurrency, activeEntityTab, convertBalance, isConverting, displayCurrency]);
+  ], [isRTL, currentBalances, baseCurrency, activeEntityTab, convertBalance, isConverting, displayCurrency, language, t]);
 
   // ─── Actions ─────────────────────────────────────────────────
   const renderActions = useCallback((row: Party) => (
