@@ -807,18 +807,18 @@ serve(async (req: Request) => {
         const userLang = detectLanguage(text, message?.from?.language_code)
 
         // ─── General message → forward to NexaPro Agent ─────
-        // Auto-detect role from user_role_assignments (unified with system)
+        // Auto-detect role from user_roles (unified with system)
         let mappedRole = 'user';
         if (linkedUser?.user_id) {
             const { data: roleData } = await supabase
-                .from('user_role_assignments')
-                .select('role_id, roles(code, level)')
+                .from('user_roles')
+                .select('role:roles(code, level)')
                 .eq('user_id', linkedUser.user_id)
                 .eq('is_active', true);
             
             if (roleData?.length) {
                 const ADMIN_ROLES = ['super_admin', 'tenant_owner', 'company_owner', 'company_admin'];
-                const roleCodes = roleData.map((r: any) => r.roles?.code).filter(Boolean);
+                const roleCodes = roleData.map((r: any) => r.role?.code).filter(Boolean);
                 mappedRole = ADMIN_ROLES.find(r => roleCodes.includes(r)) || roleCodes[0] || 'user';
             }
             
