@@ -76,7 +76,7 @@ async function findCompanyByBotToken(supabase: any, botToken: string) {
 async function findLinkedUser(supabase: any, chatId: number, companyId: string) {
     const { data } = await supabase
         .from('telegram_connections')
-        .select('id, user_id, telegram_username, is_active, notification_preferences')
+        .select('id, user_id, telegram_username, is_active, notification_preferences, notification_role')
         .eq('telegram_chat_id', chatId)
         .eq('company_id', companyId)
         .eq('is_active', true)
@@ -807,7 +807,20 @@ serve(async (req: Request) => {
         const userLang = detectLanguage(text, message?.from?.language_code)
 
         // ─── General message → forward to NexaPro Agent ─────
-        // For general queries, we can call the nexa-agent function
+        // Map telegram notification_role to RBAC system role
+        const TELEGRAM_TO_RBAC_ROLE: Record<string, string> = {
+            'owner': 'tenant_owner',
+            'company_admin': 'company_admin',
+            'company_owner': 'company_owner',
+            'sales_manager': 'sales_manager',
+            'warehouse_keeper': 'warehouse_keeper',
+            'accountant': 'accountant',
+            'driver': 'driver',
+        };
+        const tgRole = linkedUser?.notification_role || 'owner';
+        const mappedRole = TELEGRAM_TO_RBAC_ROLE[tgRole] || 'user';
+        console.log(`[TelegramWebhook] User role: ${tgRole} → ${mappedRole}`);
+
         try {
             const agentResponse = await fetch(`${supabaseUrl}/functions/v1/nexa-agent`, {
                 method: 'POST',
@@ -821,6 +834,8 @@ serve(async (req: Request) => {
                     language: userLang,
                     context_type: 'general',
                     complexity: 'auto',
+                    client_role: mappedRole,
+                    user_name: firstName || username || '',
                 }),
             })
 
