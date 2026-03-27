@@ -359,6 +359,17 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
     const inputRef = useRef<HTMLInputElement>(null);
     const PAGE_SIZE = 20;
 
+    // Reliable scroll-to-bottom helper — waits for DOM paint
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
+          }
+        });
+      });
+    }, []);
+
     // Date formatting
     const formatDate = useCallback((date: Date) => {
         const today = new Date();
@@ -416,7 +427,7 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
         } catch { /* ignore */ }
     }, [companyId]);
 
-    // Initial load
+    // Initial load — scroll to bottom so user sees latest messages
     useEffect(() => {
         if (initialLoaded || !companyId) return;
         (async () => {
@@ -426,11 +437,10 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
                 setHasMore(msgs.length >= PAGE_SIZE);
             }
             setInitialLoaded(true);
-            setTimeout(() => {
-                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            }, 150);
+            // Use rAF-based scroll to guarantee DOM is painted
+            scrollToBottom('auto');
         })();
-    }, [loadMessages, initialLoaded]);
+    }, [loadMessages, initialLoaded, scrollToBottom]);
 
     // Load older messages
     const loadOlder = useCallback(async () => {
@@ -456,12 +466,10 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
     // Auto-scroll on new message
     const lastMsgContent = messages[messages.length - 1]?.content || '';
     useEffect(() => {
-        if (scrollRef.current && initialLoaded) {
-            setTimeout(() => {
-                if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-            }, 100);
+        if (initialLoaded) {
+            scrollToBottom('smooth');
         }
-    }, [messages.length, lastMsgContent, initialLoaded]);
+    }, [messages.length, lastMsgContent, initialLoaded, scrollToBottom]);
 
     const handleSearch = useCallback(async (q: string) => {
         setSearchQuery(q);
