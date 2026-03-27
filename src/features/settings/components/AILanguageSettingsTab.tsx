@@ -567,7 +567,9 @@ export default function AILanguageSettingsTab() {
                 body: { report_type: type, company_id: companyId, tenant_id: comp?.tenant_id },
             });
             if (error) throw error;
-            toast.success(isAr ? `✅ تم إنشاء التقرير ${type === 'morning' ? 'الصباحي' : 'المسائي'} — ${data?.tasks_created || 0} مهام` : `✅ ${type} report created — ${data?.tasks_created || 0} tasks`);
+            toast.success(isAr 
+                ? `✅ تم إنشاء التقرير ${type === 'morning' ? 'الصباحي' : 'المسائي'} — ${data?.tasks_created || 0} مهام${data?.telegram_sent ? ` | 📱 أُرسل لـ ${data.telegram_sent} مستخدم` : ''}` 
+                : `✅ ${type} report created — ${data?.tasks_created || 0} tasks${data?.telegram_sent ? ` | 📱 Sent to ${data.telegram_sent} users` : ''}`);
             // Reload reports
             const { data: fresh } = await supabase.from('ai_daily_reports')
                 .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
