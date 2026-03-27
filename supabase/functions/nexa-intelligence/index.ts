@@ -82,6 +82,14 @@ serve(async (req) => {
     // ═══ Step 9: Track usage ═══
     await trackUsage(adminClient, company_id, analysisResult.tokensUsed);
 
+    // ═══ Step 10: Send Telegram notifications ═══
+    const tgSent = await sendTelegramNotifications(adminClient, company_id, {
+      reportType: report_type,
+      analysis: analysisResult.analysis,
+      employees,
+    });
+    console.log('[NexaIntelligence] 📱 Telegram sent to:', tgSent, 'users');
+
     return new Response(JSON.stringify({
       success: true,
       report_id: reportId,
@@ -89,6 +97,7 @@ serve(async (req) => {
       tasks_created: tasksCreated,
       employees_count: employees.length,
       tokens_used: analysisResult.tokensUsed,
+      telegram_sent: tgSent,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (err: any) {
@@ -473,5 +482,114 @@ async function trackUsage(client: any, companyId: string, tokensUsed: number) {
       tokens_used: tokensUsed,
       cost_usd: tokensUsed / 1000 * 0.015,
     });
+  }
+}
+
+// ═══════════════════════════════════════════
+// 📱 Send Telegram Notifications
+// ═══════════════════════════════════════════
+
+async function sendTelegramNotifications(client: any, companyId: string, opts: any) {
+  const { reportType, analysis } = opts;
+  
+  try {
+    // Get bot token from company integrations
+    const { data: company } = await client.from('companies')
+      .select('integrations')
+      .eq('id', companyId).single();
+    
+    const botToken = company?.integrations?.telegram?.bot_token;
+    if (!botToken) {
+      console.log('[NexaIntelligence] No Telegram bot token configured');
+      return 0;
+    }
+
+    // Get all linked Telegram connections
+    const { data: connections } = await client.from('telegram_connections')
+      .select('telegram_chat_id, user_id, notification_role, notification_preferences')
+      .eq('company_id', companyId)
+      .eq('is_active', true);
+
+    if (!connections?.length) {
+      console.log('[NexaIntelligence] No Telegram connections found');
+      return 0;
+    }
+
+    let sent = 0;
+    const reportEmoji = reportType === 'morning' ? '☀️' : '🌙';
+    const reportLabel = reportType === 'morning' ? 'الصباحي' : 'المسائي';
+
+    for (const conn of connections) {
+      const chatId = conn.telegram_chat_id;
+      if (!chatId) continue;
+
+      // Check notification preferences
+      const prefs = conn.notification_preferences || {};
+      const prefKey = reportType === 'morning' ? 'daily_report_am' : 'daily_report_pm';
+      if (prefs[prefKey] === false) continue;
+
+      const role = conn.notification_role || 'owner';
+      const isAdmin = ['owner', 'company_admin', 'company_owner'].includes(role);
+      
+      let message = '';
+      
+      if (isAdmin) {
+        message = `🧠 *تقرير NexaIntelligence ${reportEmoji} ${reportLabel}*\n\n`;
+        message += analysis.manager_summary || '';
+        if (analysis.alerts?.length) {
+          message += '\n\n⚠️ *تنبيهات:*\n' + analysis.alerts.map((a: any) => `• ${a.message}`).join('\n');
+        }
+        if (analysis.highlights?.length) {
+          message += '\n\n🌟 *إنجازات:*\n' + analysis.highlights.map((h: string) => `• ${h}`).join('\n');
+        }
+        if (analysis.tasks?.length) {
+          message += `\n\n📋 *مهام اليوم (${analysis.tasks.length}):*\n`;
+          message += analysis.tasks.slice(0, 5).map((t: any) => `• [${t.priority}] ${t.title}`).join('\n');
+        }
+        if (analysis.forecast) message += `\n\n📈 ${analysis.forecast}`;
+      } else {
+        const empReport = analysis.employee_reports?.[role];
+        if (empReport) {
+          message = `🧠 *تقريرك ${reportEmoji} ${reportLabel}*\n\n`;
+          if (empReport.greeting) message += empReport.greeting + '\n\n';
+          if (empReport.summary) message += empReport.summary + '\n\n';
+          if (empReport.tasks?.length) {
+            message += '📋 *مهامك:*\n' + empReport.tasks.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n') + '\n\n';
+          }
+          if (empReport.tip) message += `💡 ${empReport.tip}\n`;
+          if (empReport.motivation) message += `\n🎯 ${empReport.motivation}`;
+        } else {
+          message = `🧠 *ملخص ${reportEmoji}*\n\n${analysis.manager_summary || ''}`;
+        }
+      }
+
+      message += '\n\n_— TexaCore NexaIntelligence 🤖_';
+
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
+          }),
+        });
+        if (res.ok) {
+          sent++;
+          console.log(`[NexaIntelligence] ✅ Telegram sent to ${chatId}`);
+        } else {
+          const err = await res.text();
+          console.error(`[NexaIntelligence] ❌ Telegram error ${chatId}:`, err);
+        }
+      } catch (e: any) {
+        console.error(`[NexaIntelligence] ❌ Send error:`, e.message);
+      }
+    }
+    return sent;
+  } catch (err: any) {
+    console.error('[NexaIntelligence] Telegram error:', err.message);
+    return 0;
   }
 }
