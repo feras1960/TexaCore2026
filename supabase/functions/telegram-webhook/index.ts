@@ -807,19 +807,37 @@ serve(async (req: Request) => {
         const userLang = detectLanguage(text, message?.from?.language_code)
 
         // ─── General message → forward to NexaPro Agent ─────
-        // Map telegram notification_role to RBAC system role
-        const TELEGRAM_TO_RBAC_ROLE: Record<string, string> = {
-            'owner': 'tenant_owner',
-            'company_admin': 'company_admin',
-            'company_owner': 'company_owner',
-            'sales_manager': 'sales_manager',
-            'warehouse_keeper': 'warehouse_keeper',
-            'accountant': 'accountant',
-            'driver': 'driver',
-        };
-        const tgRole = linkedUser?.notification_role || 'owner';
-        const mappedRole = TELEGRAM_TO_RBAC_ROLE[tgRole] || 'user';
-        console.log(`[TelegramWebhook] User role: ${tgRole} → ${mappedRole}`);
+        // Auto-detect role from user_role_assignments (unified with system)
+        let mappedRole = 'user';
+        if (linkedUser?.user_id) {
+            const { data: roleData } = await supabase
+                .from('user_role_assignments')
+                .select('role_id, roles(code, level)')
+                .eq('user_id', linkedUser.user_id)
+                .eq('is_active', true);
+            
+            if (roleData?.length) {
+                const ADMIN_ROLES = ['super_admin', 'tenant_owner', 'company_owner', 'company_admin'];
+                const roleCodes = roleData.map((r: any) => r.roles?.code).filter(Boolean);
+                mappedRole = ADMIN_ROLES.find(r => roleCodes.includes(r)) || roleCodes[0] || 'user';
+            }
+            
+            // Fallback: check if user is tenant owner by email
+            if (mappedRole === 'user') {
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('email, is_tenant_admin, is_super_admin')
+                    .eq('id', linkedUser.user_id).single();
+                if (profile?.is_tenant_admin || profile?.is_super_admin) {
+                    mappedRole = 'tenant_owner';
+                } else if (profile?.email) {
+                    const { data: tenant } = await supabase
+                        .from('tenants').select('id').eq('owner_email', profile.email).maybeSingle();
+                    if (tenant) mappedRole = 'tenant_owner';
+                }
+            }
+        }
+        console.log(`[TelegramWebhook] User ${linkedUser?.user_id} role: ${mappedRole}`);
 
         try {
             const agentResponse = await fetch(`${supabaseUrl}/functions/v1/nexa-agent`, {

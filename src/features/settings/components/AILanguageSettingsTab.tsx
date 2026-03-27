@@ -430,56 +430,29 @@ export default function AILanguageSettingsTab() {
                                                                 {user.telegram_username ? `@${user.telegram_username}` : `#${user.telegram_chat_id}`}
                                                             </span>
                                                         </td>
-                                                        {/* Responsibility (Role + Warehouses) */}
+                                                        {/* Responsibility (Auto from system role) */}
                                                         <td className="px-3 py-2.5">
                                                             <div className="space-y-1">
-                                                                <select
-                                                                    value={user.notification_role || ''}
-                                                                    onChange={async (e) => {
-                                                                        const newRole = e.target.value || null;
-                                                                        const { error } = await supabase.from('telegram_connections')
-                                                                            .update({ notification_role: newRole })
-                                                                            .eq('id', user.id);
-                                                                        if (!error) {
-                                                                            setLinkedUsers(prev => prev.map(u =>
-                                                                                u.id === user.id ? { ...u, notification_role: newRole } : u
-                                                                            ));
-                                                                        } else toast.error(error.message);
-                                                                    }}
-                                                                    className="h-7 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-1.5 w-full cursor-pointer"
-                                                                >
-                                                                    <option value="">{isAr ? '— اختر الدور —' : '— Select role —'}</option>
-                                                                    <option value="warehouse_keeper">{isAr ? '📦 أمين مستودع' : '📦 Warehouse Keeper'}</option>
-                                                                    <option value="accountant">{isAr ? '💰 محاسب' : '💰 Accountant'}</option>
-                                                                    <option value="owner">{isAr ? '👑 مالك / مدير' : '👑 Owner / Manager'}</option>
-                                                                    <option value="driver">{isAr ? '🚗 سائق' : '🚗 Driver'}</option>
-                                                                    <option value="sales_manager">{isAr ? '🛒 مدير مبيعات' : '🛒 Sales Manager'}</option>
-                                                                </select>
-                                                                {user.notification_role === 'warehouse_keeper' && warehouses.length > 0 && (
-                                                                    <select
-                                                                        value={(user.assigned_warehouses || [])[0] || ''}
-                                                                        onChange={async (e) => {
-                                                                            const whId = e.target.value;
-                                                                            const newWhs = whId ? [whId] : [];
-                                                                            const { error } = await supabase.from('telegram_connections')
-                                                                                .update({ assigned_warehouses: newWhs })
-                                                                                .eq('id', user.id);
-                                                                            if (!error) {
-                                                                                setLinkedUsers(prev => prev.map(u =>
-                                                                                    u.id === user.id ? { ...u, assigned_warehouses: newWhs } : u
-                                                                                ));
-                                                                            } else toast.error(error.message);
-                                                                        }}
-                                                                        className="h-7 text-[10px] rounded-md border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-1.5 w-full cursor-pointer text-blue-700 dark:text-blue-300"
-                                                                    >
-                                                                        <option value="">{isAr ? '📍 كل المستودعات' : '📍 All warehouses'}</option>
-                                                                        {warehouses.map(wh => (
-                                                                            <option key={wh.id} value={wh.id}>
-                                                                                {isAr ? (wh.name_ar || wh.name_en) : (wh.name_en || wh.name_ar)}
-                                                                            </option>
-                                                                        ))}
-                                                                    </select>
-                                                                )}
+                                                                {(() => {
+                                                                    const roleLabels: Record<string, { ar: string; en: string; emoji: string; color: string }> = {
+                                                                        'super_admin': { ar: 'مدير النظام', en: 'Super Admin', emoji: '🛡️', color: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' },
+                                                                        'tenant_owner': { ar: 'مالك', en: 'Owner', emoji: '👑', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+                                                                        'company_owner': { ar: 'مالك الشركة', en: 'Company Owner', emoji: '👑', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+                                                                        'company_admin': { ar: 'مدير', en: 'Admin', emoji: '⚙️', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
+                                                                        'sales_manager': { ar: 'مدير مبيعات', en: 'Sales Manager', emoji: '🛒', color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+                                                                        'salesperson': { ar: 'مندوب مبيعات', en: 'Salesperson', emoji: '🛒', color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+                                                                        'warehouse_keeper': { ar: 'أمين مستودع', en: 'Warehouse', emoji: '📦', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+                                                                        'accountant': { ar: 'محاسب', en: 'Accountant', emoji: '💰', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' },
+                                                                        'driver': { ar: 'سائق', en: 'Driver', emoji: '🚗', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400' },
+                                                                    };
+                                                                    const userSysRole = user.user_profiles?.role || '';
+                                                                    const roleInfo = roleLabels[userSysRole] || { ar: userSysRole || 'مستخدم', en: userSysRole || 'User', emoji: '👤', color: 'bg-gray-100 text-gray-600' };
+                                                                    return (
+                                                                        <Badge className={`${roleInfo.color} text-[10px] px-2 py-0.5 font-medium`}>
+                                                                            {roleInfo.emoji} {isAr ? roleInfo.ar : roleInfo.en}
+                                                                        </Badge>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </td>
                                                         {/* Status */}
