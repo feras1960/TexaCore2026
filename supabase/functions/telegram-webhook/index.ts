@@ -806,8 +806,10 @@ serve(async (req: Request) => {
 
         const userLang = detectLanguage(text, message?.from?.language_code)
 
-        // ─── Show "typing..." indicator ─────────────────────
-        await sendTelegram(botToken, 'sendChatAction', { chat_id: chatId, action: 'typing' });
+        // ─── Show "typing..." indicator continuously ────────
+        const sendTyping = () => sendTelegram(botToken, 'sendChatAction', { chat_id: chatId, action: 'typing' });
+        await sendTyping(); // Send immediately
+        const typingInterval = setInterval(sendTyping, 4000); // Repeat every 4s
 
         // ─── General message → forward to NexaPro Agent ─────
         // Auto-detect role from user_roles (unified with system)
@@ -879,6 +881,7 @@ serve(async (req: Request) => {
                     : reply
 
                 await sendMessage(botToken, chatId, truncatedReply)
+                clearInterval(typingInterval);
             } else {
                 const helpMsg = userLang === 'ar'
                     ? `🤖 <b>وكيل نيكسا برو</b>\n\nتم استلام رسالتك. يمكنك التحقق من النتائج في البرنامج.\n\n<i>💡 جرّب أوامر مباشرة مثل: "استلمت 5000 من أحمد"</i>`
@@ -888,8 +891,10 @@ serve(async (req: Request) => {
                             ? `🤖 <b>NexaPro Agent</b>\n\nMesajınız alındı. Sonuçları programda kontrol edin.\n\n<i>💡 Deneyin: "5000 aldım Ahmed'den"</i>`
                             : `🤖 <b>NexaPro Agent</b>\n\nMessage received. Check results in the app.\n\n<i>💡 Try: "received 5000 from Ahmed"</i>`
                 await sendMessage(botToken, chatId, helpMsg)
+                clearInterval(typingInterval);
             }
         } catch (agentErr) {
+            clearInterval(typingInterval);
             console.error('[TelegramWebhook] Agent call error:', agentErr)
             const errMsg = userLang === 'ar'
                 ? `🤖 استلمت رسالتك.\n\n💡 <b>جرّب:</b>\n• <code>استلمت 5000 من أحمد</code>\n• <code>دفعت 2000 كهرباء</code>\n• <code>/help</code> للمساعدة`
