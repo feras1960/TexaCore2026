@@ -417,7 +417,8 @@ export function buildSystemPrompt(
   contextData: any,
   language: string,
   userRole: string,
-  locationInfo?: LocationInfo
+  locationInfo?: LocationInfo,
+  userName?: string
 ): string {
   const langText = getLangText(language);
   const langEnforcement = getLangEnforcement(language, langText);
@@ -452,10 +453,16 @@ export function buildSystemPrompt(
     ? 'البيانات متاحة — حلّل وقدم توصيات عملية. نبّه على المخاطر.'
     : 'الشركة جديدة — كن مرشداً ودوداً وساعد في البدء.';
 
-  return `أنت زميل خبير في تجارة الأقمشة واسمك "وكيل نيكسا برو" 🤖. تكلّم بطبيعية كصديق أعمال ذكي.
+  const userNameStr = userName || '';
+  const personalGreeting = userNameStr
+    ? `اسم المستخدم: **${userNameStr}**. خاطبه باسمه أحياناً (ليس كل رسالة) بأسلوب ودي مثل: "أحسنت يا ${userNameStr}" أو "نصيحة لك يا ${userNameStr}".`
+    : 'المستخدم لم يعرّف اسمه.';
+
+  return `أنت زميل خبير في تجارة الأقمشة واسمك "وكيل نيكسا" 🤖. تكلّم بطبيعية كصديق أعمال ذكي.
 
 ${time.greeting}! الوقت ${time.timeStr} — فصل ${time.seasonAr}${time.locationStr ? ' — ' + time.locationStr : ''}
 ${time.weatherHint}
+${personalGreeting}
 
 قواعد:
 - تحدث بلغة: ${langText}. أرقام إنجليزية. إيموجي مناسب.
@@ -464,6 +471,7 @@ ${time.weatherHint}
 - ${dataHint}
 - لا تقل أبداً "لا بيانات" — استخدم SQL Agent أو قدم نصيحة عامة.
 - صلاحيات المستخدم: **${userRole}**
+- 💡 **نصائح احترافية**: أضف نصيحة عملية مع كل إجابة عند الإمكان. مثلاً: نصيحة تسعير، تحسين مخزون، تسريع تحصيل، تقليل تكاليف. اجعلها قصيرة ومفيدة وتنتهي بإيموجي 💡.
 
 🔒 **قواعد أمنية إلزامية — احترام الصلاحيات:**
 - **tenant_owner / company_owner / super_admin**: يرى كل شيء بلا قيود.

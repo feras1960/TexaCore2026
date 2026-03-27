@@ -43,7 +43,7 @@ serve(async (req) => {
       message, language = 'ar', context_type = 'general', context_id,
       context_data, chat_history = [], complexity = 'auto',
       company_id, stream = false, conversation_summary,
-      client_role,
+      client_role, user_name,
     } = await req.json()
 
     const apiKey = Deno.env.get("GOOGLE_AI_KEY")
@@ -210,7 +210,7 @@ serve(async (req) => {
     console.log('[NexaPro] 🔒 Context filtered for role:', userRole);
 
     // ═══ Build Prompt ═══
-    const systemPrompt = buildSystemPrompt(context_type, enrichedContext, language, userRole, locationInfo);
+    const systemPrompt = buildSystemPrompt(context_type, enrichedContext, language, userRole, locationInfo, user_name);
 
     // ═══ Chat History ═══
     const contents: any[] = [];

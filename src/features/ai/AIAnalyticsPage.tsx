@@ -340,7 +340,7 @@ Be concise and actionable (3-5 lines per section).`;
 // ═══════════════════════════════════════════
 // Chat Panel (Left in RTL)
 // ═══════════════════════════════════════════
-function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string; language: string; isAr: boolean; userRole: string }) {
+function ChatPanel({ companyId, language, isAr, userRole, userName }: { companyId: string; language: string; isAr: boolean; userRole: string; userName: string }) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -513,6 +513,7 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
                     chat_history: recentHistory, complexity: selectedModel, company_id: companyId,
                     conversation_summary: conversationMemory || undefined,
                     client_role: userRole,
+                    user_name: userName,
                 },
             });
 
@@ -536,7 +537,7 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
             clearTimeout(phaseTimer); clearTimeout(phaseTimer2);
             inputRef.current?.focus();
         }
-    }, [inputValue, isLoading, messages, contextType, contextId, language, selectedModel, companyId, isAr, getMemoryFromMessages, saveMessage]);
+    }, [inputValue, isLoading, messages, contextType, contextId, language, selectedModel, companyId, isAr, getMemoryFromMessages, saveMessage, userRole, userName]);
 
     const prompts = QUICK_PROMPTS[isAr ? 'ar' : 'en'];
 
@@ -628,7 +629,7 @@ function ChatPanel({ companyId, language, isAr, userRole }: { companyId: string;
                                             <>
                                                 <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4",
                                                     msg.model_used?.includes('pro') ? 'border-purple-300 text-purple-600' : 'border-blue-300 text-blue-600')}>
-                                                    {msg.model_used?.includes('pro') ? '🧠 Pro' : '⚡ Flash'}
+                                                    {msg.model_used?.includes('pro') ? '🧠 NexaPro' : '⚡ NexaFlash'}
                                                 </Badge>
                                                 {msg.context_loaded && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-emerald-300 text-emerald-600">📊</Badge>}
                                             </>
@@ -737,7 +738,7 @@ export default function AIAnalyticsPage() {
             {/* ═══ 50/50 Split: Chat | Smart Cards ═══ */}
             <div className="flex gap-4 flex-1 min-h-0">
                 <div className="w-1/2 flex flex-col min-h-0">
-                    <ChatPanel companyId={companyId || ''} language={language} isAr={isAr} userRole={bestRole} />
+                    <ChatPanel companyId={companyId || ''} language={language} isAr={isAr} userRole={bestRole} userName={userName} />
                 </div>
                 <div className="w-1/2 flex flex-col min-h-0">
                     <AnalyticsColumn companyId={companyId || ''} language={language} isAr={isAr} userName={userName} userRole={bestRole} />
