@@ -30,18 +30,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// 🔐 Admin Supabase client (service_role key) — for admin operations only
-// Uses separate storage key so it doesn't affect user session
-const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
-export const supabaseAdmin = serviceRoleKey
-  ? createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      storageKey: 'sb-admin-auth-token',
-    },
-  })
-  : null;
+// 🔐 Admin operations should use Edge Functions, not browser-side service_role
+// Service role key removed from frontend for security
+export const supabaseAdmin = null;
 
 // ============================================
 // Multi-Tenant Helper Functions
@@ -158,7 +149,7 @@ export const getSession = async () => {
   return { session, error };
 };
 
-// Expose supabase client to window for debugging/seeding (development only)
-if (typeof window !== 'undefined') {
+// Expose supabase client to window for debugging (development only)
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   (window as any).__SUPABASE_CLIENT__ = supabase;
 }
