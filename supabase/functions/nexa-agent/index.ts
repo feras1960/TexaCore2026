@@ -237,7 +237,7 @@ serve(async (req) => {
     if (tools) geminiBody.tools = tools;
 
     // ═══ Execute SQL Agent Loop ═══
-    const result = await executeSQLAgentLoop(adminClient!, geminiBody, contents, apiUrl, resolvedCompanyId, resolvedTenantId);
+    const result = await executeSQLAgentLoop(adminClient!, geminiBody, contents, apiUrl, resolvedCompanyId, resolvedTenantId, userRole);
     let lastParsedResult = result.response;
     geminiBody = result.geminiBody;
 

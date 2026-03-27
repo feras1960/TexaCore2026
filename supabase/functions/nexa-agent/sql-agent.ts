@@ -158,6 +158,34 @@ ${roleRestriction}
 `;
 }
 
+// ═══ SQL Security: Role-based query enforcement ═══
+const ROLE_BLOCKED_TABLES: Record<string, string[]> = {
+  'salesperson': ['purchase_invoices', 'purchase_invoice_items', 'purchase_orders', 'purchase_receipts', 'purchase_receipt_items', 'containers', 'container_items', 'container_expenses', 'container_cost_allocations', 'employee_salary', 'salary_components', 'payroll_entries', 'payroll_periods', 'equity_partners'],
+  'sales_agent': ['purchase_invoices', 'purchase_invoice_items', 'purchase_orders', 'purchase_receipts', 'purchase_receipt_items', 'containers', 'container_items', 'container_expenses', 'container_cost_allocations', 'employee_salary', 'salary_components', 'payroll_entries', 'payroll_periods', 'equity_partners'],
+  'warehouse_keeper': ['sales_transactions', 'sales_transaction_items', 'sales_invoice_items', 'purchase_invoices', 'purchase_invoice_items', 'journal_entries', 'journal_entry_lines', 'chart_of_accounts', 'payment_vouchers', 'employee_salary', 'salary_components', 'payroll_entries', 'payroll_periods', 'equity_partners'],
+  'purchasing_manager': ['sales_transactions', 'sales_transaction_items', 'sales_invoice_items', 'employee_salary', 'salary_components', 'payroll_entries', 'payroll_periods', 'equity_partners'],
+  'accountant': ['employee_salary', 'salary_components', 'payroll_entries', 'payroll_periods'],
+  'driver': ['purchase_invoices', 'purchase_invoice_items', 'sales_transactions', 'sales_transaction_items', 'journal_entries', 'journal_entry_lines', 'chart_of_accounts', 'payment_vouchers', 'employee_salary', 'salary_components', 'payroll_entries', 'payroll_periods', 'equity_partners', 'customers', 'suppliers'],
+  'hr_manager': ['sales_transactions', 'sales_transaction_items', 'purchase_invoices', 'purchase_invoice_items', 'journal_entries', 'journal_entry_lines', 'equity_partners'],
+};
+
+function enforceQuerySecurity(sql: string, userRole: string): string | null {
+  const ADMIN_ROLES = ['super_admin', 'tenant_owner', 'company_owner', 'company_admin'];
+  if (ADMIN_ROLES.includes(userRole)) return null; // Admins pass all queries
+  
+  const blocked = ROLE_BLOCKED_TABLES[userRole] || ROLE_BLOCKED_TABLES['driver'];
+  const sqlLower = sql.toLowerCase();
+  
+  for (const table of blocked) {
+    // Check if the query references any blocked table
+    if (sqlLower.includes(table)) {
+      console.log(`[SQLAgent] 🔒 BLOCKED query for role '${userRole}' — table '${table}' is restricted`);
+      return table;
+    }
+  }
+  return null;
+}
+
 // ═══ SQL Agent Execution Loop ═══
 
 export async function executeSQLAgentLoop(
@@ -167,6 +195,7 @@ export async function executeSQLAgentLoop(
   apiUrl: string,
   companyId: string,
   tenantId: string,
+  userRole: string = 'user',
 ): Promise<{ response: any; contents: any[]; geminiBody: any; ok: boolean; status: number }> {
   let geminiResponse = await fetch(apiUrl, {
     method: 'POST',
@@ -192,6 +221,11 @@ export async function executeSQLAgentLoop(
     let queryResult: any = { error: 'Unknown function' };
 
     if (fc.name === 'run_sql_query' && adminClient && fc.args?.sql) {
+      // 🔒 Layer 4: Enforce SQL security before execution
+      const blockedTable = enforceQuerySecurity(fc.args.sql, userRole);
+      if (blockedTable) {
+        queryResult = { error: `🔒 ممنوع الوصول: جدول '${blockedTable}' غير متاح لصلاحياتك. تواصل مع المسؤول.` };
+      } else {
       try {
         const { data, error } = await adminClient.rpc('execute_readonly_query', {
           query_text: fc.args.sql,
@@ -209,6 +243,7 @@ export async function executeSQLAgentLoop(
         queryResult = { error: err?.message || 'Query execution failed' };
         console.log('[SQLAgent] Execution error:', err?.message);
       }
+      } // close the else from security check
     }
 
     contents.push({ role: 'model', parts });
