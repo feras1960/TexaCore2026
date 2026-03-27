@@ -396,6 +396,9 @@ function corsResponse(body: any, status = 200) {
     })
 }
 
+// ═══ Deduplication: prevent Telegram retries ═══
+const processedUpdates = new Set<number>();
+
 serve(async (req: Request) => {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -415,6 +418,17 @@ serve(async (req: Request) => {
 
         const body = await req.json()
         console.log('[TelegramWebhook] Received:', JSON.stringify(body).substring(0, 500))
+
+        // ─── Dedup: skip if already processing this update ──
+        if (body.update_id) {
+            if (processedUpdates.has(body.update_id)) {
+                console.log(`[TelegramWebhook] ⏭️ Skipping duplicate update_id: ${body.update_id}`);
+                return corsResponse({ ok: true, skipped: 'duplicate' });
+            }
+            processedUpdates.add(body.update_id);
+            // Auto-clean after 60s to prevent memory leak
+            setTimeout(() => processedUpdates.delete(body.update_id), 60000);
+        }
 
         // ─── Webhook verification from settings UI ──────────
         if (body.action === 'verify_webhook') {
