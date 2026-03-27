@@ -427,20 +427,80 @@ function ChatPanel({ companyId, language, isAr, userRole, userName }: { companyI
         } catch { /* ignore */ }
     }, [companyId]);
 
-    // Initial load — scroll to bottom so user sees latest messages
+    // Initial load — scroll to bottom so user sees latest messages + inject daily report
     useEffect(() => {
         if (initialLoaded || !companyId) return;
         (async () => {
             const msgs = await loadMessages();
+
+            // Fetch today's NexaIntelligence report
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const { data: report } = await supabase.from('ai_daily_reports')
+                    .select('full_analysis, employee_reports, manager_summary, report_type, generated_at')
+                    .eq('company_id', companyId)
+                    .eq('report_date', today)
+                    .order('generated_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (report?.manager_summary) {
+                    const isAdmin = ['tenant_owner','company_owner','super_admin','company_admin'].includes(userRole);
+                    let reportContent = '';
+
+                    if (isAdmin) {
+                        reportContent = `🧠 **تقرير NexaIntelligence ${report.report_type === 'morning' ? 'الصباحي ☀️' : 'المسائي 🌙'}**\n\n${report.manager_summary}`;
+                        const alerts = report.full_analysis?.alerts;
+                        if (alerts?.length) {
+                            reportContent += '\n\n⚠️ **تنبيهات:**\n' + alerts.map((a: any) => `• ${a.message}`).join('\n');
+                        }
+                        const highlights = report.full_analysis?.highlights;
+                        if (highlights?.length) {
+                            reportContent += '\n\n🌟 **إنجازات:**\n' + highlights.map((h: string) => `• ${h}`).join('\n');
+                        }
+                    } else {
+                        // Role-specific report
+                        const empReport = report.employee_reports?.[userRole] || report.full_analysis?.employee_reports?.[userRole];
+                        if (empReport) {
+                            reportContent = `🧠 **تقرير NexaIntelligence الخاص بك ${report.report_type === 'morning' ? '☀️' : '🌙'}**\n\n`;
+                            if (empReport.greeting) reportContent += empReport.greeting + '\n\n';
+                            if (empReport.summary) reportContent += empReport.summary + '\n\n';
+                            if (empReport.tasks?.length) {
+                                reportContent += '📋 **مهامك اليوم:**\n' + empReport.tasks.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n') + '\n\n';
+                            }
+                            if (empReport.tip) reportContent += `💡 ${empReport.tip}\n`;
+                            if (empReport.motivation) reportContent += `\n🎯 ${empReport.motivation}`;
+                        } else {
+                            reportContent = `🧠 **ملخص NexaIntelligence ${report.report_type === 'morning' ? '☀️' : '🌙'}**\n\n${report.manager_summary}`;
+                        }
+                    }
+
+                    if (reportContent) {
+                        const reportMsg: ChatMessage = {
+                            id: 'nexa_report_' + today,
+                            role: 'assistant',
+                            content: reportContent,
+                            model_used: 'nexa-intelligence',
+                            context_loaded: true,
+                            timestamp: new Date(report.generated_at),
+                        };
+                        // Add report at start if no existing messages, or after old messages
+                        const alreadyHasReport = msgs.some(m => m.id?.startsWith('nexa_report_'));
+                        if (!alreadyHasReport) {
+                            msgs.push(reportMsg);
+                        }
+                    }
+                }
+            } catch { /* No report today — normal */ }
+
             if (msgs.length > 0) {
                 setMessages(msgs);
                 setHasMore(msgs.length >= PAGE_SIZE);
             }
             setInitialLoaded(true);
-            // Use rAF-based scroll to guarantee DOM is painted
             scrollToBottom('auto');
         })();
-    }, [loadMessages, initialLoaded, scrollToBottom]);
+    }, [loadMessages, initialLoaded, scrollToBottom, companyId, userRole]);
 
     // Load older messages
     const loadOlder = useCallback(async () => {
@@ -628,8 +688,9 @@ function ChatPanel({ companyId, language, isAr, userRole, userName }: { companyI
                                         {msg.role === 'assistant' && msg.model_used && (
                                             <>
                                                 <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4",
+                                                    msg.model_used === 'nexa-intelligence' ? 'border-amber-400 text-amber-600 bg-amber-50 dark:bg-amber-950' :
                                                     msg.model_used?.includes('pro') ? 'border-purple-300 text-purple-600' : 'border-blue-300 text-blue-600')}>
-                                                    {msg.model_used?.includes('pro') ? '🧠 NexaPro' : '⚡ NexaFlash'}
+                                                    {msg.model_used === 'nexa-intelligence' ? '🧠 NexaIntelligence' : msg.model_used?.includes('pro') ? '🧠 NexaPro' : '⚡ NexaFlash'}
                                                 </Badge>
                                                 {msg.context_loaded && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-emerald-300 text-emerald-600">📊</Badge>}
                                             </>
