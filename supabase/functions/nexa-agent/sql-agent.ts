@@ -226,24 +226,24 @@ export async function executeSQLAgentLoop(
       if (blockedTable) {
         queryResult = { error: `🔒 ممنوع الوصول: جدول '${blockedTable}' غير متاح لصلاحياتك. تواصل مع المسؤول.` };
       } else {
-      try {
-        const { data, error } = await adminClient.rpc('execute_readonly_query', {
-          query_text: fc.args.sql,
-          p_company_id: companyId,
-          p_tenant_id: tenantId || null,
-        });
-        if (error) {
-          queryResult = { error: error.message };
-          console.log('[SQLAgent] Query error:', error.message);
-        } else {
-          queryResult = { rows: data || [], count: Array.isArray(data) ? data.length : 0 };
-          console.log('[SQLAgent] Query returned:', queryResult.count, 'rows');
+        try {
+          const { data, error } = await adminClient.rpc('execute_readonly_query', {
+            query_text: fc.args.sql,
+            p_company_id: companyId,
+            p_tenant_id: tenantId || null,
+          });
+          if (error) {
+            queryResult = { error: error.message };
+            console.log('[SQLAgent] Query error:', error.message);
+          } else {
+            queryResult = { rows: data || [], count: Array.isArray(data) ? data.length : 0 };
+            console.log('[SQLAgent] Query returned:', queryResult.count, 'rows');
+          }
+        } catch (err: any) {
+          queryResult = { error: err?.message || 'Query execution failed' };
+          console.log('[SQLAgent] Execution error:', err?.message);
         }
-      } catch (err: any) {
-        queryResult = { error: err?.message || 'Query execution failed' };
-        console.log('[SQLAgent] Execution error:', err?.message);
       }
-      } // close the else from security check
     }
 
     contents.push({ role: 'model', parts });
