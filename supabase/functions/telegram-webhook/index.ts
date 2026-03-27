@@ -806,6 +806,9 @@ serve(async (req: Request) => {
 
         const userLang = detectLanguage(text, message?.from?.language_code)
 
+        // ─── Show "typing..." indicator ─────────────────────
+        await sendTelegram(botToken, 'sendChatAction', { chat_id: chatId, action: 'typing' });
+
         // ─── General message → forward to NexaPro Agent ─────
         // Auto-detect role from user_roles (unified with system)
         let mappedRole = 'user';
