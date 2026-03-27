@@ -290,34 +290,70 @@ serve(async (req) => {
     }
 
     let responseText = lastParsedResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+    const finishReason = lastParsedResult?.candidates?.[0]?.finishReason || 'UNKNOWN';
 
-    // ═══ Server-Side Retry: if Gemini returned empty, retry once internally (much faster than client retry) ═══
+    // ═══ Server-Side Retry: if Gemini returned empty, retry with multiple strategies ═══
     if (!responseText) {
-      console.warn('[NexaPro] ⚠️ Empty response. finishReason:', lastParsedResult?.candidates?.[0]?.finishReason, '— Retrying server-side...');
-      try {
-        // Retry with flash-lite and simplified prompt (most reliable)
-        const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
-        const retryBody = {
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: contents,
-          generationConfig: { temperature: 0.5, maxOutputTokens: 4096 },
-        };
-        const retryResp = await fetch(retryUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(retryBody) });
-        if (retryResp.ok) {
-          const retryResult = await retryResp.json();
-          responseText = retryResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
-          if (responseText) {
-            console.log('[NexaPro] ✅ Server-side retry succeeded!');
-            usedModel = 'flash-lite-retry';
+      console.warn('[NexaPro] ⚠️ Empty response. finishReason:', finishReason, '— Retrying server-side...');
+
+      // Strategy 1: If SAFETY/RECITATION blocked, retry with rephrased prompt
+      if (finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'OTHER') {
+        try {
+          const safeContents = [
+            ...contents.slice(0, -1),
+            { role: 'user', parts: [{ text: `${message}\n\n(أجب بأسلوب تحليلي محايد ومهني. التزم بالبيانات المتوفرة فقط.)` }] },
+          ];
+          const safeUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+          const safeResp = await fetch(safeUrl, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ system_instruction: { parts: [{ text: systemPrompt }] }, contents: safeContents, generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }),
+          });
+          if (safeResp.ok) {
+            const safeResult = await safeResp.json();
+            responseText = safeResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+            if (responseText) { console.log('[NexaPro] ✅ Safety-bypass retry succeeded!'); usedModel = 'flash-safe-retry'; }
           }
-        }
-      } catch (retryErr) {
-        console.warn('[NexaPro] Server-side retry failed:', retryErr);
+        } catch (e) { console.warn('[NexaPro] Safety retry failed:', e); }
+      }
+
+      // Strategy 2: Retry without SQL tools (most common cause of empty responses)
+      if (!responseText) {
+        try {
+          const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+          const retryBody = {
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: message }] }],
+            generationConfig: { temperature: 0.5, maxOutputTokens: 4096 },
+          };
+          const retryResp = await fetch(retryUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(retryBody) });
+          if (retryResp.ok) {
+            const retryResult = await retryResp.json();
+            responseText = retryResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+            if (responseText) { console.log('[NexaPro] ✅ No-tools retry succeeded!'); usedModel = 'flash-retry'; }
+          }
+        } catch (retryErr) { console.warn('[NexaPro] No-tools retry failed:', retryErr); }
+      }
+
+      // Strategy 3: Last resort — flash-lite with minimal prompt
+      if (!responseText) {
+        try {
+          const liteUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-001:generateContent?key=${apiKey}`;
+          const liteBody = {
+            contents: [{ role: 'user', parts: [{ text: `أنت مستشار أعمال ذكي. أجب على هذا السؤال بناءً على معرفتك:\n\n${message}` }] }],
+            generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
+          };
+          const liteResp = await fetch(liteUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(liteBody) });
+          if (liteResp.ok) {
+            const liteResult = await liteResp.json();
+            responseText = liteResult?.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '';
+            if (responseText) { console.log('[NexaPro] ✅ Flash-lite last-resort succeeded!'); usedModel = 'flash-lite-fallback'; }
+          }
+        } catch (e) { console.warn('[NexaPro] Flash-lite last-resort failed:', e); }
       }
     }
 
     if (!responseText) {
-      console.warn('[NexaPro] ⚠️ Empty response after server retry too.');
+      console.warn('[NexaPro] ⚠️ Empty response after ALL retries. finishReason was:', finishReason);
       responseText = language === 'ar' ? 'لم أتمكن من توليد رد الآن. حاول مرة أخرى أو أعد صياغة سؤالك. 🔄' : "I couldn't generate a response right now. Please try again. 🔄";
     }
 
