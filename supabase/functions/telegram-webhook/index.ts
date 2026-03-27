@@ -408,9 +408,11 @@ serve(async (req: Request) => {
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
+        console.log('[TelegramWebhook] URL:', supabaseUrl, 'SRK len:', serviceRoleKey.length, 'ANON len:', anonKey.length);
 
-        if (!serviceRoleKey) {
-            return corsResponse({ error: 'Service role key missing' }, 500)
+        if (!serviceRoleKey && !anonKey) {
+            return corsResponse({ error: 'No auth keys available' }, 500)
         }
 
         // Service-role client (full access)
@@ -859,11 +861,14 @@ serve(async (req: Request) => {
         console.log(`[TelegramWebhook] User ${linkedUser?.user_id} role: ${mappedRole}`);
 
         try {
+            // Use service role key, fallback to anon key
+            const authKey = serviceRoleKey || anonKey;
+            console.log('[TelegramWebhook] Calling nexa-agent with key type:', serviceRoleKey ? 'service_role' : 'anon');
             const agentResponse = await fetch(`${supabaseUrl}/functions/v1/nexa-agent`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${serviceRoleKey}`,
+                    'Authorization': `Bearer ${authKey}`,
                 },
                 body: JSON.stringify({
                     message: text,
@@ -876,6 +881,7 @@ serve(async (req: Request) => {
                 }),
             })
 
+            console.log('[TelegramWebhook] Agent response status:', agentResponse.status, agentResponse.statusText);
             if (agentResponse.ok) {
                 const agentData = await agentResponse.json()
                 const fallbackMsg = userLang === 'ar' ? 'لم أتمكن من معالجة طلبك.'

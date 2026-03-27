@@ -578,6 +578,9 @@ function ChatPanel({ companyId, language, isAr, userRole, userName }: { companyI
                 },
             });
 
+            if (error) console.error('[AIChat] Function error:', error?.message, error?.context, error);
+            if (!data?.response) console.error('[AIChat] No response in data:', JSON.stringify(data)?.substring(0, 300));
+
             const responseText = data?.response
                 || (isAr ? 'لم أتمكن من توليد رد الآن. حاول مرة أخرى أو أعد صياغة سؤالك. 🔄' : 'Could not generate a response. Please try again. 🔄');
 
