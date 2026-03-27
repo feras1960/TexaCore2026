@@ -324,7 +324,14 @@ function TwoFactorSection({ isAr }: { isAr: boolean }) {
             setQrUri('');
             setSecret('');
             setVerifyCode('');
-            profileService.updateProfile({ two_factor_enabled: true }).catch(() => { });
+            // 🔐 Sync ALL 2FA data stores
+            profileService.updateProfile({ two_factor_enabled: true }).catch(e => console.warn('[2FA] Failed to sync user_profiles:', e));
+            supabase.from('mfa_user_settings').upsert({
+                user_id: (await supabase.auth.getUser()).data.user?.id,
+                is_enabled: true,
+                preferred_method: 'totp',
+                totp_verified: true,
+            }).then(({ error: e }) => e && console.warn('[2FA] Failed to sync mfa_user_settings:', e));
         } catch (err: any) {
             setError(isAr ? 'رمز التحقق غير صحيح' : 'Invalid verification code');
         }
@@ -336,7 +343,16 @@ function TwoFactorSection({ isAr }: { isAr: boolean }) {
             if (error) throw error;
             setEnabled(false);
             setFactorId('');
-            profileService.updateProfile({ two_factor_enabled: false }).catch(() => { });
+            // 🔐 Sync ALL 2FA data stores
+            profileService.updateProfile({ two_factor_enabled: false }).catch(e => console.warn('[2FA] Failed to sync user_profiles:', e));
+            const userId = (await supabase.auth.getUser()).data.user?.id;
+            if (userId) {
+                supabase.from('mfa_user_settings').upsert({
+                    user_id: userId,
+                    is_enabled: false,
+                    totp_verified: false,
+                }).then(({ error: e }) => e && console.warn('[2FA] Failed to sync mfa_user_settings:', e));
+            }
         } catch (err: any) {
             setError(err.message);
         }

@@ -607,13 +607,30 @@ export default function UsersManagementTab() {
             } else if (editingUser) {
                 // ─── EDIT MODE: Update existing user ─────────────
 
-                // Update is_active status
+                // Update is_active + require_mfa status
+                const profileUpdates: Record<string, any> = {};
                 if (editingUser.is_active !== formData.is_active) {
+                    profileUpdates.is_active = formData.is_active;
+                }
+                // 🔐 Sync 2FA requirement to user_profiles
+                profileUpdates.two_factor_enabled = formData.require_mfa || false;
+                
+                if (Object.keys(profileUpdates).length > 0) {
                     await supabase
                         .from('user_profiles')
-                        .update({ is_active: formData.is_active })
+                        .update(profileUpdates)
                         .eq('id', editingUser.id);
                 }
+
+                // 🔐 Sync mfa_user_settings table
+                await supabase
+                    .from('mfa_user_settings')
+                    .upsert({
+                        user_id: editingUser.id,
+                        is_enabled: formData.require_mfa || false,
+                        totp_verified: formData.require_mfa || false,
+                        preferred_method: 'totp',
+                    });
 
                 // Update roles: remove all, then re-add
                 const { error: removeError } = await supabase

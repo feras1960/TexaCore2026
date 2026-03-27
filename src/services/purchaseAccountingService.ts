@@ -329,6 +329,50 @@ export const purchaseAccountingService = {
             );
         }
 
+        // ═══ GROUP ACCOUNT GUARD ═══
+        // Prevent posting to GROUP accounts — only LEAF (detail) accounts allowed
+        const accountIdsToCheck = [debitAccountId, creditAccountId, taxAccountId].filter(Boolean) as string[];
+        if (accountIdsToCheck.length > 0) {
+            const { data: accountDetails } = await supabase
+                .from('chart_of_accounts')
+                .select('id, account_code, name_ar, is_group')
+                .in('id', accountIdsToCheck);
+
+            if (accountDetails) {
+                for (const acc of accountDetails) {
+                    if (acc.is_group) {
+                        // Try to find the first leaf child
+                        const { data: leafChild } = await supabase
+                            .from('chart_of_accounts')
+                            .select('id, account_code, name_ar')
+                            .eq('company_id', companyId)
+                            .eq('is_group', false)
+                            .like('account_code', `${acc.account_code}%`)
+                            .order('account_code')
+                            .limit(1)
+                            .maybeSingle();
+
+                        if (leafChild) {
+                            console.warn(`⚠️ [Group Guard] Resolving GROUP ${acc.account_code} (${acc.name_ar}) → LEAF ${leafChild.account_code} (${leafChild.name_ar})`);
+                            if (acc.id === debitAccountId) debitAccountId = leafChild.id;
+                            if (acc.id === creditAccountId) creditAccountId = leafChild.id;
+                            if (acc.id === taxAccountId) taxAccountId = leafChild.id;
+                            warnings.push(
+                                `⚠️ تم استبدال حساب ${acc.account_code} (${acc.name_ar}) لأنه حساب مجموعة — تم الترحيل على ${leafChild.account_code} (${leafChild.name_ar}) بدلاً منه. يرجى تحديث إعدادات الحسابات الافتراضية.`
+                            );
+                        } else {
+                            throw new Error(
+                                `❌ الحساب ${acc.account_code} (${acc.name_ar}) هو حساب مجموعة (GROUP) ولا يمكن الترحيل عليه مباشرة.\n` +
+                                `يرجى تعيين حساب تفصيلي (LEAF) في إعدادات المحاسبة.\n\n` +
+                                `❌ Account ${acc.account_code} (${acc.name_ar}) is a GROUP account. Cannot post to group accounts.\n` +
+                                `Please set a LEAF (detail) account in Accounting Settings.`
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         // ═══════════════════════════════════════════════
         // 5. Fetch Supplier Name
         // ═══════════════════════════════════════════════

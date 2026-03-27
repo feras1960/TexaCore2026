@@ -316,45 +316,66 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
 
     // ─── Map ALL items to InvoiceLineItem format ───
     const lineItems: InvoiceLineItem[] = useMemo(() => {
-        return resolvedItems.map((item: any) => ({
-            id: item.id || crypto.randomUUID(),
-            material_id: item.material_id || item.product_id || '',
-            material_code: item.material_code || item.item_code || '',
-            material_name_ar: item.material_name_ar || item.description_ar || item.description || item.item_name || item.name_ar || '',
-            material_name_en: item.material_name_en || item.item_name_en || item.name_en || '',
-            quantity: Number(item.quantity || 0),
-            unit: item.unit || 'meter',
-            unit_price: Number(item.unit_price || 0),
-            discount_percent: Number(item.discount_percent || 0),
-            discount_amount: Number(item.discount_amount || 0),
-            tax_rate: Number(item.tax_rate || 0),
-            tax_amount: Number(item.tax_amount || 0),
-            subtotal: Number(item.subtotal || (item.quantity * item.unit_price) || 0),
-            total: Number(item.total || item.subtotal || (item.quantity * item.unit_price) || 0),
-            currency: item.currency || data.currency || companyCurrency || 'SAR',
-            exchange_rate: Number(item.exchange_rate || 1),
-            warehouse_id: item.warehouse_id || '',
-            warehouse_name_ar: item.warehouse_name_ar || '',
-            warehouse_name_en: item.warehouse_name_en || '',
-            available_stock: item.available_stock,
-            preferred_rolls: item.preferred_rolls || [],
-            notes: item.notes,
-            // Delivery/Receipt tracking — map received_qty (purchases) → delivered_qty
-            delivered_qty: Number(item.delivered_qty || item.received_qty || 0),
-            cost_price: Number(item.cost_price || 0),
-            delivery_rolls: item.delivery_rolls || [],
-        }));
-    }, [resolvedItems, data.currency, companyCurrency]);
+        // 🌍 International purchases: override stored tax values to 0
+        const isInternationalLoad = tradeMode === 'purchase' && data.receipt_mode === 'international';
+
+        return resolvedItems.map((item: any) => {
+            const sub = Number(item.subtotal || (item.quantity * item.unit_price) || 0);
+            const disc = Number(item.discount_amount || 0);
+            const taxRate = isInternationalLoad ? 0 : Number(item.tax_rate || 0);
+            const taxAmt  = isInternationalLoad ? 0 : Number(item.tax_amount || 0);
+            const total   = isInternationalLoad ? (sub - disc) : Number(item.total || sub);
+
+            return {
+                id: item.id || crypto.randomUUID(),
+                material_id: item.material_id || item.product_id || '',
+                material_code: item.material_code || item.item_code || '',
+                material_name_ar: item.material_name_ar || item.description_ar || item.description || item.item_name || item.name_ar || '',
+                material_name_en: item.material_name_en || item.item_name_en || item.name_en || '',
+                quantity: Number(item.quantity || 0),
+                unit: item.unit || 'meter',
+                unit_price: Number(item.unit_price || 0),
+                discount_percent: Number(item.discount_percent || 0),
+                discount_amount: disc,
+                tax_rate: taxRate,
+                tax_amount: taxAmt,
+                subtotal: sub,
+                total: total,
+                currency: item.currency || data.currency || companyCurrency || 'SAR',
+                exchange_rate: Number(item.exchange_rate || 1),
+                warehouse_id: item.warehouse_id || '',
+                warehouse_name_ar: item.warehouse_name_ar || '',
+                warehouse_name_en: item.warehouse_name_en || '',
+                available_stock: item.available_stock,
+                preferred_rolls: item.preferred_rolls || [],
+                notes: item.notes,
+                // Delivery/Receipt tracking — map received_qty (purchases) → delivered_qty
+                delivered_qty: Number(item.delivered_qty || item.received_qty || 0),
+                cost_price: Number(item.cost_price || 0),
+                delivery_rolls: item.delivery_rolls || [],
+            };
+        });
+    }, [resolvedItems, data.currency, companyCurrency, tradeMode, data.receipt_mode]);
 
     // ─── Handle items update ───
     const handleItemsChange = useCallback((updatedItems: InvoiceLineItem[]) => {
+        const isInternational = tradeMode === 'purchase' && data.receipt_mode === 'international';
+
+        // 🌍 International: strip tax from individual items BEFORE calculations & save
+        if (isInternational) {
+            updatedItems = updatedItems.map(item => ({
+                ...item,
+                tax_rate: 0,
+                tax_amount: 0,
+                total: (Number(item.subtotal) || 0) - (Number(item.discount_amount) || 0),
+            }));
+        }
+
         // Subtotal = مجموع (كمية × سعر)
         const subtotal = updatedItems.reduce((s, i) => s + Number(i.subtotal || (i.quantity * i.unit_price) || 0), 0);
         // Discount = مجموع خصومات الأصناف
         const discountAmount = updatedItems.reduce((s, i) => s + Number(i.discount_amount || 0), 0);
-        // Tax = مجموع ضرائب الأصناف (كل صنف يحمل ضريبته الخاصة)
-        // 🌍 International: force tax=0 on invoice level
-        const isInternational = tradeMode === 'purchase' && data.receipt_mode === 'international';
+        // Tax = مجموع ضرائب الأصناف
         const taxAmount = isInternational ? 0 : updatedItems.reduce((s, i) => s + Number(i.tax_amount || 0), 0);
         // Total = صافي + ضريبة
         const net = subtotal - discountAmount;

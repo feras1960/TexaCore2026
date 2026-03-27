@@ -205,6 +205,28 @@ export const journalEntriesService = {
       throw new Error('القيد غير متوازن! يجب أن يكون إجمالي المدين يساوي إجمالي الدائن');
     }
 
+    // ═══ GROUP ACCOUNT GUARD ═══
+    // Posting to GROUP accounts causes invisible balances (RPC only returns leaf accounts)
+    const uniqueAccountIds = [...new Set(validLines.map(l => l.account_id))];
+    if (uniqueAccountIds.length > 0) {
+      const { data: accountChecks } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_code, name_ar, is_group')
+        .in('id', uniqueAccountIds);
+
+      const groupAccounts = accountChecks?.filter(a => a.is_group) || [];
+      if (groupAccounts.length > 0) {
+        const groupList = groupAccounts.map(a => `${a.account_code} (${a.name_ar})`).join(', ');
+        console.error(`❌ [Group Guard] Attempted to post to GROUP account(s): ${groupList}`);
+        throw new Error(
+          `❌ لا يمكن الترحيل على حسابات مجموعة: ${groupList}\n` +
+          `يجب استخدام حسابات تفصيلية (LEAF) فقط.\n\n` +
+          `❌ Cannot post to GROUP accounts: ${groupList}\n` +
+          `Only LEAF (detail) accounts are allowed in journal entries.`
+        );
+      }
+    }
+
     // Generate entry number — use timestamp-based unique ID
     // (RPC generate_sequence_number may return colliding numbers)
     const entryNumber = `JE-${Date.now()}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
