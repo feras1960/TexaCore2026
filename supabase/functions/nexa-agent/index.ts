@@ -303,7 +303,7 @@ serve(async (req) => {
             ...contents.slice(0, -1),
             { role: 'user', parts: [{ text: `${message}\n\n(أجب بأسلوب تحليلي محايد ومهني. التزم بالبيانات المتوفرة فقط.)` }] },
           ];
-          const safeUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+          const safeUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
           const safeResp = await fetch(safeUrl, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ system_instruction: { parts: [{ text: systemPrompt }] }, contents: safeContents, generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }),
@@ -319,7 +319,7 @@ serve(async (req) => {
       // Strategy 2: Retry without SQL tools (most common cause of empty responses)
       if (!responseText) {
         try {
-          const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+          const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
           const retryBody = {
             system_instruction: { parts: [{ text: systemPrompt }] },
             contents: [{ role: 'user', parts: [{ text: message }] }],
@@ -337,7 +337,7 @@ serve(async (req) => {
       // Strategy 3: Last resort — flash-lite with minimal prompt
       if (!responseText) {
         try {
-          const liteUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-001:generateContent?key=${apiKey}`;
+          const liteUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
           const liteBody = {
             contents: [{ role: 'user', parts: [{ text: `أنت مستشار أعمال ذكي. أجب على هذا السؤال بناءً على معرفتك:\n\n${message}` }] }],
             generationConfig: { temperature: 0.6, maxOutputTokens: 2048 },
