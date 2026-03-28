@@ -89,13 +89,19 @@ function generateSessionId(): string {
     return `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
-export function generateRollNumber(receiptRef?: string, itemIndex?: number, materialName?: string): string {
+export function generateRollNumber(
+    receiptRef?: string,
+    itemIndex?: number,
+    materialName?: string,
+    colorName?: string,
+    designCode?: string
+): string {
     // If receipt context is available → use local smart numbering
     if (receiptRef && itemIndex) {
         const { roll_number } = rollNumberService.generateLocal({
             materialName,
-            sourcePrefix: 'R',
-            sourceDocNumber: receiptRef,
+            colorName,
+            designCode,
             itemIndex,
         });
         return roll_number;
@@ -334,11 +340,8 @@ export const receiptLocalStore = {
                 notesToSave += ` | Batch: ${item.batchId}`;
             }
 
-            // 🔢 Generate descriptive roll_code for smart numbering
-            const rollCode = buildRollCode({
-                materialName: item.materialName || undefined,
-                colorCode: item.colorName || undefined,
-            });
+            // 🔢 Use exact roll_code generated locally (before the first hyphen) instead of rebuilding it
+            const rollCode = item.rollNumber.split('-')[0] || 'XX';
 
             // Insert into fabric_rolls (the actual rolls table)
             const { data, error } = await supabase

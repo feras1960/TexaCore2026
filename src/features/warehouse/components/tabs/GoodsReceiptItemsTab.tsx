@@ -317,7 +317,17 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
         if (needsColor && !colorName) return;
 
         const mat = materials.find(m => m.id === materialId);
-        const rollNum = generateRollNumber();
+        
+        // Use English name or Code for generic numbering, ignoring Arabic as requested
+        const nameForAbbr = (mat?.name_en || mat?.code || 'FABRIC').split(/[-_ (\[]/)[0];
+        const refNum = data?.reference_number || sourceDocument?.reference_number || (sessionId ? sessionId.split('_').pop() : 'NREF');
+        
+        const rollNum = generateRollNumber(
+            refNum,
+            items.length + 1,
+            nameForAbbr,
+            colorName // Use selected color for English abbreviation if possible
+        );
         const batchNum = generateBatchId(data?.reference_number || undefined);
 
         // Auto-resolve sourceItemId if not manually selected

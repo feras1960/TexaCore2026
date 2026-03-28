@@ -4455,6 +4455,13 @@
       "transfers": "Перемещения",
       "ecommerce": "Интернет-магазин"
     },
+    "salesDelivery": {
+      "title": "Накладная на отгрузку",
+      "tabs": {
+        "deliveryInfo": "Инфо о доставке",
+        "items": "Позиции отгрузки"
+      }
+    },
     "dashboard": {
       "title": "Панель складов",
       "totalWarehouses": "Склады",
@@ -4708,7 +4715,9 @@
         "adjustment": "Корректировка",
         "container": "Контейнер",
         "delivery": "Доставка",
-        "return": "Возврат"
+        "return": "Возврат",
+        "in": "Приход",
+        "opening_balance": "Начальный остаток"
       },
       "statuses": {
         "pending": "В ожидании",

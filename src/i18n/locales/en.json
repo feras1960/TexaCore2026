@@ -4526,6 +4526,13 @@
       "transfers": "Transfers",
       "ecommerce": "E-Commerce"
     },
+    "salesDelivery": {
+      "title": "Sales Delivery Note",
+      "tabs": {
+        "deliveryInfo": "Delivery Info",
+        "items": "Delivery Items"
+      }
+    },
     "stockMovements": {
       "pendingReceipts": "Pending Receipts",
       "allMovements": "All Movements",
@@ -4546,7 +4553,9 @@
         "transfer_out": "Transfer Out",
         "container": "Container",
         "delivery": "Delivery",
-        "adjustment": "Adjustment"
+        "adjustment": "Adjustment",
+        "in": "In",
+        "opening_balance": "Opening Balance"
       },
       "statuses": {
         "ready": "Ready to Receive",

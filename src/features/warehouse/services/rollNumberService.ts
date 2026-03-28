@@ -81,7 +81,7 @@ export function abbreviate(text: string | undefined | null, maxLen = 4): string 
 
     // 4. Fallback: أول N أحرف إنجليزية
     const ascii = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    return ascii.slice(0, maxLen) || 'XX';
+    return ascii.slice(0, maxLen);
 }
 
 /**
@@ -148,7 +148,14 @@ export const rollNumberService = {
     async generate(input: RollCodeInput): Promise<SmartRollNumber> {
         const rollCode = buildRollCode(input);
         const rollSeq = await this.getNextSeq(input.companyId);
-        const rollNumber = `${rollCode}-${String(rollSeq).padStart(3, '0')}`;
+        
+        // Year and Month as requested by user for comprehensive numbering
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        
+        // POLY-2603001
+        const rollNumber = `${rollCode}-${yy}${mm}${String(rollSeq).padStart(3, '0')}`;
 
         return {
             roll_number: rollNumber,
@@ -179,23 +186,33 @@ export const rollNumberService = {
         designCode?: string;
         colorCode?: string;
         colorName?: string;
-        /** Source prefix: 'J' for جرد, 'R' for استلام, 'A' for تلقائي */
-        sourcePrefix: 'J' | 'R' | 'A';
-        /** Source document number (e.g., "SC-20260318-4E7B") */
-        sourceDocNumber: string;
+        /** Source prefix - now unused but kept for interface compatibility */
+        sourcePrefix?: 'J' | 'R' | 'A';
+        /** Source doc number - now unused but kept for interface compatibility */
+        sourceDocNumber?: string;
         /** Item index within the session (1-based) */
         itemIndex: number;
     }): { roll_number: string; roll_code: string } {
         const rollCode = buildRollCode(input);
 
-        // Extract short reference from document number
-        // "SC-20260318-4E7B" → last segment → "4E7B" → first 2 chars → "4E"
-        const parts = input.sourceDocNumber.split('-');
-        const lastPart = parts[parts.length - 1] || '';
-        const shortRef = lastPart.substring(0, 2).toUpperCase() || 'XX';
-
+        // Date-based numeric sequence: YYMM + Doc Hash + Index
+        // User requested: "بدون احرف لسهولة البحث", and asked to prevent collisions.
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        
+        // 1. استخراج الأرقام فقط من الوثيقة المرجعية (أو الجلسة) لإنشاء توقيع رقمي فريد للجلسة
+        const docOnlyNumbers = (input.sourceDocNumber || '').replace(/\D/g, '');
+        // نأخذ آخر 3 إلى 4 أرقام من الفاتورة/الجلسة كمعرف فريد
+        const sessionHash = docOnlyNumbers.length > 0 
+            ? docOnlyNumbers.slice(-4).padStart(3, '0') 
+            : String(Math.floor(Math.random() * 999)).padStart(3, '0');
+            
+        // 2. تسلسل الرولون المضاف (رقمين يكفي عادة لاستلام قماش من نفس اللون)
         const paddedIndex = String(input.itemIndex).padStart(2, '0');
-        const rollNumber = `${rollCode}-${input.sourcePrefix}${shortRef}${paddedIndex}`;
+        
+        // Example: POLY-2603105201 (Year 26, Month 03, Doc 1052, Index 01)
+        const rollNumber = `${rollCode}-${yy}${mm}${sessionHash}${paddedIndex}`;
 
         return { roll_number: rollNumber, roll_code: rollCode };
     },

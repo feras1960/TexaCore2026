@@ -4150,6 +4150,13 @@
       "transfers": "Переміщення",
       "ecommerce": "Інтернет-магазин"
     },
+    "salesDelivery": {
+      "title": "Накладна на відвантаження",
+      "tabs": {
+        "deliveryInfo": "Інфо про доставку",
+        "items": "Позиції відвантаження"
+      }
+    },
     "dashboard": {
       "title": "Панель складів",
       "totalWarehouses": "Склади",
@@ -4403,7 +4410,9 @@
         "adjustment": "Коригування",
         "container": "Контейнер",
         "delivery": "Доставка",
-        "return": "Повернення"
+        "return": "Повернення",
+        "in": "Прихід",
+        "opening_balance": "Початковий залишок"
       },
       "statuses": {
         "pending": "В очікуванні",

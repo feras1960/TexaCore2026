@@ -4664,6 +4664,13 @@
       "transfers": "المناقلات",
       "ecommerce": "المتجر الإلكتروني"
     },
+    "salesDelivery": {
+      "title": "إذن تسليم مبيعات",
+      "tabs": {
+        "deliveryInfo": "معلومات التسليم",
+        "items": "بنود التسليم"
+      }
+    },
     "dashboard": {
       "title": "لوحة المستودعات",
       "totalWarehouses": "المستودعات",
@@ -4917,7 +4924,9 @@
         "adjustment": "تسوية",
         "container": "كونتينر",
         "delivery": "تسليم",
-        "return": "مرتجع"
+        "return": "مرتجع",
+        "in": "استلام (In)",
+        "opening_balance": "رصيد افتتاحي"
       },
       "statuses": {
         "pending": "قيد الانتظار",
