@@ -13,7 +13,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useTheme } from '@/app/providers/ThemeProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -62,6 +62,40 @@ export default function AccountingDashboard() {
   const [profitPasswordError, setProfitPasswordError] = useState('');
   const [profitPasswordLoading, setProfitPasswordLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [autoLockCountdown, setAutoLockCountdown] = useState(0);
+  const autoLockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const AUTO_LOCK_SECONDS = 180; // 3 minutes
+
+  // ─── Auto-lock: Timer + Page Visibility ─────────────────────
+  useEffect(() => {
+    if (!profitUnlocked) {
+      if (autoLockTimerRef.current) clearInterval(autoLockTimerRef.current);
+      setAutoLockCountdown(0);
+      return;
+    }
+    setAutoLockCountdown(AUTO_LOCK_SECONDS);
+    autoLockTimerRef.current = setInterval(() => {
+      setAutoLockCountdown(prev => {
+        if (prev <= 1) {
+          setProfitUnlocked(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (autoLockTimerRef.current) clearInterval(autoLockTimerRef.current); };
+  }, [profitUnlocked]);
+
+  // Auto-lock when tab becomes hidden
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && profitUnlocked) {
+        setProfitUnlocked(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [profitUnlocked]);
 
   // Currency filter with localStorage
   const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
@@ -669,40 +703,74 @@ export default function AccountingDashboard() {
           onClick={() => {
             if (profitUnlocked) setProfitUnlocked(false);
           }}
-          className="w-full p-5 flex items-center gap-4 bg-gradient-to-r from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border-b border-amber-100/50 dark:border-amber-800/30 hover:from-amber-100/80 hover:to-orange-100/50 transition-colors cursor-default"
+          className={cn(
+            "w-full p-5 flex items-center gap-4 border-b transition-colors cursor-default",
+            profitUnlocked
+              ? "bg-gradient-to-r from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/10 border-emerald-100/50 dark:border-emerald-800/30"
+              : "bg-gradient-to-r from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border-amber-100/50 dark:border-amber-800/30 hover:from-amber-100/80 hover:to-orange-100/50"
+          )}
         >
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
+          <div className={cn(
+            "p-2.5 rounded-xl shadow-sm",
+            profitUnlocked
+              ? "bg-gradient-to-br from-emerald-500 to-teal-600"
+              : "bg-gradient-to-br from-amber-500 to-orange-600"
+          )}>
             {profitUnlocked ? <ShieldCheck className="w-5 h-5 text-white" /> : <Lock className="w-5 h-5 text-white" />}
           </div>
           <div className="flex-1 text-start">
-            <h3 className="text-base font-bold text-amber-800 dark:text-amber-300 font-cairo">
-              {isAr ? '🔒 تقرير الأرباح والخسائر' : '🔒 Profit & Loss Report'}
-            </h3>
-            <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">
+            <h3 className={cn(
+              "text-base font-bold font-cairo",
+              profitUnlocked ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"
+            )}>
               {profitUnlocked
-                ? (isAr ? '✅ تم فتح التقرير — اضغط لإعادة القفل' : '✅ Report unlocked — click to re-lock')
-                : (isAr ? 'محمي بكلمة السر — متاح فقط لصاحب الشركة' : 'Password protected — owner access only')}
+                ? (isAr ? '✅ تقرير الأرباح والخسائر' : '✅ Profit & Loss Report')
+                : (isAr ? '🔒 تقرير الأرباح والخسائر' : '🔒 Profit & Loss Report')}
+            </h3>
+            <p className={cn(
+              "text-xs mt-0.5",
+              profitUnlocked ? "text-emerald-600/80 dark:text-emerald-400/70" : "text-amber-600/80 dark:text-amber-400/70"
+            )}>
+              {profitUnlocked
+                ? (isAr ? 'اضغط لإعادة القفل — يُقفل تلقائياً عند مغادرة الصفحة' : 'Click to re-lock — auto-locks when you leave')
+                : (isAr ? 'محمي بكلمة السر — يُقفل تلقائياً بعد 3 دقائق' : 'Password protected — auto-locks after 3 minutes')}
             </p>
           </div>
           {profitUnlocked && (
-            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 gap-1">
-              <ShieldCheck className="w-3 h-3" />
-              {isAr ? 'مفتوح' : 'Unlocked'}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 gap-1 font-mono">
+                <Clock className="w-3 h-3" />
+                {Math.floor(autoLockCountdown / 60)}:{String(autoLockCountdown % 60).padStart(2, '0')}
+              </Badge>
+              <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 gap-1 cursor-pointer hover:bg-red-200 transition-colors" onClick={(e) => { e.stopPropagation(); setProfitUnlocked(false); }}>
+                <Lock className="w-3 h-3" />
+                {isAr ? 'قفل' : 'Lock'}
+              </Badge>
+            </div>
           )}
         </button>
 
         {!profitUnlocked ? (
           /* Password Entry */
-          <div className="p-6 flex flex-col items-center gap-4">
-            <div className="p-4 rounded-full bg-amber-100/50 dark:bg-amber-900/20">
-              <KeyRound className="w-8 h-8 text-amber-500" />
+          <div className="p-8 flex flex-col items-center gap-5">
+            <div className="relative">
+              <div className="p-5 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/20">
+                <KeyRound className="w-10 h-10 text-amber-500" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-amber-500 shadow">
+                <Lock className="w-3 h-3 text-white" />
+              </div>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-tajawal text-center max-w-sm">
-              {isAr
-                ? 'ادخل كلمة سر حسابك لعرض تقرير الأرباح والخسائر'
-                : 'Enter your account password to view the Profit & Loss report'}
-            </p>
+            <div className="text-center">
+              <h4 className="font-bold text-gray-700 dark:text-gray-300 font-cairo">
+                {isAr ? 'التحقق من الهوية' : 'Identity Verification'}
+              </h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-tajawal mt-1 max-w-sm">
+                {isAr
+                  ? 'ادخل كلمة سر حسابك لعرض التقرير المالي الحساس'
+                  : 'Enter your account password to view sensitive financial data'}
+              </p>
+            </div>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -733,13 +801,13 @@ export default function AccountingDashboard() {
                   value={profitPassword}
                   onChange={(e) => setProfitPassword(e.target.value)}
                   placeholder={isAr ? 'كلمة السر...' : 'Password...'}
-                  className="pe-10 bg-white dark:bg-gray-800 border-amber-200 dark:border-amber-800 focus:border-amber-400"
+                  className="pe-10 bg-white dark:bg-gray-800 border-amber-200 dark:border-amber-800 focus:border-amber-400 h-11"
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -747,81 +815,203 @@ export default function AccountingDashboard() {
               <Button
                 type="submit"
                 disabled={!profitPassword || profitPasswordLoading}
-                className="bg-amber-600 hover:bg-amber-700 text-white gap-2"
+                className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white gap-2 h-11 px-6 shadow-sm"
               >
                 {profitPasswordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                 {isAr ? 'فتح' : 'Unlock'}
               </Button>
             </form>
             {profitPasswordError && (
-              <p className="text-sm text-red-500 font-medium">{profitPasswordError}</p>
+              <p className="text-sm text-red-500 font-medium animate-pulse">{profitPasswordError}</p>
             )}
           </div>
         ) : (
-          /* Unlocked: Detailed P&L */
-          <div className="p-5 space-y-4">
+          /* Unlocked: Detailed P&L with Charts */
+          <div className="p-5 space-y-5">
             {/* Net Profit Hero */}
             <div className={cn(
-              "p-5 rounded-2xl border-2 text-center",
+              "p-6 rounded-2xl border-2 text-center relative overflow-hidden",
               netProfit >= 0
-                ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800"
-                : "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/20 border-red-200 dark:border-red-800"
+                ? "bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-cyan-950/10 border-emerald-200 dark:border-emerald-800"
+                : "bg-gradient-to-br from-red-50 via-rose-50 to-pink-50 dark:from-red-950/30 dark:via-rose-950/20 dark:to-pink-950/10 border-red-200 dark:border-red-800"
             )}>
-              <p className="text-sm font-tajawal text-gray-600 dark:text-gray-400">
+              {/* Decorative circles */}
+              <div className={cn("absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-30", netProfit >= 0 ? "bg-emerald-400" : "bg-red-400")} />
+              <div className={cn("absolute -bottom-10 -left-10 w-28 h-28 rounded-full blur-3xl opacity-20", netProfit >= 0 ? "bg-teal-400" : "bg-rose-400")} />
+
+              <p className="text-sm font-tajawal text-gray-600 dark:text-gray-400 relative z-10">
                 {isAr ? 'صافي الربح / الخسارة' : 'Net Profit / Loss'}
               </p>
               <p className={cn(
-                "text-3xl font-bold font-mono mt-1",
+                "text-4xl font-bold font-mono mt-2 relative z-10 tracking-tight",
                 netProfit >= 0 ? "text-emerald-600" : "text-red-600"
               )}>
                 {sym} {Math.abs(netProfit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
-              <Badge className={cn(
-                "mt-2",
-                netProfit >= 0
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                  : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-              )}>
-                {netProfit >= 0 ? (isAr ? '✓ ربح' : '✓ Profit') : (isAr ? '⚠ خسارة' : '⚠ Loss')}
-              </Badge>
+              <div className="flex items-center justify-center gap-2 mt-3 relative z-10">
+                <Badge className={cn(
+                  netProfit >= 0
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                )}>
+                  {netProfit >= 0 ? (isAr ? '✓ ربح صافي' : '✓ Net Profit') : (isAr ? '⚠ خسارة صافية' : '⚠ Net Loss')}
+                </Badge>
+                <Badge className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 font-mono">
+                  {isAr ? 'هامش' : 'Margin'}: {profitMargin.toFixed(1)}%
+                </Badge>
+              </div>
             </div>
 
-            {/* Breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Donut Chart — Revenue vs Expenses */}
+              <div className="p-4 rounded-xl bg-white dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700/50">
+                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 font-cairo mb-3 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-violet-500" />
+                  {isAr ? 'توزيع الإيرادات والمصروفات' : 'Revenue vs Expenses Distribution'}
+                </h4>
+                <ReactECharts
+                  option={{
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                      trigger: 'item',
+                      formatter: (p: any) => `${p.name}: ${sym} ${Number(p.value).toLocaleString()} (${p.percent}%)`,
+                      backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                      textStyle: { color: isDark ? '#f9fafb' : '#111827', fontSize: 12 },
+                    },
+                    series: [{
+                      type: 'pie',
+                      radius: ['45%', '75%'],
+                      center: ['50%', '50%'],
+                      avoidLabelOverlap: true,
+                      itemStyle: { borderRadius: 8, borderColor: isDark ? '#1f2937' : '#ffffff', borderWidth: 3 },
+                      label: { show: true, fontSize: 11, color: isDark ? '#9ca3af' : '#6b7280', formatter: '{b}\n{d}%' },
+                      emphasis: {
+                        label: { show: true, fontSize: 14, fontWeight: 'bold' },
+                        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.15)' }
+                      },
+                      data: [
+                        { value: totalRevenue, name: isAr ? 'الإيرادات' : 'Revenue', itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 1, colorStops: [{ offset: 0, color: '#10b981' }, { offset: 1, color: '#059669' }] } } },
+                        { value: totalExpenses, name: isAr ? 'المصروفات' : 'Expenses', itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 1, colorStops: [{ offset: 0, color: '#f43f5e' }, { offset: 1, color: '#e11d48' }] } } },
+                      ],
+                    }],
+                  }}
+                  style={{ height: '220px', width: '100%' }}
+                  opts={{ renderer: 'canvas' }}
+                  notMerge
+                />
+              </div>
+
+              {/* Bar Chart — Monthly P&L */}
+              <div className="p-4 rounded-xl bg-white dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700/50">
+                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 font-cairo mb-3 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-blue-500" />
+                  {isAr ? 'الأداء الشهري (الربح/الخسارة)' : 'Monthly P&L Performance'}
+                </h4>
+                <ReactECharts
+                  option={{
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                      trigger: 'axis',
+                      axisPointer: { type: 'shadow' },
+                      backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                      textStyle: { color: isDark ? '#f9fafb' : '#111827', fontSize: 12 },
+                      formatter: (params: any) => {
+                        if (!params?.length) return '';
+                        let html = `<div style="font-weight:bold;margin-bottom:4px">${params[0].axisValue}</div>`;
+                        params.forEach((p: any) => {
+                          html += `<div style="display:flex;justify-content:space-between;gap:12px;margin-top:2px"><span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>${p.seriesName}</span><b style="font-family:monospace">${sym}${Number(p.value).toLocaleString()}</b></div>`;
+                        });
+                        return html;
+                      },
+                    },
+                    grid: { left: '2%', right: '2%', bottom: '8%', top: '8%', containLabel: true },
+                    xAxis: {
+                      type: 'category',
+                      data: monthly.map(d => d.label),
+                      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280', fontSize: 11 },
+                      axisLine: { lineStyle: { color: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }},
+                      inverse: isRTL,
+                    },
+                    yAxis: {
+                      type: 'value',
+                      splitLine: { lineStyle: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)', type: 'dashed' }},
+                      axisLabel: { color: isDark ? '#9ca3af' : '#6b7280', fontSize: 10, formatter: (v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v },
+                    },
+                    series: [
+                      {
+                        name: isAr ? 'الإيرادات' : 'Revenue',
+                        type: 'bar',
+                        barGap: '20%',
+                        itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#10b981' }] }},
+                        data: monthly.map(d => d.revenue),
+                      },
+                      {
+                        name: isAr ? 'المصروفات' : 'Expenses',
+                        type: 'bar',
+                        itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#fb7185' }, { offset: 1, color: '#f43f5e' }] }},
+                        data: monthly.map(d => d.expenses),
+                      },
+                    ],
+                  }}
+                  style={{ height: '220px', width: '100%' }}
+                  opts={{ renderer: 'canvas' }}
+                  notMerge
+                />
+              </div>
+            </div>
+
+            {/* Detailed Breakdown Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-100/50">
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp className="w-4 h-4 text-emerald-500" />
-                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'إجمالي الإيرادات' : 'Total Revenue'}</span>
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'الإيرادات' : 'Revenue'}</span>
                 </div>
                 <p className="text-lg font-mono font-bold text-emerald-600">{sym} {totalRevenue.toLocaleString()}</p>
               </div>
               <div className="p-4 rounded-xl bg-red-50/80 dark:bg-red-950/20 border border-red-100/50">
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingDown className="w-4 h-4 text-red-500" />
-                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'إجمالي المصروفات' : 'Total Expenses'}</span>
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'المصروفات' : 'Expenses'}</span>
                 </div>
                 <p className="text-lg font-mono font-bold text-red-600">{sym} {totalExpenses.toLocaleString()}</p>
               </div>
               <div className="p-4 rounded-xl bg-blue-50/80 dark:bg-blue-950/20 border border-blue-100/50">
                 <div className="flex items-center gap-2 mb-1">
                   <BarChart3 className="w-4 h-4 text-blue-500" />
-                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'هامش الربح' : 'Profit Margin'}</span>
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'هامش الربح' : 'Margin'}</span>
                 </div>
                 <p className={cn("text-lg font-mono font-bold", profitMargin >= 0 ? "text-blue-600" : "text-red-600")}>
                   {profitMargin.toFixed(1)}%
                 </p>
-                <div className="mt-1.5 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div className={cn("h-full rounded-full transition-all", profitMargin >= 0 ? "bg-blue-500" : "bg-red-500")} style={{ width: `${Math.min(Math.abs(profitMargin), 100)}%` }} />
+                <div className="mt-1.5 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all duration-700", profitMargin >= 0 ? "bg-blue-500" : "bg-red-500")} style={{ width: `${Math.min(Math.abs(profitMargin), 100)}%` }} />
                 </div>
+              </div>
+              <div className="p-4 rounded-xl bg-violet-50/80 dark:bg-violet-950/20 border border-violet-100/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <Wallet className="w-4 h-4 text-violet-500" />
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'الرصيد النقدي' : 'Cash'}</span>
+                </div>
+                <p className="text-lg font-mono font-bold text-violet-600">{sym} {cashBalance.toLocaleString()}</p>
               </div>
             </div>
 
-            {/* Disclaimer */}
-            <p className="text-[11px] text-gray-400 dark:text-gray-600 text-center font-tajawal">
-              {isAr
-                ? 'صافي الربح = الإيرادات (كود 4xx) - المصروفات (كود 5xx) · محمي بكلمة السر'
-                : 'Net Profit = Revenue (4xx) - Expenses (5xx) · Password protected'}
-            </p>
+            {/* Disclaimer + Timer */}
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-gray-400 dark:text-gray-600 font-tajawal">
+                {isAr
+                  ? 'صافي الربح = الإيرادات (كود 4xx) - المصروفات (كود 5xx)'
+                  : 'Net Profit = Revenue (4xx) - Expenses (5xx)'}
+              </p>
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                <Clock className="w-3 h-3" />
+                {isAr ? `يُقفل تلقائياً خلال ${Math.floor(autoLockCountdown / 60)}:${String(autoLockCountdown % 60).padStart(2, '0')}` : `Auto-locks in ${Math.floor(autoLockCountdown / 60)}:${String(autoLockCountdown % 60).padStart(2, '0')}`}
+              </div>
+            </div>
           </div>
         )}
       </Card>
