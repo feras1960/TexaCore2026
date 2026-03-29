@@ -494,7 +494,6 @@ export default function Dashboard() {
   };
 
   const Arrow = isRTL ? ChevronLeft : ChevronRight;
-  const netProfit = stats.totalSales - stats.totalPurchases;
 
   return (
     <div className="space-y-6 pb-12 overflow-x-hidden">
@@ -602,15 +601,14 @@ export default function Dashboard() {
               delay={0.07}
             />
             <KPICard
-              title={isAr ? 'صافي الربح' : 'Net Profit'}
-              value={Math.abs(netProfit)}
-              currency={selectedCurrency}
-              icon={netProfit >= 0 ? BarChart3 : AlertCircle}
-              gradient={netProfit >= 0 ? 'bg-violet-400' : 'bg-orange-400'}
-              iconBg={netProfit >= 0 ? 'bg-violet-50 dark:bg-violet-900/30' : 'bg-orange-50 dark:bg-orange-900/30'}
-              iconColor={netProfit >= 0 ? 'text-violet-600 dark:text-violet-400' : 'text-orange-600 dark:text-orange-400'}
-              badge={netProfit >= 0 ? (isAr ? '✓ ربح صافي' : '✓ Net Profit') : (isAr ? '⚠ خسارة' : '⚠ Loss')}
-              badgeColor={netProfit >= 0 ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300' : 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'}
+              title={isAr ? 'القيود المحاسبية' : 'Journal Entries'}
+              value={stats.totalJournalEntries}
+              icon={Activity}
+              gradient="bg-violet-400"
+              iconBg="bg-violet-50 dark:bg-violet-900/30"
+              iconColor="text-violet-600 dark:text-violet-400"
+              badge={isAr ? '📒 إجمالي القيود' : '📒 Total Entries'}
+              badgeColor="bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
               loading={loading}
               delay={0.14}
             />
@@ -636,9 +634,9 @@ export default function Dashboard() {
               delay={0.28}
             />
             <KPICard
-              title={isAr ? 'القيود المحاسبية' : 'Journal Entries'}
-              value={stats.totalJournalEntries}
-              icon={Activity}
+              title={isAr ? 'الموظفون' : 'Employees'}
+              value={stats.totalEmployees}
+              icon={UserCheck}
               gradient="bg-indigo-400"
               iconBg="bg-indigo-50 dark:bg-indigo-900/30"
               iconColor="text-indigo-600 dark:text-indigo-400"

@@ -37,9 +37,12 @@ import {
   Calculator, TrendingUp, TrendingDown, Wallet, FileText, Clock,
   ArrowDownRight, ArrowUpRight, RefreshCw, Calendar, BarChart3,
   BookOpen, Coins, DollarSign, CreditCard, Star, Loader2, BadgeDollarSign,
+  Lock, Eye, EyeOff, ShieldCheck, KeyRound,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import QuickActionsBar from './components/QuickActionsBar';
+import { Input } from '@/components/ui/input';
 
 // ═════════════════════════════════════════════════════════════════
 export default function AccountingDashboard() {
@@ -51,6 +54,14 @@ export default function AccountingDashboard() {
   const { companyId } = useCompany();
   const { currencyCode: baseCurrency, currencySymbol: baseSymbol } = useCompanyCurrency(language as 'ar' | 'en');
   const { lookupRate, isLoading: ratesLoading } = useExchangeRateLookup();
+  const { user } = useAuth();
+
+  // Password-protected profit section
+  const [profitUnlocked, setProfitUnlocked] = useState(false);
+  const [profitPassword, setProfitPassword] = useState('');
+  const [profitPasswordError, setProfitPasswordError] = useState('');
+  const [profitPasswordLoading, setProfitPasswordLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Currency filter with localStorage
   const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
@@ -459,12 +470,10 @@ export default function AccountingDashboard() {
           className="bg-gradient-to-br from-red-50/80 to-rose-50/50 dark:from-red-950/30 dark:to-rose-950/20 backdrop-blur-sm border border-red-100/50 dark:border-red-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={t('accounting.netProfit')}
-          value={netProfit}
-          type={netProfit >= 0 ? 'positive' : 'negative'}
-          icon={BadgeDollarSign}
-          formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
-          suffix={profitMargin ? `${profitMargin.toFixed(1)}%` : ''}
+          label={t('accounting.accountsCount')}
+          value={accountsCount}
+          type="info"
+          icon={BookOpen}
           className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
@@ -549,16 +558,13 @@ export default function AccountingDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            {/* Profit Margin */}
-            <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-100/50">
+            {/* Accounts Count */}
+            <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/20 border border-indigo-100/50">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-tajawal text-gray-600 dark:text-gray-300">{t('accounting.profitMargin')}</span>
-                <span className={cn("text-lg font-mono font-bold", netProfit >= 0 ? "text-emerald-600" : "text-red-600")}>
-                  {profitMargin.toFixed(1)}%
+                <span className="text-sm font-tajawal text-gray-600 dark:text-gray-300">{t('accounting.accountsCount')}</span>
+                <span className="text-lg font-mono font-bold text-indigo-600">
+                  {accountsCount}
                 </span>
-              </div>
-              <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className={cn("h-full rounded-full transition-all", netProfit >= 0 ? "bg-emerald-500" : "bg-red-500")} style={{ width: `${Math.min(Math.abs(profitMargin), 100)}%` }} />
               </div>
             </div>
 
@@ -655,6 +661,169 @@ export default function AccountingDashboard() {
             )}
           </div>
         </CardContent>
+      </Card>
+
+      {/* ═══ Password-Protected Profit & Loss Section ═══ */}
+      <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl overflow-hidden">
+        <button
+          onClick={() => {
+            if (profitUnlocked) setProfitUnlocked(false);
+          }}
+          className="w-full p-5 flex items-center gap-4 bg-gradient-to-r from-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10 border-b border-amber-100/50 dark:border-amber-800/30 hover:from-amber-100/80 hover:to-orange-100/50 transition-colors cursor-default"
+        >
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
+            {profitUnlocked ? <ShieldCheck className="w-5 h-5 text-white" /> : <Lock className="w-5 h-5 text-white" />}
+          </div>
+          <div className="flex-1 text-start">
+            <h3 className="text-base font-bold text-amber-800 dark:text-amber-300 font-cairo">
+              {isAr ? '🔒 تقرير الأرباح والخسائر' : '🔒 Profit & Loss Report'}
+            </h3>
+            <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">
+              {profitUnlocked
+                ? (isAr ? '✅ تم فتح التقرير — اضغط لإعادة القفل' : '✅ Report unlocked — click to re-lock')
+                : (isAr ? 'محمي بكلمة السر — متاح فقط لصاحب الشركة' : 'Password protected — owner access only')}
+            </p>
+          </div>
+          {profitUnlocked && (
+            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 gap-1">
+              <ShieldCheck className="w-3 h-3" />
+              {isAr ? 'مفتوح' : 'Unlocked'}
+            </Badge>
+          )}
+        </button>
+
+        {!profitUnlocked ? (
+          /* Password Entry */
+          <div className="p-6 flex flex-col items-center gap-4">
+            <div className="p-4 rounded-full bg-amber-100/50 dark:bg-amber-900/20">
+              <KeyRound className="w-8 h-8 text-amber-500" />
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-tajawal text-center max-w-sm">
+              {isAr
+                ? 'ادخل كلمة سر حسابك لعرض تقرير الأرباح والخسائر'
+                : 'Enter your account password to view the Profit & Loss report'}
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setProfitPasswordError('');
+                setProfitPasswordLoading(true);
+                try {
+                  const { error } = await supabase.auth.signInWithPassword({
+                    email: user?.email || '',
+                    password: profitPassword,
+                  });
+                  if (error) {
+                    setProfitPasswordError(isAr ? 'كلمة السر غير صحيحة' : 'Incorrect password');
+                  } else {
+                    setProfitUnlocked(true);
+                    setProfitPassword('');
+                  }
+                } catch {
+                  setProfitPasswordError(isAr ? 'حدث خطأ' : 'An error occurred');
+                } finally {
+                  setProfitPasswordLoading(false);
+                }
+              }}
+              className="flex items-center gap-2 w-full max-w-sm"
+            >
+              <div className="relative flex-1">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={profitPassword}
+                  onChange={(e) => setProfitPassword(e.target.value)}
+                  placeholder={isAr ? 'كلمة السر...' : 'Password...'}
+                  className="pe-10 bg-white dark:bg-gray-800 border-amber-200 dark:border-amber-800 focus:border-amber-400"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute end-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <Button
+                type="submit"
+                disabled={!profitPassword || profitPasswordLoading}
+                className="bg-amber-600 hover:bg-amber-700 text-white gap-2"
+              >
+                {profitPasswordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                {isAr ? 'فتح' : 'Unlock'}
+              </Button>
+            </form>
+            {profitPasswordError && (
+              <p className="text-sm text-red-500 font-medium">{profitPasswordError}</p>
+            )}
+          </div>
+        ) : (
+          /* Unlocked: Detailed P&L */
+          <div className="p-5 space-y-4">
+            {/* Net Profit Hero */}
+            <div className={cn(
+              "p-5 rounded-2xl border-2 text-center",
+              netProfit >= 0
+                ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800"
+                : "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/20 border-red-200 dark:border-red-800"
+            )}>
+              <p className="text-sm font-tajawal text-gray-600 dark:text-gray-400">
+                {isAr ? 'صافي الربح / الخسارة' : 'Net Profit / Loss'}
+              </p>
+              <p className={cn(
+                "text-3xl font-bold font-mono mt-1",
+                netProfit >= 0 ? "text-emerald-600" : "text-red-600"
+              )}>
+                {sym} {Math.abs(netProfit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </p>
+              <Badge className={cn(
+                "mt-2",
+                netProfit >= 0
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+              )}>
+                {netProfit >= 0 ? (isAr ? '✓ ربح' : '✓ Profit') : (isAr ? '⚠ خسارة' : '⚠ Loss')}
+              </Badge>
+            </div>
+
+            {/* Breakdown */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-100/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'إجمالي الإيرادات' : 'Total Revenue'}</span>
+                </div>
+                <p className="text-lg font-mono font-bold text-emerald-600">{sym} {totalRevenue.toLocaleString()}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-red-50/80 dark:bg-red-950/20 border border-red-100/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'إجمالي المصروفات' : 'Total Expenses'}</span>
+                </div>
+                <p className="text-lg font-mono font-bold text-red-600">{sym} {totalExpenses.toLocaleString()}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-blue-50/80 dark:bg-blue-950/20 border border-blue-100/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <BarChart3 className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-tajawal text-gray-600 dark:text-gray-400">{isAr ? 'هامش الربح' : 'Profit Margin'}</span>
+                </div>
+                <p className={cn("text-lg font-mono font-bold", profitMargin >= 0 ? "text-blue-600" : "text-red-600")}>
+                  {profitMargin.toFixed(1)}%
+                </p>
+                <div className="mt-1.5 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all", profitMargin >= 0 ? "bg-blue-500" : "bg-red-500")} style={{ width: `${Math.min(Math.abs(profitMargin), 100)}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Disclaimer */}
+            <p className="text-[11px] text-gray-400 dark:text-gray-600 text-center font-tajawal">
+              {isAr
+                ? 'صافي الربح = الإيرادات (كود 4xx) - المصروفات (كود 5xx) · محمي بكلمة السر'
+                : 'Net Profit = Revenue (4xx) - Expenses (5xx) · Password protected'}
+            </p>
+          </div>
+        )}
       </Card>
     </div>
   );
