@@ -474,7 +474,8 @@ export function JournalVoucherTab({
         
         uniqueNewIds.forEach(id => fetchedAccountIdsRef.current.add(id));
         
-        // ═══ أولاً: حاول الكاش (فوري - 0ms) ═══
+        // ═══ الأرصدة والعملات من الكاش — فورية (0ms) ═══
+        // الكاش يحتوي على أرصدة حقيقية من RPC get_account_balances_bulk
         const cached = getCachedAccounts();
         if (cached && cached.length > 0) {
             const balUpdates = new Map<string, number>();
@@ -489,12 +490,9 @@ export function JournalVoucherTab({
                 currUpdates.set(id, acctCurrency);
                 
                 if (acctCurrency !== companyCurrency) {
-                    // حساب أجنبي: FC balance من الكاش مباشرة!
                     fcBalUpdates.set(id, Number(acct.current_balance_fc) || 0);
-                } else {
-                    // حساب محلي: current_balance
-                    balUpdates.set(id, Number(acct.current_balance) || 0);
                 }
+                balUpdates.set(id, Number(acct.current_balance) || 0);
             }
             
             if (currUpdates.size > 0) {
@@ -518,13 +516,13 @@ export function JournalVoucherTab({
                     return updated;
                 });
             }
-            return; // كل شيء من الكاش — لا حاجة لاستعلام!
+            return;
         }
         
-        // ═══ Fallback: إذا الكاش فارغ، جلب من DB ═══
+        // ═══ Fallback: إذا الكاش فارغ، جلب العملة والرصيد من DB ═══
         supabase
             .from('chart_of_accounts')
-            .select('id, current_balance, current_balance_fc, currency')
+            .select('id, currency, current_balance, current_balance_fc')
             .in('id', uniqueNewIds)
             .then(({ data: rows }) => {
                 if (!rows?.length) return;
@@ -535,16 +533,13 @@ export function JournalVoucherTab({
                     return updated;
                 });
                 
-                const localRows = rows.filter(r => !r.currency || r.currency === companyCurrency);
+                setAccountBalances(prev => {
+                    const updated = new Map(prev);
+                    rows.forEach(r => updated.set(r.id, Number(r.current_balance) || 0));
+                    return updated;
+                });
+
                 const fcRows = rows.filter(r => r.currency && r.currency !== companyCurrency);
-                
-                if (localRows.length > 0) {
-                    setAccountBalances(prev => {
-                        const updated = new Map(prev);
-                        localRows.forEach(r => updated.set(r.id, Number(r.current_balance) || 0));
-                        return updated;
-                    });
-                }
                 if (fcRows.length > 0) {
                     setAccountFCBalances(prev => {
                         const updated = new Map(prev);
@@ -571,19 +566,22 @@ export function JournalVoucherTab({
             const cached = getCachedAccounts();
             const acct = cached?.find(a => a.id === accountId);
             const acctCurrency = acct?.currency || currentRow.currency as string || companyCurrency;
-            const balance = Number(acct?.current_balance) || 0;
             const isFC = acctCurrency !== companyCurrency;
             
-            // تحديث العملة والرصيد فوراً
+            // تحديث العملة فوراً
             setAccountCurrencies(prev => new Map(prev).set(accountId, acctCurrency));
             fetchedAccountIdsRef.current.add(accountId);
-            
+
+            // ═══ الرصيد من الكاش — فوري (0ms) ═══
+            // الكاش يحتوي على أرصدة حقيقية من RPC get_account_balances_bulk
+            const balance = Number(acct?.current_balance) || 0;
+            setAccountBalances(prev => new Map(prev).set(accountId, balance));
             if (isFC) {
-                // حساب أجنبي: FC balance فوري من الكاش!
                 const fcBal = Number(acct?.current_balance_fc) || 0;
                 setAccountFCBalances(prev => new Map(prev).set(accountId, fcBal));
-                setAccountBalances(prev => new Map(prev).set(accountId, balance));
-                
+            }
+            
+            if (isFC) {
                 // تحديث العملة وسعر الصرف في السطر
                 const rate = lookupRate(acctCurrency, companyCurrency);
                 if (rate && rate !== 1) {
@@ -601,9 +599,6 @@ export function JournalVoucherTab({
                     }
                 });
                 return { ...currentRow, account_id: accountId, currency: acctCurrency };
-            } else {
-                // حساب محلي: الرصيد مباشرة من الكاش!
-                setAccountBalances(prev => new Map(prev).set(accountId, balance));
             }
             return;
         }
@@ -992,11 +987,12 @@ export function JournalVoucherTab({
         queryFn: async () => {
             if (!fundAccountId || !resolvedCid) return null;
 
-            // Fetch real balance from journal entries (debit-credit for assets)
+            // Fetch real balance from POSTED journal entries only (debit-credit for assets)
             const { data, error } = await supabase
                 .from('journal_entry_lines')
-                .select('debit, credit')
-                .eq('account_id', fundAccountId);
+                .select('debit, credit, entry:journal_entries!inner(is_posted)')
+                .eq('account_id', fundAccountId)
+                .eq('journal_entries.is_posted', true);
 
             if (error) {
                 console.warn('Fund balance fetch error:', error);

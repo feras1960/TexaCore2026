@@ -432,6 +432,42 @@ export function UnifiedAccountingSheet({
         fetchAccountStats();
     }, [docType, initialData?.id, documentId]);
 
+    // ═══ Auto-fetch lines for existing accounting documents ═══
+    // القائمة تمرر بيانات رأسية فقط (بدون lines) — نجلبها من DB
+    useEffect(() => {
+        if (!['journal', 'cash', 'receipt', 'payment', 'transfer', 'exchange', 'debit_note', 'credit_note'].includes(docType)) return;
+        if (docType === 'recurring') return; // recurring has its own fetch
+        const docId = initialData?.id || documentId;
+        if (!docId) return;
+        // Skip if lines are already loaded (e.g. from MDI or after save)
+        if (initialData?.lines && initialData.lines.length > 0) return;
+        // Only fetch for view/edit mode (not create)
+        if (initialMode === 'create') return;
+
+        const fetchAccountingEntry = async () => {
+            try {
+                const { journalEntriesService } = await import('@/services/journalEntriesService');
+                const fullEntry = await journalEntriesService.getById(docId);
+                if (fullEntry) {
+                    // Filter fund lines for display (they are auto-generated)
+                    const cleanLines = (fullEntry.lines || []).filter(
+                        (l: any) => l.is_fund_line !== true
+                    );
+                    setData((prev: any) => ({
+                        ...prev,
+                        ...fullEntry,
+                        lines: cleanLines,
+                    }));
+                    console.log('[Fetch] Accounting entry loaded with', cleanLines.length, 'lines (excl. fund)');
+                }
+            } catch (err) {
+                console.warn('[UnifiedAccountingSheet] Failed to fetch accounting entry:', err);
+            }
+        };
+
+        fetchAccountingEntry();
+    }, [initialData?.id, documentId, docType, initialMode]);
+
     // ═══ Auto-fetch items for existing trade documents ═══
     useEffect(() => {
         if (!isTradeDocType) return;

@@ -983,6 +983,7 @@ function getTableName(entityType: string): string {
     case 'customers': return 'customers';
     case 'suppliers': return 'suppliers';
     case 'products': return 'fabric_materials';
+    case 'chart_of_accounts': return 'chart_of_accounts';
     case 'journal_entries': return 'journal_entries';
     case 'inventory_movements': return 'stock_movements';
     default: return entityType;
@@ -1082,6 +1083,32 @@ function buildInsertRow(
         status: 'active',
         custom_fields: data.barcode ? { barcode: String(data.barcode) } : {},
         // warehouse_code is stored in mapped_data for stock creation
+      };
+
+    case 'chart_of_accounts':
+      return {
+        company_id: companyId,
+        tenant_id: tenantId,
+        account_code: clean(data.account_code) || `ACC-${Date.now().toString(36)}`,
+        name_ar: clean(data.name_ar) || clean(data.name_en) || clean(data.name_ru) || '',
+        name_en: clean(data.name_en) || clean(data.name_ar) || '',
+        name_tr: clean(data.name_tr),
+        name_ru: clean(data.name_ru),
+        name_uk: clean(data.name_uk),
+        name_ro: clean(data.name_ro),
+        name_pl: clean(data.name_pl),
+        name_de: clean(data.name_de),
+        name_it: clean(data.name_it),
+        currency: clean(data.currency) || companyCurrency,
+        opening_balance: num(data.opening_balance),
+        current_balance: num(data.opening_balance),
+        description: clean(data.description),
+        is_group: false,
+        is_detail: true,
+        is_active: true,
+        parent_id: clean(data._parent_id) || null,
+        account_type_id: clean(data._account_type_id) || null,
+        level: num(data._level) || 2,
       };
 
     default:

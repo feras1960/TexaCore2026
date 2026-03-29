@@ -1,10 +1,38 @@
 // ═══════════════════════════════════════════════════
 // 🧠 NexaIntelligence — Smart Daily Reports Engine
 // Uses Claude Opus for deep analysis + personalized reports
+// + ElevenLabs TTS for voice reports with background music
 // ═══════════════════════════════════════════════════
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+
+// ═══ Voice Configuration ═══
+const VOICE_CONFIG: Record<string, { voiceId: string; voiceName: string }> = {
+  ar: { voiceId: 'rPNcQ53R703tTmtue1AT', voiceName: 'Mazen Lawand' },
+  uk: { voiceId: '9Sj8ugvpK1DmcAXyvi3a', voiceName: 'Alex Nekrasov' },
+  ru: { voiceId: '9Sj8ugvpK1DmcAXyvi3a', voiceName: 'Alex Nekrasov' },
+  en: { voiceId: 'EiNlNiXeDU1pqqOPrYMO', voiceName: 'John Doe' },
+};
+
+const MUSIC_PROMPTS: Record<string, { morning: string; evening: string }> = {
+  ar: {
+    morning: 'Elegant Arabic-inspired corporate intro jingle, warm oud and soft strings, upbeat and motivational, professional business tone, 5 seconds',
+    evening: 'Calm ambient Arabic-inspired evening outro music, soft piano with gentle oud, relaxing achievement celebration, warm and peaceful, 5 seconds',
+  },
+  uk: {
+    morning: 'Professional corporate morning intro jingle, bright piano and strings, energetic and motivational, modern business tone, 5 seconds',
+    evening: 'Calm ambient evening outro music, soft piano, relaxing and peaceful achievement celebration, 5 seconds',
+  },
+  ru: {
+    morning: 'Professional corporate morning intro jingle, bright piano and strings, energetic and motivational, modern business tone, 5 seconds',
+    evening: 'Calm ambient evening outro music, soft piano, relaxing and peaceful achievement celebration, 5 seconds',
+  },
+  en: {
+    morning: 'Modern corporate morning intro jingle, upbeat and professional, bright synth and piano, motivational business tone, 5 seconds',
+    evening: 'Calm ambient evening outro music, soft piano and gentle pads, relaxing achievement celebration, warm and peaceful, 5 seconds',
+  },
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,11 +110,62 @@ serve(async (req) => {
     // ═══ Step 9: Track usage ═══
     await trackUsage(adminClient, company_id, analysisResult.tokensUsed);
 
-    // ═══ Step 10: Send Telegram notifications ═══
+    // ═══ Step 10: Generate Voice Report (TTS) ═══
+    const elevenlabsKey = Deno.env.get('ELEVENLABS_API_KEY');
+    let voiceUrl: string | null = null;
+    let voiceBuffer: ArrayBuffer | null = null;
+    if (elevenlabsKey) {
+      try {
+        // Detect language from company settings or default to 'ar'
+        const { data: companyRow } = await adminClient.from('companies')
+          .select('settings').eq('id', company_id).single();
+        const reportLang = companyRow?.settings?.ai_report_language || companyRow?.settings?.language || 'ar';
+        const langKey = reportLang.substring(0, 2); // 'ar', 'uk', 'ru', 'en'
+
+        const voiceResult = await generateVoiceReport(elevenlabsKey, {
+          text: analysisResult.analysis.manager_summary || '',
+          reportType: report_type,
+          language: langKey,
+        });
+
+        if (voiceResult.audioBuffer) {
+          voiceBuffer = voiceResult.audioBuffer;
+          // Upload to Supabase Storage
+          const fileName = `voice-reports/${company_id}/${new Date().toISOString().split('T')[0]}_${report_type}.mp3`;
+          const { error: uploadErr } = await adminClient.storage
+            .from('ai-reports')
+            .upload(fileName, voiceResult.audioBuffer, {
+              contentType: 'audio/mpeg',
+              upsert: true,
+            });
+
+          if (!uploadErr) {
+            const { data: urlData } = adminClient.storage.from('ai-reports').getPublicUrl(fileName);
+            voiceUrl = urlData?.publicUrl || null;
+            // Update report with voice URL
+            if (reportId) {
+              await adminClient.from('ai_daily_reports')
+                .update({ voice_url: voiceUrl })
+                .eq('id', reportId);
+            }
+            console.log(`[NexaIntelligence] 🎤 Voice report generated (${(voiceResult.audioBuffer.byteLength / 1024).toFixed(0)}KB)`);
+          } else {
+            console.error('[NexaIntelligence] Storage upload error:', uploadErr.message);
+          }
+        }
+      } catch (ttsErr: any) {
+        console.error('[NexaIntelligence] TTS error (non-fatal):', ttsErr.message);
+      }
+    } else {
+      console.log('[NexaIntelligence] ⚠️ ELEVENLABS_API_KEY not set — skipping voice report');
+    }
+
+    // ═══ Step 11: Send Telegram notifications ═══
     const tgSent = await sendTelegramNotifications(adminClient, company_id, {
       reportType: report_type,
       analysis: analysisResult.analysis,
       employees,
+      voiceBuffer,
     });
     console.log('[NexaIntelligence] 📱 Telegram sent to:', tgSent, 'users');
 
@@ -98,6 +177,7 @@ serve(async (req) => {
       employees_count: employees.length,
       tokens_used: analysisResult.tokensUsed,
       telegram_sent: tgSent,
+      voice_url: voiceUrl,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (err: any) {
@@ -196,6 +276,64 @@ async function collectCompanyData(client: any, companyId: string) {
     .select('id, name_ar, name_en, balance')
     .eq('company_id', companyId).limit(100);
   data.suppliers = suppliers?.map((s: any) => ({ id: s.id, name: s.name_ar || s.name_en, balance: s.balance || 0 })) || [];
+
+  // ═══ Phase 4C: Enhanced data collection ═══
+
+  // Stock transfers (pending, shipped, in-transit)
+  const { data: transfers } = await client.from('stock_transfers')
+    .select('id, transfer_number, transfer_date, from_warehouse_id, to_warehouse_id, status, total_rolls, total_meters, driver_name')
+    .eq('company_id', companyId)
+    .in('status', ['pending', 'confirmed', 'shipped', 'in_transit'])
+    .order('created_at', { ascending: false }).limit(20);
+  data.pending_transfers = transfers?.map((t: any) => ({
+    number: t.transfer_number, date: t.transfer_date, status: t.status,
+    rolls: t.total_rolls, meters: t.total_meters, driver: t.driver_name,
+  })) || [];
+
+  // Sales by salesperson (for role-specific reports)
+  if (sales?.length) {
+    const bySalesperson: Record<string, any> = {};
+    for (const s of sales.filter((s: any) => s.salesperson_id)) {
+      const spId = s.salesperson_id;
+      if (!bySalesperson[spId]) bySalesperson[spId] = { name: s.salesperson_name || '-', total: 0, count: 0, balance: 0 };
+      bySalesperson[spId].total += s.total_amount || 0;
+      bySalesperson[spId].balance += s.balance || 0;
+      bySalesperson[spId].count++;
+    }
+    data.sales_by_salesperson = Object.entries(bySalesperson).map(([id, d]) => ({ id, ...(d as any) }));
+  }
+
+  // Customers exceeding credit limit
+  if (customers?.length) {
+    data.credit_exceeded = customers
+      .filter((c: any) => c.credit_limit > 0 && (c.balance || 0) > c.credit_limit)
+      .map((c: any) => ({
+        name: c.name_ar || c.name_en, balance: c.balance,
+        limit: c.credit_limit, exceeded_by: (c.balance || 0) - c.credit_limit,
+      }));
+  }
+
+  // Accounts with abnormal balances (debit accounts with credit balance or vice versa)
+  const { data: accounts } = await client.from('chart_of_accounts')
+    .select('account_code, name_ar, name_en, current_balance, account_category, is_detail')
+    .eq('company_id', companyId).eq('is_detail', true).eq('is_active', true)
+    .neq('current_balance', 0).limit(200);
+  if (accounts?.length) {
+    // Debit-normal categories: assets, expenses
+    // Credit-normal categories: liabilities, equity, revenue
+    const debitNormal = ['assets', 'expenses', 'asset', 'expense'];
+    const creditNormal = ['liabilities', 'equity', 'revenue', 'liability', 'income'];
+    data.abnormal_balances = accounts.filter((a: any) => {
+      const cat = (a.account_category || '').toLowerCase();
+      const bal = a.current_balance || 0;
+      if (debitNormal.some(d => cat.includes(d)) && bal < 0) return true;
+      if (creditNormal.some(c => cat.includes(c)) && bal > 0) return true;
+      return false;
+    }).map((a: any) => ({
+      code: a.account_code, name: a.name_ar || a.name_en,
+      balance: a.current_balance, category: a.account_category,
+    }));
+  }
 
   return data;
 }
@@ -486,11 +624,108 @@ async function trackUsage(client: any, companyId: string, tokensUsed: number) {
 }
 
 // ═══════════════════════════════════════════
+// 🎤 Generate Voice Report (ElevenLabs TTS)
+// ═══════════════════════════════════════════
+
+async function generateVoiceReport(apiKey: string, opts: {
+  text: string;
+  reportType: string;
+  language: string;
+}): Promise<{ audioBuffer: ArrayBuffer | null }> {
+  const { text, reportType, language } = opts;
+  if (!text || text.length < 20) {
+    console.log('[NexaIntelligence] 🎤 Text too short for TTS, skipping');
+    return { audioBuffer: null };
+  }
+
+  const langKey = VOICE_CONFIG[language] ? language : 'ar';
+  const voice = VOICE_CONFIG[langKey];
+  console.log(`[NexaIntelligence] 🎤 Generating TTS: voice=${voice.voiceName}, lang=${langKey}, chars=${text.length}`);
+
+  // Step 1: Generate intro/outro music (with 30s timeout)
+  let introBuffer: ArrayBuffer | null = null;
+  try {
+    const musicPrompt = MUSIC_PROMPTS[langKey] || MUSIC_PROMPTS['ar'];
+    const prompt = reportType === 'morning' ? musicPrompt.morning : musicPrompt.evening;
+    
+    const musicController = new AbortController();
+    const musicTimeout = setTimeout(() => musicController.abort(), 30000);
+    
+    const musicRes = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
+      method: 'POST',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: prompt,
+        duration_seconds: 4,
+      }),
+      signal: musicController.signal,
+    });
+    clearTimeout(musicTimeout);
+
+    if (musicRes.ok) {
+      introBuffer = await musicRes.arrayBuffer();
+      console.log(`[NexaIntelligence] 🎵 Intro music generated (${(introBuffer.byteLength / 1024).toFixed(0)}KB)`);
+    } else {
+      console.warn('[NexaIntelligence] 🎵 Music generation failed:', musicRes.status);
+    }
+  } catch (e: any) {
+    console.warn('[NexaIntelligence] 🎵 Music error (non-fatal):', e.message);
+  }
+
+  // Step 2: Generate TTS voice (with 60s timeout — TTS can take time for long text)
+  const ttsController = new AbortController();
+  const ttsTimeout = setTimeout(() => ttsController.abort(), 60000);
+  
+  const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice.voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: text.substring(0, 4000), // ElevenLabs limit
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: {
+        stability: 0.6,
+        similarity_boost: 0.8,
+        style: reportType === 'morning' ? 0.3 : 0.4, // Slightly more expressive for evening
+        use_speaker_boost: true,
+      },
+    }),
+    signal: ttsController.signal,
+  });
+  clearTimeout(ttsTimeout);
+
+  if (!ttsRes.ok) {
+    const errText = await ttsRes.text();
+    console.error(`[NexaIntelligence] 🎤 TTS API error ${ttsRes.status}:`, errText.substring(0, 200));
+    return { audioBuffer: null };
+  }
+
+  const voiceBuffer = await ttsRes.arrayBuffer();
+  console.log(`[NexaIntelligence] 🎤 TTS generated (${(voiceBuffer.byteLength / 1024).toFixed(0)}KB)`);
+
+  // Step 3: Concatenate intro + voice (simple MP3 concat)
+  if (introBuffer && introBuffer.byteLength > 100) {
+    const combined = new Uint8Array(introBuffer.byteLength + voiceBuffer.byteLength);
+    combined.set(new Uint8Array(introBuffer), 0);
+    combined.set(new Uint8Array(voiceBuffer), introBuffer.byteLength);
+    console.log(`[NexaIntelligence] 🎵+🎤 Combined audio (${(combined.byteLength / 1024).toFixed(0)}KB)`);
+    return { audioBuffer: combined.buffer };
+  }
+
+  return { audioBuffer: voiceBuffer };
+}
+
+// ═══════════════════════════════════════════
 // 📱 Send Telegram Notifications
 // ═══════════════════════════════════════════
 
 async function sendTelegramNotifications(client: any, companyId: string, opts: any) {
-  const { reportType, analysis } = opts;
+  const { reportType, analysis, voiceBuffer } = opts;
   
   try {
     // Get bot token from company integrations
@@ -578,7 +813,50 @@ async function sendTelegramNotifications(client: any, companyId: string, opts: a
         });
         if (res.ok) {
           sent++;
-          console.log(`[NexaIntelligence] ✅ Telegram sent to ${chatId}`);
+          console.log(`[NexaIntelligence] ✅ Telegram text sent to ${chatId}`);
+
+          // Send voice message to admin users only (with 30s timeout)
+          if (isAdmin && voiceBuffer && voiceBuffer.byteLength > 100) {
+            try {
+              const voiceSendController = new AbortController();
+              const voiceSendTimeout = setTimeout(() => voiceSendController.abort(), 30000);
+              
+              const formData = new FormData();
+              formData.append('chat_id', chatId);
+              formData.append('voice', new Blob([voiceBuffer], { type: 'audio/mpeg' }), 'nexa_report.ogg');
+              formData.append('caption', `🎤 ${reportLabel} — TexaCore NexaIntelligence`);
+
+              const voiceRes = await fetch(`https://api.telegram.org/bot${botToken}/sendVoice`, {
+                method: 'POST',
+                body: formData,
+                signal: voiceSendController.signal,
+              });
+              clearTimeout(voiceSendTimeout);
+              
+              if (voiceRes.ok) {
+                console.log(`[NexaIntelligence] 🎤 Voice sent to ${chatId}`);
+              } else {
+                // Fallback: try sendAudio if sendVoice fails
+                const audioController = new AbortController();
+                const audioTimeout = setTimeout(() => audioController.abort(), 30000);
+                
+                const audioForm = new FormData();
+                audioForm.append('chat_id', chatId);
+                audioForm.append('audio', new Blob([voiceBuffer], { type: 'audio/mpeg' }), 'nexa_report.mp3');
+                audioForm.append('title', `NexaIntelligence ${reportLabel}`);
+                audioForm.append('performer', 'TexaCore AI');
+                await fetch(`https://api.telegram.org/bot${botToken}/sendAudio`, {
+                  method: 'POST',
+                  body: audioForm,
+                  signal: audioController.signal,
+                });
+                clearTimeout(audioTimeout);
+                console.log(`[NexaIntelligence] 🎵 Audio fallback sent to ${chatId}`);
+              }
+            } catch (voiceErr: any) {
+              console.warn(`[NexaIntelligence] 🎤 Voice send error (non-fatal):`, voiceErr.message);
+            }
+          }
         } else {
           const err = await res.text();
           console.error(`[NexaIntelligence] ❌ Telegram error ${chatId}:`, err);

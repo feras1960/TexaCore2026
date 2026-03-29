@@ -7,7 +7,9 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLanguage } from '@/hooks';
 import { useCompanyCurrencies, currencyMetadata } from '@/hooks/useCompanyCurrencies';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/lib/supabase';
+import { importService } from '@/services/importService';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -37,7 +39,9 @@ import {
   FolderOpen,
   FileText,
   Package,
-  Sparkles
+  Sparkles,
+  FolderTree,
+  Wand2
 } from 'lucide-react';
 import type { ImportJob, ImportRow, EntityDefinition, ImportOptions } from '@/services/importService';
 
@@ -64,7 +68,9 @@ export function PreviewStep({
 }: PreviewStepProps) {
   const { t, language } = useLanguage();
   const { supportedCurrencies, baseCurrency } = useCompanyCurrencies();
-  const { companyId } = useAuth();
+  const { companyId: authCompanyId } = useAuth();
+  const { companyId: hookCompanyId } = useCompany();
+  const companyId = authCompanyId || hookCompanyId;
   const [currentPage, setCurrentPage] = useState(0);
   const [defaultCurrency, setDefaultCurrency] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -74,6 +80,91 @@ export function PreviewStep({
   const [expandedDesigns, setExpandedDesigns] = useState<Set<string>>(new Set());
   const [treeInitialized, setTreeInitialized] = useState(false);
   const pageSize = 15;
+
+  // ═══ Chart of Accounts: Parent group selection ═══
+  const [accountGroups, setAccountGroups] = useState<{ id: string; code: string; name_ar: string; name_en: string; name_ru?: string; name_uk?: string; name_tr?: string; level: number; account_type_id: string }[]>([]);
+  const [parentGroupMap, setParentGroupMap] = useState<Map<number, string>>(new Map()); // rowIndex → group_id
+  const [aiSuggestionsApplied, setAiSuggestionsApplied] = useState(false);
+
+  const isCOA = entityType === 'chart_of_accounts';
+
+  // Fetch existing account groups for COA import
+  useEffect(() => {
+    if (!companyId || !isCOA) return;
+    (async () => {
+      const { data } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_code, name_ar, name_en, name_ru, name_uk, name_tr, level, account_type_id')
+        .eq('company_id', companyId)
+        .eq('is_group', true)
+        .eq('is_active', true)
+        .order('account_code');
+      if (data) setAccountGroups(data.map(d => ({
+        id: d.id, code: d.account_code, name_ar: d.name_ar || '', name_en: d.name_en || '',
+        name_ru: d.name_ru, name_uk: d.name_uk, name_tr: d.name_tr, level: d.level || 1,
+        account_type_id: d.account_type_id,
+      })));
+    })();
+  }, [companyId, isCOA]);
+
+  // AI fuzzy match: suggest parent group based on account name
+  const suggestParentGroup = useCallback((accountName: string): string | null => {
+    if (!accountName || accountGroups.length === 0) return null;
+    const normalized = importService.normalizeString(accountName);
+    let bestMatch: { id: string; score: number } | null = null;
+
+    for (const group of accountGroups) {
+      // Compare with all language names
+      const names = [group.name_ar, group.name_en, group.name_ru, group.name_uk, group.name_tr].filter(Boolean);
+      for (const name of names) {
+        const score = importService.similarityScore(normalized, importService.normalizeString(name || ''));
+        if (score > 0.4 && (!bestMatch || score > bestMatch.score)) {
+          bestMatch = { id: group.id, score };
+        }
+      }
+
+      // Also check if account name CONTAINS group name or vice versa
+      for (const name of names) {
+        const groupNorm = importService.normalizeString(name || '');
+        if (groupNorm.length > 2 && (normalized.includes(groupNorm) || groupNorm.includes(normalized))) {
+          const containScore = 0.7;
+          if (!bestMatch || containScore > bestMatch.score) {
+            bestMatch = { id: group.id, score: containScore };
+          }
+        }
+      }
+    }
+
+    return bestMatch && bestMatch.score >= 0.4 ? bestMatch.id : null;
+  }, [accountGroups]);
+
+  // Auto-suggest parent groups on first load
+  useEffect(() => {
+    if (!isCOA || aiSuggestionsApplied || accountGroups.length === 0 || importRows.length === 0) return;
+    const newMap = new Map<number, string>();
+    importRows.forEach((row, idx) => {
+      const d = row.mapped_data || {};
+      const name = String(d.name_ar || d.name_en || d.name_ru || d.name_uk || d.name_tr || '');
+      const suggested = suggestParentGroup(name);
+      if (suggested) newMap.set(idx, suggested);
+    });
+    setParentGroupMap(newMap);
+    setAiSuggestionsApplied(true);
+  }, [isCOA, aiSuggestionsApplied, accountGroups, importRows, suggestParentGroup]);
+
+  // Check if all COA rows have parent groups assigned
+  const allCOAGroupsAssigned = useMemo(() => {
+    if (!isCOA) return true;
+    const validRows = importRows.filter(r => r.status === 'valid');
+    return validRows.every((_, idx) => parentGroupMap.has(idx));
+  }, [isCOA, importRows, parentGroupMap]);
+
+  const getGroupDisplayName = useCallback((groupId: string) => {
+    const group = accountGroups.find(g => g.id === groupId);
+    if (!group) return '?';
+    const name = language === 'ar' ? (group.name_ar || group.name_en) : (group.name_en || group.name_ar);
+    return `${group.code} - ${name}`;
+  }, [accountGroups, language]);
 
   // Fetch real inventory account from accounting settings
   useEffect(() => {
@@ -105,7 +196,7 @@ export function PreviewStep({
   }, [companyId, entityType, language]);
 
   // Is this an entity that needs currency?
-  const needsCurrency = entityType === 'customers' || entityType === 'suppliers' || entityType === 'products';
+  const needsCurrency = entityType === 'customers' || entityType === 'suppliers' || entityType === 'products' || entityType === 'chart_of_accounts';
 
   if (!importJob || !entityDefinition) {
     return (
@@ -599,6 +690,108 @@ export function PreviewStep({
         );
       })()}
 
+      {/* ═══ COA: Parent Group Assignment Section ═══ */}
+      {isCOA && accountGroups.length > 0 && (
+        <Card className="border-2 border-blue-200 dark:border-blue-800/50 overflow-hidden">
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-sm">
+                <FolderTree className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold text-blue-800 dark:text-blue-300">
+                  {language === 'ar' ? 'تحديد المجموعة الأم لكل حساب' : 'Assign Parent Group for Each Account'}
+                </h4>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                  {language === 'ar'
+                    ? `${parentGroupMap.size} من ${importRows.filter(r => r.status === 'valid').length} حساب تم تحديد مجموعته — ${!allCOAGroupsAssigned ? '⚠️ يرجى إكمال الباقي' : '✅ مكتمل'}`
+                    : `${parentGroupMap.size} of ${importRows.filter(r => r.status === 'valid').length} accounts assigned — ${!allCOAGroupsAssigned ? '⚠️ Please complete the rest' : '✅ Complete'}`}
+                </p>
+              </div>
+              {aiSuggestionsApplied && parentGroupMap.size > 0 && (
+                <Badge className="bg-purple-600 text-white gap-1">
+                  <Wand2 className="h-3 w-3" />
+                  {language === 'ar' ? 'اقتراحات ذكية' : 'AI Suggested'}
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="p-3">
+            <ScrollArea className="max-h-[350px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">#</TableHead>
+                    <TableHead>{language === 'ar' ? 'الكود' : 'Code'}</TableHead>
+                    <TableHead>{language === 'ar' ? 'اسم الحساب' : 'Account Name'}</TableHead>
+                    <TableHead>{language === 'ar' ? 'الرصيد' : 'Balance'}</TableHead>
+                    <TableHead className="min-w-[250px]">
+                      {language === 'ar' ? '📂 المجموعة الأم' : '📂 Parent Group'}
+                    </TableHead>
+                    <TableHead className="w-[40px]">✓</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {importRows.filter(r => r.status === 'valid').map((row, idx) => {
+                    const d = row.mapped_data || {};
+                    const hasParent = parentGroupMap.has(idx);
+                    const name = String(d.name_ar || d.name_en || d.name_ru || d.name_uk || d.name_tr || '-');
+
+                    return (
+                      <TableRow key={row.row_number} className={!hasParent ? 'bg-red-50/50 dark:bg-red-950/10' : undefined}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{row.row_number}</TableCell>
+                        <TableCell className="font-mono text-sm font-semibold">{String(d.account_code || '-')}</TableCell>
+                        <TableCell className="max-w-[180px] truncate">{name}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {Number(d.opening_balance) ? Number(d.opening_balance).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={parentGroupMap.get(idx) || ''}
+                            onValueChange={(v) => {
+                              setParentGroupMap(prev => {
+                                const n = new Map(prev);
+                                if (v) n.set(idx, v); else n.delete(idx);
+                                return n;
+                              });
+                            }}
+                          >
+                            <SelectTrigger className={`h-8 text-xs ${!hasParent ? 'border-red-400 ring-1 ring-red-300' : 'border-green-400'}`}>
+                              <SelectValue placeholder={language === 'ar' ? '⚠️ اختر المجموعة...' : '⚠️ Select group...'} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              {accountGroups.map(group => {
+                                const gName = language === 'ar'
+                                  ? (group.name_ar || group.name_en)
+                                  : (group.name_en || group.name_ar);
+                                return (
+                                  <SelectItem key={group.id} value={group.id}>
+                                    <span style={{ paddingInlineStart: `${(group.level - 1) * 12}px` }}>
+                                      📂 {group.code} - {gName}
+                                    </span>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          {hasParent
+                            ? <CheckCircle className="h-4 w-4 text-green-600" />
+                            : <AlertTriangle className="h-4 w-4 text-red-500" />
+                          }
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+        </Card>
+      )}
+
       {/* Default Currency Selector */}
       {needsCurrency && !hasCurrencyInData && (
         <Card className={`p-4 border-2 ${defaultCurrency ? 'border-green-300 bg-green-50/50 dark:bg-green-950/20' : 'border-red-300 bg-red-50/50 dark:bg-red-950/20'}`}>
@@ -1006,10 +1199,40 @@ export function PreviewStep({
             {language === 'ar' ? '⚠️ يجب اختيار العملة أولاً' : '⚠️ Currency required'}
           </span>
         )}
+        {isCOA && !allCOAGroupsAssigned && (
+          <span className="text-sm text-red-600 font-medium">
+            {language === 'ar' ? '⚠️ يجب تحديد المجموعة الأم لكل حساب' : '⚠️ All accounts need a parent group'}
+          </span>
+        )}
         <Button
-          onClick={() => onExecute(defaultCurrency || undefined)}
+          onClick={() => {
+            // Inject parent_id into mapped_data before executing COA import
+            if (isCOA && onUpdateRows) {
+              const validRows = importRows.filter(r => r.status === 'valid');
+              const updatedRows = importRows.map((row) => {
+                const validIdx = validRows.indexOf(row);
+                if (validIdx === -1) return row;
+                const parentId = parentGroupMap.get(validIdx);
+                const parentGroup = accountGroups.find(g => g.id === parentId);
+                return {
+                  ...row,
+                  mapped_data: {
+                    ...row.mapped_data,
+                    _parent_id: parentId || null,
+                    _account_type_id: parentGroup?.account_type_id || null,
+                    _level: parentGroup ? (parentGroup.level + 1) : 2,
+                  }
+                };
+              });
+              onUpdateRows(updatedRows);
+              // Small delay to ensure state is committed before execution
+              setTimeout(() => onExecute(defaultCurrency || undefined), 50);
+            } else {
+              onExecute(defaultCurrency || undefined);
+            }
+          }}
           size="lg"
-          disabled={isLoading || rowsToImport.length === 0 || !currencyResolved}
+          disabled={isLoading || rowsToImport.length === 0 || !currencyResolved || (isCOA && !allCOAGroupsAssigned)}
           className="gap-2"
         >
           {isLoading ? (

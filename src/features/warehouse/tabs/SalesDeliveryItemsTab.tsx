@@ -328,6 +328,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const looseLengthRef = useRef<HTMLInputElement>(null);
     const [looseMaterials, setLooseMaterials] = useState<Array<{ id: string; name_ar: string; name_en: string; loose_stock: number; current_stock: number }>>([]);
     const [loadingLooseMats, setLoadingLooseMats] = useState(false);
+    const [showAllLooseMats, setShowAllLooseMats] = useState(false);
 
     // Source document items (declared early — used by useEffects below)
     const sourceItems: InvoiceItem[] = useMemo(() => {
@@ -359,6 +360,20 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const selectedLooseMat = useMemo(() => {
         return looseMaterials.find(m => m.id === looseMatId) || null;
     }, [looseMaterials, looseMatId]);
+
+    // ═══ Filter Loose Materials ═══
+    const filteredLooseMats = useMemo(() => {
+        if (showAllLooseMats) return looseMaterials;
+        if (!sourceItems || sourceItems.length === 0) return looseMaterials;
+        return looseMaterials.filter(m => sourceItems.some(si => si.material_id === m.id));
+    }, [looseMaterials, sourceItems, showAllLooseMats]);
+
+    // Auto-select if there is exactly 1 required material with loose stock
+    useEffect(() => {
+        if (!showAllLooseMats && filteredLooseMats.length === 1 && !looseMatId) {
+            setLooseMatId(filteredLooseMats[0].id);
+        }
+    }, [filteredLooseMats, showAllLooseMats, looseMatId]);
 
     // ═══ Sync selectedRolls when parent restores draft OR delivered rolls ═══
     useEffect(() => {
@@ -773,18 +788,27 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                 {tl(`المتاح: ${selectedLooseMat.loose_stock.toFixed(1)} م`, `Available: ${selectedLooseMat.loose_stock.toFixed(1)}m`)}
                             </Badge>
                         )}
+                        <div className="flex-1" />
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAllLooseMats(!showAllLooseMats)}
+                            className={`h-6 text-[10px] px-2 ${showAllLooseMats ? 'bg-amber-100 text-amber-700' : 'text-amber-600 hover:bg-amber-100 hover:text-amber-700'}`}
+                        >
+                            {showAllLooseMats ? tl('إظهار المواد المطلوبة فقط', 'Show required only') : tl('إظهار كل المواد', 'Show all')}
+                        </Button>
                     </div>
-                    {looseMaterials.length > 0 && (
+                    {filteredLooseMats.length > 0 && (
                         <div className="flex items-end gap-2 flex-wrap">
                             {/* Material */}
                             <div className="flex-1 min-w-[140px] space-y-1">
                                 <Label className="text-[10px] text-amber-600">{tl('المادة', 'Material')}</Label>
                                 <Select value={looseMatId} onValueChange={(v) => { setLooseMatId(v); setLooseColorName(''); setLooseColorId(''); }}>
-                                    <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800">
+                                    <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800 border-amber-200">
                                         <SelectValue placeholder={tl('اختر المادة...', 'Select material...')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {looseMaterials.map(m => (
+                                        {filteredLooseMats.map(m => (
                                             <SelectItem key={m.id} value={m.id} className="text-xs">
                                                 <div className="flex items-center justify-between w-full gap-2">
                                                     <span>{language === 'ar' ? (m.name_ar || m.name_en) : (m.name_en || m.name_ar)}</span>

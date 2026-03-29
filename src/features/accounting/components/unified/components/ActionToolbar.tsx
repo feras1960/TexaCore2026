@@ -747,10 +747,10 @@ export function EnhancedActionToolbar({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => onModeChange?.('edit')}
-                                    disabled={disabled || loading || isContainerClosed || isProtectedEntry || ((isReceivedDoc || isPosted) && !canEditReceived)}
+                                    disabled={disabled || loading || isContainerClosed || isProtectedEntry || ((isReceivedDoc || isPosted) && !canEditReceived && !isAccountingDocType)}
                                     className={cn(
                                         "gap-1.5",
-                                        (isContainerClosed || isProtectedEntry || ((isReceivedDoc || isPosted) && !canEditReceived))
+                                        (isContainerClosed || isProtectedEntry || ((isReceivedDoc || isPosted) && !canEditReceived && !isAccountingDocType))
                                             ? "text-gray-400 cursor-not-allowed opacity-50"
                                             : "text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
                                     )}
@@ -765,7 +765,7 @@ export function EnhancedActionToolbar({
                                             <Lock className="w-4 h-4" />
                                             <span className="hidden lg:inline">{language === 'ar' ? `مرتبط بـ ${protectedSourceLabel}` : `Linked to ${protectedSourceLabel}`}</span>
                                         </>
-                                    ) : (isReceivedDoc || isPosted) && !canEditReceived ? (
+                                    ) : (isReceivedDoc || isPosted) && !canEditReceived && !isAccountingDocType ? (
                                         <>
                                             <Lock className="w-4 h-4" />
                                             <span className="hidden lg:inline">{t('common.locked') || 'مقفل'}</span>
@@ -782,7 +782,7 @@ export function EnhancedActionToolbar({
                                 <p>
                                     {isContainerClosed
                                         ? t('actions.containerLockedTooltip')
-                                        : (isReceivedDoc || isPosted) && !canEditReceived
+                                        : (isReceivedDoc || isPosted) && !canEditReceived && !isAccountingDocType
                                             ? (t('messages.docLocked') || t('common.locked'))
                                             : (t('common.edit'))
                                     }

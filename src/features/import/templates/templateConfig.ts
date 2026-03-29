@@ -563,6 +563,118 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         description: { ar: 'ملاحظات', en: 'Notes', tr: 'Notlar', ru: 'Заметки', uk: 'Примітки' }
       },
     ]
+  },
+
+  chart_of_accounts: {
+    entity_type: 'chart_of_accounts',
+    file_name: 'chart_of_accounts_import_template',
+    display_name: {
+      ar: 'الشجرة المحاسبية', en: 'Chart of Accounts', tr: 'Hesap Planı', ru: 'План счетов', uk: 'План рахунків'
+    },
+    instructions: {
+      ar: [
+        'كل صف يمثل حساب واحد يُضاف إلى الشجرة المحاسبية',
+        'الحقول المميزة بـ * مطلوبة (كود + اسم بلغة واحدة على الأقل)',
+        'الرصيد الافتتاحي اختياري (موجب للمدين، سالب للدائن)',
+        'سيتم تحديد المجموعة الأم تلقائياً بالذكاء الاصطناعي أو يدوياً',
+        'العملة اختيارية — إذا لم تُحدد تُستخدم العملة الأساسية',
+      ],
+      en: [
+        'Each row represents one account to add to the Chart of Accounts',
+        'Fields marked with * are required (code + name in at least one language)',
+        'Opening balance is optional (positive = debit, negative = credit)',
+        'Parent group will be auto-suggested by AI or selected manually',
+        'Currency is optional — defaults to company base currency',
+      ],
+      tr: [
+        'Her satır hesap planına eklenecek bir hesabı temsil eder',
+        '* ile işaretlenmiş alanlar zorunludur (kod + en az bir dilde isim)',
+        'Açılış bakiyesi isteğe bağlıdır (pozitif = borç, negatif = alacak)',
+        'Ana grup AI tarafından otomatik önerilecek veya manuel seçilecek',
+        'Para birimi isteğe bağlı — varsayılan şirket para birimidir',
+      ],
+      ru: [
+        'Каждая строка представляет один счёт для добавления в план счетов',
+        'Поля со * обязательны (код + название хотя бы на одном языке)',
+        'Начальное сальдо необязательно (положительное = дебет, отрицательное = кредит)',
+        'Родительская группа будет предложена ИИ или выбрана вручную',
+        'Валюта необязательна — по умолчанию валюта компании',
+      ],
+      uk: [
+        'Кожен рядок — один рахунок для додавання до плану рахунків',
+        'Поля з * обов\'язкові (код + назва хоча б однією мовою)',
+        'Початкове сальдо необов\'язкове (додатне = дебет, від\'ємне = кредит)',
+        'Батьківська група буде запропонована ШІ або обрана вручну',
+        'Валюта необов\'язкова — за замовчуванням валюта компанії',
+      ],
+    },
+    columns: [
+      {
+        field: 'account_code', required: true, example: '1131-004',
+        label: { ar: 'رقم الحساب *', en: 'Account Code *', tr: 'Hesap Kodu *', ru: 'Код счёта *', uk: 'Код рахунку *' },
+        description: { ar: 'رقم فريد للحساب', en: 'Unique account code', tr: 'Benzersiz hesap kodu', ru: 'Уникальный код счёта', uk: 'Унікальний код рахунку' }
+      },
+      {
+        field: 'name_ar', required: false, example: 'شركة شحن DHL',
+        label: { ar: 'الاسم (عربي)', en: 'Name (Arabic)', tr: 'İsim (Arapça)', ru: 'Название (Араб.)', uk: 'Назва (Араб.)' },
+        description: { ar: 'الاسم بالعربية', en: 'Arabic name', tr: 'Arapça isim', ru: 'Название на арабском', uk: 'Назва арабською' }
+      },
+      {
+        field: 'name_en', required: false, example: 'DHL Shipping Co',
+        label: { ar: 'الاسم (إنجليزي)', en: 'Name (English)', tr: 'İsim (İngilizce)', ru: 'Название (Англ.)', uk: 'Назва (Англ.)' },
+        description: { ar: 'الاسم بالإنجليزية', en: 'English name', tr: 'İngilizce isim', ru: 'Англ. название', uk: 'Англ. назва' }
+      },
+      {
+        field: 'name_tr', required: false, example: 'DHL Kargo Şirketi',
+        label: { ar: 'الاسم (تركي)', en: 'Name (Turkish)', tr: 'İsim (Türkçe)', ru: 'Название (Тур.)', uk: 'Назва (Тур.)' },
+        description: { ar: 'الاسم بالتركية', en: 'Turkish name', tr: 'Türkçe isim', ru: 'Тур. название', uk: 'Тур. назва' }
+      },
+      {
+        field: 'name_ru', required: false, example: 'Транспортная компания DHL',
+        label: { ar: 'الاسم (روسي)', en: 'Name (Russian)', tr: 'İsim (Rusça)', ru: 'Название (Рус.)', uk: 'Назва (Рос.)' },
+        description: { ar: 'الاسم بالروسية', en: 'Russian name', tr: 'Rusça isim', ru: 'Рус. название', uk: 'Рос. назва' }
+      },
+      {
+        field: 'name_uk', required: false, example: 'Транспортна компанія DHL',
+        label: { ar: 'الاسم (أوكراني)', en: 'Name (Ukrainian)', tr: 'İsim (Ukraynaca)', ru: 'Название (Укр.)', uk: 'Назва (Укр.)' },
+        description: { ar: 'الاسم بالأوكرانية', en: 'Ukrainian name', tr: 'Ukraynaca isim', ru: 'Укр. название', uk: 'Укр. назва' }
+      },
+      {
+        field: 'name_ro', required: false, example: 'Compania de transport DHL',
+        label: { ar: 'الاسم (روماني)', en: 'Name (Romanian)', tr: 'İsim (Romence)', ru: 'Название (Рум.)', uk: 'Назва (Рум.)' },
+        description: { ar: 'الاسم بالرومانية', en: 'Romanian name', tr: 'Romence isim', ru: 'Рум. название', uk: 'Рум. назва' }
+      },
+      {
+        field: 'name_pl', required: false, example: 'Firma spedycyjna DHL',
+        label: { ar: 'الاسم (بولندي)', en: 'Name (Polish)', tr: 'İsim (Lehçe)', ru: 'Название (Пол.)', uk: 'Назва (Пол.)' },
+        description: { ar: 'الاسم بالبولندية', en: 'Polish name', tr: 'Lehçe isim', ru: 'Пол. название', uk: 'Пол. назва' }
+      },
+      {
+        field: 'name_de', required: false, example: 'Speditionsunternehmen DHL',
+        label: { ar: 'الاسم (ألماني)', en: 'Name (German)', tr: 'İsim (Almanca)', ru: 'Название (Нем.)', uk: 'Назва (Нім.)' },
+        description: { ar: 'الاسم بالألمانية', en: 'German name', tr: 'Almanca isim', ru: 'Нем. название', uk: 'Нім. назва' }
+      },
+      {
+        field: 'name_it', required: false, example: 'Società di spedizioni DHL',
+        label: { ar: 'الاسم (إيطالي)', en: 'Name (Italian)', tr: 'İsim (İtalyanca)', ru: 'Название (Ит.)', uk: 'Назва (Іт.)' },
+        description: { ar: 'الاسم بالإيطالية', en: 'Italian name', tr: 'İtalyanca isim', ru: 'Ит. название', uk: 'Іт. назва' }
+      },
+      {
+        field: 'currency', required: false, example: 'USD',
+        label: { ar: 'العملة', en: 'Currency', tr: 'Para Birimi', ru: 'Валюта', uk: 'Валюта' },
+        description: { ar: 'كود العملة (USD, UAH, EUR...)', en: 'Currency code', tr: 'Para birimi kodu', ru: 'Код валюты', uk: 'Код валюти' }
+      },
+      {
+        field: 'opening_balance', required: false, example: 5000,
+        label: { ar: 'الرصيد الافتتاحي', en: 'Opening Balance', tr: 'Açılış Bakiyesi', ru: 'Нач. сальдо', uk: 'Поч. сальдо' },
+        description: { ar: 'موجب = مدين، سالب = دائن', en: 'Positive = debit, negative = credit', tr: 'Pozitif = borç', ru: 'Положительное = дебет', uk: 'Додатне = дебет' }
+      },
+      {
+        field: 'description', required: false, example: 'حساب شركة شحن دولية',
+        label: { ar: 'الوصف', en: 'Description', tr: 'Açıklama', ru: 'Описание', uk: 'Опис' },
+        description: { ar: 'وصف أو ملاحظات', en: 'Description or notes', tr: 'Açıklama veya notlar', ru: 'Описание или заметки', uk: 'Опис або примітки' }
+      },
+    ]
   }
 };
 

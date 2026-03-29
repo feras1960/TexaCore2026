@@ -5,7 +5,7 @@
 import React from 'react';
 import { useLanguage } from '@/hooks';
 import { Card } from '@/components/ui/card';
-import { Loader2, Users, Truck, Package, FileText, BookOpen, ArrowLeftRight } from 'lucide-react';
+import { Loader2, Users, Truck, Package, FileText, BookOpen, ArrowLeftRight, FolderTree } from 'lucide-react';
 import type { EntityDefinition, EntityType } from '@/services/importService';
 
 interface SelectEntityStepProps {
@@ -19,7 +19,7 @@ const ENTITY_ICONS: Record<string, React.ReactNode> = {
   customers: <Users className="h-8 w-8" />,
   suppliers: <Truck className="h-8 w-8" />,
   products: <Package className="h-8 w-8" />,
-  chart_of_accounts: <FileText className="h-8 w-8" />,
+  chart_of_accounts: <FolderTree className="h-8 w-8" />,
   journal_entries: <BookOpen className="h-8 w-8" />,
   inventory_movements: <ArrowLeftRight className="h-8 w-8" />,
 };

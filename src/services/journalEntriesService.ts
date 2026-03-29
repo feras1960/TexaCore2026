@@ -454,7 +454,6 @@ export const journalEntriesService = {
         };
       });
 
-
       const { error: linesError } = await supabase
         .from('journal_entry_lines')
         .insert(linesData);

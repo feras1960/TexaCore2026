@@ -196,14 +196,16 @@ export const importService = {
         entity_type: cfg.entity_type,
         target_table: cfg.entity_type === 'journal_entries' ? 'journal_entries' :
           cfg.entity_type === 'inventory_movements' ? 'stock_movements' :
-            cfg.entity_type,
+            cfg.entity_type === 'chart_of_accounts' ? 'chart_of_accounts' :
+              cfg.entity_type,
         display_name_ar: cfg.display_name.ar,
         display_name_en: cfg.display_name.en,
         icon: cfg.entity_type === 'customers' ? 'Users' :
           cfg.entity_type === 'suppliers' ? 'Truck' :
             cfg.entity_type === 'products' ? 'Package' :
               cfg.entity_type === 'journal_entries' ? 'FileSpreadsheet' :
-                'TrendingUp',
+                cfg.entity_type === 'chart_of_accounts' ? 'FolderTree' :
+                  'TrendingUp',
         fields: cfg.columns.map(col => ({
           name: col.field,
           type: (typeof col.example === 'number' ? 'number' : 'string') as FieldDefinition['type'],

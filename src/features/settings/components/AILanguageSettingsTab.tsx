@@ -20,6 +20,7 @@ import {
     Sun, Moon, AlertTriangle, Star, UserPlus, Languages, Trash2,
     Eye, EyeOff, ExternalLink, RefreshCw, Copy, AlertCircle,
     ChevronDown, ChevronUp, Settings2, Truck, Warehouse, DollarSign, CalendarDays,
+    Headphones, Volume2, Play, Pause,
 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useNavigate } from 'react-router-dom';
@@ -78,6 +79,7 @@ export default function AILanguageSettingsTab() {
     });
     const [generatingReport, setGeneratingReport] = useState<string | null>(null);
     const [lastReports, setLastReports] = useState<any[]>([]);
+    const [playingAudio, setPlayingAudio] = useState<string | null>(null);
 
     // Notification preferences
     const [notifPrefs, setNotifPrefs] = useState({
@@ -102,7 +104,7 @@ export default function AILanguageSettingsTab() {
                 supabase.from('telegram_connections').select('*').eq('company_id', companyId).eq('is_active', true).order('created_at', { ascending: false }),
                 supabase.from('user_profiles').select('id, full_name, email, role').eq('company_id', companyId).order('full_name'),
                 supabase.from('warehouses').select('id, name_ar, name_en').eq('company_id', companyId).eq('is_active', true).order('name_ar'),
-                supabase.from('ai_daily_reports').select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used').eq('company_id', companyId).order('generated_at', { ascending: false }).limit(5),
+                supabase.from('ai_daily_reports').select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used, voice_url').eq('company_id', companyId).order('generated_at', { ascending: false }).limit(5),
             ]);
 
             // Process company settings
@@ -572,7 +574,7 @@ export default function AILanguageSettingsTab() {
                 : `✅ ${type} report created — ${data?.tasks_created || 0} tasks${data?.telegram_sent ? ` | 📱 Sent to ${data.telegram_sent} users` : ''}`);
             // Reload reports
             const { data: fresh } = await supabase.from('ai_daily_reports')
-                .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used')
+                .select('id, report_type, report_date, manager_summary, tokens_used, cost_usd, generated_at, model_used, voice_url')
                 .eq('company_id', companyId).order('generated_at', { ascending: false }).limit(5);
             if (fresh) setLastReports(fresh);
         } catch (err: any) {
@@ -667,9 +669,48 @@ export default function AILanguageSettingsTab() {
                                                 rpt.report_type === 'morning' ? 'border-amber-300 text-amber-600' : 'border-indigo-300 text-indigo-600')}>
                                                 {rpt.report_type === 'morning' ? (isAr ? 'صباحي' : 'Morning') : (isAr ? 'مسائي' : 'Evening')}
                                             </Badge>
+                                            {rpt.voice_url && (
+                                                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 text-[9px] px-1.5 py-0 h-4 gap-0.5">
+                                                    <Volume2 className="w-2.5 h-2.5" /> {isAr ? 'صوتي' : 'Voice'}
+                                                </Badge>
+                                            )}
                                         </div>
-                                        <span className="text-[10px] text-gray-400">{rpt.tokens_used} tokens</span>
+                                        <div className="flex items-center gap-2">
+                                            {rpt.voice_url && (
+                                                <button
+                                                    onClick={() => setPlayingAudio(playingAudio === rpt.id ? null : rpt.id)}
+                                                    className={cn(
+                                                        'p-1.5 rounded-full transition-all',
+                                                        playingAudio === rpt.id
+                                                            ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+                                                            : 'hover:bg-purple-50 dark:hover:bg-purple-900/10 text-gray-400 hover:text-purple-500'
+                                                    )}
+                                                    title={isAr ? 'تشغيل التقرير الصوتي' : 'Play voice report'}
+                                                >
+                                                    <Headphones className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            <span className="text-[10px] text-gray-400">{rpt.tokens_used} tokens</span>
+                                        </div>
                                     </div>
+                                    {/* Voice Player */}
+                                    {playingAudio === rpt.id && rpt.voice_url && (
+                                        <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/10 dark:to-indigo-900/10 border border-purple-200 dark:border-purple-800">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Volume2 className="w-3.5 h-3.5 text-purple-500" />
+                                                <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                                                    {isAr ? '🎤 التقرير الصوتي — NexaIntelligence' : '🎤 Voice Report — NexaIntelligence'}
+                                                </span>
+                                            </div>
+                                            <audio
+                                                controls
+                                                autoPlay
+                                                className="w-full h-8 [&::-webkit-media-controls-panel]:bg-white dark:[&::-webkit-media-controls-panel]:bg-gray-800"
+                                                src={rpt.voice_url}
+                                                onEnded={() => setPlayingAudio(null)}
+                                            />
+                                        </div>
+                                    )}
                                     {rpt.manager_summary && (
                                         <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{rpt.manager_summary.substring(0, 150)}...</p>
                                     )}

@@ -8,6 +8,7 @@
 import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { invalidateAccountsCache } from '@/components/ui/InlineAccountCell';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { confirmationService, type WorkflowSettings, type DocType as ConfDocType } from '@/services/confirmationService';
@@ -704,6 +705,8 @@ function invalidateTradeQueries(queryClient: ReturnType<typeof useQueryClient>) 
     // ── Purchase/Sales Stats — تحديث إحصائيات الموردين/العملاء ──
     queryClient.invalidateQueries({ queryKey: ['suppliers_purchase_stats'] });
     queryClient.invalidateQueries({ queryKey: ['customers_sales_stats'] });
+    // ♻️ تحديث كاش الحسابات العام (الأرصدة بجانب أسماء الحسابات)
+    invalidateAccountsCache();
 }
 
 
@@ -1929,6 +1932,25 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 const { data: { session } } = await supabase.auth.getSession();
                                 const userId = session?.user?.id || '';
 
+                                // ═══ إلغاء الترحيل أولاً إذا كان القيد مرحّلاً مسبقاً ═══
+                                // ضروري عند تعديل قيد مرحّل — RPC يرفض ترحيل مزدوج
+                                const wasPosted = initialData?.status === 'posted' || initialData?.is_posted || data?.status === 'posted';
+                                if (wasPosted && mode === 'edit') {
+                                    console.log('[Register] Entry was posted — unposting first before re-posting...');
+                                    const { error: unpostErr } = await supabase.rpc('unpost_journal_entry', {
+                                        p_entry_id: docId,
+                                        p_user_id: userId,
+                                    });
+                                    if (unpostErr) {
+                                        console.error('[Register] Unpost failed:', unpostErr.message);
+                                        toast.error(language === 'ar'
+                                            ? `❌ فشل إلغاء الترحيل القديم: ${unpostErr.message}`
+                                            : `❌ Failed to unpost old entry: ${unpostErr.message}`);
+                                        break;
+                                    }
+                                    console.log('[Register] ✅ Unpost successful — proceeding to re-post');
+                                }
+
                                 // ✅ المسار الصحيح: RPC يُحدِّث journal_entries + chart_of_accounts
                                 const { error: rpcErr } = await supabase.rpc('post_journal_entry', {
                                     p_entry_id: docId,
@@ -1983,6 +2005,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
                                 queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
                                 queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+                                // ♻️ تحديث كاش الحسابات العام لعرض الأرصدة الصحيحة في الـ Grid
+                                invalidateAccountsCache();
                                 toast.success(language === 'ar' ? '✅ تم التسجيل والترحيل بنجاح' : '✅ Registered and posted successfully');
 
                                 manualPostSuccess = true;
@@ -3046,6 +3070,8 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 await journalEntriesService.unpost(docId);
                                 setData((prev: any) => ({ ...prev, status: 'draft', is_posted: false }));
                                 queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+                                queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                                invalidateAccountsCache();
                                 toast.success(language === 'ar' ? '✅ تم إلغاء الترحيل — القيد الآن مسودة' : '✅ Unposted — entry is now a draft');
                             } catch (err: any) {
                                 toast.error(

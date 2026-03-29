@@ -74,7 +74,8 @@ export async function getAccountsAsync(companyId?: string): Promise<Account[]> {
 }
 
 /**
- * Preload accounts into the global cache.
+ * Preload accounts into the global cache, WITH real-time balances from RPC.
+ * Calls get_account_balances_bulk to compute all account balances in ONE query.
  */
 export function preloadAccounts(companyId: string): void {
     if (!companyId) return;
@@ -82,16 +83,68 @@ export function preloadAccounts(companyId: string): void {
         (loadingPromise && cacheCompanyId === companyId)) return;
 
     cacheCompanyId = companyId;
-    loadingPromise = accountsService.getGridAccounts(companyId).then(data => {
-        const filtered = (data || []).filter(a => !a.is_group);
-        cachedAccounts = filtered;
-        loadingPromise = null;
-        return filtered;
-    }).catch(err => {
-        console.warn('[preloadAccounts] Failed:', err);
-        loadingPromise = null;
-        return [];
-    });
+    loadingPromise = (async () => {
+        try {
+            // ═══ تحميل موازٍ: الحسابات + الأرصدة الحقيقية ═══
+            const [accountsData, balancesResult] = await Promise.all([
+                accountsService.getGridAccounts(companyId),
+                import('@/lib/supabase').then(({ supabase }) =>
+                    supabase.rpc('get_account_balances_bulk', { p_company_id: companyId })
+                ),
+            ]);
+
+            const filtered = (accountsData || []).filter(a => !a.is_group);
+
+            // ═══ دمج الأرصدة الحقيقية في الحسابات ═══
+            if (balancesResult.data && !balancesResult.error) {
+                const balMap = new Map<string, { balance: number; balance_fc: number }>();
+                for (const row of balancesResult.data) {
+                    balMap.set(row.account_id, {
+                        balance: Number(row.balance) || 0,
+                        balance_fc: Number(row.balance_fc) || 0,
+                    });
+                }
+
+                for (const acct of filtered) {
+                    const bal = balMap.get(acct.id);
+                    if (bal) {
+                        acct.current_balance = bal.balance;
+                        acct.current_balance_fc = bal.balance_fc;
+                    } else {
+                        // حساب بدون حركات مرحّلة
+                        acct.current_balance = 0;
+                        acct.current_balance_fc = 0;
+                    }
+                }
+                console.log('[AccountCache] ✅ Loaded', filtered.length, 'accounts with', balMap.size, 'real balances');
+            } else {
+                console.warn('[AccountCache] ⚠️ Balance RPC failed, using chart_of_accounts.current_balance:', balancesResult.error?.message);
+            }
+
+            cachedAccounts = filtered;
+            loadingPromise = null;
+            return filtered;
+        } catch (err) {
+            console.warn('[preloadAccounts] Failed:', err);
+            loadingPromise = null;
+            return [];
+        }
+    })();
+}
+
+/**
+ * Invalidate the global accounts cache and force a fresh reload.
+ * Call this after posting/unposting journal entries to refresh balances.
+ */
+export function invalidateAccountsCache(): void {
+    const cid = cacheCompanyId || getCompanyIdFromCache();
+    cachedAccounts = null;
+    loadingPromise = null;
+    if (cid) {
+        cacheCompanyId = null; // Force preload to run
+        preloadAccounts(cid);
+        console.log('[AccountCache] ♻️ Invalidated and reloading for company:', cid);
+    }
 }
 
 // ═══ AUTO-PRELOAD: Start loading accounts at module import time ═══
