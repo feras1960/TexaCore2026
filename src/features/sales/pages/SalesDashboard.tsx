@@ -88,7 +88,7 @@ export default function SalesDashboard() {
     try { localStorage.setItem('sales_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch {}
   }, [dateRange]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // KPIs
@@ -117,7 +117,7 @@ export default function SalesDashboard() {
   // ─── Fetch ───────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     if (!companyId) return;
-    setLoading(true);
+    // ⚡ No setLoading(true) — render dashboard structure immediately
 
     try {
       // ⚡ Parallel fetch: all 3 queries at once
@@ -302,18 +302,7 @@ export default function SalesDashboard() {
       ]
   };
 
-  // ─── Loading ─────────────────────────────────────────────────
-  if (loading && !recent.length) {
-    return (
-      <div className="space-y-6" dir={direction}>
-        <div className="bg-gradient-to-r from-erp-navy via-emerald-800 to-erp-navy p-6 rounded-2xl animate-pulse h-24" />
-        <div className="h-10 bg-gray-100 rounded-xl animate-pulse w-96" />
-        <div className="grid grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-gray-100 animate-pulse" />)}
-        </div>
-      </div>
-    );
-  }
+  // ⚡ CACHE-FIRST: No blocking skeleton — dashboard renders immediately
 
   // ═════════════════════════════════════════════════════════════
   return (
@@ -464,7 +453,7 @@ export default function SalesDashboard() {
             <div className="w-full min-h-[280px]">
               {monthly.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
-                  <div className="w-8 h-8 border-2 border-erp-teal border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-400">{isAr ? 'جاري تحميل البيانات...' : 'Loading data...'}</p>
                 </div>
               ) : (
                 <ReactECharts
