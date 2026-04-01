@@ -1,7 +1,6 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
-import SectionLoader from '@/components/common/SectionLoader';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
     LayoutDashboard,
@@ -14,19 +13,15 @@ import {
     Settings
 } from 'lucide-react';
 
-// Lazy load tabs
-const CRMDashboard = lazy(() => import('./tabs/CRMDashboard'));
-const ContactsTable = lazy(() => import('./tabs/ContactsTable'));
-const PipelineBoard = lazy(() => import('./tabs/PipelineBoard'));
-const TasksTable = lazy(() => import('./tabs/TasksTable'));
-const CampaignsList = lazy(() => import('./tabs/CampaignsList'));
-const ActivityFeed = lazy(() => import('./tabs/ActivityFeed'));
-const CallCenterDashboard = lazy(() => import('./tabs/CallCenter/CallCenterDashboard'));
-const CRMSettings = lazy(() => import('./tabs/CRMSettings'));
-
-const TabContentLoader = () => (
-    <SectionLoader variant="dashboard" showTabs={false} />
-);
+// ⚡ Direct imports (no lazy loading) for instant tab switching
+import CRMDashboard from './tabs/CRMDashboard';
+import ContactsTable from './tabs/ContactsTable';
+import PipelineBoard from './tabs/PipelineBoard';
+import TasksTable from './tabs/TasksTable';
+import CampaignsList from './tabs/CampaignsList';
+import ActivityFeed from './tabs/ActivityFeed';
+import CallCenterDashboard from './tabs/CallCenter/CallCenterDashboard';
+import CRMSettings from './tabs/CRMSettings';
 
 export default function CRM() {
     const { t } = useLanguage();
@@ -93,9 +88,7 @@ export default function CRM() {
                 variant="underline"
             />
 
-            <Suspense fallback={<TabContentLoader />}>
-                {renderContent()}
-            </Suspense>
+            {renderContent()}
         </div>
     );
 }
