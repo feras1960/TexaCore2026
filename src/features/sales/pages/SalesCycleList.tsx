@@ -289,8 +289,8 @@ export default function SalesCycleList() {
     });
 
     // 2. Fetch ALL Documents — always fetch everything, filter in frontend
-    const { data: documents = [], isLoading, error, refetch } = useCachedQuery({
-        queryKey: ['sales_cycle_full', companyId, dateRange?.from, dateRange?.to],
+    const salesCycleQuery = useCachedQuery({
+        queryKey: ['sales_cycle_full', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
 
@@ -354,6 +354,12 @@ export default function SalesCycleList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
+    const documents = salesCycleQuery.data ?? [];
+    const isLoading = !!tenantId && !!companyId && salesCycleQuery.isPending;
+    const error = salesCycleQuery.error;
+    const refetch = salesCycleQuery.refetch;
 
     // Combine Data with Customer Names
     const enrichedDocuments = useMemo(() => {

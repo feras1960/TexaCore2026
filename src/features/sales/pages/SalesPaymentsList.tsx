@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 export default function SalesPaymentsList() {
     const { t, language, direction } = useLanguage();
     const { companyId } = useCompany();
+    const { tenantId } = useAuth();
     const isRTL = direction === 'rtl';
     const { currencyCode: companyCurrency } = useCompanyCurrency(language as 'ar' | 'en');
 
@@ -32,8 +34,8 @@ export default function SalesPaymentsList() {
     });
 
     // Fetch Receipts from journal_entries (entry_type = 'receipt')
-    const { data: paymentsRaw = [], isLoading: isLoadingPayments, error: errorPayments, refetch } = useCachedQuery({
-        queryKey: ['sales_payments_list', companyId, activeTab, dateRange?.from, dateRange?.to],
+    const paymentsQuery = useCachedQuery({
+        queryKey: ['sales_payments_list', companyId, activeTab, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
 
@@ -111,6 +113,12 @@ export default function SalesPaymentsList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons during auth init
+    const paymentsRaw = paymentsQuery.data ?? [];
+    const isLoadingPayments = !!tenantId && !!companyId && paymentsQuery.isPending;
+    const errorPayments = paymentsQuery.error;
+    const refetch = paymentsQuery.refetch;
 
     // Fetch Customers Map (for matching reference_id → customer name)
     const { data: customersMap = {} } = useCachedQuery({

@@ -75,8 +75,8 @@ export default function SalesInvoicesList() {
     }, []);
 
     // Fetch Invoices — NEW: from sales_transactions
-    const { data: invoicesRaw = [], isLoading, error, refetch } = useCachedQuery({
-        queryKey: ['sales_transactions_list', companyId, dateRange?.from, dateRange?.to],
+    const invoicesQuery = useCachedQuery({
+        queryKey: ['sales_transactions_list', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
 
@@ -102,6 +102,12 @@ export default function SalesInvoicesList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
+    const invoicesRaw = invoicesQuery.data ?? [];
+    const isLoading = !!tenantId && !!companyId && invoicesQuery.isPending;
+    const error = invoicesQuery.error;
+    const refetch = invoicesQuery.refetch;
 
     // Fetch Customers Map
     const { data: customersMap = {} } = useCachedQuery({

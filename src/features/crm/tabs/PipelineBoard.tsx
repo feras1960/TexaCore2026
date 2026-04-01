@@ -138,7 +138,7 @@ export default function PipelineBoard() {
 
     // ─── Fetch sales documents grouped by contact/customer ───
     const { data: pipelineDeals = [], isLoading } = useCachedQuery({
-        queryKey: ['crm_pipeline_deals', companyId, dateRange?.from, dateRange?.to],
+        queryKey: ['crm_pipeline_deals', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
 

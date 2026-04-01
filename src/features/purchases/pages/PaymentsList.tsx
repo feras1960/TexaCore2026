@@ -119,7 +119,7 @@ export default function PaymentsList() {
 
     // ─── Fetch Payments ──────────────────────────────────────────
     const paymentsQuery = useCachedQuery({
-        queryKey: ['payments_list', companyId, dateRange?.from, dateRange?.to],
+        queryKey: ['payments_list', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
 
