@@ -106,11 +106,13 @@ export default function ContactsTable() {
     const [showFilters, setShowFilters] = useState(false);
 
     // Fetch Contacts
-    const { data: contacts = [], isLoading } = useCachedQuery({
+    const { data: contacts = [], isPending: _contactsPending } = useCachedQuery({
         queryKey: ['crm_contacts', companyId, filters],
         queryFn: () => contactsService.getContacts(companyId!, filters),
         enabled: !!companyId,
     });
+    // ⚡ CACHE-FIRST: Don't show loading during auth init
+    const isLoading = !!companyId && _contactsPending;
 
     // Fetch Pipeline Stats
     const { data: pipelineStats } = useCachedQuery({

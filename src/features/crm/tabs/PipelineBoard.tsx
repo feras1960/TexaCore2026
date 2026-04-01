@@ -137,7 +137,7 @@ export default function PipelineBoard() {
     }, []);
 
     // ─── Fetch sales documents grouped by contact/customer ───
-    const { data: pipelineDeals = [], isLoading } = useCachedQuery({
+    const { data: pipelineDeals = [], isPending: _isPending } = useCachedQuery({
         queryKey: ['crm_pipeline_deals', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
@@ -293,6 +293,9 @@ export default function PipelineBoard() {
         },
         enabled: !!companyId,
     });
+
+    // ⚡ CACHE-FIRST: Don't show kanban skeletons during auth init
+    const isLoading = !!companyId && _isPending;
 
     // ─── Column definitions ───
     const kanbanColumns: KanbanColumnDef[] = useMemo(() => [
