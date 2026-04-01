@@ -178,9 +178,8 @@ export default function PipelineBoard() {
                 fetchTable('sales_orders', 'order', 'order_date', 'order_number', 'total_amount'),
                 fetchTable('sales_deliveries', 'delivery', 'delivery_date', 'delivery_number', undefined),
                 fetchTable('sales_transactions', 'invoice', 'doc_date', 'invoice_no', 'total_amount'),
-                fetchTable('transit_reservations', 'reservation', 'reservation_date', 'reservation_number', undefined),
             ]);
-            const [quotations, orders, deliveries, invoices, reservations] = results.map(r =>
+            const [quotations, orders, deliveries, invoices] = results.map(r =>
                 r.status === 'fulfilled' ? r.value : []
             );
 
@@ -203,7 +202,7 @@ export default function PipelineBoard() {
             const customersMap = new Map(customers.map((c: any) => [c.id, c]));
 
             // Group all documents by customer_id (or contact_id)
-            const allDocs = [...quotations, ...orders, ...deliveries, ...invoices, ...reservations];
+            const allDocs = [...quotations, ...orders, ...deliveries, ...invoices];
             const grouped = new Map<string, { docs: any[]; entityType: 'contact' | 'customer'; entityId: string }>();
 
             for (const doc of allDocs) {
