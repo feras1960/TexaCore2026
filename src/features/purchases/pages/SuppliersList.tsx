@@ -130,7 +130,7 @@ export default function SuppliersList() {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // ─── Fetch Suppliers ─────────────────────────────────────────
-    const { data: suppliers = [], isLoading } = useCachedQuery({
+    const suppliersQuery = useCachedQuery({
         queryKey: ['suppliers_list', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -152,6 +152,10 @@ export default function SuppliersList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: render instantly from cache
+    const suppliers = suppliersQuery.data ?? [];
+    const isLoading = !!companyId && suppliersQuery.isPending;
 
     // ─── Fetch Purchase Stats per Supplier ────────────────────────
     const { data: purchaseStats = {} } = useCachedQuery({

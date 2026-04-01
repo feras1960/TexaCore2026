@@ -213,7 +213,7 @@ export function WorkflowSettings({ config }: WorkflowSettingsProps) {
     const [activeDocType, setActiveDocType] = useState(config.docTypes[0]?.id || 'sales_quotation');
     const [statuses, setStatuses] = useState<CustomStatus[]>([]);
     const [transitions, setTransitions] = useState<StatusTransition[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [showStatusDialog, setShowStatusDialog] = useState(false);
     const [showTransitionDialog, setShowTransitionDialog] = useState(false);
     const [editingStatus, setEditingStatus] = useState<CustomStatus | null>(null);
@@ -279,7 +279,7 @@ export function WorkflowSettings({ config }: WorkflowSettingsProps) {
 
     // Load data
     const loadData = useCallback(async () => {
-        setLoading(true);
+        // ⚡ No setLoading(true) — render structure immediately
         try {
             const [statusData, transitionData] = await Promise.all([
                 statusService.getStatuses(activeDocType, tenantId || companyId),

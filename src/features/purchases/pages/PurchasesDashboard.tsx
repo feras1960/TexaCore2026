@@ -76,7 +76,7 @@ export default function PurchasesDashboard() {
     const { currencyCode: baseCurrency, currencySymbol: baseSymbol } = useCompanyCurrency(language as 'ar' | 'en');
     const { lookupRate, isLoading: ratesLoading } = useExchangeRateLookup();
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Restore user preference from localStorage
@@ -433,13 +433,6 @@ export default function PurchasesDashboard() {
         ]
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-erp-teal" />
-            </div>
-        );
-    }
 
     // ═════════════════════════════════════════════════════════════
     return (
@@ -598,9 +591,9 @@ export default function PurchasesDashboard() {
                     <CardContent className="pt-4 flex flex-col items-center">
                         <div className="w-full min-h-[280px]">
                             {monthly.length === 0 ? (
-                                <div className="h-full flex items-center justify-center">
-                                    <div className="w-8 h-8 border-2 border-erp-teal border-t-transparent rounded-full animate-spin" />
-                                </div>
+                                    <div className="h-full flex items-center justify-center text-sm text-gray-300 font-tajawal">
+                                        {isAr ? 'جاري تحميل البيانات...' : 'Loading data...'}
+                                    </div>
                             ) : (
                                 <ReactECharts
                                     option={mainChartOption}

@@ -167,7 +167,7 @@ export default function PurchaseInvoicesList() {
     const effectiveTo = dateRange?.to ? endOfDay(dateRange.to).toISOString() : undefined;
 
     // Phase 1 — Last 2 Days (fast, shown immediately)
-    const { data: recentRaw = [], isLoading: isLoadingRecent } = useCachedQuery({
+    const recentQuery = useCachedQuery({
         queryKey: ['purchase_transactions_recent', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -187,8 +187,8 @@ export default function PurchaseInvoicesList() {
     });
 
     // Phase 2 — Full Month (loads in background after Phase 1)
-    const { data: fullRaw = [], isLoading: isLoadingFull } = useCachedQuery({
-        queryKey: ['purchase_transactions_full', companyId, effectiveFrom, effectiveTo],
+    const fullQuery = useCachedQuery({
+        queryKey: ['purchase_transactions_full', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
         queryFn: async () => {
             if (!companyId) return [];
             let query = supabase
@@ -210,19 +210,22 @@ export default function PurchaseInvoicesList() {
             if (error) throw error;
             return data || [];
         },
-        enabled: !!companyId && !isLoadingRecent, // Wait for Phase 1 to finish
+        enabled: !!companyId && !recentQuery.isPending, // Wait for Phase 1 to finish
         staleTime: 60_000,
         placeholderData: keepPreviousData,
     });
+
+    // ⚡ CACHE-FIRST: derive loading states gated on auth
+    const recentRaw = recentQuery.data ?? [];
+    const fullRaw = fullQuery.data ?? [];
+    const isLoading = !!tenantId && !!companyId && recentQuery.isPending;
+    const isBackgroundLoading = fullQuery.isPending && !recentQuery.isPending;
 
     // Merge Phase 1 + Phase 2 (deduplicate by id)
     const invoicesRaw = useMemo(() => {
         if (fullRaw.length > 0) return fullRaw; // Phase 2 complete, use full data
         return recentRaw; // Still in Phase 1, show recent only
     }, [recentRaw, fullRaw]);
-
-    const isLoading = isLoadingRecent;
-    const isBackgroundLoading = isLoadingFull && !isLoadingRecent;
 
     // Enrich Data — NEW: using purchase_transactions fields
     const invoices = useMemo(() => {
