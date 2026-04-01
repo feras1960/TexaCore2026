@@ -133,6 +133,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── 3. Purchase Invoices (NEW: purchase_invoices + LEGACY: purchase_transactions fallback) ──────
@@ -177,6 +178,7 @@ export function useReceiptSources() {
             return combined;
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── 4. Containers (not received) ────────────────────────
@@ -194,6 +196,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── 5. Purchase Returns (pending) ───────────────────────
@@ -211,6 +214,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── 6. Fetch Items for Purchase Orders ──────────────────
@@ -227,6 +231,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: orderIds.length > 0,
+        staleTime: 30_000,
     });
 
     // ─── 7. Fetch Items for Purchase Invoices (dual-source) ────────────────
@@ -265,6 +270,7 @@ export function useReceiptSources() {
             return combined;
         },
         enabled: allInvoiceIds.length > 0,
+        staleTime: 30_000,
     });
 
     // ─── 8. Fetch Items for Containers ───────────────────────
@@ -286,6 +292,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: containerIds.length > 0,
+        staleTime: 30_000,
     });
 
     // ─── 9. Fetch Items for Purchase Returns ─────────────────
@@ -305,6 +312,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: returnIds.length > 0,
+        staleTime: 30_000,
     });
 
     // ─── 10. Sales Transactions (confirmed, for delivery) ────
@@ -323,6 +331,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: !!companyId,
+        staleTime: 30_000,
     });
 
     // ─── 11. Fetch Items for Sales Transactions ──────────────
@@ -342,6 +351,7 @@ export function useReceiptSources() {
             return data || [];
         },
         enabled: salesInvoiceIds.length > 0,
+        staleTime: 30_000,
     });
 
     // ─── 12. Customers map (for sales) ───────────────────────

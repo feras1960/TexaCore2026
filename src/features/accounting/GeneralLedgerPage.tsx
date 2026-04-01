@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,34 +76,23 @@ export default function GeneralLedgerPage() {
   const [selectedCurrency, setSelectedCurrency] = useState<string>('all'); // New Currency State
   const [voucherSearch, setVoucherSearch] = useState('');
 
-  // Dropdown Data
-  const [costCenters, setCostCenters] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-
-  // -- Initial Load --
-  useEffect(() => {
-    if (companyId) {
-      fetchDropdowns();
-    }
-  }, [companyId]);
-
-  const fetchDropdowns = async () => {
-    try {
-      // Fetch Cost Centers
+  // Dropdown Data — cached via React Query
+  const { data: dropdownData } = useCachedQuery({
+    queryKey: ['accounting', 'ledger-dropdowns', companyId],
+    queryFn: async () => {
       const { data: ccData } = await supabase
         .from('cost_centers')
         .select('id, name_ar, name_en, code')
         .eq('company_id', companyId)
         .eq('is_active', true);
-
-      if (ccData) setCostCenters(ccData);
-
-      setProjects([]); // Set empty array for now
-
-    } catch (error) {
-      console.error('Error fetching dropdowns:', error);
-    }
-  };
+      return { costCenters: ccData || [], projects: [] as any[] };
+    },
+    enabled: !!companyId,
+    staleTime: 30 * 60 * 1000,      // 30 min — rarely changes
+    gcTime: 24 * 60 * 60 * 1000,
+  });
+  const costCenters = dropdownData?.costCenters || [];
+  const projects = dropdownData?.projects || [];
 
   // -- Main Data Fetching --
   const handleSearch = async () => {

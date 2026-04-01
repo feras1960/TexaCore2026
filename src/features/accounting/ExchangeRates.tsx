@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,36 +49,25 @@ export default function ExchangeRates() {
   const { t, language } = useLanguage();
   const { company } = useCompany();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const [rates, setRates] = useState<ExchangeRate[]>([]);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedReconciliationColor, setSelectedReconciliationColor] = useState<string>('green');
   const [markedRates, setMarkedRates] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (company?.id) {
-      loadRates();
-    }
-  }, [company?.id]);
+  const { data: rates = [], isLoading: loading } = useCachedQuery({
+    queryKey: ['accounting', 'exchange-rates', company?.id],
+    queryFn: async () => {
+      const data = await ExchangeRatesService.getRates(company!.id);
+      return data;
+    },
+    enabled: !!company?.id,
+    staleTime: 5 * 60 * 1000,       // 5 min
+    gcTime: 24 * 60 * 60 * 1000,
+  });
 
-  const loadRates = async () => {
-    if (!company?.id) return;
-    setLoading(true);
-    try {
-      const data = await ExchangeRatesService.getRates(company.id);
-      setRates(data);
-    } catch (error) {
-      console.error('Failed to load rates:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load exchange rates',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
+  const refreshRates = () => {
+    queryClient.invalidateQueries({ queryKey: ['accounting', 'exchange-rates', company?.id] });
   };
 
   const filteredRates = rates.filter(rate =>
@@ -114,7 +105,7 @@ export default function ExchangeRates() {
           <p className="text-gray-500 font-tajawal text-sm">{t('exchangeRatesDesc') || 'Manage currency exchange rates.'}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={loadRates} disabled={loading}>
+          <Button variant="outline" className="gap-2" onClick={refreshRates} disabled={loading}>
             <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
             {t('updateRates') || 'Refresh'}
           </Button>

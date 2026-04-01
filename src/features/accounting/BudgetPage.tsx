@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -74,9 +75,25 @@ export default function BudgetPage() {
     const { t, language, direction } = useLanguage();
     const { toast } = useToast();
 
-    const [loading, setLoading] = useState(true);
-    const [budgets, setBudgets] = useState<Budget[]>([]);
-    const [alerts, setAlerts] = useState<BudgetAlert[]>([]);
+    // Load data — React Query with caching
+    const { data: queryData, isLoading: loading } = useCachedQuery({
+        queryKey: ['accounting', 'budgets'],
+        queryFn: async () => {
+            const [budgetsRes, alertsRes] = await Promise.all([
+                supabase.from('budgets').select('*').order('created_at', { ascending: false }),
+                supabase.from('budget_alerts').select('*').eq('is_active', true).order('triggered_at', { ascending: false }).limit(10),
+            ]);
+            return {
+                budgets: (budgetsRes.data || []) as Budget[],
+                alerts: (alertsRes.data || []) as BudgetAlert[],
+            };
+        },
+        staleTime: 10 * 60 * 1000,      // 10 min
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+    const budgets = queryData?.budgets || [];
+    const alerts = queryData?.alerts || [];
+
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -84,27 +101,6 @@ export default function BudgetPage() {
     const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-
-    // Load data
-    useEffect(() => {
-        const loadAll = async () => {
-            setLoading(true);
-            try {
-                // ⚡ Parallel fetch: budgets + alerts
-                const [budgetsRes, alertsRes] = await Promise.all([
-                    supabase.from('budgets').select('*').order('created_at', { ascending: false }),
-                    supabase.from('budget_alerts').select('*').eq('is_active', true).order('triggered_at', { ascending: false }).limit(10),
-                ]);
-                setBudgets(budgetsRes.data || []);
-                if (alertsRes.data) setAlerts(alertsRes.data);
-            } catch (error) {
-                console.warn('Budget table not available:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadAll();
-    }, []);
 
     const loadBudgetLines = async (budgetId: string) => {
         try {

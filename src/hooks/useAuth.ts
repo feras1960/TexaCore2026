@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, signIn, signUp, signOut, getCurrentUser, getSession } from '@/lib/supabase';
 import { signInWithMetadata, getCurrentUserWithMetadata, type AuthUser } from '@/services/authService';
+import { dataEngine } from '@/engine/DataEngine';
 
 interface AuthState {
   user: User | null;
@@ -285,6 +286,25 @@ export function useAuth() {
     // 🔐 Block onAuthStateChange from interfering during MFA check
     loginInProgressRef.current = true;
     try {
+      // 🧹 Clear all cached data BEFORE login to ensure fresh data from server
+      // This prevents stale IndexedDB cache from showing deleted/outdated records
+      try {
+        await dataEngine.clearAll();
+        console.log('🧹 [Login] Cache cleared — will load fresh data');
+      } catch (e) {
+        console.warn('[Login] Cache clear failed (non-critical):', e);
+      }
+
+      // 🔐 Clear Warehouse Offline DB (L3) — prevents stale stock count data
+      // from previous user's session on shared devices
+      try {
+        const { offlineDB } = await import('@/features/warehouse/services/warehouseOfflineDB');
+        await offlineDB.delete();
+        console.log('🧹 [Login] Warehouse offline DB cleared');
+      } catch {
+        // Ignore — Dexie might not be loaded yet
+      }
+
       // Direct sign in without clearing session first (to avoid AbortError)
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -558,16 +578,33 @@ export function useAuth() {
   const logout = async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
-      // Clear localStorage manually to ensure cleanup
+      // 🧹 Clear ALL TexaCore localStorage keys on logout
+      // Prevents data leakage: drafts, caches, preferences on shared devices
       if (typeof window !== 'undefined') {
         const keysToRemove: string[] = [];
+        // Prefixes of ALL TexaCore app data stored in localStorage
+        const APP_PREFIXES = [
+          'sb-',                         // Supabase auth tokens
+          'supabase',                    // Supabase misc
+          'texacore_',                   // Trusted device, online rates, etc.
+          'receipt_sessions',            // Receipt drafts (receiptLocalStore)
+          'receipt_pending_queue',       // Receipt pending queue
+          'delivery_draft_',             // Transfer delivery drafts
+          'sales_delivery_draft_',       // Sales delivery drafts
+          'ai_analysis_cache_',          // AI analytics cache
+          'table_prefs_',               // Table column preferences
+          'materials_',                  // Materials view mode, filters
+          'wh_',                         // Warehouse location filters
+          'dashboard_',                  // Dashboard currency preference
+        ];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+          if (key && APP_PREFIXES.some(prefix => key.startsWith(prefix) || key.includes(prefix))) {
             keysToRemove.push(key);
           }
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log(`🧹 [Logout] Cleared ${keysToRemove.length} localStorage keys`);
       }
 
       // 🔐 مسح قاعدة البيانات المحلية (IndexedDB) — حماية الجهاز المشترك
@@ -576,6 +613,14 @@ export function useAuth() {
         await offlineDB.delete();
       } catch {
         // تجاهل — قد لا يكون Dexie محملاً
+      }
+
+      // 🗑️ مسح كاش DataEngine (React Query + IndexedDB persistence)
+      try {
+        const { dataEngine } = await import('@/engine/DataEngine');
+        await dataEngine.clearAll();
+      } catch {
+        // تجاهل — قد لا يكون DataEngine محملاً
       }
 
       const { error } = await signOut();

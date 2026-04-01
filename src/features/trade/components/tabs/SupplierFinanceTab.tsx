@@ -39,12 +39,12 @@ import { PurchasePaymentTab } from './PurchasePaymentTab';
 import { PurchaseExpensesTab } from './PurchaseExpensesTab';
 import { ContainerInfoCard } from '../shared/ContainerInfoCard';
 import { ContainerStatusStepper } from '../ContainerStatusStepper';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 
 // ═══ Small badge that fetches and displays the journal entry number ═══
 const JournalEntryNumberBadge: React.FC<{ journalEntryId: string }> = ({ journalEntryId }) => {
-    const { data: entryNumber } = useQuery({
+    const { data: entryNumber } = useCachedQuery({
         queryKey: ['je_number_badge', journalEntryId],
         queryFn: async () => {
             const { data, error } = await supabase

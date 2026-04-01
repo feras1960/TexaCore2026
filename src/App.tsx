@@ -25,6 +25,7 @@ const SheetsPreview = React.lazy(() => import('@/pages/SheetsPreview'));
 const KanbanLabPage = React.lazy(() => import('@/pages/KanbanLabPage'));
 const AccountingGridLab = React.lazy(() => import('@/pages/AccountingGridLab'));
 const AdvancedQRScannerPage = React.lazy(() => import('@/pages/advanced/AdvancedQRScannerPage'));
+const UiEffectsLab = React.lazy(() => import('@/features/componentLab/UiEffectsLab'));
 
 // Placeholder pages for modules under development
 const PlaceholderPage = ({ titleKey }: { titleKey: string }) => {
@@ -63,6 +64,7 @@ function NormalRoutes() {
       <Route path="/kanban-lab" element={<KanbanLabPage />} />
       <Route path="/grid-lab" element={<AccountingGridLab />} />
       <Route path="/qr-scan" element={<AdvancedQRScannerPage />} />
+      <Route path="/ui-effects-lab" element={<UiEffectsLab />} />
       <Route path="*" element={null} />
     </Routes>
   );

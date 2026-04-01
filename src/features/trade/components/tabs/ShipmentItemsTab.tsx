@@ -21,7 +21,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -196,7 +197,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     const transitCart = useTransitCart(containerId || '');
 
     // ── Fetch Items ──
-    const { data: items = [], isLoading, refetch } = useQuery({
+    const { data: items = [], isLoading, refetch } = useCachedQuery({
         queryKey: ['container-items', containerId],
         queryFn: async () => {
             if (!containerId) return [];
@@ -247,7 +248,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     });
 
     // ── Fetch total tax from actual (posted) expenses ──
-    const { data: totalActualTax = 0 } = useQuery({
+    const { data: totalActualTax = 0 } = useCachedQuery({
         queryKey: ['container-actual-tax', containerId],
         queryFn: async () => {
             if (!containerId) return 0;
@@ -275,7 +276,7 @@ export const ShipmentItemsTab: React.FC<ShipmentItemsTabProps> = ({
     }, [items, totalActualTax]);
 
     // ── Fetch confirmed international purchase invoices for import ──
-    const { data: availableInvoices = [], isLoading: loadingInvoices } = useQuery({
+    const { data: availableInvoices = [], isLoading: loadingInvoices } = useCachedQuery({
         queryKey: ['international-invoices-for-container', companyId, containerId],
         queryFn: async () => {
             if (!companyId) return [];

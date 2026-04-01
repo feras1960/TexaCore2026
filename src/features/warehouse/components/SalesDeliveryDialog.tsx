@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
     Warehouse, FileText, Loader2, PackageCheck, Truck,
-    Wifi, WifiOff,
+    Wifi, WifiOff, RotateCcw, AlertTriangle,
 } from 'lucide-react';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -672,11 +672,12 @@ export function SalesDeliveryDialog({
                 // 🔔 Telegram: Notify customer directly (if company setting enabled)
                 if (invoiceData?.customer_id) {
                     // Check company-level setting before sending to customer
-                    supabase.from('telegram_bot_config')
-                        .select('notification_preferences')
-                        .eq('company_id', companyId)
-                        .maybeSingle()
-                        .then(({ data: cfg }) => {
+                    (async () => {
+                        try {
+                            const { data: cfg } = await supabase.from('telegram_bot_config')
+                                .select('notification_preferences')
+                                .eq('company_id', companyId)
+                                .maybeSingle();
                             const prefs = cfg?.notification_preferences || {};
                             if (prefs.sales_notify_customer !== false) {
                                 telegramNotify.customerGoodsReady(companyId!, {
@@ -686,8 +687,8 @@ export function SalesDeliveryDialog({
                                     totalQty: Math.round(totalDeliveredLength * 100) / 100,
                                 }).catch(() => { });
                             }
-                        })
-                        .catch(() => { });
+                        } catch { /* ignore */ }
+                    })();
                 }
             }
 
@@ -701,6 +702,117 @@ export function SalesDeliveryDialog({
             setIsCompleting(false);
         }
     }, [invoiceId, selectedWarehouseId, selectedRolls, sourceItems, companyId, tenantId, invoiceData, tl, onComplete, onOpenChange, draftKey]);
+
+    // ═══ Reverse Delivery — إلغاء التسليم (Manager Only) ═══
+    const [showReverseConfirm, setShowReverseConfirm] = useState(false);
+    const [isReversing, setIsReversing] = useState(false);
+
+    const handleReverseDelivery = useCallback(async () => {
+        if (!invoiceId) return;
+
+        setIsReversing(true);
+        try {
+            const now = new Date().toISOString();
+
+            // ── 1. Find all inventory_movements linked to this invoice ──
+            const { data: movements, error: mvErr } = await supabase
+                .from('inventory_movements')
+                .select('id, roll_id, material_id, quantity, movement_type')
+                .eq('reference_id', invoiceId)
+                .in('movement_type', ['sale', 'issue', 'delivery']);
+
+            if (mvErr) console.warn('[ReverseDelivery] movements fetch error:', mvErr.message);
+
+            const rollIds = (movements || []).map((m: any) => m.roll_id).filter(Boolean);
+            const uniqueRollIds = [...new Set(rollIds)];
+
+            console.log(`[ReverseDelivery] Found ${movements?.length || 0} movements, ${uniqueRollIds.length} unique rolls`);
+
+            // ── 2. Reset fabric_rolls status back to 'available' ──
+            if (uniqueRollIds.length > 0) {
+                const { error: rollErr } = await supabase
+                    .from('fabric_rolls')
+                    .update({ status: 'available', updated_at: now })
+                    .in('id', uniqueRollIds);
+
+                if (rollErr) console.warn('[ReverseDelivery] roll reset error:', rollErr.message);
+                else console.log(`[ReverseDelivery] ✅ Reset ${uniqueRollIds.length} rolls to 'available'`);
+            }
+
+            // ── 3. Delete inventory_movements ──
+            if (movements && movements.length > 0) {
+                const mvIds = movements.map((m: any) => m.id);
+                const { error: delMvErr } = await supabase
+                    .from('inventory_movements')
+                    .delete()
+                    .in('id', mvIds);
+
+                if (delMvErr) console.warn('[ReverseDelivery] movement delete error:', delMvErr.message);
+                else console.log(`[ReverseDelivery] ✅ Deleted ${mvIds.length} inventory_movements`);
+            }
+
+            // ── 4. Reset delivered_qty on sales_transaction_items ──
+            const { error: itemErr } = await supabase
+                .from('sales_transaction_items')
+                .update({ delivered_qty: 0, cost_price: null, updated_at: now })
+                .eq('transaction_id', invoiceId);
+
+            if (itemErr) console.warn('[ReverseDelivery] item reset error:', itemErr.message);
+
+            // ── 5. Delete COGS journal entry (if exists) ──
+            const { data: txn } = await supabase
+                .from('sales_transactions')
+                .select('cogs_journal_entry_id, journal_entry_id')
+                .eq('id', invoiceId)
+                .maybeSingle();
+
+            if (txn?.cogs_journal_entry_id) {
+                await supabase.from('journal_entry_lines').delete().eq('entry_id', txn.cogs_journal_entry_id);
+                await supabase.from('journal_entries').delete().eq('id', txn.cogs_journal_entry_id);
+                console.log('[ReverseDelivery] ✅ Deleted COGS journal entry');
+            }
+            if (txn?.journal_entry_id) {
+                await supabase.from('journal_entry_lines').delete().eq('entry_id', txn.journal_entry_id);
+                await supabase.from('journal_entries').delete().eq('id', txn.journal_entry_id);
+                console.log('[ReverseDelivery] ✅ Deleted sales journal entry');
+            }
+
+            // ── 6. Reset invoice stage back to 'confirmed' ──
+            const { error: stageErr } = await supabase
+                .from('sales_transactions')
+                .update({
+                    stage: 'confirmed',
+                    delivery_draft: null,
+                    delivered_at: null,
+                    journal_entry_id: null,
+                    cogs_journal_entry_id: null,
+                    updated_at: now,
+                })
+                .eq('id', invoiceId);
+
+            if (stageErr) console.warn('[ReverseDelivery] stage reset error:', stageErr.message);
+
+            // ── 7. Clean up localStorage draft ──
+            try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+
+            toast.success(tl(
+                `✅ تم إلغاء التسليم بنجاح — ${uniqueRollIds.length} رولون تم إعادتها للمستودع`,
+                `✅ Delivery reversed — ${uniqueRollIds.length} rolls returned to inventory`
+            ));
+
+            setShowReverseConfirm(false);
+            onOpenChange(false);
+            onComplete?.();
+        } catch (err: any) {
+            console.error('[ReverseDelivery] error:', err);
+            toast.error(tl(
+                '❌ فشل في إلغاء التسليم',
+                '❌ Failed to reverse delivery'
+            ));
+        } finally {
+            setIsReversing(false);
+        }
+    }, [invoiceId, draftKey, tl, onComplete, onOpenChange]);
 
     // ═══ Handle close ═══
     const handleClose = useCallback(() => {
@@ -802,6 +914,18 @@ export function SalesDeliveryDialog({
                                         className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 text-xs h-8"
                                     >
                                         ✏️ {tl('تعديل', 'Edit')}
+                                    </Button>
+                                )}
+                                {/* إلغاء التسليم — للمدراء فقط */}
+                                {canEdit && isDelivered && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setShowReverseConfirm(true)}
+                                        className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 text-xs h-8"
+                                    >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        {tl('إلغاء التسليم', 'Reverse Delivery')}
                                     </Button>
                                 )}
                             </>
@@ -1004,6 +1128,75 @@ export function SalesDeliveryDialog({
                         >
                             {isCompleting && <Loader2 className="h-4 w-4 animate-spin" />}
                             {tl('✅ تأكيد التحميل والكميات', '✅ Confirm Loading & Quantities')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ═══ Reverse Delivery Confirmation Dialog ═══ */}
+            <Dialog open={showReverseConfirm} onOpenChange={setShowReverseConfirm}>
+                <DialogContent className="max-w-lg" dir={isRTL ? 'rtl' : 'ltr'}>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-700">
+                            <AlertTriangle className="h-5 w-5" />
+                            {tl('إلغاء التسليم', 'Reverse Delivery')}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {tl(
+                                'سيتم إلغاء التسليم وإعادة جميع الرولونات للمستودع. هذا الإجراء لا يمكن التراجع عنه.',
+                                'This will reverse the delivery and return all rolls to inventory. This action cannot be undone.'
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 py-2">
+                        {/* Warning Card */}
+                        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg p-4 space-y-2">
+                            <div className="text-sm font-bold text-red-700 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" />
+                                {tl('سيتم تنفيذ الإجراءات التالية:', 'The following actions will be performed:')}
+                            </div>
+                            <ul className="text-xs text-red-600 space-y-1.5 list-disc list-inside">
+                                <li>{tl('إعادة حالة الرولونات المسلّمة إلى "متاح"', 'Reset delivered rolls status to "available"')}</li>
+                                <li>{tl('حذف حركات المخزون المرتبطة بالتسليم', 'Delete delivery inventory movements')}</li>
+                                <li>{tl('إعادة الكميات المسلّمة إلى صفر', 'Reset delivered quantities to zero')}</li>
+                                <li>{tl('حذف القيود المحاسبية (تكلفة البضائع المباعة)', 'Delete COGS journal entries')}</li>
+                                <li>{tl('إعادة حالة الفاتورة إلى "مؤكدة"', 'Revert invoice stage to "confirmed"')}</li>
+                            </ul>
+                        </div>
+
+                        {/* Invoice Info */}
+                        <div className="flex items-center justify-center gap-3 text-sm">
+                            <span className="font-mono font-bold text-rose-600">
+                                {invoiceData?.invoice_no || invoiceData?.draft_no || ''}
+                            </span>
+                            <span className="text-gray-400">—</span>
+                            <span className="text-gray-600">{invoiceData?.customer_name || ''}</span>
+                        </div>
+
+                        {/* Stage transition */}
+                        <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                            <Badge variant="outline" className="text-[10px] capitalize bg-teal-50 text-teal-700 border-teal-200">
+                                {invoiceData?.stage || 'delivered'}
+                            </Badge>
+                            <span>→</span>
+                            <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">
+                                confirmed
+                            </Badge>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex gap-2">
+                        <Button variant="outline" onClick={() => setShowReverseConfirm(false)}>
+                            {tl('إلغاء', 'Cancel')}
+                        </Button>
+                        <Button
+                            onClick={handleReverseDelivery}
+                            disabled={isReversing}
+                            className="bg-red-600 hover:bg-red-700 text-white gap-2"
+                        >
+                            {isReversing && <Loader2 className="h-4 w-4 animate-spin" />}
+                            {tl('⚠️ تأكيد إلغاء التسليم', '⚠️ Confirm Reverse')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

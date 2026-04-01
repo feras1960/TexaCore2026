@@ -128,6 +128,9 @@ export function ChartOfAccounts() {
   };
 
   const handleAccountClick = (account: Account) => {
+    // Groups should not open the detail sheet — they are just containers
+    if (account.is_group) return;
+
     // اعتراض: إذا كان حساب ملخص → فتح SummaryAccountSheet
     if ((account as any).is_summary_account) {
       setSummarySheetData({
@@ -339,39 +342,64 @@ export function ChartOfAccounts() {
     };
   }, [companyId, refetch]);
 
-  // ═══ Accounts with RPC balances overlaid ═══
-  // Uses balance_base (base currency) for current_balance — guaranteed balanced
-  // For non-base currency views, convertAmount converts from base currency
-  const baseCurrency = company?.default_currency || 'UAH';
+  // ═══════════════════════════════════════════════════════════════
+  // 💰 MULTI-CURRENCY: Per-account native currency approach
+  // ═══════════════════════════════════════════════════════════════
+  //
+  // After DB fix (20260331_fix_rpc_currency_detection.sql):
+  //   - All accounts now have correct currency in chart_of_accounts
+  //   - All journal_entry_lines have correct debit_fc/credit_fc
+  //   - RPC returns correct FC balance per account
+  //
+  // Balance display logic:
+  //   FC balance = balance in the account's OWN currency
+  //   When displaying in a different currency → convert using rates
+  //   Tree totals aggregate converted balances
+  // ═══════════════════════════════════════════════════════════════
+  const baseCurrency = company?.default_currency || 'USD';
 
   const accountsWithRpcBalances = useMemo(() => {
     if (rpcBalances.size === 0) return accounts;
     return accounts.map(a => {
       const rpc = rpcBalances.get(a.id);
-      if (!rpc) return a;
+      if (!rpc) {
+        // No RPC data: for group accounts, force balance to 0
+        // (groups don't have their own balance — tree sums children)
+        if (a.is_group) {
+          return { ...a, current_balance: 0 };
+        }
+        return a;
+      }
+
+      // Account's actual currency from RPC (which reads from chart_of_accounts)
+      const accountCurrency = rpc.currency || a.currency_code || a.currency || baseCurrency;
+
       return {
         ...a,
-        // Use balance_base for tree calculations (always balanced)
-        current_balance: rpc.balance_base,
-        // Keep base currency for conversion
-        currency_code: baseCurrency,
-        currency: baseCurrency,
-        // Store FC balance for display purposes
-        _balance_fc: rpc.balance,
-        _currency_fc: rpc.currency,
+        // FC balance in the account's native currency
+        current_balance: rpc.balance,
+        // Account's own currency
+        currency_code: accountCurrency,
+        currency: accountCurrency,
+        // Base balance for reference
+        _balance_base: rpc.balance_base,
+        _total_debit: rpc.total_debit,
+        _total_credit: rpc.total_credit,
       };
     });
   }, [accounts, rpcBalances, baseCurrency]);
 
-  // ═══ Convert balance from base currency to display currency ═══
-  const enhancedConvertBalance = useCallback((amount: number, _currency: string, _accountId?: string): number => {
-    // amount is already in base currency (from balance_base)
-    // Convert to selected display currency
-    if (selectedCurrency === baseCurrency) return amount;
-    return convertAmount(amount, baseCurrency);
-  }, [selectedCurrency, convertAmount, baseCurrency]);
+  // ═══ Convert from account's native currency → display currency ═══
+  const enhancedConvertBalance = useCallback((amount: number, accountCurrency: string, _accountId?: string): number => {
+    if (amount === 0) return 0;
+    // If no currency info or same as display → no conversion
+    if (!accountCurrency || accountCurrency === selectedCurrency) return amount;
+    if (selectedCurrency === 'all') return amount;
+    // Convert from account's native currency to selected display currency
+    return convertAmount(amount, accountCurrency);
+  }, [selectedCurrency, convertAmount]);
 
-  // ═══ Financial Stats (by account_code prefix) — using balance_base ═══
+  // ═══ Financial Stats (by account_code prefix) — multi-currency aware ═══
   const financialStats = useMemo(() => {
     const getRootCode = (account: Account): string => {
       const code = account.code || (account as any).account_code || '';
@@ -381,12 +409,13 @@ export function ChartOfAccounts() {
     // Only leaf accounts (non-group), excluding SUM accounts
     const leafAccounts = accountsWithRpcBalances.filter(a => !a.is_group && !(a as any).is_summary_account);
 
-    // Helper: balance_base → optionally converted to display currency
+    // Helper: convert from account's native currency → selected display currency
     const getConvertedBalance = (a: Account): number => {
-      const balance = a.current_balance ?? 0; // This is balance_base now
+      const balance = a.current_balance ?? 0;
       if (balance === 0) return 0;
-      if (selectedCurrency === baseCurrency) return balance;
-      return convertAmount(balance, baseCurrency);
+      const accountCurrency = a.currency_code || a.currency || baseCurrency;
+      if (selectedCurrency === 'all' || accountCurrency === selectedCurrency) return balance;
+      return convertAmount(balance, accountCurrency);
     };
 
     const totalAssets = leafAccounts
@@ -413,7 +442,7 @@ export function ChartOfAccounts() {
 
     const totalAll = totalAssets + totalExpenses + totalLiabilities + totalEquity + totalRevenue;
     const balanceDiff = Math.abs(totalAll);
-    // Always balanced because balance_base sums to zero (guaranteed by journal entries)
+    // balance_base is guaranteed balanced (sum of debit - credit = 0)
     const isBalanced = balanceDiff < 0.02;
 
     // ═══ Trial Balance: Debit = all positive, Credit = abs(all negative) ═══
@@ -467,7 +496,7 @@ export function ChartOfAccounts() {
           total_credit: Number(row.total_credit) || 0,
           balance_diff: Number(row.balance_diff) || 0,
           is_balanced: row.is_balanced,
-          base_currency: row.base_currency || 'UAH',
+          base_currency: row.base_currency || 'USD',
         });
       } catch (e) {
         console.warn('[ChartOfAccounts] Trial balance RPC error:', e);
@@ -696,21 +725,31 @@ export function ChartOfAccounts() {
       title: 'accounting.account.balance',
       align: 'end',
       render: (_value, row) => {
-        const balance = row.current_balance ?? 0;
-        const currencyCode = selectedCurrency && selectedCurrency !== 'all'
-          ? selectedCurrency
-          : (row.currency_code || row.currency || company?.default_currency || '');
+        const rawBalance = row.current_balance ?? 0;
+        const accountCurrency = row.currency_code || row.currency || baseCurrency;
+        
+        // Convert from account's native currency to display currency
+        let displayBalance = rawBalance;
+        let displayCurrency = accountCurrency;
+        
+        if (selectedCurrency && selectedCurrency !== 'all' && accountCurrency !== selectedCurrency) {
+          displayBalance = convertAmount(rawBalance, accountCurrency);
+          displayCurrency = selectedCurrency;
+        } else if (selectedCurrency && selectedCurrency !== 'all') {
+          displayCurrency = selectedCurrency;
+        }
+
         return (
           <span
             className={cn(
               'font-medium',
-              balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              displayBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
             )}
           >
-            {balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            {currencyCode && (
+            {displayBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {displayCurrency && (
               <span className="text-xs ms-1 text-gray-500 dark:text-gray-400">
-                {currencyCode}
+                {displayCurrency}
               </span>
             )}
           </span>

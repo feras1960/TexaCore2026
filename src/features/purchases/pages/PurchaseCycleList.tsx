@@ -29,7 +29,8 @@ import { NexaKanbanBoard, type KanbanColumnDef, type KanbanItem } from '@/compon
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
@@ -183,7 +184,7 @@ export default function PurchaseCycleList() {
     }, []);
 
     // 1. Fetch Suppliers Map
-    const { data: suppliersMap = {} } = useQuery({
+    const { data: suppliersMap = {} } = useCachedQuery({
         queryKey: ['suppliers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -207,7 +208,7 @@ export default function PurchaseCycleList() {
     });
 
     // 2. Fetch Documents — Unified: purchase_transactions + receipts + returns
-    const { data: documents = [], isLoading, error, refetch } = useQuery({
+    const { data: documents = [], isLoading, error, refetch } = useCachedQuery({
         queryKey: ['purchase_cycle_full', companyId, activeTab, viewMode, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];

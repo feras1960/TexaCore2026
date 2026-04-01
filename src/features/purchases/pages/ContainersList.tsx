@@ -18,7 +18,8 @@ import { NexaKanbanBoard, type KanbanColumnDef, type KanbanItem } from '@/compon
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
@@ -229,7 +230,7 @@ export default function ContainersList() {
     }, []);
 
     // ─── Fetch Containers ────────────────────────────────────────
-    const { data: containers = [], isLoading } = useQuery({
+    const { data: containers = [], isLoading } = useCachedQuery({
         queryKey: ['containers_list', companyId],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -279,7 +280,7 @@ export default function ContainersList() {
     });
 
     // ─── Fetch linked invoice counts per container ───────────────
-    const { data: invoiceCounts = {} } = useQuery({
+    const { data: invoiceCounts = {} } = useCachedQuery({
         queryKey: ['container_invoice_counts', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -306,7 +307,7 @@ export default function ContainersList() {
     });
 
     // ─── Fetch total tax per container (from actual posted expenses) ───
-    const { data: containerTaxMap = {} } = useQuery({
+    const { data: containerTaxMap = {} } = useCachedQuery({
         queryKey: ['container_tax_totals', companyId],
         queryFn: async () => {
             if (!companyId) return {};

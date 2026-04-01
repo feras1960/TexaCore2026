@@ -17,7 +17,7 @@ import { useNumberFormat } from '@/hooks/useNumberFormat';
 import { CheckCircle2, Clock, AlertCircle, AlertTriangle, ArrowDownRight, ArrowUpRight, ArrowRightLeft, Wallet, TrendingUp, TrendingDown, ArrowRight, Hash, Calendar, FileText, AlignLeft, Equal, Layers } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { SmartAccountSelector } from '../../shared/SmartAccountSelector';
 import {
   Tooltip,
@@ -982,7 +982,7 @@ export function JournalVoucherTab({
     }, [isBalanced, lineCount, totals, isRTL]);
 
     // ═══ Fund Balance Query — fetches real balance from journal_entry_lines ═══
-    const { data: fundBalanceData } = useQuery({
+    const { data: fundBalanceData } = useCachedQuery({
         queryKey: ['fund_balance', fundAccountId, resolvedCid],
         queryFn: async () => {
             if (!fundAccountId || !resolvedCid) return null;

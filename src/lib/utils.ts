@@ -184,3 +184,28 @@ export function formatAmountWithSymbol(
 ): string {
   return `${formatNumber(amount)} ${currencySymbol}`;
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 🔄 ensureMap — Safe Map restoration after IndexedDB persistence
+ * ════════════════════════════════════════════════════════════════
+ *
+ * When React Query cache is persisted to IndexedDB (via Dexie),
+ * Map objects are serialized to plain Objects by JSON.stringify.
+ * On restoration, the code expects a Map but gets an Object.
+ *
+ * This utility safely converts either type back to a Map.
+ *
+ * USAGE:
+ *   const balances = useMemo(() => ensureMap<string, PartyBalance>(rawData), [rawData]);
+ *
+ * ════════════════════════════════════════════════════════════════
+ */
+export function ensureMap<K extends string, V>(
+  data: Map<K, V> | Record<string, V> | null | undefined
+): Map<K, V> {
+  if (data instanceof Map) return data;
+  if (data && typeof data === 'object') return new Map(Object.entries(data)) as Map<K, V>;
+  return new Map<K, V>();
+}
+

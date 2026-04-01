@@ -11,7 +11,8 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -462,7 +463,7 @@ export function MaterialMovementsTab({ data, onOpenDocument }: MaterialMovements
     }, []);
 
     // ─── React Query: Fetch & cache movements (staleTime: 2 min) ───
-    const movementsQuery = useQuery({
+    const movementsQuery = useCachedQuery({
         queryKey: ['material-movements', companyId, data?.id],
         queryFn: async (): Promise<MovementGroup[]> => {
             if (!companyId || !data?.id) return [];
@@ -584,8 +585,8 @@ export function MaterialMovementsTab({ data, onOpenDocument }: MaterialMovements
             return processAndGroup(allRows, rollNumberMap, containerRollsMap, stockCountRollsMap, data.id, isRTL, isAr);
         },
         enabled: !!companyId && !!data?.id,
-        staleTime: 2 * 60 * 1000, // 2 minutes — cached between tab switches
-        gcTime: 5 * 60 * 1000,    // 5 minutes garbage collection
+        staleTime: 5 * 60 * 1000,     // 5 min — cached between tab switches
+        gcTime: 24 * 60 * 60 * 1000,  // 24h — persisted in IndexedDB
     });
 
     // ─── Sync query result → local state + async enrich with metadata ───

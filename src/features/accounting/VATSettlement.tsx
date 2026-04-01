@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -74,11 +75,6 @@ export default function VATSettlement() {
     const [posting, setPosting] = useState(false);
     const [inputLines, setInputLines] = useState<VATLine[]>([]);
     const [outputLines, setOutputLines] = useState<VATLine[]>([]);
-    const [inputAccountId, setInputAccountId] = useState('');
-    const [outputAccountId, setOutputAccountId] = useState('');
-    const [inputAccountName, setInputAccountName] = useState('');
-    const [outputAccountName, setOutputAccountName] = useState('');
-    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
     const [selectedBankId, setSelectedBankId] = useState('');
     const [settlementHistory, setSettlementHistory] = useState<SettlementRecord[]>([]);
 
@@ -100,35 +96,45 @@ export default function VATSettlement() {
 
     const fmtNum = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // ─── Load accounts ───
-    useEffect(() => {
-        const loadAccounts = async () => {
-            if (!companyId) return;
-
-            // ⚡ Parallel fetch: settings + output account + banks
+    // ─── Load accounts (cached via React Query) ───
+    const { data: vatAccounts } = useCachedQuery({
+        queryKey: ['accounting', 'vat-accounts', companyId],
+        queryFn: async () => {
+            if (!companyId) return null;
             const [settingsRes, outputAccRes, banksRes] = await Promise.all([
                 supabase.from('company_accounting_settings').select('default_tax_input_account_id').eq('company_id', companyId).single(),
                 supabase.from('chart_of_accounts').select('id, account_code, name_ar, name_en').eq('company_id', companyId).eq('account_code', '214').single(),
                 supabase.from('chart_of_accounts').select('id, account_code, name_ar, name_en').eq('company_id', companyId).eq('is_detail', true).or('account_code.like.112%,account_code.like.111%').order('account_code'),
             ]);
 
+            let inputId = '';
+            let inputName = '';
             if (settingsRes.data?.default_tax_input_account_id) {
-                setInputAccountId(settingsRes.data.default_tax_input_account_id);
-                // Fetch input account name (depends on settings result)
-                const { data: acc } = await supabase.from('chart_of_accounts').select('account_code, name_ar, name_en').eq('id', settingsRes.data.default_tax_input_account_id).single();
-                if (acc) setInputAccountName(`${acc.account_code} — ${isRTL ? acc.name_ar : (acc.name_en || acc.name_ar)}`);
+                inputId = settingsRes.data.default_tax_input_account_id;
+                const { data: acc } = await supabase.from('chart_of_accounts').select('account_code, name_ar, name_en').eq('id', inputId).single();
+                if (acc) inputName = `${acc.account_code} — ${acc.name_ar}`;
             }
 
+            let outputId = '';
+            let outputName = '';
             if (outputAccRes.data) {
-                setOutputAccountId(outputAccRes.data.id);
-                setOutputAccountName(`${outputAccRes.data.account_code} — ${isRTL ? outputAccRes.data.name_ar : (outputAccRes.data.name_en || outputAccRes.data.name_ar)}`);
+                outputId = outputAccRes.data.id;
+                outputName = `${outputAccRes.data.account_code} — ${outputAccRes.data.name_ar}`;
             }
 
-            setBankAccounts(banksRes.data || []);
-        };
+            return { inputId, inputName, outputId, outputName, banks: banksRes.data || [] };
+        },
+        enabled: !!companyId,
+        staleTime: 30 * 60 * 1000,   // 30 min — accounts rarely change
+        gcTime: 24 * 60 * 60 * 1000,
+    });
 
-        loadAccounts();
-    }, [companyId, isRTL]);
+    // Derive account IDs from cached query
+    const inputAccountId = vatAccounts?.inputId || '';
+    const inputAccountName = vatAccounts?.inputName || '';
+    const outputAccountId = vatAccounts?.outputId || '';
+    const outputAccountName = vatAccounts?.outputName || '';
+    const bankAccounts = vatAccounts?.banks || [];
 
     // ─── Fetch VAT data for selected period ───
     const fetchVATData = useCallback(async () => {

@@ -14,7 +14,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useAccountingDefaults, getAccountCode, getAccountName } from '@/hooks/useAccountingDefaults';
@@ -143,20 +144,20 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
     }), [data, companyId]);
 
     // ─── Queries ──────────────────────────
-    const { data: schedule, refetch: refetchSchedule } = useQuery({
+    const { data: schedule, refetch: refetchSchedule } = useCachedQuery({
         queryKey: ['payment_schedule', docIds],
         queryFn: () => paymentScheduleService.getByDocument(docIds),
         enabled: !!companyId && !!(docIds.quotation_id || docIds.sales_order_id || docIds.sales_invoice_id),
     });
 
-    const { data: treasuryAccounts = [] } = useQuery({
+    const { data: treasuryAccounts = [] } = useCachedQuery({
         queryKey: ['treasury_accounts', companyId],
         queryFn: () => paymentScheduleService.getTreasuryAccounts(companyId!),
         enabled: !!companyId,
         staleTime: 60000,
     });
 
-    const { data: paymentHistory = [] } = useQuery({
+    const { data: paymentHistory = [] } = useCachedQuery({
         queryKey: ['payment_history', docIds],
         queryFn: () => paymentScheduleService.getPaymentHistory(docIds),
         enabled: !!companyId && !!(docIds.quotation_id || docIds.sales_order_id || docIds.sales_invoice_id),
@@ -164,7 +165,7 @@ export const PaymentReceiptTab: React.FC<PaymentReceiptTabProps> = ({ data, mode
 
     // ─── Fetch party sub-account (customer) ──────────
     const customerId = data?.customer_id;
-    const { data: partySubAccount } = useQuery({
+    const { data: partySubAccount } = useCachedQuery({
         queryKey: ['party_sub_account', customerId, 'customer'],
         queryFn: async () => {
             if (!customerId) return null;

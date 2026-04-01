@@ -26,7 +26,7 @@ import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 import { useTaxDefaults, resolveItemTaxRate, computeTaxAmount } from '@/features/trade/hooks/useTaxDefaults';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
 import { Card, CardContent } from '@/components/ui/card';
@@ -244,7 +244,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         : salesDeliveryStages.includes(data.stage || '');
 
     // ─── Fetch real customers from Supabase ───
-    const { data: customersList = [] } = useQuery({
+    const { data: customersList = [] } = useCachedQuery({
         queryKey: ['trade_customers', companyId, tradeMode],
         queryFn: async () => {
             if (!companyId) return [];
@@ -268,7 +268,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     });
 
     // ─── Fetch real warehouses from Supabase ───
-    const { data: warehousesList = [] } = useQuery({
+    const { data: warehousesList = [] } = useCachedQuery({
         queryKey: ['trade_warehouses', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -292,7 +292,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     });
 
     // ─── Fetch salespersons from user_profiles (for sales mode) ───
-    const { data: salespersonsList = [] } = useQuery({
+    const { data: salespersonsList = [] } = useCachedQuery({
         queryKey: ['trade_salespersons', companyId],
         queryFn: async () => {
             if (!companyId) return [];

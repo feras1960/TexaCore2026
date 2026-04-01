@@ -21,7 +21,7 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 
 export interface TaxDefaults {
@@ -63,7 +63,7 @@ interface AccountInfo {
  * company_accounting_settings (vat_rate, vat_enabled, حسابات الضريبة)
  */
 export function useTaxDefaults(companyId: string | null | undefined) {
-    return useQuery<TaxDefaults>({
+    return useCachedQuery<TaxDefaults>({
         queryKey: ['tax_defaults', companyId],
         queryFn: async () => {
             if (!companyId) {

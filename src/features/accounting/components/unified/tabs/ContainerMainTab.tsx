@@ -18,7 +18,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -102,7 +102,7 @@ export const ContainerMainTab: React.FC<ContainerMainTabProps> = ({
     }, [mode]);
 
     // ─── Fetch shipping companies & agents ───
-    const { data: shippingAgentsList = [] } = useQuery({
+    const { data: shippingAgentsList = [] } = useCachedQuery({
         queryKey: ['container_shipping_agents', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -124,7 +124,7 @@ export const ContainerMainTab: React.FC<ContainerMainTabProps> = ({
     });
 
     // ─── Fetch warehouses ───
-    const { data: warehousesList = [] } = useQuery({
+    const { data: warehousesList = [] } = useCachedQuery({
         queryKey: ['container_warehouses', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -145,7 +145,7 @@ export const ContainerMainTab: React.FC<ContainerMainTabProps> = ({
     });
 
     // ─── Fetch warehouse keepers (staff with warehouse role) ───
-    const { data: warehouseKeepersList = [] } = useQuery({
+    const { data: warehouseKeepersList = [] } = useCachedQuery({
         queryKey: ['container_warehouse_keepers', companyId],
         queryFn: async () => {
             if (!companyId) return [];

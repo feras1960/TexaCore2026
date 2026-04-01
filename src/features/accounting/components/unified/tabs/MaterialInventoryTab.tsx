@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -134,7 +134,7 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
     const t = (ar: string, en: string) => language === 'ar' ? ar : en;
 
     // ═══════════ React Query: Fetch & cache inventory (staleTime: 2 min) ═══════════
-    const inventoryQuery = useQuery({
+    const inventoryQuery = useCachedQuery({
         queryKey: ['material-inventory', companyId, data?.id],
         queryFn: async () => {
             const [stockData, warehouses] = await Promise.all([
@@ -195,8 +195,8 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
             };
         },
         enabled: !!companyId && !!data?.id,
-        staleTime: 2 * 60 * 1000, // 2 minutes — cached between tab switches
-        gcTime: 5 * 60 * 1000,
+        staleTime: 5 * 60 * 1000,  // 5 min — cached between tab switches
+        gcTime: 24 * 60 * 60 * 1000, // 24h — persisted in IndexedDB
     });
 
     // Derived state from React Query

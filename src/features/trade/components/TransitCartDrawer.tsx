@@ -17,7 +17,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -89,7 +89,7 @@ export const TransitCartDrawer: React.FC<TransitCartDrawerProps> = ({
     const tt = (ar: string, en: string) => isRTL ? ar : en;
 
     // ── Fetch customers for selection
-    const { data: customers = [] } = useQuery({
+    const { data: customers = [] } = useCachedQuery({
         queryKey: ['customers-for-transit', companyId, customerSearch],
         queryFn: async () => {
             if (!companyId) return [];

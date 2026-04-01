@@ -15,24 +15,126 @@ const VOICE_CONFIG: Record<string, { voiceId: string; voiceName: string }> = {
   en: { voiceId: 'EiNlNiXeDU1pqqOPrYMO', voiceName: 'John Doe' },
 };
 
-const MUSIC_PROMPTS: Record<string, { morning: string; evening: string }> = {
-  ar: {
-    morning: 'Elegant Arabic-inspired corporate intro jingle, warm oud and soft strings, upbeat and motivational, professional business tone, 5 seconds',
-    evening: 'Calm ambient Arabic-inspired evening outro music, soft piano with gentle oud, relaxing achievement celebration, warm and peaceful, 5 seconds',
+// ═══ Pre-uploaded BGM tracks in Supabase Storage (ai-reports/voice-reports/bgm/) ═══
+const BGM_TRACKS = {
+  morning: {
+    intro: 'voice-reports/bgm/grand_project-nice-day_verse-3-loop-263108.mp3',       // ☀️ Nice Day loop (464KB - short & upbeat)
+    outro: 'voice-reports/bgm/music_for_video-delete-this-track-195512.mp3',          // ☀️ Energetic outro
   },
-  uk: {
-    morning: 'Professional corporate morning intro jingle, bright piano and strings, energetic and motivational, modern business tone, 5 seconds',
-    evening: 'Calm ambient evening outro music, soft piano, relaxing and peaceful achievement celebration, 5 seconds',
-  },
-  ru: {
-    morning: 'Professional corporate morning intro jingle, bright piano and strings, energetic and motivational, modern business tone, 5 seconds',
-    evening: 'Calm ambient evening outro music, soft piano, relaxing and peaceful achievement celebration, 5 seconds',
-  },
-  en: {
-    morning: 'Modern corporate morning intro jingle, upbeat and professional, bright synth and piano, motivational business tone, 5 seconds',
-    evening: 'Calm ambient evening outro music, soft piano and gentle pads, relaxing achievement celebration, warm and peaceful, 5 seconds',
+  evening: {
+    intro: 'voice-reports/bgm/clavier-music-mariage-dx27amour-beautiful-ambient-piano-219962.mp3', // 🌙 Ambient piano
+    outro: 'voice-reports/bgm/white_records-neon-drift-phonk-house-background-music-for-video-full-version-496499.mp3', // 🌙 Chill outro
   },
 };
+
+// ═══════════════════════════════════════════════════════════
+// 🌍 Textile Market Intelligence — Ukrainian/Eastern European Market
+// Lead Time: 4 months from booking to retail availability
+// ═══════════════════════════════════════════════════════════
+
+function getMarketIntelligence(): string {
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-12
+  const year = now.getFullYear();
+
+  // ═══ Ukrainian Textile Season Calendar ═══
+  // Season = when the fabric actually SELLS in Ukraine
+  const seasons: Record<string, { months: number[]; peak: string; fabrics: string[]; colors: string[]; patterns: string[]; buyerSegment: string }> = {
+    spring: {
+      months: [3, 4, 5],
+      peak: 'أبريل ومايو',
+      fabrics: ['قطن خفيف', 'فسكوز', 'شيفون', 'لينن', 'تريكو خفيف', 'جيرسيه'],
+      colors: ['أبيض', 'أزرق فاتح', 'وردي', 'أخضر نعناعي', 'بيج', 'ليلكي فاتح'],
+      patterns: ['ورود صغيرة', 'مخطط رفيع', 'سادة', 'نقوش هندسية بسيطة'],
+      buyerSegment: 'النساء 25-45 سنة، محلات الملابس النسائية، محلات العرائس',
+    },
+    summer: {
+      months: [6, 7, 8],
+      peak: 'يونيو ويوليو',
+      fabrics: ['لينن', 'قطن 100%', 'شيفون', 'ميو ميو', 'باتيست', 'تريكو رياضي'],
+      colors: ['أبيض', 'أصفر خردل', 'برتقالي مرجاني', 'أزرق ملكي', 'أحمر', 'فيروزي'],
+      patterns: ['سادة', 'شريطي واسع', 'استوائي', 'زخارف صيفية'],
+      buyerSegment: 'محلات الملابس الصيفية، المصنّعون المحليون، مصممو الأزياء',
+    },
+    autumn: {
+      months: [9, 10, 11],
+      peak: 'سبتمبر وأكتوبر',
+      fabrics: ['تويد', 'صوف مخلوط', 'تريكو ثقيل', 'كوردروي', 'فلنيل', 'جلد صناعي'],
+      colors: ['بني داكن', 'بيج كاراميل', 'أخضر زيتوني', 'أحمر خمري', 'رمادي', 'كاكي'],
+      patterns: ['هاوندزتوث', 'مربعات كبيرة', 'مخطط سكوتش', 'سادة أرضي'],
+      buyerSegment: 'محلات الأزياء الرسمية، المعاطف والجاكيتات، مصنعو البدلات',
+    },
+    winter: {
+      months: [12, 1, 2],
+      peak: 'ديسمبر ويناير',
+      fabrics: ['صوف ثقيل', 'كشمير مخلوط', 'ألباكا', 'قطيفة', 'فراء صناعي', 'تريكو سميك'],
+      colors: ['أسود', 'رمادي داكن', 'كحلي', 'بورغندي', 'أخضر غامق', 'ذهبي فاخر'],
+      patterns: ['سادة فاخر', 'نقوش هندسية', 'تويد كلاسيك', 'مربعات ويلزية'],
+      buyerSegment: 'محلات الملابس الشتوية الفاخرة، المعاطف والسترات، ملابس الأطفال الشتوية',
+    },
+  };
+
+  // ═══ Calculate which season to BOOK NOW (4 months ahead) ═══
+  const bookingMonthTarget = month + 4;
+  const targetMonthNormalized = ((bookingMonthTarget - 1) % 12) + 1;
+
+  let targetSeason = 'spring';
+  for (const [season, data] of Object.entries(seasons)) {
+    if (data.months.includes(targetMonthNormalized)) {
+      targetSeason = season;
+      break;
+    }
+  }
+
+  const seasonNameAr: Record<string, string> = {
+    spring: 'الربيع', summer: 'الصيف', autumn: 'الخريف', winter: 'الشتاء',
+  };
+
+  // ═══ Current season data ═══
+  let currentSeason = 'spring';
+  for (const [season, data] of Object.entries(seasons)) {
+    if (data.months.includes(month)) {
+      currentSeason = season;
+      break;
+    }
+  }
+
+  const current = seasons[currentSeason];
+  const target = seasons[targetSeason];
+  const targetYear = targetMonthNormalized < month ? year + 1 : year;
+
+  return `
+## 🌍 ذكاء السوق الأوكراني للأقمشة (بيانات ${year})
+
+### ⏱️ قاعدة دورة الاستيراد (مهمة جداً):
+الدورة الكاملة = 4 أشهر: حجز المصنع (1 شهر) → إنتاج (1.5 شهر) → شحن وجمارك (1.5 شهر) → بيع فعلي.
+**الآن في شهر ${month}/${year}، يجب التخطيط لـ ${seasonNameAr[targetSeason]} ${targetYear} الذي يبيع بعد 4 أشهر.**
+
+### 🛒 ما يجب حجزه الآن لموسم ${seasonNameAr[targetSeason]} ${targetYear}:
+- **الأقمشة المطلوبة:** ${target.fabrics.join(' | ')}
+- **الألوان الرائجة:** ${target.colors.join(' | ')}
+- **الرسمات والأنماط:** ${target.patterns.join(' | ')}
+- **الشريحة المستهدفة:** ${target.buyerSegment}
+- **ذروة البيع:** ${target.peak}
+
+### 📊 الموسم الحالي (${seasonNameAr[currentSeason]} ${year}) — ما يُعرض الآن:
+- **الأقمشة الرائجة الآن:** ${current.fabrics.slice(0, 4).join(' | ')}
+- **الألوان المطلوبة حالياً:** ${current.colors.slice(0, 4).join(' | ')}
+
+### 🔥 اتجاهات السوق الأوكراني 2025-2026 (Quiet Luxury نمط مستمر):
+- البساطة الفاخرة: التغليف الأحادي اللون والأقمشة ذات الملمس الواضح
+- الاستدامة: القطن العضوي واللينن المخلوط يشهد طلباً متزايداً
+- المحلي أولاً: المصنعون الأوكرانيون يبحثون عن بدائل للاستيراد التركي
+- الوظيفية: أقمشة تصلح لأكثر من موسم (سادة محايدة) تُباع بشكل أسرع
+- الرياضي-الأنيق (Athleisure): تريكو عالي الجودة مطلوب طوال العام
+
+### ⚠️ تنبيهات السوق الأوكراني الخاص:
+- السوق الأوكراني يميل للألوان المحافظة (أسود، رمادي، بيج، كحلي) أكثر من الألوان الجريئة
+- المشترون الأوكرانيون يفضلون الجودة الثابتة على التجريب بأنماط جديدة كثيراً
+- الشتاء الأوكراني قاسٍ (-15 إلى -20) → الطلب على الأقمشة الثقيلة حقيقي جداً
+- بعد 2022: المصنعون الأوكرانيون يعوضون الاستيراد الروسي بالأقمشة الصينية والتركية — فرصة للتميز بجودة أعلى`;
+}
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -253,11 +355,16 @@ async function collectCompanyData(client: any, companyId: string) {
       .map((m: any) => ({ name: m.name_ar || m.name_en, stock: m.current_stock, min: m.min_stock }));
   }
 
-  // Purchases + containers
+  // Purchases + containers (include name for voice report)
   const { data: containers } = await client.from('containers')
-    .select('container_number, status, total_cost, arrival_date, supplier_id')
+    .select('container_number, name_ar, name_en, name, status, total_cost, arrival_date, supplier_id')
     .eq('company_id', companyId).order('created_at', { ascending: false }).limit(10);
-  data.containers = containers || [];
+  data.containers = (containers || []).map((c: any) => ({
+    name: c.name_ar || c.name_en || c.name || '',
+    status: c.status || '',
+    arrival_date: c.arrival_date || '',
+    total_cost: c.total_cost || 0,
+  }));
 
   // Accounting - unposted entries
   const { data: unposted } = await client.from('journal_entries')
@@ -269,7 +376,13 @@ async function collectCompanyData(client: any, companyId: string) {
   const { data: customers } = await client.from('customers')
     .select('id, name_ar, name_en, balance, credit_limit, currency')
     .eq('company_id', companyId).limit(100);
-  data.customers = customers?.map((c: any) => ({ id: c.id, name: c.name_ar || c.name_en, balance: c.balance || 0 })) || [];
+  data.customers = customers?.map((c: any) => {
+    // Normalize balance to USD for fair comparison across currencies
+    const usdRates: Record<string, number> = { UAH: 0.024, USD: 1, EUR: 1.08, GBP: 1.27, SAR: 0.267, AED: 0.272, TRY: 0.029 };
+    const currency = (c.currency || 'UAH').toUpperCase();
+    const balanceUSD = (c.balance || 0) * (usdRates[currency] || 0.024);
+    return { id: c.id, name: c.name_ar || c.name_en, balance: c.balance || 0, currency: currency, balance_usd: Math.round(balanceUSD) };
+  }).sort((a: any, b: any) => b.balance_usd - a.balance_usd) || [];
 
   // Suppliers
   const { data: suppliers } = await client.from('suppliers')
@@ -388,6 +501,20 @@ async function getOverdueTasks(client: any, companyId: string) {
 // 🧠 Claude Opus Analysis
 // ═══════════════════════════════════════════
 
+// ═══ Currency code → Arabic full name mapping ═══
+function currencyToArabic(code: string): string {
+  const map: Record<string, string> = {
+    'UAH': 'هريفنا أوكرانية', 'uah': 'هريفنا أوكرانية',
+    'USD': 'دولار أمريكي',    'usd': 'دولار أمريكي',
+    'EUR': 'يورو',            'eur': 'يورو',
+    'GBP': 'جنيه إسترليني',  'gbp': 'جنيه إسترليني',
+    'SAR': 'ريال سعودي',     'sar': 'ريال سعودي',
+    'AED': 'درهم إماراتي',   'aed': 'درهم إماراتي',
+    'TRY': 'ليرة تركية',     'try': 'ليرة تركية',
+  };
+  return map[code] || code;
+}
+
 async function callClaudeOpus(apiKey: string, context: any) {
   const { reportType, companyData, employees, overdueTasks, companyId } = context;
   
@@ -399,69 +526,83 @@ async function callClaudeOpus(apiKey: string, context: any) {
     ? overdueTasks.map((t: any) => `- [${t.priority}] ${t.title} (مسند لـ: ${t.assigned_to || 'غير محدد'}, مستحق: ${t.due_date})`).join('\n')
     : 'لا توجد مهام متأخرة ✅';
 
-  const prompt = `أنت **وكيل NexaIntelligence** — الوكيل الأذكى المتخصص في تجارة الأقمشة والشركات العالمية الكبرى في أوروبا وأمريكا.
-مبني في نظام **TexaCore ERP** — أقوى نظام ERP ذكي.
+  // ═══ Prepare container summary (count + name only, no long codes) ═══
+  const containerSummary = (companyData.containers || []).map((c: any) => {
+    const name = c.name || c.container_name || '';
+    const status = c.status || '';
+    return name ? `${name} (${status})` : `كونتينر ${status}`;
+  }).join('، ') || 'لا يوجد';
+  const containerCount = (companyData.containers || []).length;
+
+  // ═══ Replace currency codes in data with Arabic names ═══
+  const currency = currencyToArabic(companyData.company?.currency || 'UAH');
+
+  // ═══ Build distinct prompt based on report type (morning vs evening) ═══
+  const summaryInstruction = isMorning
+    ? `تقرير صباحي صوتي موجز وعملي — المدة 45-60 ثانية. يتضمن فقط:
+1) تحية صباحية قصيرة باسم الشركة. 
+2) أهم رقمين: مجموع المبيعات وإجمالي المستحقَّات بالعملة كاملة بالعربية. 
+3) أكبر عميل مديونيَّة بالقيمة الحقيقيَّة (استخدم حقل balance_usd للمقارنة بين العملات المختلفة، واذكر اسمه والمبلغ بعملته الأصليَّة). 
+4) الكونتينرات: اذكر اسم كل كونتينر من حقل name وحالته — بدون أرقام طويلة أبداً. 
+5) أولويات الفريق اليوم: جملة واحدة لكل دور. 
+6) جملة تحفيزية ختامية تذكر TexaCore NexaIntelligence. لا تكرار ولا تفاصيل ماليَّة معقَّدة.`
+    : `تقرير مسائي صوتي تفصيلي — المدة 75-90 ثانية. يتضمن:
+1) تحية مسائية دافئة وتقييم اليوم. 
+2) نتائج اليوم: مبيعات + تحصيلات + مستحقَّات جديدة بالأرقام الكاملة والعملة بالعربية. 
+3) مقارنة بأمس: هل تحسَّن أم تراجع؟ 
+4) أفضل موظف أداءً باسمه وإنجازه المحدَّد. 
+5) أكبر 2-3 عملاء مديونيَّة بالقيمة الحقيقيَّة (استخدم balance_usd للمقارنة) واذكر المبلغ بعملته الأصليَّة. 
+6) النواقص الحرجة في المخزون إن وُجدت. 
+7) الكونتينرات: اسم كل كونتينر من حقل name وحالته بدون أرقام. 
+8) اقتراح أولويات الغد. 
+9) رسالة تقييم ختامية تذكر TexaCore NexaIntelligence.`;
+
+  const prompt = `أنت وكيل NexaIntelligence المتخصص في تجارة الأقمشة — مبني في TexaCore ERP.
 
 اليوم: ${today}
-نوع التقرير: ${isMorning ? '☀️ صباحي (توزيع مهام اليوم)' : '🌙 مسائي (ملخص أداء + مهام الغد)'}
+نوع التقرير: ${isMorning ? 'صباحي' : 'مسائي'}
+عملة الشركة: ${currency}
 
 ## بيانات الشركة:
 ${JSON.stringify(companyData, null, 2).substring(0, 15000)}
 
-## الموظفين وأدوارهم:
+## الكونتينرات (${containerCount}):
+${containerSummary}
+
+## الموظفون:
 ${employeesList}
 
-## المهام المتأخرة من أيام سابقة:
+## المهام المتأخرة:
 ${overdueList}
 
-## المطلوب منك:
-أنشئ تقريراً مهنياً **تحفيزياً وإيجابياً** بـ JSON بالهيكل التالي:
+## ذكاء السوق والموضة:
+${getMarketIntelligence()}
+
+## المطلوب:
+أنشئ تقريراً بـ JSON بالهيكل التالي:
 
 {
-  "manager_summary": "ملخص شامل للمدير (5-8 جمل) يتضمن: الأداء المالي، تنبيهات عاجلة، توصيات استراتيجية. اسلوب تحفيزي. يذكر أنه من وكيل NexaIntelligence في TexaCore.",
+  "manager_summary": "${summaryInstruction}",
   "highlights": ["إنجاز 1", "إنجاز 2"],
-  "alerts": [{"severity": "high", "message": "تنبيه عاجل"}],
-  "tasks": [
-    {
-      "title": "عنوان المهمة",
-      "description": "التفاصيل",
-      "assigned_to_role": "salesperson",
-      "assigned_to_name": "اسم الموظف إن وُجد",
-      "priority": "high",
-      "category": "collection",
-      "due_date": "${today}",
-      "ai_reasoning": "لماذا هذه المهمة مهمة",
-      "related_entity_type": "customer",
-      "related_entity_id": "uuid-if-available"
-    }
-  ],
-  "employee_reports": {
-    "role_code": {
-      "greeting": "تحية مخصصة تحفيزية",
-      "summary": "ملخص مخصص للدور",
-      "tasks": ["مهمة 1", "مهمة 2"],
-      "tip": "نصيحة مهنية 💡",
-      "motivation": "رسالة تحفيزية 🎯"
-    }
-  },
-  "kpi_insights": "ملاحظات عن مؤشرات الأداء",
-  "forecast": "توقع المبيعات/الأداء للأيام القادمة"
+  "alerts": [{"severity": "high", "message": "تنبيه"}],
+  "tasks": [{"title": "المهمة", "description": "التفاصيل", "assigned_to_role": "salesperson", "assigned_to_name": "الاسم", "priority": "high", "category": "collection", "due_date": "${today}", "ai_reasoning": "السبب", "related_entity_type": "customer", "related_entity_id": null}],
+  "employee_reports": {"role_code": {"greeting": "تحية", "summary": "ملخص", "tasks": ["مهمة"], "tip": "نصيحة 💡", "motivation": "تحفيز 🎯"}},
+  "kpi_insights": "مؤشرات الأداء",
+  "forecast": "التوقعات"
 }
 
-## قواعد مهمة:
-1. **أسلوب تحفيزي**: كل رسالة يجب أن تكون إيجابية ومحفزة. استخدم إيموجي.
-2. **مهام مخصصة**: وزع المهام حسب الدور:
-   - salesperson/sales_agent: متابعة عملاء، تحصيلات، عروض
-   - warehouse_keeper: جرد، مناقلات، استلامات، فواتير معلقة
-   - purchasing_manager: كونتينرات، طلبات شراء، متابعة موردين
-   - accountant: قيود غير مرحّلة، تسويات
-   - company_admin/company_owner: مراجعة أداء، قرارات استراتيجية
-3. **فواتير متأخرة**: خصص لكل مندوب فواتير زبائنه المسجلين.
-4. **المهام المتأخرة**: نبّه الموظف المسؤول واقترح حلاً.
-5. اذكر أن التقرير من **TexaCore NexaIntelligence** — أقوى وكيل ذكاء اصطناعي متخصص في الأقمشة.
-6. أضف تقديرات الأداء الإيجابية وشجع على الأفضل.
+## قواعد صارمة:
+1. العملات: اكتب الاسم كاملاً بالعربية — ممنوع UAH أو USD أو EUR أبداً.
+2. ترتيب المديونيَّات: استخدم حقل balance_usd للمقارنة الحقيقيَّة بين العملات، ثم اذكر المبلغ الأصلي بعملته في النص.
+3. الكونتينرات: اذكر اسم كل كونتينر من حقل name وحالته — لا أرقام طويلة.
+4. الشدَّة: في manager_summary ضع علامة الشدَّة على المُضعَّف لصحة النطق.
+5. اذكر TexaCore NexaIntelligence في الخاتمة.
+6. **ذكاء السوق**: استخدم قسم "ذكاء السوق والموضة" لتقديم توصية استراتيجية واحدة في التقرير:
+   - في التقرير الصباحي: أضف تنبيهاً بسيطاً "يجب حجز [نوع القماش] الآن لموسم [الموسم] القادم"
+   - في التقرير المسائي: أضف تحليلاً أعمق للفرص والاتجاهات التي تتوافق مع مخزونهم الحالي
+7. **دورة الاستيراد**: تذكّر دائماً أن التاجر يحتاج 4 أشهر قبل موسم البيع لحجز البضاعة — لذا قدّم توصياتك باكراً.
 
-أجب بـ JSON فقط بدون أي نص إضافي.`;
+أجب بـ JSON فقط.`
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -642,82 +783,147 @@ async function generateVoiceReport(apiKey: string, opts: {
   const voice = VOICE_CONFIG[langKey];
   console.log(`[NexaIntelligence] 🎤 Generating TTS: voice=${voice.voiceName}, lang=${langKey}, chars=${text.length}`);
 
-  // Step 1: Generate intro/outro music (with 30s timeout)
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const tracks = reportType === 'morning' ? BGM_TRACKS.morning : BGM_TRACKS.evening;
+
+  // Step 1: Fetch pre-recorded intro music from Supabase Storage (max 250KB to save memory)
   let introBuffer: ArrayBuffer | null = null;
   try {
-    const musicPrompt = MUSIC_PROMPTS[langKey] || MUSIC_PROMPTS['ar'];
-    const prompt = reportType === 'morning' ? musicPrompt.morning : musicPrompt.evening;
-    
-    const musicController = new AbortController();
-    const musicTimeout = setTimeout(() => musicController.abort(), 30000);
-    
-    const musicRes = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
-      method: 'POST',
-      headers: {
-        'xi-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: prompt,
-        duration_seconds: 4,
-      }),
-      signal: musicController.signal,
-    });
-    clearTimeout(musicTimeout);
-
-    if (musicRes.ok) {
-      introBuffer = await musicRes.arrayBuffer();
-      console.log(`[NexaIntelligence] 🎵 Intro music generated (${(introBuffer.byteLength / 1024).toFixed(0)}KB)`);
+    const introUrl = `${supabaseUrl}/storage/v1/object/public/ai-reports/${tracks.intro}`;
+    console.log(`[NexaIntelligence] 🎵 Fetching intro: ${tracks.intro.split('/').pop()}`);
+    const introController = new AbortController();
+    const introTimeout = setTimeout(() => introController.abort(), 15000);
+    const introRes = await fetch(introUrl, { signal: introController.signal });
+    clearTimeout(introTimeout);
+    if (introRes.ok) {
+      const fullBuffer = await introRes.arrayBuffer();
+      // 5 seconds of MP3 at 128kbps = 5 * 128000/8 = 80,000 bytes ≈ 78KB
+      const maxBytes = 80 * 1024;
+      introBuffer = fullBuffer.byteLength > maxBytes ? fullBuffer.slice(0, maxBytes) : fullBuffer;
+      console.log(`[NexaIntelligence] 🎵 Intro loaded (${(introBuffer.byteLength/1024).toFixed(0)}KB ≈ 5s)`);
     } else {
-      console.warn('[NexaIntelligence] 🎵 Music generation failed:', musicRes.status);
+      console.warn(`[NexaIntelligence] 🎵 Intro fetch failed: ${introRes.status}`);
     }
   } catch (e: any) {
-    console.warn('[NexaIntelligence] 🎵 Music error (non-fatal):', e.message);
+    console.warn('[NexaIntelligence] 🎵 Intro error (non-fatal):', e.message);
   }
 
-  // Step 2: Generate TTS voice (with 60s timeout — TTS can take time for long text)
-  const ttsController = new AbortController();
-  const ttsTimeout = setTimeout(() => ttsController.abort(), 60000);
-  
-  const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice.voiceId}`, {
-    method: 'POST',
-    headers: {
-      'xi-api-key': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text: text.substring(0, 4000), // ElevenLabs limit
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: {
-        stability: 0.6,
-        similarity_boost: 0.8,
-        style: reportType === 'morning' ? 0.3 : 0.4, // Slightly more expressive for evening
-        use_speaker_boost: true,
-      },
-    }),
-    signal: ttsController.signal,
-  });
-  clearTimeout(ttsTimeout);
-
-  if (!ttsRes.ok) {
-    const errText = await ttsRes.text();
-    console.error(`[NexaIntelligence] 🎤 TTS API error ${ttsRes.status}:`, errText.substring(0, 200));
-    return { audioBuffer: null };
+  // Step 2: Fetch pre-recorded outro music from Supabase Storage
+  let outroBuffer: ArrayBuffer | null = null;
+  try {
+    const outroUrl = `${supabaseUrl}/storage/v1/object/public/ai-reports/${tracks.outro}`;
+    console.log(`[NexaIntelligence] 🎵 Fetching outro: ${tracks.outro.split('/').pop()}`);
+    const outroController = new AbortController();
+    const outroTimeout = setTimeout(() => outroController.abort(), 15000);
+    const outroRes = await fetch(outroUrl, { signal: outroController.signal });
+    clearTimeout(outroTimeout);
+    if (outroRes.ok) {
+      const fullBuffer = await outroRes.arrayBuffer();
+      const maxBytes = 256 * 1024;
+      if (fullBuffer.byteLength > maxBytes) {
+        outroBuffer = fullBuffer.slice(0, maxBytes);
+        console.log(`[NexaIntelligence] 🎵 Outro trimmed: ${(fullBuffer.byteLength/1024).toFixed(0)}KB → ${(maxBytes/1024).toFixed(0)}KB`);
+      } else {
+        outroBuffer = fullBuffer;
+      }
+      console.log(`[NexaIntelligence] 🎵 Outro loaded (${(outroBuffer.byteLength/1024).toFixed(0)}KB)`);
+    } else {
+      console.warn(`[NexaIntelligence] 🎵 Outro fetch failed: ${outroRes.status}`);
+    }
+  } catch (e: any) {
+    console.warn('[NexaIntelligence] 🎵 Outro error (non-fatal):', e.message);
   }
 
-  const voiceBuffer = await ttsRes.arrayBuffer();
-  console.log(`[NexaIntelligence] 🎤 TTS generated (${(voiceBuffer.byteLength / 1024).toFixed(0)}KB)`);
+  // Step 3: Generate TTS — split into chunks at sentence boundaries to avoid ElevenLabs 5000-char cutoff
+  const MAX_CHUNK = 4800; // leave 200 chars safety margin
 
-  // Step 3: Concatenate intro + voice (simple MP3 concat)
-  if (introBuffer && introBuffer.byteLength > 100) {
-    const combined = new Uint8Array(introBuffer.byteLength + voiceBuffer.byteLength);
-    combined.set(new Uint8Array(introBuffer), 0);
-    combined.set(new Uint8Array(voiceBuffer), introBuffer.byteLength);
-    console.log(`[NexaIntelligence] 🎵+🎤 Combined audio (${(combined.byteLength / 1024).toFixed(0)}KB)`);
+  // Split text into chunks at sentence boundaries (. or \n)
+  const splitIntoChunks = (fullText: string): string[] => {
+    const chunks: string[] = [];
+    let remaining = fullText;
+    while (remaining.length > MAX_CHUNK) {
+      // Find last sentence end (. or \n) before limit
+      let cutAt = MAX_CHUNK;
+      const lastDot = remaining.lastIndexOf('.', MAX_CHUNK);
+      const lastNewline = remaining.lastIndexOf('\n', MAX_CHUNK);
+      const splitPoint = Math.max(lastDot, lastNewline);
+      if (splitPoint > MAX_CHUNK * 0.5) cutAt = splitPoint + 1; // cut after the dot
+      chunks.push(remaining.substring(0, cutAt).trim());
+      remaining = remaining.substring(cutAt).trim();
+    }
+    if (remaining.length > 0) chunks.push(remaining);
+    return chunks;
+  };
+
+  const textChunks = splitIntoChunks(text);
+  console.log(`[NexaIntelligence] 🎤 Splitting into ${textChunks.length} chunk(s), total chars: ${text.length}`);
+
+  const audioChunks: ArrayBuffer[] = [];
+  for (let i = 0; i < textChunks.length; i++) {
+    const chunk = textChunks[i];
+    if (!chunk) continue;
+    try {
+      const chunkController = new AbortController();
+      const chunkTimeout = setTimeout(() => chunkController.abort(), 90000);
+      const chunkRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice.voiceId}`, {
+        method: 'POST',
+        headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: chunk,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.6,
+            similarity_boost: 0.8,
+            style: reportType === 'morning' ? 0.3 : 0.4,
+            use_speaker_boost: true,
+          },
+        }),
+        signal: chunkController.signal,
+      });
+      clearTimeout(chunkTimeout);
+      if (chunkRes.ok) {
+        const buf = await chunkRes.arrayBuffer();
+        audioChunks.push(buf);
+        console.log(`[NexaIntelligence] 🎤 Chunk ${i + 1}/${textChunks.length}: ${(buf.byteLength/1024).toFixed(0)}KB`);
+      } else {
+        const errText = await chunkRes.text();
+        console.error(`[NexaIntelligence] 🎤 TTS chunk ${i+1} error ${chunkRes.status}:`, errText.substring(0, 200));
+        if (i === 0) return { audioBuffer: null }; // fail only if first chunk fails
+      }
+    } catch (chunkErr: any) {
+      console.warn(`[NexaIntelligence] 🎤 Chunk ${i+1} error (skipping):`, chunkErr.message);
+      if (i === 0) return { audioBuffer: null };
+    }
+  }
+
+  if (audioChunks.length === 0) return { audioBuffer: null };
+
+  // Concatenate all voice chunks
+  const totalVoiceSize = audioChunks.reduce((s, b) => s + b.byteLength, 0);
+  const voiceBuffer = new Uint8Array(totalVoiceSize);
+  let vOffset = 0;
+  for (const chunk of audioChunks) {
+    voiceBuffer.set(new Uint8Array(chunk), vOffset);
+    vOffset += chunk.byteLength;
+  }
+  console.log(`[NexaIntelligence] 🎤 TTS complete: ${textChunks.length} chunks, ${(totalVoiceSize/1024).toFixed(0)}KB total`);
+
+  // Step 4: Concatenate [🎵 intro] + [🎤 voice] + [🎵 outro] (simple MP3 concat)
+  const introSize = introBuffer?.byteLength || 0;
+  const outroSize = outroBuffer?.byteLength || 0;
+  const totalSize = introSize + totalVoiceSize + outroSize;
+
+  if (introSize > 100 || outroSize > 100) {
+    const combined = new Uint8Array(totalSize);
+    let offset = 0;
+    if (introBuffer && introSize > 100) { combined.set(new Uint8Array(introBuffer), offset); offset += introSize; }
+    combined.set(voiceBuffer, offset); offset += totalVoiceSize;
+    if (outroBuffer && outroSize > 100) { combined.set(new Uint8Array(outroBuffer), offset); }
+    console.log(`[NexaIntelligence] 🎵+🎤+🎵 intro(${(introSize/1024).toFixed(0)}KB) + voice(${(totalVoiceSize/1024).toFixed(0)}KB) + outro(${(outroSize/1024).toFixed(0)}KB) = ${(totalSize/1024).toFixed(0)}KB`);
     return { audioBuffer: combined.buffer };
   }
 
-  return { audioBuffer: voiceBuffer };
+  return { audioBuffer: voiceBuffer.buffer };
 }
 
 // ═══════════════════════════════════════════

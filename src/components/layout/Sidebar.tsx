@@ -151,6 +151,10 @@ export function Sidebar({ className }: SidebarProps) {
                 <TooltipTrigger asChild>
                   <Link
                     to={module.path}
+                    onClick={(e) => {
+                      // Ensure navigation happens immediately
+                      e.stopPropagation();
+                    }}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-tajawal font-medium text-sm group",
                       isActive

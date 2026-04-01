@@ -270,8 +270,21 @@ export function MaterialReceiptDialog({
 
 
     // ─── Load Draft / Completed Receipt on Open ───────────────
+    const loadedRefKey = useRef<string>('');
     useEffect(() => {
-        if (!open || !selectedReference || !companyId) return;
+        if (!open || !selectedReference || !companyId) {
+            // Reset state when dialog closes
+            if (!open && loadedRefKey.current) {
+                loadedRefKey.current = '';
+            }
+            return;
+        }
+
+        // Guard: skip if we already loaded this exact ref (prevents re-fetch on language change etc.)
+        const refKey = `${selectedReference}_${viewMode ? 'view' : 'edit'}_${receiptId || ''}`;
+        if (loadedRefKey.current === refKey) return;
+
+        let cancelled = false;
 
         const loadDraft = async () => {
             try {
@@ -285,10 +298,12 @@ export function MaterialReceiptDialog({
                     const rid = rec.id;
 
                     // ── 1: كونتينر → fabric_rolls.container_id (ربط مباشر) ──
+                    // ✅ Exclude 'draft' rolls — these are session leftovers, not final receipts
                     if (rec.container_id) {
                         const { data: rolls } = await supabase.from('fabric_rolls')
                             .select('id, roll_number, material_id, current_length, color_id, color_name')
-                            .eq('container_id', rec.container_id);
+                            .eq('container_id', rec.container_id)
+                            .neq('status', 'draft');
                         if (rolls && rolls.length > 0) {
                             console.log('✅ [loadDraft] container_id rolls:', rolls.length);
                             return rolls.map((r: any) => ({
@@ -451,12 +466,16 @@ export function MaterialReceiptDialog({
                     setDraftReceiptId(null);
                 }
             } catch (err) {
-                console.error('❌ [loadDraft] Failed:', err);
+                if (!cancelled) console.error('❌ [loadDraft] Failed:', err);
             }
         };
 
-        loadDraft();
-    }, [open, selectedReference, companyId, language, activeReceiptType, viewMode, receiptId]);
+        loadDraft().then(() => {
+            if (!cancelled) loadedRefKey.current = refKey;
+        });
+
+        return () => { cancelled = true; };
+    }, [open, selectedReference, companyId, viewMode, receiptId]);
 
 
 

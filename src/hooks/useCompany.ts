@@ -23,7 +23,8 @@
  */
 
 import { useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useAuth } from './useAuth';
 import { companiesService, type Company } from '@/services/companiesService';
 import { userProfilesService } from '@/services/userProfilesService';
@@ -40,7 +41,7 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  const query = useQuery({
+  const query = useCachedQuery({
     queryKey: ['company', user?.id || 'anonymous'],
     queryFn: async (): Promise<Company | null> => {
       let targetCompanyId: string | null = null;

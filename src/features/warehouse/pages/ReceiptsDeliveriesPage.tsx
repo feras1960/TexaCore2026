@@ -704,28 +704,26 @@ export default function ReceiptsDeliveriesPage() {
                 </div>
             </div>
 
-            {/* Dialogs */}
-            {receiptDialog.open && (
-                <MaterialReceiptDialog
-                    isOpen={receiptDialog.open}
-                    onOpenChange={(open) => setReceiptDialog(prev => ({ ...prev, open }))}
-                    defaultBillType={receiptDialog.type}
-                    defaultReference={receiptDialog.reference}
-                    onComplete={(result?: any) => {
-                        refetchMovements();
-                        setReceiptDialog(prev => ({ ...prev, open: false }));
-                        // If receipt returned roll data → open bin assignment dialog
-                        if (result?.rolls?.length > 0) {
-                            setBinAssignDialog({
-                                open: true,
-                                rolls: result.rolls,
-                                warehouseId: result.warehouseId || '',
-                                warehouseName: result.warehouseName || '',
-                            });
-                        }
-                    }}
-                />
-            )}
+            {/* Dialogs — always mounted to keep data hooks warm for instant open */}
+            <MaterialReceiptDialog
+                isOpen={receiptDialog.open}
+                onOpenChange={(open) => setReceiptDialog(prev => ({ ...prev, open }))}
+                defaultBillType={receiptDialog.type}
+                defaultReference={receiptDialog.reference}
+                onComplete={(result?: any) => {
+                    refetchMovements();
+                    setReceiptDialog(prev => ({ ...prev, open: false }));
+                    // If receipt returned roll data → open bin assignment dialog
+                    if (result?.rolls?.length > 0) {
+                        setBinAssignDialog({
+                            open: true,
+                            rolls: result.rolls,
+                            warehouseId: result.warehouseId || '',
+                            warehouseName: result.warehouseName || '',
+                        });
+                    }
+                }}
+            />
             {linkedInvoiceSheet.open && linkedInvoiceSheet.invoiceData && (
                 <UnifiedTradeSheet
                     open={linkedInvoiceSheet.open}
@@ -762,21 +760,19 @@ export default function ReceiptsDeliveriesPage() {
                     data={transferSheet.data}
                 />
             )}
-            {/* Sales Delivery — SalesDeliveryDialog (roll picking) */}
-            {salesDeliveryDialog.open && (
-                <SalesDeliveryDialog
-                    isOpen={salesDeliveryDialog.open}
-                    onOpenChange={(open) => {
-                        setSalesDeliveryDialog(prev => ({ ...prev, open }));
-                        if (!open) refetchMovements(); // refresh on close
-                    }}
-                    salesInvoice={salesDeliveryDialog.salesInvoice}
-                    onComplete={() => {
-                        refetchMovements();
-                        setSalesDeliveryDialog({ open: false, salesInvoice: null });
-                    }}
-                />
-            )}
+            {/* Sales Delivery — always mounted */}
+            <SalesDeliveryDialog
+                isOpen={salesDeliveryDialog.open}
+                onOpenChange={(open) => {
+                    setSalesDeliveryDialog(prev => ({ ...prev, open }));
+                    if (!open) refetchMovements(); // refresh on close
+                }}
+                salesInvoice={salesDeliveryDialog.salesInvoice}
+                onComplete={() => {
+                    refetchMovements();
+                    setSalesDeliveryDialog({ open: false, salesInvoice: null });
+                }}
+            />
             {/* Transfer Delivery Dialog — roll picking for inter-warehouse transfers */}
             {transferDeliveryDialog.open && (
                 <TransferDeliveryDialog

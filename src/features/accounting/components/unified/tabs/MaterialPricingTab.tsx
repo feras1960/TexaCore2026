@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
@@ -64,7 +64,7 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
     };
 
     // ═══════════ Fetch pricing data (parallel) ═══════════
-    const { data: pricingData, isLoading } = useQuery({
+    const { data: pricingData, isLoading } = useCachedQuery({
         queryKey: ['material-pricing-v2', companyId, data?.id],
         queryFn: async () => {
             const materialId = data!.id;

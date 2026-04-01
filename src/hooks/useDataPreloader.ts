@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useIsRestoring } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { supabase } from '@/lib/supabase';
@@ -32,7 +32,7 @@ import { preloadExchangeRates } from '@/hooks/useExchangeRateLookup';
 // ═══════════════════════════════════════════════
 const SEMI_STATIC = 10 * 60 * 1000;  // 10 min
 const DYNAMIC     = 2  * 60 * 1000;  //  2 min
-const GC_TIME     = 30 * 60 * 1000;  // 30 min
+const GC_TIME     = 24 * 60 * 60 * 1000;  // 24 hours (matches persistence)
 
 export function useDataPreloader() {
     const { companyId, user } = useAuth();
@@ -40,9 +40,13 @@ export function useDataPreloader() {
     const queryClient = useQueryClient();
     const hasPreloaded = useRef(false);
     const tenantId = user?.user_metadata?.tenant_id;
+    const isRestoring = useIsRestoring();
 
     useEffect(() => {
-        if (!companyId || hasPreloaded.current) return;
+        // ⚡ Wait for IndexedDB cache restoration to complete before prefetching
+        // This prevents redundant network calls — prefetchQuery respects
+        // staleTime so if restored data is fresh, it won't refetch
+        if (!companyId || hasPreloaded.current || isRestoring) return;
         hasPreloaded.current = true;
 
         const t0 = performance.now();
@@ -220,9 +224,9 @@ export function useDataPreloader() {
                     gcTime: GC_TIME,
                 }),
 
-                // Suppliers (matches Parties.tsx queryKey)
+                // Suppliers (MUST match Parties.tsx queryKey EXACTLY)
                 queryClient.prefetchQuery({
-                    queryKey: ['parties_suppliers', companyId, language],
+                    queryKey: ['parties_suppliers', companyId],
                     queryFn: async () => {
                         const { data } = await supabase
                             .from('suppliers')
@@ -231,13 +235,13 @@ export function useDataPreloader() {
                             .order('created_at', { ascending: false });
                         return (data || []).map((s: any) => ({ ...s, type: 'supplier' as const }));
                     },
-                    staleTime: 30_000,
+                    staleTime: 5 * 60 * 1000,
                     gcTime: GC_TIME,
                 }),
 
-                // Customers (matches Parties.tsx queryKey)
+                // Customers (MUST match Parties.tsx queryKey EXACTLY)
                 queryClient.prefetchQuery({
-                    queryKey: ['parties_customers', companyId, language],
+                    queryKey: ['parties_customers', companyId],
                     queryFn: async () => {
                         const { data } = await supabase
                             .from('customers')
@@ -246,7 +250,7 @@ export function useDataPreloader() {
                             .order('created_at', { ascending: false });
                         return (data || []).map((c: any) => ({ ...c, type: 'customer' as const }));
                     },
-                    staleTime: 30_000,
+                    staleTime: 5 * 60 * 1000,
                     gcTime: GC_TIME,
                 }),
 
@@ -257,6 +261,143 @@ export function useDataPreloader() {
             });
         }, 1000);
 
-        return () => clearTimeout(tier2Timeout);
-    }, [companyId, tenantId, language]); // eslint-disable-line react-hooks/exhaustive-deps
+        // ═══════════════════════════════════════════════
+        // 🟣 Tier 3: Background — Load after 3 seconds
+        //    القيود، الفواتير، الكونتينرات، أذون التسليم
+        //    كل هذه البيانات ستكون جاهزة للفتح الفوري
+        // ═══════════════════════════════════════════════
+        const tier3Timeout = setTimeout(() => {
+            Promise.allSettled([
+                // 1. Journal Entries — MUST match useJournalEntries queryKey
+                queryClient.prefetchQuery({
+                    queryKey: ['accounting', 'journal-entries', companyId, undefined],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('journal_entries')
+                            .select(`
+                                id, entry_number, entry_date, description, description_ar, description_en,
+                                status, is_posted, entry_type, reference_type, reference_id, reference_number,
+                                total_debit, total_credit, created_by, currency,
+                                lines:journal_entry_lines(
+                                    id, account_id, description, debit, credit,
+                                    debit_fc, credit_fc, currency, exchange_rate, cost_center_id,
+                                    account:chart_of_accounts(account_code, name_ar, name_en)
+                                )
+                            `)
+                            .eq('company_id', companyId)
+                            .order('entry_date', { ascending: false })
+                            .limit(500);
+                        return data || [];
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 2. Sales Transactions — فواتير المبيعات
+                queryClient.prefetchQuery({
+                    queryKey: ['sales-transactions-preload', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('sales_transactions')
+                            .select(`
+                                id, invoice_number, transaction_date, status,
+                                total_amount, currency, customer_id, warehouse_id,
+                                discount_amount, tax_amount, net_amount,
+                                payment_status, notes
+                            `)
+                            .eq('company_id', companyId)
+                            .order('transaction_date', { ascending: false })
+                            .limit(500);
+                        return data || [];
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 3. Purchase Invoices — فواتير المشتريات
+                queryClient.prefetchQuery({
+                    queryKey: ['purchase-invoices-preload', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('purchase_invoices')
+                            .select(`
+                                id, invoice_number, invoice_date, status,
+                                total_amount, currency, supplier_id,
+                                paid_amount, remaining_amount, notes
+                            `)
+                            .eq('company_id', companyId)
+                            .order('invoice_date', { ascending: false })
+                            .limit(500);
+                        return data || [];
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 4. Containers — الكونتينرات
+                queryClient.prefetchQuery({
+                    queryKey: ['containers-preload', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('containers')
+                            .select(`
+                                id, container_number, status, supplier_id,
+                                total_cost, currency, arrival_date, notes,
+                                container_items(id, material_id, quantity, unit_price, total_price)
+                            `)
+                            .eq('company_id', companyId)
+                            .order('created_at', { ascending: false });
+                        return data || [];
+                    },
+                    staleTime: SEMI_STATIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 5. Sales Delivery Orders — أذون التسليم
+                queryClient.prefetchQuery({
+                    queryKey: ['delivery-orders-preload', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('sales_delivery_orders')
+                            .select(`
+                                id, delivery_number, delivery_date, status,
+                                sales_transaction_id, warehouse_id, notes
+                            `)
+                            .eq('company_id', companyId)
+                            .order('delivery_date', { ascending: false })
+                            .limit(200);
+                        return data || [];
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 6. Funds — MUST match useFunds queryKey
+                queryClient.prefetchQuery({
+                    queryKey: ['accounting', 'funds', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('chart_of_accounts')
+                            .select('id, account_code, name_ar, name_en, current_balance, is_cash_account, is_bank_account, is_group, currency')
+                            .eq('company_id', companyId)
+                            .eq('is_active', true)
+                            .or('is_cash_account.eq.true,is_bank_account.eq.true')
+                            .order('account_code', { ascending: true });
+                        return data || [];
+                    },
+                    staleTime: SEMI_STATIC,
+                    gcTime: GC_TIME,
+                }),
+
+            ]).then(() => {
+                const t3 = performance.now();
+                console.log(`⚡ [DataPreloader] Tier 3 complete in ${Math.round(t3 - t0)}ms — All data ready! 🚀`);
+            });
+        }, 3000);
+
+        return () => {
+            clearTimeout(tier2Timeout);
+            clearTimeout(tier3Timeout);
+        };
+    }, [companyId, tenantId, language, isRestoring]); // eslint-disable-line react-hooks/exhaustive-deps
 }

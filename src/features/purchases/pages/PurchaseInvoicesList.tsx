@@ -4,7 +4,8 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Button } from '@/components/ui/button';
 import {
@@ -110,7 +111,7 @@ export default function PurchaseInvoicesList() {
     }, []);
 
     // Fetch Branches List (for filter)
-    const { data: branchesList = [] } = useQuery({
+    const { data: branchesList = [] } = useCachedQuery({
         queryKey: ['branches_list', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -127,7 +128,7 @@ export default function PurchaseInvoicesList() {
     });
 
     // Fetch Suppliers Map
-    const { data: suppliersMap = {} } = useQuery({
+    const { data: suppliersMap = {} } = useCachedQuery({
         queryKey: ['suppliers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -166,7 +167,7 @@ export default function PurchaseInvoicesList() {
     const effectiveTo = dateRange?.to ? endOfDay(dateRange.to).toISOString() : undefined;
 
     // Phase 1 — Last 2 Days (fast, shown immediately)
-    const { data: recentRaw = [], isLoading: isLoadingRecent } = useQuery({
+    const { data: recentRaw = [], isLoading: isLoadingRecent } = useCachedQuery({
         queryKey: ['purchase_transactions_recent', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -186,7 +187,7 @@ export default function PurchaseInvoicesList() {
     });
 
     // Phase 2 — Full Month (loads in background after Phase 1)
-    const { data: fullRaw = [], isLoading: isLoadingFull } = useQuery({
+    const { data: fullRaw = [], isLoading: isLoadingFull } = useCachedQuery({
         queryKey: ['purchase_transactions_full', companyId, effectiveFrom, effectiveTo],
         queryFn: async () => {
             if (!companyId) return [];

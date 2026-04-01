@@ -11,7 +11,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { NexaKanbanBoard, type KanbanItem, type KanbanColumnDef } from '@/components/ui/nexa-kanban';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
@@ -136,7 +137,7 @@ export default function PipelineBoard() {
     }, []);
 
     // ─── Fetch sales documents grouped by contact/customer ───
-    const { data: pipelineDeals = [], isLoading } = useQuery({
+    const { data: pipelineDeals = [], isLoading } = useCachedQuery({
         queryKey: ['crm_pipeline_deals', companyId, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];

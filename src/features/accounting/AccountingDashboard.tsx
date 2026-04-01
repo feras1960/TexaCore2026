@@ -14,6 +14,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useTheme } from '@/app/providers/ThemeProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -101,13 +103,12 @@ export default function AccountingDashboard() {
   const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
     try { return localStorage.getItem('acct_dashboard_currency') || 'all'; } catch { return 'all'; }
   });
-  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
 
   const displayCurrency = selectedCurrency === 'all' ? (baseCurrency || 'USD') : selectedCurrency;
   const sym = getCurrencySymbol(displayCurrency);
 
-  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
   // Date range
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
@@ -129,185 +130,167 @@ export default function AccountingDashboard() {
     try { localStorage.setItem('acct_dashboard_currency', selectedCurrency); } catch {}
   }, [selectedCurrency]);
 
-  // KPI State
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [netProfit, setNetProfit] = useState(0);
-  const [totalReceipts, setTotalReceipts] = useState(0);
-  const [totalPayments, setTotalPayments] = useState(0);
-  const [journalCount, setJournalCount] = useState(0);
-  const [draftCount, setDraftCount] = useState(0);
-  const [postedCount, setPostedCount] = useState(0);
-  const [unpostedCount, setUnpostedCount] = useState(0);
-  const [accountsCount, setAccountsCount] = useState(0);
-  const [cashBalance, setCashBalance] = useState(0);
-  const [receivables, setReceivables] = useState(0);
-  const [payables, setPayables] = useState(0);
-  const [monthly, setMonthly] = useState<{ label: string; revenue: number; expenses: number }[]>([]);
-  const [recentEntries, setRecentEntries] = useState<{ id: string; entry_number: string; description: string; total_debit: number; status: string; entry_date: string }[]>([]);
   const [isLive, setIsLive] = useState(false);
 
-  // ─── Fetch data ──────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    if (!companyId) return;
-    setLoading(true);
+  // Stable date strings for queryKey (prevents infinite re-renders)
+  const fromDateStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const toDateStr = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
-    const fromDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(startOfMonth(new Date()), 'yyyy-MM-dd');
-    const toDate = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-    const yearStart = format(startOfYear(new Date()), 'yyyy-MM-dd');
-    // For monthly chart: 6 months back
-    const sixMonthsAgo = format(startOfMonth(subMonths(new Date(), 5)), 'yyyy-MM-dd');
+  // ═══ React Query: Fetch ALL dashboard data in one query ═══
+  const { data: rawData, isLoading: loading } = useCachedQuery({
+    queryKey: ['accounting', 'dashboard', companyId, fromDateStr, toDateStr],
+    queryFn: async () => {
+      if (!companyId) return null;
 
-    try {
-      // ⚡ Parallel fetch: all 4 queries at once instead of sequential
+      const yearStart = format(startOfYear(new Date()), 'yyyy-MM-dd');
+      const sixMonthsAgo = format(startOfMonth(subMonths(new Date(), 5)), 'yyyy-MM-dd');
+
       const [settingsRes, entriesRes, linesRes, accountsRes] = await Promise.all([
-        // 1. Company settings (currencies)
         supabase
           .from('company_accounting_settings')
           .select('supported_currencies, base_currency')
           .eq('company_id', companyId)
           .single(),
-
-        // 2. Journal entries in date range
         supabase
           .from('journal_entries')
           .select('id, entry_number, description, total_debit, total_credit, status, entry_date')
           .eq('company_id', companyId)
-          .gte('entry_date', fromDate)
-          .lte('entry_date', toDate)
+          .gte('entry_date', fromDateStr)
+          .lte('entry_date', toDateStr)
           .order('entry_date', { ascending: false }),
-
-        // 3. ALL journal lines for the year (single query instead of 6 monthly!)
         supabase
           .from('journal_entry_lines')
           .select('debit, credit, account_id, journal_entries!inner(company_id, entry_date, status)')
           .eq('journal_entries.company_id', companyId)
           .eq('journal_entries.status', 'posted')
           .gte('journal_entries.entry_date', sixMonthsAgo)
-          .lte('journal_entries.entry_date', toDate),
-
-        // 4. All accounts (for type classification)
+          .lte('journal_entries.entry_date', toDateStr),
         supabase
           .from('chart_of_accounts')
           .select('id, account_type_id, is_group')
           .eq('company_id', companyId),
       ]);
 
-      // Process settings
-      if (settingsRes.data?.supported_currencies) {
-        setAvailableCurrencies(settingsRes.data.supported_currencies);
-      }
+      return {
+        currencies: settingsRes.data?.supported_currencies || [],
+        entries: entriesRes.data || [],
+        lines: linesRes.data || [],
+        accounts: accountsRes.data || [],
+        yearStart,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,      // 2 minutes
+    gcTime: 24 * 60 * 60 * 1000,    // 24 hours (for persistence)
+  });
 
-      // Process journal entries
-      const entries = entriesRes.data;
-      if (!entriesRes.error && entries) {
-        setJournalCount(entries.length);
-        setDraftCount(entries.filter(e => e.status === 'draft').length);
-        setPostedCount(entries.filter(e => e.status === 'posted').length);
-        setUnpostedCount(entries.filter(e => e.status !== 'posted' && e.status !== 'draft').length);
-        
-        const totalDebit = entries.reduce((s, e) => s + Number(e.total_debit || 0), 0);
-        setTotalReceipts(totalDebit);
+  // ═══ Compute KPIs from raw data (useMemo, no useState!) ═══
+  const {
+    availableCurrencies, totalRevenue, totalExpenses, netProfit,
+    totalReceipts, totalPayments, journalCount, draftCount, postedCount,
+    unpostedCount, accountsCount, cashBalance, receivables, payables,
+    monthly, recentEntries,
+  } = useMemo(() => {
+    const defaults = {
+      availableCurrencies: [] as string[],
+      totalRevenue: 0, totalExpenses: 0, netProfit: 0,
+      totalReceipts: 0, totalPayments: 0,
+      journalCount: 0, draftCount: 0, postedCount: 0, unpostedCount: 0,
+      accountsCount: 0, cashBalance: 0, receivables: 0, payables: 0,
+      monthly: [] as { label: string; revenue: number; expenses: number }[],
+      recentEntries: [] as { id: string; entry_number: string; description: string; total_debit: number; status: string; entry_date: string }[],
+    };
+    if (!rawData) return defaults;
 
-        // Recent 8
-        setRecentEntries(entries.slice(0, 8).map(e => ({
-          id: e.id,
-          entry_number: e.entry_number || '-',
-          description: e.description || t('accounting.noDescription'),
-          total_debit: Number(e.total_debit || 0),
-          status: e.status || 'draft',
-          entry_date: e.entry_date,
-        })));
-      }
+    const { currencies, entries, lines, accounts, yearStart } = rawData;
 
-      // Process accounts + lines
-      const accounts = accountsRes.data;
-      const lines = linesRes.data;
+    // Entries KPIs
+    const posted = entries.filter((e: any) => e.status === 'posted').length;
+    const draft = entries.filter((e: any) => e.status === 'draft').length;
+    const totalDebit = entries.reduce((s: number, e: any) => s + Number(e.total_debit || 0), 0);
+    const recent = entries.slice(0, 8).map((e: any) => ({
+      id: e.id,
+      entry_number: e.entry_number || '-',
+      description: e.description || '',
+      total_debit: Number(e.total_debit || 0),
+      status: e.status || 'draft',
+      entry_date: e.entry_date,
+    }));
 
-      if (accounts) {
-        setAccountsCount(accounts.filter(a => !a.is_group).length);
-        
-        const revenueAccountIds = new Set(accounts.filter(a => a.account_type_id === 4).map(a => a.id));
-        const expenseAccountIds = new Set(accounts.filter(a => a.account_type_id === 5).map(a => a.id));
-        const cashAccountIds = new Set(accounts.filter(a => a.account_type_id === 1).map(a => a.id));
-        const receivableIds = new Set(accounts.filter(a => a.account_type_id === 2).map(a => a.id));
-        const payableIds = new Set(accounts.filter(a => a.account_type_id === 3).map(a => a.id));
+    // Account type sets
+    const revenueIds = new Set(accounts.filter((a: any) => a.account_type_id === 4).map((a: any) => a.id));
+    const expenseIds = new Set(accounts.filter((a: any) => a.account_type_id === 5).map((a: any) => a.id));
+    const cashIds = new Set(accounts.filter((a: any) => a.account_type_id === 1).map((a: any) => a.id));
+    const recvIds = new Set(accounts.filter((a: any) => a.account_type_id === 2).map((a: any) => a.id));
+    const payIds = new Set(accounts.filter((a: any) => a.account_type_id === 3).map((a: any) => a.id));
 
-        if (lines) {
-          // ─── KPIs: filter lines within date range ───
-          let rev = 0, exp = 0, cash = 0, recv = 0, pay = 0;
-          lines.forEach((l: any) => {
-            const entryDate = l.journal_entries?.entry_date;
-            if (!entryDate || entryDate < yearStart) return; // KPIs use year range
-            const debit = Number(l.debit || 0);
-            const credit = Number(l.credit || 0);
-            if (revenueAccountIds.has(l.account_id)) rev += credit - debit;
-            if (expenseAccountIds.has(l.account_id)) exp += debit - credit;
-            if (cashAccountIds.has(l.account_id)) cash += debit - credit;
-            if (receivableIds.has(l.account_id)) recv += debit - credit;
-            if (payableIds.has(l.account_id)) pay += credit - debit;
-          });
-          setTotalRevenue(Math.abs(rev));
-          setTotalExpenses(Math.abs(exp));
-          setNetProfit(rev - exp);
-          setCashBalance(cash);
-          setReceivables(recv > 0 ? recv : 0);
-          setPayables(pay > 0 ? pay : 0);
-          setTotalPayments(exp);
+    let rev = 0, exp = 0, cash = 0, recv = 0, pay = 0;
+    lines.forEach((l: any) => {
+      const entryDate = l.journal_entries?.entry_date;
+      if (!entryDate || entryDate < yearStart) return;
+      const debit = Number(l.debit || 0);
+      const credit = Number(l.credit || 0);
+      if (revenueIds.has(l.account_id)) rev += credit - debit;
+      if (expenseIds.has(l.account_id)) exp += debit - credit;
+      if (cashIds.has(l.account_id)) cash += debit - credit;
+      if (recvIds.has(l.account_id)) recv += debit - credit;
+      if (payIds.has(l.account_id)) pay += credit - debit;
+    });
 
-          // ─── Monthly chart: group lines by month (in JS, no extra queries!) ───
-          const monthlyMap = new Map<string, { revenue: number; expenses: number }>();
-          for (let i = 5; i >= 0; i--) {
-            const d = subMonths(new Date(), i);
-            const key = format(d, 'yyyy-MM');
-            monthlyMap.set(key, { revenue: 0, expenses: 0 });
-          }
-
-          lines.forEach((l: any) => {
-            const entryDate = l.journal_entries?.entry_date;
-            if (!entryDate) return;
-            const monthKey = entryDate.substring(0, 7); // "2026-03"
-            const bucket = monthlyMap.get(monthKey);
-            if (!bucket) return;
-            const debit = Number(l.debit || 0);
-            const credit = Number(l.credit || 0);
-            if (revenueAccountIds.has(l.account_id)) bucket.revenue += credit - debit;
-            if (expenseAccountIds.has(l.account_id)) bucket.expenses += debit - credit;
-          });
-
-          const monthlyData: { label: string; revenue: number; expenses: number }[] = [];
-          for (let i = 5; i >= 0; i--) {
-            const d = subMonths(new Date(), i);
-            const key = format(d, 'yyyy-MM');
-            const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
-            const bucket = monthlyMap.get(key) || { revenue: 0, expenses: 0 };
-            monthlyData.push({ label, revenue: Math.abs(bucket.revenue), expenses: Math.abs(bucket.expenses) });
-          }
-          setMonthly(monthlyData);
-        }
-      }
-
-    } catch (err) {
-      console.error('Dashboard fetch error:', err);
-    } finally {
-      setLoading(false);
+    // Monthly chart
+    const monthlyMap = new Map<string, { revenue: number; expenses: number }>();
+    for (let i = 5; i >= 0; i--) {
+      const d = subMonths(new Date(), i);
+      monthlyMap.set(format(d, 'yyyy-MM'), { revenue: 0, expenses: 0 });
     }
-  }, [companyId, dateRange, isAr]);
+    lines.forEach((l: any) => {
+      const entryDate = l.journal_entries?.entry_date;
+      if (!entryDate) return;
+      const bucket = monthlyMap.get(entryDate.substring(0, 7));
+      if (!bucket) return;
+      const debit = Number(l.debit || 0);
+      const credit = Number(l.credit || 0);
+      if (revenueIds.has(l.account_id)) bucket.revenue += credit - debit;
+      if (expenseIds.has(l.account_id)) bucket.expenses += debit - credit;
+    });
+    const monthlyData: { label: string; revenue: number; expenses: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = subMonths(new Date(), i);
+      const key = format(d, 'yyyy-MM');
+      const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
+      const bucket = monthlyMap.get(key) || { revenue: 0, expenses: 0 };
+      monthlyData.push({ label, revenue: Math.abs(bucket.revenue), expenses: Math.abs(bucket.expenses) });
+    }
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+    return {
+      availableCurrencies: currencies,
+      totalRevenue: Math.abs(rev), totalExpenses: Math.abs(exp), netProfit: rev - exp,
+      totalReceipts: totalDebit, totalPayments: exp,
+      journalCount: entries.length, draftCount: draft, postedCount: posted,
+      unpostedCount: entries.length - posted - draft,
+      accountsCount: accounts.filter((a: any) => !a.is_group).length,
+      cashBalance: cash, receivables: recv > 0 ? recv : 0, payables: pay > 0 ? pay : 0,
+      monthly: monthlyData, recentEntries: recent,
+    };
+  }, [rawData, isAr]);
 
-  // Realtime
+  // ═══ Realtime: invalidate query instead of fetching directly ═══
   useEffect(() => {
     if (!companyId) return;
     const channel = supabase
       .channel('acct-dashboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'journal_entries', filter: `company_id=eq.${companyId}` }, () => {
         setIsLive(true);
-        fetchData();
+        queryClient.invalidateQueries({ queryKey: ['accounting', 'dashboard'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [companyId, fetchData]);
+  }, [companyId, queryClient]);
+
+  // fetchData wrapper for manual refresh button
+  const fetchData = useCallback(async () => {
+    queryClient.invalidateQueries({ queryKey: ['accounting', 'dashboard'] });
+  }, [queryClient]);
 
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0;
 

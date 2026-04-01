@@ -36,6 +36,7 @@ interface CompanyDefaultAccounts {
     default_inventory_account_id: string | null;
     default_tax_input_account_id: string | null;
     default_tax_output_account_id: string | null;
+    default_transit_purchase_account_id: string | null;
 }
 
 interface VarianceItem {
@@ -89,7 +90,8 @@ async function getCompanyDefaultAccounts(companyId: string): Promise<CompanyDefa
             default_cogs_account_id,
             default_inventory_account_id,
             default_tax_input_account_id,
-            default_tax_output_account_id
+            default_tax_output_account_id,
+            default_transit_purchase_account_id
         `)
         .eq('company_id', companyId)
         .single();
@@ -251,45 +253,49 @@ export const purchaseAccountingService = {
         // ═══════════════════════════════════════════════
         const missingAccounts: string[] = [];
 
-        // 🔑 CONTAINER FIX: If invoice is linked to a container,
-        // debit the CONTAINER ACCOUNT (Goods in Transit) — not Purchases/COGS.
-        // This ensures the container account accumulates the full landed cost
-        // (FOB + expenses) until goods are received and the account is closed.
+        // ═══════════════════════════════════════════════
+        // 🔑 PURCHASE CYCLE FIX — Local vs International
+        // ═══════════════════════════════════════════════
+        const isInternational = invoice.receipt_mode === 'international';
+        // المحلية (direct): Dr 1141 بضاعة جاهزة / Cr المورد — قيد مباشر
+        // الدولية (international): Dr 1145 مشتريات بالطريق / Cr المورد
+        //   ثم عند ربطها بكونتينر → قيد نقل Dr كونتينر / Cr 1145
+        // ═══════════════════════════════════════════════
         let debitAccountId: string | null = null;
         let isContainerInvoice = false;
 
-        if (invoice.container_id) {
-            // Fetch container's dedicated account
-            const { data: containerDoc } = await supabase
-                .from('containers')
-                .select('container_account_id, container_number')
-                .eq('id', invoice.container_id)
-                .single();
-
-            if (containerDoc?.container_account_id) {
-                debitAccountId = containerDoc.container_account_id;
-                isContainerInvoice = true;
-                console.log('📦 [Container Invoice] Using container account as debit:',
-                    containerDoc.container_number, '→', debitAccountId);
-            } else {
-                console.warn('⚠️ Invoice linked to container but no container_account_id found — falling back to purchases account');
-                warnings.push('الفاتورة مرتبطة بكونتينر لكن لا يوجد حساب بضاعة بالطريق — تم الترحيل على حساب المشتريات');
+        if (isInternational) {
+            // 🚢 دولية → حساب المشتريات بالطريق (1145)
+            debitAccountId = defaults.default_transit_purchase_account_id;
+            if (!debitAccountId) {
+                // Fallback: inventory if transit not configured
+                debitAccountId = defaults.default_inventory_account_id;
+                warnings.push('حساب المشتريات بالطريق (1145) غير معرّف — تم الترحيل على حساب المخزون. يُرجى تعيينه في الإعدادات.');
             }
+            console.log('🚢 [International Invoice] Posting to transit account (1145):', debitAccountId);
+
+            // If linked to a container, we'll create a transfer entry AFTER the main JE
+            if (invoice.container_id) {
+                isContainerInvoice = true;
+                console.log('📦 [Container Invoice] Will create transfer entry after main JE');
+            }
+        } else {
+            // 📦 محلية → بضاعة جاهزة مباشرة (1141)
+            debitAccountId = defaults.default_inventory_account_id;
+            console.log('📦 [Local Invoice] Posting directly to inventory (1141):', debitAccountId);
         }
 
-        // Fallback: Inventory account (1141 بضاعة جاهزة)
-        // ⚠️ Purchase invoices ALWAYS go to Inventory — NOT COGS!
-        // COGS (511) is only used when goods are SOLD, not purchased.
-        if (!debitAccountId) {
-            debitAccountId = defaults.default_inventory_account_id;
-        }
-        // Secondary fallback: purchases account (if inventory not configured)
+        // Fallback: purchases account (if inventory not configured)
         if (!debitAccountId) {
             debitAccountId = defaults.default_purchase_account_id;
         }
 
         if (!debitAccountId) {
-            missingAccounts.push('حساب المخزون / بضاعة جاهزة (Inventory Account 1141)');
+            missingAccounts.push(
+                isInternational
+                    ? 'حساب المشتريات بالطريق (Transit Account 1145)'
+                    : 'حساب المخزون / بضاعة جاهزة (Inventory Account 1141)'
+            );
         }
 
         let creditAccountId: string | null = null;
@@ -310,7 +316,6 @@ export const purchaseAccountingService = {
 
         // ═══ Tax: Skip VAT for international/import invoices ═══
         // Import invoices pay tax at customs — NOT recorded in the purchase JE
-        const isInternational = invoice.receipt_mode === 'international';
         let taxAccountId: string | null = null;
         if (invoice.tax_amount > 0 && !isInternational) {
             taxAccountId = defaults.default_tax_input_account_id;
@@ -608,6 +613,59 @@ export const purchaseAccountingService = {
         }
 
         // ═══════════════════════════════════════════════
+        // 10.5 CONTAINER TRANSFER — Transit → Container Account
+        // ═══════════════════════════════════════════════
+        // إذا كانت فاتورة دولية مرتبطة بكونتينر، ننشئ قيد نقل:
+        // Dr حساب الكونتينر / Cr 1145 مشتريات بالطريق
+        if (isContainerInvoice && invoice.container_id && debitAccountId) {
+            try {
+                const { data: containerDoc } = await supabase
+                    .from('containers')
+                    .select('container_account_id, container_number')
+                    .eq('id', invoice.container_id)
+                    .single();
+
+                if (containerDoc?.container_account_id) {
+                    const transferAmount = Math.round(effectiveSubtotal * 100) / 100;
+                    const transferEntry: CreateJournalEntryInput = {
+                        company_id: companyId,
+                        branch_id: invoice.branch_id,
+                        entry_date: invoice.doc_date || invoice.invoice_date,
+                        entry_type: 'purchase_invoice',
+                        description: `نقل من مشتريات بالطريق لكونتينر ${containerDoc.container_number} — فاتورة #${invoiceRef}`,
+                        lines: [
+                            {
+                                account_id: containerDoc.container_account_id,
+                                debit: transferAmount,
+                                credit: 0,
+                                description: `تحميل فاتورة #${invoiceRef} على كونتينر ${containerDoc.container_number}`,
+                                cost_center_id: null,
+                                currency: invoiceCurrency,
+                            },
+                            {
+                                account_id: debitAccountId, // 1145 transit
+                                debit: 0,
+                                credit: transferAmount,
+                                description: `نقل مشتريات بالطريق لكونتينر ${containerDoc.container_number} — فاتورة #${invoiceRef}`,
+                                cost_center_id: null,
+                                currency: invoiceCurrency,
+                            },
+                        ],
+                    };
+                    const transferJE = await journalEntriesService.create(transferEntry);
+                    await journalEntriesService.post(transferJE.id, userId);
+                    console.log('✅ [Container Transfer] Transit → Container JE posted:', transferJE.id,
+                        '| Amount:', transferAmount, '| Container:', containerDoc.container_number);
+                } else {
+                    warnings.push(`الكونتينر ${invoice.container_id} لا يملك حساب — لم يتم نقل القيد من الوسيط`);
+                }
+            } catch (transferErr: any) {
+                console.error('⚠️ Failed to create container transfer entry:', transferErr.message);
+                warnings.push('فشل إنشاء قيد نقل الكونتينر — يرجى المراجعة يدوياً');
+            }
+        }
+
+        // ═══════════════════════════════════════════════
         // 11. Direct Stock Update (if auto_update_stock enabled)
         // ═══════════════════════════════════════════════
         if (invoice.auto_update_stock && invoice.items?.length > 0) {
@@ -765,7 +823,103 @@ export const purchaseAccountingService = {
         }
 
         console.log(`✅ Invoice unposted — returning to stage: ${returnStage}`);
-    }
+    },
+
+    /**
+     * نقل من حساب المشتريات بالطريق (1145) إلى حساب الكونتينر
+     * يُستدعى عند ربط فاتورة مرحّلة بكونتينر (مثلاً من AddContainerSheet)
+     * Dr حساب الكونتينر / Cr 1145 مشتريات بالطريق
+     */
+    async transferToContainerAccount(
+        invoiceId: string,
+        containerId: string,
+        userId: string
+    ): Promise<{ success: boolean; journalEntryId?: string; error?: string }> {
+        try {
+            // 1. Fetch invoice details
+            const { data: invoice, error: invErr } = await supabase
+                .from('purchase_transactions')
+                .select('id, company_id, branch_id, invoice_no, total_amount, subtotal, currency, doc_date, supplier_name, is_posted, receipt_mode')
+                .eq('id', invoiceId)
+                .single();
+
+            if (invErr || !invoice) {
+                return { success: false, error: `الفاتورة غير موجودة: ${invErr?.message}` };
+            }
+
+            // Only process posted international invoices
+            if (!invoice.is_posted) {
+                return { success: false, error: 'الفاتورة غير مرحّلة — لا يمكن نقل القيد' };
+            }
+            if (invoice.receipt_mode !== 'international') {
+                console.log('ℹ️ [transferToContainer] Skipping local invoice — no transit entry needed');
+                return { success: true }; // Local invoices don't use transit
+            }
+
+            // 2. Fetch container account
+            const { data: containerDoc } = await supabase
+                .from('containers')
+                .select('container_account_id, container_number')
+                .eq('id', containerId)
+                .single();
+
+            if (!containerDoc?.container_account_id) {
+                return { success: false, error: 'الكونتينر لا يملك حساب محاسبي' };
+            }
+
+            // 3. Fetch transit account (1145)
+            const defaults = await getCompanyDefaultAccounts(invoice.company_id);
+            const transitAccountId = defaults?.default_transit_purchase_account_id;
+            if (!transitAccountId) {
+                return { success: false, error: 'حساب المشتريات بالطريق (1145) غير معرّف في الإعدادات' };
+            }
+
+            // 4. Create transfer entry
+            const transferAmount = Math.round(Number(invoice.subtotal || invoice.total_amount || 0) * 100) / 100;
+            if (transferAmount <= 0) {
+                return { success: false, error: 'مبلغ الفاتورة صفر أو سالب' };
+            }
+
+            const invoiceRef = invoice.invoice_no || invoiceId.substring(0, 8);
+            const transferEntry: CreateJournalEntryInput = {
+                company_id: invoice.company_id,
+                branch_id: invoice.branch_id,
+                entry_date: invoice.doc_date || new Date().toISOString().split('T')[0],
+                entry_type: 'purchase_invoice',
+                description: `نقل من مشتريات بالطريق لكونتينر ${containerDoc.container_number} — فاتورة #${invoiceRef}`,
+                lines: [
+                    {
+                        account_id: containerDoc.container_account_id,
+                        debit: transferAmount,
+                        credit: 0,
+                        description: `تحميل فاتورة #${invoiceRef} على كونتينر ${containerDoc.container_number}`,
+                        cost_center_id: null,
+                        currency: invoice.currency,
+                    },
+                    {
+                        account_id: transitAccountId,
+                        debit: 0,
+                        credit: transferAmount,
+                        description: `نقل مشتريات بالطريق لكونتينر ${containerDoc.container_number} — فاتورة #${invoiceRef}`,
+                        cost_center_id: null,
+                        currency: invoice.currency,
+                    },
+                ],
+            };
+
+            const journalEntry = await journalEntriesService.create(transferEntry);
+            await journalEntriesService.post(journalEntry.id, userId);
+
+            console.log('✅ [transferToContainerAccount] Transit → Container posted:',
+                journalEntry.id, '| Amount:', transferAmount,
+                '| Invoice:', invoiceRef, '| Container:', containerDoc.container_number);
+
+            return { success: true, journalEntryId: journalEntry.id };
+        } catch (err: any) {
+            console.error('❌ [transferToContainerAccount] Failed:', err.message);
+            return { success: false, error: err.message };
+        }
+    },
 };
 
 export default purchaseAccountingService;

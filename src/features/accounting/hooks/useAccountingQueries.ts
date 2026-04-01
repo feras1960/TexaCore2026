@@ -18,7 +18,8 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 // accountsService no longer needed — useFunds queries Supabase directly
@@ -47,7 +48,7 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
     const { companyId } = useCompany();
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['accounting', 'journal-entries', companyId, filters],
         queryFn: async () => {
             if (!companyId) return [];
@@ -175,7 +176,7 @@ export function useFunds() {
     const companyId = company?.id;
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['accounting', 'funds', companyId],
         queryFn: async () => {
             if (!companyId) return [];

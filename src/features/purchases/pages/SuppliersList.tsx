@@ -13,6 +13,9 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+
+// ─── Helper: IndexedDB persistence converts Map → Object. This restores it. ───
+import { ensureMap } from '@/lib/utils';
 import {
     Users,
     Phone,
@@ -30,7 +33,7 @@ import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-ta
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { partyBalanceService, type PartyBalance } from '@/services/partyBalanceService';
@@ -127,7 +130,7 @@ export default function SuppliersList() {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // ─── Fetch Suppliers ─────────────────────────────────────────
-    const { data: suppliers = [], isLoading } = useQuery({
+    const { data: suppliers = [], isLoading } = useCachedQuery({
         queryKey: ['suppliers_list', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -151,7 +154,7 @@ export default function SuppliersList() {
     });
 
     // ─── Fetch Purchase Stats per Supplier ────────────────────────
-    const { data: purchaseStats = {} } = useQuery({
+    const { data: purchaseStats = {} } = useCachedQuery({
         queryKey: ['suppliers_purchase_stats', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -180,7 +183,7 @@ export default function SuppliersList() {
     });
 
     // ─── Fetch Sub-Ledger Balances (same as Parties.tsx) ─────────
-    const { data: supplierBalances = new Map() } = useQuery({
+    const { data: rawSupplierBalances } = useCachedQuery({
         queryKey: ['party_balances_supplier_purchases', companyId],
         queryFn: async () => {
             if (!companyId) return new Map<string, PartyBalance>();
@@ -189,6 +192,7 @@ export default function SuppliersList() {
         enabled: !!companyId,
         staleTime: 10_000,
     });
+    const supplierBalances = useMemo(() => ensureMap<string, PartyBalance>(rawSupplierBalances), [rawSupplierBalances]);
 
     // ─── Filtered Data (status tabs + date range + search + sort) ─
     const filteredSuppliers = useMemo(() => {

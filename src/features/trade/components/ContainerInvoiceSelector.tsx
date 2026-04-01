@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,7 +25,7 @@ export function ContainerInvoiceSelector({
     const { isRTL, t } = useLanguage();
 
     // Fetch Available Invoices for Selected Supplier
-    const { data: availableInvoices = [], isLoading } = useQuery({
+    const { data: availableInvoices = [], isLoading } = useCachedQuery({
         queryKey: ['available_invoices_for_container', supplierId, companyId],
         queryFn: async () => {
             if (!supplierId) return [];
@@ -45,7 +45,7 @@ export function ContainerInvoiceSelector({
     });
 
     // If readOnly (view mode), we should fetch the ALREADY LINKED invoices
-    const { data: linkedInvoices = [] } = useQuery({
+    const { data: linkedInvoices = [] } = useCachedQuery({
         queryKey: ['linked_invoices_for_container', selectedInvoiceIds],
         queryFn: async () => {
             if (selectedInvoiceIds.length === 0) return [];

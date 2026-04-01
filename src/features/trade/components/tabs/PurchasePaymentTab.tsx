@@ -17,7 +17,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 import { useAccountingDefaults, getAccountCode, getAccountName } from '@/hooks/useAccountingDefaults';
@@ -152,7 +153,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
     const invoiceNumber = data?.invoice_number || data?.reference_number || '';
 
     // ─── Queries ──────────────────────────
-    const { data: treasuryAccounts = [] } = useQuery({
+    const { data: treasuryAccounts = [] } = useCachedQuery({
         queryKey: ['treasury_accounts', companyId],
         queryFn: () => paymentScheduleService.getTreasuryAccounts(companyId!),
         enabled: !!companyId,
@@ -160,7 +161,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
     });
 
     // Payment history from payment_vouchers
-    const { data: paymentHistory = [], refetch: refetchHistory } = useQuery({
+    const { data: paymentHistory = [], refetch: refetchHistory } = useCachedQuery({
         queryKey: ['purchase_payment_history', docId],
         queryFn: async () => {
             if (!docId) return [];
@@ -178,7 +179,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
     // ─── Receipt Status Query ────────────
     // Search by invoice_id
     const sourceOrderId = data?.source_order_id;
-    const { data: receiptInfo } = useQuery({
+    const { data: receiptInfo } = useCachedQuery({
         queryKey: ['invoice_receipt_status', docId, sourceOrderId],
         queryFn: async () => {
             if (!docId) return null;
@@ -212,7 +213,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
     });
 
     // ─── Live invoice status (independent of stale data prop) ─────
-    const { data: liveInvoiceStatus } = useQuery({
+    const { data: liveInvoiceStatus } = useCachedQuery({
         queryKey: ['invoice_live_status', docId],
         queryFn: async () => {
             if (!docId) return null;
@@ -230,7 +231,7 @@ export const PurchasePaymentTab: React.FC<PurchasePaymentTabProps> = ({ data, mo
 
     // ─── Actual Journal Entry (from receipt or invoice) ────────────
     const journalEntryId = liveInvoiceStatus?.journal_entry_id || data?.journal_entry_id;
-    const { data: actualJournalEntry } = useQuery({
+    const { data: actualJournalEntry } = useCachedQuery({
         queryKey: ['invoice_actual_journal', docId, receiptInfo?.id, data?.status, journalEntryId],
         queryFn: async () => {
             if (!docId) return null;

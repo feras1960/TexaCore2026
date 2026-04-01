@@ -15,7 +15,7 @@
  *   - balance & credit status
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useMemo, useCallback } from 'react';
 
@@ -88,7 +88,7 @@ export function useCustomerPricing(
     resolvePrice: (materialId: string, quantity: number, baseSellPrice: number) => ResolvedPrice;
 } {
     // ─── Fetch customer with group details ───
-    const { data: customerData, isLoading: customerLoading, error: customerError } = useQuery({
+    const { data: customerData, isLoading: customerLoading, error: customerError } = useCachedQuery({
         queryKey: ['customer_pricing_profile', customerId],
         queryFn: async () => {
             if (!customerId) return null;
@@ -181,7 +181,7 @@ export function useCustomerPricing(
     }, [customerData]);
 
     // ─── Fetch price list + items ───
-    const { data: priceListData, isLoading: priceListLoading } = useQuery({
+    const { data: priceListData, isLoading: priceListLoading } = useCachedQuery({
         queryKey: ['price_list_items', resolvedPriceListId?.id, companyId],
         queryFn: async () => {
             let priceListId = resolvedPriceListId?.id;

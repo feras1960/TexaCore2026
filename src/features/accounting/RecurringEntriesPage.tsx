@@ -6,7 +6,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,8 +71,8 @@ export default function RecurringEntriesPage() {
     const isRTL = direction === 'rtl';
     const { companyId } = useCompany();
 
-    const [loading, setLoading] = useState(true);
-    const [entries, setEntries] = useState<RecurringEntry[]>([]);
+    const queryClient = useQueryClient();
+
     const [searchTerm, setSearchTerm] = useState('');
 
     // Sort state
@@ -82,45 +84,26 @@ export default function RecurringEntriesPage() {
     const [sheetMode, setSheetMode] = useState<'view' | 'edit' | 'create'>('create');
     const [selectedEntry, setSelectedEntry] = useState<RecurringEntry | null>(null);
 
-    // ═══ Load Data ═══
-    const loadData = useCallback(async () => {
-        if (!companyId) {
-            console.warn('[RecurringEntries] No companyId available');
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        try {
-            console.log('[RecurringEntries] Loading for company:', companyId);
-            const { data: entriesData, error } = await supabase
+    // ═══ Load Data (React Query with caching) ═══
+    const { data: entries = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['accounting', 'recurring-entries', companyId],
+        queryFn: async () => {
+            const { data, error } = await supabase
                 .from('recurring_entries')
                 .select('*')
                 .eq('company_id', companyId)
                 .order('created_at', { ascending: false });
+            if (error) throw error;
+            return (data || []) as RecurringEntry[];
+        },
+        enabled: !!companyId,
+        staleTime: 5 * 60 * 1000,       // 5 min
+        gcTime: 24 * 60 * 60 * 1000,
+    });
 
-            console.log('[RecurringEntries] Result:', { count: entriesData?.length, error: error?.message });
-
-            if (error) {
-                console.error('[RecurringEntries] Load error:', error);
-                toast.error(isRTL ? `خطأ في تحميل البيانات: ${error.message}` : `Load error: ${error.message}`);
-                return;
-            }
-
-            if (entriesData) {
-                console.log('[RecurringEntries] Loaded entries:', entriesData);
-                setEntries(entriesData);
-            }
-        } catch (error: any) {
-            console.error('[RecurringEntries] Exception:', error);
-            toast.error(error?.message || 'Failed to load');
-        } finally {
-            setLoading(false);
-        }
-    }, [companyId, isRTL]);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    const refreshData = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: ['accounting', 'recurring-entries', companyId] });
+    }, [queryClient, companyId]);
 
     // ═══ Statistics ═══
     const stats = useMemo(() => {
@@ -274,7 +257,7 @@ export default function RecurringEntriesPage() {
 
             if (result?.success) {
                 toast.success(isRTL ? '✅ تم تنفيذ القيد وإنشاء قيد محاسبي' : '✅ Entry executed successfully');
-                loadData();
+                refreshData();
             } else {
                 toast.error(result?.error || (isRTL ? 'فشل التنفيذ' : 'Execution failed'));
             }
@@ -299,7 +282,7 @@ export default function RecurringEntriesPage() {
                     ? (isRTL ? '✅ تم تفعيل القيد' : '✅ Activated')
                     : (isRTL ? '⏸ تم إيقاف القيد مؤقتاً' : '⏸ Paused')
             );
-            loadData();
+            refreshData();
         }
     };
 
@@ -310,7 +293,7 @@ export default function RecurringEntriesPage() {
             toast.error(error.message);
         } else {
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
-            loadData();
+            refreshData();
         }
     };
 
@@ -585,14 +568,14 @@ export default function RecurringEntriesPage() {
                 onClose={() => {
                     setSheetOpen(false);
                     setSelectedEntry(null);
-                    // Reload data after close with small delay to ensure DB write completes
-                    setTimeout(() => loadData(), 300);
+                    // Reload data after close
+                    setTimeout(() => refreshData(), 300);
                 }}
                 docType="recurring"
                 mode={sheetMode}
                 data={sheetData}
                 documentId={selectedEntry?.id}
-                onRefresh={loadData}
+                onRefresh={refreshData}
             />
         </div>
     );

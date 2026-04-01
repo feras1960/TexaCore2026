@@ -139,6 +139,18 @@ function ChangePasswordSection({ isAr }: { isAr: boolean }) {
             }
 
             await profileService.changePassword(newPw);
+
+            // 🔐 مسح الكاش المحلي بعد تغيير الباسوورد — حماية أمنية
+            try {
+                const { dataEngine } = await import('@/engine/DataEngine');
+                await dataEngine.clearAll();
+                // إعادة تحميل الصفحة لضمان تنظيف كامل + إعادة تحميل البيانات
+                window.location.reload();
+                return; // لن يُنفّذ ما بعده لأن الصفحة ستُعاد تحميلها
+            } catch {
+                // تجاهل — DataEngine قد لا يكون محملاً
+            }
+
             setStatus('success');
             setCurrentPw('');
             setNewPw('');

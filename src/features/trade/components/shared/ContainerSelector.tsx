@@ -10,7 +10,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +71,7 @@ export const ContainerSelector: React.FC<ContainerSelectorProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
 
     // ─── Fetch open containers ───
-    const { data: containers = [], isLoading } = useQuery({
+    const { data: containers = [], isLoading } = useCachedQuery({
         queryKey: ['containers_for_selector', companyId, supplierId],
         queryFn: async () => {
             if (!companyId) return [];

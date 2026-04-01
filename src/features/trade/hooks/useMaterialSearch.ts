@@ -10,7 +10,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useMaterials, useMaterialGroups } from '@/features/warehouse/hooks/useWarehouseQueries';
 import { warehouseService } from '@/services/warehouseService';
 import { useCompany } from '@/hooks/useCompany';
@@ -181,7 +181,7 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         return rawMaterials.map((m: any) => m.id);
     }, [rawMaterials]);
 
-    const { data: stockMap } = useQuery({
+    const { data: stockMap } = useCachedQuery({
         queryKey: ['material_browser_stock', companyId, materialIds.join(',')],
         queryFn: async () => {
             if (!companyId || materialIds.length === 0) return {};
@@ -225,7 +225,7 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
     });
 
     // ─── Per-warehouse stock (for warehouse filter) ──────────────
-    const { data: warehouseStockMap } = useQuery({
+    const { data: warehouseStockMap } = useCachedQuery({
         queryKey: ['material_browser_wh_stock', companyId, filters.warehouseId, materialIds.join(',')],
         queryFn: async () => {
             if (!companyId || !filters.warehouseId || filters.warehouseId === 'all' || materialIds.length === 0) return null;

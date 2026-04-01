@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -34,7 +34,7 @@ export const SupplierInfoTab: React.FC<SupplierInfoTabProps> = ({ data, mode, on
     const isEditable = mode === 'create' || mode === 'edit';
 
     // Fetch supplier details if supplier_id exists
-    const { data: supplierDetails } = useQuery({
+    const { data: supplierDetails } = useCachedQuery({
         queryKey: ['supplier_details', data?.supplier_id],
         queryFn: async () => {
             if (!data?.supplier_id) return null;

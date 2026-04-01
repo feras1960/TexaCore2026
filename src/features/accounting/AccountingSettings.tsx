@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +52,7 @@ interface CompanySettings {
   default_tax_input_account_id?: string;
   default_tax_output_account_id?: string;
   default_inventory_account_id?: string;
+  default_transit_purchase_account_id?: string;
   // حسابات إضافية
   default_fx_gain_account_id?: string;
   default_fx_loss_account_id?: string;
@@ -167,7 +170,6 @@ export default function AccountingSettings() {
     { id: 'editSettings', labelKey: 'accounting.settingsTabs.editSettings', icon: Edit2 },
     { id: 'costCenters', labelKey: 'accounting.settingsTabs.costCenters', icon: Landmark },
   ], []);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Data states - defaults will be overwritten by company settings on load
@@ -234,134 +236,95 @@ export default function AccountingSettings() {
     },
   });
 
-  // Load data when company is ready
-  useEffect(() => {
-    if (companyId && !companyLoading) {
-      loadData(companyId);
-    }
-  }, [companyId, companyLoading]);
-
-  const loadData = async (currentCompanyId: string) => {
-    setLoading(true);
-    try {
+  // Load data when company is ready — using React Query for caching
+  const queryClient = useQueryClient();
+  const { data: loadedData, isLoading: queryLoading } = useCachedQuery({
+    queryKey: ['accounting', 'settings', companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
       const companyBaseCurrency = company?.default_currency || '';
 
-      // ⚡ Parallel fetch: all 8 queries at once instead of sequential
       const [settingsRes, companyRes, yearsRes, entriesRes, accountsRes, currenciesRes, ccRes, exSettingsRes] = await Promise.all([
-        // 1. Accounting settings
-        supabase.from('company_accounting_settings').select('*').eq('company_id', currentCompanyId).single(),
-        // 2. Company accounting_settings (edit/fiscal mode)
-        supabase.from('companies').select('accounting_settings').eq('id', currentCompanyId).single(),
-        // 3. Fiscal years — explicit company_id filter for reliability
-        supabase.from('fiscal_years').select('*').eq('company_id', currentCompanyId).order('start_date', { ascending: false }),
-        // 4. Journal entries count (lock check)
-        supabase.from('journal_entries').select('id', { count: 'exact', head: true }).eq('company_id', currentCompanyId),
-        // 5. Chart of accounts for dropdowns
+        supabase.from('company_accounting_settings').select('*').eq('company_id', companyId).single(),
+        supabase.from('companies').select('accounting_settings').eq('id', companyId).single(),
+        supabase.from('fiscal_years').select('*').eq('company_id', companyId).order('start_date', { ascending: false }),
+        supabase.from('journal_entries').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
         supabase.from('chart_of_accounts')
           .select('id, account_code, name_ar, name_en, is_cash_account, is_bank_account, is_receivable, is_payable, account_types(classification, name_ar, name_en)')
-          .eq('company_id', currentCompanyId).eq('is_detail', true).eq('is_active', true).order('account_code'),
-        // 6. All currencies
+          .eq('company_id', companyId).eq('is_detail', true).eq('is_active', true).order('account_code'),
         supabase.from('currencies').select('code, name, name_ar, symbol').order('code'),
-        // 7. Cost centers
-        supabase.from('cost_centers').select('*').eq('company_id', currentCompanyId).order('code'),
-        // 8. Exchange settings (may not exist — use maybeSingle)
-        supabase.from('exchange_settings').select('*').eq('company_id', currentCompanyId).maybeSingle(),
+        supabase.from('cost_centers').select('*').eq('company_id', companyId).order('code'),
+        supabase.from('exchange_settings').select('*').eq('company_id', companyId).maybeSingle(),
       ]);
 
-      // ─── Debug: Log any query errors ─────────────────────────
-      if (settingsRes.error) console.error('[AccountingSettings] settings error:', settingsRes.error);
-      if (companyRes.error) console.error('[AccountingSettings] company error:', companyRes.error);
-      if (yearsRes.error) console.error('[AccountingSettings] fiscal years error:', yearsRes.error);
-      if (entriesRes.error) console.error('[AccountingSettings] entries error:', entriesRes.error);
-      if (accountsRes.error) console.error('[AccountingSettings] accounts error:', accountsRes.error);
-      if (currenciesRes.error) console.error('[AccountingSettings] currencies error:', currenciesRes.error);
-      if (ccRes.error) console.error('[AccountingSettings] cost centers error:', ccRes.error);
-      if (exSettingsRes.error && exSettingsRes.error.code !== 'PGRST116') console.error('[AccountingSettings] exchange settings error:', exSettingsRes.error);
+      return { settingsRes, companyRes, yearsRes, entriesRes, accountsRes, currenciesRes, ccRes, exSettingsRes, companyBaseCurrency };
+    },
+    enabled: !!companyId && !companyLoading,
+    staleTime: 30 * 60 * 1000,      // 30 min — settings rarely change
+    gcTime: 24 * 60 * 60 * 1000,     // 24 hours
+  });
 
-      // Process settings
-      if (settingsRes.data) {
-        setSettings({
-          ...settingsRes.data,
-          supported_currencies: settingsRes.data.supported_currencies || [companyBaseCurrency],
-          default_sales_currency: settingsRes.data.default_sales_currency || companyBaseCurrency,
-          default_purchase_currency: settingsRes.data.default_purchase_currency || companyBaseCurrency,
-          default_international_purchase_currency: settingsRes.data.default_international_purchase_currency || '',
-        });
-      } else {
-        setSettings(prev => ({ ...prev, company_id: currentCompanyId, base_currency: companyBaseCurrency }));
-      }
+  // Process loaded data into state (only when data changes)
+  useEffect(() => {
+    if (!loadedData || !companyId) return;
+    const { settingsRes, companyRes, yearsRes, entriesRes, accountsRes, currenciesRes, ccRes, exSettingsRes, companyBaseCurrency } = loadedData;
 
-      // Process company edit settings
-      if (companyRes.data?.accounting_settings) {
-        setEditSettings(prev => ({ ...prev, ...companyRes.data.accounting_settings }));
-      }
+    // Guard: if any result is missing (IndexedDB serialization edge case), skip processing
+    if (!settingsRes || !companyRes || !yearsRes || !accountsRes || !currenciesRes) return;
 
-      // Process fiscal years
-      if (yearsRes.data) setFiscalYears(yearsRes.data);
-
-      // Process journal entries count
-      setHasJournalEntries((entriesRes.count || 0) > 0);
-
-      // Process accounts
-      const accountsData = accountsRes.data;
-      if (accountsData) {
-        setAccounts(accountsData.map((a: any) => ({
-          id: a.id,
-          account_code: a.account_code,
-          name_ar: a.name_ar,
-          name_en: a.name_en,
-          classification: a.account_types?.classification || '',
-          type_name_ar: a.account_types?.name_ar || '',
-          type_name_en: a.account_types?.name_en || '',
-          is_cash_account: a.is_cash_account || false,
-          is_bank_account: a.is_bank_account || false,
-          is_receivable: a.is_receivable || false,
-          is_payable: a.is_payable || false,
-        })));
-      }
-
-      // Process currencies
-      if (currenciesRes.data) {
-        const uniqueCurrencies = new Map();
-        currenciesRes.data.forEach(c => {
-          if (!uniqueCurrencies.has(c.code)) {
-            uniqueCurrencies.set(c.code, {
-              code: c.code,
-              name: c.name_ar || c.name,
-              nameEn: c.name,
-              symbol: c.symbol
-            });
-          }
-        });
-        setCurrencies(Array.from(uniqueCurrencies.values()));
-      }
-
-      // Process cost centers
-      if (ccRes.data) setCostCentersList(ccRes.data);
-
-      // Process exchange settings (already fetched in parallel)
-      if (exSettingsRes.data) {
-        const loadedExSettings: ExchangeSettingsData = exSettingsRes.data;
-        const codeToIdMap = new Map<string, string>();
-        (accountsData || []).forEach((a: any) => {
-          const code = a.account_code;
-          if (!codeToIdMap.has(code)) codeToIdMap.set(code, a.id);
-        });
-        for (const [code, settingKey] of Object.entries(EXCHANGE_ACCOUNT_CODE_MAP)) {
-          if (!(loadedExSettings as any)[settingKey]) {
-            const accountId = codeToIdMap.get(code);
-            if (accountId) (loadedExSettings as any)[settingKey] = accountId;
-          }
-        }
-        setExchangeSettings(loadedExSettings);
-      }
-
-    } catch (error) {
-      console.warn('Settings load issue:', error);
-    } finally {
-      setLoading(false);
+    if (settingsRes.data) {
+      setSettings({
+        ...settingsRes.data,
+        supported_currencies: settingsRes.data.supported_currencies || [companyBaseCurrency],
+        default_sales_currency: settingsRes.data.default_sales_currency || companyBaseCurrency,
+        default_purchase_currency: settingsRes.data.default_purchase_currency || companyBaseCurrency,
+        default_international_purchase_currency: settingsRes.data.default_international_purchase_currency || '',
+      });
+    } else {
+      setSettings(prev => ({ ...prev, company_id: companyId, base_currency: companyBaseCurrency }));
     }
-  };
+    if (companyRes.data?.accounting_settings) {
+      setEditSettings(prev => ({ ...prev, ...companyRes.data.accounting_settings }));
+    }
+    if (yearsRes.data) setFiscalYears(yearsRes.data);
+    setHasJournalEntries((entriesRes.count || 0) > 0);
+    if (accountsRes.data) {
+      setAccounts(accountsRes.data.map((a: any) => ({
+        id: a.id, account_code: a.account_code, name_ar: a.name_ar, name_en: a.name_en,
+        classification: a.account_types?.classification || '',
+        type_name_ar: a.account_types?.name_ar || '', type_name_en: a.account_types?.name_en || '',
+        is_cash_account: a.is_cash_account || false, is_bank_account: a.is_bank_account || false,
+        is_receivable: a.is_receivable || false, is_payable: a.is_payable || false,
+      })));
+    }
+    if (currenciesRes.data) {
+      const uniqueCurrencies = new Map();
+      currenciesRes.data.forEach(c => {
+        if (!uniqueCurrencies.has(c.code)) {
+          uniqueCurrencies.set(c.code, { code: c.code, name: c.name_ar || c.name, nameEn: c.name, symbol: c.symbol });
+        }
+      });
+      setCurrencies(Array.from(uniqueCurrencies.values()));
+    }
+    if (ccRes.data) setCostCentersList(ccRes.data);
+    if (exSettingsRes.data) {
+      const loadedExSettings: ExchangeSettingsData = exSettingsRes.data;
+      const codeToIdMap = new Map<string, string>();
+      (accountsRes.data || []).forEach((a: any) => {
+        if (!codeToIdMap.has(a.account_code)) codeToIdMap.set(a.account_code, a.id);
+      });
+      for (const [code, settingKey] of Object.entries(EXCHANGE_ACCOUNT_CODE_MAP)) {
+        if (!(loadedExSettings as any)[settingKey]) {
+          const accountId = codeToIdMap.get(code);
+          if (accountId) (loadedExSettings as any)[settingKey] = accountId;
+        }
+      }
+      setExchangeSettings(loadedExSettings);
+    }
+  }, [loadedData, companyId]);
+
+  const loading = queryLoading;
+
 
   const handleSave = async () => {
     setSaving(true);
@@ -630,6 +593,7 @@ export default function AccountingSettings() {
               'default_receivable_account_id', 'default_payable_account_id',
               'default_purchase_account_id',
               'default_inventory_account_id',
+              'default_transit_purchase_account_id',
               'default_tax_input_account_id', 'default_tax_output_account_id',
               'default_fx_gain_account_id', 'default_fx_loss_account_id',
               'default_freight_in_account_id',
@@ -972,6 +936,23 @@ export default function AccountingSettings() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب البضاعة / مخزون الأقمشة' : 'Goods / fabric inventory account'}</p>
+              </div>
+
+              {/* Transit Purchase Account (1145) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>{language === 'ar' ? 'حساب مشتريات بالطريق' : 'Purchases in Transit'}</Label>
+                  {settings.default_transit_purchase_account_id
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
+                    : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'مطلوب ❗' : 'Required ❗'}</Badge>}
+                </div>
+                <Select value={settings.default_transit_purchase_account_id || ''} onValueChange={(v) => updateSetting('default_transit_purchase_account_id' as any, v)}>
+                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectContent>
+                    {renderGroupedOptions(getAccountsByClassification('assets'))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400">{language === 'ar' ? 'الحساب الوسيط للفواتير الدولية (1145) — ينتقل منه للكونتينر أو المخزون عند الاستلام' : 'Transit account for international invoices (1145) — transfers to container or inventory on receipt'}</p>
               </div>
 
               {/* Freight In */}

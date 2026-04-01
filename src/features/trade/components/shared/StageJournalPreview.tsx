@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { useAccountingDefaults, getAccountName } from '@/hooks/useAccountingDefaults';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 import { useTaxDefaults, computeTaxAmount } from '../../hooks/useTaxDefaults';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -608,7 +608,7 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
     const [showCogs, setShowCogs] = useState(false);
 
     // ─── Fetch COGS entry lines (super_admin only) ─────
-    const { data: cogsLines } = useQuery({
+    const { data: cogsLines } = useCachedQuery({
         queryKey: ['cogs_journal_lines', cogsJournalEntryId],
         queryFn: async () => {
             if (!cogsJournalEntryId) return null;
@@ -634,7 +634,7 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
 
     // ─── Fetch party sub-account (customer/supplier) ─────────────
     const partyType = transactionType === 'sale' ? 'customer' : 'supplier';
-    const { data: partySubAccount } = useQuery({
+    const { data: partySubAccount } = useCachedQuery({
         queryKey: ['party_sub_account', partyId, partyType],
         queryFn: async () => {
             if (!partyId) return null;
@@ -661,7 +661,7 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
     const taxEnabled = taxDefaults?.isEnabled ?? false;
 
     // ─── Fetch journal entry header (entry_number) when journalEntryId exists ─────
-    const { data: journalEntryMeta } = useQuery({
+    const { data: journalEntryMeta } = useCachedQuery({
         queryKey: ['journal_entry_meta', journalEntryId],
         queryFn: async () => {
             if (!journalEntryId) return null;
@@ -678,7 +678,7 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
     });
 
     // ─── Fetch ACTUAL journal entry lines when journalEntryId exists ─────
-    const { data: actualJournalLines } = useQuery({
+    const { data: actualJournalLines } = useCachedQuery({
         queryKey: ['actual_journal_lines', journalEntryId],
         queryFn: async () => {
             if (!journalEntryId) return null;

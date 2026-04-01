@@ -12,7 +12,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -105,14 +106,14 @@ export default function ContactsTable() {
     const [showFilters, setShowFilters] = useState(false);
 
     // Fetch Contacts
-    const { data: contacts = [], isLoading } = useQuery({
+    const { data: contacts = [], isLoading } = useCachedQuery({
         queryKey: ['crm_contacts', companyId, filters],
         queryFn: () => contactsService.getContacts(companyId!, filters),
         enabled: !!companyId,
     });
 
     // Fetch Pipeline Stats
-    const { data: pipelineStats } = useQuery({
+    const { data: pipelineStats } = useCachedQuery({
         queryKey: ['crm_pipeline_stats', companyId],
         queryFn: () => contactsService.getPipelineStats(companyId!),
         enabled: !!companyId,

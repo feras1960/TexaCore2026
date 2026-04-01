@@ -11,6 +11,9 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+
+// ─── Helper: IndexedDB persistence converts Map → Object. This restores it. ───
+import { ensureMap } from '@/lib/utils';
 import {
     Users,
     Phone,
@@ -28,7 +31,7 @@ import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-ta
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
@@ -109,7 +112,7 @@ export default function CustomersList() {
     const [sortAsc, setSortAsc] = useState(false);
 
     // ─── Fetch Customers ─────────────────────────────────────────
-    const { data: customers = [], isLoading } = useQuery({
+    const { data: customers = [], isLoading } = useCachedQuery({
         queryKey: ['customers_list', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -133,7 +136,7 @@ export default function CustomersList() {
     });
 
     // ─── Fetch Sales Stats per Customer ────────────────────────
-    const { data: salesStats = {} } = useQuery({
+    const { data: salesStats = {} } = useCachedQuery({
         queryKey: ['customers_sales_stats', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -162,15 +165,16 @@ export default function CustomersList() {
     });
 
     // ─── Fetch Sub-Ledger Balances (REAL balances from journal entries) ─
-    const { data: customerBalances = new Map() } = useQuery({
+    const { data: rawCustomerBalances } = useCachedQuery({
         queryKey: ['customer_balances_subledger', companyId],
         queryFn: async () => {
             if (!companyId) return new Map<string, PartyBalance>();
             return partyBalanceService.getAllPartyBalances(companyId, 'customer');
         },
         enabled: !!companyId,
-        staleTime: 10_000,  // 10 ثوانٍ — تحديث سريع للأرصدة
+        staleTime: 10_000,
     });
+    const customerBalances = useMemo(() => ensureMap<string, PartyBalance>(rawCustomerBalances), [rawCustomerBalances]);
 
     // ─── Filtered Data ───────────────────────────────────────────
     const filteredCustomers = useMemo(() => {

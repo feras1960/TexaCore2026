@@ -12,68 +12,77 @@ import { CurrencyCalculator } from '@/components/common/CurrencyCalculator';
 import { NexaContextProvider } from '@/providers/NexaContextProvider';
 import { NexaProAgent } from '@/components/ai/NexaProAgent';
 import { CompanySidebar } from './CompanySidebar';
-import { useDataPreloader } from '@/hooks/useDataPreloader';
+import { DataEngineProvider } from '@/engine/DataEngineProvider';
+import { DataEngineIndicator } from '@/engine/DataEngineIndicator';
+import { useGlobalRealtime } from '@/hooks/useGlobalRealtime';
 
 export default function MainLayout() {
   const { direction, language } = useLanguage();
   const isAr = language === 'ar';
 
-  // ⚡ Preload core data in background on app startup
-  useDataPreloader();
+  // 🌐 Real-time sync: auto-update cache when other users make changes
+  useGlobalRealtime();
 
   return (
-    <CartProvider>
-      <NexaContextProvider isAr={isAr}>
-        <div className="h-screen bg-erp-cream dark:bg-gray-950 font-tajawal flex overflow-hidden" dir={direction}>
-          {/* Sidebar */}
-          <Sidebar className="shrink-0" />
+    <DataEngineProvider>
+      <CartProvider>
+        <NexaContextProvider isAr={isAr}>
+          <div className="h-screen bg-erp-cream dark:bg-gray-950 font-tajawal flex overflow-hidden" dir={direction}>
+            {/* Sidebar */}
+            <Sidebar className="shrink-0" />
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col min-h-screen min-w-0">
-            {/* Smart Ticker Bar */}
-            <TopTickerBar />
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col min-h-screen min-w-0">
+              {/* Smart Ticker Bar */}
+              <TopTickerBar />
 
-            {/* Header */}
-            <Header />
+              {/* Header + DataEngine Indicator */}
+              <div className="relative">
+                <Header />
+                {/* ⚡ DataEngine loading indicator — top-right corner */}
+                <div className="absolute top-1/2 -translate-y-1/2 end-[320px] z-10">
+                  <DataEngineIndicator />
+                </div>
+              </div>
 
-            {/* Main Content */}
-            <motion.main
-              className="flex-1 p-4 lg:p-6 overflow-y-auto"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <motion.div
-                className="max-w-[1400px] mx-auto"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 }}
+              {/* Main Content */}
+              <motion.main
+                className="flex-1 p-4 lg:p-6 overflow-y-auto"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
               >
-                <Outlet />
-              </motion.div>
-            </motion.main>
+                <motion.div
+                  className="max-w-[1400px] mx-auto"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1 }}
+                >
+                  <Outlet />
+                </motion.div>
+              </motion.main>
+            </div>
+
+            {/* Floating Quick Add Button */}
+            <QuickAddButton />
+
+            {/* Cart Floating Widget */}
+            <CartFloatingWidget />
+
+            {/* 🤖 NexaPro Agent — AI Assistant on every page */}
+            <NexaProAgent />
+
+            {/* 🏢 Company Sidebar — shows only with multiple companies */}
+            <CompanySidebar />
           </div>
 
-          {/* Floating Quick Add Button */}
-          <QuickAddButton />
+          {/* Cart Drawer (outside layout div for proper layering) */}
+          <CartDrawer />
 
-          {/* Cart Floating Widget */}
-          <CartFloatingWidget />
-
-          {/* 🤖 NexaPro Agent — AI Assistant on every page */}
-          <NexaProAgent />
-
-          {/* 🏢 Company Sidebar — shows only with multiple companies */}
-          <CompanySidebar />
-        </div>
-
-        {/* Cart Drawer (outside layout div for proper layering) */}
-        <CartDrawer />
-
-        {/* 💱 Currency Calculator — Ctrl+E / ⌘+E from anywhere */}
-        <CurrencyCalculator />
-      </NexaContextProvider>
-    </CartProvider>
+          {/* 💱 Currency Calculator — Ctrl+E / ⌘+E from anywhere */}
+          <CurrencyCalculator />
+        </NexaContextProvider>
+      </CartProvider>
+    </DataEngineProvider>
   );
 }
-

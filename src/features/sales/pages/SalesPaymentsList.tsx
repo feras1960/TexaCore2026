@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/lib/supabase';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Plus, Calendar, DollarSign } from 'lucide-react';
 import { NexaDataTable } from '@/components/ui/nexa-data-table';
@@ -31,45 +31,89 @@ export default function SalesPaymentsList() {
         to: new Date()
     });
 
-    // Fetch Payments (Receipts)
-    const { data: paymentsRaw = [], isLoading: isLoadingPayments, error: errorPayments, refetch } = useQuery({
+    // Fetch Receipts from journal_entries (entry_type = 'receipt')
+    const { data: paymentsRaw = [], isLoading: isLoadingPayments, error: errorPayments, refetch } = useCachedQuery({
         queryKey: ['sales_payments_list', companyId, activeTab, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];
 
             let query = supabase
-                .from('payment_vouchers')
-                .select('*')
+                .from('journal_entries')
+                .select('id, entry_number, entry_date, status, total_debit, currency, notes, description, description_ar, reference_type, reference_id')
                 .eq('company_id', companyId)
-                .not('customer_id', 'is', null) // Filter for receipts (from customers)
-                .order('voucher_date', { ascending: false });
+                .eq('entry_type', 'receipt')
+                .order('entry_date', { ascending: false });
 
-            // Apply Status Filter
             if (activeTab !== 'all') {
                 query = query.eq('status', activeTab);
             }
-
-            // Apply Date Filter
             if (dateRange?.from) {
-                query = query.gte('voucher_date', dateRange.from.toISOString());
+                query = query.gte('entry_date', dateRange.from.toISOString().split('T')[0]);
             }
             if (dateRange?.to) {
-                query = query.lte('voucher_date', endOfDay(dateRange.to).toISOString());
+                query = query.lte('entry_date', endOfDay(dateRange.to).toISOString().split('T')[0]);
             }
 
-            const { data, error } = await query;
+            const { data: entries, error } = await query;
             if (error) {
-                console.warn('Payments fetch failed', error);
-                return []; // Fail gracefully or throw
+                console.error('[SalesPaymentsList] Fetch failed:', error);
+                return [];
             }
-            return data;
+            if (!entries?.length) return [];
+
+            // Step 2: fetch entry lines — get customer account + ACTUAL amount (credit_fc = original currency amount)
+            const entryIds = entries.map((e: any) => e.id);
+            const { data: lines } = await supabase
+                .from('journal_entry_lines')
+                .select('entry_id, account_id, credit, credit_fc, currency, exchange_rate, is_fund_line')
+                .in('entry_id', entryIds)
+                .gt('credit', 0);
+
+            // Step 3: find customer accounts from chart_of_accounts by party_type
+            const customerLines = (lines || []).filter((l: any) => !l.is_fund_line);
+            const accountIds = [...new Set(customerLines.map((l: any) => l.account_id).filter(Boolean))];
+            let accountPartyMap: Record<string, string> = {};
+            if (accountIds.length > 0) {
+                const { data: accounts } = await supabase
+                    .from('chart_of_accounts')
+                    .select('id, party_id, party_type')
+                    .in('id', accountIds)
+                    .eq('party_type', 'customer');
+                (accounts || []).forEach((a: any) => { if (a.party_id) accountPartyMap[a.id] = a.party_id; });
+            }
+
+            // Build entry_id → { customer_id, amount, currency } map
+            const entryCustomerMap: Record<string, string> = {};
+            const entryAmountMap: Record<string, { amount: number; currency: string }> = {};
+            customerLines.forEach((l: any) => {
+                const customerId = accountPartyMap[l.account_id];
+                if (customerId && !entryCustomerMap[l.entry_id]) {
+                    entryCustomerMap[l.entry_id] = customerId;
+                }
+                if (!entryAmountMap[l.entry_id]) {
+                    // Use credit_fc (original currency amount) if exchange rate > 1, else use credit (local)
+                    const rate = Number(l.exchange_rate) || 1;
+                    const isFC = rate > 1 && Number(l.credit_fc) > 0;
+                    entryAmountMap[l.entry_id] = {
+                        amount: isFC ? Number(l.credit_fc) : Number(l.credit),
+                        currency: l.currency || '',
+                    };
+                }
+            });
+
+            return entries.map((e: any) => ({
+                ...e,
+                _customer_id: entryCustomerMap[e.id] || null,
+                _amount: entryAmountMap[e.id]?.amount ?? Number(e.total_debit),
+                _currency: entryAmountMap[e.id]?.currency || e.currency || '',
+            }));
         },
         enabled: !!companyId,
         staleTime: 30_000,
     });
 
-    // Fetch Customers Map
-    const { data: customersMap = {} } = useQuery({
+    // Fetch Customers Map (for matching reference_id → customer name)
+    const { data: customersMap = {} } = useCachedQuery({
         queryKey: ['customers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -95,8 +139,14 @@ export default function SalesPaymentsList() {
     const payments = useMemo(() => {
         return paymentsRaw.map((pay: any) => ({
             ...pay,
-            customer_name: customersMap[pay.customer_id] || pay.customer_name || 'Unknown',
-            amount: Number(pay.amount || 0)
+            voucher_number: pay.entry_number,
+            voucher_date: pay.entry_date,
+            // Use the original currency amount (credit_fc), not the local-currency equivalent
+            amount: pay._amount ?? Number(pay.total_debit || 0),
+            currency: pay._currency || pay.currency || '',
+            payment_method: pay.reference_type || null,
+            customer_id: pay._customer_id || pay.reference_id || null,
+            customer_name: customersMap[pay._customer_id] || customersMap[pay.reference_id] || pay.description_ar || pay.description || pay.notes || '—',
         }));
     }, [paymentsRaw, customersMap]);
 
@@ -148,9 +198,14 @@ export default function SalesPaymentsList() {
         {
             accessorKey: 'payment_method',
             header: t('table.method') || 'Method',
-            cell: (info: any) => (
-                <span className="capitalize text-xs text-gray-500">{t(`method.${info.getValue()}`) || info.getValue()}</span>
-            )
+            cell: (info: any) => {
+                const val = info.getValue();
+                if (!val) {
+                    return <span className="text-xs text-gray-400">{isRTL ? 'سند قبض' : 'Receipt'}</span>;
+                }
+                const translated = t(`method.${val}`);
+                return <span className="capitalize text-xs text-gray-500">{translated && translated !== `method.${val}` ? translated : val}</span>;
+            }
         },
         {
             accessorKey: 'status',

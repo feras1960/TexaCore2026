@@ -52,6 +52,15 @@ const LAB_TABS = [
         bgActive: 'bg-orange-50 border-orange-500 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-400',
     },
     {
+        id: 'ui-effects',
+        route: '/ui-effects-lab',
+        labelAr: 'تأثيرات واجهة المستخدم',
+        labelEn: 'UI Effects',
+        icon: Layers,
+        bgActive: 'bg-fuchsia-50 border-fuchsia-500 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300 dark:border-fuchsia-400',
+        badge: 'NEW',
+    },
+    {
         id: 'grid-lab',
         route: '/grid-lab',
         labelAr: 'جدول المحاسبة',

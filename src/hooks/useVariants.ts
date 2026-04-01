@@ -7,7 +7,8 @@
  * Date: 2026-02-22
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useCompany } from '@/hooks/useCompany';
 import { variantService } from '@/services/variantService';
 import type {
@@ -46,7 +47,7 @@ export function useVariantAxes() {
     const { companyId, company } = useCompany();
     const tenantId = company?.tenant_id;
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: KEYS.axes(companyId || ''),
         queryFn: () => variantService.getAxes(companyId!),
         enabled: !!companyId,
@@ -107,7 +108,7 @@ export function useAxisValues(axisId: string | null) {
     const { companyId, company } = useCompany();
     const tenantId = company?.tenant_id;
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: KEYS.axisValues(axisId || ''),
         queryFn: () => variantService.getAxisValues(axisId!, companyId!),
         enabled: !!axisId && !!companyId,
@@ -180,7 +181,7 @@ export function useAxisValues(axisId: string | null) {
 export function useValuesByAxisCode(axisCode: string | null) {
     const { companyId } = useCompany();
 
-    return useQuery({
+    return useCachedQuery({
         queryKey: KEYS.valuesByCode(companyId || '', axisCode || ''),
         queryFn: () => variantService.getValuesByAxisCode(companyId!, axisCode!),
         enabled: !!companyId && !!axisCode,
@@ -197,7 +198,7 @@ export function useProductVariantConfig(productId: string | null) {
     const { companyId } = useCompany();
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: KEYS.productConfig(productId || ''),
         queryFn: () => variantService.getProductVariantConfig(productId!),
         enabled: !!productId,
@@ -233,7 +234,7 @@ export function useProductVariants(productId: string | null) {
     const tenantId = company?.tenant_id;
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: KEYS.productVariants(productId || ''),
         queryFn: () => variantService.getProductVariants(productId!),
         enabled: !!productId,

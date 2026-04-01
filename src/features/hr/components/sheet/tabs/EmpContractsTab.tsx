@@ -7,7 +7,7 @@ import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollText, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { getContracts, type Contract } from '../../../services/hrService';
+import { getContracts, type EmployeeContract } from '../../../services/hrService';
 
 interface Props { employeeId?: string; isRTL: boolean; }
 
@@ -30,7 +30,7 @@ const CONTRACT_TYPES: Record<string, { ar: string; en: string }> = {
 export default function EmpContractsTab({ employeeId, isRTL }: Props) {
     const t = (ar: string, en: string) => isRTL ? ar : en;
     const [loading, setLoading] = useState(true);
-    const [contracts, setContracts] = useState<Contract[]>([]);
+    const [contracts, setContracts] = useState<EmployeeContract[]>([]);
 
     useEffect(() => {
         if (!employeeId) return;
@@ -51,7 +51,7 @@ export default function EmpContractsTab({ employeeId, isRTL }: Props) {
 
     const activeContract = contracts.find(c => c.status === 'active');
 
-    const columns: NexaListColumn<Contract>[] = [
+    const columns: NexaListColumn<EmployeeContract>[] = [
         {
             id: 'contract_number',
             header: t('رقم العقد', 'Contract #'),

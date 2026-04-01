@@ -36,7 +36,7 @@ import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-ta
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
@@ -116,7 +116,7 @@ export default function PaymentsList() {
     });
 
     // ─── Fetch Payments ──────────────────────────────────────────
-    const { data: payments = [], isLoading } = useQuery({
+    const { data: payments = [], isLoading } = useCachedQuery({
         queryKey: ['payments_list', companyId, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];

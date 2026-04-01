@@ -10,10 +10,13 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
+
+// ─── Helper: IndexedDB persistence converts Map → Object. This restores it. ───
+import { ensureMap } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -151,7 +154,7 @@ export default function Parties() {
   // ─── Fetch Suppliers ─────────────────────────────────────────
   // ⚡ language removed from queryKey — raw data is language-independent
   //    Localized `name` is computed at render time via useMemo below
-  const { data: rawSuppliers = [], isPending: suppPending, refetch: refetchSuppliers } = useQuery({
+  const { data: rawSuppliers = [], isPending: suppPending, refetch: refetchSuppliers } = useCachedQuery({
     queryKey: ['parties_suppliers', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -167,11 +170,11 @@ export default function Parties() {
       })) as Party[];
     },
     enabled: !!companyId,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000,  // 5 min — Realtime handles updates
   });
 
   // ─── Fetch Customers ─────────────────────────────────────────
-  const { data: rawCustomers = [], isPending: custPending, refetch: refetchCustomers } = useQuery({
+  const { data: rawCustomers = [], isPending: custPending, refetch: refetchCustomers } = useCachedQuery({
     queryKey: ['parties_customers', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -187,7 +190,7 @@ export default function Parties() {
       })) as Party[];
     },
     enabled: !!companyId,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000,  // 5 min — Realtime handles updates
   });
 
   // ─── Compute localized names at RENDER time (not query time) ──
@@ -203,25 +206,28 @@ export default function Parties() {
   );
 
   // ─── Fetch Sub-Ledger Balances ───────────────────────────────
-  const { data: supplierBalances = new Map() } = useQuery({
+  const { data: rawSupplierBalances } = useCachedQuery({
     queryKey: ['party_balances_supplier', companyId],
     queryFn: async () => {
       if (!companyId) return new Map<string, PartyBalance>();
       return partyBalanceService.getAllPartyBalances(companyId, 'supplier');
     },
     enabled: !!companyId,
-    staleTime: 10_000,  // 10 ثوانٍ — تحديث سريع للأرصدة
+    staleTime: 2 * 60 * 1000,  // 2 min — Realtime handles updates
   });
+  // ⚡ ensureMap: IndexedDB persistence converts Map → Object. This restores it.
+  const supplierBalances = useMemo(() => ensureMap<string, PartyBalance>(rawSupplierBalances), [rawSupplierBalances]);
 
-  const { data: customerBalances = new Map() } = useQuery({
+  const { data: rawCustomerBalances } = useCachedQuery({
     queryKey: ['party_balances_customer', companyId],
     queryFn: async () => {
       if (!companyId) return new Map<string, PartyBalance>();
       return partyBalanceService.getAllPartyBalances(companyId, 'customer');
     },
     enabled: !!companyId,
-    staleTime: 10_000,  // 10 ثوانٍ — تحديث سريع للأرصدة
+    staleTime: 2 * 60 * 1000,  // 2 min — Realtime handles updates
   });
+  const customerBalances = useMemo(() => ensureMap<string, PartyBalance>(rawCustomerBalances), [rawCustomerBalances]);
 
 
 

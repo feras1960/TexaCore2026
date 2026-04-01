@@ -1,10 +1,15 @@
 /**
- * useAccounts Hook (Optimized with React Query)
- * Features caching with long staleTime for instant load.
+ * useAccounts Hook (Optimized with React Query + IndexedDB Persistence)
+ * 
+ * ⚡ PERSISTENCE-AWARE:
+ *   - Uses useIsRestoring() to prevent loading spinners during cache restoration
+ *   - After hard refresh → data shows instantly from IndexedDB cache
+ *   - Background refetch happens after staleTime expires
  */
 
 import { useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { accountsService, type Account, type CreateAccountInput } from '@/services/accountsService';
 
 interface UseAccountsOptions {
@@ -35,7 +40,7 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsReturn
     isLoading: loading,
     error,
     refetch,
-  } = useQuery({
+  } = useCachedQuery({
     queryKey,
     queryFn: async () => {
       if (!companyId) return [];
@@ -46,15 +51,14 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsReturn
       }
     },
     enabled: !!companyId && autoFetch,
-    staleTime: 10 * 60 * 1000, // 10 minutes (Consider fresh for 10 mins)
-    gcTime: 30 * 60 * 1000, // 30 minutes (Keep in cache)
+    staleTime: 10 * 60 * 1000,      // 10 minutes
+    gcTime: 24 * 60 * 60 * 1000,     // 24 hours (matches persistence)
   });
 
   // Mutation: Create Account
   const createMutation = useMutation({
     mutationFn: (input: CreateAccountInput) => accountsService.create(input),
     onSuccess: () => {
-      // Invalidate valid queries so they refetch next time (or optimistic update)
       queryClient.invalidateQueries({ queryKey: ['accounts', companyId] });
     },
   });
@@ -104,3 +108,4 @@ export function useAccounts(options: UseAccountsOptions = {}): UseAccountsReturn
 }
 
 export default useAccounts;
+

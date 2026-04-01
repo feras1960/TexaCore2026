@@ -29,7 +29,8 @@ import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-ta
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
@@ -262,7 +263,7 @@ export default function SalesCycleList() {
     }, [viewMode, selectedCurrency]);
 
     // 1. Fetch Customers Map
-    const { data: customersMap = {} } = useQuery({
+    const { data: customersMap = {} } = useCachedQuery({
         queryKey: ['customers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};
@@ -288,7 +289,7 @@ export default function SalesCycleList() {
     });
 
     // 2. Fetch ALL Documents — always fetch everything, filter in frontend
-    const { data: documents = [], isLoading, error, refetch } = useQuery({
+    const { data: documents = [], isLoading, error, refetch } = useCachedQuery({
         queryKey: ['sales_cycle_full', companyId, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];
@@ -385,7 +386,7 @@ export default function SalesCycleList() {
     }, [enrichedDocuments]);
 
     // ─── Fetch exchange rates for currency conversion ───
-    const { data: exchangeRates = {} } = useQuery({
+    const { data: exchangeRates = {} } = useCachedQuery({
         queryKey: ['exchange_rates', companyId],
         queryFn: async () => {
             // ⚡ Use tenantId from useAuth() — no network call needed

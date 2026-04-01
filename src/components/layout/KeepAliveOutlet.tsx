@@ -116,58 +116,42 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
     }
   }, [currentKey]);
 
-  // ⚡ 3-Tier Parallel Prefetch — Critical pages load FAST
+  // ⚡ 3-Tier Staggered Prefetch — Non-blocking background loading
   useEffect(() => {
     if (prefetchStarted.current) return;
     prefetchStarted.current = true;
 
     const timeouts: ReturnType<typeof setTimeout>[] = [];
 
-    // Helper: mount a batch of routes in parallel
-    const mountBatch = (routes: string[]) => {
-      const toMount = routes.filter(r => ROUTE_MAP[r] && !mountedRoutes.has(r));
-      if (toMount.length === 0) return;
-      setMountedRoutes(prev => {
-        const next = new Set(prev);
-        toMount.forEach(r => next.add(r));
-        return next;
-      });
+    // Helper: mount a single route (light — one component at a time)
+    const mountOne = (routeKey: string) => {
+      if (!ROUTE_MAP[routeKey] || mountedRoutes.has(routeKey)) return;
+      setMountedRoutes(prev => new Set(prev).add(routeKey));
     };
 
-    // 🔴 Tier 1: Critical — ALL in parallel after 1.5s
-    timeouts.push(setTimeout(() => {
-      mountBatch(TIER_1_CRITICAL);
-      console.log(`⚡ [KeepAlive] Tier 1: ${TIER_1_CRITICAL.length} critical pages loaded in parallel`);
-    }, 1500));
+    // Helper: mount routes sequentially with gaps
+    const mountSequential = (routes: string[], gapMs: number, startDelay: number) => {
+      const toMount = routes.filter(r => ROUTE_MAP[r] && !mountedRoutes.has(r));
+      toMount.forEach((routeKey, idx) => {
+        timeouts.push(setTimeout(() => {
+          const schedule = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 16));
+          schedule(() => mountOne(routeKey));
+        }, startDelay + idx * gapMs));
+      });
+      return toMount.length;
+    };
 
-    // 🟡 Tier 2: Important — ALL in parallel after 4s
-    timeouts.push(setTimeout(() => {
-      mountBatch(TIER_2_IMPORTANT);
-      console.log(`⚡ [KeepAlive] Tier 2: ${TIER_2_IMPORTANT.length} important pages loaded in parallel`);
-    }, 4000));
+    // 🔴 Tier 1: Critical — staggered 1s apart, starting after 3s idle
+    const t1Count = mountSequential(TIER_1_CRITICAL, 1000, 3000);
+    console.log(`⚡ [KeepAlive] Tier 1: ${t1Count} critical pages queued (staggered)`);
 
-    // 🟢 Tier 3: Secondary — sequential with 500ms gaps after 8s
-    timeouts.push(setTimeout(() => {
-      let index = 0;
-      const loadNext = () => {
-        if (index >= TIER_3_SECONDARY.length) {
-          console.log(`⚡ [KeepAlive] Tier 3: All secondary pages loaded`);
-          return;
-        }
-        const routeKey = TIER_3_SECONDARY[index];
-        index++;
-        if (!ROUTE_MAP[routeKey] || mountedRoutes.has(routeKey)) {
-          loadNext();
-          return;
-        }
-        const schedule = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 50));
-        schedule(() => {
-          setMountedRoutes(prev => new Set(prev).add(routeKey));
-          setTimeout(loadNext, 500);
-        });
-      };
-      loadNext();
-    }, 8000));
+    // 🟡 Tier 2: Important — staggered 800ms apart, starting after 12s
+    const t2Count = mountSequential(TIER_2_IMPORTANT, 800, 12000);
+    console.log(`⚡ [KeepAlive] Tier 2: ${t2Count} important pages queued`);
+
+    // 🟢 Tier 3: Secondary — staggered 600ms apart, starting after 20s
+    const t3Count = mountSequential(TIER_3_SECONDARY, 600, 20000);
+    console.log(`⚡ [KeepAlive] Tier 3: ${t3Count} secondary pages queued`);
 
     return () => timeouts.forEach(clearTimeout);
   }, []);

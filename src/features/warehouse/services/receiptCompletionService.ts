@@ -127,6 +127,26 @@ export async function completeReceipt(params: ReceiptCompletionParams): Promise<
         }
         if (syncResult.status === 'fulfilled') result.details.fabricRollsSynced = syncResult.value;
 
+        // ═══ Step 4.5: Clean up draft rolls from session ═══
+        // Draft rolls are created during the receipt session (status='draft', notes='Receipt session: ...')
+        // After completion, syncFabricRolls creates final rolls (status='available', notes='GRN: ...')
+        // We must delete the drafts to prevent duplication
+        try {
+            const sessionPrefix = `Receipt session: ${params.sessionId}`;
+            const { count: deletedDrafts } = await supabase
+                .from('fabric_rolls')
+                .delete()
+                .eq('company_id', params.companyId)
+                .eq('status', 'draft')
+                .like('notes', `${sessionPrefix}%`);
+
+            if (deletedDrafts && deletedDrafts > 0) {
+                console.log(`🧹 [completeReceipt] Cleaned up ${deletedDrafts} draft rolls from session`);
+            }
+        } catch (draftErr: any) {
+            console.warn('⚠️ Draft cleanup failed (non-fatal):', draftErr.message);
+        }
+
         // ═══ Stage 3: PARALLEL — Steps 5.5,6,7,8 (post-processing) ═══
         const [, movementsResult, journalResult, activityResult] = await Promise.allSettled([
             params.sourceDocumentType === 'container'
@@ -1276,25 +1296,75 @@ async function handleAccountingEntry(
                 entity_id: supplierId,
             });
         } else {
-            // Invoice Receipt: Debit Inventory, Credit Payable
-            lines.push({
-                account_id: debitAccId,
-                account_name: debitAccName,
-                debit: actualTotal,
-                credit: 0,
-                description: `استلام مخزني - فاتورة ${params.sourceDocumentNumber}`,
-            });
-            lines.push({
-                account_id: creditAccId,
-                account_name: creditAccName,
-                debit: 0,
-                credit: actualTotal,
-                description: `تسوية استلام - فاتورة ${params.sourceDocumentNumber}`,
-                entity_type: 'supplier',
-                entity_id: supplierId,
-            });
+            // ═══ INVOICE RECEIPT ═══
+            // 🔑 PURCHASE CYCLE FIX: Local vs International
+            // المحلية: القيد تم عند الفاتورة (Dr 1141 / Cr المورد) — لا حاجة لقيد استلام
+            // الدولية: القيد عند الفاتورة (Dr 1145 وسيط / Cr المورد) — الاستلام ينقل Dr 1141 / Cr 1145
 
-            console.log('✅ [Accounting] Inventory Entry for Invoice Receipt (Dr Inventory / Cr Payable)');
+            // Check if this is an international invoice (receipt_mode = 'international')
+            let isInternationalInvoice = false;
+            try {
+                const { data: srcInvoice } = await supabase
+                    .from('purchase_transactions')
+                    .select('receipt_mode')
+                    .eq('id', params.sourceDocumentId)
+                    .single();
+                isInternationalInvoice = srcInvoice?.receipt_mode === 'international';
+            } catch { /* default to false */ }
+
+            if (isInternationalInvoice) {
+                // 🚢 INTERNATIONAL Invoice Receipt: Dr Inventory (1141) / Cr Transit (1145)
+                // Fetch transit account from settings
+                let transitAccountId: string | null = null;
+                let transitAccountName = 'مشتريات بالطريق';
+                try {
+                    const { data: settings } = await supabase
+                        .from('company_accounting_settings')
+                        .select('default_transit_purchase_account_id')
+                        .eq('company_id', params.companyId)
+                        .single();
+                    transitAccountId = settings?.default_transit_purchase_account_id || null;
+                    if (transitAccountId) {
+                        const { data: accDetail } = await supabase
+                            .from('chart_of_accounts')
+                            .select('name_ar, name_en')
+                            .eq('id', transitAccountId)
+                            .single();
+                        if (accDetail) transitAccountName = accDetail.name_ar || accDetail.name_en || transitAccountName;
+                    }
+                } catch { /* fallback */ }
+
+                // Credit: Transit account (1145 مشتريات بالطريق)
+                const creditForInternational = transitAccountId || creditAccId;
+                const creditNameForInternational = transitAccountId ? transitAccountName : creditAccName;
+
+                lines.push({
+                    account_id: debitAccId,
+                    account_name: debitAccName,
+                    debit: actualTotal,
+                    credit: 0,
+                    description: `استلام مخزني - فاتورة دولية ${params.sourceDocumentNumber} (نقل من بالطريق للمخزون)`,
+                });
+                lines.push({
+                    account_id: creditForInternational,
+                    account_name: creditNameForInternational,
+                    debit: 0,
+                    credit: actualTotal,
+                    description: `إقفال مشتريات بالطريق - فاتورة ${params.sourceDocumentNumber}`,
+                    entity_type: 'supplier' as const,
+                    entity_id: supplierId,
+                });
+
+                console.log('✅ [Accounting] International Invoice Receipt (Dr Inventory / Cr Transit 1145)',
+                    { transitAccountId, actualTotal });
+            } else {
+                // 📦 LOCAL Invoice Receipt: No JE needed — already posted to inventory
+                // Just log that accounting was handled at invoice posting time
+                console.log('ℹ️ [Accounting] Local invoice — no receipt JE needed (already posted to 1141 at invoice time)',
+                    { sourceDocumentNumber: params.sourceDocumentNumber });
+                // Return null to skip JE creation
+                return null;
+            }
         }
 
         // 🔑 FIX: Validate lines BEFORE creating header

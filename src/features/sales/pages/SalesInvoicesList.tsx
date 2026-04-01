@@ -4,7 +4,8 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Button } from '@/components/ui/button';
 import { FileText, Plus, Calendar, LayoutGrid, List } from 'lucide-react';
@@ -74,7 +75,7 @@ export default function SalesInvoicesList() {
     }, []);
 
     // Fetch Invoices — NEW: from sales_transactions
-    const { data: invoicesRaw = [], isLoading, error, refetch } = useQuery({
+    const { data: invoicesRaw = [], isLoading, error, refetch } = useCachedQuery({
         queryKey: ['sales_transactions_list', companyId, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];
@@ -103,7 +104,7 @@ export default function SalesInvoicesList() {
     });
 
     // Fetch Customers Map
-    const { data: customersMap = {} } = useQuery({
+    const { data: customersMap = {} } = useCachedQuery({
         queryKey: ['customers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};

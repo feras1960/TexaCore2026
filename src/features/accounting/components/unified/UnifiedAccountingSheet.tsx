@@ -42,6 +42,7 @@ import { ConfirmationDialog } from '@/features/trade/components/ConfirmationDial
 import { confirmationService, type ValidationResult, type WorkflowSettings } from '@/services/confirmationService';
 import { supabase } from '@/lib/supabase';
 import { attachmentService, resolveEntityType } from '@/services/attachmentService';
+import { ExchangeRatesService } from '@/services/data/ExchangeRatesService';
 // Extracted hooks & lazy-loaded tabs
 import {
     recalcItemTotals,
@@ -413,14 +414,51 @@ export function UnifiedAccountingSheet({
                 const result = balanceData[0];
 
                 setData((prev: any) => {
-                    const finalCurrency = result.currency || prev?.currency || '';
+                    const accountCurrency = prev?.currency || ''; // account's defined currency (from chart_of_accounts)
+                    const rpcCurrency = result.currency || accountCurrency || '';
+                    let finalBalance = Number(result.balance) || 0;
+                    let finalDebit = Number(result.total_debit) || 0;
+                    let finalCredit = Number(result.total_credit) || 0;
+                    let finalCurrency = accountCurrency || rpcCurrency;
+
+                    // If RPC returns a different currency than account's own currency,
+                    // it means this is a mixed-currency account.
+                    // Convert from RPC currency (e.g., UAH) to account currency (e.g., USD)
+                    if (rpcCurrency && accountCurrency && rpcCurrency !== accountCurrency) {
+                        // Get rate from <rpcCurrency> to <accountCurrency>
+                        // e.g., UAH → USD: use the inverse of USD→UAH rate
+                        ExchangeRatesService.getExchangeRatesMap(companyId!).then(ratesMap => {
+                            if (!ratesMap) return;
+                            
+                            const directKey = `${rpcCurrency}-${accountCurrency}`;
+                            const inverseKey = `${accountCurrency}-${rpcCurrency}`;
+                            let rate = 1;
+                            
+                            if (ratesMap[directKey]) {
+                                rate = ratesMap[directKey];
+                            } else if (ratesMap[inverseKey]) {
+                                rate = 1 / ratesMap[inverseKey];
+                            }
+                            
+                            if (rate !== 1) {
+                                setData((p: any) => ({
+                                    ...p,
+                                    current_balance: finalBalance * rate,
+                                    total_debit: finalDebit * rate,
+                                    total_credit: finalCredit * rate,
+                                    currency: accountCurrency,
+                                }));
+                            }
+                        });
+                    }
+
                     return {
                         ...prev,
-                        total_debit: Number(result.total_debit) || 0,
-                        total_credit: Number(result.total_credit) || 0,
+                        total_debit: finalDebit,
+                        total_credit: finalCredit,
                         transaction_count: Number(result.transaction_count) || 0,
                         last_activity: result.last_activity || null,
-                        current_balance: Number(result.balance) || 0,
+                        current_balance: finalBalance,
                         currency: finalCurrency,
                     };
                 });

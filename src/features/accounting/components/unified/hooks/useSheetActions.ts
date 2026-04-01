@@ -1892,6 +1892,11 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                     if (onSave) {
                         await onSave(data);
+                        // ═══ STOP HERE — parent component controls all post-save behavior ═══
+                        // (e.g. SalesDeliveryDialog opens a confirmation dialog after onSave)
+                        // Don't show toast, don't switch mode, don't close sheet.
+                        setLoading(false);
+                        return;
                     } else if (isAccountingDocType) {
                         // ─── Recurring: set status based on action ───
                         const savePayload = docType === 'recurring'
@@ -2378,18 +2383,61 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         break;
                     }
 
-                    // SALES: block if goods have been delivered or invoice posted
-                    const BLOCKED_SALES_STAGES = ['delivered', 'invoiced', 'posted', 'completed'];
+                    // SALES: block if goods have been delivered, in delivery, confirmed, or invoice posted
+                    // ═══ CRITICAL: Even 'confirmed' invoices may have inventory_movements from partial delivery ═══
+                    const BLOCKED_SALES_STAGES = ['delivered', 'in_delivery', 'invoiced', 'posted', 'completed', 'partial_delivered'];
                     const isSalesTrade = tradeMode === 'sales' &&
                         (docType === 'trade_invoice' || docType === 'trade_delivery');
                     if (isSalesTrade && BLOCKED_SALES_STAGES.includes(currentStageVal)) {
                         toast.error(
                             language === 'ar'
-                                ? '🚫 لا يمكن حذف فاتورة/تسليم مُنجَز — استخدم مرتجع المبيعات لعكس العملية'
-                                : '🚫 Cannot delete a delivered invoice — create a Sales Return to reverse it',
-                            { duration: 6000 }
+                                ? '🚫 لا يمكن حذف فاتورة تم تسليمها — افتح إذن التسليم واضغط "إلغاء التسليم" أولاً، ثم يمكنك حذف الفاتورة'
+                                : '🚫 Cannot delete a delivered invoice — open the Delivery Note and click "Reverse Delivery" first, then you can delete the invoice',
+                            { duration: 8000 }
                         );
                         break;
+                    }
+
+                    // ═══ SALES SAFETY NET: Even if stage is 'confirmed'/'draft', check for actual inventory_movements ═══
+                    // This catches edge cases where delivery happened but stage wasn't updated
+                    if (isSalesTrade && (documentId || data?.id)) {
+                        const salesDocId = documentId || data?.id;
+                        try {
+                            const { count: movementCount } = await supabase
+                                .from('inventory_movements')
+                                .select('id', { count: 'exact', head: true })
+                                .eq('reference_id', salesDocId)
+                                .in('movement_type', ['sale', 'issue', 'delivery']);
+
+                            if (movementCount && movementCount > 0) {
+                                toast.error(
+                                    language === 'ar'
+                                        ? `🚫 لا يمكن حذف هذه الفاتورة — يوجد ${movementCount} حركة مخزنية مرتبطة بها (تسليم فعلي). استخدم مرتجع المبيعات بدلاً من ذلك.`
+                                        : `🚫 Cannot delete — ${movementCount} inventory movement(s) linked to this invoice (physical delivery). Use Sales Return instead.`,
+                                    { duration: 8000 }
+                                );
+                                break;
+                            }
+
+                            // Also check for delivery_notes linked to this invoice
+                            const { count: dnCount } = await supabase
+                                .from('delivery_notes')
+                                .select('id', { count: 'exact', head: true })
+                                .eq('sales_order_id', salesDocId);
+
+                            if (dnCount && dnCount > 0) {
+                                toast.error(
+                                    language === 'ar'
+                                        ? `🚫 لا يمكن حذف هذه الفاتورة — يوجد ${dnCount} إذن تسليم مرتبط. استخدم مرتجع المبيعات.`
+                                        : `🚫 Cannot delete — ${dnCount} delivery note(s) linked. Use Sales Return instead.`,
+                                    { duration: 8000 }
+                                );
+                                break;
+                            }
+                        } catch (checkErr) {
+                            console.warn('[Delete Safety] Movement check failed:', checkErr);
+                            // Don't block on check failure — stage-based guard above handles main cases
+                        }
                     }
 
                     // TRANSFER: block if already confirmed/shipped/received/completed
@@ -2477,11 +2525,48 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                             const tableName = TRADE_TABLE_MAP[modeKey]?.[docType];
                             const docId = documentId || data?.id;
                             if (tableName && docId) {
+                                // ═══ 🔑 Pre-delete: Clean up linked journal entries for sales invoices ═══
+                                // The DB trigger trg_cleanup_sales_journal handles this too (belt-and-suspenders)
+                                if (tableName === 'sales_transactions') {
+                                    try {
+                                        // Fetch linked journal entry IDs before deletion
+                                        const { data: txn } = await supabase
+                                            .from('sales_transactions')
+                                            .select('journal_entry_id, cogs_journal_entry_id')
+                                            .eq('id', docId)
+                                            .single();
+                                        
+                                        const jeIds = [txn?.journal_entry_id, txn?.cogs_journal_entry_id].filter(Boolean);
+                                        
+                                        // Also find any entries linked via reference_id
+                                        const { data: refEntries } = await supabase
+                                            .from('journal_entries')
+                                            .select('id')
+                                            .eq('reference_id', docId)
+                                            .in('reference_type', ['sales_invoice', 'sales_cogs']);
+                                        
+                                        const refIds = (refEntries || []).map(e => e.id);
+                                        const allJeIds = [...new Set([...jeIds, ...refIds])];
+                                        
+                                        if (allJeIds.length > 0) {
+                                            // Delete lines first, then entries
+                                            await supabase.from('journal_entry_lines').delete().in('entry_id', allJeIds);
+                                            await supabase.from('journal_entries').delete().in('id', allJeIds);
+                                            console.log(`🧹 [Delete] Cleaned up ${allJeIds.length} linked journal entries for sales invoice ${docId}`);
+                                        }
+                                    } catch (cleanupErr: any) {
+                                        // Non-fatal: DB trigger will clean up as fallback
+                                        console.warn('⚠️ [Delete] Journal cleanup warning (trigger will handle):', cleanupErr.message);
+                                    }
+                                }
+                                
                                 const { error } = await supabase.from(tableName).delete().eq('id', docId);
                                 if (error) throw error;
                                 invalidateTradeQueries(queryClient);
                                 queryClient.invalidateQueries({ queryKey: ['containers_list'] });
-                                toast.success(language === 'ar' ? '🗑️ تم حذف المستند بنجاح' : '🗑️ Document deleted successfully');
+                                queryClient.invalidateQueries({ queryKey: ['journal_entries'] });
+                                queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                                toast.success(language === 'ar' ? '🗑️ تم حذف المستند والقيود المرتبطة بنجاح' : '🗑️ Document and linked entries deleted successfully');
                                 onClose();
                             }
                         }

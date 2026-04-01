@@ -8,6 +8,9 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
+
+// ─── Helper: IndexedDB persistence converts Map → Object. This restores it. ───
+import { ensureMap } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -128,7 +131,7 @@ export default function ExchangeCustomers() {
   });
 
   // ─── Fetch Branches (for branch column) ───────────────────────
-  const { data: branchesMap = new Map() } = useQuery({
+  const { data: rawBranchesMap } = useQuery({
     queryKey: ['branches_map', companyId],
     queryFn: async () => {
       if (!companyId) return new Map<string, string>();
@@ -143,9 +146,10 @@ export default function ExchangeCustomers() {
     enabled: !!companyId,
     staleTime: 60_000,
   });
+  const branchesMap = useMemo(() => ensureMap<string, string>(rawBranchesMap), [rawBranchesMap]);
 
   // ─── Fetch Balances ──────────────────────────────────────────
-  const { data: balances = new Map() } = useQuery({
+  const { data: rawBalances } = useQuery({
     queryKey: ['exchange_customer_balances', companyId],
     queryFn: async () => {
       if (!companyId) return new Map<string, PartyBalance>();
@@ -154,6 +158,7 @@ export default function ExchangeCustomers() {
     enabled: !!companyId,
     staleTime: 10_000,
   });
+  const balances = useMemo(() => ensureMap<string, PartyBalance>(rawBalances), [rawBalances]);
 
   // ─── Filter + Sort ──────────────────────────────────────────
   const filteredData = useMemo(() => {

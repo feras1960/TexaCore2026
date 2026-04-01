@@ -156,10 +156,26 @@ export function OverviewTab({
                 }
 
                 const result = balanceData[0];
+                const rpcCurrency = result.currency || '';
+                let balanceValue = Number(result.balance) || 0;
+                let debitValue = Number(result.total_debit) || 0;
+                let creditValue = Number(result.total_credit) || 0;
+
+                // If RPC returns a different currency than account's own currency,
+                // convert to account's currency (mixed-currency account case)
+                if (rpcCurrency && accountCurrency && rpcCurrency !== accountCurrency) {
+                    const rate = getRate(rpcCurrency, accountCurrency);
+                    if (rate !== 1) {
+                        balanceValue = balanceValue * rate;
+                        debitValue = debitValue * rate;
+                        creditValue = creditValue * rate;
+                    }
+                }
+
                 setConvertedBalance({
-                    totalDebit: Number(result.total_debit) || 0,
-                    totalCredit: Number(result.total_credit) || 0,
-                    balance: Number(result.balance) || 0,
+                    totalDebit: debitValue,
+                    totalCredit: creditValue,
+                    balance: balanceValue,
                 });
             } catch (err) {
                 console.error('[OverviewTab] Error computing balance:', err);

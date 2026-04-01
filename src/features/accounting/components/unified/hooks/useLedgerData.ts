@@ -8,9 +8,11 @@
  * يدعم: تحويل العملات — الحركات بسعر الصرف وقت العملية، والرصيد بالسعر الحالي
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { accountLedgerService, LedgerEntry, AccountStats, LedgerFilters } from '@/services/accountLedgerService';
 import { supabase } from '@/lib/supabase';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { CACHE_TIMES } from '@/engine/DataEngine';
 
 // ═══ Counter Account Info ═══
 export interface CounterAccountInfo {
@@ -100,12 +102,6 @@ export function useLedgerData({
     lookupCurrentRate,
 }: UseLedgerDataProps): UseLedgerDataReturn {
 
-    // ═══ State ═══
-    const [rawEntries, setRawEntries] = useState<ExtendedLedgerEntry[]>([]);
-    const [rawStats, setRawStats] = useState<AccountStats | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
     // ═══ Filter State ═══
     // افتراضياً: كل الفترات + كل الحالات لعرض كل الحركات
     const [dateFrom, setDateFrom] = useState('');
@@ -158,83 +154,40 @@ export function useLedgerData({
         }
     }, []);
 
-    // ═══ Reset on Account Change ═══
-    useEffect(() => {
-        setRawEntries([]);
-        setRawStats(null);
-    }, [accountId]);
+    // ═══ React Query — cached ledger fetch ═══
+    const queryKey = useMemo(() => [
+        'account_ledger', accountId, companyId, dateFrom, dateTo, status, entryType, search
+    ], [accountId, companyId, dateFrom, dateTo, status, entryType, search]);
 
-    // ═══ Fetch Ledger Data ═══
-    const fetchData = useCallback(async (currentAccountId: string) => {
-        if (!currentAccountId || !enabled) return;
-
-        setLoading(true);
-        setError(null);
-
-        try {
+    const {
+        data: queryResult,
+        isLoading: loading,
+        error: queryError,
+        refetch: queryRefetch,
+    } = useCachedQuery({
+        queryKey,
+        queryFn: async () => {
             const filters: LedgerFilters = {
-                accountId: currentAccountId,
+                accountId,
                 companyId,
                 dateFrom: dateFrom || undefined,
                 dateTo: dateTo || undefined,
-                // Don't filter by currency at query level — fetch all and convert client-side
                 status: status,
                 entryType: entryType || undefined,
                 search: search || undefined,
             };
-
             const result = await accountLedgerService.getLedger(filters);
+            const enrichedEntries = await enrichWithCounterAccounts(result.entries, accountId);
+            return { entries: enrichedEntries, stats: result.stats };
+        },
+        enabled: !!accountId && !!companyId && enabled,
+        staleTime: CACHE_TIMES.DYNAMIC, // 5 min — refetch in background after
+        gcTime: CACHE_TIMES.GC,         // 24 hours — keep in IndexedDB
+    });
 
-            // Enrich entries with counter account info
-            const enrichedEntries = await enrichWithCounterAccounts(result.entries, currentAccountId);
-
-            setRawEntries(enrichedEntries);
-            setRawStats(result.stats);
-        } catch (err: any) {
-            console.error('[LedgerTab] Error fetching ledger data:', err);
-            setError(err?.message || 'Error fetching ledger data');
-        } finally {
-            setLoading(false);
-        }
-    }, [companyId, enabled, dateFrom, dateTo, status, entryType, search]);
-
-    // ═══ Auto-fetch on filter change ═══
-    useEffect(() => {
-        let active = true;
-
-        const loadData = async () => {
-            if (!accountId || !enabled) return;
-            setLoading(true);
-            setError(null);
-            try {
-                const filters: LedgerFilters = {
-                    accountId,
-                    companyId,
-                    dateFrom: dateFrom || undefined,
-                    dateTo: dateTo || undefined,
-                    // Don't filter by currency at query level
-                    status: status,
-                    entryType: entryType || undefined,
-                    search: search || undefined,
-                };
-                const result = await accountLedgerService.getLedger(filters);
-                const enrichedEntries = await enrichWithCounterAccounts(result.entries, accountId);
-
-                if (active) {
-                    setRawEntries(enrichedEntries);
-                    setRawStats(result.stats);
-                }
-            } catch (err: any) {
-                if (active) setError(err?.message || 'Error fetching ledger data');
-            } finally {
-                if (active) setLoading(false);
-            }
-        };
-
-        loadData();
-
-        return () => { active = false; };
-    }, [accountId, companyId, enabled, dateFrom, dateTo, status, entryType, search]);
+    const rawEntries = queryResult?.entries || [];
+    const rawStats = queryResult?.stats || null;
+    const error = queryError ? (queryError as Error).message : null;
 
     // ═══════════════════════════════════════════
     // Currency Conversion Logic — V3 (Smart FC Recovery)
@@ -426,7 +379,7 @@ export function useLedgerData({
         setEntryType,
         setSearch,
         setDatePreset,
-        refetch: () => fetchData(accountId),
+        refetch: () => queryRefetch(),
         fetchEntryDetails,
         isConverted,
         displayCurrency,

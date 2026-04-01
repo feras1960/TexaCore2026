@@ -16,7 +16,8 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import {
     ArrowLeftRight, Plus,
@@ -66,7 +67,7 @@ export default function TransfersPage() {
     const [unifiedSheetMode, setUnifiedSheetMode] = useState<'create' | 'view'>('view');
 
     // ─── Fetch Transfers from DB ─────────────────────────
-    const { data: transfers = [], isLoading, refetch } = useQuery({
+    const { data: transfers = [], isLoading, refetch } = useCachedQuery({
         queryKey: ['stock_transfers', tenantId, statusFilter, search],
         queryFn: async () => {
             let query = supabase

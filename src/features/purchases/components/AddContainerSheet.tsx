@@ -166,6 +166,25 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
                     .from('containers')
                     .update({ status: 'booked' })
                     .eq('id', container.id);
+
+                // 🔑 ACCOUNTING: Create transit → container transfer entries
+                // For each posted international invoice, move from Transit (1145) to Container Account
+                const { default: purchaseAccountingService } = await import('@/services/purchaseAccountingService');
+                const { data: { session } } = await supabase.auth.getSession();
+                const userId = session?.user?.id || 'system';
+
+                for (const invoiceId of selectedInvoices) {
+                    try {
+                        const result = await purchaseAccountingService.transferToContainerAccount(
+                            invoiceId, container.id, userId
+                        );
+                        if (!result.success && result.error) {
+                            console.warn(`⚠️ [Container Link] Transfer failed for invoice ${invoiceId}:`, result.error);
+                        }
+                    } catch (err: any) {
+                        console.warn(`⚠️ [Container Link] Transfer error for invoice ${invoiceId}:`, err.message);
+                    }
+                }
             }
 
             return container;

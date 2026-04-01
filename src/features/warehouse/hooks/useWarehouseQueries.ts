@@ -31,7 +31,8 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { warehouseService } from '@/services/warehouseService';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -52,7 +53,7 @@ export function useWarehouses() {
     const { companyId } = useAuth();
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['warehouse', 'list', companyId],
         queryFn: () => warehouseService.getAll(companyId!),
         enabled: !!companyId,
@@ -98,7 +99,7 @@ export function useMaterials(options?: UseMaterialsOptions) {
     const { companyId } = useAuth();
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['warehouse', 'materials', companyId, options?.search, options?.categoryId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -150,7 +151,7 @@ export function useMaterialGroups() {
     const queryClient = useQueryClient();
     const tenantId = user?.user_metadata?.tenant_id;
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['warehouse', 'groups', companyId, tenantId],
         queryFn: () => warehouseService.getGroups(companyId!, tenantId),
         enabled: !!companyId,
@@ -187,7 +188,7 @@ export function useWarehouseDashboard() {
     const queryClient = useQueryClient();
 
     // Stats query
-    const statsQuery = useQuery({
+    const statsQuery = useCachedQuery({
         queryKey: ['warehouse', 'dashboard-stats', companyId],
         queryFn: () => warehouseService.getDashboardStats(companyId!).catch(() => ({
             totalWarehouses: 0,
@@ -203,7 +204,7 @@ export function useWarehouseDashboard() {
     });
 
     // Low stock items
-    const lowStockQuery = useQuery({
+    const lowStockQuery = useCachedQuery({
         queryKey: ['warehouse', 'low-stock', companyId],
         queryFn: () => warehouseService.getLowStockItems(companyId!, 5).catch(() => []),
         enabled: !!companyId,
@@ -212,7 +213,7 @@ export function useWarehouseDashboard() {
     });
 
     // Warehouse capacity
-    const capacityQuery = useQuery({
+    const capacityQuery = useCachedQuery({
         queryKey: ['warehouse', 'capacity', companyId],
         queryFn: () => warehouseService.getWarehouseCapacity(companyId!).catch(() => []),
         enabled: !!companyId,
@@ -221,7 +222,7 @@ export function useWarehouseDashboard() {
     });
 
     // Recent activity
-    const activityQuery = useQuery({
+    const activityQuery = useCachedQuery({
         queryKey: ['warehouse', 'recent-activity', companyId],
         queryFn: () => warehouseService.getInventoryMovements(companyId!, { limit: 5 }).catch(() => []),
         enabled: !!companyId,
@@ -278,7 +279,7 @@ export function useWarehouseDashboard() {
 export function useInventory() {
     const { companyId } = useAuth();
 
-    const statsQuery = useQuery({
+    const statsQuery = useCachedQuery({
         // ⚡ Share same queryKey as useWarehouseDashboard → no duplicate fetch
         queryKey: ['warehouse', 'dashboard-stats', companyId],
         queryFn: () => warehouseService.getDashboardStats(companyId!),
@@ -287,7 +288,7 @@ export function useInventory() {
         gcTime: GC_TIME,
     });
 
-    const movementsQuery = useQuery({
+    const movementsQuery = useCachedQuery({
         queryKey: ['warehouse', 'inventory-movements', companyId],
         queryFn: () => warehouseService.getInventoryMovements(companyId!, { limit: 10 }),
         enabled: !!companyId,
@@ -295,7 +296,7 @@ export function useInventory() {
         gcTime: GC_TIME,
     });
 
-    const capacityQuery = useQuery({
+    const capacityQuery = useCachedQuery({
         queryKey: ['warehouse', 'capacity', companyId],
         queryFn: () => warehouseService.getWarehouseCapacity(companyId!),
         enabled: !!companyId,
@@ -343,7 +344,7 @@ export function useStockMovements(filters?: MovementFilters) {
         String(err?.message || '').toLowerCase().includes('aborted') ||
         String(err?.message || '').toLowerCase().includes('signal');
 
-    const movementsQuery = useQuery({
+    const movementsQuery = useCachedQuery({
         queryKey: ['warehouse', 'stock-movements', companyId, filters],
         queryFn: async () => {
             try {
@@ -365,7 +366,7 @@ export function useStockMovements(filters?: MovementFilters) {
         retry: false, // No retries — aborts don't benefit from retrying
     });
 
-    const pendingQuery = useQuery({
+    const pendingQuery = useCachedQuery({
         queryKey: ['warehouse', 'pending-receipts', companyId],
         queryFn: async () => {
             try {
@@ -382,7 +383,7 @@ export function useStockMovements(filters?: MovementFilters) {
     });
 
     // ─── Completed Receipts (current month) ──────────────────────────────────
-    const completedQuery = useQuery({
+    const completedQuery = useCachedQuery({
         queryKey: ['warehouse', 'completed-receipts', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -439,7 +440,7 @@ export function useStockMovements(filters?: MovementFilters) {
 export function useDefaultBranch() {
     const { companyId, tenantId } = useAuth();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['warehouse', 'default-branch', companyId],
         queryFn: async () => {
             if (!companyId || !tenantId) return null;
@@ -493,7 +494,7 @@ export function useBranchesWithWarehouses() {
     const { companyId } = useAuth();
     const queryClient = useQueryClient();
 
-    const query = useQuery({
+    const query = useCachedQuery({
         queryKey: ['warehouse', 'tree', companyId],
         queryFn: async () => {
             if (!companyId) return { branches: [], warehousesWithStats: [] };

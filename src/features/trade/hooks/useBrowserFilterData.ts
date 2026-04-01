@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { useWarehouses } from '@/features/warehouse/hooks/useWarehouseQueries';
@@ -45,7 +45,7 @@ export function useBrowserFilterData() {
     const { companyId } = useCompany();
 
     // ─── Suppliers ───────────────────────────────────────────────
-    const { data: rawSuppliers, isLoading: suppliersLoading } = useQuery({
+    const { data: rawSuppliers, isLoading: suppliersLoading } = useCachedQuery({
         queryKey: ['browser_filter_suppliers', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -66,7 +66,7 @@ export function useBrowserFilterData() {
     });
 
     // ─── Colors ─────────────────────────────────────────────────
-    const { data: rawColors, isLoading: colorsLoading } = useQuery({
+    const { data: rawColors, isLoading: colorsLoading } = useCachedQuery({
         queryKey: ['browser_filter_colors', companyId],
         queryFn: async () => {
             if (!companyId) return [];
