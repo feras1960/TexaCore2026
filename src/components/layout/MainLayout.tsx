@@ -26,10 +26,21 @@ export default function MainLayout() {
   // 🌐 Real-time sync: auto-update cache when other users make changes
   useGlobalRealtime();
 
-  // 💾 Initialize storage persistence + offline reconnect listener (once)
+  // 💾 Initialize storage, service worker, integrity checks, offline listener (once)
   useEffect(() => {
     initStoragePersistence();
     stockCountOfflineStore.setupReconnectListener();
+
+    // ⚡ Register Service Worker (background sync)
+    import('@/lib/serviceWorker/register').then(({ registerServiceWorker }) => {
+      registerServiceWorker();
+    }).catch(() => { /* non-critical */ });
+
+    // 🔍 Schedule daily integrity checks
+    import('@/lib/integrity/periodicIntegrityCheck').then(({ scheduleIntegrityChecks }) => {
+      scheduleIntegrityChecks();
+    }).catch(() => { /* non-critical */ });
+
     return () => {
       stockCountOfflineStore.teardownReconnectListener();
     };

@@ -413,6 +413,25 @@ export function useAuth() {
       });
 
       loginInProgressRef.current = false;
+
+      // 🔐 Initialize encryption + ⚡ Send auth to Service Worker (non-blocking)
+      setTimeout(async () => {
+        try {
+          const { initEncryption } = await import('@/lib/queryPersistence');
+          await initEncryption(authData.user.id, authUser.tenant_id || '');
+        } catch { /* non-critical */ }
+        try {
+          const { sendAuthToSW } = await import('@/lib/serviceWorker/register');
+          if (authData.session?.access_token) {
+            await sendAuthToSW(
+              authData.session.access_token,
+              import.meta.env.VITE_SUPABASE_URL || '',
+              import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+            );
+          }
+        } catch { /* non-critical */ }
+      }, 500);
+
       return { data: { user: authData.user, authUser, success: true } };
     } catch (err: any) {
       loginInProgressRef.current = false;
@@ -622,6 +641,18 @@ export function useAuth() {
       } catch {
         // تجاهل — قد لا يكون DataEngine محملاً
       }
+
+      // 🔐 Clear encryption key from memory
+      try {
+        const { dbEncryption } = await import('@/lib/crypto/indexedDBEncryption');
+        dbEncryption.clearKey();
+      } catch { /* ignore */ }
+
+      // ⚡ Clear Service Worker auth
+      try {
+        const { clearSWAuth } = await import('@/lib/serviceWorker/register');
+        await clearSWAuth();
+      } catch { /* ignore */ }
 
       // 📡 Notify all other tabs to logout too
       try {
