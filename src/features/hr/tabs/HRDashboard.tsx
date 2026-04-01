@@ -45,7 +45,7 @@ export default function HRDashboard() {
     });
     const [recentLeaves, setRecentLeaves] = useState<LeaveRequest[]>([]);
     const [expiringContractsList, setExpiringContractsList] = useState<EmployeeContract[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     async function loadDashboard() {
@@ -107,16 +107,7 @@ export default function HRDashboard() {
         return <Badge className={cn("text-[10px] px-1.5 py-0 h-4 font-tajawal", config.className)}>{config.label}</Badge>;
     };
 
-    if (loading) {
-        return (
-            <div className="space-y-6" dir={direction}>
-                <div className="bg-gradient-to-r from-erp-navy via-purple-800 to-erp-navy p-6 rounded-2xl animate-pulse h-24" />
-                <div className="grid grid-cols-4 gap-4">
-                    {[...Array(8)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-gray-100 animate-pulse" />)}
-                </div>
-            </div>
-        );
-    }
+    // ⚡ CACHE-FIRST: No blocking skeleton — dashboard renders immediately
 
     return (
         <div className="space-y-6" dir={direction}>

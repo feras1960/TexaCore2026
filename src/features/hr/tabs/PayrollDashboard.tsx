@@ -32,7 +32,7 @@ export default function PayrollDashboard() {
     const [entries, setEntries] = useState<PayrollEntry[]>([]);
     const [components, setComponents] = useState<SalaryComponent[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [entriesLoading, setEntriesLoading] = useState(false);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [activeTab, setActiveTab] = useState('periods');
@@ -48,7 +48,7 @@ export default function PayrollDashboard() {
 
     async function loadData() {
         try {
-            setLoading(true);
+            // ⚡ No setLoading(true) — render dashboard immediately
             const [p, c] = await Promise.all([getPayrollPeriods(), getSalaryComponents()]);
             setPeriods(p);
             setComponents(c);

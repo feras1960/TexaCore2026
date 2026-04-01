@@ -26,7 +26,7 @@ export default function LeaveRequests() {
     const [requests, setRequests] = useState<LeaveRequest[]>([]);
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -45,7 +45,7 @@ export default function LeaveRequests() {
 
     async function loadData() {
         try {
-            setLoading(true);
+            // ⚡ No setLoading(true) — render table immediately
             const [reqData, typesData, empData] = await Promise.all([
                 getLeaveRequests(),
                 getLeaveTypes(),

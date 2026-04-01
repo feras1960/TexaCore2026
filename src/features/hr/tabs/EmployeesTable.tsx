@@ -23,7 +23,7 @@ export default function EmployeesTable() {
     const isRTL = language === 'ar';
 
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
 
     // ═══ Sheet State ═══
@@ -42,7 +42,7 @@ export default function EmployeesTable() {
 
     async function loadEmployees() {
         try {
-            setLoading(true);
+            // ⚡ No setLoading(true) — render table immediately
             const data = await getEmployees();
             setEmployees(data);
         } catch (err) {

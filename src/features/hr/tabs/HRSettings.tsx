@@ -35,7 +35,7 @@ export default function HRSettingsTab() {
     const isRTL = language === 'ar';
 
     const [settings, setSettings] = useState<HRSettingsType>(defaultSettings);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => { loadSettings(); }, []);
@@ -68,7 +68,7 @@ export default function HRSettingsTab() {
         setSettings(prev => ({ ...prev, [key]: value }));
     }
 
-    if (loading) return <div className="animate-pulse"><div className="h-64 bg-muted rounded-lg" /></div>;
+    // ⚡ CACHE-FIRST: No blocking skeleton — form renders with defaults immediately
 
     return (
         <div className="p-2 space-y-6 animate-in fade-in duration-500 max-w-4xl">

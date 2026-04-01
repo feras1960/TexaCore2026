@@ -21,7 +21,7 @@ export default function DepartmentsManager() {
     const [departments, setDepartments] = useState<Department[]>([]);
     const [positions, setPositions] = useState<Position[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [showDeptDialog, setShowDeptDialog] = useState(false);
     const [showPosDialog, setShowPosDialog] = useState(false);
     const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -96,7 +96,7 @@ export default function DepartmentsManager() {
         }
     }
 
-    if (loading) return <div className="animate-pulse space-y-4"><div className="h-64 bg-muted rounded-lg" /></div>;
+    // ⚡ CACHE-FIRST: No blocking skeleton
 
     return (
         <div className="p-2 space-y-6 animate-in fade-in duration-500">

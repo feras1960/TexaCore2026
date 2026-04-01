@@ -19,7 +19,7 @@ export default function AttendanceTable() {
 
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -27,7 +27,7 @@ export default function AttendanceTable() {
 
     async function loadData() {
         try {
-            setLoading(true);
+            // ⚡ No setLoading(true) — render table immediately
             const [attData, empData] = await Promise.all([
                 getAttendance(selectedDate),
                 getEmployees(),

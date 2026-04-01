@@ -16,7 +16,7 @@ export default function ContractsTable() {
     const isRTL = language === 'ar';
 
     const [contracts, setContracts] = useState<EmployeeContract[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -24,7 +24,7 @@ export default function ContractsTable() {
 
     async function loadContracts() {
         try {
-            setLoading(true);
+            // ⚡ No setLoading(true) — render table immediately
             const data = await getContracts();
             setContracts(data);
         } catch (err) {

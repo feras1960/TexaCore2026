@@ -1,7 +1,6 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MainTabsBar } from '@/components/shared/tabs/MainTabsBar';
-import SectionLoader from '@/components/common/SectionLoader';
 import {
     LayoutDashboard,
     Users,
@@ -13,19 +12,15 @@ import {
     Settings,
 } from 'lucide-react';
 
-// Lazy load tabs
-const HRDashboard = lazy(() => import('./tabs/HRDashboard'));
-const EmployeesTable = lazy(() => import('./tabs/EmployeesTable'));
-const DepartmentsManager = lazy(() => import('./tabs/DepartmentsManager'));
-const ContractsTable = lazy(() => import('./tabs/ContractsTable'));
-const LeaveRequests = lazy(() => import('./tabs/LeaveRequests'));
-const AttendanceTable = lazy(() => import('./tabs/AttendanceTable'));
-const PayrollDashboard = lazy(() => import('./tabs/PayrollDashboard'));
-const HRSettings = lazy(() => import('./tabs/HRSettings'));
-
-const TabContentLoader = () => (
-    <SectionLoader variant="dashboard" showTabs={false} />
-);
+// ⚡ Direct imports (no lazy loading) for instant tab switching
+import HRDashboard from './tabs/HRDashboard';
+import EmployeesTable from './tabs/EmployeesTable';
+import DepartmentsManager from './tabs/DepartmentsManager';
+import ContractsTable from './tabs/ContractsTable';
+import LeaveRequests from './tabs/LeaveRequests';
+import AttendanceTable from './tabs/AttendanceTable';
+import PayrollDashboard from './tabs/PayrollDashboard';
+import HRSettings from './tabs/HRSettings';
 
 export default function HR() {
     const location = useLocation();
@@ -89,9 +84,7 @@ export default function HR() {
                 variant="underline"
             />
 
-            <Suspense fallback={<TabContentLoader />}>
-                {renderContent()}
-            </Suspense>
+            {renderContent()}
         </div>
     );
 }
