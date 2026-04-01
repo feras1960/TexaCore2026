@@ -141,16 +141,17 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
       return toMount.length;
     };
 
-    // 🔴 Tier 1: Critical — staggered 1s apart, starting after 3s idle
-    const t1Count = mountSequential(TIER_1_CRITICAL, 1000, 3000);
-    console.log(`⚡ [KeepAlive] Tier 1: ${t1Count} critical pages queued (staggered)`);
+    // 🔴 Tier 1: Critical — staggered 1s apart, starting after 8s idle
+    //    (delayed from 3s to avoid competing with DataEngine's initial sync)
+    const t1Count = mountSequential(TIER_1_CRITICAL, 1000, 8000);
+    console.log(`⚡ [KeepAlive] Tier 1: ${t1Count} critical pages queued (staggered, 8s delay)`);
 
-    // 🟡 Tier 2: Important — staggered 800ms apart, starting after 12s
-    const t2Count = mountSequential(TIER_2_IMPORTANT, 800, 12000);
+    // 🟡 Tier 2: Important — staggered 800ms apart, starting after 18s
+    const t2Count = mountSequential(TIER_2_IMPORTANT, 800, 18000);
     console.log(`⚡ [KeepAlive] Tier 2: ${t2Count} important pages queued`);
 
-    // 🟢 Tier 3: Secondary — staggered 600ms apart, starting after 20s
-    const t3Count = mountSequential(TIER_3_SECONDARY, 600, 20000);
+    // 🟢 Tier 3: Secondary — staggered 600ms apart, starting after 28s
+    const t3Count = mountSequential(TIER_3_SECONDARY, 600, 28000);
     console.log(`⚡ [KeepAlive] Tier 3: ${t3Count} secondary pages queued`);
 
     return () => timeouts.forEach(clearTimeout);
@@ -183,10 +184,24 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
           <div
             key={routeKey}
             aria-hidden={!isActive}
-            className={isActive ? 'block' : 'hidden'}
-            style={{
-              contain: isActive ? 'none' : 'strict',
-              contentVisibility: isActive ? 'visible' : 'hidden',
+            style={isActive ? {
+              // Active page — normal rendering
+              display: 'block',
+            } : {
+              // ⚡ Inactive page — keep mounted OFF-SCREEN with real dimensions
+              // This fixes ECharts "Can't get DOM width or height" errors
+              // because display:none gives elements 0×0 dimensions
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              overflow: 'hidden',
+              opacity: 0,
+              pointerEvents: 'none',
+              zIndex: -1,
+              contain: 'strict',
+              contentVisibility: 'hidden',
             }}
           >
             <Suspense fallback={isActive ? <PageLoader variant="default" /> : <div />}>

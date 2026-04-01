@@ -108,7 +108,7 @@ export default function StockCountPage() {
     // ─── State ───
     const [subFilter, setSubFilter] = useState<'all' | 'planned' | 'in_progress' | 'completed'>('all');
     const [stockCounts, setStockCounts] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [sortField, setSortField] = useState<string>('count_date');
     const [sortAsc, setSortAsc] = useState<boolean>(false);
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
@@ -118,9 +118,9 @@ export default function StockCountPage() {
     const [activeStockCount, setActiveStockCount] = useState<any | null>(null);
 
     // ─── Load Data ───
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (showLoader = false) => {
         if (!companyId) return;
-        setLoading(true);
+        if (showLoader) setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('stock_counts')
@@ -176,7 +176,7 @@ export default function StockCountPage() {
 
     // ─── Manual Refresh ───
     const handleManualRefresh = useCallback(() => {
-        loadData();
+        loadData(true);
         setLastRefreshed(new Date());
     }, [loadData]);
 

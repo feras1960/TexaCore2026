@@ -42,7 +42,12 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
   const queryClient = useQueryClient();
 
   const query = useCachedQuery({
-    queryKey: ['company', user?.id || 'anonymous'],
+    // ⚡ STABLE KEY: Use fixed key so IndexedDB cache restoration always matches.
+    // Previously ['company', user?.id] → during auth restore user=null → key=['company','anonymous']
+    // → didn't match persisted ['company','real-user-id'] → CACHE MISS → loading!
+    // Now: always ['company', 'current'] → persistence hit → instant company data.
+    // Safe because: login/logout clear all caches, company is same for all tenant users.
+    queryKey: ['company', 'current'],
     queryFn: async (): Promise<Company | null> => {
       let targetCompanyId: string | null = null;
 
@@ -102,11 +107,11 @@ export function useCompany(autoFetch: boolean = true): UseCompanyReturn {
   return {
     company: query.data || null,
     companyId: query.data?.id || null,
-    // Must include authLoading! When auth is loading:
-    // - enabled=false → isLoading=false (React Query hasn't started)
-    // - data=undefined → companyId=null
-    // Without authLoading, components see loading=false + companyId=null = "no company" error
-    loading: authLoading || query.isLoading,
+    // ⚡ Smart loading: If we already have cached company data, don't show loading
+    // even during auth re-initialization. This prevents "جاري التحميل..." flash
+    // on every page that uses useCompany after a hard refresh.
+    // Only show loading if auth is loading AND we have NO cached data yet.
+    loading: query.data ? false : (authLoading || query.isLoading),
     error: formattedError,
     refetch,
   };

@@ -67,7 +67,7 @@ export default function TransfersPage() {
     const [unifiedSheetMode, setUnifiedSheetMode] = useState<'create' | 'view'>('view');
 
     // ─── Fetch Transfers from DB ─────────────────────────
-    const { data: transfers = [], isLoading, refetch } = useCachedQuery({
+    const transfersQuery = useCachedQuery({
         queryKey: ['stock_transfers', tenantId, statusFilter, search],
         queryFn: async () => {
             let query = supabase
@@ -100,10 +100,15 @@ export default function TransfersPage() {
             }
             return data || [];
         },
-        enabled: true,
+        enabled: !!tenantId,
         staleTime: 10000,
         refetchOnWindowFocus: true,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
+    const transfers = transfersQuery.data ?? [];
+    const isLoading = !!tenantId && transfersQuery.isPending;
+    const refetch = transfersQuery.refetch;
 
     // ─── Summary Counts ─────────────────────────────────
     const counts = useMemo(() => {

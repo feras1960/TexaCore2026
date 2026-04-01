@@ -686,8 +686,10 @@ export function WarehouseTreeView({
         </div>
     );
 
-    // ─── Loading ──────────────────────────────────────────────
-    if (loading) {
+    // ─── Loading — only show spinner if NO cached data exists ──
+    // ⚡ If we have treeData from cache, render it immediately.
+    // Background refetch will update silently without showing a spinner.
+    if (loading && treeData.length === 0) {
         return (
             <div className="flex items-center justify-center py-16 text-gray-400">
                 <div className="flex flex-col items-center gap-3">

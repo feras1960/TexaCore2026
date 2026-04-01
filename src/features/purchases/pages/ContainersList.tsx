@@ -230,7 +230,7 @@ export default function ContainersList() {
     }, []);
 
     // ─── Fetch Containers ────────────────────────────────────────
-    const { data: containers = [], isLoading } = useCachedQuery({
+    const containersQuery = useCachedQuery({
         queryKey: ['containers_list', companyId],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -278,6 +278,10 @@ export default function ContainersList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
+    const containers = containersQuery.data ?? [];
+    const isLoading = !!companyId && containersQuery.isPending;
 
     // ─── Fetch linked invoice counts per container ───────────────
     const { data: invoiceCounts = {} } = useCachedQuery({

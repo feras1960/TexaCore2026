@@ -66,7 +66,8 @@ export async function requestPersistentStorage(): Promise<boolean> {
     if (granted) {
       console.log('💾 [Storage] ✅ تم قبول طلب التخزين الدائم');
     } else {
-      console.warn('💾 [Storage] ⚠️ المتصفح رفض طلب التخزين الدائم');
+      // ℹ️ Normal on localhost / non-PWA — not an error, just informational
+      console.log('💾 [Storage] ℹ️ التخزين الدائم غير متاح (طبيعي على localhost)');
     }
     return granted;
   } catch (err) {

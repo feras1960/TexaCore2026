@@ -789,19 +789,10 @@ export function ChartOfAccounts() {
     },
   ];
 
-  // Show loading while fetching company
-  if (companyLoading) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show message if no company exists
-  if (!companyId || !company) {
+  // ⚡ CACHE-FIRST: No blocking loading screen!
+  // Show "no company" error ONLY after loading finishes and company is truly missing.
+  // During auth/cache restoration, skip this guard — the page structure renders instantly.
+  if (!companyLoading && (!companyId || !company)) {
     return (
       <div className="p-6">
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
@@ -1295,7 +1286,7 @@ export function ChartOfAccounts() {
       </div>
 
       {/* Tree View or Table View */}
-      {!loading && accounts.length === 0 ? (
+      {!loading && !companyLoading && accounts.length === 0 ? (
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-8 text-center">
           <div className="max-w-md mx-auto space-y-4">
             <div className="flex justify-center">
@@ -1350,10 +1341,6 @@ export function ChartOfAccounts() {
               </Button>
             </div>
           </div>
-        </div>
-      ) : loading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
         </div>
       ) : viewMode === 'tree' ? (
         <AccountTreeView

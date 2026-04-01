@@ -144,27 +144,75 @@ class DataEngine {
     const totalQueries = modulesToLoad.reduce((sum, m) => sum + m.queries.length, 0);
     const t0 = performance.now();
 
+    // ═══════════════════════════════════════════════════════════
+    // 🔑 SMART CACHE CHECK: If data already exists in React Query
+    //    cache (restored from IndexedDB), skip network fetch entirely.
+    //    React Query's own stale refetch will update in background.
+    // ═══════════════════════════════════════════════════════════
+    let cachedCount = 0;
+    let missingQueries: { module: DataModule; query: DataModuleQuery }[] = [];
+
+    for (const module of modulesToLoad) {
+      for (const q of module.queries) {
+        const existingData = this.queryClient.getQueryData(q.queryKey);
+        if (existingData !== undefined) {
+          cachedCount++;
+        } else {
+          missingQueries.push({ module, query: q });
+        }
+      }
+    }
+
+    // If ALL data is already cached → instant done, no loading bar!
+    if (missingQueries.length === 0) {
+      console.log(
+        `⚡ [DataEngine] All ${cachedCount} queries found in cache — instant ready! (0ms)`
+      );
+      this.updateProgress({
+        status: 'done',
+        total: totalQueries,
+        loaded: totalQueries,
+        percent: 100,
+        currentModule: '',
+      });
+      return;
+    }
+
+    // Some queries need fetching — show loading only for missing ones
+    const missingCount = missingQueries.length;
+    console.log(
+      `⚡ [DataEngine] Starting — ${cachedCount} cached, ${missingCount} to fetch from ${modulesToLoad.length} modules`
+    );
+
     this.updateProgress({
       status: 'loading',
-      total: totalQueries,
+      total: missingCount,
       loaded: 0,
-      currentModule: modulesToLoad[0].label[language === 'ar' ? 'ar' : 'en'],
+      currentModule: '',
     });
-
-    console.log(`⚡ [DataEngine] Starting — ${modulesToLoad.length} modules, ${totalQueries} queries`);
 
     let loaded = 0;
 
-    // Load modules sequentially (one by one) for clear progress
-    // but queries WITHIN each module run in parallel for speed
-    for (const module of modulesToLoad) {
+    // Group missing queries by module for sequential module progress
+    const missingByModule = new Map<string, { module: DataModule; queries: DataModuleQuery[] }>();
+    for (const mq of missingQueries) {
+      const existing = missingByModule.get(mq.module.code);
+      if (existing) {
+        existing.queries.push(mq.query);
+      } else {
+        missingByModule.set(mq.module.code, { module: mq.module, queries: [mq.query] });
+      }
+    }
+
+    // Load ONLY missing queries, module by module
+    for (const [code, { module, queries }] of missingByModule) {
       this.updateProgress({
         currentModule: module.label[language === 'ar' ? 'ar' : 'en'],
       });
 
       // Run all queries in this module in parallel
       const results = await Promise.allSettled(
-        module.queries.map(q =>
+        queries.map(q =>
           this.queryClient!.prefetchQuery({
             queryKey: q.queryKey,
             queryFn: () => q.queryFn(companyId),
@@ -177,18 +225,18 @@ class DataEngine {
       // Count successes
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.filter(r => r.status === 'rejected').length;
-      loaded += module.queries.length;
+      loaded += queries.length;
 
       if (failed > 0) {
-        console.warn(`⚠️ [DataEngine] ${module.code}: ${failed} queries failed`);
+        console.warn(`⚠️ [DataEngine] ${code}: ${failed} queries failed`);
       }
 
       this.updateProgress({ loaded });
-      console.log(`✅ [DataEngine] ${module.code} — ${succeeded}/${module.queries.length} queries loaded`);
+      console.log(`✅ [DataEngine] ${code} — ${succeeded}/${queries.length} fetched (${cachedCount} already cached)`);
     }
 
     const elapsed = Math.round(performance.now() - t0);
-    console.log(`⚡ [DataEngine] Complete — ${loaded}/${totalQueries} queries in ${elapsed}ms 🚀`);
+    console.log(`⚡ [DataEngine] Complete — ${loaded} fetched + ${cachedCount} cached in ${elapsed}ms 🚀`);
 
     this.updateProgress({
       status: 'done',

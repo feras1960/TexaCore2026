@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
@@ -91,6 +92,7 @@ interface PaymentVoucher {
 export default function PaymentsList() {
     const { t, direction, language } = useLanguage();
     const { companyId } = useCompany();
+    const { tenantId } = useAuth();
     const { currencyCode: baseCurrency } = useCompanyCurrency(language as 'ar' | 'en');
     const isRTL = direction === 'rtl';
 
@@ -116,7 +118,7 @@ export default function PaymentsList() {
     });
 
     // ─── Fetch Payments ──────────────────────────────────────────
-    const { data: payments = [], isLoading } = useCachedQuery({
+    const paymentsQuery = useCachedQuery({
         queryKey: ['payments_list', companyId, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];
@@ -165,6 +167,10 @@ export default function PaymentsList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
+    const payments = paymentsQuery.data ?? [];
+    const isLoading = !!tenantId && !!companyId && paymentsQuery.isPending;
 
     // ─── Counts per tab ──────────────────────────────────────────
     const tabCounts = useMemo(() => {

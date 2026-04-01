@@ -47,9 +47,28 @@ const shouldShowErrorToUser = (errorMsg: string | null | undefined): string | nu
 };
 
 export function useAuth() {
+  // ⚡ CACHE-FIRST: Read last known IDs synchronously from localStorage.
+  // This ensures query keys like ['warehouse', 'tree', companyId] match
+  // the IndexedDB cache IMMEDIATELY on first render, before getSession() resolves.
+  // Without this: companyId=null for ~200ms → query keys don't match → cache miss → loading!
+  const cachedIds = (() => {
+    try {
+      const stored = localStorage.getItem('texacore_cached_ids');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return null;
+  })();
+
   const [state, setState] = useState<AuthState>({
     user: null,
-    authUser: null,
+    authUser: cachedIds ? {
+      id: cachedIds.userId || '',
+      email: cachedIds.email || '',
+      tenant_id: cachedIds.tenantId || null,
+      company_id: cachedIds.companyId || null,
+      is_super_admin: cachedIds.isSuperAdmin || false,
+      user_metadata: {},
+    } : null,
     session: null,
     loading: true,
     error: null,
@@ -97,6 +116,17 @@ export function useAuth() {
             mfaRequired: false,
             mfaFactorId: null,
           });
+
+          // ⚡ CACHE-FIRST: Persist IDs for instant cold-start restoration
+          try {
+            localStorage.setItem('texacore_cached_ids', JSON.stringify({
+              userId: authUser.id,
+              email: authUser.email,
+              tenantId: authUser.tenant_id,
+              companyId: authUser.company_id,
+              isSuperAdmin: authUser.is_super_admin,
+            }));
+          } catch {}
 
           // 🔄 BACKGROUND: Verify user and enrich metadata (non-blocking)
           setTimeout(async () => {
@@ -411,6 +441,17 @@ export function useAuth() {
         mfaRequired: false,
         mfaFactorId: null,
       });
+
+      // ⚡ CACHE-FIRST: Persist IDs for instant cold-start restoration
+      try {
+        localStorage.setItem('texacore_cached_ids', JSON.stringify({
+          userId: authUser.id,
+          email: authUser.email,
+          tenantId: authUser.tenant_id,
+          companyId: authUser.company_id,
+          isSuperAdmin: authUser.is_super_admin,
+        }));
+      } catch {}
 
       loginInProgressRef.current = false;
 

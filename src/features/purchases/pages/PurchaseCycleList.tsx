@@ -208,7 +208,7 @@ export default function PurchaseCycleList() {
     });
 
     // 2. Fetch Documents — Unified: purchase_transactions + receipts + returns
-    const { data: documents = [], isLoading, error, refetch } = useCachedQuery({
+    const purchaseCycleQuery = useCachedQuery({
         queryKey: ['purchase_cycle_full', companyId, activeTab, viewMode, dateRange?.from, dateRange?.to],
         queryFn: async () => {
             if (!companyId) return [];
@@ -333,6 +333,12 @@ export default function PurchaseCycleList() {
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
+    const documents = purchaseCycleQuery.data ?? [];
+    const isLoading = !!companyId && purchaseCycleQuery.isPending;
+    const error = purchaseCycleQuery.error;
+    const refetch = purchaseCycleQuery.refetch;
 
     // Combine Data with Supplier Names (container info already in query via join)
     const enrichedDocuments = useMemo(() => {

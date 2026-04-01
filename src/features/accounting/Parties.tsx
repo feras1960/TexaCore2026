@@ -234,10 +234,12 @@ export default function Parties() {
   // ─── Current data based on active tab ────────────────────────
   const currentData = activeEntityTab === 'suppliers' ? suppliers : customers;
   const currentBalances = activeEntityTab === 'suppliers' ? supplierBalances : customerBalances;
-  // ⚡ isPending (not isLoading!) — shows skeletons even when `enabled: false`
-  //    isLoading = isPending && isFetching → false when query is disabled
-  //    isPending = no cached data yet → true when waiting for companyId
-  const isLoading = activeEntityTab === 'suppliers' ? suppPending : custPending;
+  // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (waiting for companyId).
+  // isPending is true when enabled=false (no companyId yet), which causes unwanted skeletons.
+  // Only show loading when we have companyId AND data hasn't arrived from cache/network.
+  const suppLoading = !!companyId && suppPending;
+  const custLoading = !!companyId && custPending;
+  const isLoading = activeEntityTab === 'suppliers' ? suppLoading : custLoading;
 
   // ─── Filtered + Sorted Data ──────────────────────────────────
   const filteredData = useMemo(() => {

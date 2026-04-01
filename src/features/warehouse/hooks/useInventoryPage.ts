@@ -6,7 +6,7 @@
  * ═══════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -105,8 +105,9 @@ export function useInventoryPage() {
         batches: [],
         currencies: [],
     });
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false); // ⚡ Start false — cache will provide data instantly
     const [error, setError] = useState<string | null>(null);
+    const hasDataLoaded = useRef(false); // Track if we've shown data (cache or fresh)
 
     const [filters, setFilters] = useState<InventoryFilters>({
         search: '',
@@ -139,23 +140,28 @@ export function useInventoryPage() {
         // ────────────────────────────────────────────────────
         // PHASE 1: INSTANT — Read from React Query cache (0ms)
         // DataEngine preloads these on login → already in cache
+        // ⚡ Check for cache EXISTENCE (not length!) — empty inventory is valid cached data
         // ────────────────────────────────────────────────────
+        let hadCachedData = false;
         if (!forceRefresh) {
-            const cachedRolls = queryClient.getQueryData(['inventory-preload-rolls', companyId]) as any[] | null;
-            const cachedMats = queryClient.getQueryData(['inventory-preload-materials', companyId]) as any[] | null;
+            const cachedRolls = queryClient.getQueryData(['inventory-preload-rolls', companyId]) as any[] | undefined;
+            const cachedMats = queryClient.getQueryData(['inventory-preload-materials', companyId]) as any[] | undefined;
 
-            if (cachedRolls && cachedMats && cachedRolls.length > 0) {
-                // We have cached data — show it instantly!
+            // ⚡ Check if arrays EXIST in cache (even if empty = valid!)
+            if (cachedRolls !== undefined && cachedMats !== undefined) {
+                hadCachedData = true;
+                hasDataLoaded.current = true;
                 _processAndSetData(cachedRolls, cachedMats);
-                // Continue to background refresh below...
+                // Don't show loading — data is already visible!
             }
         }
 
         // ────────────────────────────────────────────────────
         // PHASE 2: BACKGROUND — Fetch fresh data from Supabase
-        // If we had cache, this runs silently. If not, this is the primary load.
+        // If we had cache, this runs SILENTLY (no loading spinner).
+        // If NO cache was found, show loading spinner.
         // ────────────────────────────────────────────────────
-        if (!materials.length || forceRefresh) {
+        if (!hadCachedData && !hasDataLoaded.current) {
             setLoading(true);
         }
         setError(null);
@@ -209,6 +215,7 @@ export function useInventoryPage() {
             }));
 
             // Process & set data
+            hasDataLoaded.current = true;
             _processAndSetData(rollsResult, matsResult);
         } catch (err: any) {
             console.error('[useInventoryPage] Error:', err);
@@ -216,7 +223,7 @@ export function useInventoryPage() {
         } finally {
             setLoading(false);
         }
-    }, [companyId, materials.length]);
+    }, [companyId]);
 
     // ─── Shared data processing logic ─────────────────────
     const _processAndSetData = useCallback((rolls: any[], mats: any[]) => {
