@@ -18,6 +18,43 @@ export const warehouseModule: DataModule = {
   code: 'warehouse',
   label: { ar: 'المستودعات', en: 'Warehouse' },
   queries: [
+    // ─── 0a. Inventory Preload: Rolls (for instant InventoryPage) ─
+    {
+      queryKey: ['inventory-preload-rolls', null],
+      queryFn: async (companyId: string) => {
+        const { data, error } = await supabase
+          .from('fabric_rolls')
+          .select(`
+            id, material_id, warehouse_id, color_id,
+            current_length, reserved_length, cost_per_meter,
+            status, container_id,
+            warehouses!left(id, name_ar, name_en)
+          `)
+          .eq('company_id', companyId)
+          .in('status', ['available', 'reserved', 'partial']);
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 0b. Inventory Preload: Materials ─────────────────────
+    {
+      queryKey: ['inventory-preload-materials', null],
+      queryFn: async (companyId: string) => {
+        const { data, error } = await supabase
+          .from('fabric_materials')
+          .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock, currency, default_warehouse_id')
+          .eq('company_id', companyId)
+          .eq('status', 'active');
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
     // ─── 1. Warehouse List (SEMI-STATIC) ────────────────────
     {
       queryKey: ['warehouse', 'list', null],
@@ -27,6 +64,7 @@ export const warehouseModule: DataModule = {
       staleTime: CACHE_TIMES.SEMI_STATIC,
       gcTime: CACHE_TIMES.GC,
     },
+
 
     // ─── 2. Materials List (SEMI-STATIC — no filters for preload) ─
     {

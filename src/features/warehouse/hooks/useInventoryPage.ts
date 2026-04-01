@@ -131,202 +131,181 @@ export function useInventoryPage() {
     }, [currencyFilterOptions]);
 
     // ─── Fetch All Data ────────────────────────────────────
-    const fetchData = useCallback(async () => {
+    // ⚡ Phase 1: Show cached data INSTANTLY from React Query / DataEngine
+    // 🔄 Phase 2: Silently refresh from Supabase in background
+    const fetchData = useCallback(async (forceRefresh = false) => {
         if (!companyId) return;
-        setLoading(true);
+
+        // ────────────────────────────────────────────────────
+        // PHASE 1: INSTANT — Read from React Query cache (0ms)
+        // DataEngine preloads these on login → already in cache
+        // ────────────────────────────────────────────────────
+        if (!forceRefresh) {
+            const cachedRolls = queryClient.getQueryData(['inventory-preload-rolls', companyId]) as any[] | null;
+            const cachedMats = queryClient.getQueryData(['inventory-preload-materials', companyId]) as any[] | null;
+
+            if (cachedRolls && cachedMats && cachedRolls.length > 0) {
+                // We have cached data — show it instantly!
+                _processAndSetData(cachedRolls, cachedMats);
+                // Continue to background refresh below...
+            }
+        }
+
+        // ────────────────────────────────────────────────────
+        // PHASE 2: BACKGROUND — Fetch fresh data from Supabase
+        // If we had cache, this runs silently. If not, this is the primary load.
+        // ────────────────────────────────────────────────────
+        if (!materials.length || forceRefresh) {
+            setLoading(true);
+        }
         setError(null);
 
         try {
-            // ⚡ PARALLEL LOADING — all queries fire simultaneously
-            // Previously: sequential (rolls → containers → materials → filters) = ~2-3s
-            // Now: parallel = ~500ms (only as slow as the slowest query)
-
-            // 1. Check preloaded caches first
-            const cachedRolls = queryClient.getQueryData(['inventory-preload-rolls', companyId]) as any[] | null;
-            const cachedMats = queryClient.getQueryData(['inventory-preload-materials', companyId]) as any[] | null;
-            const cachedFilters = queryClient.getQueryData(['inventory-preload-filters', companyId]) as any;
-
-            // 2. Fire ALL queries in parallel
             const [rollsResult, matsResult, warehousesResult, colorsResult, batchesResult] = await Promise.all([
-                // Rolls
-                cachedRolls
-                    ? Promise.resolve(cachedRolls)
-                    : supabase
-                        .from('fabric_rolls')
-                        .select(`
-                            id, material_id, warehouse_id, color_id,
-                            current_length, reserved_length, cost_per_meter,
-                            status, container_id,
-                            warehouses!left(id, name_ar, name_en)
-                        `)
-                        .eq('company_id', companyId)
-                        .in('status', ['available', 'reserved', 'partial'])
-                        .then(r => { if (r.error) throw r.error; return r.data || []; }),
+                supabase
+                    .from('fabric_rolls')
+                    .select(`
+                        id, material_id, warehouse_id, color_id,
+                        current_length, reserved_length, cost_per_meter,
+                        status, container_id,
+                        warehouses!left(id, name_ar, name_en)
+                    `)
+                    .eq('company_id', companyId)
+                    .in('status', ['available', 'reserved', 'partial'])
+                    .then(r => { if (r.error) throw r.error; return r.data || []; }),
 
-                // Materials
-                cachedMats
-                    ? Promise.resolve(cachedMats)
-                    : supabase
-                        .from('fabric_materials')
-                        .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock, currency, default_warehouse_id')
-                        .eq('company_id', companyId)
-                        .eq('status', 'active')
-                        .then(r => { if (r.error) throw r.error; return r.data || []; }),
+                supabase
+                    .from('fabric_materials')
+                    .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock, currency, default_warehouse_id')
+                    .eq('company_id', companyId)
+                    .eq('status', 'active')
+                    .then(r => { if (r.error) throw r.error; return r.data || []; }),
 
-                // Warehouses
                 supabase.from('warehouses').select('id, name_ar, name_en')
                     .eq('company_id', companyId).eq('is_active', true)
                     .order('created_at', { ascending: true })
                     .then(r => r.data || []),
 
-                // Colors
-                cachedFilters?.colors?.length > 0
-                    ? Promise.resolve(cachedFilters.colors)
-                    : supabase.from('fabric_colors').select('id, name_ar, name_en, hex_code')
-                        .eq('company_id', companyId).eq('is_active', true)
-                        .then(r => r.data || []),
+                supabase.from('fabric_colors').select('id, name_ar, name_en, hex_code')
+                    .eq('company_id', companyId).eq('is_active', true)
+                    .then(r => r.data || []),
 
-                // Batches
-                cachedFilters?.batches?.length > 0
-                    ? Promise.resolve(cachedFilters.batches)
-                    : supabase.from('batches').select('id, batch_number')
-                        .eq('company_id', companyId).order('created_at', { ascending: false })
-                        .then(r => r.data || []),
+                supabase.from('batches').select('id, batch_number')
+                    .eq('company_id', companyId).order('created_at', { ascending: false })
+                    .then(r => r.data || []),
             ]);
 
-            const rolls = rollsResult;
-            const mats = matsResult;
+            // Cache for next time
+            queryClient.setQueryData(['inventory-preload-rolls', companyId], rollsResult);
+            queryClient.setQueryData(['inventory-preload-materials', companyId], matsResult);
 
-            // Cache raw rolls for warehouse re-aggregation on filter change
-            setAllRolls(rolls || []);
-
-            // 3. Resolve container numbers (only if rolls have containers)
-            const containerIds = [...new Set(
-                (rolls || [])
-                    .map((r: any) => r.container_id)
-                    .filter(Boolean) as string[]
-            )];
-
-            const containerNumberMap = new Map<string, string>();
-            if (containerIds.length > 0) {
-                const { data: containers } = await supabase
-                    .from('containers')
-                    .select('id, container_number')
-                    .in('id', containerIds);
-                for (const c of containers || []) {
-                    if (c.id && c.container_number) {
-                        containerNumberMap.set(c.id, c.container_number);
-                    }
-                }
-            }
-
-            // Set filter options — currencies managed separately by useMemo/useEffect
+            // Update filter options
             setFilterOptions(prev => ({
                 ...prev,
                 warehouses: warehousesResult,
-                materials: (mats || []).map((m: any) => ({ id: m.id, name_ar: m.name_ar, name_en: m.name_en || m.name_ar, code: m.code || '' })),
+                materials: (matsResult || []).map((m: any) => ({ id: m.id, name_ar: m.name_ar, name_en: m.name_en || m.name_ar, code: m.code || '' })),
                 colors: colorsResult,
                 batches: batchesResult,
-                // currencies comes from the useMemo above — keep existing value
             }));
 
-            // 4. Aggregate rolls by material
-            const materialMap = new Map<string, InventoryMaterialRow>();
-
-            // Initialize all materials (even those with 0 stock)
-            for (const mat of mats || []) {
-                materialMap.set(mat.id, {
-                    material_id: mat.id,
-                    material_name_ar: mat.name_ar || '',
-                    material_name_en: mat.name_en || mat.name_ar || '',
-                    material_code: mat.code || '',
-                    material_unit: mat.unit || 'meter',
-                    group_id: mat.group_id || null,
-                    purchase_price: Number(mat.purchase_price) || 0,
-                    selling_price: Number(mat.selling_price) || 0,
-                    min_stock: Number(mat.min_stock) || 0,
-                    season: mat.season || null,
-                    total_rolls: 0,
-                    total_meters: 0,
-                    available_meters: 0,
-                    reserved_meters: 0,
-                    warehouse_count: 0,
-                    color_ids: [],
-                    avg_cost_per_meter: 0,
-                    total_stock_value: 0,
-                    current_stock: Number(mat.current_stock) || 0,
-                    loose_stock: 0,
-                    material_currency: mat.currency || '',
-                    default_warehouse_id: mat.default_warehouse_id || null,
-                    last_container_number: null,
-                });
-            }
-
-            // Aggregate rolls
-            const warehouseTracker = new Map<string, Set<string>>(); // materialId → warehouses
-            const costAccumulator = new Map<string, { totalCost: number; count: number }>();
-
-            for (const roll of rolls || []) {
-                const matId = roll.material_id;
-                if (!matId) continue;
-                const existing = materialMap.get(matId);
-                if (!existing) continue;
-
-                const len = Number(roll.current_length) || 0;
-                const cost = Number(roll.cost_per_meter) || 0;
-
-                existing.total_rolls += 1;
-                existing.total_meters += len;
-                if (roll.status === 'available') existing.available_meters += len;
-                if (roll.status === 'reserved') existing.reserved_meters += len;
-
-                // Track unique warehouses
-                if (!warehouseTracker.has(matId)) warehouseTracker.set(matId, new Set());
-                if (roll.warehouse_id) warehouseTracker.get(matId)!.add(roll.warehouse_id);
-
-                // Track unique colors
-                if (roll.color_id && !existing.color_ids.includes(roll.color_id)) {
-                    existing.color_ids.push(roll.color_id);
-                }
-
-                // Accumulate cost for average
-                if (cost > 0) {
-                    const acc = costAccumulator.get(matId) || { totalCost: 0, count: 0 };
-                    acc.totalCost += cost * len;
-                    acc.count += len;
-                    costAccumulator.set(matId, acc);
-                }
-
-                // Track last container
-                // Resolve container number from pre-fetched map
-                const containerNum = roll.container_id
-                    ? containerNumberMap.get(roll.container_id)
-                    : undefined;
-                if (containerNum && !existing.last_container_number) {
-                    existing.last_container_number = containerNum;
-                }
-            }
-
-            // Finalize computed fields
-            for (const [matId, row] of materialMap.entries()) {
-                row.warehouse_count = warehouseTracker.get(matId)?.size || 0;
-                const acc = costAccumulator.get(matId);
-                if (acc && acc.count > 0) {
-                    row.avg_cost_per_meter = acc.totalCost / acc.count;
-                    row.total_stock_value = acc.totalCost;
-                }
-                // Compute loose stock: current_stock - rolled meters
-                row.loose_stock = Math.max(0, row.current_stock - row.total_meters);
-            }
-
-            setMaterials(Array.from(materialMap.values()));
+            // Process & set data
+            _processAndSetData(rollsResult, matsResult);
         } catch (err: any) {
             console.error('[useInventoryPage] Error:', err);
             setError(err.message || 'Failed to load inventory');
         } finally {
             setLoading(false);
         }
-    }, [companyId]);
+    }, [companyId, materials.length]);
+
+    // ─── Shared data processing logic ─────────────────────
+    const _processAndSetData = useCallback((rolls: any[], mats: any[]) => {
+        // Resolve container numbers
+        const containerIds = [...new Set(
+            rolls.map((r: any) => r.container_id).filter(Boolean) as string[]
+        )];
+
+        // Aggregate rolls by material
+        const materialMap = new Map<string, InventoryMaterialRow>();
+
+        // Initialize all materials
+        for (const mat of mats || []) {
+            materialMap.set(mat.id, {
+                material_id: mat.id,
+                material_name_ar: mat.name_ar || '',
+                material_name_en: mat.name_en || mat.name_ar || '',
+                material_code: mat.code || '',
+                material_unit: mat.unit || 'meter',
+                group_id: mat.group_id || null,
+                purchase_price: Number(mat.purchase_price) || 0,
+                selling_price: Number(mat.selling_price) || 0,
+                min_stock: Number(mat.min_stock) || 0,
+                season: mat.season || null,
+                total_rolls: 0,
+                total_meters: 0,
+                available_meters: 0,
+                reserved_meters: 0,
+                warehouse_count: 0,
+                color_ids: [],
+                avg_cost_per_meter: 0,
+                total_stock_value: 0,
+                current_stock: Number(mat.current_stock) || 0,
+                loose_stock: 0,
+                material_currency: mat.currency || '',
+                default_warehouse_id: mat.default_warehouse_id || null,
+                last_container_number: null,
+            });
+        }
+
+        // Aggregate
+        const warehouseTracker = new Map<string, Set<string>>();
+        const costAccumulator = new Map<string, { totalCost: number; count: number }>();
+
+        for (const roll of rolls || []) {
+            const matId = roll.material_id;
+            if (!matId) continue;
+            const existing = materialMap.get(matId);
+            if (!existing) continue;
+
+            const len = Number(roll.current_length) || 0;
+            const cost = Number(roll.cost_per_meter) || 0;
+
+            existing.total_rolls += 1;
+            existing.total_meters += len;
+            if (roll.status === 'available') existing.available_meters += len;
+            if (roll.status === 'reserved') existing.reserved_meters += len;
+
+            if (!warehouseTracker.has(matId)) warehouseTracker.set(matId, new Set());
+            if (roll.warehouse_id) warehouseTracker.get(matId)!.add(roll.warehouse_id);
+
+            if (roll.color_id && !existing.color_ids.includes(roll.color_id)) {
+                existing.color_ids.push(roll.color_id);
+            }
+
+            if (cost > 0) {
+                const acc = costAccumulator.get(matId) || { totalCost: 0, count: 0 };
+                acc.totalCost += cost * len;
+                acc.count += len;
+                costAccumulator.set(matId, acc);
+            }
+        }
+
+        // Finalize
+        for (const [matId, row] of materialMap.entries()) {
+            row.warehouse_count = warehouseTracker.get(matId)?.size || 0;
+            const acc = costAccumulator.get(matId);
+            if (acc && acc.count > 0) {
+                row.avg_cost_per_meter = acc.totalCost / acc.count;
+                row.total_stock_value = acc.totalCost;
+            }
+            row.loose_stock = Math.max(0, row.current_stock - row.total_meters);
+        }
+
+        // Store raw rolls for warehouse re-aggregation
+        setAllRolls(rolls || []);
+        setMaterials(Array.from(materialMap.values()));
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
         fetchData();
