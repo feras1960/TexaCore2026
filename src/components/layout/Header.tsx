@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Bell, Search, Moon, Sun, Globe, Keyboard, ShoppingCart, Calculator, Bot } from 'lucide-react';
+import { SyncStatusIndicator } from '@/components/sync/SyncStatusIndicator';
 import { NotificationBell } from './NotificationBell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -206,6 +207,9 @@ export function Header() {
               {resolvedTheme === 'dark' ? t('header.lightMode') : t('header.darkMode')}
             </TooltipContent>
           </Tooltip>
+
+          {/* 🔄 Sync Status Indicator */}
+          <SyncStatusIndicator />
 
           {/* Cart */}
           <Tooltip>

@@ -623,6 +623,12 @@ export function useAuth() {
         // تجاهل — قد لا يكون DataEngine محملاً
       }
 
+      // 📡 Notify all other tabs to logout too
+      try {
+        const { getTabSync } = await import('@/lib/sync/tabSyncChannel');
+        getTabSync().broadcast({ type: 'LOGOUT' });
+      } catch { /* ignore */ }
+
       const { error } = await signOut();
       if (error) {
         setState(prev => ({ ...prev, error: error.message, loading: false }));

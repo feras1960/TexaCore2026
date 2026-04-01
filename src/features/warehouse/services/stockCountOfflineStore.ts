@@ -264,17 +264,20 @@ export const stockCountOfflineStore = {
 
     /**
      * تفريغ طابور المزامنة — يُستدعى عند عودة الاتصال
+     * 🔧 محسّن: exponential backoff + تصنيف الأخطاء + JWT refresh ذكي
      */
     async flushSyncQueue(): Promise<{ synced: number; failed: number }> {
-        // تجديد الجلسة أولاً (لتجنب انتهاء JWT)
-        try {
-            const { error } = await supabase.auth.refreshSession();
-            if (error) {
-                console.warn('[OfflineStore] ⚠️ فشل تجديد الجلسة:', error.message);
-                // لا نتوقف — نحاول المزامنة على أي حال
-            }
-        } catch {
-            // تجاهل — الجلسة قد تكون صالحة
+        // 1. تحقق من الاتصال أولاً
+        if (!navigator.onLine) {
+            console.log('[OfflineStore] 📡 لا يوجد اتصال — تخطي المزامنة');
+            return { synced: 0, failed: 0 };
+        }
+
+        // 2. تحقق من صلاحية JWT وجدّده إذا لزم الأمر
+        const sessionValid = await _ensureValidSession();
+        if (!sessionValid) {
+            console.warn('[OfflineStore] ⚠️ الجلسة غير صالحة — تخطي المزامنة');
+            return { synced: 0, failed: 0 };
         }
 
         const pending = await offlineDB.syncQueue
@@ -291,6 +294,14 @@ export const stockCountOfflineStore = {
                     updatedAt: new Date().toISOString(),
                 });
                 failed++;
+                continue;
+            }
+
+            // Exponential backoff: check if enough time has passed
+            const backoffDelay = _getRetryDelay(entry.attempts);
+            const lastAttemptTime = new Date(entry.updatedAt).getTime();
+            if (entry.attempts > 0 && Date.now() - lastAttemptTime < backoffDelay) {
+                // Not enough time has passed for this retry
                 continue;
             }
 
@@ -325,11 +336,20 @@ export const stockCountOfflineStore = {
 
                 synced++;
             } catch (err: any) {
+                const errorType = _classifyError(err);
+                const isPermanent = errorType === 'validation'; // 400 errors won't fix themselves
+
                 await offlineDB.syncQueue.update(entry.id!, {
-                    status: 'pending',
-                    errorMessage: err.message,
+                    status: isPermanent ? 'error' : 'pending',
+                    errorMessage: `[${errorType}] ${err.message || 'Unknown error'}`,
                     updatedAt: new Date().toISOString(),
                 });
+
+                // If auth error, try refreshing session for the next items
+                if (errorType === 'auth') {
+                    await _ensureValidSession();
+                }
+
                 failed++;
             }
         }
@@ -506,6 +526,84 @@ export const stockCountOfflineStore = {
 // ════════════════════════════════════════════════════════════════
 // 🔧 Internal Helpers
 // ════════════════════════════════════════════════════════════════
+
+// ─── Error Classification ────────────────────────────────────
+
+type ErrorType = 'network' | 'auth' | 'validation' | 'server' | 'unknown';
+
+function _classifyError(error: unknown): ErrorType {
+    if (!error) return 'unknown';
+
+    const err = error as any;
+    const message = (err.message || '').toLowerCase();
+    const status = err.status || err.code;
+
+    // Network errors
+    if (message.includes('fetch') || message.includes('network') || message.includes('timeout') || message.includes('failed to fetch')) {
+        return 'network';
+    }
+
+    // Auth errors (401, JWT expired)
+    if (status === 401 || status === 403 || message.includes('jwt') || message.includes('token') || message.includes('unauthorized') || message.includes('session')) {
+        return 'auth';
+    }
+
+    // Validation errors (400, RLS violation, constraint)
+    if (status === 400 || status === 409 || status === 422 || message.includes('violates') || message.includes('constraint') || message.includes('rls') || message.includes('policy')) {
+        return 'validation';
+    }
+
+    // Server errors (500, 502, 503)
+    if (status >= 500 || message.includes('internal server') || message.includes('bad gateway') || message.includes('service unavailable')) {
+        return 'server';
+    }
+
+    return 'unknown';
+}
+
+// ─── Exponential Backoff ─────────────────────────────────────
+
+function _getRetryDelay(attempt: number): number {
+    // attempt 0: 1s, 1: 2s, 2: 4s, 3: 8s, 4: 16s
+    const base = Math.pow(2, attempt) * 1000;
+    // Add jitter (±25%)
+    const jitter = base * 0.25 * (Math.random() * 2 - 1);
+    return Math.min(base + jitter, 30_000); // cap at 30s
+}
+
+// ─── JWT Session Validation ──────────────────────────────────
+
+async function _ensureValidSession(): Promise<boolean> {
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error || !session) {
+            console.warn('[OfflineStore] ⚠️ لا توجد جلسة صالحة');
+            return false;
+        }
+
+        const expiresAt = session.expires_at || 0;
+        const now = Math.floor(Date.now() / 1000);
+        const bufferSeconds = 60; // دقيقة احتياط
+
+        if (expiresAt - now < bufferSeconds) {
+            // JWT سينتهي قريباً أو انتهى — نجدد
+            console.log('[OfflineStore] 🔑 JWT قارب على الانتهاء — جاري التجديد...');
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+                console.warn('[OfflineStore] ⚠️ فشل تجديد الجلسة:', refreshError.message);
+                return false;
+            }
+            console.log('[OfflineStore] 🔑 ✅ تم تجديد الجلسة');
+        }
+
+        return true;
+    } catch (err) {
+        console.warn('[OfflineStore] ⚠️ خطأ في فحص الجلسة:', err);
+        return false;
+    }
+}
+
 
 async function _addToSyncQueue(
     table: string,

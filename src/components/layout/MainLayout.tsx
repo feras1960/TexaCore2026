@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -15,6 +16,8 @@ import { CompanySidebar } from './CompanySidebar';
 import { DataEngineProvider } from '@/engine/DataEngineProvider';
 import { DataEngineIndicator } from '@/engine/DataEngineIndicator';
 import { useGlobalRealtime } from '@/hooks/useGlobalRealtime';
+import { initStoragePersistence } from '@/lib/storage/storagePersistence';
+import { stockCountOfflineStore } from '@/features/warehouse/services/stockCountOfflineStore';
 
 export default function MainLayout() {
   const { direction, language } = useLanguage();
@@ -22,6 +25,15 @@ export default function MainLayout() {
 
   // 🌐 Real-time sync: auto-update cache when other users make changes
   useGlobalRealtime();
+
+  // 💾 Initialize storage persistence + offline reconnect listener (once)
+  useEffect(() => {
+    initStoragePersistence();
+    stockCountOfflineStore.setupReconnectListener();
+    return () => {
+      stockCountOfflineStore.teardownReconnectListener();
+    };
+  }, []);
 
   return (
     <DataEngineProvider>
