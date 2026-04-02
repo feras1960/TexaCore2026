@@ -21,7 +21,7 @@ export default function DepartmentsManager() {
     const [departments, setDepartments] = useState<Department[]>([]);
     const [positions, setPositions] = useState<Position[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [showDeptDialog, setShowDeptDialog] = useState(false);
     const [showPosDialog, setShowPosDialog] = useState(false);
     const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -32,6 +32,7 @@ export default function DepartmentsManager() {
 
     async function loadData() {
         try {
+            setLoading(true);
             const [depts, pos, emps] = await Promise.all([getDepartments(), getPositions(), getEmployees()]);
             setDepartments(depts);
             setPositions(pos);
@@ -119,7 +120,21 @@ export default function DepartmentsManager() {
 
             {/* Departments Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {departments.map(dept => {
+                {loading ? (
+                    Array.from({ length: 6 }).map((_, i) => (
+                        <Card key={i} className="border-0 shadow-sm animate-pulse">
+                            <CardHeader className="pb-2">
+                                <div className="h-6 bg-muted/50 rounded w-1/2"></div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-4">
+                                    <div className="h-4 bg-muted/50 rounded w-1/3"></div>
+                                    <div className="h-10 bg-muted/50 rounded w-full mt-4"></div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))
+                ) : departments.map(dept => {
                     const empCount = getEmployeeCount(dept.id);
                     const deptPositions = positions.filter(p => (p as any).department_id === dept.id);
                     return (
