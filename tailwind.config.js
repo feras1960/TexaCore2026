@@ -56,6 +56,7 @@ module.exports = {
           navy: "#0A2540",
           teal: "#00D4AA",
           cream: "#FAF9F6",
+          primary: "#059669",
           success: "#10B981",
           warning: "#F59E0B",
           error: "#EF4444",

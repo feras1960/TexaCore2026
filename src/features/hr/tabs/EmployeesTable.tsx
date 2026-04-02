@@ -220,7 +220,7 @@ export default function EmployeesTable() {
                         {isRTL ? `${employees.length} موظف` : `${employees.length} employees`}
                     </p>
                 </div>
-                <Button className="bg-erp-primary hover:bg-erp-primary/90" onClick={() => openSheet('create')}>
+                <Button className="bg-erp-primary hover:bg-erp-primary/90 text-white shadow-sm" onClick={() => openSheet('create')}>
                     <UserPlus className="h-4 w-4 me-2" />
                     {isRTL ? 'إضافة موظف' : 'Add Employee'}
                 </Button>

@@ -110,7 +110,7 @@ export default function EmpPerformanceTab({ employeeId, data, isRTL, mode }: Pro
 
     const empId = employeeId || data?.id;
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [targets, setTargets] = useState<any[]>([]);
     const [linkedCustomers, setLinkedCustomers] = useState<any[]>([]);
     const [activities, setActivities] = useState<any[]>([]);
@@ -133,48 +133,61 @@ export default function EmpPerformanceTab({ employeeId, data, isRTL, mode }: Pro
     }, [empId]);
 
     async function loadData() {
-        setLoading(true);
         try {
-            const [targetsRes, custRes, salesRes] = await Promise.all([
-                supabase.from('employee_targets')
-                    .select('*')
-                    .eq('employee_id', empId)
-                    .order('period_year', { ascending: false })
-                    .order('period_month', { ascending: false }),
-                supabase.from('contacts')
+            // 1. Targets — always safe
+            const targetsRes = await supabase.from('employee_targets')
+                .select('*')
+                .eq('employee_id', empId)
+                .order('period_year', { ascending: false })
+                .order('period_month', { ascending: false });
+            setTargets(targetsRes.data || []);
+
+            // 2. Linked customers — agent_id may not exist, fail silently
+            try {
+                const custRes = await supabase.from('contacts')
                     .select('id, name_ar, name_en, contact_type, phone, email, balance, created_at')
                     .eq('agent_id', empId)
-                    .order('name_ar'),
-                supabase.from('sales_transactions')
+                    .order('name_ar');
+                setLinkedCustomers(custRes.data || []);
+            } catch (e) {
+                console.warn('[EmpPerformance] contacts.agent_id query failed (column may not exist):', e);
+                setLinkedCustomers([]);
+            }
+
+            // 3. Sales activities — created_by may not exist, fail silently
+            try {
+                const salesRes = await supabase.from('sales_transactions')
                     .select('id, transaction_number, stage, status, total_amount, currency, created_at, customer:customer_id(name_ar, name_en)')
                     .eq('created_by', data?.user_profile_id || empId)
                     .order('created_at', { ascending: false })
-                    .limit(50),
-            ]);
+                    .limit(50);
 
-            setTargets(targetsRes.data || []);
-            setLinkedCustomers(custRes.data || []);
+                const salesData = salesRes.data || [];
+                const acts = salesData.map((s: any) => ({
+                    id: s.id,
+                    date: s.created_at,
+                    type: s.stage === 'quotation' ? 'quotation' : s.stage === 'order' ? 'order' : 'invoice',
+                    reference: s.transaction_number,
+                    description: s.customer?.name_ar || s.customer?.name_en || '—',
+                    amount: s.total_amount,
+                    status: s.status,
+                }));
+                setActivities(acts);
 
-            const acts = (salesRes.data || []).map((s: any) => ({
-                id: s.id,
-                date: s.created_at,
-                type: s.stage === 'quotation' ? 'quotation' : s.stage === 'order' ? 'order' : 'invoice',
-                reference: s.transaction_number,
-                description: s.customer?.name_ar || s.customer?.name_en || '—',
-                amount: s.total_amount,
-                status: s.status,
-            }));
-            setActivities(acts);
-
-            const invoices = (salesRes.data || []).filter((s: any) => s.stage === 'invoice');
-            const total = invoices.reduce((sum: number, s: any) => sum + (s.total_amount || 0), 0);
-            setSalesStats({
-                totalSales: total,
-                totalInvoices: invoices.length,
-                avgInvoice: invoices.length > 0 ? total / invoices.length : 0,
-            });
+                const invoices = salesData.filter((s: any) => s.stage === 'invoice');
+                const total = invoices.reduce((sum: number, s: any) => sum + (s.total_amount || 0), 0);
+                setSalesStats({
+                    totalSales: total,
+                    totalInvoices: invoices.length,
+                    avgInvoice: invoices.length > 0 ? total / invoices.length : 0,
+                });
+            } catch (e) {
+                console.warn('[EmpPerformance] sales_transactions.created_by query failed (column may not exist):', e);
+                setActivities([]);
+                setSalesStats({ totalSales: 0, totalInvoices: 0, avgInvoice: 0 });
+            }
         } catch (err) {
-            console.error(err);
+            console.error('[EmpPerformance] loadData failed:', err);
         } finally {
             setLoading(false);
         }
@@ -257,13 +270,22 @@ export default function EmpPerformanceTab({ employeeId, data, isRTL, mode }: Pro
     // ─── Customer Assignment ───
     async function openAssignCustomer() {
         setSelectedCustomerId('');
-        const { data: customers } = await supabase.from('contacts')
-            .select('id, name_ar, name_en')
-            .eq('contact_type', 'customer')
-            .is('agent_id', null)
-            .order('name_ar')
-            .limit(200);
-        setAllCustomers(customers || []);
+        try {
+            const { data: customers, error: err } = await supabase.from('contacts')
+                .select('id, name_ar, name_en')
+                .eq('contact_type', 'customer')
+                .is('agent_id', null)
+                .limit(200);
+            if (err) {
+                console.warn('[EmpPerformance] agent_id filter failed:', err.message);
+                setAllCustomers([]);
+            } else {
+                setAllCustomers(customers || []);
+            }
+        } catch (e) {
+            console.warn('[EmpPerformance] openAssignCustomer failed:', e);
+            setAllCustomers([]);
+        }
         setShowCustomerDialog(true);
     }
 
