@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
+import { DataTable, Column } from '@/features/accounting/components/shared/DataTable';
 import {
     ShoppingCart, Package, Clock, CheckCircle, Truck, XCircle,
     Search, Filter, List, LayoutGrid, Eye, MapPin, Phone,
@@ -157,6 +158,52 @@ export default function EcommerceOrders() {
         return name[isRTL ? 'ar' : 'en'] || name.ar || name.en || '-';
     };
 
+    // ─── Table columns (unified DataTable) ────────────
+    const tableColumns: Column<Order>[] = [
+        {
+            header: isRTL ? 'الطلب' : 'Order',
+            cell: (row) => <span className="font-mono font-medium text-erp-navy dark:text-white">{row.order_number}</span>,
+        },
+        {
+            header: isRTL ? 'العميل' : 'Customer',
+            cell: (row) => (
+                <div>
+                    <p className="font-medium">{row.customer_name}</p>
+                    <p className="text-xs text-gray-500">{row.customer_phone}</p>
+                </div>
+            ),
+        },
+        {
+            header: isRTL ? 'الحالة' : 'Status',
+            cell: (row) => {
+                const sc = getStageConfig(row.status);
+                return <Badge className={`text-[10px] ${sc.bg} ${sc.textColor}`}>{isRTL ? sc.label : sc.labelEn}</Badge>;
+            },
+        },
+        {
+            header: isRTL ? 'الدفع' : 'Payment',
+            cell: (row) => (
+                <Badge variant="outline" className={`text-[10px] ${row.payment_status === 'paid' ? 'text-green-600 border-green-200' : 'text-amber-600 border-amber-200'}`}>
+                    {row.payment_status === 'paid' ? (isRTL ? 'مدفوع' : 'Paid') : (isRTL ? 'معلق' : 'Pending')}
+                </Badge>
+            ),
+        },
+        {
+            header: isRTL ? 'المبلغ' : 'Amount',
+            className: 'text-end',
+            cell: (row) => <span className="font-mono font-semibold">{formatCurrency(row.total_amount, row.currency)}</span>,
+        },
+        {
+            header: isRTL ? 'التاريخ' : 'Date',
+            cell: (row) => <span className="text-xs text-gray-500">{new Date(row.created_at).toLocaleDateString(isRTL ? 'ar' : 'en')}</span>,
+        },
+        {
+            header: '',
+            cell: () => <Eye className="w-4 h-4 text-gray-400" />,
+            className: 'w-10',
+        },
+    ];
+
     if (loading) {
         return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
     }
@@ -189,11 +236,11 @@ export default function EcommerceOrders() {
 
             {/* Kanban View */}
             {view === 'kanban' && (
-                <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: '400px' }}>
+                <div className="flex gap-4 overflow-x-auto pb-4" style={{ height: 'calc(100vh - 220px)' }}>
                     {ORDER_STAGES.filter(s => s.id !== 'cancelled').map(stage => {
                         const stageOrders = ordersByStage(stage.id);
                         return (
-                            <div key={stage.id} className={`flex-shrink-0 w-72 rounded-xl border-t-4 ${stage.color} ${stage.bg} p-3`}>
+                            <div key={stage.id} className={`flex-shrink-0 w-72 rounded-xl border-t-4 ${stage.color} ${stage.bg} p-3 flex flex-col`}>
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
                                         <stage.icon className={`w-4 h-4 ${stage.textColor}`} />
@@ -201,7 +248,7 @@ export default function EcommerceOrders() {
                                     </div>
                                     <Badge variant="outline" className="text-[10px] px-1.5">{stageOrders.length}</Badge>
                                 </div>
-                                <div className="space-y-2.5 max-h-[500px] overflow-y-auto">
+                                <div className="space-y-2.5 flex-1 overflow-y-auto">
                                     {stageOrders.map(order => (
                                         <div
                                             key={order.id}
@@ -237,58 +284,15 @@ export default function EcommerceOrders() {
                 </div>
             )}
 
-            {/* Table View */}
+            {/* Table View — Unified DataTable */}
             {view === 'table' && (
-                <Card className="border-0 shadow-sm">
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                                        <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'الطلب' : 'Order'}</th>
-                                        <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'العميل' : 'Customer'}</th>
-                                        <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'الحالة' : 'Status'}</th>
-                                        <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'الدفع' : 'Payment'}</th>
-                                        <th className="text-end px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'المبلغ' : 'Amount'}</th>
-                                        <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'التاريخ' : 'Date'}</th>
-                                        <th className="px-4 py-3"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredOrders.map(order => {
-                                        const sc = getStageConfig(order.status);
-                                        return (
-                                            <tr key={order.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer" onClick={() => openOrderDetails(order)}>
-                                                <td className="px-4 py-3 font-mono font-medium text-erp-navy dark:text-white">{order.order_number}</td>
-                                                <td className="px-4 py-3">
-                                                    <p className="font-medium">{order.customer_name}</p>
-                                                    <p className="text-xs text-gray-500">{order.customer_phone}</p>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <Badge className={`text-[10px] ${sc.bg} ${sc.textColor}`}>{isRTL ? sc.label : sc.labelEn}</Badge>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <Badge variant="outline" className={`text-[10px] ${order.payment_status === 'paid' ? 'text-green-600 border-green-200' : 'text-amber-600 border-amber-200'}`}>
-                                                        {order.payment_status === 'paid' ? (isRTL ? 'مدفوع' : 'Paid') : (isRTL ? 'معلق' : 'Pending')}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-4 py-3 text-end font-mono font-semibold">{formatCurrency(order.total_amount, order.currency)}</td>
-                                                <td className="px-4 py-3 text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString(isRTL ? 'ar' : 'en')}</td>
-                                                <td className="px-4 py-3"><Eye className="w-4 h-4 text-gray-400" /></td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                            {filteredOrders.length === 0 && (
-                                <div className="text-center py-12 text-gray-400">
-                                    <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                    <p>{isRTL ? 'لا توجد طلبات' : 'No orders found'}</p>
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                <DataTable
+                    data={filteredOrders}
+                    columns={tableColumns}
+                    onRowClick={openOrderDetails}
+                    loading={loading}
+                    emptyMessage={isRTL ? 'لا توجد طلبات' : 'No orders found'}
+                />
             )}
 
             {/* Order Details Dialog */}
