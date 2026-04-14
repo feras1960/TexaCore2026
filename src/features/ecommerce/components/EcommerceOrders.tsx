@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
-import { DataTable, Column } from '@/features/accounting/components/shared/DataTable';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import {
     ShoppingCart, Package, Clock, CheckCircle, Truck, XCircle,
     Search, Filter, List, LayoutGrid, Eye, MapPin, Phone,
@@ -158,22 +158,27 @@ export default function EcommerceOrders() {
         return name[isRTL ? 'ar' : 'en'] || name.ar || name.en || '-';
     };
 
-    // ─── Table columns (unified DataTable) ────────────
-    const tableColumns: Column<Order>[] = [
+    // ─── Table columns (NexaListTable — unified ERP table) ────────────
+    const tableColumns: NexaListColumn<Order>[] = [
         {
+            id: 'order_number',
             header: isRTL ? 'الطلب' : 'Order',
-            cell: (row) => <span className="font-mono font-medium text-erp-navy dark:text-white">{row.order_number}</span>,
+            sortable: true,
+            sortKey: 'order_number',
+            cell: (row) => <span className="font-mono font-semibold text-erp-navy dark:text-white">{row.order_number}</span>,
         },
         {
+            id: 'customer',
             header: isRTL ? 'العميل' : 'Customer',
             cell: (row) => (
                 <div>
-                    <p className="font-medium">{row.customer_name}</p>
+                    <p className="font-medium text-sm">{row.customer_name}</p>
                     <p className="text-xs text-gray-500">{row.customer_phone}</p>
                 </div>
             ),
         },
         {
+            id: 'status',
             header: isRTL ? 'الحالة' : 'Status',
             cell: (row) => {
                 const sc = getStageConfig(row.status);
@@ -181,6 +186,7 @@ export default function EcommerceOrders() {
             },
         },
         {
+            id: 'payment',
             header: isRTL ? 'الدفع' : 'Payment',
             cell: (row) => (
                 <Badge variant="outline" className={`text-[10px] ${row.payment_status === 'paid' ? 'text-green-600 border-green-200' : 'text-amber-600 border-amber-200'}`}>
@@ -189,18 +195,19 @@ export default function EcommerceOrders() {
             ),
         },
         {
+            id: 'amount',
             header: isRTL ? 'المبلغ' : 'Amount',
-            className: 'text-end',
+            align: 'end',
+            sortable: true,
+            sortKey: 'total_amount',
             cell: (row) => <span className="font-mono font-semibold">{formatCurrency(row.total_amount, row.currency)}</span>,
         },
         {
+            id: 'date',
             header: isRTL ? 'التاريخ' : 'Date',
+            sortable: true,
+            sortKey: 'created_at',
             cell: (row) => <span className="text-xs text-gray-500">{new Date(row.created_at).toLocaleDateString(isRTL ? 'ar' : 'en')}</span>,
-        },
-        {
-            header: '',
-            cell: () => <Eye className="w-4 h-4 text-gray-400" />,
-            className: 'w-10',
         },
     ];
 
@@ -284,14 +291,33 @@ export default function EcommerceOrders() {
                 </div>
             )}
 
-            {/* Table View — Unified DataTable */}
+            {/* Table View — NexaListTable (unified ERP component) */}
             {view === 'table' && (
-                <DataTable
+                <NexaListTable<Order>
                     data={filteredOrders}
                     columns={tableColumns}
                     onRowClick={openOrderDetails}
-                    loading={loading}
+                    isLoading={loading}
+                    getRowKey={(row) => row.id}
+                    getRowAccent={(row) => {
+                        const sc = getStageConfig(row.status);
+                        return sc.id === 'pending' ? 'border-s-yellow-400'
+                             : sc.id === 'confirmed' ? 'border-s-blue-400'
+                             : sc.id === 'processing' ? 'border-s-indigo-400'
+                             : sc.id === 'shipped' ? 'border-s-purple-400'
+                             : sc.id === 'delivered' ? 'border-s-green-400'
+                             : sc.id === 'cancelled' ? 'border-s-red-400'
+                             : 'border-s-gray-200';
+                    }}
+                    totalCount={orders.length}
+                    countLabel={isRTL ? 'طلب' : 'orders'}
                     emptyMessage={isRTL ? 'لا توجد طلبات' : 'No orders found'}
+                    showFooter={true}
+                    footerRightContent={
+                        <span className="font-mono font-bold text-erp-teal">
+                            {formatCurrency(filteredOrders.reduce((s, o) => s + o.total_amount, 0), filteredOrders[0]?.currency || 'UAH')}
+                        </span>
+                    }
                 />
             )}
 
