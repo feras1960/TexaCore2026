@@ -86,3 +86,15 @@ n8n-workflows/
 
 # Google OAuth secrets
 client_secret_*.json
+
+# Temp debug/audit scripts
+check_db.js
+check_inventory.mjs
+check_inventory.py
+check_schema.py
+get_tables_with_company_id.py
+test-trade.js
+test-trade.ts
+test-trade2.ts
+wipe_script.py
+
