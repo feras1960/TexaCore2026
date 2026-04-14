@@ -220,6 +220,35 @@ export const warehouseModule: DataModule = {
       staleTime: CACHE_TIMES.DYNAMIC,
       gcTime: CACHE_TIMES.GC,
     },
+
+    // ─── 12. Material Browser Stock (for trade material browser) ──
+    // Preloaded so sales/purchase invoice material browser shows stock instantly
+    {
+      queryKey: ['material_browser_stock', null],
+      queryFn: async (companyId: string) => {
+        const result: Record<string, { stock_qty: number; roll_count: number }> = {};
+        try {
+          const { data: rolls, error } = await supabase
+            .from('fabric_rolls')
+            .select('material_id, available_length, status')
+            .eq('company_id', companyId)
+            .in('status', ['available', 'reserved', 'partial']);
+          if (error) throw error;
+          if (rolls) {
+            for (const roll of rolls) {
+              if (!result[roll.material_id]) {
+                result[roll.material_id] = { stock_qty: 0, roll_count: 0 };
+              }
+              result[roll.material_id].stock_qty += Number(roll.available_length) || 0;
+              result[roll.material_id].roll_count += 1;
+            }
+          }
+        } catch { /* ignore */ }
+        return result;
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
   ],
 };
 

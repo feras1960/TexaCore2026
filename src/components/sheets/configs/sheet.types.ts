@@ -31,6 +31,7 @@ export type DocType =
   | 'party'
   | 'purchase_order'
   | 'purchase_request'
+  | 'purchase_receipt'
   | 'quotation'
   | 'return'
   // Exchange Module
@@ -127,7 +128,7 @@ export interface SheetAction {
   labelAr?: string;
   icon?: LucideIcon;
   variant?: ActionVariant;
-  onClick?: (data: any) => void | Promise<void>;
+  onClick?: (data: any, context?: any) => void | Promise<void>;
   show?: (data: any) => boolean;
   disabled?: (data: any) => boolean;
   loading?: boolean;

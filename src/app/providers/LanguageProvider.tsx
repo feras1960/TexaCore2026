@@ -14,7 +14,7 @@ interface LanguageContextType {
   language: SupportedLanguage;
   direction: 'ltr' | 'rtl';
   setLanguage: (lang: SupportedLanguage) => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  t: (key: string, paramsOrFallback?: Record<string, string | number> | string, fallback?: string) => string;
   supportedLanguages: typeof SUPPORTED_LANGUAGES;
   currentLanguageConfig: LanguageConfig | undefined;
   isRTL: boolean;
@@ -142,7 +142,17 @@ export function LanguageProvider({ children, defaultLanguage }: LanguageProvider
   }, []);
 
   // Translation function
-  const t = useCallback((key: string, params?: Record<string, string | number>): string => {
+  const t = useCallback((key: string, paramsOrFallback?: Record<string, string | number> | string, fallbackStr?: string): string => {
+    let params: Record<string, string | number> | undefined;
+    let explicitFallback: string | undefined;
+
+    if (typeof paramsOrFallback === 'string') {
+      explicitFallback = paramsOrFallback;
+    } else {
+      params = paramsOrFallback;
+      explicitFallback = fallbackStr;
+    }
+
     const currentTranslations = translations[language];
 
     // Try to get translation from current language
@@ -153,10 +163,12 @@ export function LanguageProvider({ children, defaultLanguage }: LanguageProvider
       value = getNestedValue(translations.en as Record<string, unknown>, key);
     }
 
-    // Return key if translation not found
+    // Return fallback or key if translation not found
     if (value === undefined) {
-      console.warn(`Translation missing for key: ${key}`);
-      return key;
+      if (!explicitFallback) {
+        console.warn(`Translation missing for key: \${key}`);
+      }
+      return explicitFallback || key;
     }
 
     return interpolate(value, params);

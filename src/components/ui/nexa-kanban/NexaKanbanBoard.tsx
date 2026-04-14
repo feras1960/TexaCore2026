@@ -167,10 +167,10 @@ export function NexaKanbanBoard({
             <div className={`flex h-full gap-4 p-4 overflow-x-auto ${className}`} dir={direction}>
                 {columns.map((col) => (
                     <div key={col.id} className="flex-shrink-0 w-[280px] animate-pulse">
-                        <div className={`h-16 rounded-t-xl border-t-4 ${col.color} bg-white mb-3`} />
+                        <div className={`h-16 rounded-t-xl border-t-4 ${col.color} bg-white dark:bg-gray-900 mb-3`} />
                         <div className={`${col.bgColor} rounded-xl p-3 space-y-3 min-h-[300px]`}>
                             {[1, 2].map((i) => (
-                                <div key={i} className="h-28 bg-white/60 rounded-lg" />
+                                <div key={i} className="h-28 bg-white/60 dark:bg-gray-800/60 rounded-lg" />
                             ))}
                         </div>
                     </div>
@@ -221,7 +221,7 @@ export function NexaKanbanBoard({
                 <DragOverlay dropAnimation={dropAnimation}>
                     {activeId && activeItem ? (
                         <div className="transform rotate-[2deg] scale-[1.03] cursor-grabbing">
-                            <div className="shadow-2xl rounded-xl ring-2 ring-indigo-400/50 bg-white">
+                            <div className="shadow-2xl rounded-xl ring-2 ring-indigo-400/50 bg-white dark:bg-gray-900">
                                 {renderCard(activeItem.content, activeItem.columnId)}
                             </div>
                         </div>

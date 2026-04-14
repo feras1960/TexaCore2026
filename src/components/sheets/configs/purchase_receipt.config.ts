@@ -28,8 +28,7 @@ import { type SheetConfig, type DocType } from './sheet.types';
 // Import tab components
 import { OverviewTab } from '../tabs/shared/OverviewTab';
 import { ActivityTab } from '../tabs/shared/ActivityTab';
-// Use InvoiceItemsTab or create a generic ItemsTab if available
-import { ItemsTab } from '../tabs/shared/ItemsTab'; // Assuming this exists or using InvoiceItemsTab
+// import { ItemsTab } from '../tabs/shared/ItemsTab'; // Does not exist, use OverviewTab for now
 
 export const purchaseReceiptConfig: SheetConfig = {
     docType: 'purchase_receipt',
@@ -118,7 +117,7 @@ export const purchaseReceiptConfig: SheetConfig = {
             id: 'items',
             label: 'tabs.items',
             icon: FileText,
-            component: ItemsTab as any, // Verify ItemsTab exists, if not use OverviewTab placeholder
+            component: OverviewTab as any, // Verify ItemsTab exists, if not use OverviewTab placeholder
             badge: (data) => data.items?.length || 0,
         },
         { id: 'activity', label: 'tabs.activity', icon: Activity, component: ActivityTab },

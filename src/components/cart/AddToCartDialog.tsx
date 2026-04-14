@@ -138,7 +138,16 @@ export function AddToCartDialog({
 
     const rollsAvailable = warehouse.available_length || 0;
     const looseAvailable = warehouse.loose_stock || 0;
-    const max = rollsAvailable + looseAvailable;
+    // ✅ Fix: Prevent double-counting when available_length already includes loose stock.
+    // When there are physical rolls: available_length = sum(roll lengths), loose = current_stock - rolled
+    //   → max = rolled + loose = current_stock ✓
+    // When there are NO physical rolls: available_length is set to current_stock directly,
+    //   and loose_stock also equals current_stock → summing them would DOUBLE the quantity!
+    // Solution: If warehouse has actual rolls (roll_count > 0), sum them. Otherwise use the larger value.
+    const hasPhysicalRolls = (warehouse.roll_count || 0) > 0;
+    const max = hasPhysicalRolls
+        ? rollsAvailable + looseAvailable  // Separate: rolled + loose = current_stock
+        : Math.max(rollsAvailable, looseAvailable);  // Same source: use whichever is set
     const qty = parseFloat(quantity) || 0;
     const price = hidePrice ? 1 : (parseFloat(unitPrice) || 0);
     const subtotal = qty * price;
@@ -225,14 +234,7 @@ export function AddToCartDialog({
         } else {
             setSelectedRolls(new Set(available.map(r => r.id)));
         }
-    };
-
-    /** Auto-fill quantity from selected rolls */
-    const handleUseRollsQuantity = () => {
-        if (selectedRollsLength > 0) {
-            setQuantity(String(selectedRollsLength));
-            setError('');
-        }
+        setQuantity(''); // Reset manual quantity when toggling rolls
     };
 
     /** Core add-to-cart logic */
@@ -242,6 +244,8 @@ export function AddToCartDialog({
             setError(err);
             return false;
         }
+        // Determine effective quantity: use selected rolls total length if any rolls selected, otherwise manual quantity
+        const effectiveQty = selectedRollsLength > 0 ? selectedRollsLength : qty;
 
         if (mode === 'line' && onAddLineItem) {
             // Line mode — call parent callback
@@ -250,7 +254,7 @@ export function AddToCartDialog({
                 material_code: material.code,
                 material_name_ar: material.name_ar || material.name || '',
                 material_name_en: material.name_en || material.name || '',
-                quantity: qty,
+                quantity: effectiveQty,
                 unit,
                 unit_price: price,
                 warehouse_id: warehouse.id,
@@ -265,7 +269,7 @@ export function AddToCartDialog({
                 material_name_ar: material.name_ar || material.name || '',
                 material_name_en: material.name_en || material.name || '',
                 material_code: material.code,
-                quantity: qty,
+                quantity: effectiveQty,
                 unit,
                 warehouse_id: warehouse.id,
                 warehouse_name_ar: warehouse.name_ar,
@@ -283,7 +287,7 @@ export function AddToCartDialog({
             : '';
         toast({
             title: t('تمت الإضافة ✓', 'Added ✓'),
-            description: `${matName} — ${qty} ${unitLabel[isAr ? 'ar' : 'en']}${rollsMsg}`,
+            description: `${matName} — ${effectiveQty} ${unitLabel[isAr ? 'ar' : 'en']}${rollsMsg}`,
         });
 
         return true;
@@ -407,7 +411,7 @@ export function AddToCartDialog({
                             max={max || undefined}
                             value={quantity}
                             onChange={(e) => handleQuantityChange(e.target.value)}
-                            placeholder={`0 — ${max.toLocaleString('en-US')} ${unitLabel[isAr ? 'ar' : 'en']}`}
+                            placeholder={selectedRolls.size > 0 ? `${selectedRollsLength.toFixed(1)} (Selected Rolls)` : `0 — ${max.toLocaleString('en-US')} ${unitLabel[isAr ? 'ar' : 'en']}`}
                             className="font-mono text-lg h-11"
                         />
                         {/* Usage Progress Bar */}
@@ -439,6 +443,7 @@ export function AddToCartDialog({
                                             )}
                                             onClick={() => {
                                                 setQuantity(String(pctQty));
+                                                setSelectedRolls(new Set());
                                                 setError('');
                                             }}
                                         >
@@ -454,7 +459,7 @@ export function AddToCartDialog({
                     {/* ─── Unit Price (hidden for transfers) ─── */}
                     {!hidePrice && (
                         <div className="space-y-1.5">
-                            <Label>{t('سعر الوحدة', 'Unit Price')} ({material.currency || currency})</Label>
+                            <Label>{t('سعر الوحدة', 'Unit Price')} ({material.currency || ''})</Label>
                             <Input
                                 type="number"
                                 min={0}
@@ -494,16 +499,6 @@ export function AddToCartDialog({
                                     )}
                                     <ChevronDown className={cn('w-3.5 h-3.5 text-indigo-400 transition-transform ms-auto', showRolls && 'rotate-180')} />
                                 </button>
-                                {selectedRolls.size > 0 && (
-                                    <button
-                                        type="button"
-                                        className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 px-2 py-1 rounded-md transition-colors"
-                                        onClick={handleUseRollsQuantity}
-                                    >
-                                        <Ruler className="w-3 h-3" />
-                                        {t(`استخدم`, 'Use')} {selectedRollsLength.toLocaleString('en-US', { maximumFractionDigits: 1 })} {unitLabel[isAr ? 'ar' : 'en']}
-                                    </button>
-                                )}
                             </div>
 
                             {showRolls && (

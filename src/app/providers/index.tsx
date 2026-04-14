@@ -52,7 +52,8 @@ const persistOptions = {
   },
   // Auto-generate buster based on week number — invalidates old schema caches weekly
   // Change format manually (e.g. 'v2.0.0') for breaking schema updates
-  buster: `v1-w${Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))}`,
+  // v6: stock-movements limit 500 + consolidated sheet view (2026-04-13)
+  buster: `v6-w${Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))}`,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -73,24 +74,62 @@ function handlePersistSuccess() {
   if (successQueries.length > 0) {
     console.log(`⚡ [Cache] Restored ${successQueries.length} queries from IndexedDB`);
 
-    // 🔑 KEY CHANGE: Set dataUpdatedAt to a timestamp OLDER than staleTime
-    // This means: show cached data instantly (0ms) BUT mark as stale
-    // → React Query will refetch from server in the background
-    // → UI updates seamlessly when fresh data arrives
-    // Old behavior: dataUpdatedAt = now → data treated as "fresh" → NO refetch for 5 min!
-    const staleTimestamp = Date.now() - (6 * 60 * 1000); // 6 min ago → always stale
+    // 🔑 Show cached data instantly AND treat as fresh
+    const freshTimestamp = Date.now();
+
+    // ⚡ Queries with realtime subscriptions should NOT have their timestamps refreshed.
+    // These queries auto-sync via WebSocket, so they need to refetch on cold start
+    // to detect changes that happened while the app was closed.
+    const skipTimestampRefresh = new Set([
+      'materials-full-detail',  // must always re-fetch to include parent_material_id
+      'parties_suppliers',      // realtime-managed — must refetch on cold start
+      'parties_customers',      // realtime-managed — must refetch on cold start
+      'party_balances_supplier',
+      'party_balances_customer',           // Parties page — must refetch on cold start
+      'party_balances_supplier_purchases', // SuppliersList page — must refetch on cold start
+      'customer_balances_subledger',       // CustomersList page — must refetch on cold start
+      'material-movements',     // realtime-managed — must refetch for accurate movement log
+      'material-inventory',     // realtime-managed — must refetch for warehouse distribution
+    ]);
+
+    // 🔄 Warehouse queries: Don't refresh timestamps — let them refetch for fresh data.
+    // These have realtime subscriptions (fabric_materials, fabric_rolls, etc.)
+    const isWarehouseRealtimeQuery = (key: any[]) => {
+      if (key[0] !== 'warehouse') return false;
+      const realtimeEntities = ['materials', 'dashboard-stats', 'low-stock', 'inventory-movements'];
+      return realtimeEntities.some(e => key[1] === e);
+    };
+
+    // 🔄 Inventory preload caches — must refetch on cold start
+    const isInventoryPreload = (key: any[]) => {
+      return typeof key[0] === 'string' && (key[0] as string).startsWith('inventory-preload');
+    };
 
     successQueries.forEach((query) => {
+      const key0 = query.queryKey[0];
+      if (skipTimestampRefresh.has(key0 as string)) return;
+
+      // 🔄 Warehouse realtime queries: skip timestamp refresh → will refetch on mount
+      if (isWarehouseRealtimeQuery(query.queryKey as any[])) return;
+
+      // 🔄 Inventory preload: skip timestamp refresh → will refetch from Supabase
+      if (isInventoryPreload(query.queryKey as any[])) return;
+
+      // 🔄 sales_cycle_full: previously removed stale caches without items join.
+      // Now the query always includes items join, so we keep the cache as-is.
+
       query.setState({
         ...query.state,
-        dataUpdatedAt: staleTimestamp,
+        dataUpdatedAt: freshTimestamp,
       });
     });
 
-    // Log restored query keys for debugging
+    // Remove stale full-detail cache so it will refetch fresh data on next use
+    // queryClient.removeQueries({ queryKey: ['materials-full-detail'] }); // Preserve full-detail cache for variant data
+
     const keys = successQueries.map(q => q.queryKey[0]).filter((v, i, a) => a.indexOf(v) === i);
     console.log(`⚡ [Cache] Query groups: ${keys.join(', ')}`);
-    console.log(`⚡ [Cache] Data shown instantly — background sync will update`);
+    console.log(`⚡ [Cache] Data shown instantly — next sync after staleTime expires`);
   } else {
     console.log('📭 [Cache] No cached queries found — will fetch fresh data');
   }

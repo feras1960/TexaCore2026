@@ -1,5 +1,5 @@
-import { Outlet } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -22,6 +22,15 @@ import { stockCountOfflineStore } from '@/features/warehouse/services/stockCount
 export default function MainLayout() {
   const { direction, language } = useLanguage();
   const isAr = language === 'ar';
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+
+  // 🔝 Scroll to top when navigating between sections
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0 });
+    }
+  }, [pathname]);
 
   // 🌐 Real-time sync: auto-update cache when other users make changes
   useGlobalRealtime();
@@ -70,6 +79,7 @@ export default function MainLayout() {
 
               {/* Main Content */}
               <motion.main
+                ref={mainRef}
                 className="flex-1 p-4 lg:p-6 overflow-y-auto"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

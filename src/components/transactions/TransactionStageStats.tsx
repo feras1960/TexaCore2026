@@ -31,7 +31,6 @@ export const TransactionStageStats: React.FC<TransactionStageStatsProps> = ({
     className,
 }) => {
     const { language, direction } = useLanguage();
-    const isAr = language === 'ar';
     const isPurchase = type === 'purchase';
 
     const stageOrder = isPurchase ? PURCHASE_STAGE_ORDER : SALES_STAGE_ORDER;
@@ -53,7 +52,10 @@ export const TransactionStageStats: React.FC<TransactionStageStatsProps> = ({
             {/* ─── Summary Bar ─── */}
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                    {isPurchase ? (isAr ? 'المشتريات' : 'Purchases') : (isAr ? 'المبيعات' : 'Sales')}
+                    {isPurchase
+                        ? (language === 'ar' ? 'المشتريات' : language === 'ru' ? 'Закупки' : language === 'uk' ? 'Закупівлі' : language === 'tr' ? 'Satın Almalar' : 'Purchases')
+                        : (language === 'ar' ? 'المبيعات' : language === 'ru' ? 'Продажи' : language === 'uk' ? 'Продажі' : language === 'tr' ? 'Satışlar' : 'Sales')
+                    }
                 </span>
                 <span className="text-xs font-mono text-gray-400 tabular-nums bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
                     {totalCount}
@@ -73,7 +75,7 @@ export const TransactionStageStats: React.FC<TransactionStageStatsProps> = ({
                             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300',
                     )}
                 >
-                    {isAr ? 'الكل' : 'All'}
+                    {language === 'ar' ? 'الكل' : language === 'ru' ? 'Все' : language === 'uk' ? 'Усі' : language === 'tr' ? 'Tümü' : 'All'}
                     <span className="font-mono tabular-nums text-[10px] opacity-70">
                         {totalCount}
                     </span>
@@ -112,7 +114,7 @@ export const TransactionStageStats: React.FC<TransactionStageStatsProps> = ({
                                 )}
                                 style={{ backgroundColor: config.color }}
                             />
-                            {isAr ? config.label_ar : config.label_en}
+                            {config.labels?.[language] || (language === 'ar' ? config.label_ar : config.label_en)}
                             <span
                                 className={cn(
                                     'font-mono tabular-nums text-[10px] px-1.5 py-0.5 rounded-md min-w-[20px] text-center',
@@ -140,7 +142,7 @@ export const TransactionStageStats: React.FC<TransactionStageStatsProps> = ({
                         )}
                     >
                         <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                        {isAr ? 'ملغاة' : 'Cancelled'}
+                        {language === 'ar' ? 'ملغاة' : language === 'ru' ? 'Отменён' : language === 'uk' ? 'Скасовано' : language === 'tr' ? 'İptal' : 'Cancelled'}
                         <span className="font-mono tabular-nums text-[10px] bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded-md">
                             {stats['cancelled'] || 0}
                         </span>

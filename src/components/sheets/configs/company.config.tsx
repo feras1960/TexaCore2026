@@ -17,13 +17,13 @@ import {
     Trash2,
     Ban
 } from 'lucide-react';
-import { BaseSheetConfig } from '../../shared/sheets/types';
+import { SheetConfig } from './sheet.types';
 import { companiesService } from '@/services/companiesService';
 import { toast } from 'sonner';
 import { CompanyUsersList } from '@/features/saas/components/CompanyUsersList';
 import { CompanySubscription } from '@/features/saas/components/CompanySubscription';
 
-export const companyConfig: BaseSheetConfig = {
+export const companyConfig: SheetConfig = {
     id: 'company-config',
     docType: 'company',
     title: (data) => data.name || '-',
@@ -52,7 +52,6 @@ export const companyConfig: BaseSheetConfig = {
             confirm: {
                 title: 'dialogs.suspendTitle',
                 description: 'dialogs.suspendDescription',
-                confirmLabel: 'common.suspend',
                 variant: 'destructive'
             },
             onClick: async (data) => {
@@ -83,7 +82,6 @@ export const companyConfig: BaseSheetConfig = {
             confirm: {
                 title: 'dialogs.deleteTitle',
                 description: 'dialogs.deleteDescription',
-                confirmLabel: 'common.delete',
                 variant: 'destructive'
             },
             onClick: async (data) => {
@@ -92,6 +90,8 @@ export const companyConfig: BaseSheetConfig = {
             }
         }
     ],
+
+    infoFields: [],
 
     tabs: [
         {

@@ -11,6 +11,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { accountsService } from '@/services/accountsService';
+import { accountLedgerService } from '@/services/accountLedgerService';
 import type { DataModule } from '../DataEngine';
 import { CACHE_TIMES } from '../DataEngine';
 
@@ -174,11 +175,14 @@ export const accountingModule: DataModule = {
     {
       queryKey: ['accounting', 'budgets'],
       queryFn: async (companyId: string) => {
-        const [budgetsRes, alertsRes] = await Promise.all([
-          supabase.from('budgets').select('*').eq('company_id', companyId).order('created_at', { ascending: false }),
-          supabase.from('budget_alerts').select('*').eq('company_id', companyId).eq('is_read', false),
-        ]);
-        return { budgets: budgetsRes.data || [], alerts: alertsRes.data || [] };
+        const budgetsRes = await supabase.from('budgets').select('*').eq('company_id', companyId).order('created_at', { ascending: false });
+        // budget_alerts may not exist yet — handle gracefully
+        let alerts: any[] = [];
+        try {
+          const { data, error } = await supabase.from('budget_alerts').select('*').eq('company_id', companyId).eq('is_read', false);
+          if (!error) alerts = data || [];
+        } catch { /* table doesn't exist */ }
+        return { budgets: budgetsRes.data || [], alerts };
       },
       staleTime: CACHE_TIMES.SEMI_STATIC,
       gcTime: CACHE_TIMES.GC,

@@ -67,7 +67,7 @@ export function NexaKanbanCard({
             />
 
             {/* Card Content (rendered by consumer) */}
-            <div className="bg-white">
+            <div className="bg-white dark:bg-gray-900">
                 {renderCard(item.content, columnId)}
             </div>
         </div>

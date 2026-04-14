@@ -37,19 +37,19 @@ export function NexaKanbanColumn({
             ref={setNodeRef}
             className={`
         flex-shrink-0 w-[280px] flex flex-col h-full transition-all duration-200 rounded-xl
-        ${isOver ? 'ring-2 ring-offset-2 ring-indigo-400/60 bg-indigo-50/20 scale-[1.01]' : ''}
+        ${isOver ? 'ring-2 ring-offset-2 ring-indigo-400/60 bg-indigo-50/20 dark:bg-indigo-950/20 scale-[1.01]' : ''}
       `}
         >
             {/* ─── Column Header ─── */}
             <div
                 className={`
-          p-3.5 rounded-t-xl bg-white shadow-sm mb-2
+          p-3.5 rounded-t-xl bg-white dark:bg-gray-900 shadow-sm mb-2
           border-t-[4px] ${column.color}
         `}
             >
                 <div className={`flex justify-between items-center mb-1.5 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     <h3
-                        className={`font-bold text-sm text-gray-800 flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}
+                        className={`font-bold text-sm text-gray-800 dark:text-gray-200 flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}
                     >
                         {column.icon && (
                             <span className="opacity-80">{column.icon}</span>
@@ -69,7 +69,7 @@ export function NexaKanbanColumn({
 
                 {/* Total Value */}
                 {totalValue !== undefined && (
-                    <div className={`text-xs text-gray-500 font-mono font-medium ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <div className={`text-xs text-gray-500 dark:text-gray-400 font-mono font-medium ${isRTL ? 'text-right' : 'text-left'}`}>
                         {totalValue.toLocaleString()}{' '}
                         <span className="text-[10px] text-gray-400">{currency}</span>
                     </div>
@@ -80,7 +80,7 @@ export function NexaKanbanColumn({
             <div
                 className={`
           flex-1 rounded-xl p-2.5 space-y-3 overflow-y-auto custom-scrollbar
-          border border-gray-100/80
+          border border-gray-100/80 dark:border-gray-800/80
           ${column.bgColor}
         `}
             >
