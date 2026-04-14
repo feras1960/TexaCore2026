@@ -5,7 +5,7 @@ import React from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Search, TrendingUp, Mail, Globe, BarChart3, Target, Users, Eye, MousePointer, Share2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 export default function EcommerceSEO() {
@@ -18,6 +18,37 @@ export default function EcommerceSEO() {
         { keyword: isRTL ? 'قماش قطن مصري' : 'egyptian cotton', position: 5, volume: 8500, change: -1 },
         { keyword: isRTL ? 'أقمشة حرير' : 'silk fabrics', position: 8, volume: 6200, change: 3 },
         { keyword: isRTL ? 'أقمشة أوكرانيا' : 'fabrics ukraine', position: 12, volume: 3100, change: 5 },
+    ];
+
+    const keywordColumns: NexaListColumn<typeof keywords[number]>[] = [
+        {
+            id: 'keyword',
+            header: isRTL ? 'الكلمة' : 'Keyword',
+            cell: (row) => <span className="font-medium text-sm">{row.keyword}</span>,
+        },
+        {
+            id: 'position',
+            header: isRTL ? 'الترتيب' : 'Position',
+            align: 'center',
+            cell: (row) => <Badge variant="outline">#{row.position}</Badge>,
+        },
+        {
+            id: 'volume',
+            header: isRTL ? 'حجم البحث' : 'Volume',
+            align: 'center',
+            cell: (row) => <span className="font-mono text-xs">{row.volume.toLocaleString()}</span>,
+        },
+        {
+            id: 'change',
+            header: isRTL ? 'التغيير' : 'Change',
+            align: 'center',
+            cell: (row) => (
+                <span className={`text-xs flex items-center justify-center gap-0.5 ${row.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {row.change > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                    {Math.abs(row.change)}
+                </span>
+            ),
+        },
     ];
 
     const campaigns = [
@@ -69,41 +100,15 @@ export default function EcommerceSEO() {
                 </Card>
             </div>
 
-            {/* Keywords */}
-            <Card className="border-0 shadow-sm">
-                <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2"><Search className="w-5 h-5 text-erp-teal" /> {isRTL ? 'الكلمات المفتاحية' : 'Keywords'}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b bg-gray-50 dark:bg-gray-800/50">
-                                    <th className="text-start px-4 py-2.5 text-xs font-medium text-gray-500">{isRTL ? 'الكلمة' : 'Keyword'}</th>
-                                    <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500">{isRTL ? 'الترتيب' : 'Position'}</th>
-                                    <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500">{isRTL ? 'حجم البحث' : 'Volume'}</th>
-                                    <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500">{isRTL ? 'التغيير' : 'Change'}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {keywords.map((kw, i) => (
-                                    <tr key={i} className="border-b border-gray-100 dark:border-gray-800">
-                                        <td className="px-4 py-3 font-medium">{kw.keyword}</td>
-                                        <td className="px-4 py-3 text-center"><Badge variant="outline">#{kw.position}</Badge></td>
-                                        <td className="px-4 py-3 text-center font-mono text-xs">{kw.volume.toLocaleString()}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className={`text-xs flex items-center justify-center gap-0.5 ${kw.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {kw.change > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                                                {Math.abs(kw.change)}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Keywords — NexaListTable */}
+            <NexaListTable<typeof keywords[number]>
+                data={keywords}
+                columns={keywordColumns}
+                getRowKey={(_, idx) => `kw-${idx}`}
+                showRowNumbers={true}
+                showFooter={false}
+                className="max-h-[400px]"
+            />
 
             {/* Marketing Campaigns */}
             <Card className="border-0 shadow-sm">

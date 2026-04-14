@@ -5,17 +5,15 @@
  */
 
 import React, { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
-import { Users, Search, Package, DollarSign, Phone, Mail, Loader2, ShoppingCart, RefreshCw } from 'lucide-react';
+import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
+import { Users, DollarSign, Loader2, ShoppingCart } from 'lucide-react';
 
 interface Customer {
     phone: string;
@@ -31,7 +29,6 @@ export default function EcommerceCustomers() {
     const { direction } = useLanguage();
     const isRTL = direction === 'rtl';
     const { companyId } = useCompany();
-    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
 
     // ─── Cache-first query (IndexedDB persistence) ────────────
@@ -61,8 +58,8 @@ export default function EcommerceCustomers() {
             });
             return Object.values(map).sort((a, b) => b.totalSpent - a.totalSpent);
         },
-        staleTime: 5 * 60 * 1000,       // 5 minutes
-        gcTime: 24 * 60 * 60 * 1000,    // 24 hours in IndexedDB
+        staleTime: 5 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
     });
 
     // ─── Realtime — customers derived from orders ────────────
@@ -77,6 +74,52 @@ export default function EcommerceCustomers() {
     );
 
     const formatCurrency = (val: number) => new Intl.NumberFormat(isRTL ? 'ar-u-nu-latn' : 'en-US', { maximumFractionDigits: 2 }).format(val);
+
+    // ─── NexaListTable columns ────────────
+    const columns: NexaListColumn<Customer>[] = [
+        {
+            id: 'name',
+            header: isRTL ? 'العميل' : 'Customer',
+            cell: (row) => (
+                <div>
+                    <p className="font-medium text-sm">{row.name}</p>
+                    {row.email && <p className="text-xs text-gray-500">{row.email}</p>}
+                </div>
+            ),
+        },
+        {
+            id: 'phone',
+            header: isRTL ? 'الهاتف' : 'Phone',
+            cell: (row) => <span className="font-mono text-xs" dir="ltr">{row.phone}</span>,
+        },
+        {
+            id: 'orders',
+            header: isRTL ? 'الطلبات' : 'Orders',
+            align: 'center',
+            sortable: true,
+            sortKey: 'totalOrders',
+            cell: (row) => <Badge variant="outline">{row.totalOrders}</Badge>,
+        },
+        {
+            id: 'spent',
+            header: isRTL ? 'الإنفاق' : 'Spent',
+            align: 'end',
+            sortable: true,
+            sortKey: 'totalSpent',
+            cell: (row) => (
+                <span className="font-mono font-semibold">
+                    {formatCurrency(row.totalSpent)} <span className="text-xs text-gray-400">{row.currency}</span>
+                </span>
+            ),
+        },
+        {
+            id: 'lastOrder',
+            header: isRTL ? 'آخر طلب' : 'Last Order',
+            sortable: true,
+            sortKey: 'lastOrder',
+            cell: (row) => <span className="text-xs text-gray-500">{new Date(row.lastOrder).toLocaleDateString(isRTL ? 'ar' : 'en')}</span>,
+        },
+    ];
 
     if (loading && !customers.length) {
         return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
@@ -123,53 +166,25 @@ export default function EcommerceCustomers() {
                 </Card>
             </div>
 
-            {/* Search + Table */}
-            <div className="flex items-center gap-2">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        placeholder={isRTL ? 'بحث بالاسم أو الهاتف...' : 'Search by name or phone...'} className="ps-9 text-sm" />
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['ecommerce', 'customers'] })}><RefreshCw className="w-4 h-4" /></Button>
-            </div>
-
-            <Card className="border-0 shadow-sm">
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b bg-gray-50 dark:bg-gray-800/50">
-                                    <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'العميل' : 'Customer'}</th>
-                                    <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'الهاتف' : 'Phone'}</th>
-                                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'الطلبات' : 'Orders'}</th>
-                                    <th className="text-end px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'الإنفاق' : 'Spent'}</th>
-                                    <th className="text-start px-4 py-3 text-xs font-medium text-gray-500">{isRTL ? 'آخر طلب' : 'Last Order'}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map(c => (
-                                    <tr key={c.phone} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30">
-                                        <td className="px-4 py-3">
-                                            <p className="font-medium">{c.name}</p>
-                                            {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-xs" dir="ltr">{c.phone}</td>
-                                        <td className="px-4 py-3 text-center"><Badge variant="outline">{c.totalOrders}</Badge></td>
-                                        <td className="px-4 py-3 text-end font-mono font-semibold">{formatCurrency(c.totalSpent)} <span className="text-xs text-gray-400">{c.currency}</span></td>
-                                        <td className="px-4 py-3 text-xs text-gray-500">{new Date(c.lastOrder).toLocaleDateString(isRTL ? 'ar' : 'en')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {filtered.length === 0 && (
-                            <div className="text-center py-12 text-gray-400">
-                                <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                <p>{isRTL ? 'لا يوجد عملاء' : 'No customers found'}</p>
-                            </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+            {/* NexaListTable */}
+            <NexaListTable<Customer>
+                data={filtered}
+                columns={columns}
+                searchTerm={searchQuery}
+                onSearchChange={setSearchQuery}
+                searchPlaceholder={isRTL ? 'بحث بالاسم أو الهاتف...' : 'Search by name or phone...'}
+                isLoading={loading}
+                getRowKey={(row) => row.phone}
+                totalCount={customers.length}
+                countLabel={isRTL ? 'عميل' : 'customers'}
+                emptyMessage={isRTL ? 'لا يوجد عملاء' : 'No customers found'}
+                showFooter={true}
+                footerRightContent={
+                    <span className="font-mono font-bold text-erp-teal">
+                        {isRTL ? 'الإجمالي: ' : 'Total: '}{formatCurrency(filtered.reduce((s, c) => s + c.totalSpent, 0))} {customers[0]?.currency || ''}
+                    </span>
+                }
+            />
         </div>
     );
 }
