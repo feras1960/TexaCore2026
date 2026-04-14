@@ -23,5 +23,11 @@
     }
   },
   "include": ["src"],
+  "exclude": [
+    "node_modules",
+    "src/components/_archived_deprecated",
+    "src/stores/_examples",
+    "src/features/componentLab"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
