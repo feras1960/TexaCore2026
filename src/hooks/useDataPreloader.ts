@@ -432,6 +432,91 @@ export function useDataPreloader() {
                     gcTime: GC_TIME,
                 }),
 
+                // ═══ 🛒 E-Commerce Module ═══
+
+                // 7. Ecommerce Orders
+                queryClient.prefetchQuery({
+                    queryKey: ['ecommerce', 'orders', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('ecommerce_orders')
+                            .select('*')
+                            .order('created_at', { ascending: false });
+                        return data || [];
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 8. Ecommerce Products
+                queryClient.prefetchQuery({
+                    queryKey: ['ecommerce', 'products', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('ecommerce_products')
+                            .select('*')
+                            .order('created_at', { ascending: false });
+                        return data || [];
+                    },
+                    staleTime: SEMI_STATIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 9. Ecommerce Dashboard (KPIs)
+                queryClient.prefetchQuery({
+                    queryKey: ['ecommerce', 'dashboard', companyId],
+                    queryFn: async () => {
+                        const [ordersRes, itemsRes] = await Promise.all([
+                            supabase.from('ecommerce_orders')
+                                .select('id, order_number, customer_name, total_amount, status, payment_status, currency, created_at, customer_phone')
+                                .order('created_at', { ascending: false }),
+                            supabase.from('ecommerce_order_items').select('product_name, quantity, total_price'),
+                        ]);
+                        const allOrders = ordersRes.data || [];
+                        const validOrders = allOrders.filter((o: any) => !['cancelled', 'returned'].includes(o.status));
+                        const sales = validOrders.reduce((s: number, o: any) => s + (o.total_amount || 0), 0);
+                        const items = itemsRes.data || [];
+                        const map: Record<string, { name: any; sold: number; rev: number }> = {};
+                        items.forEach((it: any) => {
+                            const k = JSON.stringify(it.product_name);
+                            if (!map[k]) map[k] = { name: it.product_name, sold: 0, rev: 0 };
+                            map[k].sold += it.quantity;
+                            map[k].rev += it.total_price;
+                        });
+                        const topProducts = Object.values(map).sort((a, b) => b.rev - a.rev).slice(0, 5)
+                            .map(p => ({ product_name: p.name, total_sold: p.sold, total_revenue: p.rev }));
+                        return {
+                            totalSales: sales,
+                            totalOrders: allOrders.length,
+                            totalCustomers: new Set(allOrders.map((o: any) => o.customer_phone)).size,
+                            pendingOrders: allOrders.filter((o: any) => o.status === 'pending').length,
+                            shippedOrders: allOrders.filter((o: any) => o.status === 'shipped').length,
+                            completedOrders: allOrders.filter((o: any) => ['delivered', 'completed'].includes(o.status)).length,
+                            avgOrderValue: validOrders.length > 0 ? sales / validOrders.length : 0,
+                            currency: allOrders[0]?.currency || 'UAH',
+                            recentOrders: allOrders.slice(0, 8).map((o: any) => ({
+                                id: o.id, order_number: o.order_number, customer_name: o.customer_name,
+                                total_amount: o.total_amount, status: o.status, payment_status: o.payment_status,
+                                currency: o.currency, created_at: o.created_at,
+                            })),
+                            topProducts,
+                        };
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 10. Shipping Carriers
+                queryClient.prefetchQuery({
+                    queryKey: ['ecommerce', 'shipping', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase.from('shipping_carriers').select('*').order('carrier_code');
+                        return data || [];
+                    },
+                    staleTime: SEMI_STATIC,
+                    gcTime: GC_TIME,
+                }),
+
             ]).then(() => {
                 const t3 = performance.now();
                 console.log(`⚡ [DataPreloader] Tier 3 complete in ${Math.round(t3 - t0)}ms — All data ready! 🚀`);
