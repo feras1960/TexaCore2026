@@ -8,8 +8,12 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -69,8 +73,8 @@ const ORDER_STAGES = [
 export default function EcommerceOrders() {
     const { direction } = useLanguage();
     const isRTL = direction === 'rtl';
-    const [loading, setLoading] = useState(true);
-    const [orders, setOrders] = useState<Order[]>([]);
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
     const [view, setView] = useState<'kanban' | 'table'>('kanban');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -78,17 +82,26 @@ export default function EcommerceOrders() {
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [updating, setUpdating] = useState(false);
 
-    const fetchOrders = async () => {
-        setLoading(true);
-        const { data } = await supabase
-            .from('ecommerce_orders')
-            .select('*')
-            .order('created_at', { ascending: false });
-        setOrders(data || []);
-        setLoading(false);
-    };
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: orders = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['ecommerce', 'orders', companyId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('ecommerce_orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+            return (data || []) as Order[];
+        },
+        staleTime: 1 * 60 * 1000,       // 1 minute (orders change frequently)
+        gcTime: 24 * 60 * 60 * 1000,    // 24 hours in IndexedDB
+    });
 
-    useEffect(() => { fetchOrders(); }, []);
+    // ─── Realtime — invalidate cache on DB changes ────────────
+    useRealtimeInvalidation({
+        table: 'ecommerce_orders',
+        companyId,
+        queryKeys: [['ecommerce', 'orders'], ['ecommerce', 'dashboard']],
+    });
 
     const openOrderDetails = async (order: Order) => {
         setSelectedOrder(order);
@@ -107,11 +120,15 @@ export default function EcommerceOrders() {
         if (newStatus === 'shipped') updateData.shipped_at = new Date().toISOString();
         if (newStatus === 'delivered') updateData.delivered_at = new Date().toISOString();
 
-        await supabase.from('ecommerce_orders').update(updateData).eq('id', orderId);
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus, ...updateData } : o));
+        // Optimistic update — instant UI feedback
+        queryClient.setQueryData(['ecommerce', 'orders', companyId], (old: Order[] | undefined) =>
+            (old || []).map(o => o.id === orderId ? { ...o, status: newStatus, ...updateData } : o)
+        );
         if (selectedOrder?.id === orderId) {
             setSelectedOrder(prev => prev ? { ...prev, status: newStatus, ...updateData } : null);
         }
+
+        await supabase.from('ecommerce_orders').update(updateData).eq('id', orderId);
         setUpdating(false);
     };
 
@@ -158,7 +175,7 @@ export default function EcommerceOrders() {
                             className="ps-9 text-sm"
                         />
                     </div>
-                    <Button variant="ghost" size="sm" onClick={fetchOrders}><RefreshCw className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['ecommerce', 'orders'] })}><RefreshCw className="w-4 h-4" /></Button>
                 </div>
                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                     <Button variant={view === 'kanban' ? 'default' : 'ghost'} size="sm" onClick={() => setView('kanban')} className="gap-1.5 text-xs">

@@ -2,8 +2,12 @@
  * EcommerceProducts — إدارة منتجات المتجر
  * يعرض منتجات ecommerce_products من Supabase
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,29 +18,41 @@ import { Package, Search, Eye, EyeOff, Loader2, RefreshCw, Star, ImageIcon } fro
 export default function EcommerceProducts() {
     const { direction } = useLanguage();
     const isRTL = direction === 'rtl';
-    const [loading, setLoading] = useState(true);
-    const [products, setProducts] = useState<any[]>([]);
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
 
-    const fetchProducts = async () => {
-        setLoading(true);
-        const { data } = await supabase.from('ecommerce_products').select('*').order('created_at', { ascending: false });
-        setProducts(data || []);
-        setLoading(false);
-    };
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: products = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['ecommerce', 'products', companyId],
+        queryFn: async () => {
+            const { data } = await supabase.from('ecommerce_products').select('*').order('created_at', { ascending: false });
+            return (data || []) as any[];
+        },
+        staleTime: 5 * 60 * 1000,       // 5 minutes (products don't change often)
+        gcTime: 24 * 60 * 60 * 1000,    // 24 hours in IndexedDB
+    });
 
-    useEffect(() => { fetchProducts(); }, []);
+    // ─── Realtime — invalidate cache on DB changes ────────────
+    useRealtimeInvalidation({
+        table: 'ecommerce_products',
+        companyId,
+        queryKeys: [['ecommerce', 'products']],
+    });
 
     const getName = (n: any) => { if (!n) return '-'; if (typeof n === 'string') return n; return n[isRTL ? 'ar' : 'en'] || n.ar || n.en || '-'; };
 
     const filtered = products.filter(p => !search || getName(p.name).toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search));
 
     const toggleVisibility = async (id: string, current: boolean) => {
+        // Optimistic update
+        queryClient.setQueryData(['ecommerce', 'products', companyId], (old: any[] | undefined) =>
+            (old || []).map(p => p.id === id ? { ...p, is_active: !current } : p)
+        );
         await supabase.from('ecommerce_products').update({ is_active: !current }).eq('id', id);
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, is_active: !current } : p));
     };
 
-    if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
+    if (loading && !products.length) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
 
     return (
         <div className="space-y-4">
@@ -45,7 +61,7 @@ export default function EcommerceProducts() {
                     <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={isRTL ? 'بحث...' : 'Search...'} className="ps-9 text-sm" />
                 </div>
-                <Button variant="ghost" size="sm" onClick={fetchProducts}><RefreshCw className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['ecommerce', 'products'] })}><RefreshCw className="w-4 h-4" /></Button>
                 <Badge variant="outline">{products.length} {isRTL ? 'منتج' : 'products'}</Badge>
             </div>
 

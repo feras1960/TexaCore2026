@@ -4,8 +4,12 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,17 +30,20 @@ interface Customer {
 export default function EcommerceCustomers() {
     const { direction } = useLanguage();
     const isRTL = direction === 'rtl';
-    const [loading, setLoading] = useState(true);
-    const [customers, setCustomers] = useState<Customer[]>([]);
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
 
-    const fetchCustomers = async () => {
-        setLoading(true);
-        const { data } = await supabase
-            .from('ecommerce_orders')
-            .select('customer_name, customer_email, customer_phone, total_amount, currency, created_at, status');
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: customers = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['ecommerce', 'customers', companyId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('ecommerce_orders')
+                .select('customer_name, customer_email, customer_phone, total_amount, currency, created_at, status');
 
-        if (data) {
+            if (!data) return [] as Customer[];
+
             const map: Record<string, Customer> = {};
             data.forEach(o => {
                 const key = o.customer_phone;
@@ -52,12 +59,18 @@ export default function EcommerceCustomers() {
                     map[key].name = o.customer_name;
                 }
             });
-            setCustomers(Object.values(map).sort((a, b) => b.totalSpent - a.totalSpent));
-        }
-        setLoading(false);
-    };
+            return Object.values(map).sort((a, b) => b.totalSpent - a.totalSpent);
+        },
+        staleTime: 5 * 60 * 1000,       // 5 minutes
+        gcTime: 24 * 60 * 60 * 1000,    // 24 hours in IndexedDB
+    });
 
-    useEffect(() => { fetchCustomers(); }, []);
+    // ─── Realtime — customers derived from orders ────────────
+    useRealtimeInvalidation({
+        table: 'ecommerce_orders',
+        companyId,
+        queryKeys: [['ecommerce', 'customers']],
+    });
 
     const filtered = customers.filter(c =>
         !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)
@@ -65,7 +78,7 @@ export default function EcommerceCustomers() {
 
     const formatCurrency = (val: number) => new Intl.NumberFormat(isRTL ? 'ar-u-nu-latn' : 'en-US', { maximumFractionDigits: 2 }).format(val);
 
-    if (loading) {
+    if (loading && !customers.length) {
         return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
     }
 
@@ -117,7 +130,7 @@ export default function EcommerceCustomers() {
                     <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                         placeholder={isRTL ? 'بحث بالاسم أو الهاتف...' : 'Search by name or phone...'} className="ps-9 text-sm" />
                 </div>
-                <Button variant="ghost" size="sm" onClick={fetchCustomers}><RefreshCw className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['ecommerce', 'customers'] })}><RefreshCw className="w-4 h-4" /></Button>
             </div>
 
             <Card className="border-0 shadow-sm">

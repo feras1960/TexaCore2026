@@ -1,8 +1,12 @@
 /**
  * EcommerceShipping — إدارة الشحن وطرق الدفع + Nova Poshta
  */
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,22 +30,33 @@ interface Carrier {
 export default function EcommerceShipping() {
     const { direction } = useLanguage();
     const isRTL = direction === 'rtl';
-    const [loading, setLoading] = useState(true);
-    const [carriers, setCarriers] = useState<Carrier[]>([]);
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    useEffect(() => {
-        const fetch = async () => {
-            setLoading(true);
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: carriers = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['ecommerce', 'shipping', companyId],
+        queryFn: async () => {
             const { data } = await supabase.from('shipping_carriers').select('*').order('carrier_code');
-            setCarriers(data || []);
-            setLoading(false);
-        };
-        fetch();
-    }, []);
+            return (data || []) as Carrier[];
+        },
+        staleTime: 30 * 60 * 1000,      // 30 minutes (carriers rarely change)
+        gcTime: 24 * 60 * 60 * 1000,    // 24 hours in IndexedDB
+    });
+
+    // ─── Realtime — invalidate on carrier changes ────────────
+    useRealtimeInvalidation({
+        table: 'shipping_carriers',
+        companyId,
+        queryKeys: [['ecommerce', 'shipping']],
+    });
 
     const toggleCarrier = async (id: string, current: boolean) => {
+        // Optimistic update
+        queryClient.setQueryData(['ecommerce', 'shipping', companyId], (old: Carrier[] | undefined) =>
+            (old || []).map(c => c.id === id ? { ...c, is_active: !current } : c)
+        );
         await supabase.from('shipping_carriers').update({ is_active: !current }).eq('id', id);
-        setCarriers(prev => prev.map(c => c.id === id ? { ...c, is_active: !current } : c));
     };
 
     const paymentMethods = [
@@ -59,7 +74,7 @@ export default function EcommerceShipping() {
         aramex: '🚚',
     };
 
-    if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
+    if (loading && !carriers.length) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-erp-teal" /></div>;
 
     return (
         <div className="space-y-6">
