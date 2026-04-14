@@ -1392,7 +1392,7 @@ export function MaterialReceiptDialog({
                     className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white gap-2 shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:shadow-emerald-500/40 hover:scale-[1.02]"
                 >
                     <ArrowDownToLine className="h-4 w-4" />
-                    {language === 'ar' ? 'استلام مواد' : 'Receive Materials'}
+                    {language === 'ar' ? 'استلام مواد' : language === 'ru' ? 'Приёмка материалов' : language === 'uk' ? 'Приймання матеріалів' : language === 'tr' ? 'Malzeme Teslim Al' : 'Receive Materials'}
                 </Button>
             )}
 

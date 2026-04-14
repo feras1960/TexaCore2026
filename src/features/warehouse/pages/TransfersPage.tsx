@@ -32,17 +32,18 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 
 // ─── Status Configs ──────────────────────────────────────
-const STATUS_CONFIG: Record<string, { labelAr: string; labelEn: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-    draft: { labelAr: 'مسودة', labelEn: 'Draft', color: 'bg-gray-100 text-gray-700 border-gray-200', icon: Clock },
-    confirmed: { labelAr: 'مؤكد', labelEn: 'Confirmed', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2 },
-    loading: { labelAr: 'قيد التحميل', labelEn: 'Loading', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Package },
-    shipped: { labelAr: 'مُرسل', labelEn: 'Shipped', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck },
-    received: { labelAr: 'مُستلم', labelEn: 'Received', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-    completed: { labelAr: 'مكتمل', labelEn: 'Completed', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-    cancelled: { labelAr: 'ملغي', labelEn: 'Cancelled', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle },
+const STATUS_CONFIG: Record<string, { labelKey: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
+    draft: { labelKey: 'tf_draft', color: 'bg-gray-100 text-gray-700 border-gray-200', icon: Clock },
+    confirmed: { labelKey: 'tf_confirmed', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2 },
+    loading: { labelKey: 'tf_loading', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Package },
+    shipped: { labelKey: 'tf_shipped', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck },
+    received: { labelKey: 'tf_received', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+    completed: { labelKey: 'tf_completed', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+    cancelled: { labelKey: 'tf_cancelled', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle },
 };
 
 // Statuses where the transfer is beyond draft — no delete allowed
@@ -155,19 +156,11 @@ export default function TransfersPage() {
 
         // Safety: only allow deleting drafts
         if (NON_DRAFT_STATUSES.includes(transfer.status)) {
-            toast.error(
-                language === 'ar'
-                    ? '🚫 لا يمكن حذف مناقلة مؤكدة أو مُرسلة'
-                    : '🚫 Cannot delete a confirmed/shipped transfer'
-            );
+            toast.error(getLocalizedLabel('tf_err_no_del', language));
             return;
         }
 
-        const confirmed = window.confirm(
-            language === 'ar'
-                ? 'هل أنت متأكد من حذف هذه المناقلة المسودة؟'
-                : 'Are you sure you want to delete this draft transfer?'
-        );
+        const confirmed = window.confirm(getLocalizedLabel('tf_confirm_del', language));
         if (!confirmed) return;
 
         try {
@@ -185,34 +178,27 @@ export default function TransfersPage() {
 
             if (error) throw error;
 
-            toast.success(
-                language === 'ar'
-                    ? '🗑️ تم حذف المناقلة المسودة'
-                    : '🗑️ Draft transfer deleted'
-            );
+            toast.success(getLocalizedLabel('tf_deleted', language));
             refreshList();
         } catch (err: any) {
             console.error('Delete draft transfer error:', err);
-            toast.error(
-                language === 'ar'
-                    ? 'فشل في الحذف'
-                    : 'Delete failed'
-            );
+            toast.error(getLocalizedLabel('tf_del_fail', language));
         }
     }, [language, refreshList]);
 
     // ─── Direction Labels ────────────────────────────────
     const directionOptions = useMemo(() => [
-        { value: 'all', labelAr: 'الكل', labelEn: 'All' },
-        { value: 'outgoing', labelAr: 'صادرة (من مستودعي)', labelEn: 'Outgoing (from my warehouse)' },
-        { value: 'incoming', labelAr: 'واردة (إلى مستودعي)', labelEn: 'Incoming (to my warehouse)' },
+        { value: 'all', labelKey: 'tf_dir_all' },
+        { value: 'outgoing', labelKey: 'tf_dir_out' },
+        { value: 'incoming', labelKey: 'tf_dir_in' },
     ], []);
 
     // ─── Format Date ─────────────────────────────────────
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '—';
         try {
-            return new Intl.DateTimeFormat(language === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
+            const locale = language === 'ar' ? 'ar-u-nu-latn' : language === 'ru' ? 'ru-RU' : language === 'uk' ? 'uk-UA' : language === 'tr' ? 'tr-TR' : 'en-US';
+            return new Intl.DateTimeFormat(locale, {
                 day: 'numeric', month: 'short', year: 'numeric',
             }).format(new Date(dateStr));
         } catch {
@@ -224,7 +210,7 @@ export default function TransfersPage() {
     const transferColumns: NexaListColumn<any>[] = useMemo(() => [
         {
             id: 'transfer_number',
-            header: language === 'ar' ? 'الرقم' : '#',
+            header: getLocalizedLabel('tf_col_num', language),
             sortable: true,
             sortKey: 'transfer_number',
             cell: (row: any) => (
@@ -235,29 +221,29 @@ export default function TransfersPage() {
         },
         {
             id: 'from_warehouse',
-            header: language === 'ar' ? 'من المستودع' : 'From',
+            header: getLocalizedLabel('tf_col_from', language),
             cell: (row: any) => (
                 <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
                     {language === 'ar'
                         ? (row.from_warehouse?.name_ar || row.from_warehouse?.name_en || '—')
-                        : (row.from_warehouse?.name_en || row.from_warehouse?.name_ar || '—')}
+                        : (row.from_warehouse?.[`name_${language}`] || row.from_warehouse?.name_en || row.from_warehouse?.name_ar || '—')}
                 </span>
             ),
         },
         {
             id: 'to_warehouse',
-            header: language === 'ar' ? 'إلى المستودع' : 'To',
+            header: getLocalizedLabel('tf_col_to', language),
             cell: (row: any) => (
                 <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
                     {language === 'ar'
                         ? (row.to_warehouse?.name_ar || row.to_warehouse?.name_en || '—')
-                        : (row.to_warehouse?.name_en || row.to_warehouse?.name_ar || '—')}
+                        : (row.to_warehouse?.[`name_${language}`] || row.to_warehouse?.name_en || row.to_warehouse?.name_ar || '—')}
                 </span>
             ),
         },
         {
             id: 'transfer_date',
-            header: language === 'ar' ? 'التاريخ' : 'Date',
+            header: getLocalizedLabel('tf_col_date', language),
             sortable: true,
             sortKey: 'transfer_date',
             cell: (row: any) => (
@@ -268,7 +254,7 @@ export default function TransfersPage() {
         },
         {
             id: 'total_items',
-            header: language === 'ar' ? 'الأصناف' : 'Items',
+            header: getLocalizedLabel('tf_col_items', language),
             cell: (row: any) => (
                 <span className="text-sm font-medium text-center block">
                     {row.total_items || '—'}
@@ -277,14 +263,14 @@ export default function TransfersPage() {
         },
         {
             id: 'status',
-            header: language === 'ar' ? 'الحالة' : 'Status',
+            header: getLocalizedLabel('tf_col_status', language),
             cell: (row: any) => {
                 const s = STATUS_CONFIG[row.status] || STATUS_CONFIG.draft;
                 const SIcon = s.icon;
                 return (
                     <Badge variant="outline" className={cn('gap-1 text-[10px] px-2 py-0.5 font-semibold', s.color)}>
                         <SIcon className="w-3 h-3" />
-                        {language === 'ar' ? s.labelAr : s.labelEn}
+                        {getLocalizedLabel(s.labelKey, language)}
                     </Badge>
                 );
             },
@@ -300,7 +286,7 @@ export default function TransfersPage() {
                 size="icon"
                 className="h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50"
                 onClick={(e) => handleDeleteDraft(e, row)}
-                title={language === 'ar' ? 'حذف المسودة' : 'Delete draft'}
+                title={getLocalizedLabel('tf_del_draft', language)}
             >
                 <Trash2 className="w-3.5 h-3.5" />
             </Button>
@@ -317,10 +303,10 @@ export default function TransfersPage() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-                            {language === 'ar' ? 'المناقلات' : 'Stock Transfers'}
+                            {getLocalizedLabel('tf_title', language)}
                         </h1>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                            {language === 'ar' ? 'إدارة طلبات نقل المواد بين المستودعات' : 'Manage stock transfer requests between warehouses'}
+                            {getLocalizedLabel('tf_subtitle', language)}
                         </p>
                     </div>
                 </div>
@@ -332,18 +318,18 @@ export default function TransfersPage() {
                     onClick={handleNewTransfer}
                 >
                     <Plus className="w-4 h-4" />
-                    <span className="hidden md:inline">{language === 'ar' ? 'مناقلة جديدة' : 'New Transfer'}</span>
+                    <span className="hidden md:inline">{getLocalizedLabel('tf_new', language)}</span>
                 </Button>
             </div>
 
             {/* ═══ Summary Cards ═══ */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                    { labelAr: 'الكل', labelEn: 'Total', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ArrowLeftRight },
-                    { labelAr: 'مسودة', labelEn: 'Draft', value: counts.draft, color: 'text-gray-600 dark:text-gray-400', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: Clock },
-                    { labelAr: 'قيد التحميل', labelEn: 'Loading', value: counts.loading, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-600/5 border-amber-200/60 dark:border-amber-800/40', iconBg: 'text-amber-500 bg-amber-50 dark:bg-amber-900/40', icon: Package },
-                    { labelAr: 'مرسلة', labelEn: 'Shipped', value: counts.shipped, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: Truck },
-                    { labelAr: 'مكتمل', labelEn: 'Completed', value: counts.completed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: CheckCircle2 },
+                    { labelKey: 'rd_tab_all', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ArrowLeftRight },
+                    { labelKey: 'tf_draft', value: counts.draft, color: 'text-gray-600 dark:text-gray-400', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: Clock },
+                    { labelKey: 'tf_loading', value: counts.loading, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-600/5 border-amber-200/60 dark:border-amber-800/40', iconBg: 'text-amber-500 bg-amber-50 dark:bg-amber-900/40', icon: Package },
+                    { labelKey: 'tf_shipped', value: counts.shipped, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: Truck },
+                    { labelKey: 'tf_completed', value: counts.completed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: CheckCircle2 },
                 ].map((stat, i) => {
                     const StatIcon = stat.icon;
                     return (
@@ -351,7 +337,7 @@ export default function TransfersPage() {
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">
-                                        {language === 'ar' ? stat.labelAr : stat.labelEn}
+                                        {getLocalizedLabel(stat.labelKey, language)}
                                     </p>
                                     <p className={cn('text-2xl font-bold font-mono mt-1', stat.color)} dir="ltr">{stat.value}</p>
                                 </div>
@@ -373,7 +359,7 @@ export default function TransfersPage() {
                     {/* Direction Filter */}
                     <div className="flex flex-col gap-1 min-w-[130px]">
                         <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
-                            {language === 'ar' ? 'الاتجاه' : 'Direction'}
+                            {getLocalizedLabel('tf_direction', language)}
                         </span>
                         <Select value={directionFilter} onValueChange={(v) => setDirectionFilter(v as DirectionFilter)}>
                             <SelectTrigger className="h-8 text-xs border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
@@ -382,7 +368,7 @@ export default function TransfersPage() {
                             <SelectContent>
                                 {directionOptions.map(opt => (
                                     <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                        {language === 'ar' ? opt.labelAr : opt.labelEn}
+                                        {getLocalizedLabel(opt.labelKey, language)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -397,27 +383,27 @@ export default function TransfersPage() {
                         <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
                             <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                                 <ArrowLeftRight className="w-4 h-4 me-1.5" />
-                                {language === 'ar' ? 'الكل' : 'All'}
+                                {getLocalizedLabel('rd_tab_all', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{counts.all}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-gray-600 font-tajawal">
                                 <Clock className="w-4 h-4 me-1.5" />
-                                {language === 'ar' ? 'مسودة' : 'Draft'}
+                                {getLocalizedLabel('tf_draft', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-100/60 text-gray-700">{counts.draft}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="loading" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-amber-600 font-tajawal">
                                 <Package className="w-4 h-4 me-1.5" />
-                                {language === 'ar' ? 'قيد التحميل' : 'Loading'}
+                                {getLocalizedLabel('tf_loading', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-amber-100/60 text-amber-700">{counts.loading}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="shipped" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
                                 <Truck className="w-4 h-4 me-1.5" />
-                                {language === 'ar' ? 'مرسلة' : 'Shipped'}
+                                {getLocalizedLabel('tf_shipped', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{counts.shipped}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="completed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
                                 <CheckCircle2 className="w-4 h-4 me-1.5" />
-                                {language === 'ar' ? 'مكتمل' : 'Completed'}
+                                {getLocalizedLabel('tf_completed', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{counts.completed}</Badge>
                             </TabsTrigger>
                         </TabsList>
@@ -432,7 +418,7 @@ export default function TransfersPage() {
                     isLoading={isLoading}
                     renderActions={renderTransferActions}
                     onRowClick={(row: any) => handleOpenTransfer(row)}
-                    searchPlaceholder={language === 'ar' ? 'بحث برقم المناقلة...' : 'Search by transfer number...'}
+                    searchPlaceholder={getLocalizedLabel('tf_search', language)}
                     searchTerm={search}
                     onSearchChange={setSearch}
                     isRTL={isRTL}

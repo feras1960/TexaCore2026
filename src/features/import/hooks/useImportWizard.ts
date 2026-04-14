@@ -5,7 +5,9 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { importService } from '@/services/importService';
+import { processVariantsForImport } from '../utils/variantProcessor';
 import type {
   EntityType,
   EntityDefinition,
@@ -28,6 +30,9 @@ export type WizardStep =
   | 'importing'
   | 'result';
 
+export type WarehouseBreakdown = Record<string, { warehouse_code: string; warehouse_id?: string; warehouse_name?: string; qty: number; unit_cost: number }[]>;
+export interface WarehouseInfo { id: string; code: string; name_ar: string; name_en?: string; name_ru?: string; name_uk?: string; name_tr?: string }
+
 export interface WizardState {
   currentStep: WizardStep;
   entityType: EntityType | null;
@@ -41,6 +46,9 @@ export interface WizardState {
   isLoading: boolean;
   error: string | null;
   progress: number;
+  // Multi-warehouse support
+  warehouseBreakdown: WarehouseBreakdown;
+  warehouseList: WarehouseInfo[];
 }
 
 const initialOptions: ImportOptions = {
@@ -62,12 +70,15 @@ const initialState: WizardState = {
   options: initialOptions,
   isLoading: false,
   error: null,
-  progress: 0
+  progress: 0,
+  warehouseBreakdown: {},
+  warehouseList: [],
 };
 
 export function useImportWizard(tenantId: string, companyId: string, defaultEntityType?: string) {
   const [state, setState] = useState<WizardState>(initialState);
   const [entityDefinitions, setEntityDefinitions] = useState<EntityDefinition[]>([]);
+  const queryClient = useQueryClient();
 
   // تحميل تعريفات الكيانات
   useEffect(() => {
@@ -339,7 +350,7 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         });
 
       // تحويل ومعالجة الصفوف
-      const importRows: ImportRow[] = [];
+      let importRows: ImportRow[] = [];
       const { fields, required_fields } = state.entityDefinition;
 
       for (let i = 0; i < state.parsedFile.rows.length; i++) {
@@ -387,6 +398,123 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
 
       console.log(`✅ Validation: ${validCount} valid, ${invalidCount} invalid out of ${importRows.length}`);
 
+      // ═══ MULTI-WAREHOUSE: Compute breakdown + smart matching ═══
+      let warehouseBreakdown: WarehouseBreakdown = {};
+      let warehouseList: WarehouseInfo[] = [];
+
+      if (state.entityType === 'products') {
+        // 1. Fetch all warehouses from system
+        const { data: whData } = await supabase
+          .from('warehouses')
+          .select('id, code, name_ar, name_en, name_ru, name_uk, name_tr')
+          .eq('company_id', companyId)
+          .eq('is_active', true)
+          .order('code');
+        warehouseList = (whData || []) as WarehouseInfo[];
+
+        // 2. Smart matching function
+        const resolveWarehouse = (input: string): WarehouseInfo | null => {
+          if (!input) return warehouseList[0] || null; // default to first warehouse
+          const normalized = input.trim().toLowerCase();
+
+          // Try exact code match
+          const byCode = warehouseList.find(w => w.code.toLowerCase() === normalized);
+          if (byCode) return byCode;
+
+          // Try exact name match (any language)
+          const byName = warehouseList.find(w =>
+            [w.name_ar, w.name_en, w.name_ru, w.name_uk, w.name_tr]
+              .filter(Boolean)
+              .some(n => n!.toLowerCase() === normalized)
+          );
+          if (byName) return byName;
+
+          // Try contains/fuzzy match
+          const byContains = warehouseList.find(w =>
+            [w.name_ar, w.name_en, w.name_ru, w.name_uk, w.name_tr, w.code]
+              .filter(Boolean)
+              .some(n => n!.toLowerCase().includes(normalized) || normalized.includes(n!.toLowerCase()))
+          );
+          if (byContains) return byContains;
+
+          return null; // No match
+        };
+
+        // 3. Build breakdown from import rows
+        const codeGroups = new Map<string, ImportRow[]>();
+        for (const row of importRows) {
+          if (row.status === 'invalid') continue;
+          const code = String(row.mapped_data?.code || '').trim();
+          if (!code) continue;
+          if (!codeGroups.has(code)) codeGroups.set(code, []);
+          codeGroups.get(code)!.push(row);
+        }
+
+        for (const [code, rows] of codeGroups.entries()) {
+          const entries: WarehouseBreakdown[string] = [];
+          for (const r of rows) {
+            const d = r.mapped_data || {};
+            const whInput = String(d.warehouse_code || '').trim();
+            const qty = Number(d.opening_qty) || 0;
+            const cost = Number(d.cost_price || d.purchase_price || 0);
+            const resolved = resolveWarehouse(whInput);
+            entries.push({
+              warehouse_code: resolved?.code || whInput || 'DEFAULT',
+              warehouse_id: resolved?.id,
+              warehouse_name: resolved?.name_ar || whInput,
+              qty,
+              unit_cost: cost,
+            });
+          }
+          if (entries.length > 0) {
+            warehouseBreakdown[code] = entries;
+          }
+        }
+
+        console.log(`📦 Warehouse breakdown: ${Object.keys(warehouseBreakdown).length} materials across ${warehouseList.length} warehouses`);
+
+        // 4. DEDUP: Merge rows with same material code into one row (total qty)
+        const codeGroupsDedup = new Map<string, ImportRow[]>();
+        for (const row of importRows) {
+          const code = String(row.mapped_data?.code || '').trim();
+          if (!code) { continue; }
+          if (!codeGroupsDedup.has(code)) codeGroupsDedup.set(code, []);
+          codeGroupsDedup.get(code)!.push(row);
+        }
+
+        const deduplicatedRows: ImportRow[] = [];
+        for (const [code, rows] of codeGroupsDedup.entries()) {
+          const primary = rows[0];
+          if (rows.length > 1 && primary.mapped_data) {
+            // Sum total qty from breakdown
+            const bd = warehouseBreakdown[code] || [];
+            const totalQty = bd.reduce((sum, e) => sum + e.qty, 0);
+            primary.mapped_data.opening_qty = totalQty;
+          }
+          deduplicatedRows.push(primary);
+        }
+        // Add rows without codes (shouldn't happen, but safety)
+        for (const row of importRows) {
+          const code = String(row.mapped_data?.code || '').trim();
+          if (!code && !deduplicatedRows.includes(row)) {
+            deduplicatedRows.push(row);
+          }
+        }
+
+        const dupCount = importRows.length - deduplicatedRows.length;
+        if (dupCount > 0) {
+          console.log(`🔀 Multi-warehouse dedup: ${importRows.length} rows → ${deduplicatedRows.length} unique materials (${dupCount} warehouse entries merged)`);
+        }
+        importRows = deduplicatedRows;
+
+        // Recalculate stats after dedup
+        const finalValid = importRows.filter(r => r.status === 'valid').length;
+        const finalInvalid = importRows.filter(r => r.status === 'invalid').length;
+        updatedJob.total_rows = importRows.length;
+        updatedJob.valid_rows = finalValid;
+        updatedJob.invalid_rows = finalInvalid;
+      }
+
       // ⚠️ CRITICAL: Must set data AND step in ONE atomic update
       // If we call updateState() then nextStep() separately, React may
       // render ValidationStep BEFORE importJob/importRows are committed,
@@ -397,7 +525,9 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         options: { ...state.options, column_mappings: columnMap },
         isLoading: false,
         progress: 100,
-        currentStep: 'validation'
+        currentStep: 'validation',
+        warehouseBreakdown,
+        warehouseList,
       });
     } catch (error: any) {
       console.error('Validation error:', error);
@@ -423,11 +553,106 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
     await executeLocalImport(overrideCurrency);
   }, [state.entityDefinition, state.options, updateState]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🔄 ROLLBACK: Clean up all data inserted during a failed import
+  // ═══════════════════════════════════════════════════════════════════
+  const performRollback = async (tracker: {
+    entityIds: string[];
+    priceListItemIds: string[];
+    journalEntryIds: string[];
+    journalLineIds: string[];
+    createdGroupIds: string[];
+    tableName: string;
+  }) => {
+    console.log('🔄 Starting import rollback...', {
+      entities: tracker.entityIds.length,
+      priceItems: tracker.priceListItemIds.length,
+      journals: tracker.journalEntryIds.length,
+      groups: tracker.createdGroupIds.length,
+    });
+
+    const rollbackErrors: string[] = [];
+
+    try {
+      // 1. Delete price_list_items first (depends on entities)
+      if (tracker.priceListItemIds.length > 0) {
+        const { error } = await supabase
+          .from('price_list_items')
+          .delete()
+          .in('id', tracker.priceListItemIds);
+        if (error) rollbackErrors.push(`price_list_items: ${error.message}`);
+        else console.log(`  ✅ Rolled back ${tracker.priceListItemIds.length} price_list_items`);
+      }
+
+      // 2. Delete journal_entry_lines (depends on journal_entries)
+      if (tracker.journalEntryIds.length > 0) {
+        const { error: linesErr } = await supabase
+          .from('journal_entry_lines')
+          .delete()
+          .in('entry_id', tracker.journalEntryIds);
+        if (linesErr) rollbackErrors.push(`journal_entry_lines: ${linesErr.message}`);
+
+        // 3. Delete journal_entries
+        const { error: jeErr } = await supabase
+          .from('journal_entries')
+          .delete()
+          .in('id', tracker.journalEntryIds);
+        if (jeErr) rollbackErrors.push(`journal_entries: ${jeErr.message}`);
+        else console.log(`  ✅ Rolled back ${tracker.journalEntryIds.length} journal entries`);
+      }
+
+      // 4. Delete main entities (fabric_materials / customers / suppliers)
+      if (tracker.entityIds.length > 0 && tracker.tableName) {
+        // Delete in batches to avoid URL length limits
+        const BATCH = 100;
+        for (let i = 0; i < tracker.entityIds.length; i += BATCH) {
+          const batch = tracker.entityIds.slice(i, i + BATCH);
+          const { error } = await supabase
+            .from(tracker.tableName)
+            .delete()
+            .in('id', batch);
+          if (error) rollbackErrors.push(`${tracker.tableName} batch ${i}: ${error.message}`);
+        }
+        console.log(`  ✅ Rolled back ${tracker.entityIds.length} records from ${tracker.tableName}`);
+      }
+
+      // 5. Delete auto-created fabric_groups
+      if (tracker.createdGroupIds.length > 0) {
+        const { error } = await supabase
+          .from('fabric_groups')
+          .delete()
+          .in('id', tracker.createdGroupIds);
+        if (error) rollbackErrors.push(`fabric_groups: ${error.message}`);
+        else console.log(`  ✅ Rolled back ${tracker.createdGroupIds.length} fabric_groups`);
+      }
+
+      if (rollbackErrors.length > 0) {
+        console.error('⚠️ Rollback completed with errors:', rollbackErrors);
+      } else {
+        console.log('✅ Rollback completed successfully — database is clean');
+      }
+    } catch (err: any) {
+      console.error('❌ Rollback failed:', err);
+    }
+  };
+
   // ─── تنفيذ الاستيراد الفعلي في Supabase ───────────────────
   const executeLocalImport = useCallback(async (overrideCurrency?: string) => {
     try {
+      // ═══ Session Refresh — prevents auth errors during long imports ═══
+      try {
+        const { error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr) {
+          console.warn('⚠️ Session refresh failed, continuing anyway:', refreshErr.message);
+        } else {
+          console.log('✅ Session refreshed before import');
+        }
+      } catch (e) {
+        console.warn('⚠️ Session refresh exception:', e);
+      }
+
       // جمع الصفوف الصالحة فقط
-      const validRows = state.importRows.filter(r => r.status === 'valid');
+      let validRows = state.importRows.filter(r => r.status === 'valid');
 
       // ─── Force-apply override currency to ALL rows ───
       if (overrideCurrency) {
@@ -453,23 +678,27 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
       const errors: string[] = [];
       const batchSize = 50;
 
+      // ═══ ROLLBACK TRACKER: Track all inserted IDs for cleanup on failure ═══
+      const rollbackTracker = {
+        entityIds: [] as string[],        // fabric_materials / customers / suppliers
+        priceListItemIds: [] as string[],  // price_list_items
+        journalEntryIds: [] as string[],   // journal_entries
+        journalLineIds: [] as string[],    // journal_entry_lines
+        createdGroupIds: [] as string[],   // fabric_groups auto-created
+        tableName: '',                     // target table for cleanup
+      };
+
       // ─── تحديد الجدول المستهدف ───
       const entityType = state.entityType;
 
-      // جلب عملة الشركة الافتراضية + العملات المعرّفة
-      const { data: companyData } = await supabase
-        .from('companies')
-        .select('default_currency')
-        .eq('id', companyId)
-        .single();
-      const companyCurrency = companyData?.default_currency || 'USD';
-
-      // جلب العملات المعرّفة في النظام
-      const { data: definedCurrencies } = await supabase
-        .from('currencies')
-        .select('code');
+      // ═══ PARALLEL: جلب عملة الشركة + العملات المعرّفة معاً ═══
+      const [companyResult, currenciesResult] = await Promise.all([
+        supabase.from('companies').select('default_currency').eq('id', companyId).single(),
+        supabase.from('currencies').select('code'),
+      ]);
+      const companyCurrency = companyResult.data?.default_currency || 'USD';
       const validCurrencyCodes = new Set(
-        (definedCurrencies || []).map((c: any) => c.code?.toUpperCase())
+        (currenciesResult.data || []).map((c: any) => c.code?.toUpperCase())
       );
       validCurrencyCodes.add(companyCurrency.toUpperCase());
 
@@ -602,128 +831,68 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         };
 
         // Collect unique categories and designs from import data
-        const categorySet = new Set<string>();
-        const designSet = new Map<string, Set<string>>(); // category → Set<designKey>
-        const designInfoMap = new Map<string, { ar: string; en: string; tr: string; ru: string; uk: string }>();
-        
-        for (const row of validRows) {
-          const d = row.mapped_data || {};
-          let category = String(d.category || '').trim();
-          
-          // Auto-suggest category from material name when missing
-          if (!category) {
-            category = suggestCategory(d);
-            // Write back to mapped_data so it's used during insertion
-            if (row.mapped_data) {
-              row.mapped_data.category = category;
-            }
-            console.log(`🤖 Auto-categorized "${d.name_ar || d.name_en}" → ${category}`);
-          }
-          
-          categorySet.add(category);
-          if (!designSet.has(category)) {
-            designSet.set(category, new Set());
-          }
-          
-          const designKey = extractDesignKey(d);
-          if (designKey) {
-            designSet.get(category)!.add(designKey);
-            // Find matching info
-            const info = Object.values(designWordsMap).find(v => v.ar === designKey);
-            if (info) designInfoMap.set(designKey, info);
-          }
-        }
+        const currentMode = state.options?._variantGroupMode || 'category';
+        const isVariantMode = currentMode === 'variant_design_color' || currentMode === 'variant_color_design';
 
-        // Create Level 1 groups (categories)
-        for (const categoryAr of categorySet) {
-          // Check if group already exists by name (only root groups)
-          const { data: existing } = await supabase
-            .from('fabric_groups')
-            .select('id')
-            .eq('company_id', companyId)
-            .eq('name_ar', categoryAr)
-            .is('parent_id', null)
-            .maybeSingle();
-          
-          if (existing) {
-            categoryGroupMap[categoryAr] = existing.id;
-          } else {
-            // Get all language translations for this category
-            const catLangs = categoryTranslations[categoryAr] || {
-              ar: categoryAr, en: categoryAr, tr: categoryAr, ru: categoryAr, uk: categoryAr,
-              de: categoryAr, it: categoryAr, ro: categoryAr, pl: categoryAr,
-            };
-            const { data: newGroup } = await supabase
-              .from('fabric_groups')
-              .insert({
-                tenant_id: tenantId,
-                company_id: companyId,
-                name_ar: catLangs.ar,
-                name_en: catLangs.en,
-                name_tr: catLangs.tr,
-                name_ru: catLangs.ru,
-                name_uk: catLangs.uk,
-                name_de: catLangs.de,
-                name_it: catLangs.it,
-                name_ro: catLangs.ro,
-                name_pl: catLangs.pl,
-                code: `GRP-${categoryAr.slice(0, 3).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`,
-                is_active: true,
-              })
-              .select('id')
-              .single();
-            if (newGroup) {
-              categoryGroupMap[categoryAr] = newGroup.id;
-            }
+        if (isVariantMode) {
+          try {
+             const variantResult = await processVariantsForImport(
+               supabase, validRows, companyId, tenantId, 'ar', categoryTranslations
+             );
+             // Make them available scoped for the batch
+             (state as any)._variantResult = variantResult;
+          } catch (err: any) {
+             console.error('Variant processor error:', err);
+             errors.push(`فشل إنشاء هيكل المتغيرات: ${err.message}`);
           }
-        }
-
-        // Create Level 2 groups (designs) under each category
-        for (const [categoryAr, designKeys] of designSet) {
-          const parentId = categoryGroupMap[categoryAr];
-          if (!parentId) continue;
-          
-          for (const designKey of designKeys) {
-            const designInfo = designInfoMap.get(designKey) || { ar: designKey, en: designKey, tr: designKey, ru: designKey, uk: designKey };
-            const groupKey = `${categoryAr}|${designKey}`;
-            
-            // Check if sub-group already exists
+        } else {
+          // Fallback legacy categories only
+          const categorySet = new Set<string>();
+          for (const row of validRows) {
+            const d = row.mapped_data || {};
+            let category = String(d.category || '').trim();
+            if (!category) {
+              category = suggestCategory(d);
+              if (row.mapped_data) row.mapped_data.category = category;
+            }
+            categorySet.add(category);
+          }
+          for (const categoryAr of categorySet) {
             const { data: existing } = await supabase
-              .from('fabric_groups')
-              .select('id')
-              .eq('company_id', companyId)
-              .eq('parent_id', parentId)
-              .eq('name_ar', designInfo.ar)
-              .maybeSingle();
+              .from('fabric_groups').select('id').eq('company_id', companyId)
+              .eq('name_ar', categoryAr).is('parent_id', null).maybeSingle();
             
             if (existing) {
-              groupIdMap[groupKey] = existing.id;
+              categoryGroupMap[categoryAr] = existing.id;
             } else {
+              const catLangs = categoryTranslations[categoryAr] || { ar: categoryAr, en: categoryAr, tr: categoryAr, ru: categoryAr, uk: categoryAr };
               const { data: newGroup } = await supabase
-                .from('fabric_groups')
-                .insert({
-                  tenant_id: tenantId,
-                  company_id: companyId,
-                  parent_id: parentId,
-                  name_ar: designInfo.ar,
-                  name_en: designInfo.en,
-                  name_tr: designInfo.tr,
-                  name_ru: designInfo.ru,
-                  name_uk: designInfo.uk,
-                  code: `GRP-${designInfo.en.slice(0, 2).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`,
-                  is_active: true,
-                })
-                .select('id')
-                .single();
+                .from('fabric_groups').insert({
+                  tenant_id: tenantId, company_id: companyId,
+                  name_ar: catLangs.ar, name_en: catLangs.en,
+                  code: `GRP-${Date.now().toString(36).toUpperCase()}`, is_active: true,
+                }).select('id').single();
               if (newGroup) {
-                groupIdMap[groupKey] = newGroup.id;
+                categoryGroupMap[categoryAr] = newGroup.id;
+                rollbackTracker.createdGroupIds.push(newGroup.id);
               }
             }
           }
         }
-        
-        if (Object.keys(groupIdMap).length > 0) {
-          console.log(`✅ Auto-created ${Object.keys(categoryGroupMap).length} category groups + ${Object.keys(groupIdMap).length} design groups`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
+      // 🔀 MULTI-WAREHOUSE: Use pre-computed breakdown from validation step
+      // ═══════════════════════════════════════════════════════════════════
+      // ⚠️ Rows are already deduplicated in validateData (1 row per material code).
+      // The warehouseBreakdown was computed BEFORE dedup when each row had its own warehouse.
+      // We use state.warehouseBreakdown directly — do NOT recompute from deduplicated rows!
+      const warehouseBreakdown = state.warehouseBreakdown || {};
+      
+      if (entityType === 'products' && Object.keys(warehouseBreakdown).length > 0) {
+        console.log(`📦 Using pre-computed warehouse breakdown: ${Object.keys(warehouseBreakdown).length} materials`);
+        for (const [code, entries] of Object.entries(warehouseBreakdown)) {
+          console.log(`  ${code}: ${entries.map(e => `${e.warehouse_code}=${e.qty}`).join(', ')}`);
         }
       }
 
@@ -731,59 +900,207 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         const batch = validRows.slice(i, i + batchSize);
 
         try {
-          const rowsToInsert = batch.map(row => {
+          // Pre-process variants for batch if needed
+          const currentMode = state.options?._variantGroupMode || 'category';
+          const isVariantMode = currentMode === 'variant_design_color' || currentMode === 'variant_color_design';
+          const variantResult = (state as any)._variantResult;
+          
+          const rowsToInsert = await Promise.all(batch.map(async row => {
             const data = row.mapped_data || {};
             const insertRow = buildInsertRow(entityType!, data, companyId, tenantId, companyCurrency);
-            // Assign group_id for products based on auto-created groups (name-based)
-            if (insertRow && entityType === 'products' && Object.keys(groupIdMap).length > 0) {
-              const category = String(data.category || '').trim();
-              // Try name-based design extraction first
-              const nameFields = ['name_ar', 'name_en', 'name_tr', 'name_ru', 'name_uk', 'name'];
-              const allNames = nameFields.map(f => String(data[f] || '').toLowerCase()).join(' ');
-              let designKey = '';
-              for (const [word, info] of Object.entries(designWordsMap || {})) {
-                if (allNames.includes(word.toLowerCase())) {
-                  designKey = (info as any).ar;
-                  break;
-                }
-              }
-              // Fallback: code-based
-              if (!designKey) {
-                const code = String(data.code || '');
-                const parts = code.split('-');
-                const dc = parts.length >= 3 ? parts[2] : '';
-                if (dc && codeDesignNames[dc]) designKey = codeDesignNames[dc].ar;
-              }
-              const key = `${category}|${designKey}`;
-              if (groupIdMap[key]) {
-                insertRow.group_id = groupIdMap[key];
-              } else if (categoryGroupMap && categoryGroupMap[category]) {
-                // At least assign the category group
-                insertRow.group_id = categoryGroupMap[category];
-              }
+            
+            if (insertRow && entityType === 'products') {
+               const category = String(data.category || '').trim();
+                if (isVariantMode && variantResult) {
+                 // Use the variant data stored on the row by processVariantsForImport
+                 const variantId = data._variantId;
+                 const parentMaterialId = data._parentMaterialId;
+                 const variantData = data._variantData;
+                 
+                 // Assign parent and variant (NO group_id — parent material IS the top level)
+                 if (parentMaterialId) insertRow.parent_material_id = parentMaterialId;
+                 if (variantId) insertRow.variant_id = variantId;
+                 if (variantData) insertRow.variant_data = variantData;
+
+                  // Generate unique internal code for each child material
+                  // Original CSV code/barcode preserved in custom_fields for reference
+                  const origCode = String(data.code || '');
+                  const origBarcode = String((data as any).barcode || '');
+                  const uniqueSuffix = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+                  insertRow.code = 'MAT-' + uniqueSuffix;
+                  const existingCustom = (typeof insertRow.custom_fields === 'object' && insertRow.custom_fields) ? insertRow.custom_fields : {};
+                  insertRow.custom_fields = {
+                    ...existingCustom,
+                    original_code: origCode,
+                    barcode: origBarcode,
+                  };
+
+                 // Mark as a variant child (not parent)
+                 insertRow.is_variant_parent = false;
+                 insertRow.has_variants = false;
+                 
+               } else {
+                 if (categoryGroupMap && categoryGroupMap[category]) {
+                   insertRow.group_id = categoryGroupMap[category];
+                 }
+               }
             }
             return insertRow;
-          }).filter(Boolean);
+          }));
+          
+          const validRowsToInsert = rowsToInsert.filter(Boolean);
+          if (validRowsToInsert.length > 0) {
+          }
 
-          if (rowsToInsert.length === 0) continue;
+          if (validRowsToInsert.length === 0) continue;
 
           const tableName = getTableName(entityType!);
 
-          const { data: insertedData, error: insertError } = await supabase
+          // ═══ Insert with auth-retry ═══
+          let insertResult = await supabase
             .from(tableName)
-            .insert(rowsToInsert)
+            .insert(validRowsToInsert)
             .select('id');
 
-          if (insertError) {
-            console.error(`Import batch error:`, insertError);
+          // Retry once on auth errors (token may have expired during long import)
+          if (insertResult.error && (
+            insertResult.error.message?.includes('JWT') ||
+            insertResult.error.message?.includes('token') ||
+            insertResult.error.message?.includes('401') ||
+            insertResult.error.message?.includes('403')
+          )) {
+            console.warn('🔄 Auth error during batch, refreshing session and retrying...');
+            await supabase.auth.refreshSession();
+            insertResult = await supabase
+              .from(tableName)
+              .insert(validRowsToInsert)
+              .select('id');
+          }
+
+          if (insertResult.error) {
+            console.error(`Import batch error:`, insertResult.error);
             failed += batch.length;
-            errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${insertError.message}`);
+            errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${insertResult.error.message}`);
           } else {
-            imported += insertedData?.length || batch.length;
+            imported += insertResult.data?.length || batch.length;
+            // Track inserted IDs for rollback
+            if (insertResult.data) {
+              rollbackTracker.entityIds.push(...insertResult.data.map((r: any) => r.id));
+              rollbackTracker.tableName = tableName;
+            }
+            
+            // ---> Price Lists: SKIPPED for fabric_materials <---
+            // price_list_items.product_id FK references 'products' table (not fabric_materials)
+            // Extended prices are saved in custom_fields: _cost_price, _wholesale_price, _half_wholesale_price, _special_price
+            if (false && entityType === 'products' && insertResult.data?.length > 0 && validRowsToInsert.length === insertResult.data.length) {
+              try {
+                const insertedProducts = insertResult.data;
+                const priceListNames = ['سعر التكلفة', 'سعر الجملة', 'سعر نصف الجملة', 'السعر الخاص'];
+                const priceListCodes = ['COST_PRICE', 'WHOLESALE', 'HALF_WHOLESALE', 'SPECIAL_PRICE'];
+                
+                // Fetch or Create Price Lists
+                let priceListsMap = (state as any)._priceListsMap;
+                if (!priceListsMap) {
+                  priceListsMap = {};
+                  for (let plIdx = 0; plIdx < priceListNames.length; plIdx++) {
+                     const plName = priceListNames[plIdx];
+                     const plCode = priceListCodes[plIdx];
+                     const { data: existingPl } = await supabase.from('price_lists').select('id').eq('company_id', companyId).eq('name_ar', plName).maybeSingle();
+                     if (existingPl) {
+                       priceListsMap[plName] = existingPl.id;
+                     } else {
+                       const { data: newPl } = await supabase.from('price_lists').insert({ company_id: companyId, tenant_id: tenantId, name_ar: plName, name: plName, code: plCode, is_active: true, is_default: false }).select('id').single();
+                       if (newPl) priceListsMap[plName] = newPl.id;
+                     }
+                  }
+                  (state as any)._priceListsMap = priceListsMap;
+                }
+
+                const priceListItemsToInsert: any[] = [];
+                for(let idx = 0; idx < validRowsToInsert.length; idx++) {
+                  const insertedId = insertedProducts[idx].id;
+                  const rowData = validRowsToInsert[idx] as any;
+                  const customFields = rowData.custom_fields || {};
+                  
+                  const costPrice = Number(customFields._cost_price || 0);
+                  const wholesalePrice = Number(customFields._wholesale_price || 0);
+                  const halfWholesale = Number(customFields._half_wholesale_price || 0);
+                  const specialPrice = Number(customFields._special_price || 0);
+
+                  if (costPrice > 0 && priceListsMap['سعر التكلفة']) {
+                    priceListItemsToInsert.push({
+                      price_list_id: priceListsMap['سعر التكلفة'],
+                      product_id: insertedId,
+                      price: costPrice,
+                      min_quantity: 0
+                    });
+                  }
+                  if (wholesalePrice > 0 && priceListsMap['سعر الجملة']) {
+                    priceListItemsToInsert.push({
+                      price_list_id: priceListsMap['سعر الجملة'],
+                      product_id: insertedId,
+                      price: wholesalePrice,
+                      min_quantity: 0
+                    });
+                  }
+                  if (halfWholesale > 0 && priceListsMap['سعر نصف الجملة']) {
+                    priceListItemsToInsert.push({
+                      price_list_id: priceListsMap['سعر نصف الجملة'],
+                      product_id: insertedId,
+                      price: halfWholesale,
+                      min_quantity: 0
+                    });
+                  }
+                  if (specialPrice > 0 && priceListsMap['السعر الخاص']) {
+                    priceListItemsToInsert.push({
+                      price_list_id: priceListsMap['السعر الخاص'],
+                      product_id: insertedId,
+                      price: specialPrice,
+                      min_quantity: 0
+                    });
+                  }
+                }
+
+                if (priceListItemsToInsert.length > 0) {
+                  const { data: plData, error: plError } = await supabase.from('price_list_items').insert(priceListItemsToInsert).select('id');
+                  if (plError) console.error('Failed to insert price lists:', plError);
+                  else if (plData) rollbackTracker.priceListItemIds.push(...plData.map((r: any) => r.id));
+                }
+              } catch (pricingError) {
+                console.error('Pricing lists logic error:', pricingError);
+              }
+            }
           }
         } catch (batchErr: any) {
           failed += batch.length;
           errors.push(`Batch error: ${batchErr?.message || 'Unknown'}`);
+        }
+
+        // ═══ ROLLBACK CHECK: If ALL rows in this batch failed, rollback everything ═══
+        if (failed > 0 && imported === 0) {
+          console.warn('🔄 All batches failed — initiating rollback...');
+          updateState({ progress: -1 }); // Signal rollback in progress
+          await performRollback(rollbackTracker);
+          
+          const finalJob: ImportJob = {
+            ...(state.importJob || {} as ImportJob),
+            imported_rows: 0,
+            failed_rows: failed,
+            total_rows: state.importRows.length,
+            valid_rows: validRows.length,
+            invalid_rows: state.importRows.length - validRows.length,
+            status: 'failed',
+            error_message: errors.join('\n') + '\n\n✅ تم التراجع عن جميع البيانات المُدخلة تلقائياً',
+            completed_at: new Date().toISOString(),
+          } as ImportJob;
+
+          updateState({
+            importJob: finalJob,
+            currentStep: 'result',
+            isLoading: false,
+            progress: 100
+          });
+          return;
         }
 
         // تحديث التقدم
@@ -792,16 +1109,46 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         });
       }
 
+      // ═══ PARTIAL FAILURE ROLLBACK: If some batches failed, rollback everything ═══
+      if (failed > 0) {
+        console.warn(`🔄 Partial failure (${imported} ok, ${failed} failed) — rolling back ALL to ensure data integrity...`);
+        updateState({ progress: -1 });
+        await performRollback(rollbackTracker);
+        
+        const finalJob: ImportJob = {
+          ...(state.importJob || {} as ImportJob),
+          imported_rows: 0,
+          failed_rows: validRows.length,
+          total_rows: state.importRows.length,
+          valid_rows: validRows.length,
+          invalid_rows: state.importRows.length - validRows.length,
+          status: 'failed',
+          error_message: errors.join('\n') + `\n\n🔄 تم التراجع عن ${imported} سجل تم إدخاله لضمان سلامة البيانات. يرجى إصلاح الأخطاء وإعادة المحاولة.`,
+          completed_at: new Date().toISOString(),
+        } as ImportJob;
+
+        updateState({
+          importJob: finalJob,
+          currentStep: 'result',
+          isLoading: false,
+          progress: 100
+        });
+        return;
+      }
+
       // ─── إنشاء قيد الأرصدة الافتتاحية ───
       let openingBalanceJournalRef = '';
+      let openingBalanceJournalIds: string[] = [];
       if (imported > 0 && (entityType === 'customers' || entityType === 'suppliers' || entityType === 'products')) {
         try {
-          openingBalanceJournalRef = await createOpeningBalanceJournal(
+          const result = await createOpeningBalanceJournal(
             entityType,
             validRows,
             companyId,
             tenantId
           );
+          openingBalanceJournalRef = result.refs;
+          openingBalanceJournalIds = result.journalIds;
         } catch (obErr: any) {
           console.warn('Opening balance journal error:', obErr);
           errors.push(`تحذير: فشل إنشاء قيد الأرصدة الافتتاحية: ${obErr?.message || 'خطأ'}`);
@@ -811,7 +1158,14 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
       // ─── إنشاء حركات مخزون افتتاحية للمنتجات ───
       if (imported > 0 && entityType === 'products') {
         try {
-          const stockWarnings = await createOpeningStockMovements(validRows, companyId, tenantId);
+          const stockWarnings = await createOpeningStockMovements(
+            validRows,
+            companyId,
+            tenantId,
+            rollbackTracker.entityIds,
+            warehouseBreakdown,  // per-warehouse quantity breakdown
+            openingBalanceJournalIds[0] || undefined  // link to PROD journal entry
+          );
           if (stockWarnings?.length > 0) {
             errors.push(...stockWarnings);
           }
@@ -842,6 +1196,25 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         isLoading: false,
         progress: 100
       });
+
+      // ═══ CACHE INVALIDATION: Force clean fetch for all related data ═══
+      try {
+        // REMOVE inventory caches completely (not just invalidate) to force fresh fetch
+        queryClient.removeQueries({ queryKey: ['inventory-preload-materials', companyId] });
+        queryClient.removeQueries({ queryKey: ['inventory-preload-rolls', companyId] });
+        queryClient.removeQueries({ queryKey: ['inventory-preload-stock', companyId] });
+        // Remove material-inventory caches (material card per-warehouse breakdown)
+        queryClient.removeQueries({ queryKey: ['material-inventory'] });
+        // Invalidate other related caches
+        queryClient.invalidateQueries({ queryKey: ['materials'] });
+        queryClient.invalidateQueries({ queryKey: ['material-groups'] });
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+        queryClient.invalidateQueries({ queryKey: ['journal-entries'] });
+        console.log('✅ Caches cleared after import — inventory will refetch on next visit');
+      } catch (cacheErr) {
+        console.warn('Cache invalidation error:', cacheErr);
+      }
     } catch (error: any) {
       updateState({
         error: `فشل في تنفيذ الاستيراد: ${error?.message || 'خطأ غير معروف'}`,
@@ -849,7 +1222,7 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         currentStep: 'validation'
       });
     }
-  }, [state.importJob, state.importRows, state.entityType, companyId, tenantId, updateState]);
+  }, [state.importJob, state.importRows, state.entityType, state.options, state.warehouseBreakdown, companyId, tenantId, updateState]);
 
   // رفع من Google Sheets
   const uploadGoogleSheet = useCallback(async (url: string) => {
@@ -1062,11 +1435,13 @@ function buildInsertRow(
         status: 'active',
       };
 
-    case 'products':
+    case 'products': {
+      const origCode = clean(data.code) || '';
+      const uniqueCode = `MAT-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
       return {
         company_id: companyId,
         tenant_id: tenantId,
-        code: clean(data.code) || `MAT-${Date.now().toString(36)}`,
+        code: uniqueCode,
         name_ar: clean(data.name_ar) || clean(data.name_en) || clean(data.name_tr) || clean(data.name_ru) || clean(data.name_uk) || String(data.name || ''),
         name_en: clean(data.name_en) || clean(data.name_ar) || String(data.name || ''),
         name_tr: clean(data.name_tr),
@@ -1075,15 +1450,23 @@ function buildInsertRow(
         category: clean(data.category),
         unit: clean(data.unit) || 'meter',
         selling_price: num(data.sale_price),
-        purchase_price: num(data.cost_price),
+        purchase_price: num(data.purchase_price) || 0,
         currency: clean(data.currency) || companyCurrency,
         min_stock: num(data.min_qty || data.min_stock),
         current_stock: num(data.opening_qty),
         notes: clean(data.notes) || clean(data.description),
         status: 'active',
-        custom_fields: data.barcode ? { barcode: String(data.barcode) } : {},
+        custom_fields: {
+          original_code: origCode,
+          barcode: data.barcode ? String(data.barcode) : '',
+          _cost_price: num(data.cost_price) || 0,
+          _wholesale_price: num(data.wholesale_price) || 0,
+          _half_wholesale_price: num(data.half_wholesale_price) || 0,
+          _special_price: num(data.special_price) || 0,
+        },
         // warehouse_code is stored in mapped_data for stock creation
       };
+    }
 
     case 'chart_of_accounts':
       return {
@@ -1125,7 +1508,7 @@ async function createOpeningBalanceJournal(
   importRows: ImportRow[],
   companyId: string,
   tenantId: string
-): Promise<string> {
+): Promise<{ refs: string; journalIds: string[] }> {
   // ─── 1. البحث عن حساب الأرصدة الافتتاحية (كود 35) ───
   const { data: obAccount } = await supabase
     .from('chart_of_accounts')
@@ -1136,7 +1519,7 @@ async function createOpeningBalanceJournal(
 
   if (!obAccount) {
     console.warn('Opening balance account (35) not found, skipping journal entry');
-    return '';
+    return { refs: '', journalIds: [] };
   }
 
   // عملة الشركة الأساسية + إعدادات المحاسبة
@@ -1167,7 +1550,7 @@ async function createOpeningBalanceJournal(
 
   if (entityType === 'customers') {
     const codes = importRows.map(r => r.mapped_data?.code as string).filter(Boolean);
-    if (codes.length === 0) return '';
+    if (codes.length === 0) return { refs: '', journalIds: [] };
 
     const { data: customers } = await supabase
       .from('customers')
@@ -1175,7 +1558,7 @@ async function createOpeningBalanceJournal(
       .eq('company_id', companyId)
       .in('code', codes);
 
-    if (!customers) return '';
+    if (!customers) return { refs: '', journalIds: [] };
 
     for (const cust of customers) {
       const balance = Number(cust.balance) || 0;
@@ -1201,7 +1584,7 @@ async function createOpeningBalanceJournal(
 
   } else if (entityType === 'suppliers') {
     const codes = importRows.map(r => r.mapped_data?.code as string).filter(Boolean);
-    if (codes.length === 0) return '';
+    if (codes.length === 0) return { refs: '', journalIds: [] };
 
     const { data: suppliers } = await supabase
       .from('suppliers')
@@ -1209,7 +1592,7 @@ async function createOpeningBalanceJournal(
       .eq('company_id', companyId)
       .in('code', codes);
 
-    if (!suppliers) return '';
+    if (!suppliers) return { refs: '', journalIds: [] };
 
     for (const sup of suppliers) {
       const balance = Number(sup.balance) || 0;
@@ -1269,7 +1652,7 @@ async function createOpeningBalanceJournal(
 
     if (!invAccount) {
       console.warn('Inventory account not found, skipping journal');
-      return '';
+      return { refs: '', journalIds: [] };
     }
 
     // تجميع قيمة المخزون حسب العملة
@@ -1294,7 +1677,7 @@ async function createOpeningBalanceJournal(
     }
   }
 
-  if (linesByCurrency.size === 0) return '';
+  if (linesByCurrency.size === 0) return { refs: '', journalIds: [] };
 
   // ─── 3. إنشاء قيد لكل عملة ───
   // Translation maps for entity labels
@@ -1330,6 +1713,7 @@ async function createOpeningBalanceJournal(
   };
 
   const createdRefs: string[] = [];
+  const createdIds: string[] = [];
 
   for (const [currency, lines] of linesByCurrency) {
     const entryRef = `OB-${entityType.toUpperCase().slice(0, 4)}-${currency}-${Date.now().toString(36).toUpperCase()}`;
@@ -1476,117 +1860,151 @@ async function createOpeningBalanceJournal(
 
     console.log(`✅ Opening balance journal (${currency}): ${journalEntry.entry_number} with ${lines.length} lines, rate=${exchangeRate} — POSTED`);
     createdRefs.push(journalEntry.entry_number);
+    createdIds.push(journalEntry.id);
   }
 
-  return createdRefs.join(', ');
+  return { refs: createdRefs.join(', '), journalIds: createdIds };
 }
 
 /**
  * إنشاء حركات مخزون افتتاحية للمنتجات المستوردة
- * يبحث عن المواد المُدرجة بالكود ويُنشئ حركة "opening_balance" لكل مادة بكمية > 0
- * يرجع قائمة بالتحذيرات (المستودع الافتراضي، العملة غير محددة، إلخ)
+ * يجلب المواد المُدرجة حديثاً بالـ DB IDs ويُنشئ حركة "opening_balance" لكل مادة بـ current_stock > 0
+ * يستخدم أول مستودع متاح إذا لم يُحدد في CSV
  */
 async function createOpeningStockMovements(
   importRows: ImportRow[],
   companyId: string,
-  tenantId: string
+  tenantId: string,
+  insertedIds?: string[],
+  warehouseBreakdown?: Record<string, { warehouse_code: string; qty: number; unit_cost: number }[]>,
+  journalEntryId?: string
 ): Promise<string[]> {
   const warnings: string[] = [];
-  // 1. جمع الصفوف التي لها كمية افتتاحية
-  const rowsWithQty = importRows.filter(r => {
-    const data = r.mapped_data || {};
-    const qty = Number(data.opening_qty);
-    return r.status === 'valid' && qty > 0;
-  });
 
-  if (rowsWithQty.length === 0) {
-    console.log('ℹ️ No opening quantities to create stock movements for');
-    return warnings;
-  }
+  // 1. جلب المواد المُدرجة حديثاً من قاعدة البيانات بالـ DB IDs
+  let dbMaterials: { id: string; code: string; name_ar: string; current_stock: number; default_warehouse_id: string | null; custom_fields: any }[] = [];
 
-  // تحقق: هل هناك صفوف بدون كود مستودع؟
-  const rowsWithoutWH = rowsWithQty.filter(r => !r.mapped_data?.warehouse_code);
-  if (rowsWithoutWH.length > 0) {
-    warnings.push(`⚠️ ${rowsWithoutWH.length} مادة بدون تحديد مستودع — سيتم استخدام المستودع الافتراضي`);
-  }
-
-  // 2. جلب المستودعات حسب الكود
-  const warehouseCodes = [...new Set(rowsWithQty.map(r => String(r.mapped_data?.warehouse_code || 'WH-001')))];
-  const { data: warehouses } = await supabase
-    .from('warehouses')
-    .select('id, code')
-    .eq('company_id', companyId)
-    .in('code', warehouseCodes);
-
-  const warehouseMap: Record<string, string> = {};
-  warehouses?.forEach(w => { warehouseMap[w.code] = w.id; });
-
-  // إذا لم يتم العثور على أي مستودع، استخدم أول مستودع متاح
-  if (Object.keys(warehouseMap).length === 0) {
-    const { data: defaultWh } = await supabase
-      .from('warehouses')
-      .select('id, code')
-      .eq('company_id', companyId)
-      .limit(1)
-      .single();
-
-    if (defaultWh) {
-      warehouseMap[defaultWh.code] = defaultWh.id;
-      warehouseCodes.forEach(code => { warehouseMap[code] = defaultWh.id; });
-      warnings.push(`⚠️ المستودعات المحددة غير موجودة — تم استخدام المستودع: ${defaultWh.code}`);
-    } else {
-      console.warn('⚠️ No warehouses found — cannot create stock movements');
-      warnings.push('❌ لا توجد مستودعات — لم يتم إنشاء حركات المخزون');
-      return warnings;
+  if (insertedIds && insertedIds.length > 0) {
+    const batchSize = 50;
+    for (let i = 0; i < insertedIds.length; i += batchSize) {
+      const batch = insertedIds.slice(i, i + batchSize);
+      const { data } = await supabase
+        .from('fabric_materials')
+        .select('id, code, name_ar, current_stock, default_warehouse_id, custom_fields')
+        .in('id', batch);
+      if (data) dbMaterials.push(...data);
     }
   }
 
-  // 3. جلب IDs المواد المُدرجة بالكود
-  const materialCodes = rowsWithQty.map(r => String(r.mapped_data?.code || ''));
-  const { data: materials } = await supabase
-    .from('fabric_materials')
+  const materialsWithStock = dbMaterials.filter(m => (m.current_stock || 0) > 0);
+  if (materialsWithStock.length === 0) {
+    console.log('ℹ️ No materials with opening stock — skipping movements');
+    return warnings;
+  }
+
+  // 2. جلب كل المستودعات المتاحة
+  const { data: allWarehouses } = await supabase
+    .from('warehouses')
     .select('id, code')
     .eq('company_id', companyId)
-    .in('code', materialCodes);
+    .eq('is_active', true)
+    .order('created_at', { ascending: true });
 
-  const materialMap: Record<string, string> = {};
-  materials?.forEach(m => { materialMap[m.code] = m.id; });
+  if (!allWarehouses || allWarehouses.length === 0) {
+    warnings.push('❌ لا توجد مستودعات — لم يتم إنشاء حركات المخزون');
+    return warnings;
+  }
 
-  // 4. إنشاء حركات المخزون
-  const movements = rowsWithQty
-    .map(row => {
-      const data = row.mapped_data || {};
-      const code = String(data.code || '');
-      const materialId = materialMap[code];
-      const whCode = String(data.warehouse_code || warehouseCodes[0] || 'WH-001');
-      const warehouseId = warehouseMap[whCode] || Object.values(warehouseMap)[0];
+  const warehouseByCode: Record<string, string> = {};
+  allWarehouses.forEach(w => { warehouseByCode[w.code] = w.id; });
+  const defaultWhId = allWarehouses[0].id;
+  const defaultWhCode = allWarehouses[0].code;
 
-      if (!materialId || !warehouseId) return null;
+  warnings.push(`ℹ️ المستودعات المتاحة: ${allWarehouses.map(w => w.code).join(', ')}`);
 
-      const movDate = new Date().toISOString().split('T')[0];
-      const movNum = `MOV-OB-${movDate}-${String(row.row_number).padStart(4, '0')}`;
+  // 3. إنشاء حركات المخزون — مع دعم متعدد المستودعات
+  const movDate = new Date().toISOString().split('T')[0];
+  const movements: any[] = [];
+  let movIdx = 0;
 
-      return {
+  for (const mat of materialsWithStock) {
+    // البحث عن الكود الأصلي من custom_fields
+    const origCode = mat.custom_fields?.original_code || '';
+
+    // هل يوجد تفصيل مستودعات لهذه المادة؟
+    const breakdown = warehouseBreakdown?.[origCode];
+    
+    // Also try matching by mat.code if origCode lookup failed
+    const breakdownAlt = !breakdown ? warehouseBreakdown?.[mat.code] : null;
+    const finalBreakdown = breakdown || breakdownAlt;
+    
+    console.log(`🔍 Material ${mat.code} (orig: ${origCode}): breakdown=${finalBreakdown ? finalBreakdown.length + ' warehouses' : 'NONE (default warehouse only)'}`);
+    if (!finalBreakdown && Object.keys(warehouseBreakdown || {}).length > 0) {
+      console.warn(`  ⚠️ Available breakdown keys: ${Object.keys(warehouseBreakdown || {}).slice(0, 5).join(', ')}...`);
+    }
+
+    if (finalBreakdown && finalBreakdown.length > 0) {
+      // ═══ حركة لكل مستودع (multi-warehouse) ═══
+      let runningBalance = 0;
+      for (const entry of finalBreakdown) {
+        const whId = warehouseByCode[entry.warehouse_code] || defaultWhId;
+        movIdx++;
+        const balanceBefore = runningBalance;
+        runningBalance += entry.qty;
+
+        movements.push({
+          tenant_id: tenantId,
+          company_id: companyId,
+          movement_number: `MOV-OB-${movDate}-${String(movIdx).padStart(4, '0')}`,
+          material_id: mat.id,
+          to_warehouse_id: whId,
+          movement_type: 'receipt',
+          quantity: entry.qty,
+          unit_cost: entry.unit_cost,
+          total_cost: entry.qty * entry.unit_cost,
+          reference_type: 'opening_balance',
+          reference_number: `OB-IMPORT-${movDate}`,
+          reference_id: journalEntryId || null,
+          notes: `رصيد افتتاحي — ${origCode} → ${entry.warehouse_code} (${entry.qty})`,
+          movement_date: movDate,
+          balance_before: balanceBefore,
+          balance_after: runningBalance,
+        });
+      }
+    } else {
+      // ═══ حركة واحدة للمستودع الافتراضي ═══
+      const matchRow = importRows.find(r => {
+        const d = r.mapped_data || {};
+        return String(d.name_ar || '').trim() === mat.name_ar?.trim();
+      });
+      const unitCost = Number(matchRow?.mapped_data?.cost_price || matchRow?.mapped_data?.purchase_price || 0);
+      const whId = mat.default_warehouse_id || defaultWhId;
+      movIdx++;
+
+      movements.push({
         tenant_id: tenantId,
         company_id: companyId,
-        movement_number: movNum,
-        material_id: materialId,
-        to_warehouse_id: warehouseId,
-        movement_type: 'in',
-        quantity: Number(data.opening_qty),
-        unit_cost: Number(data.cost_price || data.sale_price || 0),
-        total_cost: Number(data.opening_qty) * Number(data.cost_price || data.sale_price || 0),
+        movement_number: `MOV-OB-${movDate}-${String(movIdx).padStart(4, '0')}`,
+        material_id: mat.id,
+        to_warehouse_id: whId,
+        movement_type: 'receipt',
+        quantity: mat.current_stock,
+        unit_cost: unitCost,
+        total_cost: mat.current_stock * unitCost,
         reference_type: 'opening_balance',
         reference_number: `OB-IMPORT-${movDate}`,
-        notes: `رصيد افتتاحي — استيراد: ${code}`,
+        reference_id: journalEntryId || null,
+        notes: `رصيد افتتاحي — استيراد: ${mat.code}`,
         movement_date: movDate,
-      };
-    })
-    .filter(Boolean);
+        balance_before: 0,
+        balance_after: mat.current_stock,
+      });
+    }
+  }
 
   if (movements.length === 0) return warnings;
 
-  // 5. إدراج حركات المخزون على دفعات
+  // 4. إدراج الحركات على دفعات
   const batchSize = 50;
   for (let i = 0; i < movements.length; i += batchSize) {
     const batch = movements.slice(i, i + batchSize);
@@ -1600,7 +2018,21 @@ async function createOpeningStockMovements(
     }
   }
 
-  console.log(`✅ Created ${movements.length} opening inventory movements`);
-  warnings.push(`✅ تم إنشاء ${movements.length} حركة مخزون افتتاحية`);
+  // 5. تحديث default_warehouse_id لأول مستودع في breakdown
+  for (const mat of materialsWithStock) {
+    if (mat.default_warehouse_id) continue;
+    const origCode2 = mat.custom_fields?.original_code || '';
+    const bd2 = warehouseBreakdown?.[origCode2] || warehouseBreakdown?.[mat.code];
+    const firstWhCode = bd2?.[0]?.warehouse_code;
+    const whId = firstWhCode ? (warehouseByCode[firstWhCode] || defaultWhId) : defaultWhId;
+    await supabase
+      .from('fabric_materials')
+      .update({ default_warehouse_id: whId })
+      .eq('id', mat.id);
+  }
+
+  const whCount = new Set(movements.map(m => m.to_warehouse_id)).size;
+  console.log(`✅ Created ${movements.length} opening inventory movements across ${whCount} warehouse(s)`);
+  warnings.push(`✅ تم إنشاء ${movements.length} حركة مخزون افتتاحية في ${whCount} مستودع`);
   return warnings;
 }

@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
+import { useIsRestoring } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import {
     useMaterialSearch,
@@ -57,6 +58,8 @@ import {
     ShoppingCart,
     RotateCcw,
     Lock,
+    List,
+    LayoutGrid,
 } from 'lucide-react';
 import type { InvoiceLineItem } from '@/features/trade/components/grids/CartItemsView';
 
@@ -85,20 +88,43 @@ interface MaterialBrowserTabProps {
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-const CATEGORY_OPTIONS = [
-    { value: 'all', labelAr: 'الكل', labelEn: 'All' },
-    { value: 'silk', labelAr: 'حرير', labelEn: 'Silk' },
-    { value: 'cotton', labelAr: 'قطن', labelEn: 'Cotton' },
-    { value: 'polyester', labelAr: 'بوليستر', labelEn: 'Polyester' },
-    { value: 'chiffon', labelAr: 'شيفون', labelEn: 'Chiffon' },
-    { value: 'linen', labelAr: 'كتان', labelEn: 'Linen' },
-    { value: 'wool', labelAr: 'صوف', labelEn: 'Wool' },
-    { value: 'velvet', labelAr: 'مخمل', labelEn: 'Velvet' },
-    { value: 'denim', labelAr: 'جينز', labelEn: 'Denim' },
-    { value: 'mixed', labelAr: 'مخلوط', labelEn: 'Mixed' },
-    { value: 'synthetic', labelAr: 'صناعي', labelEn: 'Synthetic' },
-    { value: 'other', labelAr: 'أخرى', labelEn: 'Other' },
-];
+// Design icons — unique visual per pattern type
+const DESIGN_ICONS: Record<string, string> = {
+    'سادة': '▬',       // Plain — solid bar
+    'منقوش': '◆',      // Dotted/Patterned — diamond
+    'مطبوع': '❋',      // Printed — decorative star
+    'مربعات': '▦',     // Checkered — grid
+    'مقلم': '║',       // Striped — vertical lines
+    'مورد': '✿',       // Floral — flower
+    'مطرز': '✦',       // Embroidered — fancy star
+    'جاكار': '❖',      // Jacquard — tessellated diamond
+    'تويل': '⟋',       // Twill — diagonal
+};
+
+// Color hex codes — for color swatch circles
+const COLOR_HEX: Record<string, string> = {
+    'أبيض': '#FFFFFF',
+    'أسود': '#1a1a1a',
+    'كحلي': '#1B2A4A',
+    'أحمر': '#DC2626',
+    'ذهبي': '#D4A017',
+    'بيج': '#E8D5B7',
+    'أزرق': '#2563EB',
+    'أخضر': '#16A34A',
+    'بني': '#8B4513',
+    'رمادي': '#9CA3AF',
+    'وردي': '#F472B6',
+    'برتقالي': '#F97316',
+    'بنفسجي': '#8B5CF6',
+    'فضي': '#C0C0C0',
+    'عنابي': '#800020',
+    'تركواز': '#06B6D4',
+    'زيتي': '#6B7F3B',
+    'سماوي': '#7DD3FC',
+    'كريمي': '#FFFDD0',
+    'خمري': '#722F37',
+};
+
 
 function generateLineItemId(): string {
     return crypto.randomUUID ? crypto.randomUUID() : `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -117,6 +143,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     sourceWarehouseId,
 }) => {
     const { language, direction } = useLanguage();
+    const isRestoring = useIsRestoring();
     const isRTL = direction === 'rtl';
     const t = (ar: string, en: string) => language === 'ar' ? ar : en;
     const { company, companyId } = useCompany();
@@ -147,11 +174,14 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     // ─── State ──────────────────────────────────────────────────
     const [searchText, setSearchText] = useState('');
     const [selectedGroup, setSelectedGroup] = useState<string>('all');
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [selectedDesign, setSelectedDesign] = useState<string>('all');
+    const [selectedColor, setSelectedColor] = useState<string>('all');
     const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
     const [selectedWarehouse, setSelectedWarehouse] = useState<string>(sourceWarehouseId || 'all');
-    const [inStockOnly, setInStockOnly] = useState(true);
+    const [inStockOnly, setInStockOnly] = useState(false);
     const [belowMinStock, setBelowMinStock] = useState(false);
+    const [flatMode, setFlatMode] = useState(false);
+    const [selectedPriceGroup, setSelectedPriceGroup] = useState<string>('retail');
     const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
 
     // Warehouse breakdown state
@@ -180,15 +210,17 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const [dialogRollsLoading, setDialogRollsLoading] = useState(false);
 
     // ─── Data ───────────────────────────────────────────────────
-    const { materials, groups, isLoading, isSearching, totalCount, fetchWarehouseStock, fetchRollDetails, fetchVariantChildren, fetchVariantRolls } =
+    const { materials, groups, designFilters, colorFilters, variantCountMap, parentPriceMap, isLoading, isSearching, totalCount, fetchWarehouseStock, fetchRollDetails, fetchVariantChildren, fetchVariantRolls } =
         useMaterialSearch({
             search: searchText,
             groupId: selectedGroup,
-            category: selectedCategory,
+            designId: selectedDesign,
+            colorId: selectedColor,
             inStockOnly,
             belowMinStock,
             supplierId: selectedSupplier,
             warehouseId: selectedWarehouse,
+            flatMode,
         });
 
     // Filter dropdown data
@@ -203,68 +235,16 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     // ─── Handlers ───────────────────────────────────────────────
 
     /** Toggle material expansion — loads warehouse stock AND variant children */
-    const toggleExpand = useCallback(async (materialId: string) => {
+    const toggleExpand = useCallback((materialId: string) => {
         if (expandedMaterial === materialId) {
             setExpandedMaterial(null);
             return;
         }
         setExpandedMaterial(materialId);
-
-        // Check if this is a variant parent
-        const material = materials.find(m => m.id === materialId);
-        const isParent = material?.is_variant_parent || material?.has_variants;
-
-        // Fetch variant children + rolls if parent
-        if (isParent) {
-            setVariantChildrenLoading(prev => new Set(prev).add(materialId));
-            try {
-                // Fetch children if not cached
-                let children = variantChildrenCache[materialId];
-                if (!children) {
-                    children = await fetchVariantChildren(materialId);
-                    setVariantChildrenCache(prev => ({ ...prev, [materialId]: children! }));
-                }
-
-                // Fetch rolls for all children if not cached
-                if (!variantRollsCache[materialId] && children.length > 0) {
-                    const childIds = children.map(c => c.id);
-                    const rolls = await fetchVariantRolls(childIds);
-                    setVariantRollsCache(prev => ({ ...prev, [materialId]: rolls }));
-                }
-            } catch (err) {
-                if (!variantChildrenCache[materialId]) {
-                    setVariantChildrenCache(prev => ({ ...prev, [materialId]: [] }));
-                }
-                setVariantRollsCache(prev => ({ ...prev, [materialId]: [] }));
-            } finally {
-                setVariantChildrenLoading(prev => {
-                    const next = new Set(prev);
-                    next.delete(materialId);
-                    return next;
-                });
-            }
-        }
-
-        // Fetch warehouse stock if not cached (for non-parent materials)
-        if (!isParent && !warehouseStockCache[materialId]) {
-            setWarehouseStockLoading(prev => new Set(prev).add(materialId));
-            try {
-                const data = await fetchWarehouseStock(materialId);
-                setWarehouseStockCache(prev => ({ ...prev, [materialId]: data }));
-            } catch (err) {
-                setWarehouseStockCache(prev => ({ ...prev, [materialId]: [] }));
-            } finally {
-                setWarehouseStockLoading(prev => {
-                    const next = new Set(prev);
-                    next.delete(materialId);
-                    return next;
-                });
-            }
-        }
-    }, [expandedMaterial, warehouseStockCache, fetchWarehouseStock, materials, variantChildrenCache, fetchVariantChildren, variantRollsCache, fetchVariantRolls]);
+    }, [expandedMaterial]);
 
     /** Toggle warehouse expansion — loads roll details */
-    const toggleWarehouse = useCallback(async (materialId: string, warehouseId: string) => {
+    const toggleWarehouse = useCallback((materialId: string, warehouseId: string) => {
         const key = `${materialId}__${warehouseId}`;
         const newExpanded = new Set(expandedWarehouses);
 
@@ -276,24 +256,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
 
         newExpanded.add(key);
         setExpandedWarehouses(newExpanded);
-
-        // Fetch rolls
-        if (!rollsCache[key]) {
-            setRollsLoading(prev => new Set(prev).add(key));
-            try {
-                const rolls = await fetchRollDetails(materialId, warehouseId);
-                setRollsCache(prev => ({ ...prev, [key]: rolls }));
-            } catch (err) {
-                setRollsCache(prev => ({ ...prev, [key]: [] }));
-            } finally {
-                setRollsLoading(prev => {
-                    const next = new Set(prev);
-                    next.delete(key);
-                    return next;
-                });
-            }
-        }
-    }, [expandedWarehouses, rollsCache, fetchRollDetails]);
+    }, [expandedWarehouses]);
 
     /** Open AddToCartDialog for a specific warehouse */
     const handleOpenAddDialog = useCallback(async (material: MaterialSearchResult, wh: MaterialWarehouseStock) => {
@@ -301,42 +264,18 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
         setDialogWarehouse(wh);
         setDialogOpen(true);
 
-        // Load rolls for the dialog
-        const key = `${material.id}__${wh.warehouse_id}`;
-        const cachedRolls = rollsCache[key];
-        if (cachedRolls) {
-            // Map to RollOption format
-            setDialogRolls(cachedRolls.map(r => ({
-                id: r.id,
-                roll_number: r.roll_number,
-                current_length: r.current_length,
-                available_length: r.available_length,
-                reserved_length: r.reserved_length,
-                status: r.status,
-            })));
-            setDialogRollsLoading(false);
-        } else {
-            // Fetch rolls
-            setDialogRolls(undefined);
-            setDialogRollsLoading(true);
-            try {
-                const rolls = await fetchRollDetails(material.id, wh.warehouse_id);
-                setRollsCache(prev => ({ ...prev, [key]: rolls }));
-                setDialogRolls(rolls.map(r => ({
-                    id: r.id,
-                    roll_number: r.roll_number,
-                    current_length: r.current_length,
-                    available_length: r.available_length,
-                    reserved_length: r.reserved_length,
-                    status: r.status,
-                })));
-            } catch (err) {
-                setDialogRolls([]);
-            } finally {
-                setDialogRollsLoading(false);
-            }
-        }
-    }, [rollsCache, fetchRollDetails]);
+        // ⚡ Load rolls synchronously from cache (no network, no await)
+        const rolls = fetchRollDetails(material.id, wh.warehouse_id);
+        setDialogRolls(rolls.map(r => ({
+            id: r.id,
+            roll_number: r.roll_number,
+            current_length: r.current_length,
+            available_length: r.available_length,
+            reserved_length: r.reserved_length,
+            status: r.status,
+        })));
+        setDialogRollsLoading(false);
+    }, [fetchRollDetails]);
 
     /** Handle line item from AddToCartDialog (mode='line') */
     const handleAddLineItem = useCallback((item: {
@@ -428,23 +367,25 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
     const clearFilters = useCallback(() => {
         setSearchText('');
         setSelectedGroup('all');
-        setSelectedCategory('all');
+        setSelectedDesign('all');
+        setSelectedColor('all');
         setSelectedSupplier('all');
         setSelectedWarehouse('all');
         setInStockOnly(true);
         setBelowMinStock(false);
     }, []);
 
-    const hasActiveFilters = searchText || selectedGroup !== 'all' || selectedCategory !== 'all'
-        || selectedSupplier !== 'all' || selectedWarehouse !== 'all'
+    const hasActiveFilters = searchText || selectedGroup !== 'all' || selectedDesign !== 'all'
+        || selectedColor !== 'all' || selectedSupplier !== 'all' || selectedWarehouse !== 'all'
         || !inStockOnly || belowMinStock;
 
     const activeFilterCount = [
         selectedGroup !== 'all',
-        selectedCategory !== 'all',
+        selectedDesign !== 'all',
+        selectedColor !== 'all',
         selectedSupplier !== 'all',
         selectedWarehouse !== 'all',
-        !inStockOnly, // "عرض الكل" يعتبر فلتر نشط لأنه مختلف عن الافتراضي
+        !inStockOnly,
         belowMinStock,
         !!searchText,
     ].filter(Boolean).length;
@@ -489,7 +430,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
             {/* ═══ Filters Panel — Always Visible ═══ */}
             <Card className="bg-gray-50/80 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700">
                 <CardContent className="p-2.5">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                         {/* Group filter */}
                         <div>
                             <Label className="text-[10px] text-gray-500 mb-0.5 block">
@@ -499,32 +440,69 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                 <SelectTrigger className={cn('h-7 text-xs', selectedGroup !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="text-right">
                                     <SelectItem value="all">{t('كل المجموعات', 'All Groups')}</SelectItem>
                                     {groups.map((g: any) => (
                                         <SelectItem key={g.id} value={g.id}>
-                                            {g.icon} {isRTL ? g.name_ar : (g.name_en || g.name_ar)}
+                                            <span className="flex items-center gap-1.5" dir="rtl">
+                                                {g.code && <span className="text-[10px] font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">{g.code}</span>}
+                                                <span>{isRTL ? g.name_ar : (g.name_en || g.name_ar)}</span>
+                                            </span>
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        {/* Category filter */}
+                        {/* Design filter */}
                         <div>
                             <Label className="text-[10px] text-gray-500 mb-0.5 block">
-                                {t('النوع', 'Category')}
+                                {t('التصميم', 'Design')}
                             </Label>
-                            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                                <SelectTrigger className={cn('h-7 text-xs', selectedCategory !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
+                            <Select value={selectedDesign} onValueChange={setSelectedDesign}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedDesign !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
-                                    {CATEGORY_OPTIONS.map(opt => (
-                                        <SelectItem key={opt.value} value={opt.value}>
-                                            {isRTL ? opt.labelAr : opt.labelEn}
+                                <SelectContent className="text-right">
+                                    <SelectItem value="all">{t('الكل', 'All')}</SelectItem>
+                                    {designFilters.map((d: any) => (
+                                        <SelectItem key={d.id} value={d.id}>
+                                            <span className="flex items-center gap-1.5" dir="rtl">
+                                                <span className="text-sm w-4 text-center">{DESIGN_ICONS[d.name_ar] || '◈'}</span>
+                                                <span>{isRTL ? d.name_ar : (d.name_en || d.name_ar)}</span>
+                                            </span>
                                         </SelectItem>
                                     ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Color filter */}
+                        <div>
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('اللون', 'Color')}
+                            </Label>
+                            <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedColor !== 'all' && 'border-blue-400 bg-blue-50 dark:bg-blue-900/20')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="text-right">
+                                    <SelectItem value="all">{t('كل الألوان', 'All Colors')}</SelectItem>
+                                    {colorFilters.map((c: any) => {
+                                        const hex = COLOR_HEX[c.name_ar] || c.hex_code || '#808080';
+                                        const isWhite = hex.toUpperCase() === '#FFFFFF' || hex.toUpperCase() === '#FFFDD0';
+                                        return (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                <span className="flex items-center gap-1.5" dir="rtl">
+                                                    <span
+                                                        className={cn('w-3.5 h-3.5 rounded-full inline-block shadow-sm', isWhite ? 'border-2 border-gray-300' : 'border border-gray-200')}
+                                                        style={{ backgroundColor: hex }}
+                                                    />
+                                                    <span>{isRTL ? c.name_ar : (c.name_en || c.name_ar)}</span>
+                                                </span>
+                                            </SelectItem>
+                                        );
+                                    })}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -575,6 +553,31 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                             </Select>
                         </div>
 
+                        {/* Price Group filter */}
+                        <div>
+                            <Label className="text-[10px] text-gray-500 mb-0.5 block">
+                                {t('التسعير', 'Pricing')}
+                            </Label>
+                            <Select value={selectedPriceGroup} onValueChange={setSelectedPriceGroup}>
+                                <SelectTrigger className={cn('h-7 text-xs', selectedPriceGroup !== 'retail' && 'border-amber-400 bg-amber-50 dark:bg-amber-900/20')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="retail">
+                                        <span className="flex items-center gap-1.5">
+                                            🏷️ {t('سعر المفرد', 'Retail Price')}
+                                        </span>
+                                    </SelectItem>
+                                    <SelectItem value="wholesale" disabled>
+                                        <span className="flex items-center gap-1.5 text-gray-400">
+                                            📦 {t('سعر الجملة', 'Wholesale')}
+                                            <Badge variant="outline" className="text-[8px] h-3">{t('قريباً', 'Soon')}</Badge>
+                                        </span>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         {/* Quick Toggle Buttons */}
                         <div className="flex flex-col gap-1">
                             <Label className="text-[10px] text-gray-500 mb-0.5 block">
@@ -611,6 +614,24 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                     <AlertTriangle className="w-3 h-3" />
                                     {t('حد أدنى', 'Min Stock')}
                                 </Button>
+
+                                {/* Grouped / Flat toggle */}
+                                <Button
+                                    variant={flatMode ? 'default' : 'outline'}
+                                    size="sm"
+                                    className={cn(
+                                        'h-7 text-[10px] px-2 gap-1',
+                                        flatMode
+                                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-300',
+                                    )}
+                                    onClick={() => setFlatMode(!flatMode)}
+                                >
+                                    {flatMode
+                                        ? <><List className="w-3 h-3" /> {t('سائب', 'Flat')}</>
+                                        : <><LayoutGrid className="w-3 h-3" /> {t('مجمّع', 'Grouped')}</>
+                                    }
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -638,11 +659,14 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
             </Card>
 
             {/* ═══ Results ═══ */}
-            {isLoading ? (
+            {(isLoading || isRestoring) && materials.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                     <span className="ms-2 text-sm text-gray-500">
-                        {t('جاري تحميل المواد...', 'Loading materials...')}
+                        {isRestoring
+                            ? t('جاري استعادة البيانات...', 'Restoring data...')
+                            : t('جاري تحميل المواد...', 'Loading materials...')
+                        }
                     </span>
                 </div>
             ) : materials.length === 0 ? (
@@ -657,13 +681,59 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                 </div>
             ) : (
                 <div className="space-y-1.5 max-h-[calc(100vh-380px)] overflow-y-auto pe-1">
+                    {/* Subtle sync indicator — shows while refreshing in background */}
+                    {isLoading && materials.length > 0 && (
+                        <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] text-blue-500">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            {t('يتم المزامنة...', 'Syncing...')}
+                        </div>
+                    )}
                     {materials.map((material) => {
                         const isExpanded = expandedMaterial === material.id;
                         const isInCart = cartMaterialIds.has(material.id);
                         const qtyBreaks = getQtyBreaksForMaterial(material.id);
                         const hasQtyBreaks = qtyBreaks.length > 1;
-                        const isStockLoading = warehouseStockLoading.has(material.id);
-                        const warehouseStock = warehouseStockCache[material.id] || [];
+                        const isStockLoading = false;
+                        // In flat mode, child variants may not have direct rolls — try parent
+                        let warehouseStock = fetchWarehouseStock(material.id);
+                        if (warehouseStock.length === 0 && material.parent_material_id) {
+                            warehouseStock = fetchWarehouseStock(material.parent_material_id);
+                        }
+                        // Fallback: if no rolls at all but material has stock + default_warehouse_id,
+                        // build a synthetic warehouse entry from current_stock
+                        if (flatMode && warehouseStock.length === 0 && material.stock_qty > 0) {
+                            const whId = material.default_warehouse_id;
+                            if (whId) {
+                                const whInfo = warehousesList.find((w: any) => w.id === whId);
+                                warehouseStock = [{
+                                    warehouse_id: whId,
+                                    warehouse_code: whInfo?.code || '',
+                                    warehouse_name_ar: whInfo?.name_ar || t('مستودع افتراضي', 'Default'),
+                                    warehouse_name_en: whInfo?.name_en || 'Default',
+                                    roll_count: material.roll_count,
+                                    total_length: material.stock_qty,
+                                    available_length: material.stock_qty,
+                                    reserved_length: 0,
+                                    loose_stock: material.loose_stock,
+                                    last_updated: null,
+                                }];
+                            } else if (warehousesList.length > 0) {
+                                // No default warehouse — use first warehouse as fallback
+                                const firstWh = warehousesList[0];
+                                warehouseStock = [{
+                                    warehouse_id: firstWh.id,
+                                    warehouse_code: firstWh.code || '',
+                                    warehouse_name_ar: firstWh.name_ar || '',
+                                    warehouse_name_en: firstWh.name_en || '',
+                                    roll_count: material.roll_count,
+                                    total_length: material.stock_qty,
+                                    available_length: material.stock_qty,
+                                    reserved_length: 0,
+                                    loose_stock: material.loose_stock,
+                                    last_updated: null,
+                                }];
+                            }
+                        }
 
                         // Resolve price for display — then convert to document currency
                         let basePriceRaw = material.selling_price;
@@ -693,11 +763,26 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                 <CardContent className="p-0">
                                     {/* ─── Main Row ─── */}
                                     <div
-                                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
-                                        onClick={() => toggleExpand(material.id)}
+                                        className={cn(
+                                            "flex items-center gap-2.5 px-3 py-2 cursor-pointer",
+                                            !(material.is_variant_parent || material.has_variants) && material.roll_count === 0 && 'hover:bg-green-50/50 dark:hover:bg-green-900/10'
+                                        )}
+                                        onClick={() => {
+                                            const isParentMat = material.is_variant_parent || material.has_variants;
+                                            const hasRolls = material.roll_count > 0;
+                                            if (flatMode) {
+                                                // Flat mode: always expand to show warehouse breakdown
+                                                toggleExpand(material.id);
+                                            } else if (!isParentMat && !hasRolls) {
+                                                // Grouped mode, simple material — add directly
+                                                handleQuickAdd(material);
+                                            } else {
+                                                toggleExpand(material.id);
+                                            }
+                                        }}
                                     >
                                         {/* Swatch / Icon */}
-                                        <div className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+                                        <div className="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
                                             {material.swatch_url ? (
                                                 <img
                                                     src={material.swatch_url}
@@ -705,138 +790,285 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <Package className="w-5 h-5 text-gray-400" />
+                                                <Package className="w-4 h-4 text-gray-400" />
                                             )}
                                         </div>
 
-                                        {/* Info */}
+                                        {/* Info — Name + Meta */}
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                                            {/* Line 1: Name + Badges */}
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[13px] font-medium text-gray-800 dark:text-gray-200 truncate">
                                                     {isRTL ? material.name_ar : (material.name_en || material.name_ar)}
                                                 </span>
                                                 {isInCart && (
-                                                    <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300">
+                                                    <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300">
                                                         {t('في السلة', 'In Cart')}
                                                     </Badge>
                                                 )}
                                                 {(material.is_variant_parent || material.has_variants) && (
-                                                    <Badge variant="outline" className="text-[10px] gap-0.5 bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300">
-                                                        <Layers className="w-2.5 h-2.5" />
+                                                    <Badge variant="outline" className="text-[9px] h-4 px-1 gap-0.5 bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300">
+                                                        <Layers className="w-2 h-2" />
                                                         {t('أم', 'Parent')}
                                                     </Badge>
                                                 )}
-                                                {hasQtyBreaks && (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger>
-                                                                <Layers className="w-3 h-3 text-indigo-500" />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                {t('يوجد تسعير متدرج', 'Has quantity breaks')}
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
                                             </div>
-                                            <div className="flex items-center gap-2 text-xs text-gray-400">
-                                                <span className="font-mono">{material.code}</span>
+                                            {/* Line 2: Code + Group + Variant Count + Inline Stats */}
+                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[11px]">
+                                                <span className="font-mono text-gray-400">{material.code}</span>
                                                 {material.group_name_ar && (
                                                     <>
-                                                        <span>·</span>
-                                                        <span>{isRTL ? material.group_name_ar : (material.group_name_en || material.group_name_ar)}</span>
+                                                        <span className="text-gray-300">·</span>
+                                                        <span className="text-gray-400">{isRTL ? material.group_name_ar : (material.group_name_en || material.group_name_ar)}</span>
+                                                    </>
+                                                )}
+                                                {(material.is_variant_parent || material.has_variants) && (
+                                                    <>
+                                                        <span className="text-gray-300">·</span>
+                                                        <span className="text-purple-500 dark:text-purple-400 font-medium">
+                                                            <Layers className="w-2.5 h-2.5 inline me-0.5" />
+                                                            {variantCountMap[material.id] || 0} {t('متغير', 'var')}
+                                                        </span>
+                                                    </>
+                                                )}
+                                                {isLowStock && (
+                                                    <span className="text-amber-500 flex items-center gap-0.5">
+                                                        <AlertTriangle className="w-2.5 h-2.5" />
+                                                        {t('منخفض', 'Low')}
+                                                    </span>
+                                                )}
+                                                {/* Warehouse badges — flat mode only */}
+                                                {flatMode && warehouseStock.length > 0 && warehouseStock.map((ws) => (
+                                                    <span
+                                                        key={ws.warehouse_id}
+                                                        className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800"
+                                                    >
+                                                        <span className="truncate max-w-[70px]">{isRTL ? ws.warehouse_name_ar : (ws.warehouse_name_en || ws.warehouse_name_ar)}</span>
+                                                        <span className="text-gray-400">·</span>
+                                                        <span className="font-mono font-semibold">{ws.total_length.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                                                        {ws.roll_count > 0 && (
+                                                            <span className="text-indigo-500">({ws.roll_count}R)</span>
+                                                        )}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Right Side: Stock + Rolls + Price — Always visible */}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {/* Stock Qty */}
+                                            <div className={cn(
+                                                'flex flex-col items-center px-2 py-1 rounded-md min-w-[60px]',
+                                                material.stock_qty === 0
+                                                    ? 'bg-red-50 dark:bg-red-900/10'
+                                                    : isLowStock
+                                                        ? 'bg-amber-50 dark:bg-amber-900/10'
+                                                        : 'bg-green-50 dark:bg-green-900/10'
+                                            )}>
+                                                <span className={cn(
+                                                    'font-mono font-bold text-[13px] leading-tight',
+                                                    material.stock_qty === 0 ? 'text-red-500'
+                                                        : isLowStock ? 'text-amber-600'
+                                                            : 'text-green-600 dark:text-green-400'
+                                                )}>
+                                                    {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                                                </span>
+                                                <span className="text-[9px] text-gray-400">{material.unit}</span>
+                                            </div>
+
+                                            {/* Rolls */}
+                                            <div className="flex flex-col items-center px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/10 min-w-[45px]">
+                                                <span className="font-mono font-bold text-[13px] leading-tight text-indigo-600 dark:text-indigo-400">
+                                                    {material.roll_count}
+                                                </span>
+                                                <span className="text-[9px] text-gray-400">{t('رول', 'rolls')}</span>
+                                            </div>
+
+                                            {/* Price */}
+                                            <div className="flex flex-col items-center px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/40 min-w-[65px]">
+                                                {priceSource === 'price_list' && displayPrice !== material.selling_price ? (
+                                                    <>
+                                                        <span className="font-mono font-bold text-[13px] leading-tight text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                                                            <Sparkles className="w-2.5 h-2.5" />
+                                                            {displayPrice.toFixed(2)}
+                                                        </span>
+                                                        <span className="text-[8px] text-gray-400 line-through">{material.selling_price.toFixed(2)}</span>
+                                                    </>
+                                                ) : (material.is_variant_parent || material.has_variants) && displayPrice === 0 ? (
+                                                    /* Parent with different prices → show tag */
+                                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium whitespace-nowrap">
+                                                        🏷️ {t('أسعار مختلفة', 'Varied')}
+                                                    </span>
+                                                ) : (
+                                                    <>
+                                                        <span className="font-mono font-bold text-[13px] leading-tight text-gray-700 dark:text-gray-300">
+                                                            {displayPrice.toFixed(2)}
+                                                        </span>
+                                                        <span className="text-[9px] text-gray-400">{currency}</span>
                                                     </>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* Stock — Dual Stock Display */}
-                                        <div className="text-end shrink-0">
-                                            <div className={cn(
-                                                'flex items-center gap-1 text-xs',
-                                                material.stock_qty === 0 ? 'text-red-500'
-                                                    : isLowStock ? 'text-amber-500'
-                                                        : 'text-green-600 dark:text-green-400'
-                                            )}>
-                                                <Warehouse className="w-3 h-3" />
-                                                <span className="font-mono font-medium">
-                                                    {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                </span>
-                                                <span className="text-gray-400">{material.unit}</span>
-                                            </div>
-                                            {isLowStock && (
-                                                <div className="flex items-center gap-0.5 text-[10px] text-amber-500 mt-0.5">
-                                                    <AlertTriangle className="w-2.5 h-2.5" />
-                                                    {t('مخزون منخفض', 'Low stock')}
-                                                </div>
-                                            )}
-                                            {/* Dual stock breakdown: Rolls + Loose */}
-                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                                {material.roll_count > 0 && (
-                                                    <span className="text-[10px] text-indigo-500 dark:text-indigo-400">
-                                                        <Scroll className="w-2.5 h-2.5 inline me-0.5" />
-                                                        {material.roll_count} {t('رولون', 'rolls')}
-                                                    </span>
-                                                )}
-                                                {material.loose_stock > 0 && (
-                                                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
-                                                        <Package className="w-2.5 h-2.5 inline me-0.5" />
-                                                        {material.loose_stock.toLocaleString('en-US', { maximumFractionDigits: 1 })} {t('سائب', 'loose')}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Price */}
-                                        <div className="text-end shrink-0 min-w-[80px]">
-                                            {priceSource === 'price_list' && displayPrice !== material.selling_price ? (
-                                                <>
-                                                    <div className="text-xs text-gray-400 line-through font-mono">
-                                                        {material.selling_price.toFixed(2)}
-                                                    </div>
-                                                    <div className="text-sm font-semibold text-green-600 dark:text-green-400 font-mono flex items-center gap-0.5 justify-end">
-                                                        <Sparkles className="w-3 h-3" />
-                                                        {displayPrice.toFixed(2)}
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 font-mono">
-                                                    {displayPrice.toFixed(2)}
-                                                </div>
-                                            )}
-                                            <div className="text-[10px] text-gray-400">{currency}</div>
-                                        </div>
-
-                                        {/* Quick Add for zero stock (not for variant parents) */}
-                                        {material.stock_qty === 0 && !(material.is_variant_parent || material.has_variants) && (
+                                        {/* Add button — for non-parent materials */}
+                                        {!(material.is_variant_parent || material.has_variants) && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-8 w-8 p-0 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/20 shrink-0"
+                                                className="h-7 w-7 p-0 text-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/20 shrink-0"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleQuickAdd(material);
+                                                    if (flatMode && warehouseStock.length > 1) {
+                                                        // Multiple warehouses — open dialog to choose
+                                                        setDialogMaterial(material);
+                                                        setDialogWarehouse(null);
+                                                        setDialogOpen(true);
+                                                    } else if (flatMode && warehouseStock.length === 1) {
+                                                        // Single warehouse — add with warehouse pre-selected
+                                                        setDialogMaterial(material);
+                                                        setDialogWarehouse(warehouseStock[0]);
+                                                        setDialogOpen(true);
+                                                    } else {
+                                                        handleQuickAdd(material);
+                                                    }
                                                 }}
                                             >
-                                                <Plus className="w-4 h-4" />
+                                                <Plus className="w-3.5 h-3.5" />
                                             </Button>
                                         )}
 
-                                        {/* Expand indicator */}
-                                        <div className="shrink-0">
-                                            {isExpanded
-                                                ? <ChevronUp className="w-4 h-4 text-gray-400" />
-                                                : <ChevronDown className="w-4 h-4 text-gray-400" />
-                                            }
-                                        </div>
+                                        {/* Expand indicator — parents, materials with rolls, or flat mode */}
+                                        {(flatMode || (material.is_variant_parent || material.has_variants) || material.roll_count > 0) && (
+                                            <div className="shrink-0">
+                                                {isExpanded
+                                                    ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                                                    : <ChevronDown className="w-4 h-4 text-gray-400" />
+                                                }
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* ─── Expanded Section ─── */}
                                     {isExpanded && (() => {
                                         const isParent = material.is_variant_parent || material.has_variants;
-                                        const variantChildren = variantChildrenCache[material.id] || [];
-                                        const variantRolls = variantRollsCache[material.id] || [];
-                                        const isVarLoading = variantChildrenLoading.has(material.id);
+
+                                        // ═══ FLAT MODE: Show warehouse breakdown ═══
+                                        if (flatMode) {
+                                            // Get roll details for this material (try self, then parent)
+                                            const materialIdForRolls = material.parent_material_id || material.id;
+                                            return (
+                                                <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 px-3 py-2">
+                                                    <div className="text-[10px] text-gray-500 mb-1.5 flex items-center gap-1">
+                                                        <Warehouse className="w-3 h-3" />
+                                                        {t('توزيع المخزون', 'Stock Distribution')}
+                                                    </div>
+                                                    {warehouseStock.length > 0 ? (
+                                                        <div className="space-y-1.5">
+                                                            {warehouseStock.map((ws) => {
+                                                                const wsRolls = ws.roll_count > 0
+                                                                    ? fetchRollDetails(materialIdForRolls, ws.warehouse_id)
+                                                                    : [];
+                                                                const isWhExpanded = expandedWarehouses.has(`flat_${material.id}_${ws.warehouse_id}`);
+                                                                const whKey = `flat_${material.id}_${ws.warehouse_id}`;
+                                                                return (
+                                                                    <div key={ws.warehouse_id} className="rounded-md bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
+                                                                        {/* Warehouse header row */}
+                                                                        <div
+                                                                            className="flex items-center justify-between gap-2 px-2.5 py-1.5 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors cursor-pointer group"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                if (wsRolls.length > 0) {
+                                                                                    setExpandedWarehouses(prev => {
+                                                                                        const next = new Set(prev);
+                                                                                        next.has(whKey) ? next.delete(whKey) : next.add(whKey);
+                                                                                        return next;
+                                                                                    });
+                                                                                } else {
+                                                                                    // No rolls — open add dialog directly
+                                                                                    setDialogMaterial(material);
+                                                                                    setDialogWarehouse(ws);
+                                                                                    setDialogOpen(true);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex items-center gap-2">
+                                                                                <Warehouse className="w-3 h-3 text-blue-400" />
+                                                                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                                                                    {isRTL ? ws.warehouse_name_ar : (ws.warehouse_name_en || ws.warehouse_name_ar)}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className={cn("text-[10px]", ws.roll_count > 0 ? "text-indigo-500" : "text-gray-400")}>
+                                                                                    {ws.roll_count} {t('رول', 'rolls')}
+                                                                                </span>
+                                                                                <span className="font-mono text-xs font-bold text-green-600 dark:text-green-400 min-w-[45px] text-end">
+                                                                                    {ws.total_length.toLocaleString('en-US', { maximumFractionDigits: 0 })} {material.unit}
+                                                                                </span>
+                                                                                {wsRolls.length > 0 ? (
+                                                                                    isWhExpanded
+                                                                                        ? <ChevronUp className="w-3 h-3 text-gray-400" />
+                                                                                        : <ChevronDown className="w-3 h-3 text-gray-400" />
+                                                                                ) : (
+                                                                                    <Plus className="w-3.5 h-3.5 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        {/* Rolls list — expandable */}
+                                                                        {isWhExpanded && wsRolls.length > 0 && (
+                                                                            <div className="border-t border-gray-100 dark:border-gray-700 px-2 py-1 space-y-0.5">
+                                                                                {wsRolls.map((roll) => (
+                                                                                    <div
+                                                                                        key={roll.id}
+                                                                                        className="flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-green-50/50 dark:hover:bg-green-900/10 cursor-pointer text-[11px]"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            setDialogMaterial(material);
+                                                                                            setDialogWarehouse(ws);
+                                                                                            setDialogOpen(true);
+                                                                                        }}
+                                                                                    >
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                            <span className="font-mono text-gray-400">#{roll.roll_number}</span>
+                                                                                            <Badge variant="outline" className={cn(
+                                                                                                'text-[8px] h-3.5 px-1',
+                                                                                                roll.status === 'available' && 'border-green-300 text-green-600',
+                                                                                                roll.status === 'reserved' && 'border-orange-300 text-orange-600',
+                                                                                                roll.status === 'partial' && 'border-blue-300 text-blue-600',
+                                                                                            )}>
+                                                                                                {roll.status === 'available' ? t('متاح', 'Avail')
+                                                                                                    : roll.status === 'reserved' ? t('محجوز', 'Rsrvd')
+                                                                                                    : t('جزئي', 'Part')}
+                                                                                            </Badge>
+                                                                                        </div>
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                            <span className="font-mono font-bold text-green-600 dark:text-green-400">
+                                                                                                {roll.current_length.toLocaleString('en-US', { maximumFractionDigits: 1 })} {material.unit}
+                                                                                            </span>
+                                                                                            <Plus className="w-3 h-3 text-green-500 opacity-50 hover:opacity-100" />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[10px] text-gray-400 text-center py-2">
+                                                            {t('لا يوجد مخزون في المستودعات', 'No warehouse stock')}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+
+                                        // ═══ GROUPED MODE: Show variant children hierarchy ═══
+                                        const isVarLoading = false;
+                                        const variantChildren = isParent ? fetchVariantChildren(material.id) : [];
+                                        const variantRolls = isParent && variantChildren.length > 0
+                                            ? fetchVariantRolls(variantChildren.map(c => c.id))
+                                            : [];
 
                                         // ═══ BUILD WAREHOUSE → GROUP → VARIANT HIERARCHY ═══
                                         type VariantEntry = { material: MaterialSearchResult; qty: number; roll_count: number; rolls: VariantRollData[] };
@@ -886,33 +1118,62 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                             warehouseHierarchy.push(...Array.from(whMap.values()));
                                         }
 
+                                        // ═══ FALLBACK: Build from current_stock when no rolls ═══
+                                        // Groups variants by design (from variant_data), shows current_stock
+                                        if (isParent && variantRolls.length === 0 && variantChildren.length > 0) {
+                                            // Use the first warehouse or a virtual "all stock" entry
+                                            const defaultWh = warehousesList[0];
+                                            const whId = defaultWh?.id || 'default';
+                                            const whEntry: WhEntry = {
+                                                id: whId,
+                                                name_ar: defaultWh?.name_ar || t('المخزون العام', 'General Stock'),
+                                                name_en: defaultWh?.name_en || 'General Stock',
+                                                total_qty: 0,
+                                                total_rolls: 0,
+                                                groups: new Map(),
+                                            };
+
+                                            for (const child of variantChildren) {
+                                                const childStock = child.stock_qty || child.current_stock || 0;
+                                                if (childStock <= 0) continue;
+
+                                                // Group by design from variant_data
+                                                const vd = (child as any).variant_data;
+                                                const designName = isRTL
+                                                    ? (vd?.design?.name_ar || child.group_name_ar || t('بدون تصنيف', 'Uncategorized'))
+                                                    : (vd?.design?.name_en || child.group_name_en || 'Uncategorized');
+                                                const designId = vd?.design?.value_id || child.group_id || 'ungrouped';
+
+                                                if (!whEntry.groups.has(designId)) {
+                                                    whEntry.groups.set(designId, {
+                                                        id: designId,
+                                                        name_ar: vd?.design?.name_ar || child.group_name_ar || t('بدون تصنيف', 'Uncategorized'),
+                                                        name_en: vd?.design?.name_en || child.group_name_en || 'Uncategorized',
+                                                        variants: new Map(),
+                                                    });
+                                                }
+                                                const grp = whEntry.groups.get(designId)!;
+                                                grp.variants.set(child.id, {
+                                                    material: child,
+                                                    qty: childStock,
+                                                    roll_count: child.roll_count || 0,
+                                                    rolls: [], // No physical rolls
+                                                });
+
+                                                whEntry.total_qty += childStock;
+                                                whEntry.total_rolls += child.roll_count || 0;
+                                            }
+
+                                            if (whEntry.groups.size > 0) {
+                                                warehouseHierarchy.push(whEntry);
+                                            }
+                                        }
+
                                         return (
                                             <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-2 space-y-3">
                                                 {/* ═══ VARIANT PARENT: Hierarchical warehouse view ═══ */}
                                                 {isParent ? (
                                                     <>
-                                                        {/* Summary */}
-                                                        <div className="grid grid-cols-3 gap-2">
-                                                            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
-                                                                <div className="text-[10px] text-gray-500">{t('الرولونات', 'Rolls')}</div>
-                                                                <div className="font-mono font-semibold text-sm text-indigo-600 dark:text-indigo-400">
-                                                                    {material.roll_count}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
-                                                                <div className="text-[10px] text-gray-500">{t('المتاح', 'Available')}</div>
-                                                                <div className="font-mono font-semibold text-sm text-green-600 dark:text-green-400">
-                                                                    {material.stock_qty.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 text-center">
-                                                                <div className="text-[10px] text-gray-500">{t('المتغيرات', 'Variants')}</div>
-                                                                <div className="font-mono font-semibold text-sm text-purple-600 dark:text-purple-400">
-                                                                    {variantChildren.length}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
                                                         {isVarLoading ? (
                                                             <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
                                                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1019,23 +1280,56 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                                                                             'flex items-center gap-2 px-5 py-2 text-xs cursor-pointer transition-colors',
                                                                                                                             isVarOpen && 'bg-blue-50/40 dark:bg-blue-900/10',
                                                                                                                             varInCart && 'bg-emerald-50/30 dark:bg-emerald-900/10',
-                                                                                                                            !isVarOpen && !varInCart && 'hover:bg-gray-50 dark:hover:bg-gray-800/20'
+                                                                                                                            !isVarOpen && !varInCart && variant.rolls.length > 0
+                                                                                                                                ? 'hover:bg-gray-50 dark:hover:bg-gray-800/20'
+                                                                                                                                : !varInCart && 'hover:bg-green-50/50 dark:hover:bg-green-900/10'
                                                                                                                         )}
                                                                                                                         onClick={() => {
-                                                                                                                            setExpandedVariantColors(prev => {
-                                                                                                                                const next = new Set(prev);
-                                                                                                                                next.has(varKey) ? next.delete(varKey) : next.add(varKey);
-                                                                                                                                return next;
-                                                                                                                            });
+                                                                                                                            if (variant.rolls.length > 0) {
+                                                                                                                                // Has rolls → toggle expand to show roll details
+                                                                                                                                setExpandedVariantColors(prev => {
+                                                                                                                                    const next = new Set(prev);
+                                                                                                                                    next.has(varKey) ? next.delete(varKey) : next.add(varKey);
+                                                                                                                                    return next;
+                                                                                                                                });
+                                                                                                                            } else {
+                                                                                                                                // No rolls → add directly
+                                                                                                                                setDialogMaterial(variant.material);
+                                                                                                                                setDialogWarehouse({
+                                                                                                                                    warehouse_id: wh.id,
+                                                                                                                                    warehouse_code: '',
+                                                                                                                                    warehouse_name_ar: wh.name_ar,
+                                                                                                                                    warehouse_name_en: wh.name_en,
+                                                                                                                                    roll_count: variant.roll_count,
+                                                                                                                                    total_length: variant.qty,
+                                                                                                                                    available_length: variant.qty,
+                                                                                                                                    reserved_length: 0,
+                                                                                                                                    last_updated: null,
+                                                                                                                                });
+                                                                                                                                setDialogRolls([]);
+                                                                                                                                setDialogRollsLoading(false);
+                                                                                                                                setDialogOpen(true);
+                                                                                                                            }
                                                                                                                         }}
                                                                                                                     >
                                                                                                                         <Package className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                                                                                                        <span className="flex-1 font-tajawal truncate">{shortName}</span>
+                                                                                                                        <span className="font-tajawal truncate">{shortName}</span>
+                                                                                                                        {/* Roll count — right next to name */}
+                                                                                                                        <span className={cn(
+                                                                                                                            "text-[9px] flex-shrink-0",
+                                                                                                                            variant.roll_count > 0 ? "text-indigo-500" : "text-gray-400"
+                                                                                                                        )}>
+                                                                                                                            ({variant.roll_count} {t('رول', 'R')})
+                                                                                                                        </span>
+                                                                                                                        {/* Spacer */}
+                                                                                                                        <span className="flex-1" />
+                                                                                                                        {/* Stock qty */}
                                                                                                                         <span className="text-[10px] font-mono text-green-600 dark:text-green-400 font-medium flex-shrink-0">
                                                                                                                             {variant.qty.toLocaleString('en-US', { maximumFractionDigits: 1 })} {variant.material.unit}
                                                                                                                         </span>
-                                                                                                                        <Badge variant="outline" className="text-[9px] h-4 flex-shrink-0">
-                                                                                                                            {variant.roll_count} {t('رولون', 'rolls')}
+                                                                                                                        {/* Price tag */}
+                                                                                                                        <Badge className="text-[10px] h-4 font-mono bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800 flex-shrink-0 gap-0.5">
+                                                                                                                            🏷️ {variant.material.selling_price.toFixed(2)} {currency}
                                                                                                                         </Badge>
                                                                                                                         {varInCart && <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" />}
                                                                                                                         <Button
@@ -1049,7 +1343,6 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                                                                             )}
                                                                                                                             onClick={(e) => {
                                                                                                                                 e.stopPropagation();
-                                                                                                                                // Open AddToCartDialog with correct warehouse + rolls
                                                                                                                                 setDialogMaterial(variant.material);
                                                                                                                                 setDialogWarehouse({
                                                                                                                                     warehouse_id: wh.id,
@@ -1077,7 +1370,10 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                                                                             <ShoppingCart className="w-2.5 h-2.5" />
                                                                                                                             {varInCart ? t('مضاف', '✓') : t('إضافة', 'Add')}
                                                                                                                         </Button>
-                                                                                                                        <ChevronDown className={cn('w-3 h-3 text-gray-400 transition-transform flex-shrink-0', isVarOpen && 'rotate-180')} />
+                                                                                                                        {/* Expand chevron only when there are rolls */}
+                                                                                                                        {variant.rolls.length > 0 && (
+                                                                                                                            <ChevronDown className={cn('w-3 h-3 text-gray-400 transition-transform flex-shrink-0', isVarOpen && 'rotate-180')} />
+                                                                                                                        )}
                                                                                                                     </div>
 
                                                                                                                     {/* ─── Level 4: Rolls inside color ─── */}
@@ -1167,6 +1463,28 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                                                                             </div>
                                                                                                                         </div>
                                                                                                                     )}
+                                                                                                                    {/* ─── Fallback: No rolls, show stock info ─── */}
+                                                                                                                    {isVarOpen && variant.rolls.length === 0 && variant.qty > 0 && (
+                                                                                                                        <div className="bg-green-50/30 dark:bg-green-900/5 px-6 py-3">
+                                                                                                                            <div className="flex items-center gap-3 text-xs">
+                                                                                                                                <Package className="w-4 h-4 text-green-500" />
+                                                                                                                                <div className="flex-1">
+                                                                                                                                    <div className="text-gray-500 text-[10px]">{t('المخزون المتاح', 'Available Stock')}</div>
+                                                                                                                                    <div className="font-mono font-bold text-green-700 dark:text-green-400">
+                                                                                                                                        {variant.qty.toLocaleString('en-US', { maximumFractionDigits: 1 })} {variant.material.unit}
+                                                                                                                                    </div>
+                                                                                                                                </div>
+                                                                                                                                {variant.material.selling_price > 0 && (
+                                                                                                                                    <div className="text-end">
+                                                                                                                                        <div className="text-gray-500 text-[10px]">{t('السعر', 'Price')}</div>
+                                                                                                                                        <div className="font-mono font-bold text-gray-700 dark:text-gray-300">
+                                                                                                                                            {variant.material.selling_price.toFixed(2)} {variant.material.currency}
+                                                                                                                                        </div>
+                                                                                                                                    </div>
+                                                                                                                                )}
+                                                                                                                            </div>
+                                                                                                                        </div>
+                                                                                                                    )}
                                                                                                                 </div>
                                                                                                             );
                                                                                                         })}
@@ -1213,12 +1531,41 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                         </div>
 
                                                         {/* Warehouse Stock */}
-                                                        {isStockLoading ? (
-                                                            <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
-                                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                                <span className="text-sm">{t('تحميل المخزون...', 'Loading stock...')}</span>
-                                                            </div>
-                                                        ) : warehouseStock.length === 0 ? (
+                                                        {!isParent && (() => {
+                                                            const warehouseStock = fetchWarehouseStock(material.id);
+                                                            const isStockLoading = false;
+
+                                                            if (isStockLoading) {
+                                                                return (
+                                                                    <div className="flex items-center gap-2 justify-center py-6 text-gray-400">
+                                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                                        <span className="text-sm">{t('تحميل المخزون...', 'Loading stock...')}</span>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            // Build effective warehouse list — fallback to virtual entry when fabric_rolls is empty
+                                                            let effectiveStock = warehouseStock;
+                                                            if (effectiveStock.length === 0 && material.stock_qty > 0) {
+                                                                const defaultWh = warehousesList[0];
+                                                                effectiveStock = [{
+                                                                    warehouse_id: defaultWh?.id || 'default',
+                                                                    warehouse_code: defaultWh?.code || '',
+                                                                    warehouse_name_ar: defaultWh?.name_ar || t('المخزون العام', 'General Stock'),
+                                                                    warehouse_name_en: defaultWh?.name_en || 'General Stock',
+                                                                    roll_count: material.roll_count || 0,
+                                                                    total_length: material.stock_qty,
+                                                                    available_length: material.stock_qty,
+                                                                    reserved_length: 0,
+                                                                    // ✅ Fix: When roll_count=0, available_length already = current_stock
+                                                                    // Setting loose_stock to same value would double the displayed quantity
+                                                                    loose_stock: (material.roll_count || 0) > 0 ? (material.loose_stock || 0) : 0,
+                                                                    last_updated: null,
+                                                                }];
+                                                            }
+                                                            
+                                                            if (effectiveStock.length === 0) {
+                                                                return (
                                                             <div className="text-center py-4">
                                                                 <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                                                                 <p className="text-sm text-gray-400">
@@ -1237,7 +1584,10 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                     {t('إضافة بدون مستودع', 'Add without warehouse')}
                                                                 </Button>
                                                             </div>
-                                                        ) : (
+                                                                );
+                                                            }
+                                                            
+                                                            return (
                                                             <div className="border rounded-lg overflow-hidden">
                                                                 {/* Table Header */}
                                                                 <div className="grid grid-cols-[1fr_0.6fr_0.5fr_0.8fr_0.6fr_auto] bg-gray-50 dark:bg-gray-800/50 border-b text-[10px] font-medium text-gray-500 dark:text-gray-400">
@@ -1250,11 +1600,11 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                 </div>
 
                                                                 {/* Warehouse Rows */}
-                                                                {warehouseStock.map((wh) => {
+                                                                {effectiveStock.map((wh) => {
                                                                     const whKey = `${material.id}__${wh.warehouse_id}`;
                                                                     const isWhExpanded = expandedWarehouses.has(whKey);
-                                                                    const isWhRollsLoading = rollsLoading.has(whKey);
-                                                                    const whRolls = rollsCache[whKey] || [];
+                                                                    const whRolls = fetchRollDetails(material.id, wh.warehouse_id);
+                                                                    const isWhRollsLoading = false;
                                                                     const isWhInCart = cartItemKeys.has(`${material.id}__${wh.warehouse_id}`);
 
                                                                     return (
@@ -1294,9 +1644,12 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                                     {(wh.loose_stock || 0) > 0 ? (wh.loose_stock || 0).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'}
                                                                                 </div>
 
-                                                                                {/* Available (Rolled + Loose) */}
+                                                                                {/* Available — use smart total to avoid double-counting */}
                                                                                 <div className="px-2.5 py-2 text-end font-mono text-green-600 dark:text-green-400 font-semibold">
-                                                                                    {(wh.available_length + (wh.loose_stock || 0)).toLocaleString('en-US', { maximumFractionDigits: 1 })}
+                                                                                    {((wh.roll_count || 0) > 0
+                                                                                        ? wh.available_length + (wh.loose_stock || 0)
+                                                                                        : Math.max(wh.available_length, wh.loose_stock || 0)
+                                                                                    ).toLocaleString('en-US', { maximumFractionDigits: 1 })}
                                                                                 </div>
 
                                                                                 {/* Reserved */}
@@ -1413,7 +1766,8 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                     );
                                                                 })}
                                                             </div>
-                                                        )}
+                                                            );
+                                                        })()}
 
                                                         {/* Quantity Break Pricing */}
                                                         {qtyBreaks.length > 0 && (
@@ -1478,7 +1832,10 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                         name_ar: dialogWarehouse.warehouse_name_ar,
                         name_en: dialogWarehouse.warehouse_name_en,
                         available_length: dialogWarehouse.available_length,
-                        loose_stock: dialogMaterial?.loose_stock || 0,
+                        // ✅ Fix: Use warehouse-level loose_stock (not material-level)
+                        // to avoid mixing per-warehouse available_length with global loose_stock
+                        loose_stock: dialogWarehouse.loose_stock || 0,
+                        roll_count: dialogWarehouse.roll_count || 0,
                     }}
                     rolls={dialogRolls}
                     rollsLoading={dialogRollsLoading}

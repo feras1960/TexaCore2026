@@ -16,6 +16,7 @@
  */
 
 import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { supabase } from '@/lib/supabase';
 import { useMemo, useCallback } from 'react';
 
@@ -158,8 +159,16 @@ export function useCustomerPricing(
             return null;
         },
         enabled: !!customerId,
-        staleTime: 60000,
-        retry: 0, // Don't retry — we handle fallbacks internally
+        staleTime: 5 * 60 * 1000,  // 5 min
+        gcTime: 30 * 60 * 1000,    // 30 min
+        retry: 0,
+    });
+
+    // 🔄 Realtime: auto-update when customer data changes
+    useRealtimeInvalidation({
+        table: 'customers',
+        companyId: companyId || undefined,
+        queryKeys: [['customer_pricing_profile']],
     });
 
     // ─── Resolve which price list to use (cascade) ───
@@ -235,8 +244,16 @@ export function useCustomerPricing(
             }
         },
         enabled: !!customerId && (!!resolvedPriceListId || !!companyId),
-        staleTime: 60000,
+        staleTime: 5 * 60 * 1000,  // 5 min
+        gcTime: 30 * 60 * 1000,    // 30 min
         retry: 1,
+    });
+
+    // 🔄 Realtime: auto-update when price lists change
+    useRealtimeInvalidation({
+        table: 'price_lists',
+        companyId: companyId || undefined,
+        queryKeys: [['price_list_items']],
     });
 
     // ─── Build profile ───

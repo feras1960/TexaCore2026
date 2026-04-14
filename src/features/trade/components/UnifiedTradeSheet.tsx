@@ -166,6 +166,8 @@ interface UnifiedTradeSheetProps {
     }>;
     /** Callback when a stage advance action is triggered */
     onStageAdvance?: (targetStage: string, notes?: string) => Promise<void>;
+    /** Override initial mode: 'edit' for drafts, 'view' for confirmed docs */
+    initialMode?: 'view' | 'edit' | 'create';
 }
 
 // ─── Component ──────────────────────────────────────────────────────────
@@ -186,6 +188,7 @@ export const UnifiedTradeSheet: React.FC<UnifiedTradeSheetProps> = ({
     currentStage,
     stageLogs,
     onStageAdvance,
+    initialMode,
 }) => {
     const { isRTL } = useLanguage();
     const [activeType, setActiveType] = useState<string>(type);
@@ -484,7 +487,7 @@ export const UnifiedTradeSheet: React.FC<UnifiedTradeSheetProps> = ({
             isOpen={open}
             onClose={() => onOpenChange(false)}
             docType={docType}
-            mode={initialData?.id ? 'view' : 'create'}
+            mode={initialMode || (initialData?.id ? 'view' : 'create')}
             data={enhancedData}
             onSave={onSave}
             headerExtra={TypeSelectorHeader}

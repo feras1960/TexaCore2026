@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/lib/supabase';
 import { importService } from '@/services/importService';
+import { cleanParentName } from '../utils/variantProcessor';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,9 +42,11 @@ import {
   Package,
   Sparkles,
   FolderTree,
-  Wand2
+  Wand2,
+  Warehouse
 } from 'lucide-react';
 import type { ImportJob, ImportRow, EntityDefinition, ImportOptions } from '@/services/importService';
+import type { WarehouseBreakdown, WarehouseInfo } from '../hooks/useImportWizard';
 
 interface PreviewStepProps {
   importJob: ImportJob | null;
@@ -53,7 +56,11 @@ interface PreviewStepProps {
   options: ImportOptions;
   onExecute: (overrideCurrency?: string) => void;
   onUpdateRows?: (rows: ImportRow[]) => void;
+  onUpdateOptions?: (updates: Partial<ImportOptions>) => void;
   isLoading: boolean;
+  // Multi-warehouse support
+  warehouseBreakdown?: WarehouseBreakdown;
+  warehouseList?: WarehouseInfo[];
 }
 
 export function PreviewStep({
@@ -64,7 +71,10 @@ export function PreviewStep({
   options,
   onExecute,
   onUpdateRows,
-  isLoading
+  onUpdateOptions,
+  isLoading,
+  warehouseBreakdown = {},
+  warehouseList = [],
 }: PreviewStepProps) {
   const { t, language } = useLanguage();
   const { supportedCurrencies, baseCurrency } = useCompanyCurrencies();
@@ -74,11 +84,14 @@ export function PreviewStep({
   const [currentPage, setCurrentPage] = useState(0);
   const [defaultCurrency, setDefaultCurrency] = useState('');
   const [editMode, setEditMode] = useState(false);
+  const [backupRows, setBackupRows] = useState<ImportRow[] | null>(null);
   const [inventoryAccount, setInventoryAccount] = useState({ code: '', name: '' });
   const [showTree, setShowTree] = useState(true);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [expandedDesigns, setExpandedDesigns] = useState<Set<string>>(new Set());
   const [treeInitialized, setTreeInitialized] = useState(false);
+  // ═══ MULTI-WAREHOUSE: Track warehouse column remapping ═══
+  const [warehouseRemap, setWarehouseRemap] = useState<Map<string, string>>(new Map());
   const pageSize = 15;
 
   // ═══ Chart of Accounts: Parent group selection ═══
@@ -227,7 +240,48 @@ export function PreviewStep({
   );
 
   const totalPages = Math.ceil(rowsToImport.length / pageSize);
-  const displayFields = entityDefinition.fields.slice(0, 5);
+  // Determine which fields to display in read-only mode dynamically
+  const displayFields = useMemo(() => {
+    if (!entityDefinition) return [];
+    
+    // Determine which fields actually contain valid data in the spreadsheet
+    const fieldsWithData = new Set<string>();
+    for (const row of importRows) {
+      if (!row.mapped_data) continue;
+      for (const [key, val] of Object.entries(row.mapped_data)) {
+         if (val !== undefined && val !== null && val !== '') {
+            fieldsWithData.add(key);
+         }
+      }
+    }
+
+    // Show name fields ONLY if they were actually mapped with data + always show code and category
+    return entityDefinition.fields.filter(f => 
+      f.name === 'code' || f.name === 'category' || 
+      (f.name.startsWith('name_') && fieldsWithData.has(f.name))
+    );
+  }, [entityDefinition, importRows]);
+
+  // ═══ MULTI-WAREHOUSE: Compute unique warehouses for dynamic columns ═══
+  const uniqueWarehouses = useMemo(() => {
+    if (entityType !== 'products' || !warehouseBreakdown || Object.keys(warehouseBreakdown).length === 0) return [];
+    const whMap = new Map<string, { code: string; name: string }>();
+    for (const entries of Object.values(warehouseBreakdown)) {
+      for (const entry of entries) {
+        if (!whMap.has(entry.warehouse_code)) {
+          // Find name from warehouseList or fallback to code
+          const info = warehouseList.find(w => w.code === entry.warehouse_code);
+          whMap.set(entry.warehouse_code, {
+            code: entry.warehouse_code,
+            name: entry.warehouse_name || info?.name_ar || entry.warehouse_code,
+          });
+        }
+      }
+    }
+    return Array.from(whMap.values());
+  }, [entityType, warehouseBreakdown, warehouseList]);
+
+  const hasMultiWarehouse = uniqueWarehouses.length > 0;
 
   // Currency display helper
   const getCurrencyLabel = (code: string) => {
@@ -264,13 +318,60 @@ export function PreviewStep({
     onUpdateRows(updated);
   }, [importRows, onUpdateRows]);
 
+  const applyUnitToAll = (unitValue: string) => {
+    if (!onUpdateRows) return;
+    const newRows = importRows.map(row => ({
+      ...row,
+      mapped_data: {
+        ...row.mapped_data,
+        unit: unitValue
+      }
+    }));
+    onUpdateRows(newRows);
+  };
+
+  const handleEnterEditMode = () => {
+    setBackupRows(JSON.parse(JSON.stringify(importRows)));
+    setEditMode(true);
+  };
+
+  const handleCancelEditMode = () => {
+    if (backupRows && onUpdateRows) {
+      onUpdateRows(backupRows);
+    }
+    setBackupRows(null);
+    setEditMode(false);
+  };
+
+  const handleSaveEditMode = () => {
+    setBackupRows(null);
+    setEditMode(false);
+  };
+
+  // Helper to normalize translated unit text to system enums
+  const normalizeUnit = (raw: string) => {
+    if (!raw) return 'unit';
+    const l = raw.toLowerCase().trim();
+    if (['متر', 'meter', 'm'].includes(l)) return 'meter';
+    if (['كغ', 'kg', 'kilo'].includes(l)) return 'kg';
+    if (['قطعة', 'unit', 'pcs'].includes(l)) return 'unit';
+    if (['رولون', 'رول', 'roll', 'r'].includes(l)) return 'roll';
+    if (['صندوق', 'box', 'b'].includes(l)) return 'box';
+    if (['حزمة', 'pack', 'p'].includes(l)) return 'pack';
+    return 'unit';
+  };
+
   // Editable fields per entity type
   const editableFields = useMemo(() => {
     if (entityType === 'customers' || entityType === 'suppliers') {
       return ['currency', 'opening_balance'];
     }
     if (entityType === 'products') {
-      return ['currency', 'unit', 'opening_qty', 'cost_price', 'sale_price'];
+      return [
+        'currency', 'unit', 'opening_qty',
+        'purchase_price', 'cost_price', 'sale_price',
+        'wholesale_price', 'half_wholesale_price', 'special_price'
+      ];
     }
     return [];
   }, [entityType]);
@@ -302,20 +403,7 @@ export function PreviewStep({
             </div>
           </div>
 
-          {/* Edit Mode Toggle */}
-          {needsCurrency && editableFields.length > 0 && (
-            <Button
-              variant={editMode ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setEditMode(!editMode)}
-              className="gap-2"
-            >
-              <Pencil className="h-4 w-4" />
-              {editMode
-                ? (language === 'ar' ? 'إنهاء التعديل' : 'Done Editing')
-                : (language === 'ar' ? 'تعديل البيانات' : 'Edit Data')}
-            </Button>
-          )}
+          {/* Edit Mode Toggle moved to Data Preview Header */}
         </div>
       </Card>
 
@@ -393,16 +481,17 @@ export function PreviewStep({
           return { design, color };
         };
 
-        type TreeMaterial = { name: string; code: string; qty: number; value: number; variant?: string };
-        type TreeDesign = { name: string; code: string; materials: TreeMaterial[]; isVariantParent?: boolean };
-        type TreeCategory = { name: string; designs: TreeDesign[] };
+        type TreeMaterial = { name: string; code: string; qty: number; value: number; variantAxis1?: string; variantAxis2?: string; purchasePrice?: number; costPrice?: number; salePrice?: number };
+        type TreeAxis1 = { name: string; materials: TreeMaterial[] };
+        type TreeParent = { name: string; code: string; axes: TreeAxis1[]; isVariantParent?: boolean };
+        type TreeCategory = { name: string; parents: TreeParent[]; isVariantMode?: boolean; isVariantParent?: boolean };
 
         // Grouping mode options
-        type GroupMode = 'category' | 'design' | 'color';
+        type GroupMode = 'category' | 'variant_design_color' | 'variant_color_design';
         const groupModeLabels: Record<GroupMode, string> = {
-          category: language === 'ar' ? '📂 حسب الفئة (افتراضي)' : '📂 By Category (default)',
-          design: language === 'ar' ? '🎨 حسب التصميم (متغيرات اللون)' : '🎨 By Design (Color variants)',
-          color: language === 'ar' ? '🌈 حسب اللون (متغيرات التصميم)' : '🌈 By Color (Design variants)',
+          category: language === 'ar' ? '📂 حسب الفئة (الافتراضي)' : '📂 By Category (default)',
+          variant_design_color: language === 'ar' ? '🎨 حسب التصميم (متغيرات اللون)' : '🎨 By Design (Color variants)',
+          variant_color_design: language === 'ar' ? '🎨 حسب اللون (متغيرات التصميم)' : '🎨 By Color (Design variants)',
         };
 
         // Parse all rows to extract design/color info
@@ -428,8 +517,10 @@ export function PreviewStep({
             : (nameEn || nameAr || nameTr || code);
           const qty = Number(d.opening_qty || 0);
           const costPrice = Number(d.cost_price || 0);
+          const purchasePrice = Number(d.purchase_price || 0);
+          const salePrice = Number(d.sale_price || d.selling_price || 0);
 
-          return { code, designCode, colorCode, designName, colorName, category, materialName, qty, costPrice, value: qty * costPrice };
+          return { code, designCode, colorCode, designName, colorName, category, materialName, qty, costPrice, purchasePrice, salePrice, value: qty * costPrice };
         });
 
         // Detect if variant grouping makes sense (at least 2+ materials share same design or color)
@@ -442,64 +533,59 @@ export function PreviewStep({
         const hasDesignVariants = Array.from(designGroups.values()).some(c => c >= 2);
         const hasColorVariants = Array.from(colorGroups.values()).some(c => c >= 2);
 
-        // Build tree based on groupMode
         const buildTree = (mode: GroupMode): TreeCategory[] => {
-          const categoryMap = new Map<string, TreeCategory>();
+          const parentMap = new Map<string, TreeCategory>();
 
-          if (mode === 'category') {
-            // Original: Category → Design → Materials
-            for (const r of parsedRows) {
-              if (!categoryMap.has(r.category)) {
-                categoryMap.set(r.category, { name: r.category, designs: [] });
-              }
-              const cat = categoryMap.get(r.category)!;
-              let design = cat.designs.find(ds => ds.name === r.designName);
-              if (!design) {
-                design = { name: r.designName, code: r.designCode, materials: [] };
-                cat.designs.push(design);
-              }
-              design.materials.push({ name: r.materialName, code: r.code, qty: r.qty, value: r.value });
+          for (const r of parsedRows) {
+            // ═══ Level 1: Parent Material (top level) ═══
+            const baseName = cleanParentName(r.materialName, r.designName, r.colorName);
+            if (!parentMap.has(baseName)) {
+              parentMap.set(baseName, {
+                name: baseName,
+                parents: [],
+                isVariantMode: mode !== 'category',
+                isVariantParent: mode !== 'category',
+              });
             }
-          } else if (mode === 'design') {
-            // Group by Category → Design (parent) → Color (children as variants)
-            for (const r of parsedRows) {
-              if (!categoryMap.has(r.category)) {
-                categoryMap.set(r.category, { name: r.category, designs: [] });
+            const parentNode = parentMap.get(baseName)!;
+
+            if (mode === 'category') {
+              // ═══ Category mode: Parent → Materials directly ═══
+              let defaultGroup = parentNode.parents.find(p => p.name === '_default_');
+              if (!defaultGroup) {
+                defaultGroup = { name: '_default_', code: '', axes: [{ name: 'Default', materials: [] }] };
+                parentNode.parents.push(defaultGroup);
               }
-              const cat = categoryMap.get(r.category)!;
-              // Extract base material name (category part) from the material name
-              const parentName = `${r.category.replace('أقمشة ', '').replace('أقمشة', '')} ${r.designName}`.trim();
-              let design = cat.designs.find(ds => ds.name === parentName);
-              if (!design) {
-                design = { name: parentName, code: `${r.designCode}`, materials: [], isVariantParent: true };
-                cat.designs.push(design);
+              defaultGroup.axes[0].materials.push({ name: r.materialName, code: r.code, qty: r.qty, value: r.value, purchasePrice: r.purchasePrice, costPrice: r.costPrice, salePrice: r.salePrice });
+            } else {
+              // ═══ Variant mode: Parent → Axis Group → Materials ═══
+              const axisGrouping = mode === 'variant_design_color' ? r.designName : r.colorName;
+              let axisGroup = parentNode.parents.find(p => p.name === axisGrouping);
+              if (!axisGroup) {
+                axisGroup = { name: axisGrouping, code: '', axes: [{ name: 'Default', materials: [] }] };
+                parentNode.parents.push(axisGroup);
               }
-              design.materials.push({ name: r.materialName, code: r.code, qty: r.qty, value: r.value, variant: r.colorName });
-            }
-          } else if (mode === 'color') {
-            // Group by Category → Color (parent) → Design (children as variants)
-            for (const r of parsedRows) {
-              if (!categoryMap.has(r.category)) {
-                categoryMap.set(r.category, { name: r.category, designs: [] });
-              }
-              const cat = categoryMap.get(r.category)!;
-              const parentName = `${r.category.replace('أقمشة ', '').replace('أقمشة', '')} ${r.colorName}`.trim();
-              let design = cat.designs.find(ds => ds.name === parentName);
-              if (!design) {
-                design = { name: parentName, code: `${r.colorCode}`, materials: [], isVariantParent: true };
-                cat.designs.push(design);
-              }
-              design.materials.push({ name: r.materialName, code: r.code, qty: r.qty, value: r.value, variant: r.designName });
+              axisGroup.axes[0].materials.push({
+                name: r.materialName,
+                code: r.code,
+                qty: r.qty,
+                value: r.value,
+                purchasePrice: r.purchasePrice,
+                costPrice: r.costPrice,
+                salePrice: r.salePrice,
+                variantAxis1: mode === 'variant_design_color' ? r.designName : r.colorName,
+                variantAxis2: mode === 'variant_design_color' ? r.colorName : r.designName,
+              });
             }
           }
 
-          return Array.from(categoryMap.values());
+          return Array.from(parentMap.values());
         };
 
         const treeCategories = buildTree(options._variantGroupMode as GroupMode || 'category');
         if (treeCategories.length === 0) return null;
 
-        // Auto-expand categories on first render
+        // Auto-expand parent materials on first render
         if (!treeInitialized && treeCategories.length > 0) {
           setTimeout(() => {
             setExpandedCats(new Set(treeCategories.map(c => c.name)));
@@ -514,12 +600,14 @@ export function PreviewStep({
           setExpandedDesigns(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
         };
 
-        const totalMaterials = treeCategories.reduce((t, c) => t + c.designs.reduce((t2, d) => t2 + d.materials.length, 0), 0);
-        const totalGroups = treeCategories.length + treeCategories.reduce((t, c) => t + c.designs.length, 0);
+        const totalMaterials = treeCategories.reduce((t, c) => t + c.parents.reduce((t2, p) => t2 + p.axes.reduce((t3, a) => t3 + a.materials.length, 0), 0), 0);
         const fmtNum = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
         const currentMode = (options._variantGroupMode as GroupMode) || 'category';
-        const isVariantMode = currentMode === 'design' || currentMode === 'color';
-        const variantAxisName = currentMode === 'design'
+        const isVariantMode = currentMode === 'variant_design_color' || currentMode === 'variant_color_design';
+        const axis1Name = currentMode === 'variant_design_color'
+          ? (language === 'ar' ? 'التصميم' : 'Design')
+          : (language === 'ar' ? 'اللون' : 'Color');
+        const axis2Name = currentMode === 'variant_design_color'
           ? (language === 'ar' ? 'اللون' : 'Color')
           : (language === 'ar' ? 'التصميم' : 'Design');
 
@@ -539,11 +627,11 @@ export function PreviewStep({
                 </h4>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
                   {language === 'ar'
-                    ? `${totalGroups} مجموعة · ${totalMaterials} مادة — سيتم إنشاؤها تلقائياً`
-                    : `${totalGroups} groups · ${totalMaterials} materials — auto-created`}
+                    ? `${treeCategories.length} مادة أم · ${totalMaterials} مادة — سيتم إنشاؤها تلقائياً`
+                    : `${treeCategories.length} parents · ${totalMaterials} materials — auto-created`}
                   {isVariantMode && (
                     <span className="ms-2 text-purple-600 dark:text-purple-400 font-semibold">
-                      🧩 {language === 'ar' ? `متغيرات: ${variantAxisName}` : `Variants: ${variantAxisName}`}
+                      🧩 {language === 'ar' ? `متغيرات: ${axis1Name} و ${axis2Name}` : `Variants: ${axis1Name} & ${axis2Name}`}
                     </span>
                   )}
                 </p>
@@ -567,16 +655,10 @@ export function PreviewStep({
                     <select
                       value={currentMode}
                       onChange={(e) => {
-                        // Store in options so it persists and can be used during import execution
-                        if (onUpdateRows) {
-                          const updatedRows = importRows.map(row => ({
-                            ...row,
-                            mapped_data: { ...row.mapped_data, _variantGroupMode: e.target.value }
-                          }));
-                          onUpdateRows(updatedRows);
+                        // Update options via React state (NOT direct mutation)
+                        if (onUpdateOptions) {
+                          onUpdateOptions({ _variantGroupMode: e.target.value });
                         }
-                        // Also update options directly
-                        (options as any)._variantGroupMode = e.target.value;
                         // Reset tree expansion
                         setTreeInitialized(false);
                         setExpandedDesigns(new Set());
@@ -584,12 +666,12 @@ export function PreviewStep({
                       className="h-7 px-2 text-xs rounded-md border border-purple-300 bg-white dark:bg-gray-800 dark:border-purple-700 text-purple-800 dark:text-purple-200 font-tajawal flex-1 max-w-[280px]"
                     >
                       <option value="category">{groupModeLabels.category}</option>
-                      {hasDesignVariants && <option value="design">{groupModeLabels.design}</option>}
-                      {hasColorVariants && <option value="color">{groupModeLabels.color}</option>}
+                      {hasDesignVariants && <option value="variant_design_color">{groupModeLabels.variant_design_color}</option>}
+                      {hasColorVariants && <option value="variant_color_design">{groupModeLabels.variant_color_design}</option>}
                     </select>
                     {isVariantMode && (
                       <Badge className="bg-purple-600 text-white text-[10px] px-1.5 animate-in fade-in">
-                        {language === 'ar' ? 'سيُنشئ مواد أم + فرعيات' : 'Creates parent + children'}
+                        {language === 'ar' ? 'يربط المواد الأم بالمحاور' : 'Links to Axes'}
                       </Badge>
                     )}
                   </div>
@@ -597,86 +679,112 @@ export function PreviewStep({
 
                 {/* Tree Nodes */}
                 <div className="max-h-[350px] overflow-y-auto space-y-1">
-                  {treeCategories.map(cat => {
-                    const catExpanded = expandedCats.has(cat.name);
-                    const catQty = cat.designs.reduce((t, d) => t + d.materials.reduce((t2, m) => t2 + m.qty, 0), 0);
-                    const catMats = cat.designs.reduce((t, d) => t + d.materials.length, 0);
+                  {treeCategories.map(parentMat => {
+                    const pmExpanded = expandedCats.has(parentMat.name);
+                    const pmMats = parentMat.parents.reduce((t, p) => t + p.axes.reduce((t2, a) => t2 + a.materials.length, 0), 0);
+                    const pmQty = parentMat.parents.reduce((t, p) => t + p.axes.reduce((t2, a) => t2 + a.materials.reduce((t3, m) => t3 + m.qty, 0), 0), 0);
 
                     return (
-                      <div key={cat.name}>
-                        {/* Category */}
+                      <div key={parentMat.name}>
+                        {/* Parent Material (Level 1 — top level) */}
                         <button
-                          onClick={() => toggleCat(cat.name)}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors group"
+                          onClick={() => toggleCat(parentMat.name)}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors group"
                         >
-                          {catExpanded
-                            ? <ChevronDown className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                            : <ChevronRight className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                          {pmExpanded
+                            ? <ChevronDown className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                            : <ChevronRight className="h-4 w-4 text-purple-500 flex-shrink-0" />
                           }
-                          {catExpanded
-                            ? <FolderOpen className="h-4.5 w-4.5 text-amber-500 flex-shrink-0" />
-                            : <Folder className="h-4.5 w-4.5 text-amber-500 flex-shrink-0" />
-                          }
-                          <span className="font-bold text-sm text-slate-800 dark:text-slate-200 flex-1 text-start">{cat.name}</span>
+                          <Package className="h-4.5 w-4.5 text-purple-500 flex-shrink-0" />
+                          <span className="font-bold text-sm text-purple-800 dark:text-purple-200 flex-1 text-start">{parentMat.name}</span>
+                          {parentMat.isVariantParent && (
+                            <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 text-[10px] px-1.5 border border-purple-200">
+                              👑 {language === 'ar' ? 'مادة أم' : 'Parent'}
+                            </Badge>
+                          )}
                           <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5">
-                            {catMats} {language === 'ar' ? 'مادة' : 'items'}
+                            {pmMats} {language === 'ar' ? 'مادة' : 'items'}
                           </Badge>
-                          <span className="text-[11px] font-mono text-slate-500">{fmtNum(catQty)} {language === 'ar' ? 'وحدة' : 'units'}</span>
+                          <span className="text-[11px] font-mono text-slate-500">{fmtNum(pmQty)} {language === 'ar' ? 'وحدة' : 'units'}</span>
                         </button>
 
-                        {/* Designs / Parent Materials */}
-                        {catExpanded && cat.designs.map(design => {
-                          const dKey = `${cat.name}|${design.code || design.name}`;
-                          const dExpanded = expandedDesigns.has(dKey);
-                          const dQty = design.materials.reduce((t, m) => t + m.qty, 0);
+                        {/* Children under parent material */}
+                        {pmExpanded && parentMat.parents.map(group => {
+                          // In category mode, _default_ group → show materials directly
+                          if (group.name === '_default_') {
+                            return (
+                              <div key="_default_" className="ms-8 mt-1 flex flex-col gap-0.5 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
+                                {group.axes[0].materials.map((mat, idx) => (
+                                  <div
+                                    key={`${mat.code}-${idx}`}
+                                    className="flex items-center gap-2 px-3 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                  >
+                                    <Package className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                    <span className="text-[12px] text-slate-600 dark:text-slate-400 flex-1">{mat.name}</span>
+                                    <span className="text-[10px] font-mono text-slate-400">{mat.code}</span>
+                                    {mat.costPrice ? <Badge variant="outline" className="text-[10px] px-1.5 font-mono text-slate-500 border-slate-200">💰 {mat.costPrice}$</Badge> : null}
+                                    <Badge variant="secondary" className="bg-blue-50 text-blue-600 text-[10px] px-1.5 font-mono">
+                                      {fmtNum(mat.qty)}
+                                    </Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+
+                          // In variant mode, show axis groups (سادة, منقوش, أحمر, etc.)
+                          const gKey = `${parentMat.name}|${group.name}`;
+                          const gExpanded = expandedDesigns.has(gKey);
+                          const gMats = group.axes[0].materials.length;
+                          const gQty = group.axes[0].materials.reduce((t, m) => t + m.qty, 0);
 
                           return (
-                            <div key={dKey} className="ms-6">
+                            <div key={gKey} className="ms-6">
                               <button
-                                onClick={() => toggleDesign(dKey)}
-                                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
+                                onClick={() => toggleDesign(gKey)}
+                                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                               >
-                                {dExpanded
-                                  ? <ChevronDown className="h-3.5 w-3.5 text-teal-400 flex-shrink-0" />
-                                  : <ChevronRight className="h-3.5 w-3.5 text-teal-400 flex-shrink-0" />
+                                {gExpanded
+                                  ? <ChevronDown className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0" />
+                                  : <ChevronRight className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0" />
                                 }
-                                {design.isVariantParent
-                                  ? <Package className="h-4 w-4 text-purple-500 flex-shrink-0" />
-                                  : <Folder className="h-4 w-4 text-teal-500 flex-shrink-0" />
-                                }
-                                <span className={`font-semibold text-[13px] flex-1 text-start ${design.isVariantParent ? 'text-purple-700 dark:text-purple-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                                  {design.name}
+                                <Sparkles className="h-4 w-4 text-indigo-500 flex-shrink-0" />
+                                <span className="font-semibold text-[13px] text-indigo-700 dark:text-indigo-300 flex-1 text-start">
+                                  {group.name}
                                 </span>
-                                {design.isVariantParent && (
-                                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 text-[9px] px-1.5 border border-purple-200">
-                                    👑 {language === 'ar' ? 'أم' : 'Parent'}
-                                  </Badge>
-                                )}
-                                <Badge variant="outline" className="text-[10px] px-1.5 border-teal-200 text-teal-600">
-                                  {design.materials.length}
+                                <Badge className="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 text-[9px] px-1.5 border border-indigo-200">
+                                  {axis1Name}
                                 </Badge>
-                                <span className="text-[10px] font-mono text-slate-400">{fmtNum(dQty)}</span>
+                                <Badge variant="secondary" className="bg-indigo-50 text-indigo-600 text-[9px] px-1.5">
+                                  {gMats}
+                                </Badge>
+                                <span className="text-[10px] font-mono text-slate-400">{fmtNum(gQty)}</span>
                               </button>
 
-                              {/* Materials / Variant Children */}
-                              {dExpanded && design.materials.map(mat => (
-                                <div
-                                  key={mat.code}
-                                  className="ms-8 flex items-center gap-2 px-3 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                                >
-                                  <Package className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                                  <span className="text-[12px] text-slate-600 dark:text-slate-400 flex-1">{mat.name}</span>
-                                  {mat.variant && isVariantMode && (
-                                    <Badge className="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 text-[9px] px-1.5 border border-indigo-200">
-                                      {variantAxisName}: {mat.variant}
-                                    </Badge>
-                                  )}
-                                  <span className="text-[10px] font-mono text-slate-400">{mat.code}</span>
-                                  <Badge variant="secondary" className="bg-blue-50 text-blue-600 text-[10px] px-1.5 font-mono">
-                                    {fmtNum(mat.qty)}
-                                  </Badge>
+                              {/* Materials under axis group */}
+                              {gExpanded && (
+                                <div className="ms-8 mt-1 flex flex-col gap-0.5 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
+                                  {group.axes[0].materials.map((mat, idx) => (
+                                    <div
+                                      key={`${mat.code}-${idx}`}
+                                      className="flex items-center gap-2 px-3 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                    >
+                                      <Package className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                      <span className="text-[12px] text-slate-600 dark:text-slate-400 flex-1">{mat.name}</span>
+                                      {mat.variantAxis2 && (
+                                        <Badge className="bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300 text-[9px] px-1.5 border border-violet-200">
+                                          {axis2Name}: {mat.variantAxis2}
+                                        </Badge>
+                                      )}
+                                      <span className="text-[10px] font-mono text-slate-400">{mat.code}</span>
+                                      {mat.costPrice ? <Badge variant="outline" className="text-[10px] px-1.5 font-mono text-slate-500 border-slate-200">💰 {mat.costPrice}$</Badge> : null}
+                                      <Badge variant="secondary" className="bg-blue-50 text-blue-600 text-[10px] px-1.5 font-mono">
+                                        {fmtNum(mat.qty)}
+                                      </Badge>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           );
                         })}
@@ -830,21 +938,55 @@ export function PreviewStep({
 
       {/* Data Preview Table with Edit Mode */}
       <Card>
-        <div className="p-4 border-b flex items-center justify-between">
+        <div className="p-4 border-b flex items-center justify-between bg-muted/30">
           <div>
-            <h4 className="font-medium">{t('import.dataPreview')}</h4>
-            <p className="text-sm text-muted-foreground">
+            <h4 className="font-bold text-lg">{t('import.dataPreview')}</h4>
+            <p className="text-sm text-muted-foreground mt-0.5">
               {t('import.showing')} {paginatedRows.length} {t('import.of')} {rowsToImport.length}
               {editMode && (
-                <span className="ms-2 text-amber-600 font-medium">
-                  — {language === 'ar' ? 'وضع التعديل' : 'Edit Mode'}
+                <span className="ms-2 text-amber-600 font-medium bg-amber-100 px-2 py-0.5 rounded-md text-xs">
+                  {language === 'ar' ? 'وضع التعديل النشط' : 'Edit Mode Active'}
                 </span>
               )}
             </p>
           </div>
+          {/* Edit Mode Toggle */}
+          {needsCurrency && editableFields.length > 0 && (
+            editMode ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelEditMode}
+                  className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                >
+                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSaveEditMode}
+                  className="gap-2 bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {language === 'ar' ? 'حفظ التعديلات' : 'Save Changes'}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEnterEditMode}
+                className="gap-2 shadow-sm border-amber-200 text-amber-700 hover:bg-amber-50"
+              >
+                <Pencil className="h-4 w-4" />
+                {language === 'ar' ? 'تعديل أسعار الجدول' : 'Edit Table Data'}
+              </Button>
+            )
+          )}
         </div>
 
-        <ScrollArea className="h-[400px]">
+        <div className="w-full overflow-auto max-h-[500px]">
           <Table>
             <TableHeader>
               <TableRow>
@@ -853,39 +995,124 @@ export function PreviewStep({
                   {language === 'ar' ? 'الكود' : 'Code'}
                 </TableHead>
                 <TableHead className="sticky top-0 bg-background">
-                  {language === 'ar' ? 'الاسم' : 'Name'}
+                  {language === 'ar' ? 'الاسم الأساسي' : 'Primary Name'}
                 </TableHead>
-                {entityType === 'products' && editMode && (
+                {/* Dynamically show name fields (including name_uk, name_ru, etc) and Category next to main name */}
+                {displayFields.filter(f => f.name !== 'code' && f.name !== 'name_ar').map(field => (
+                  <TableHead key={field.name} className="sticky top-0 bg-background whitespace-nowrap text-cyan-800 dark:text-cyan-200 bg-cyan-50/30 dark:bg-cyan-900/10">
+                    {language === 'ar' ? field.label_ar : field.label_en}
+                  </TableHead>
+                ))}
+                {entityType === 'products' && (
                   <>
-                    <TableHead className="sticky top-0 bg-background">
-                      {language === 'ar' ? 'الوحدة' : 'Unit'}
+                    <TableHead className="sticky top-0 bg-background min-w-[120px]">
+                      <div className="flex items-center gap-1">
+                        {language === 'ar' ? 'الوحدة' : 'Unit'}
+                        {editMode && (
+                          <Select onValueChange={applyUnitToAll}>
+                            <SelectTrigger className="h-5 w-5 p-0 border-0 bg-transparent [&>svg]:hidden">
+                              <span title={language === 'ar' ? 'تطبيق على الكل' : 'Apply to all'} className="cursor-pointer text-blue-500 font-bold p-1 hover:bg-blue-50 rounded">⚡</span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="meter">{language === 'ar' ? 'الكل: متر' : 'All: Meter'}</SelectItem>
+                              <SelectItem value="kg">{language === 'ar' ? 'الكل: كغ' : 'All: Kg'}</SelectItem>
+                              <SelectItem value="unit">{language === 'ar' ? 'الكل: قطعة' : 'All: Unit'}</SelectItem>
+                              <SelectItem value="roll">{language === 'ar' ? 'الكل: رولون' : 'All: Roll'}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                     </TableHead>
-                    <TableHead className="sticky top-0 bg-background">
-                      {language === 'ar' ? 'الكمية' : 'Qty'}
-                    </TableHead>
-                    <TableHead className="sticky top-0 bg-background">
-                      {language === 'ar' ? 'سعر التكلفة' : 'Cost'}
-                    </TableHead>
-                    <TableHead className="sticky top-0 bg-background">
-                      {language === 'ar' ? 'سعر البيع' : 'Sale'}
-                    </TableHead>
+                    {/* ═══ MULTI-WAREHOUSE COLUMNS ═══ */}
+                    {hasMultiWarehouse ? (
+                      <>
+                        {uniqueWarehouses.map(wh => {
+                          const effectiveCode = warehouseRemap.get(wh.code) || wh.code;
+                          const effectiveInfo = warehouseList.find(w => w.code === effectiveCode);
+                          const effectiveName = effectiveInfo?.name_ar || wh.name;
+                          return (
+                            <TableHead key={wh.code} className="sticky top-0 bg-emerald-50 dark:bg-emerald-900/20 whitespace-nowrap text-emerald-700 dark:text-emerald-300 text-center min-w-[120px]">
+                              {editMode && warehouseList.length > 0 ? (
+                                <Select
+                                  value={effectiveCode}
+                                  onValueChange={(newCode) => {
+                                    // Remap warehouse column
+                                    const newMap = new Map(warehouseRemap);
+                                    if (newCode === wh.code) {
+                                      newMap.delete(wh.code);
+                                    } else {
+                                      newMap.set(wh.code, newCode);
+                                    }
+                                    setWarehouseRemap(newMap);
+                                    // Update breakdown entries
+                                    for (const [materialCode, entries] of Object.entries(warehouseBreakdown)) {
+                                      const idx = entries.findIndex(e => e.warehouse_code === wh.code || e.warehouse_code === effectiveCode);
+                                      if (idx >= 0) {
+                                        const newInfo = warehouseList.find(w => w.code === newCode);
+                                        entries[idx] = {
+                                          ...entries[idx],
+                                          warehouse_code: newCode,
+                                          warehouse_id: newInfo?.id,
+                                          warehouse_name: newInfo?.name_ar || newCode,
+                                        };
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 text-xs border-emerald-300 bg-emerald-50/50 dark:bg-emerald-900/30">
+                                    <div className="flex items-center gap-1">
+                                      <Warehouse className="h-3 w-3" />
+                                      <SelectValue />
+                                    </div>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {warehouseList.map(w => (
+                                      <SelectItem key={w.id} value={w.code}>
+                                        <span className="flex items-center gap-2">
+                                          <Warehouse className="h-3 w-3 text-emerald-600" />
+                                          <span>{w.name_ar}</span>
+                                          <span className="text-xs text-muted-foreground font-mono">({w.code})</span>
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <div className="flex items-center gap-1">
+                                    <Warehouse className="h-3 w-3" />
+                                    <span className="text-xs">{effectiveName}</span>
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground font-mono">{effectiveCode}</span>
+                                </div>
+                              )}
+                            </TableHead>
+                          );
+                        })}
+                        <TableHead className="sticky top-0 bg-blue-50 dark:bg-blue-900/20 whitespace-nowrap text-blue-700 dark:text-blue-300 font-bold text-center">
+                          {language === 'ar' ? '📦 الإجمالي' : '📦 Total'}
+                        </TableHead>
+                      </>
+                    ) : (
+                      <TableHead className="sticky top-0 bg-background">{language === 'ar' ? 'الكمية' : 'Qty'}</TableHead>
+                    )}
+                    <TableHead className="sticky top-0 bg-background">{language === 'ar' ? 'الشراء' : 'Purchase'}</TableHead>
+                    <TableHead className="sticky top-0 bg-background">{language === 'ar' ? 'التكلفة' : 'Cost'}</TableHead>
+                    <TableHead className="sticky top-0 bg-background">{language === 'ar' ? 'المفرد' : 'Retail'}</TableHead>
+                    <TableHead className="sticky top-0 bg-background">{language === 'ar' ? 'الجملة' : 'Wholesale'}</TableHead>
+                    <TableHead className="sticky top-0 bg-background whitespace-nowrap">{language === 'ar' ? 'نصف جملة' : 'Half W.'}</TableHead>
+                    <TableHead className="sticky top-0 bg-background whitespace-nowrap">{language === 'ar' ? 'سعر خاص' : 'Special'}</TableHead>
                   </>
                 )}
-                {(entityType === 'customers' || entityType === 'suppliers') && editMode && (
+                {(entityType === 'customers' || entityType === 'suppliers') && (
                   <TableHead className="sticky top-0 bg-background">
                     {language === 'ar' ? 'الرصيد الافتتاحي' : 'Balance'}
                   </TableHead>
                 )}
-                {editMode && (
-                  <TableHead className="sticky top-0 bg-background w-[130px]">
-                    {language === 'ar' ? 'العملة' : 'Currency'}
-                  </TableHead>
-                )}
-                {!editMode && displayFields.slice(2).map(field => (
-                  <TableHead key={field.name} className="sticky top-0 bg-background">
-                    {language === 'ar' ? field.label_ar : field.label_en}
-                  </TableHead>
-                ))}
+                <TableHead className="sticky top-0 bg-background w-[130px]">
+                  {language === 'ar' ? 'العملة' : 'Currency'}
+                </TableHead>
+
                 <TableHead className="sticky top-0 bg-background w-[40px]">✓</TableHead>
               </TableRow>
             </TableHeader>
@@ -897,74 +1124,204 @@ export function PreviewStep({
                   <TableRow key={row.row_number}>
                     <TableCell className="font-mono text-xs text-muted-foreground">{row.row_number}</TableCell>
                     <TableCell className="font-mono text-sm">{String(d.code || '-')}</TableCell>
-                    <TableCell className="max-w-[180px] truncate">{String(d.name_ar || d.name_en || '-')}</TableCell>
+                    <TableCell className="max-w-[180px] truncate font-medium">{String(d.name_ar || d.name_en || '-')}</TableCell>
+                    {/* Render additional language names here */}
+                    {displayFields.filter(f => f.name !== 'code' && f.name !== 'name_ar').map(field => (
+                      <TableCell key={field.name} className="max-w-[150px] truncate text-sm text-cyan-700 dark:text-cyan-300 bg-cyan-50/10 dark:bg-cyan-900/10">
+                        {d[field.name]?.toString() || '-'}
+                      </TableCell>
+                    ))}
 
-                    {entityType === 'products' && editMode && (
+                    {entityType === 'products' && (
                       <>
                         <TableCell>
-                          <Select
-                            value={String(d.unit || 'unit')}
-                            onValueChange={(v) => updateRowField(globalIdx, 'unit', v)}
-                          >
-                            <SelectTrigger className="h-8 w-[90px] text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="meter">{language === 'ar' ? 'متر' : 'Meter'}</SelectItem>
-                              <SelectItem value="kg">{language === 'ar' ? 'كغ' : 'Kg'}</SelectItem>
-                              <SelectItem value="unit">{language === 'ar' ? 'قطعة' : 'Unit'}</SelectItem>
-                              <SelectItem value="roll">{language === 'ar' ? 'رولون' : 'Roll'}</SelectItem>
-                              <SelectItem value="box">{language === 'ar' ? 'صندوق' : 'Box'}</SelectItem>
-                              <SelectItem value="pack">{language === 'ar' ? 'حزمة' : 'Pack'}</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {editMode ? (
+                            <Select
+                              value={normalizeUnit(String(d.unit || ''))}
+                              onValueChange={(v) => updateRowField(globalIdx, 'unit', v)}
+                            >
+                              <SelectTrigger className="h-8 w-[95px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="meter">{language === 'ar' ? 'متر' : 'Meter'}</SelectItem>
+                                <SelectItem value="kg">{language === 'ar' ? 'كغ' : 'Kg'}</SelectItem>
+                                <SelectItem value="unit">{language === 'ar' ? 'قطعة' : 'Unit'}</SelectItem>
+                                <SelectItem value="roll">{language === 'ar' ? 'رولون' : 'Roll'}</SelectItem>
+                                <SelectItem value="box">{language === 'ar' ? 'صندوق' : 'Box'}</SelectItem>
+                                <SelectItem value="pack">{language === 'ar' ? 'حزمة' : 'Pack'}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-sm font-medium">{normalizeUnit(String(d.unit || ''))}</span>
+                          )}
+                        </TableCell>
+                        {/* ═══ MULTI-WAREHOUSE QTY CELLS ═══ */}
+                        {hasMultiWarehouse ? (
+                          <>
+                            {uniqueWarehouses.map(wh => {
+                              const materialCode = String(d.code || '');
+                              const breakdown = warehouseBreakdown[materialCode] || [];
+                              const entry = breakdown.find(e => e.warehouse_code === wh.code);
+                              const qty = entry?.qty || 0;
+                              return (
+                                <TableCell key={wh.code} className="text-center bg-emerald-50/30 dark:bg-emerald-900/10">
+                                  {editMode ? (
+                                    <Input
+                                      type="number"
+                                      value={String(qty || '')}
+                                      onChange={(e) => {
+                                        const newQty = Number(e.target.value) || 0;
+                                        // Update breakdown entry
+                                        const updated = [...(warehouseBreakdown[materialCode] || [])];
+                                        const idx = updated.findIndex(x => x.warehouse_code === wh.code);
+                                        if (idx >= 0) {
+                                          updated[idx] = { ...updated[idx], qty: newQty };
+                                        } else {
+                                          updated.push({ warehouse_code: wh.code, qty: newQty, unit_cost: 0 });
+                                        }
+                                        warehouseBreakdown[materialCode] = updated;
+                                        // Update total opening_qty
+                                        const total = updated.reduce((sum, x) => sum + x.qty, 0);
+                                        updateRowField(globalIdx, 'opening_qty', String(total));
+                                      }}
+                                      className="h-8 w-[75px] text-xs text-center"
+                                      min={0}
+                                    />
+                                  ) : (
+                                    <span className={`text-sm font-mono ${qty > 0 ? 'text-emerald-700 dark:text-emerald-300 font-semibold' : 'text-muted-foreground'}`}>
+                                      {qty > 0 ? qty.toLocaleString() : '-'}
+                                    </span>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-center bg-blue-50/30 dark:bg-blue-900/10">
+                              <span className="text-sm font-mono font-bold text-blue-700 dark:text-blue-300">
+                                {Number(d.opening_qty || 0).toLocaleString()}
+                              </span>
+                            </TableCell>
+                          </>
+                        ) : (
+                          <TableCell>
+                            {editMode ? (
+                              <Input
+                                type="number"
+                                value={String(d.opening_qty ?? '')}
+                                onChange={(e) => updateRowField(globalIdx, 'opening_qty', e.target.value)}
+                                className="h-8 w-[80px] text-xs text-center"
+                                min={0}
+                              />
+                            ) : (
+                              <span className="text-sm font-mono">{String(d.opening_qty ?? '-')}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          {editMode ? (
+                            <Input
+                              type="number"
+                              value={String(d.purchase_price ?? '')}
+                              onChange={(e) => updateRowField(globalIdx, 'purchase_price', e.target.value)}
+                              className="h-8 w-[80px] text-xs text-center"
+                              min={0}
+                              step="0.01"
+                            />
+                          ) : (
+                            <span className="text-sm font-mono text-slate-600">{String(d.purchase_price ?? '-')}</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            value={String(d.opening_qty ?? '')}
-                            onChange={(e) => updateRowField(globalIdx, 'opening_qty', e.target.value)}
-                            className="h-8 w-[80px] text-xs text-center"
-                            min={0}
-                          />
+                          {editMode ? (
+                            <Input
+                              type="number"
+                              value={String(d.cost_price ?? '')}
+                              onChange={(e) => updateRowField(globalIdx, 'cost_price', e.target.value)}
+                              className="h-8 w-[80px] text-xs text-center"
+                              min={0}
+                              step="0.01"
+                            />
+                          ) : (
+                            <span className="text-sm font-mono text-amber-600">{String(d.cost_price ?? '-')}</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            value={String(d.cost_price ?? '')}
-                            onChange={(e) => updateRowField(globalIdx, 'cost_price', e.target.value)}
-                            className="h-8 w-[90px] text-xs text-center"
-                            min={0}
-                            step="0.01"
-                          />
+                          {editMode ? (
+                            <Input
+                              type="number"
+                              value={String(d.sale_price ?? '')}
+                              onChange={(e) => updateRowField(globalIdx, 'sale_price', e.target.value)}
+                              className="h-8 w-[80px] text-xs text-center"
+                              min={0}
+                              step="0.01"
+                            />
+                          ) : (
+                            <span className="text-sm font-mono text-green-600">{String(d.sale_price ?? '-')}</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            value={String(d.sale_price ?? '')}
-                            onChange={(e) => updateRowField(globalIdx, 'sale_price', e.target.value)}
-                            className="h-8 w-[90px] text-xs text-center"
-                            min={0}
-                            step="0.01"
-                          />
+                          {editMode ? (
+                            <Input
+                              type="number"
+                              value={String(d.wholesale_price ?? '')}
+                              onChange={(e) => updateRowField(globalIdx, 'wholesale_price', e.target.value)}
+                              className="h-8 w-[80px] text-xs text-center"
+                              min={0}
+                              step="0.01"
+                            />
+                          ) : (
+                            <span className="text-sm font-mono text-blue-600">{String(d.wholesale_price ?? '-')}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? (
+                            <Input
+                              type="number"
+                              value={String(d.half_wholesale_price ?? '')}
+                              onChange={(e) => updateRowField(globalIdx, 'half_wholesale_price', e.target.value)}
+                              className="h-8 w-[80px] text-xs text-center"
+                              min={0}
+                              step="0.01"
+                            />
+                          ) : (
+                            <span className="text-sm font-mono text-indigo-600">{String(d.half_wholesale_price ?? '-')}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? (
+                            <Input
+                              type="number"
+                              value={String(d.special_price ?? '')}
+                              onChange={(e) => updateRowField(globalIdx, 'special_price', e.target.value)}
+                              className="h-8 w-[80px] text-xs text-center"
+                              min={0}
+                              step="0.01"
+                            />
+                          ) : (
+                            <span className="text-sm font-mono text-purple-600">{String(d.special_price ?? '-')}</span>
+                          )}
                         </TableCell>
                       </>
                     )}
 
-                    {(entityType === 'customers' || entityType === 'suppliers') && editMode && (
+                    {(entityType === 'customers' || entityType === 'suppliers') && (
                       <TableCell>
-                        <Input
-                          type="number"
-                          value={String(d.opening_balance ?? '')}
-                          onChange={(e) => updateRowField(globalIdx, 'opening_balance', e.target.value)}
-                          className="h-8 w-[110px] text-xs text-center"
-                          step="0.01"
-                        />
+                        {editMode ? (
+                          <Input
+                            type="number"
+                            value={String(d.opening_balance ?? '')}
+                            onChange={(e) => updateRowField(globalIdx, 'opening_balance', e.target.value)}
+                            className="h-8 w-[110px] text-xs text-center"
+                            step="0.01"
+                          />
+                        ) : (
+                          <span className="text-sm font-mono">{String(d.opening_balance ?? '-')}</span>
+                        )}
                       </TableCell>
                     )}
 
-                    {editMode && (
-                      <TableCell>
+                    <TableCell>
+                      {editMode ? (
                         <Select
                           value={String(d.currency || defaultCurrency || baseCurrency || '')}
                           onValueChange={(v) => updateRowField(globalIdx, 'currency', v)}
@@ -981,14 +1338,14 @@ export function PreviewStep({
                             }
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                    )}
+                      ) : (
+                        <span className="text-sm font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                          {String(d.currency || defaultCurrency || baseCurrency || '-')}
+                        </span>
+                      )}
+                    </TableCell>
 
-                    {!editMode && displayFields.slice(2).map(field => (
-                      <TableCell key={field.name} className="max-w-[150px] truncate text-sm">
-                        {d[field.name]?.toString() || '-'}
-                      </TableCell>
-                    ))}
+
 
                     <TableCell>
                       {row.status === 'valid'
@@ -1001,7 +1358,7 @@ export function PreviewStep({
               })}
             </TableBody>
           </Table>
-        </ScrollArea>
+        </div>
 
         {/* Pagination */}
         {totalPages > 1 && (

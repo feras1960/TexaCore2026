@@ -26,12 +26,14 @@ import {
     FileText,
     MoreHorizontal,
     ChevronDown,
+    Filter,
 } from 'lucide-react';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { usePrefetchLedgers } from '@/hooks/usePrefetchLedgers';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +43,9 @@ import { UnifiedAccountingSheet } from '@/features/accounting/components/unified
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { partyBalanceService, type PartyBalance } from '@/services/partyBalanceService';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
+import { getLocalizedCountry } from '@/features/exchange/data/countries';
+import { getLocalizedCity } from '@/features/exchange/data/cities';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -110,9 +115,22 @@ export default function CustomersList() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortField, setSortField] = useState('created_at');
     const [sortAsc, setSortAsc] = useState(false);
+    // ── Hide zero-balance toggle (persisted) ──
+    const [hideZeroBalance, setHideZeroBalance] = useState(() => {
+        try { return localStorage.getItem('customers_hideZeroBalance') === 'true'; } catch { return false; }
+    });
+    const toggleHideZeroBalance = useCallback(() => {
+        setHideZeroBalance(prev => {
+            const next = !prev;
+            try { localStorage.setItem('customers_hideZeroBalance', String(next)); } catch {}
+            return next;
+        });
+    }, []);
 
     // ─── Fetch Customers ─────────────────────────────────────────
-    const { data: customers = [], isLoading } = useCachedQuery({
+    // ⚡ language removed from queryFn — raw data is language-independent
+    //    Localized `name` is computed at render time via useMemo below
+    const { data: rawCustomers = [], isLoading } = useCachedQuery({
         queryKey: ['customers_list', companyId],
         queryFn: async () => {
             if (!companyId) return [];
@@ -123,17 +141,26 @@ export default function CustomersList() {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-
-            return (data || []).map((item: any) => ({
-                ...item,
-                name: language === 'ar'
-                    ? (item.name_ar || item.name_en || '')
-                    : (item.name_en || item.name_ar || ''),
-            })) as Customer[];
+            return (data || []) as Customer[];
         },
         enabled: !!companyId,
         staleTime: 30_000,
     });
+
+    // ─── Compute localized names at RENDER time (not query time) ──
+    // This ensures names update instantly when language changes
+    // without triggering a new network fetch
+    const customers = useMemo(() =>
+        rawCustomers.map(c => ({ ...c, name: getLocalizedName(c, language) })),
+        [rawCustomers, language]
+    );
+
+    // ⚡ Prefetch ledger data for all customers (background)
+    const prefetchTargets = useMemo(() =>
+        customers.map((c: any) => ({ glAccountId: c.receivable_account_id })),
+        [customers]
+    );
+    usePrefetchLedgers(prefetchTargets, companyId);
 
     // ─── Fetch Sales Stats per Customer ────────────────────────
     const { data: salesStats = {} } = useCachedQuery({
@@ -199,6 +226,14 @@ export default function CustomersList() {
             );
         }
 
+        // Hide zero balance
+        if (hideZeroBalance) {
+            result = result.filter(c => {
+                const bal = customerBalances.get(c.id);
+                return bal && Math.abs(bal.balance) > 0.001;
+            });
+        }
+
         // Sort
         result = [...result].sort((a: any, b: any) => {
             let av: any, bv: any;
@@ -219,7 +254,7 @@ export default function CustomersList() {
         });
 
         return result;
-    }, [customers, activeTab, searchTerm, sortField, sortAsc, customerBalances]);
+    }, [customers, activeTab, searchTerm, sortField, sortAsc, customerBalances, hideZeroBalance]);
 
     // ─── Handlers ────────────────────────────────────────────────
     const handleRowClick = useCallback((row: Customer) => {
@@ -254,7 +289,7 @@ export default function CustomersList() {
     const columns: NexaListColumn<Customer>[] = useMemo(() => [
         {
             id: 'code',
-            header: isRTL ? 'الكود' : 'Code',
+            header: t('table.code'),
             sortable: true,
             sortKey: 'code',
             cell: (row) => (
@@ -265,7 +300,7 @@ export default function CustomersList() {
         },
         {
             id: 'name',
-            header: isRTL ? 'العميل' : 'Customer',
+            header: t('table.customer'),
             sortable: true,
             sortKey: 'name',
             cell: (row) => (
@@ -288,7 +323,7 @@ export default function CustomersList() {
         },
         {
             id: 'type',
-            header: isRTL ? 'النوع' : 'Type',
+            header: t('table.type'),
             cell: (row) => {
                 const type = row.customer_type || 'company';
                 const config: Record<string, { label: string; labelAr: string; cls: string }> = {
@@ -307,7 +342,7 @@ export default function CustomersList() {
         },
         {
             id: 'phone',
-            header: isRTL ? 'الهاتف' : 'Phone',
+            header: t('table.phone'),
             cell: (row) => {
                 const phone = row.phone || row.mobile;
                 return phone ? (
@@ -322,9 +357,11 @@ export default function CustomersList() {
         },
         {
             id: 'location',
-            header: isRTL ? 'الموقع' : 'Location',
+            header: t('customersList.location'),
             cell: (row) => {
-                const loc = [row.city, row.country].filter(Boolean).join(', ');
+                const localizedCountry = getLocalizedCountry(row.country, language);
+                const localizedCity = getLocalizedCity(row.city, language);
+                const loc = [localizedCity, localizedCountry].filter(Boolean).join(', ');
                 return loc ? (
                     <span className="text-sm text-gray-700 dark:text-gray-300 font-tajawal">{loc}</span>
                 ) : (
@@ -334,7 +371,7 @@ export default function CustomersList() {
         },
         {
             id: 'invoices',
-            header: isRTL ? 'الفواتير' : 'Invoices',
+            header: t('customersList.invoices'),
             cell: (row) => {
                 const st = salesStats[row.id];
                 return (
@@ -349,7 +386,7 @@ export default function CustomersList() {
         },
         {
             id: 'balance',
-            header: isRTL ? 'الرصيد' : 'Balance',
+            header: t('table.balance'),
             align: 'end',
             sortable: true,
             sortKey: 'balance',
@@ -372,7 +409,7 @@ export default function CustomersList() {
                         {balance < 0 && <span className="text-[10px] text-red-400">{isRTL ? 'دفعوا أكثر' : 'overpaid'}</span>}
                         {subLedger && subLedger.transaction_count > 0 && (
                             <span className="text-[9px] text-gray-300 mt-0.5">
-                                {subLedger.transaction_count} {isRTL ? 'حركة' : 'txn'}
+                                {subLedger.transaction_count} {t('table.txn')}
                             </span>
                         )}
                     </div>
@@ -381,7 +418,7 @@ export default function CustomersList() {
         },
         {
             id: 'status',
-            header: isRTL ? 'الحالة' : 'Status',
+            header: t('table.status'),
             cell: (row) => (
                 <span className={cn(
                     "px-2 py-0.5 rounded-full text-[10px] font-semibold border",
@@ -389,11 +426,11 @@ export default function CustomersList() {
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-gray-100 text-gray-500 border-gray-200'
                 )}>
-                    {row.status === 'active' ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'غير نشط' : 'Inactive')}
+                    {row.status === 'active' ? t('customersList.active') : t('customersList.inactive')}
                 </span>
             ),
         },
-    ], [isRTL, salesStats, customerBalances, baseCurrency]);
+    ], [isRTL, salesStats, customerBalances, baseCurrency, t]);
 
     // ─── Actions Renderer ────────────────────────────────────────
     const renderActions = useCallback((row: Customer) => (
@@ -433,9 +470,7 @@ export default function CustomersList() {
                             {t('sales.customers') || (isRTL ? 'العملاء' : 'Customers')}
                         </h1>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            {isRTL
-                                ? `${filteredCustomers.length} عميل — إجمالي ${customers.length}`
-                                : `${filteredCustomers.length} customers — ${customers.length} total`}
+                            {`${filteredCustomers.length} ${t('customersList.customers')} — ${customers.length} total`}
                         </p>
                     </div>
                 </div>
@@ -445,7 +480,7 @@ export default function CustomersList() {
                     className="gap-2 px-4 h-9 text-white shadow-sm bg-indigo-600 hover:bg-indigo-700"
                 >
                     <Plus className="w-4 h-4" />
-                    {isRTL ? 'إضافة عميل' : 'Add Customer'}
+                    {t('customersList.addCustomer')}
                 </Button>
             </div>
 
@@ -456,20 +491,36 @@ export default function CustomersList() {
                         <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
                             <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                                 <Users className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'الكل' : 'All'}
+                                {t('common.all')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{customers.length}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
                                 <Star className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'نشط' : 'Active'}
+                                {t('customersList.active')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{customers.filter(c => c.status === 'active').length}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="inactive" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-gray-500 font-tajawal">
-                                {isRTL ? 'غير نشط' : 'Inactive'}
+                                {t('customersList.inactive')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{customers.filter(c => c.status !== 'active').length}</Badge>
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>
+
+                    {/* Hide zero balance toggle */}
+                    <Button
+                        variant={hideZeroBalance ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                            'h-9 gap-1.5 text-xs font-tajawal ms-auto',
+                            hideZeroBalance
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                        )}
+                        onClick={toggleHideZeroBalance}
+                    >
+                        <Filter className="w-3.5 h-3.5" />
+                        {hideZeroBalance ? t('common.showAll') : t('customersList.hideZeroBalance')}
+                    </Button>
                 </div>
 
                 {/* ─── Content: NexaListTable ─── */}
@@ -478,9 +529,9 @@ export default function CustomersList() {
                     columns={columns}
                     searchTerm={searchTerm}
                     onSearchChange={setSearchTerm}
-                    searchPlaceholder={isRTL ? 'بحث بالاسم، الكود، الهاتف...' : 'Search name, code, phone...'}
+                    searchPlaceholder={t('table.search')}
                     totalCount={customers.length}
-                    countLabel={isRTL ? 'عميل' : 'customers'}
+                    countLabel={t('customersList.customers')}
                     sortField={sortField}
                     sortAsc={sortAsc}
                     onSort={handleSort}
@@ -488,16 +539,16 @@ export default function CustomersList() {
                     onRowClick={handleRowClick}
                     getRowKey={(row) => row.id}
                     isLoading={isLoading}
-                    emptyMessage={isRTL ? 'لا يوجد عملاء' : 'No customers found'}
+                    emptyMessage={t('customersList.noCustomers')}
                     showFooter={true}
                     footerLeftText={
-                        isRTL
-                            ? `عرض ${filteredCustomers.length} من ${customers.length} عميل`
-                            : `Showing ${filteredCustomers.length} of ${customers.length} customers`
+                        `${t('table.showing', { from: 1, to: filteredCustomers.length, total: customers.length })}`.includes('showing')
+                            ? `Showing ${filteredCustomers.length} of ${customers.length} ${t('customersList.customers')}`
+                            : `${t('table.showing', { from: 1, to: filteredCustomers.length, total: customers.length })}`
                     }
                     footerRightContent={
                         <span className="font-mono font-bold text-erp-navy dark:text-white">
-                            {isRTL ? 'إجمالي المستحق: ' : 'Total Receivable: '}
+                            {t('customersList.totalReceivable')}: 
                             {Array.from(customerBalances.values())
                                 .reduce((sum, b) => sum + Math.max(b.balance, 0), 0)
                                 .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -522,7 +573,7 @@ export default function CustomersList() {
                         party_type: 'customer',
                         current_balance: customerBalances.get(selectedCustomer.id)?.balance || 0,
                         is_active: selectedCustomer.status === 'active',
-                        name: selectedCustomer.name_ar || selectedCustomer.name_en || selectedCustomer.name,
+                        name: getLocalizedName(selectedCustomer, language),
                         currency: selectedCustomer.currency || baseCurrency,
                     } : {
                         _partyType: 'customer',

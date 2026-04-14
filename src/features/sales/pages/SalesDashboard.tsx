@@ -14,7 +14,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, CURRENCY_META, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
@@ -43,14 +45,14 @@ import {
 import { cn } from '@/lib/utils';
 
 // ─── Stage metadata ─────────────────────────────────────────
-const STAGE_META: Record<string, { ar: string; en: string; badge: string; color: string }> = {
-  draft: { ar: 'مسودة', en: 'Draft', badge: 'bg-gray-100 text-gray-700', color: '#9CA3AF' },
-  confirmed: { ar: 'مؤكدة', en: 'Confirmed', badge: 'bg-blue-100 text-blue-800', color: '#3B82F6' },
-  delivered: { ar: 'مسلّمة', en: 'Delivered', badge: 'bg-sky-100 text-sky-800', color: '#0EA5E9' },
-  posted: { ar: 'مرحّلة', en: 'Posted', badge: 'bg-emerald-100 text-emerald-800', color: '#10B981' },
-  partial_paid: { ar: 'دفع جزئي', en: 'Partial Paid', badge: 'bg-amber-100 text-amber-800', color: '#F59E0B' },
-  paid: { ar: 'مدفوعة', en: 'Paid', badge: 'bg-green-100 text-green-800', color: '#059669' },
-  cancelled: { ar: 'ملغاة', en: 'Cancelled', badge: 'bg-red-100 text-red-800', color: '#EF4444' },
+const STAGE_META: Record<string, { key: string; badge: string; color: string }> = {
+  draft: { key: 'stages.draft', badge: 'bg-gray-100 text-gray-700', color: '#9CA3AF' },
+  confirmed: { key: 'stages.confirmed', badge: 'bg-blue-100 text-blue-800', color: '#3B82F6' },
+  delivered: { key: 'stages.delivered', badge: 'bg-sky-100 text-sky-800', color: '#0EA5E9' },
+  posted: { key: 'stages.posted', badge: 'bg-emerald-100 text-emerald-800', color: '#10B981' },
+  partial_paid: { key: 'stages.partial_paid', badge: 'bg-amber-100 text-amber-800', color: '#F59E0B' },
+  paid: { key: 'stages.paid', badge: 'bg-green-100 text-green-800', color: '#059669' },
+  cancelled: { key: 'stages.cancelled', badge: 'bg-red-100 text-red-800', color: '#EF4444' },
 };
 // ═════════════════════════════════════════════════════════════
 export default function SalesDashboard() {
@@ -62,11 +64,12 @@ export default function SalesDashboard() {
   const { currencyCode: baseCurrency, currencySymbol: baseSymbol } = useCompanyCurrency(language as 'ar' | 'en');
   const { lookupRate } = useExchangeRateLookup();
 
+  const queryClient = useQueryClient();
+
   // Currency
   const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
     try { return localStorage.getItem('sales_dashboard_currency') || 'all'; } catch { return 'all'; }
   });
-  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
   const displayCurrency = selectedCurrency === 'all' ? (baseCurrency || 'USD') : selectedCurrency;
   const sym = getCurrencySymbol(displayCurrency);
 
@@ -88,24 +91,7 @@ export default function SalesDashboard() {
     try { localStorage.setItem('sales_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch {}
   }, [dateRange]);
 
-  const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // KPIs
-  const [totalSalesMonth, setTotalSalesMonth] = useState(0);
-  const [totalSalesLastMonth, setTotalSalesLastMonth] = useState(0);
-  const [totalSalesYear, setTotalSalesYear] = useState(0);
-  const [avgInvoice, setAvgInvoice] = useState(0);
-  const [unpaidBalance, setUnpaidBalance] = useState(0);
-  const [unpaidCount, setUnpaidCount] = useState(0);
-  const [totalInvoices, setTotalInvoices] = useState(0);
-  const [pendingOrders, setPendingOrders] = useState(0);
-  const [activeCustomers, setActiveCustomers] = useState(0);
-  const [totalCustomers, setTotalCustomers] = useState(0);
-  const [monthly, setMonthly] = useState<{ label: string; total: number; count: number }[]>([]);
-  const [recent, setRecent] = useState<{ id: string; stage: string; customerName: string; amount: number; currency: string; date: string }[]>([]);
-  const [topCustomers, setTopCustomers] = useState<{ name: string; total: number; count: number }[]>([]);
-  const [isLive, setIsLive] = useState(false);
 
   // Convert
   const convertAmount = useCallback((amount: number, fromCurrency: string): number => {
@@ -114,22 +100,25 @@ export default function SalesDashboard() {
     return amount * rate;
   }, [displayCurrency, lookupRate]);
 
-  // ─── Fetch ───────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    if (!companyId) return;
-    // ⚡ No setLoading(true) — render dashboard structure immediately
+  // Stable date strings for queryKey
+  const fromDateStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const toDateStr = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
-    try {
-      // ⚡ Parallel fetch: all 3 queries at once
+  // ─── Cache-first query (IndexedDB persistence) ────────────
+  const { data: rawData, isLoading: loading } = useCachedQuery({
+    queryKey: ['sales', 'dashboard', companyId, fromDateStr, toDateStr, selectedCurrency],
+    queryFn: async () => {
+      if (!companyId) return null;
+
       const [settingsRes, txsRes, customersCountRes] = await Promise.all([
         supabase.from('company_accounting_settings').select('supported_currencies').eq('company_id', companyId).single(),
         supabase.from('sales_transactions').select('id, stage, customer_id, customer_name, currency, total_amount, created_at').eq('company_id', companyId),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
       ]);
 
-      if (settingsRes.data?.supported_currencies) setAvailableCurrencies(settingsRes.data.supported_currencies);
+      const availableCurrencies = settingsRes.data?.supported_currencies || [];
       const allRows = txsRes.data || [];
-      setTotalCustomers(customersCountRes.count || 0);
+      const totalCustomers = customersCountRes.count || 0;
 
       const now = new Date();
       const monthStart = startOfMonth(now);
@@ -144,49 +133,36 @@ export default function SalesDashboard() {
         return d >= fromDate && d <= toDate;
       });
 
-      // This month
       const thisMonthRows = allRows.filter(r => new Date(r.created_at) >= monthStart);
-      const thisMonthTotal = thisMonthRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
-      setTotalSalesMonth(thisMonthTotal);
+      const totalSalesMonth = thisMonthRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
 
-      // Last month
       const lastMonthRows = allRows.filter(r => {
         const d = new Date(r.created_at);
         return d >= lastMonthStart && d <= lastMonthEnd;
       });
-      const lastMonthTotal = lastMonthRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
-      setTotalSalesLastMonth(lastMonthTotal);
+      const totalSalesLastMonth = lastMonthRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
 
-      // This year
       const yearRows = allRows.filter(r => new Date(r.created_at) >= yearStart);
-      const yearTotal = yearRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
-      setTotalSalesYear(yearTotal);
+      const totalSalesYear = yearRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
 
-      // By date range
-      setTotalInvoices(dateFiltered.length);
+      const totalInvoices = dateFiltered.length;
       const total = dateFiltered.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
-      setAvgInvoice(dateFiltered.length > 0 ? total / dateFiltered.length : 0);
+      const avgInvoice = dateFiltered.length > 0 ? total / dateFiltered.length : 0;
 
-      // Unpaid
       const unpaid = allRows.filter(r => r.stage === 'posted' || r.stage === 'partial_paid' || r.stage === 'confirmed' || r.stage === 'delivered');
-      const unpaidTotal = unpaid.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
-      setUnpaidBalance(unpaidTotal);
-      setUnpaidCount(unpaid.length);
+      const unpaidBalance = unpaid.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
+      const unpaidCount = unpaid.length;
 
-      // Pending
-      setPendingOrders(allRows.filter(r => r.stage === 'draft' || r.stage === 'confirmed').length);
-
-      // Customers
+      const pendingOrders = allRows.filter(r => r.stage === 'draft' || r.stage === 'confirmed').length;
       const uniqueCustomers = new Set(dateFiltered.map(r => r.customer_id).filter(Boolean));
-      setActiveCustomers(uniqueCustomers.size);
+      const activeCustomers = uniqueCustomers.size;
 
-      // Monthly (6 months)
       const monthlyData: { label: string; total: number; count: number }[] = [];
       for (let i = 5; i >= 0; i--) {
         const d = subMonths(now, i);
         const mStart = startOfMonth(d);
         const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
+        const label = new Intl.DateTimeFormat(language === 'ar' ? 'ar-u-nu-latn' : language === 'ru' ? 'ru' : language === 'uk' ? 'uk' : language === 'tr' ? 'tr' : 'en-US', { month: 'short' }).format(d);
         const mRows = allRows.filter(r => {
           const rd = new Date(r.created_at);
           return rd >= mStart && rd <= mEnd && r.stage !== 'cancelled';
@@ -194,20 +170,16 @@ export default function SalesDashboard() {
         const mTotal = mRows.reduce((s, r) => s + convertAmount(Number(r.total_amount || 0), r.currency), 0);
         monthlyData.push({ label, total: mTotal, count: mRows.length });
       }
-      setMonthly(monthlyData);
 
-      // Recent 8
       const sorted = [...dateFiltered].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setRecent(sorted.slice(0, 8).map(r => ({
-        id: r.id,
-        stage: r.stage,
-        customerName: r.customer_name || (isAr ? 'عميل' : 'Customer'),
+      const recent = sorted.slice(0, 8).map(r => ({
+        id: r.id, stage: r.stage,
+        customerName: r.customer_name || 'Customer',
         amount: convertAmount(Number(r.total_amount || 0), r.currency),
         currency: r.currency,
         date: format(new Date(r.created_at), 'yyyy-MM-dd'),
-      })));
+      }));
 
-      // Top 5 customers
       const customerMap = new Map<string, { name: string; total: number; count: number }>();
       dateFiltered.forEach(r => {
         const key = r.customer_id || r.customer_name || 'unknown';
@@ -216,30 +188,47 @@ export default function SalesDashboard() {
         existing.count++;
         customerMap.set(key, existing);
       });
-      setTopCustomers(
-        [...customerMap.values()].sort((a, b) => b.total - a.total).slice(0, 5)
-      );
-    } catch (err) {
-      console.error('Sales dashboard fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId, dateRange, isAr, convertAmount]);
+      const topCustomers = [...customerMap.values()].sort((a, b) => b.total - a.total).slice(0, 5);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+      return {
+        availableCurrencies, totalCustomers, totalSalesMonth, totalSalesLastMonth,
+        totalSalesYear, avgInvoice, unpaidBalance, unpaidCount, totalInvoices,
+        pendingOrders, activeCustomers, monthly: monthlyData, recent, topCustomers,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+  });
 
-  // Realtime
+  // Derive stats from cached data
+  const availableCurrencies = rawData?.availableCurrencies ?? [];
+  const totalSalesMonth = rawData?.totalSalesMonth ?? 0;
+  const totalSalesLastMonth = rawData?.totalSalesLastMonth ?? 0;
+  const totalSalesYear = rawData?.totalSalesYear ?? 0;
+  const avgInvoice = rawData?.avgInvoice ?? 0;
+  const unpaidBalance = rawData?.unpaidBalance ?? 0;
+  const unpaidCount = rawData?.unpaidCount ?? 0;
+  const totalInvoices = rawData?.totalInvoices ?? 0;
+  const pendingOrders = rawData?.pendingOrders ?? 0;
+  const activeCustomers = rawData?.activeCustomers ?? 0;
+  const totalCustomers = rawData?.totalCustomers ?? 0;
+  const monthly = rawData?.monthly ?? [];
+  const recent = rawData?.recent ?? [];
+  const topCustomers = rawData?.topCustomers ?? [];
+  const isLive = true;
+
+  // Realtime — invalidate cache
   useEffect(() => {
     if (!companyId) return;
     const channel = supabase
       .channel('sales-dashboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_transactions', filter: `company_id=eq.${companyId}` }, () => {
-        setIsLive(true);
-        fetchData();
+        queryClient.invalidateQueries({ queryKey: ['sales', 'dashboard'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [companyId, fetchData]);
+  }, [companyId, queryClient]);
 
 
 
@@ -286,7 +275,7 @@ export default function SalesDashboard() {
       },
       series: [
           {
-              name: isAr ? 'المبيعات' : 'Sales',
+              name: t('salesDashboard.sales'),
               type: 'line', smooth: 0.5,
               lineStyle: { width: 2.5, color: '#10B981' },
               symbol: 'circle', symbolSize: 6,
@@ -320,7 +309,7 @@ export default function SalesDashboard() {
                 <ShoppingCart className="w-6 h-6 text-emerald-400" />
               </div>
               <h1 className="text-2xl font-bold text-white font-cairo">
-                {isAr ? 'لوحة المبيعات' : 'Sales Dashboard'}
+                {t('salesDashboard.title')}
               </h1>
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -328,7 +317,7 @@ export default function SalesDashboard() {
                 </span>
             </div>
             <p className="text-sm text-emerald-200/80 font-tajawal ps-12">
-              {isAr ? 'نظرة عامة على عمليات البيع والعملاء' : 'Overview of sales operations and customers'}
+              {t('salesDashboard.subtitle')}
             </p>
           </div>
 
@@ -342,17 +331,17 @@ export default function SalesDashboard() {
             <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
               <SelectTrigger className="w-full lg:w-[175px] bg-white/10 backdrop-blur-sm h-10 text-sm border-white/20 text-white hover:bg-white/20 transition-colors">
                 <Coins className="w-4 h-4 me-2 text-emerald-400" />
-                <SelectValue placeholder={isAr ? 'كل العملات' : 'All Currencies'} />
+                <SelectValue placeholder={t('salesDashboard.allCurrencies')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  🌍 {isAr ? 'كل العملات (محوّلة)' : 'All (Converted)'}
+                  🌍 {t('salesDashboard.allConverted')}
                 </SelectItem>
                 {availableCurrencies.map(c => {
                   const m = CURRENCY_META[c];
                   return (
                     <SelectItem key={c} value={c}>
-                      {m?.flag || '🏳️'} {isAr ? m?.nameAr : m?.nameEn} ({c})
+                      {m?.flag || '🏳️'} {language === 'ar' ? m?.nameAr : m?.nameEn} ({c})
                     </SelectItem>
                   );
                 })}
@@ -365,17 +354,17 @@ export default function SalesDashboard() {
       {/* ─ KPIs Row 1 — Financial (Glass) ── */}
       <StatsGrid cols={4}>
         <StatCard
-          label={isAr ? 'مبيعات الشهر' : 'This Month'}
+          label={t('salesDashboard.thisMonth')}
           value={totalSalesMonth}
           type="positive"
           change={pctChange ? Number(pctChange.toFixed(1)) : undefined}
-          changeLabel={isAr ? 'عن الشهر السابق' : 'vs last month'}
+          changeLabel={t('salesDashboard.vsLastMonth')}
           icon={ShoppingCart}
           formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
           className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={isAr ? 'مبيعات السنة' : 'This Year'}
+          label={t('salesDashboard.thisYear')}
           value={totalSalesYear}
           type="info"
           icon={TrendingUp}
@@ -383,7 +372,7 @@ export default function SalesDashboard() {
           className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={isAr ? 'متوسط الفاتورة' : 'Avg. Invoice'}
+          label={t('salesDashboard.avgInvoice')}
           value={avgInvoice}
           type="neutral"
           icon={BarChart3}
@@ -391,7 +380,7 @@ export default function SalesDashboard() {
           className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={isAr ? 'غير محصّل' : 'Uncollected'}
+          label={t('salesDashboard.uncollected')}
           value={unpaidBalance}
           type={unpaidBalance > 0 ? 'negative' : 'neutral'}
           icon={AlertTriangle}
@@ -404,28 +393,28 @@ export default function SalesDashboard() {
       {/* ─ KPIs Row 2 — Operational (Glass) ── */}
       <StatsGrid cols={4}>
         <StatCard
-          label={isAr ? 'إجمالي الفواتير' : 'Total Invoices'}
+          label={t('salesDashboard.totalInvoices')}
           value={totalInvoices}
           type="neutral"
           icon={Hash}
           className="bg-gradient-to-br from-slate-50/80 to-gray-50/50 dark:from-slate-950/30 dark:to-gray-950/20 backdrop-blur-sm border border-slate-100/50 dark:border-slate-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={isAr ? 'طلبات معلقة' : 'Pending Orders'}
+          label={t('salesDashboard.pendingOrders')}
           value={pendingOrders}
           type="warning"
           icon={Clock}
           className="bg-gradient-to-br from-yellow-50/80 to-amber-50/50 dark:from-yellow-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-yellow-100/50 dark:border-yellow-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={isAr ? 'العملاء النشطين' : 'Active Customers'}
+          label={t('salesDashboard.activeCustomers')}
           value={`${activeCustomers}/${totalCustomers}`}
           type="positive"
           icon={Users}
           className="bg-gradient-to-br from-teal-50/80 to-emerald-50/50 dark:from-teal-950/30 dark:to-emerald-950/20 backdrop-blur-sm border border-teal-100/50 dark:border-teal-800/30 shadow-sm hover:shadow-md transition-all"
         />
         <StatCard
-          label={isAr ? 'أعلى عميل' : 'Top Customer'}
+          label={t('salesDashboard.topCustomer')}
           value={topCustomers[0]?.name || '-'}
           type="info"
           icon={Star}
@@ -441,10 +430,10 @@ export default function SalesDashboard() {
           <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
             <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
               <Calendar className="w-4 h-4 text-emerald-500" />
-              {isAr ? 'المبيعات الشهرية' : 'Monthly Sales'}
+              {t('salesDashboard.monthlySales')}
               {selectedCurrency === 'all' && (
                 <span className="text-[10px] text-gray-400 font-normal font-tajawal">
-                  ({isAr ? 'محوّلة' : 'converted'} → {displayCurrency})
+                  ({t('salesDashboard.converted')} → {displayCurrency})
                 </span>
               )}
             </CardTitle>
@@ -453,7 +442,7 @@ export default function SalesDashboard() {
             <div className="w-full min-h-[280px]">
               {monthly.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
-                  <p className="text-sm text-gray-400">{isAr ? 'جاري تحميل البيانات...' : 'Loading data...'}</p>
+                  <p className="text-sm text-gray-400">{t('salesDashboard.loadingData')}</p>
                 </div>
               ) : (
                 <ReactECharts
@@ -472,12 +461,12 @@ export default function SalesDashboard() {
           <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
             <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
               <Star className="w-4 h-4 text-amber-500" />
-              {isAr ? 'أفضل العملاء' : 'Top Customers'}
+              {t('salesDashboard.topCustomers')}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
             {topCustomers.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm font-tajawal py-4">{isAr ? 'لا توجد بيانات' : 'No data'}</p>
+              <p className="text-center text-gray-400 text-sm font-tajawal py-4">{t('salesDashboard.noData')}</p>
             ) : (
               topCustomers.map((c, i) => (
                 <div key={i} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
@@ -490,7 +479,7 @@ export default function SalesDashboard() {
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-tajawal truncate">{c.name}</p>
-                      <p className="text-[11px] text-gray-400">{c.count} {isAr ? 'فاتورة' : 'invoices'}</p>
+                      <p className="text-[11px] text-gray-400">{c.count} {t('salesDashboard.invoices')}</p>
                     </div>
                   </div>
                   <span className="font-mono text-sm font-bold text-emerald-600 shrink-0">
@@ -508,17 +497,17 @@ export default function SalesDashboard() {
         <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
           <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
             <FileText className="w-4 h-4 text-emerald-500" />
-            {isAr ? 'آخر عمليات البيع' : 'Recent Sales'}
+            {t('salesDashboard.recentSales')}
           </CardTitle>
           <Badge variant="secondary" className="text-[11px] font-mono bg-emerald-50 text-emerald-600 border-0">
-            {totalInvoices} {isAr ? 'فاتورة' : 'invoices'}
+            {totalInvoices} {t('salesDashboard.invoices')}
           </Badge>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
             {recent.length === 0 ? (
               <div className="p-8 text-center text-gray-400 font-tajawal">
-                {isAr ? 'لا توجد مبيعات في هذه الفترة' : 'No sales in this period'}
+                {t('salesDashboard.noSalesInPeriod')}
               </div>
             ) : (
               recent.map((tx) => (
@@ -531,7 +520,7 @@ export default function SalesDashboard() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-tajawal font-medium truncate">{tx.customerName}</span>
                         <Badge className={cn("text-[10px] px-1.5 py-0 h-4 font-tajawal", STAGE_META[tx.stage]?.badge)}>
-                          {isAr ? STAGE_META[tx.stage]?.ar : STAGE_META[tx.stage]?.en || tx.stage}
+                          {t(STAGE_META[tx.stage]?.key || 'stages.draft')}
                         </Badge>
                       </div>
                     </div>

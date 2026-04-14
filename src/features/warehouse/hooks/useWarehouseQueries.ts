@@ -129,6 +129,16 @@ export function useMaterials(options?: UseMaterialsOptions) {
         ],
     });
 
+    // 🔄 Realtime: auto-update when rolls change (affects rolls_count & rolls_total_length in tree)
+    useRealtimeInvalidation({
+        table: 'fabric_rolls',
+        companyId,
+        queryKeys: [
+            ['warehouse', 'materials'],
+            ['warehouse', 'dashboard-stats', companyId],
+        ],
+    });
+
     const invalidate = () => {
         queryClient.invalidateQueries({ queryKey: ['warehouse', 'materials'] });
         queryClient.invalidateQueries({ queryKey: ['warehouse', 'dashboard-stats', companyId] });
@@ -353,7 +363,7 @@ export function useStockMovements(filters?: MovementFilters) {
                     movementType: filters?.movementType !== 'all' ? filters?.movementType : undefined,
                     dateFrom: filters?.dateFrom || undefined,
                     dateTo: filters?.dateTo || undefined,
-                    limit: 100,
+                    limit: 500,
                 });
             } catch (err: any) {
                 if (isAbort(err)) return []; // ← silently swallow, not rethrow
@@ -502,7 +512,7 @@ export function useBranchesWithWarehouses() {
             // ── 1. جلب الفروع ──────────────────────────────────────
             const { data: branchesData } = await supabase
                 .from('branches')
-                .select('id, code, name_ar, name_en, city, branch_type, is_main, is_active')
+                .select('id, code, name_ar, name_en, name_ru, name_uk, name_tr, name_de, name_it, name_ro, name_pl, city, branch_type, is_main, is_active')
                 .eq('company_id', companyId)
                 .eq('is_active', true)
                 .order('is_main', { ascending: false });
@@ -510,7 +520,7 @@ export function useBranchesWithWarehouses() {
             // ── 2. جلب المستودعات ──────────────────────────────────
             const { data: warehousesData, error: whError } = await supabase
                 .from('warehouses')
-                .select('id, code, name_ar, name_en, warehouse_type, branch_id, is_active')
+                .select('id, code, name_ar, name_en, name_ru, name_uk, name_tr, name_de, name_it, name_ro, name_pl, warehouse_type, branch_id, is_active')
                 .eq('company_id', companyId)
                 .order('code');
             if (whError) console.error('[useBranchesWithWarehouses] warehouses error:', whError);

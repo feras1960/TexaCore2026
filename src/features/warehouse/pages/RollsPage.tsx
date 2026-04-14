@@ -42,6 +42,7 @@ import {
     Ruler,
     Warehouse
 } from 'lucide-react';
+import { matchesSearch } from '@/lib/utils/normalizeSearch';
 
 // Types for rolls
 interface Roll {
@@ -109,15 +110,17 @@ export default function RollsPage() {
         loadRolls();
     }, [loadRolls]);
 
-    // Filter rolls by search
+    // Filter rolls by search (smart multi-language)
     const filteredRolls = rolls.filter(roll => {
         if (!searchQuery) return true;
-        const search = searchQuery.toLowerCase();
-        return (
-            roll.roll_number.toLowerCase().includes(search) ||
-            roll.barcode?.toLowerCase().includes(search) ||
-            roll.color?.toLowerCase().includes(search) ||
-            roll.dye_lot?.toLowerCase().includes(search)
+        return matchesSearch(
+            searchQuery,
+            roll.roll_number,
+            roll.barcode || '',
+            roll.color || '',
+            roll.dye_lot || '',
+            roll.material?.name_ar || '',
+            roll.material?.name_en || '',
         );
     });
 

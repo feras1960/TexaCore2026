@@ -129,6 +129,7 @@ function computeJournalLines(
     discountAmount: number,
     transactionType: 'purchase' | 'sale',
     taxRate: number,
+    taxEnabled: boolean,
     accountCodes: Record<string, { code: string; nameAr: string; nameEn: string }> | undefined,
     settings: any, // AccountingDefaults
     taxDefaults: { nameAr: string; nameEn: string; inputAccount: any; outputAccount: any } | null,
@@ -141,20 +142,23 @@ function computeJournalLines(
     // totalAmount = إجمالي الأصناف (المبلغ الصافي بعد الخصم)
     // taxAmount = مجموع ضرائب الأصناف (من item.tax_amount) — قد يكون > 0 إذا الأصناف تحمل ضريبة
     // taxRate = نسبة الضريبة من إعدادات الشركة (company_accounting_settings.vat_rate) — fallback
+    // taxEnabled = هل الضريبة مُفعّلة في إعدادات الشركة
     // 
     // المسار:
-    // 1️⃣ إذا taxAmount > 0 (مُجمع من الأصناف) → استخدمه مباشرة
-    // 2️⃣ إذا taxAmount = 0 و taxRate > 0 → احسب من نسبة الشركة
-    // 3️⃣ كلاهما 0 → لا ضريبة
+    // 1️⃣ إذا taxAmount > 0 (مُجمع من الأصناف) → استخدمه مباشرة (ضريبة مادة)
+    // 2️⃣ إذا taxAmount = 0 و taxEnabled و taxRate > 0 → احسب من نسبة الشركة
+    // 3️⃣ كلاهما 0 أو الضريبة معطلة → لا ضريبة، لا سطر ضريبة بالقيد
     const netAmount = totalAmount;
     // 🌍 International purchases: tax = 0 on invoice (paid later at customs/container)
     const isInternationalPurchase = transactionType === 'purchase' && receiptMode === 'international';
     const computedTax = isInternationalPurchase
         ? 0  // ← دولي: لا ضريبة على الفاتورة — تُدفع وتُوزع عبر الكونتينر
         : taxAmount > 0
-            ? taxAmount  // ← ضريبة محسوبة من الأصناف (material-level أو company-level)
-            : (taxRate > 0 && netAmount > 0) ? computeTaxAmount(netAmount, taxRate) : 0;
+            ? taxAmount  // ← ضريبة محسوبة من الأصناف (material-level)
+            : (taxEnabled && taxRate > 0 && netAmount > 0) ? computeTaxAmount(netAmount, taxRate) : 0;
     const gross = netAmount + computedTax;
+    // هل يجب إظهار سطر الضريبة؟ فقط إذا computedTax > 0
+    const showTaxLine = computedTax > 0;
 
     if (transactionType === 'purchase') {
         switch (stage) {
@@ -203,8 +207,8 @@ function computeJournalLines(
                         isMissing: purchaseAcc.isMissing,
                     },
                 ];
-                // سطر الضريبة — يظهر فقط للمشتريات المحلية (الدولية: تُدفع في الكونتينر)
-                if (!isInternationalPurchase) {
+                // سطر الضريبة — يظهر فقط للمشتريات المحلية وعند وجود ضريبة
+                if (!isInternationalPurchase && showTaxLine) {
                     lines.push({
                         accountName: taxAcc.name,
                         accountNameAr: taxAcc.nameAr,
@@ -350,7 +354,7 @@ function computeJournalLines(
                         isMissing: purchaseAcc.isMissing,
                     },
                 ];
-                if (!isInternationalPurchase) {
+                if (!isInternationalPurchase && showTaxLine) {
                     projectedLines.push({
                         accountName: taxAcc.name,
                         accountNameAr: taxAcc.nameAr,
@@ -429,7 +433,6 @@ function computeJournalLines(
                 );
 
                 const lines: JournalLine[] = [
-                    // ── قيد الإيراد ──
                     {
                         accountName: receivableAcc.name,
                         accountNameAr: receivableAcc.nameAr,
@@ -439,23 +442,6 @@ function computeJournalLines(
                         description: 'إجمالي المستحق للتحصيل',
                         descriptionEn: 'Total receivable',
                         isMissing: receivableAcc.isMissing,
-                    },
-                    // سطر الضريبة — يظهر دائماً
-                    {
-                        accountName: taxAcc.name,
-                        accountNameAr: taxAcc.nameAr,
-                        accountCode: taxAcc.code,
-                        debit: 0,
-                        credit: computedTax,
-                        description: computedTax > 0
-                            ? `ضريبة القيمة المضافة (${taxRate}%)`
-                            : `معفاة (${taxRate}%)`,
-                        descriptionEn: computedTax > 0
-                            ? `VAT (${taxRate}%)`
-                            : `Exempt (${taxRate}%)`,
-                        isTax: true,
-                        taxRate,
-                        isMissing: taxAcc.isMissing,
                     },
                     {
                         accountName: revenueAcc.name,
@@ -468,9 +454,22 @@ function computeJournalLines(
                         isMissing: revenueAcc.isMissing,
                     },
                 ];
+                if (showTaxLine) {
+                    lines.splice(1, 0, {
+                        accountName: taxAcc.name,
+                        accountNameAr: taxAcc.nameAr,
+                        accountCode: taxAcc.code,
+                        debit: 0,
+                        credit: computedTax,
+                        description: `ضريبة القيمة المضافة (${taxRate}%)`,
+                        descriptionEn: `VAT (${taxRate}%)`,
+                        isTax: true,
+                        taxRate,
+                        isMissing: taxAcc.isMissing,
+                    });
+                }
 
                 // COGS is now posted as a separate hidden entry (sales_cogs)
-                // No COGS lines shown in the invoice preview
 
                 return lines;
             }
@@ -540,7 +539,7 @@ function computeJournalLines(
                     settings?.default_sales_account_id || settings?.default_revenue_account_id,
                     isRTL, 'Sales Revenue', 'إيرادات المبيعات'
                 );
-                return [
+                const projectedLines: JournalLine[] = [
                     {
                         accountName: receivableAcc.name,
                         accountNameAr: receivableAcc.nameAr,
@@ -551,33 +550,33 @@ function computeJournalLines(
                         descriptionEn: 'Total receivable (projected)',
                         isMissing: receivableAcc.isMissing,
                     },
-                    {
+                ];
+                // سطر الضريبة — فقط عند وجود ضريبة فعلية
+                if (showTaxLine) {
+                    projectedLines.push({
                         accountName: taxAcc.name,
                         accountNameAr: taxAcc.nameAr,
                         accountCode: taxAcc.code,
                         debit: 0,
                         credit: computedTax,
-                        description: computedTax > 0
-                            ? `ضريبة القيمة المضافة (${taxRate}%)`
-                            : `معفاة (${taxRate}%)`,
-                        descriptionEn: computedTax > 0
-                            ? `VAT (${taxRate}%)`
-                            : `Exempt (${taxRate}%)`,
+                        description: `ضريبة القيمة المضافة (${taxRate}%)`,
+                        descriptionEn: `VAT (${taxRate}%)`,
                         isTax: true,
                         taxRate,
                         isMissing: taxAcc.isMissing,
-                    },
-                    {
-                        accountName: revenueAcc.name,
-                        accountNameAr: revenueAcc.nameAr,
-                        accountCode: revenueAcc.code,
-                        debit: 0,
-                        credit: netAmount,
-                        description: 'إيراد المبيعات (متوقع)',
-                        descriptionEn: 'Sales revenue (projected)',
-                        isMissing: revenueAcc.isMissing,
-                    },
-                ];
+                    });
+                }
+                projectedLines.push({
+                    accountName: revenueAcc.name,
+                    accountNameAr: revenueAcc.nameAr,
+                    accountCode: revenueAcc.code,
+                    debit: 0,
+                    credit: netAmount,
+                    description: 'إيراد المبيعات (متوقع)',
+                    descriptionEn: 'Sales revenue (projected)',
+                    isMissing: revenueAcc.isMissing,
+                });
+                return projectedLines;
             }
         }
     }
@@ -726,6 +725,7 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
             discountAmount,
             transactionType,
             taxRate,
+            taxEnabled,
             accountingData?.codes,
             accountingData?.settings,
             taxDefaults || null,
@@ -734,7 +734,7 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
             supplierName,
             partySubAccount || null,
         );
-    }, [stage, totalAmount, taxAmount, discountAmount, transactionType, taxRate, accountingData, taxDefaults, isRTL, receiptMode, supplierName, partySubAccount]);
+    }, [stage, totalAmount, taxAmount, discountAmount, transactionType, taxRate, taxEnabled, accountingData, taxDefaults, isRTL, receiptMode, supplierName, partySubAccount]);
 
     // ✅ Priority: actual DB lines > computed lines
     const lines = actualJournalLines || computedLines;

@@ -70,6 +70,7 @@ const STAGE_TO_CYCLE: Record<string, CycleType> = {
     confirmed: 'confirmed',
     posted: 'delivery',         // مرحَّلة = مسلَّمة ومرحَّلة
     in_delivery: 'delivery',    // قيد التسليم
+    in_transit: 'delivery',      // بالطريق للفرع
     in_receiving: 'confirmed',
     delivery: 'delivery',
     delivered: 'delivery',      // تم التسليم
@@ -97,6 +98,7 @@ const STAGE_STYLES: Record<string, {
     confirmed: { bg: 'bg-green-50 dark:bg-green-950/30', text: 'text-green-700 dark:text-green-400', dot: 'bg-green-500', labelAr: 'مؤكد', labelEn: 'Confirmed' },
     posted: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', labelAr: 'مسلّمة ومرحّلة', labelEn: 'Delivered & Posted' },
     in_delivery: { bg: 'bg-sky-50 dark:bg-sky-950/30', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500', labelAr: 'قيد التسليم', labelEn: 'In Delivery' },
+    in_transit: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'بالطريق للفرع', labelEn: 'In Transit' },
     in_receiving: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500', labelAr: 'قيد الاستلام', labelEn: 'In Receiving' },
     delivery: { bg: 'bg-orange-50 dark:bg-orange-950/30', text: 'text-orange-700 dark:text-orange-400', dot: 'bg-orange-500', labelAr: 'تسليم', labelEn: 'Delivery' },
     delivered: { bg: 'bg-teal-50 dark:bg-teal-950/30', text: 'text-teal-700 dark:text-teal-400', dot: 'bg-teal-500', labelAr: 'تم التسليم', labelEn: 'Delivered' },
@@ -122,6 +124,7 @@ const STAGE_ACCENT: Record<string, string> = {
     confirmed: 'border-s-green-400',
     posted: 'border-s-emerald-400',
     in_delivery: 'border-s-sky-400',
+    in_transit: 'border-s-indigo-400',
     in_receiving: 'border-s-cyan-400',
     delivery: 'border-s-orange-400',
     delivered: 'border-s-teal-400',
@@ -299,7 +302,7 @@ export default function SalesCycleList() {
 
             let q = supabase
                 .from('sales_transactions')
-                .select('*')
+                .select('*, items:sales_transaction_items(*)')
                 .eq('company_id', companyId)
                 .eq('is_active', true)
                 .order('created_at', { ascending: false });
@@ -352,12 +355,12 @@ export default function SalesCycleList() {
             });
         },
         enabled: !!companyId,
-        staleTime: 30_000,
+        staleTime: 2 * 60 * 1000,   // 2 minutes — Realtime handles live updates
     });
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const documents = salesCycleQuery.data ?? [];
-    const isLoading = !!tenantId && !!companyId && salesCycleQuery.isPending;
+    const isLoading = !!tenantId && !!companyId && salesCycleQuery.isLoading;
     const error = salesCycleQuery.error;
     const refetch = salesCycleQuery.refetch;
 
@@ -376,7 +379,7 @@ export default function SalesCycleList() {
         reservation: ['reservation'],
         order: ['order'],
         confirmed: ['confirmed', 'in_receiving', 'partially_received', 'fully_received'],
-        delivery: ['in_delivery', 'delivery', 'delivered', 'posted', 'completed'],
+        delivery: ['in_delivery', 'in_transit', 'delivery', 'delivered', 'posted', 'completed'],
         invoice: ['invoice', 'invoiced', 'paid', 'partial_paid', 'partially_paid', 'closed'],
         return: ['return', 'cancelled'],
     }), []);
@@ -466,42 +469,27 @@ export default function SalesCycleList() {
         }, 0);
     }, [displayDocuments, convertAmount, activeCurrency]);
 
-    // ─── Parse notes JSON to extract cart items ───
+    // ─── Extract items from document data ───
     const parseDocumentItems = useCallback((doc: SalesDocument): any[] => {
         try {
             const raw = doc._rawData;
-            // Priority 1: items array from fetchById (includes delivery_rolls)
+            // Only use items already fetched from DB (sales_transaction_items)
             if (raw?.items && Array.isArray(raw.items) && raw.items.length > 0) {
                 return raw.items;
             }
-            // Priority 2: items serialized in notes JSON
-            if (!raw?.notes) return [];
-            const parsed = typeof raw.notes === 'string' ? JSON.parse(raw.notes) : raw.notes;
-            if (parsed?._source === 'cart' && Array.isArray(parsed.items)) {
-                return parsed.items;
-            }
+            // Return empty — UnifiedAccountingSheet auto-fetches items
             return [];
         } catch {
             return [];
         }
     }, []);
 
-    const handleRowClick = async (row: SalesDocument) => {
-        // For delivered/posted invoices, fetch full data with delivery rolls
-        if (row.id && ['delivered', 'posted', 'in_delivery', 'completed'].includes(row.stage || '')) {
-            const fullDoc = await salesTransactionService.fetchById(row.id);
-            if (fullDoc) {
-                setSelectedDoc({
-                    ...row,
-                    _rawData: { ...row._rawData, ...fullDoc, items: fullDoc.items },
-                });
-                setDocMode('view');
-                setIsSheetOpen(true);
-                return;
-            }
-        }
+    const handleRowClick = (row: SalesDocument) => {
+        // Open sheet IMMEDIATELY — items are auto-fetched by UnifiedAccountingSheet
         setSelectedDoc(row);
-        setDocMode('view');
+        // Drafts open directly in edit mode (auto-save handles persistence)
+        // Non-drafts open in view mode (need explicit edit action)
+        setDocMode(row.stage === 'draft' ? 'edit' : 'view');
         setIsSheetOpen(true);
     };
 
@@ -517,7 +505,7 @@ export default function SalesCycleList() {
     // ─── Save (update) existing document in sales_transactions ───
     const handleDocumentSave = useCallback(async (docData: any) => {
         if (!selectedDoc?.id) {
-            toast.error(isRTL ? 'لا يمكن الحفظ — المستند غير محدد' : 'Cannot save — document not identified');
+            toast.error(t('salesCycle.cannotSave'));
             return;
         }
 
@@ -558,20 +546,20 @@ export default function SalesCycleList() {
                 await salesTransactionService.replaceItems(selectedDoc.id, docData.items);
             }
 
-            toast.success(isRTL ? 'تم حفظ المستند بنجاح ✅' : 'Document saved successfully ✅');
+            toast.success(t('salesCycle.documentSaved'));
             queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
             setIsSheetOpen(false);
             setSelectedDoc(null);
         } catch (err: any) {
             console.error('Save error:', err);
-            toast.error(isRTL ? `خطأ في الحفظ: ${err.message}` : `Save error: ${err.message}`);
+            toast.error(`${t('salesCycle.saveError')}: ${err.message}`);
         }
     }, [selectedDoc, isRTL, queryClient]);
 
     // ─── Create new document using salesTransactionService ───
     const handleCreateSave = useCallback(async (docData: any) => {
         if (!companyId) {
-            toast.error(isRTL ? 'لا يوجد شركة محددة' : 'No company selected');
+            toast.error(t('salesCycle.noCompany'));
             return;
         }
 
@@ -607,13 +595,13 @@ export default function SalesCycleList() {
                 await salesTransactionService.addItems(transaction.id, docData.items);
             }
 
-            toast.success(isRTL ? 'تم إنشاء المستند بنجاح ✅' : 'Document created successfully ✅');
+            toast.success(t('salesCycle.documentCreated'));
             queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
             setIsSheetOpen(false);
             setSelectedDoc(null);
         } catch (err: any) {
             console.error('Create error:', err);
-            toast.error(isRTL ? `خطأ في الإنشاء: ${err.message}` : `Create error: ${err.message}`);
+            toast.error(`${t('salesCycle.createError')}: ${err.message}`);
         }
     }, [companyId, activeCurrency, isRTL, queryClient]);
 
@@ -645,7 +633,7 @@ export default function SalesCycleList() {
     const kanbanColumns = useMemo(() => [
         {
             id: 'draft',
-            title: isRTL ? 'مسودة' : 'Draft',
+            title: t('salesCycle.draft'),
             color: 'border-gray-400',
             bgColor: 'bg-gray-50/40',
             accentHex: '#9ca3af',
@@ -653,7 +641,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'quotation',
-            title: isRTL ? 'عروض الأسعار' : 'Quotations',
+            title: t('salesCycle.quotations'),
             color: 'border-purple-500',
             bgColor: 'bg-purple-50/40',
             accentHex: '#9333ea',
@@ -661,7 +649,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'reservation',
-            title: isRTL ? 'الحجوزات' : 'Reservations',
+            title: t('salesCycle.reservations'),
             color: 'border-cyan-500',
             bgColor: 'bg-cyan-50/40',
             accentHex: '#0891b2',
@@ -669,7 +657,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'order',
-            title: isRTL ? 'أوامر البيع' : 'Orders',
+            title: t('salesCycle.orders'),
             color: 'border-blue-500',
             bgColor: 'bg-blue-50/40',
             accentHex: '#2563eb',
@@ -677,7 +665,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'confirmed',
-            title: isRTL ? 'فاتورة مؤكدة' : 'Confirmed',
+            title: t('salesCycle.confirmed'),
             color: 'border-green-500',
             bgColor: 'bg-green-50/40',
             accentHex: '#16a34a',
@@ -685,7 +673,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'delivery',
-            title: isRTL ? 'المسلّمة' : 'Delivered',
+            title: t('salesCycle.delivered'),
             color: 'border-teal-500',
             bgColor: 'bg-teal-50/40',
             accentHex: '#0d9488',
@@ -693,7 +681,7 @@ export default function SalesCycleList() {
         },
         {
             id: 'invoice',
-            title: isRTL ? 'فاتورة' : 'Invoice',
+            title: t('salesCycle.invoice'),
             color: 'border-indigo-500',
             bgColor: 'bg-indigo-50/40',
             accentHex: '#4f46e5',
@@ -701,13 +689,13 @@ export default function SalesCycleList() {
         },
         {
             id: 'return',
-            title: isRTL ? 'المرتجعات' : 'Returns',
+            title: t('salesCycle.returns'),
             color: 'border-rose-500',
             bgColor: 'bg-rose-50/40',
             accentHex: '#e11d48',
             icon: <RotateCcw className="w-4 h-4 text-rose-600" />,
         },
-    ], [isRTL]);
+    ], [isRTL, t]);
 
     // Kanban items — use STAGE_TO_CYCLE for correct column placement
     const kanbanItems = useMemo(() =>
@@ -751,7 +739,7 @@ export default function SalesCycleList() {
                             onClick={() => handleSetViewMode('list')}
                         >
                             <List className="w-4 h-4" />
-                            {isRTL ? 'جدول' : 'List'}
+                            {t('salesCycle.list')}
                         </Button>
                         <Button
                             variant="ghost"
@@ -784,12 +772,12 @@ export default function SalesCycleList() {
                                 }`}
                         >
                             <Plus className="w-4 h-4" />
-                            {activeTab === 'invoice' ? (isRTL ? 'فاتورة مبيعات' : 'New Invoice') :
-                                activeTab === 'quotation' ? (isRTL ? 'عرض سعر' : 'New Quotation') :
-                                    activeTab === 'delivery' ? (isRTL ? 'إذن تسليم' : 'New Delivery') :
-                                        activeTab === 'reservation' ? (isRTL ? 'حجز بضائع' : 'New Reservation') :
-                                            activeTab === 'return' ? (isRTL ? 'مرتجع مبيعات' : 'New Return') :
-                                                (isRTL ? 'أمر بيع جديد' : 'New Order')}
+                            {activeTab === 'invoice' ? t('salesCycle.newInvoice') :
+                                activeTab === 'quotation' ? t('salesCycle.newQuotation') :
+                                    activeTab === 'delivery' ? t('salesCycle.newDelivery') :
+                                        activeTab === 'reservation' ? t('salesCycle.newReservation') :
+                                            activeTab === 'return' ? t('salesCycle.newReturn') :
+                                                t('salesCycle.newOrder')}
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -804,27 +792,27 @@ export default function SalesCycleList() {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">{isRTL ? 'إنشاء مستند جديد' : 'Create New Document'}</DropdownMenuLabel>
+                                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">{t('salesCycle.createNewDocument')}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleCreate('quotation')} className="gap-2 cursor-pointer py-2.5">
                                     <div className="p-1 bg-purple-100 rounded text-purple-600"><FileText className="w-3.5 h-3.5" /></div>
-                                    <span className="font-medium text-sm">{isRTL ? 'عرض سعر' : 'Quotation'}</span>
+                                    <span className="font-medium text-sm">{t('salesCycle.quotation')}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCreate('reservation')} className="gap-2 cursor-pointer py-2.5">
                                     <div className="p-1 bg-cyan-100 rounded text-cyan-600"><Package className="w-3.5 h-3.5" /></div>
-                                    <span className="font-medium text-sm">{isRTL ? 'حجز بضائع' : 'Reservation'}</span>
+                                    <span className="font-medium text-sm">{t('salesCycle.reservation')}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCreate('order')} className="gap-2 cursor-pointer py-2.5 bg-blue-50/50">
                                     <div className="p-1 bg-blue-100 rounded text-blue-600"><ShoppingCart className="w-3.5 h-3.5" /></div>
-                                    <span className="font-medium text-sm">{isRTL ? 'أمر بيع' : 'Sales Order'}</span>
+                                    <span className="font-medium text-sm">{t('salesCycle.salesOrder')}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCreate('delivery')} className="gap-2 cursor-pointer py-2.5">
                                     <div className="p-1 bg-orange-100 rounded text-orange-600"><Truck className="w-3.5 h-3.5" /></div>
-                                    <span className="font-medium text-sm">{isRTL ? 'إذن تسليم' : 'Delivery Note'}</span>
+                                    <span className="font-medium text-sm">{t('salesCycle.deliveryNote')}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCreate('invoice')} className="gap-2 cursor-pointer py-2.5">
                                     <div className="p-1 bg-indigo-100 rounded text-indigo-600"><FileText className="w-3.5 h-3.5" /></div>
-                                    <span className="font-medium text-sm">{isRTL ? 'فاتورة مبيعات' : 'Sales Invoice'}</span>
+                                    <span className="font-medium text-sm">{t('salesCycle.salesInvoice')}</span>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -843,17 +831,17 @@ export default function SalesCycleList() {
                         return (
                             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full sm:w-auto" dir={direction}>
                                 <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
-                                    <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{isRTL ? 'الكل' : 'All'}{badge(total)}</TabsTrigger>
-                                    <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{isRTL ? 'مسودة' : 'Draft'}{badge(tabCounts.draft || 0)}</TabsTrigger>
-                                    <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">{isRTL ? 'عرض سعر' : 'Quotation'}{badge(tabCounts.quotation || 0)}</TabsTrigger>
-                                    <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-cyan-600 font-tajawal">{isRTL ? 'حجز' : 'Reserved'}{badge(tabCounts.reservation || 0)}</TabsTrigger>
-                                    <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">{isRTL ? 'أمر بيع' : 'Order'}{badge(tabCounts.order || 0)}</TabsTrigger>
-                                    <TabsTrigger value="confirmed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-green-600 font-tajawal">{isRTL ? 'فاتورة مؤكدة' : 'Confirmed'}{badge(tabCounts.confirmed || 0)}</TabsTrigger>
+                                    <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{t('salesCycle.all')}{badge(total)}</TabsTrigger>
+                                    <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">{t('salesCycle.draft')}{badge(tabCounts.draft || 0)}</TabsTrigger>
+                                    <TabsTrigger value="quotation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">{t('salesCycle.quotation')}{badge(tabCounts.quotation || 0)}</TabsTrigger>
+                                    <TabsTrigger value="reservation" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-cyan-600 font-tajawal">{t('salesCycle.reserved')}{badge(tabCounts.reservation || 0)}</TabsTrigger>
+                                    <TabsTrigger value="order" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">{t('salesCycle.order')}{badge(tabCounts.order || 0)}</TabsTrigger>
+                                    <TabsTrigger value="confirmed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-green-600 font-tajawal">{t('salesCycle.confirmed')}{badge(tabCounts.confirmed || 0)}</TabsTrigger>
                                     <TabsTrigger value="delivery" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-teal-600 font-tajawal">
                                         <Truck className="w-4 h-4 me-1.5" />
-                                        {isRTL ? 'المسلّمة' : 'Delivered'}{badge(tabCounts.delivery || 0)}
+                                        {t('salesCycle.delivered')}{badge(tabCounts.delivery || 0)}
                                     </TabsTrigger>
-                                    <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">{isRTL ? 'فاتورة' : 'Invoice'}{badge(tabCounts.invoice || 0)}</TabsTrigger>
+                                    <TabsTrigger value="invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">{t('salesCycle.invoice')}{badge(tabCounts.invoice || 0)}</TabsTrigger>
                                 </TabsList>
                             </Tabs>
                         );
@@ -1191,6 +1179,7 @@ export default function SalesCycleList() {
                         onOpenChange={handleSheetClose}
                         mode="sales"
                         type="invoice"
+                        initialMode={docMode}
                         initialData={docMode === 'create'
                             ? { type: newDocType, status: 'draft', stage: 'draft', currency: activeCurrency, date: new Date().toISOString() }
                             : selectedDoc ? {

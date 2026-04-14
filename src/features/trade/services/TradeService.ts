@@ -171,6 +171,8 @@ function buildItemRow(
         color_name: item.color_name || null,
         roll_id: item.roll_id || null,
         roll_code: item.roll_code || null,
+        // Warehouse
+        warehouse_id: item.warehouse_id || null,
     };
 
     // Route ID to proper column
@@ -843,7 +845,7 @@ export const TradeService = {
         }
 
         // ── إثراء البنود بالرولونات واسم المستودع (فواتير المبيعات المسلَّمة) ──
-        if (docType === 'invoice' && header?.stage && ['delivered', 'posted', 'in_delivery', 'completed', 'confirmed'].includes(header.stage) && items.length > 0) {
+        if (docType === 'invoice' && header?.stage && ['delivered', 'posted', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'completed', 'confirmed'].includes(header.stage) && items.length > 0) {
             let rollsByMat: Record<string, any[]> = {};
             let deliveryWarehouseNameAr: string | null = null;
             let deliveryWarehouseNameEn: string | null = null;
@@ -854,7 +856,7 @@ export const TradeService = {
                 const { data: deliveryNotes } = await supabase
                     .from('delivery_notes')
                     .select('id, warehouse_id')
-                    .eq('sales_order_id', docId);
+                    .eq('source_order_id', docId);
 
                 if (deliveryNotes && deliveryNotes.length > 0) {
                     // Warehouse name
@@ -901,10 +903,54 @@ export const TradeService = {
                 }
             } catch { /* ignore */ }
 
-            // الطريقة 2: (inventory_movements لا تحتوي على roll_id) — تُحذف
-            // يُعتمد على الطريقة 1 (delivery_notes) والطريقة 3 (fabric_rolls fallback)
+            // الطريقة 2: inventory_movements (تحتوي roll_id)
+            if (Object.keys(rollsByMat).length === 0) {
+                try {
+                    const { data: movements, error: movementsErr } = await supabase
+                        .from('inventory_movements')
+                        .select('roll_id, material_id, quantity')
+                        .eq('reference_id', docId)
+                        .eq('reference_type', 'sale_invoice')
+                        .not('roll_id', 'is', null);
 
-            // الطريقة 3: fallback
+                    if (movementsErr) console.error('[fetchById] ❌ Movements Method 2 Error:', movementsErr);
+                    console.log('[fetchById] 📦 Method 2 movements count:', movements?.length);
+
+                    if (movements && movements.length > 0) {
+                        const seenRolls = new Set<string>();
+                        const uniqueMovements = movements.filter((m: any) => {
+                            if (seenRolls.has(m.roll_id)) return false;
+                            seenRolls.add(m.roll_id);
+                            return true;
+                        });
+
+                        const rollIds = uniqueMovements.map((m: any) => m.roll_id);
+                        const { data: rollsData } = await supabase
+                            .from('fabric_rolls')
+                            .select('id, roll_number, current_length, status, material_id, color_name')
+                            .in('id', rollIds);
+                        const rollMap = new Map((rollsData || []).map((r: any) => [r.id, r]));
+
+                        for (const mv of uniqueMovements) {
+                            const matId = mv.material_id || rollMap.get(mv.roll_id)?.material_id;
+                            if (!matId) continue;
+                            const roll = rollMap.get(mv.roll_id);
+                            if (!rollsByMat[matId]) rollsByMat[matId] = [];
+                            rollsByMat[matId].push({
+                                roll_id: mv.roll_id,
+                                roll_number: roll?.roll_number || '',
+                                length: mv.quantity || roll?.current_length || 0,
+                                status: roll?.status || 'in_transit',
+                                color_name: roll?.color_name || undefined,
+                            });
+                        }
+                    }
+                } catch (e: any) { 
+                    console.error('[fetchById] ❌ Exception in Method 2:', e);
+                }
+            }
+
+            // الطريقة 3: fallback — fabric_rolls
             if (Object.keys(rollsByMat).length === 0) {
                 const matIds = [...new Set(items.map((i: any) => i.material_id).filter(Boolean))];
                 if (matIds.length > 0) {
@@ -912,7 +958,7 @@ export const TradeService = {
                         .from('fabric_rolls')
                         .select('id, roll_number, current_length, status, material_id, color_name')
                         .in('material_id', matIds)
-                        .in('status', ['sold', 'delivered']);
+                        .in('status', ['sold', 'delivered', 'in_transit']);
                     if (rolls && rolls.length > 0) {
                         for (const r of rolls) {
                             if (!rollsByMat[r.material_id]) rollsByMat[r.material_id] = [];
@@ -936,12 +982,18 @@ export const TradeService = {
             }
 
             // تطبيق الرولونات واسم المستودع على كل بند
-            items = items.map((item: any) => ({
-                ...item,
-                delivery_rolls: rollsByMat[item.material_id] || [],
-                warehouse_name_ar: deliveryWarehouseNameAr || item.warehouse_name_ar || null,
-                warehouse_name_en: deliveryWarehouseNameEn || item.warehouse_name_en || null,
-            }));
+            items = items.map((item: any) => {
+                const rolls = rollsByMat[item.material_id] || [];
+                const deliveredQty = rolls.reduce((s: number, r: any) => s + Number(r.length || 0), 0);
+                console.log(`[fetchById] 🛠️ Item ${item.material_id} - found ${rolls.length} rolls from methods.`);
+                return {
+                    ...item,
+                    delivery_rolls: rolls,
+                    delivered_qty: deliveredQty || item.delivered_qty || 0,
+                    warehouse_name_ar: deliveryWarehouseNameAr || item.warehouse_name_ar || null,
+                    warehouse_name_en: deliveryWarehouseNameEn || item.warehouse_name_en || null,
+                };
+            });
 
             // إضافة معلومات المستودع للـ header
             if (deliveryWarehouseNameAr) {
@@ -1000,7 +1052,7 @@ export const TradeService = {
             supplier_name: data.supplier_name || null,
             warehouse_id: data.warehouse_id || null,
             receipt_mode: data.receipt_mode || 'direct',
-            container_id: data.container_id || null,
+            container_id: (data as any).container_id || null,
             subtotal: Number(data.subtotal) || 0,
             discount_amount: Number(data.discount_amount) || 0,
             discount_percent: Number(data.discount_percent) || 0,

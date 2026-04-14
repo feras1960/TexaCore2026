@@ -17,6 +17,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { autoRollService } from '@/features/warehouse/services/autoRollService';
+import { warehouseLocalCache } from '@/features/warehouse/services/warehouseLocalCache';
+import { normalizeNumerals } from '@/lib/arabicNumeralNormalizer';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +38,7 @@ import {
     ScanLine, Trash2, Loader2, AlertTriangle, Search,
     PackageCheck, Cylinder, Info, Plus, Palette, Filter, Ruler,
 } from 'lucide-react';
+import { RollLabelPreviewDialog, type RollLabelData } from '@/features/warehouse/components/RollLabelPreviewDialog';
 
 // ═══════════════════════════════════════════════════════════════
 // 🔍 RollBrowser — متصفح الرولونات المتاحة (for edit mode only)
@@ -301,6 +304,9 @@ interface FabricRoll {
     qr_code?: string;
     rfid_tag?: string;
     barcode?: string;
+    /** 🔑 true = رولون مُنشأ تلقائياً (JIT) — يُحذف من DB عند الإزالة */
+    _isJIT?: boolean;
+    _delivered?: boolean;
 }
 
 export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryItemsTabProps) {
@@ -327,8 +333,28 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const [looseCreating, setLooseCreating] = useState(false);
     const looseLengthRef = useRef<HTMLInputElement>(null);
     const [looseMaterials, setLooseMaterials] = useState<Array<{ id: string; name_ar: string; name_en: string; loose_stock: number; current_stock: number }>>([]);
+
+    // ═══ JIT Roll Label Preview Dialog State ═══
+    const [showJITPreview, setShowJITPreview] = useState(false);
+    const [pendingJITRoll, setPendingJITRoll] = useState<FabricRoll | null>(null);
+    const [pendingJITLabel, setPendingJITLabel] = useState<RollLabelData | null>(null);
+    const [pendingJITRemaining, setPendingJITRemaining] = useState<number | null>(null);
+    // 🔑 Track auto-created rolls for cleanup on removal
+    const jitCreatedIdsRef = useRef<Set<string>>(new Set());
     const [loadingLooseMats, setLoadingLooseMats] = useState(false);
     const [showAllLooseMats, setShowAllLooseMats] = useState(false);
+
+    // ═══ Toggle for Loose Stock Section (persisted in localStorage) ═══
+    const [showLooseSection, setShowLooseSection] = useState(() => {
+        try { return localStorage.getItem('delivery_show_loose') !== 'false'; } catch { return true; }
+    });
+    const toggleLooseSection = useCallback(() => {
+        setShowLooseSection(prev => {
+            const next = !prev;
+            try { localStorage.setItem('delivery_show_loose', String(next)); } catch { }
+            return next;
+        });
+    }, []);
 
     // Source document items (declared early — used by useEffects below)
     const sourceItems: InvoiceItem[] = useMemo(() => {
@@ -337,22 +363,34 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
 
     const warehouseId = data?.warehouse_id;
 
-    // ═══ Fetch materials with loose stock ═══
+    // ═══ Fetch materials with loose stock (LOCAL-FIRST) ═══
     useEffect(() => {
         if (!companyId || isViewMode) return;
-        setLoadingLooseMats(true);
-        autoRollService.getMaterialsWithLooseStock(companyId, warehouseId)
-            .then(mats => {
-                setLooseMaterials(mats);
-                console.log(`[LooseStock] 📦 Found ${mats.length} materials with loose stock`);
+
+        // 1. Instant load from local cache
+        const { data: cached, isStale } = warehouseLocalCache.getLooseMaterials(companyId, warehouseId);
+        if (cached.length > 0) {
+            setLooseMaterials(cached);
+            setLoadingLooseMats(false);
+            console.log(`[LooseStock] ⚡ Loaded ${cached.length} materials from cache${isStale ? ' (stale)' : ''}`);
+        } else {
+            setLoadingLooseMats(true);
+        }
+
+        // 2. Background refresh from Supabase
+        warehouseLocalCache.refreshLooseMaterials(companyId, warehouseId)
+            .then(fresh => {
+                setLooseMaterials(fresh);
+                setLoadingLooseMats(false);
+                console.log(`[LooseStock] ☁️ Synced ${fresh.length} materials from Supabase`);
             })
-            .finally(() => setLoadingLooseMats(false));
+            .catch(() => setLoadingLooseMats(false));
     }, [companyId, warehouseId, isViewMode]);
 
-    // Refresh loose materials list after creating a roll
+    // Refresh loose materials — updates cache + state
     const refreshLooseMaterials = useCallback(() => {
         if (!companyId) return;
-        autoRollService.getMaterialsWithLooseStock(companyId, warehouseId)
+        warehouseLocalCache.refreshLooseMaterials(companyId, warehouseId)
             .then(mats => setLooseMaterials(mats));
     }, [companyId, warehouseId]);
 
@@ -376,11 +414,21 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     }, [filteredLooseMats, showAllLooseMats, looseMatId]);
 
     // ═══ Sync selectedRolls when parent restores draft OR delivered rolls ═══
+    // Also detect JIT rolls by source_type and re-track them
     useEffect(() => {
         const parentRolls = data?.selected_rolls;
         if (parentRolls && parentRolls.length > 0 && selectedRolls.length === 0) {
             console.log(`[ItemsTab] 📂 Syncing ${parentRolls.length} rolls from parent`);
             setSelectedRolls(parentRolls);
+
+            // Re-track JIT rolls from restored draft
+            const jitIds = parentRolls
+                .filter((r: any) => r._isJIT || r.status === 'reserved')
+                .map((r: any) => r.id);
+            if (jitIds.length > 0) {
+                jitIds.forEach((id: string) => jitCreatedIdsRef.current.add(id));
+                console.log(`[ItemsTab] 🔄 Re-tracked ${jitIds.length} JIT rolls`);
+            }
         }
     }, [data?.selected_rolls]);
 
@@ -465,23 +513,42 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                     initial_length: roll.current_length,
                     net_length: roll.net_length,
                     status: roll.status,
+                    _isJIT: true,  // 🔑 Mark as auto-created
                     warehouse_id: roll.warehouse_id,
                 };
-                const updated = [...selectedRolls, newRoll];
-                setSelectedRolls(updated);
-                notifyParent(updated);
 
                 const mat = looseMaterials.find(m => m.id === looseMatId);
                 const matName = mat ? (language === 'ar' ? (mat.name_ar || mat.name_en) : (mat.name_en || mat.name_ar)) : '';
-                toast.success(tl(
-                    `✅ تم إنشاء رولون ${roll.roll_number} (${Number(looseLength).toFixed(1)} م) — ${matName} | المتبقي السائب: ${remainingLooseStock?.toFixed(1) || '?'} م`,
-                    `✅ Created ${roll.roll_number} (${Number(looseLength).toFixed(1)}m) — ${matName} | Remaining loose: ${remainingLooseStock?.toFixed(1) || '?'}m`
-                ));
+
+                // Store pending roll and show label preview dialog
+                setPendingJITRoll(newRoll);
+                setPendingJITLabel({
+                    rollNumber: roll.roll_number,
+                    materialName: matName,
+                    colorName: roll.color_name || looseColorName || undefined,
+                    rollLength: roll.net_length || roll.current_length,
+                    extraInfo: [
+                        { label: tl('المرجع:', 'Reference:'), value: data?.invoice_no || data?.draft_no || '—' },
+                        { label: tl('المتبقي السائب:', 'Remaining loose:'), value: `${remainingLooseStock?.toFixed(1) || '?'} ${tl('م', 'm')}` },
+                    ],
+                });
+                setPendingJITRemaining(remainingLooseStock ?? null);
+                setShowJITPreview(true);
 
                 setLooseLength('');
-                // Refresh loose materials list (loose_stock changed)
-                refreshLooseMaterials();
-                setTimeout(() => looseLengthRef.current?.focus(), 150);
+
+                // ⚡ INSTANT: Deduct from local looseMaterials for instant UI
+                const deducted = Number(looseLength);
+                setLooseMaterials(prev => prev.map(m =>
+                    m.id === looseMatId
+                        ? { ...m, loose_stock: Math.max(0, m.loose_stock - deducted) }
+                        : m
+                ));
+                // Also persist to localStorage cache
+                warehouseLocalCache.adjustLooseStock(companyId!, warehouseId, looseMatId, -deducted);
+
+                // ☁️ DELAYED BACKGROUND: Give DB time to process before re-syncing
+                setTimeout(() => refreshLooseMaterials(), 3000);
             }
         } catch (err) {
             console.error('[LooseStock] Error:', err);
@@ -491,31 +558,82 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
         }
     }, [looseMatId, looseColorId, looseColorName, looseLength, tenantId, companyId, warehouseId, selectedRolls, looseMaterials, language, data, tl, refreshLooseMaterials]);
 
-    // ═══ Fetch available rolls for a material (only in edit mode) ═══
+    // ═══ Confirm JIT Roll from Preview Dialog ═══
+    const handleConfirmJITRoll = useCallback((shouldPrint: boolean) => {
+        if (!pendingJITRoll) return;
+
+        // Add the roll to selection
+        const updated = [...selectedRolls, pendingJITRoll];
+        setSelectedRolls(updated);
+        notifyParent(updated);
+
+        // Track this roll as auto-created
+        jitCreatedIdsRef.current.add(pendingJITRoll.id);
+
+        toast.success(tl(
+            `✅ تم إضافة رولون ${pendingJITRoll.roll_number} (${(pendingJITRoll.net_length || pendingJITRoll.current_length || 0).toFixed(1)} م)`,
+            `✅ Added roll ${pendingJITRoll.roll_number} (${(pendingJITRoll.net_length || pendingJITRoll.current_length || 0).toFixed(1)}m)`
+        ));
+
+        if (shouldPrint) {
+            // TODO: trigger actual print via window.print() or print service
+            console.log('[JIT Print] 🖨️ Print label for:', pendingJITRoll.roll_number);
+        }
+
+        // Cleanup
+        setShowJITPreview(false);
+        setPendingJITRoll(null);
+        setPendingJITLabel(null);
+        setPendingJITRemaining(null);
+        setTimeout(() => looseLengthRef.current?.focus(), 150);
+    }, [pendingJITRoll, selectedRolls, tl]);
+
+    // ═══ Cancel JIT Roll — if user cancels, delete the JIT roll from DB ═══
+    const handleCancelJITRoll = useCallback(async (open: boolean) => {
+        if (!open && pendingJITRoll) {
+            // User cancelled — delete the JIT roll from DB to return loose stock
+            const deleted = await autoRollService.deleteAutoRoll(pendingJITRoll.id);
+            if (deleted) {
+                // ⚡ INSTANT: Return length to local looseMaterials
+                const returnedLength = pendingJITRoll.net_length || pendingJITRoll.current_length || 0;
+                setLooseMaterials(prev => prev.map(m =>
+                    m.id === pendingJITRoll.material_id
+                        ? { ...m, loose_stock: m.loose_stock + returnedLength }
+                        : m
+                ));
+                // Also persist to localStorage cache
+                warehouseLocalCache.adjustLooseStock(companyId!, warehouseId, pendingJITRoll.material_id, returnedLength);
+
+                toast.info(tl(
+                    `🗑️ تم إلغاء الرولون ${pendingJITRoll.roll_number} وإرجاع الكمية للمخزون السائب`,
+                    `🗑️ Cancelled ${pendingJITRoll.roll_number} — returned to loose stock`
+                ));
+                setTimeout(() => refreshLooseMaterials(), 3000);
+            }
+            setPendingJITRoll(null);
+            setPendingJITLabel(null);
+            setPendingJITRemaining(null);
+        }
+        setShowJITPreview(open);
+    }, [pendingJITRoll, tl, refreshLooseMaterials]);
+
+    // ═══ Fetch available rolls for a material (LOCAL-FIRST, edit mode only) ═══
     const fetchRollsForMaterial = useCallback(async (materialId: string) => {
         if (!materialId || !warehouseId || isViewMode) return;
-        setLoadingRolls(prev => ({ ...prev, [materialId]: true }));
 
+        // 1. Instant load from cache
+        const { data: cached, isStale } = warehouseLocalCache.getAvailableRolls(materialId, warehouseId);
+        if (cached.length > 0) {
+            setAvailableRolls(prev => ({ ...prev, [materialId]: cached as any }));
+            if (!isStale) return; // Fresh cache — no need to refresh
+        } else {
+            setLoadingRolls(prev => ({ ...prev, [materialId]: true }));
+        }
+
+        // 2. Background refresh from Supabase
         try {
-            const { data: rolls, error } = await supabase
-                .from('fabric_rolls')
-                .select('id, roll_number, material_id, color_id, current_length, available_length, initial_length, status, warehouse_id, qr_code, rfid_tag, barcode, fabric_colors!color_id(name_ar, name_en)')
-                .eq('material_id', materialId)
-                .eq('warehouse_id', warehouseId)
-                .eq('status', 'available')
-                .order('roll_number');
-
-            if (error) {
-                console.warn('fetchRollsForMaterial error:', error.message);
-            } else {
-                const mapped = (rolls || []).map((r: any) => ({
-                    ...r,
-                    color_name: r.fabric_colors?.name_ar || r.fabric_colors?.name_en || '',
-                    net_length: Number(r.current_length) || 0,
-                    fabric_colors: undefined,
-                }));
-                setAvailableRolls(prev => ({ ...prev, [materialId]: mapped }));
-            }
+            const fresh = await warehouseLocalCache.refreshAvailableRolls(materialId, warehouseId);
+            setAvailableRolls(prev => ({ ...prev, [materialId]: fresh as any }));
         } catch (err) {
             console.error('fetchRollsForMaterial:', err);
         } finally {
@@ -544,23 +662,40 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
         notifyParent(updated);
     }, [selectedRolls]);
 
-    // ═══ Remove roll from selection (with JIT DB cleanup) ═══
+    // ═══ Remove roll from selection (with auto-created DB cleanup) ═══
     const removeRoll = useCallback(async (rollId: string) => {
         const rollToRemove = selectedRolls.find(r => r.id === rollId);
         const updated = selectedRolls.filter(r => r.id !== rollId);
         setSelectedRolls(updated);
         notifyParent(updated);
 
-        // If it's a JIT roll, also delete from DB
-        if (rollToRemove?.roll_number?.startsWith('JIT-')) {
-            const deleted = await autoRollService.deleteJITRoll(rollId);
+        // If it's an auto-created roll (tracked in this session), delete from DB
+        if (jitCreatedIdsRef.current.has(rollId)) {
+            const deleted = await autoRollService.deleteAutoRoll(rollId);
             if (deleted) {
+                jitCreatedIdsRef.current.delete(rollId);
+
+                // ⚡ INSTANT: Update looseMaterials locally — add length back
+                if (rollToRemove) {
+                    const returnedLength = rollToRemove.net_length || rollToRemove.current_length || 0;
+                    setLooseMaterials(prev => prev.map(m =>
+                        m.id === rollToRemove.material_id
+                            ? { ...m, loose_stock: m.loose_stock + returnedLength }
+                            : m
+                    ));
+                    // Also persist to localStorage cache
+                    warehouseLocalCache.adjustLooseStock(companyId!, warehouseId, rollToRemove.material_id, returnedLength);
+                }
+
                 toast.success(tl(
-                    `🗑️ تم حذف الرولون ${rollToRemove.roll_number} وإرجاع الكمية للمخزون السائب`,
-                    `🗑️ Deleted ${rollToRemove.roll_number} — returned to loose stock`
+                    `🗑️ تم حذف الرولون ${rollToRemove?.roll_number || ''} وإرجاع الكمية للمخزون السائب`,
+                    `🗑️ Deleted ${rollToRemove?.roll_number || ''} — returned to loose stock`
                 ));
-                // Refresh loose materials since stock changed
-                refreshLooseMaterials();
+
+                // ☁️ DELAYED BACKGROUND: Give DB time to process before re-syncing
+                setTimeout(() => refreshLooseMaterials(), 3000);
+            } else {
+                toast.error(tl('❌ فشل حذف الرولون من قاعدة البيانات', '❌ Failed to delete roll from database'));
             }
         }
     }, [selectedRolls, refreshLooseMaterials, tl]);
@@ -599,6 +734,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                 status: r.status,
                 warehouse_id: r.warehouse_id,
                 barcode: r.barcode,
+                _isJIT: r._isJIT || jitCreatedIdsRef.current.has(r.id) || false,
             })),
             warehouse_id: warehouseId,
             saved_at: new Date().toISOString(),
@@ -766,122 +902,144 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                 </div>
             )}
 
-            {/* ═══ Loose Stock Entry Row — إنشاء رولون من المخزون السائب ═══ */}
+            {/* ═══ Loose Stock Toggle + Collapsible Section ═══ */}
             {!isViewMode && (
-                <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 border-b border-amber-200/50">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Ruler className="w-4 h-4 text-amber-600" />
-                        <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
-                            {tl('إنشاء رولون من المخزون السائب', 'Create roll from loose stock')}
+                <>
+                    {/* Toggle Button — always visible */}
+                    <button
+                        onClick={toggleLooseSection}
+                        className="w-full px-4 py-1.5 border-b border-amber-200/50 bg-amber-50/50 dark:bg-amber-950/10 flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors text-start"
+                    >
+                        <Ruler className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                            {tl('إنشاء من السائب', 'Create from Loose')}
                         </span>
-                        <Badge variant="outline" className="text-[9px] h-4 bg-amber-100/50 text-amber-600 border-amber-200">
+                        <Badge variant="outline" className="text-[8px] h-[14px] px-1 bg-amber-100/50 text-amber-500 border-amber-200">
                             JIT
                         </Badge>
-                        {loadingLooseMats && <Loader2 className="w-3 h-3 animate-spin text-amber-500" />}
-                        {!loadingLooseMats && looseMaterials.length === 0 && (
-                            <span className="text-[10px] text-muted-foreground">
-                                {tl('لا توجد مواد بمخزون سائب', 'No materials with loose stock')}
-                            </span>
-                        )}
-                        {selectedLooseMat && (
-                            <Badge variant="secondary" className="text-[9px] h-4 bg-amber-200/50 text-amber-700">
-                                {tl(`المتاح: ${selectedLooseMat.loose_stock.toFixed(1)} م`, `Available: ${selectedLooseMat.loose_stock.toFixed(1)}m`)}
-                            </Badge>
-                        )}
                         <div className="flex-1" />
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowAllLooseMats(!showAllLooseMats)}
-                            className={`h-6 text-[10px] px-2 ${showAllLooseMats ? 'bg-amber-100 text-amber-700' : 'text-amber-600 hover:bg-amber-100 hover:text-amber-700'}`}
-                        >
-                            {showAllLooseMats ? tl('إظهار المواد المطلوبة فقط', 'Show required only') : tl('إظهار كل المواد', 'Show all')}
-                        </Button>
-                    </div>
-                    {filteredLooseMats.length > 0 && (
-                        <div className="flex items-end gap-2 flex-wrap">
-                            {/* Material */}
-                            <div className="flex-1 min-w-[140px] space-y-1">
-                                <Label className="text-[10px] text-amber-600">{tl('المادة', 'Material')}</Label>
-                                <Select value={looseMatId} onValueChange={(v) => { setLooseMatId(v); setLooseColorName(''); setLooseColorId(''); }}>
-                                    <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800 border-amber-200">
-                                        <SelectValue placeholder={tl('اختر المادة...', 'Select material...')} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {filteredLooseMats.map(m => (
-                                            <SelectItem key={m.id} value={m.id} className="text-xs">
-                                                <div className="flex items-center justify-between w-full gap-2">
-                                                    <span>{language === 'ar' ? (m.name_ar || m.name_en) : (m.name_en || m.name_ar)}</span>
-                                                    <span className="text-[10px] text-amber-600 font-mono">
-                                                        ({m.loose_stock.toFixed(1)} {tl('م', 'm')})
-                                                    </span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        {showLooseSection
+                            ? <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
+                            : <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
+                        }
+                    </button>
+
+                    {/* Collapsible content */}
+                    {showLooseSection && (
+                        <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 border-b border-amber-200/50">
+                            <div className="flex items-center gap-2 mb-2">
+                                {loadingLooseMats && <Loader2 className="w-3 h-3 animate-spin text-amber-500" />}
+                                {!loadingLooseMats && looseMaterials.length === 0 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                        {tl('لا توجد مواد بمخزون سائب', 'No materials with loose stock')}
+                                    </span>
+                                )}
+                                {selectedLooseMat && (
+                                    <Badge variant="secondary" className="text-[9px] h-4 bg-amber-200/50 text-amber-700">
+                                        {tl(`المتاح: ${selectedLooseMat.loose_stock.toFixed(1)} م`, `Available: ${selectedLooseMat.loose_stock.toFixed(1)}m`)}
+                                    </Badge>
+                                )}
+                                <div className="flex-1" />
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowAllLooseMats(!showAllLooseMats)}
+                                    className={`h-6 text-[10px] px-2 ${showAllLooseMats ? 'bg-amber-100 text-amber-700' : 'text-amber-600 hover:bg-amber-100 hover:text-amber-700'}`}
+                                >
+                                    {showAllLooseMats ? tl('المواد المطلوبة فقط', 'Required only') : tl('كل المواد', 'All materials')}
+                                </Button>
                             </div>
-                            {/* Color */}
-                            {looseColorOptions.length > 0 ? (
-                                <div className="min-w-[120px] space-y-1">
-                                    <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
-                                    <Select value={looseColorName} onValueChange={(v) => {
-                                        setLooseColorName(v);
-                                        const opt = looseColorOptions.find(o => o.name === v);
-                                        setLooseColorId(opt?.id || '');
-                                    }}>
-                                        <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800">
-                                            <SelectValue placeholder={tl('اللون...', 'Color...')} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {looseColorOptions.map(c => (
-                                                <SelectItem key={c.name} value={c.name} className="text-xs">
-                                                    {c.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                            {filteredLooseMats.length > 0 && (
+                                <div className="flex items-end gap-2 flex-wrap">
+                                    {/* Material */}
+                                    <div className="flex-1 min-w-[140px] space-y-1">
+                                        <Label className="text-[10px] text-amber-600">{tl('المادة', 'Material')}</Label>
+                                        <Select value={looseMatId} onValueChange={(v) => { setLooseMatId(v); setLooseColorName(''); setLooseColorId(''); }}>
+                                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800 border-amber-200">
+                                                <SelectValue placeholder={tl('اختر المادة...', 'Select material...')} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {filteredLooseMats.map(m => (
+                                                    <SelectItem key={m.id} value={m.id} className="text-xs">
+                                                        <div className="flex items-center justify-between w-full gap-2">
+                                                            <span>{language === 'ar' ? (m.name_ar || m.name_en) : (m.name_en || m.name_ar)}</span>
+                                                            <span className="text-[10px] text-amber-600 font-mono">
+                                                                ({m.loose_stock.toFixed(1)} {tl('م', 'm')})
+                                                            </span>
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {/* Color */}
+                                    {looseColorOptions.length > 0 ? (
+                                        <div className="min-w-[120px] space-y-1">
+                                            <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
+                                            <Select value={looseColorName} onValueChange={(v) => {
+                                                setLooseColorName(v);
+                                                const opt = looseColorOptions.find(o => o.name === v);
+                                                setLooseColorId(opt?.id || '');
+                                            }}>
+                                                <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-800">
+                                                    <SelectValue placeholder={tl('اللون...', 'Color...')} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {looseColorOptions.map(c => (
+                                                        <SelectItem key={c.name} value={c.name} className="text-xs">
+                                                            {c.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : looseMatId ? (
+                                        <div className="min-w-[120px] space-y-1">
+                                            <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
+                                            <Input
+                                                value={looseColorName}
+                                                onChange={(e) => setLooseColorName(e.target.value)}
+                                                placeholder={tl('اسم اللون...', 'Color name...')}
+                                                className="h-9 text-xs bg-white dark:bg-slate-800"
+                                            />
+                                        </div>
+                                    ) : null}
+                                    {/* Length */}
+                                    <div className="w-[100px] space-y-1">
+                                        <Label className="text-[10px] text-amber-600">{tl('الطول (م)', 'Length (m)')}</Label>
+                                        <Input
+                                            ref={looseLengthRef}
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={looseLength}
+                                            onChange={(e) => {
+                                                // Normalize Arabic/Persian numerals → English
+                                                const normalized = normalizeNumerals(e.target.value);
+                                                // Allow only valid decimal input
+                                                if (normalized === '' || /^\d*\.?\d*$/.test(normalized)) {
+                                                    setLooseLength(normalized);
+                                                }
+                                            }}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateLooseRoll(); } }}
+                                            placeholder="0.0"
+                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-800 text-center"
+                                        />
+                                    </div>
+                                    {/* Create Button */}
+                                    <Button
+                                        size="sm"
+                                        disabled={!looseMatId || !looseLength || Number(looseLength) <= 0 || looseCreating}
+                                        onClick={handleCreateLooseRoll}
+                                        className="h-9 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs"
+                                    >
+                                        {looseCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                        {tl('إنشاء وتسليم', 'Create & Deliver')}
+                                    </Button>
                                 </div>
-                            ) : looseMatId ? (
-                                <div className="min-w-[120px] space-y-1">
-                                    <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
-                                    <Input
-                                        value={looseColorName}
-                                        onChange={(e) => setLooseColorName(e.target.value)}
-                                        placeholder={tl('اسم اللون...', 'Color name...')}
-                                        className="h-9 text-xs bg-white dark:bg-slate-800"
-                                    />
-                                </div>
-                            ) : null}
-                            {/* Length */}
-                            <div className="w-[100px] space-y-1">
-                                <Label className="text-[10px] text-amber-600">{tl('الطول (م)', 'Length (m)')}</Label>
-                                <Input
-                                    ref={looseLengthRef}
-                                    type="number"
-                                    step="0.1"
-                                    min="0.1"
-                                    max={selectedLooseMat?.loose_stock}
-                                    value={looseLength}
-                                    onChange={(e) => setLooseLength(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateLooseRoll(); } }}
-                                    placeholder="0.0"
-                                    className="h-9 text-xs font-mono bg-white dark:bg-slate-800"
-                                />
-                            </div>
-                            {/* Create Button */}
-                            <Button
-                                size="sm"
-                                disabled={!looseMatId || !looseLength || Number(looseLength) <= 0 || looseCreating}
-                                onClick={handleCreateLooseRoll}
-                                className="h-9 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs"
-                            >
-                                {looseCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                                {tl('إنشاء وتسليم', 'Create & Deliver')}
-                            </Button>
+                            )}
                         </div>
                     )}
-                </div>
+                </>
             )}
 
             {/* ═══ viewMode: Delivered banner ═══ */}
@@ -1014,24 +1172,36 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                             </Badge>
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {deliveredRolls.map(roll => (
-                                                <div
-                                                    key={roll.id}
-                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 transition-colors group"
-                                                >
-                                                    <span className="font-mono font-bold">({(roll.net_length || 0).toFixed(1)})</span>
-                                                    <span className="font-mono">{roll.roll_number}</span>
-                                                    {!isViewMode && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); removeRoll(roll.id); }}
-                                                            className="w-3.5 h-3.5 flex items-center justify-center rounded-full text-green-500 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors opacity-60 group-hover:opacity-100"
-                                                            title={tl('إزالة', 'Remove')}
-                                                        >
-                                                            ✕
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
+                                            {deliveredRolls.map(roll => {
+                                                const isJIT = roll._isJIT || jitCreatedIdsRef.current.has(roll.id);
+                                                return (
+                                                    <div
+                                                        key={roll.id}
+                                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-colors group ${
+                                                            isJIT
+                                                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                                                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
+                                                        }`}
+                                                    >
+                                                        {isJIT && (
+                                                            <span className="text-[8px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1 rounded">JIT</span>
+                                                        )}
+                                                        <span className="font-mono font-bold">({(roll.net_length || 0).toFixed(1)})</span>
+                                                        <span className="font-mono">{roll.roll_number}</span>
+                                                        {!isViewMode && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); removeRoll(roll.id); }}
+                                                                className={`w-3.5 h-3.5 flex items-center justify-center rounded-full hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors opacity-60 group-hover:opacity-100 ${
+                                                                    isJIT ? 'text-amber-500' : 'text-green-500'
+                                                                }`}
+                                                                title={isJIT ? tl('حذف الرولون المؤقت', 'Delete temporary roll') : tl('إزالة من التسليم', 'Remove from delivery')}
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -1040,7 +1210,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                 {isExpanded && !isViewMode && (
                                     <div className="border-t bg-gray-50/50 dark:bg-slate-800/30">
                                         <RollBrowser
-                                            materialRolls={materialRolls}
+                                            materialRolls={materialRolls.filter(r => !selectedRolls.some(sr => sr.id === r.id))}
                                             isLoading={isLoading || false}
                                             selectedRolls={selectedRolls}
                                             onAddRoll={addRoll}
@@ -1099,6 +1269,17 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                     )}
                 </div>
             </div>
+
+            {/* ═══ JIT Roll Label Preview Dialog ═══ */}
+            <RollLabelPreviewDialog
+                open={showJITPreview}
+                onOpenChange={handleCancelJITRoll}
+                rollData={pendingJITLabel}
+                onConfirm={handleConfirmJITRoll}
+                loading={false}
+                defaultPrint={true}
+                context="delivery"
+            />
         </div>
     );
 }

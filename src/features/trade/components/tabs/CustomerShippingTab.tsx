@@ -376,7 +376,16 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
     // ═══ Select delivery method ═══
     function handleSelectMethod(methodId: string) {
         if (!isEditable) return;
-        onChange?.({ delivery_method: methodId });
+        const updates: any = { delivery_method: methodId };
+
+        // Auto-assign branch for store_pickup
+        if (methodId === 'store_pickup') {
+            // Use the branch that created this invoice
+            updates.receiving_branch_id = data?.branch_id || data?.warehouse_id || null;
+            updates.receiving_branch_name = data?.branch_name || null;
+        }
+
+        onChange?.(updates);
     }
 
     // ═══ Save address ═══
@@ -870,8 +879,8 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
                 </div>
             )}
 
-            {/* ═══ Section 1.3: Driver Selection (for store_pickup & direct_delivery) ═══ */}
-            {(selectedDeliveryMethod === 'store_pickup' || selectedDeliveryMethod === 'direct_delivery') && (
+            {/* ═══ Section 1.3: Driver Selection (for all methods except carrier) ═══ */}
+            {(selectedDeliveryMethod === 'store_pickup' || selectedDeliveryMethod === 'direct_delivery' || selectedDeliveryMethod === 'direct_pickup') && (
                 <div className="space-y-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                     <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
                         <User className="w-3.5 h-3.5" />
@@ -893,6 +902,7 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
                                             driver_id: driver.id,
                                             driver_name: driver.name_ar,
                                             driver_phone: driver.phone || '',
+                                            vehicle_number: driver.vehicle_number || '',
                                         });
                                     }
                                 }}
@@ -924,7 +934,7 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
 
                         {/* عرض بيانات السائق المختار */}
                         {data?.driver_name && (
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-0.5">
                                     <div className="text-[10px] text-gray-400">{language === 'ar' ? 'الاسم' : 'Name'}</div>
                                     <div className="text-sm font-medium bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border">
@@ -935,6 +945,12 @@ export function CustomerShippingTab({ data, mode, onChange }: CustomerShippingTa
                                     <div className="text-[10px] text-gray-400">{language === 'ar' ? 'الهاتف' : 'Phone'}</div>
                                     <div className="text-sm font-mono bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border" dir="ltr">
                                         {data.driver_phone || '—'}
+                                    </div>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <div className="text-[10px] text-gray-400">{language === 'ar' ? '🚗 رقم السيارة' : '🚗 Vehicle #'}</div>
+                                    <div className="text-sm font-mono bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border" dir="ltr">
+                                        {data.vehicle_number || '—'}
                                     </div>
                                 </div>
                             </div>

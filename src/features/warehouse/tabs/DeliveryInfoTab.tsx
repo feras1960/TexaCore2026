@@ -12,9 +12,10 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { supabase } from '@/lib/supabase';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -46,75 +47,79 @@ export function DeliveryInfoTab({ data, mode, onChange }: DeliveryInfoTabProps) 
     const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
     const isEditable = mode === 'create' || mode === 'edit';
 
-    // Customer data (fetched separately if needed)
-    const [customer, setCustomer] = useState<any>(null);
-    const [customerAddress, setCustomerAddress] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
+    // Wrap onChange to also notify parent (SalesDeliveryDialog) via onDeliveryDataChange
+    const handleChange = React.useCallback((updates: any) => {
+        onChange(updates);
+        // Propagate to SalesDeliveryDialog for header badge + DB persistence
+        if (typeof data?.onDeliveryDataChange === 'function') {
+            data.onDeliveryDataChange(updates);
+        }
+    }, [onChange, data?.onDeliveryDataChange]);
 
+    // Customer data — cached via React Query (no loading spinner on re-open)
     const customerId = data?.customer_id;
     const deliveryMethod = data?.delivery_method || 'store_pickup';
 
-    // ═══ Drivers list ═══
     const { companyId } = useAuth();
-    const [driversList, setDriversList] = useState<{ id: string; name_ar: string; phone?: string; vehicle_number?: string }[]>([]);
 
-    useEffect(() => {
-        if (!companyId) return;
-        supabase
-            .from('drivers')
-            .select('id, name_ar, phone, vehicle_number')
-            .eq('company_id', companyId)
-            .eq('status', 'active')
-            .order('name_ar')
-            .then(({ data: drv }) => setDriversList(drv || []));
-    }, [companyId]);
+    // ═══ Drivers list — cached ═══
+    const { data: driversList = [] } = useCachedQuery({
+        queryKey: ['delivery_drivers', companyId],
+        queryFn: async () => {
+            if (!companyId) return [];
+            const { data: drv } = await supabase
+                .from('drivers')
+                .select('id, name_ar, phone, vehicle_number')
+                .eq('company_id', companyId)
+                .eq('status', 'active')
+                .order('name_ar');
+            return drv || [];
+        },
+        enabled: !!companyId,
+        staleTime: 5 * 60 * 1000,  // 5 min
+        gcTime: 30 * 60 * 1000,    // 30 min
+    });
 
-    // ═══ Fetch customer data ═══
-    useEffect(() => {
-        if (!customerId) return;
+    // ═══ Customer data — cached ═══
+    const { data: customer = null } = useCachedQuery({
+        queryKey: ['delivery_customer', customerId],
+        queryFn: async () => {
+            if (!customerId) return null;
+            const { data: cust } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('id', customerId)
+                .maybeSingle();
+            return cust || null;
+        },
+        enabled: !!customerId,
+        staleTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+    });
 
-        const fetchCustomer = async () => {
-            setLoading(true);
-            try {
-                // Fetch from customers table
-                const { data: cust } = await supabase
-                    .from('customers')
-                    .select('*')
-                    .eq('id', customerId)
-                    .maybeSingle();
-
-                if (cust) setCustomer(cust);
-
-                // Fetch default address
-                const { data: addrs } = await supabase
-                    .from('customer_addresses')
-                    .select('*')
-                    .eq('customer_id', customerId)
-                    .order('is_default', { ascending: false })
-                    .limit(1);
-
-                if (addrs && addrs.length > 0) setCustomerAddress(addrs[0]);
-            } catch (err) {
-                console.warn('DeliveryInfoTab fetch error:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCustomer();
-    }, [customerId]);
+    // ═══ Customer address — cached ═══
+    const { data: customerAddress = null } = useCachedQuery({
+        queryKey: ['delivery_customer_address', customerId],
+        queryFn: async () => {
+            if (!customerId) return null;
+            const { data: addrs } = await supabase
+                .from('customer_addresses')
+                .select('*')
+                .eq('customer_id', customerId)
+                .order('is_default', { ascending: false })
+                .limit(1);
+            return addrs?.[0] || null;
+        },
+        enabled: !!customerId,
+        staleTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+    });
 
     // Current delivery method info
     const currentMethod = DELIVERY_METHODS.find(m => m.id === deliveryMethod) || DELIVERY_METHODS[0];
     const MethodIcon = currentMethod.icon;
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-            </div>
-        );
-    }
+
 
     return (
         <div className="p-4 space-y-5" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -136,7 +141,7 @@ export function DeliveryInfoTab({ data, mode, onChange }: DeliveryInfoTabProps) 
                                 type="button"
                                 onClick={() => {
                                     if (isEditable) {
-                                        onChange({ delivery_method: method.id });
+                                        handleChange({ delivery_method: method.id });
                                     }
                                 }}
                                 disabled={!isEditable}
@@ -231,7 +236,7 @@ export function DeliveryInfoTab({ data, mode, onChange }: DeliveryInfoTabProps) 
                                 onValueChange={(driverId) => {
                                     const driver = driversList.find(d => d.id === driverId);
                                     if (driver) {
-                                        onChange({
+                                        handleChange({
                                             driver_id: driver.id,
                                             driver_name: driver.name_ar,
                                             driver_phone: driver.phone || '',
@@ -284,7 +289,7 @@ export function DeliveryInfoTab({ data, mode, onChange }: DeliveryInfoTabProps) 
                             </Label>
                             <Input
                                 value={data?.receiving_branch_name || ''}
-                                onChange={(e) => onChange({ receiving_branch_name: e.target.value })}
+                                onChange={(e) => handleChange({ receiving_branch_name: e.target.value })}
                                 disabled={!isEditable}
                                 placeholder={tl('اسم الفرع المستلم...', 'Receiving branch name...')}
                                 className="h-9 text-sm"
@@ -411,7 +416,7 @@ export function DeliveryInfoTab({ data, mode, onChange }: DeliveryInfoTabProps) 
                 </Label>
                 <Textarea
                     value={data?.delivery_notes || ''}
-                    onChange={(e) => onChange({ delivery_notes: e.target.value })}
+                    onChange={(e) => handleChange({ delivery_notes: e.target.value })}
                     disabled={!isEditable}
                     placeholder={tl('أضف ملاحظات خاصة بالتسليم...', 'Add delivery notes...')}
                     className="text-sm min-h-[70px] resize-none"

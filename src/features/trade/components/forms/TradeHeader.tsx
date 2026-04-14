@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNexaContext } from '@/providers/NexaContextProvider';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,9 @@ import {
     SelectValue
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { CalendarIcon, Users, Building, Hash, Layers, UserCircle2, Coins, ArrowRightLeft, CalendarClock, Globe2, Truck, HelpCircle, Package, Warehouse, Store, ShoppingCart, Lock } from 'lucide-react';
+import { CalendarIcon, Users, Building, Hash, Layers, UserCircle2, Coins, ArrowRightLeft, CalendarClock, Globe2, Truck, HelpCircle, Package, Warehouse, Store, ShoppingCart, Lock, Plus } from 'lucide-react';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -54,6 +56,8 @@ interface TradeHeaderProps {
     onCurrencyChange?: (currency: string, exchangeRate: number) => void;
     /** Document view mode — when 'view', all fields are readonly */
     viewMode?: 'view' | 'edit' | 'create';
+    /** Company ID for adding new parties */
+    companyId?: string;
 }
 
 export const TradeHeader: React.FC<TradeHeaderProps> = ({
@@ -67,8 +71,42 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
     supportedCurrencies,
     onCurrencyChange,
     viewMode = 'edit',
+    companyId,
 }) => {
     const isReadOnly = viewMode === 'view';
+    const queryClient = useQueryClient();
+
+    // ─── Add Party Sheet State ──────────────────────────────
+    const [showAddParty, setShowAddParty] = useState(false);
+    const [partySelectOpen, setPartySelectOpen] = useState(false);
+    const partyType = mode === 'sales' ? 'customer' : 'supplier';
+
+    const handlePartyCreated = useCallback(() => {
+        setShowAddParty(false);
+        // Refetch party list cache to refresh dropdown
+        queryClient.invalidateQueries({ queryKey: ['customers_list'] });
+        queryClient.invalidateQueries({ queryKey: ['suppliers_list'] });
+        queryClient.refetchQueries({ queryKey: ['trade_customers'] });
+        queryClient.invalidateQueries({ queryKey: ['trade-parties'] });
+    }, [queryClient]);
+
+    /** Called after the party is saved in the sheet — auto-select and close */
+    const handlePartySaved = useCallback(async (savedData: any) => {
+        // Auto-select the newly created party in the invoice
+        if (savedData?.id) {
+            onChange('party_id', savedData.id);
+            // Set the party name for immediate UI display
+            const partyName = savedData.name_ar || savedData.name_en || savedData.name || '';
+            onChange('party_name', partyName);
+            if (mode === 'sales') {
+                onChange('customer_id', savedData.id);
+            } else {
+                onChange('supplier_id', savedData.id);
+            }
+        }
+        // Close the sheet and refresh lists
+        handlePartyCreated();
+    }, [onChange, mode, handlePartyCreated]);
     const { language, direction } = useLanguage();
     const isAr = language === 'ar';
     const isCreate = !data.id; // Check if creating new document
@@ -166,17 +204,20 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
     // Resolve current warehouse_id (from data or detected from items)
     const currentWarehouseId = data.warehouse_id || warehouseInfo.singleId || '';
 
-    // Handle party change — sync both party_id and customer_id/supplier_id
+    // Handle party change — sync both party_id and customer_id/supplier_id in ONE batch
     const handlePartyChange = (val: string) => {
-        onChange('party_id', val);
+        const updates: Record<string, any> = { party_id: val };
         if (mode === 'sales') {
-            onChange('customer_id', val);
+            updates.customer_id = val;
         } else {
-            onChange('supplier_id' as any, val);
+            updates.supplier_id = val;
         }
-        // Push context to NexaPro Agent
+        // Find party name for immediate UI display
         const party = partyList.find(p => p.id === val);
         if (party) {
+            updates.party_name = party.name;
+            updates.customer_name = party.name;
+            // Push context to NexaPro Agent
             const contextType = mode === 'sales' ? 'customer_in_invoice' : 'supplier_in_purchase';
             pushContext(contextType, val, party.name, {
                 mode,
@@ -185,9 +226,12 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                 document_currency: data.currency || baseCurrency,
             });
         }
+        // Single batch update — all fields at once
+        Object.entries(updates).forEach(([key, value]) => onChange(key, value));
     };
 
     return (
+        <>
         <Card className="border-none shadow-sm bg-gray-50/50 dark:bg-gray-900/50 mb-4" dir={direction}>
             <CardContent className={cn("p-4 grid grid-cols-1 gap-4 items-end", isTransfer ? 'md:grid-cols-4' : mode === 'sales' ? 'md:grid-cols-5' : 'md:grid-cols-4')}>
 
@@ -229,11 +273,33 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                             value={currentPartyId}
                             onValueChange={handlePartyChange}
                             disabled={isReadOnly}
+                            open={partySelectOpen}
+                            onOpenChange={setPartySelectOpen}
                         >
                             <SelectTrigger className={cn("h-10 bg-white dark:bg-gray-800 text-start", isReadOnly && "opacity-70 cursor-default")}>
                                 <SelectValue placeholder={isAr ? `اختر ${partyLabel}...` : `Select ${partyLabel}...`} />
                             </SelectTrigger>
                             <SelectContent align={isAr ? "end" : "start"}>
+                                {/* ➕ Quick Add Party Button */}
+                                {!isReadOnly && (
+                                    <div
+                                        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-b border-gray-100 dark:border-gray-800 transition-colors"
+                                        onPointerDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // Close the Select dropdown first, then open the sheet
+                                            setPartySelectOpen(false);
+                                            setTimeout(() => setShowAddParty(true), 50);
+                                        }}
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span className="text-sm font-semibold">
+                                            {mode === 'sales'
+                                                ? (isAr ? 'إضافة عميل جديد' : 'Add New Customer')
+                                                : (isAr ? 'إضافة مورد جديد' : 'Add New Supplier')}
+                                        </span>
+                                    </div>
+                                )}
                                 {partyList.map((p) => (
                                     <SelectItem key={p.id} value={p.id}>
                                         {p.name}
@@ -670,5 +736,23 @@ export const TradeHeader: React.FC<TradeHeaderProps> = ({
                 )
             }
         </Card >
+
+            {/* ─── Add Party Sheet ─── */}
+            {showAddParty && (
+                <UnifiedAccountingSheet
+                    docType="party"
+                    mode="create"
+                    data={{
+                        _partyType: partyType,
+                        type: partyType,
+                        is_active: true,
+                    }}
+                    isOpen={showAddParty}
+                    onClose={handlePartyCreated}
+                    onSave={handlePartySaved}
+                    companyId={companyId}
+                />
+            )}
+        </>
     );
 };

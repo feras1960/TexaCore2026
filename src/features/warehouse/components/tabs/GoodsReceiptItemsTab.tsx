@@ -61,6 +61,7 @@ import {
     ChevronDown, ChevronUp, FileText, ArrowRight,
     ShieldCheck, ShieldAlert, CircleDot, CheckCircle, Circle,
 } from 'lucide-react';
+import { RollLabelPreviewDialog } from '@/features/warehouse/components/RollLabelPreviewDialog';
 
 // ─── Types ──────────────────────────────────────────────────
 interface SourceDocumentItem {
@@ -1168,70 +1169,31 @@ export function GoodsReceiptItemsTab({ data, mode, onChange }: GoodsReceiptItems
                 )}
             </div>
 
-            {/* ─── Label Preview Dialog ─── */}
-            <AlertDialog open={showLabelPreview} onOpenChange={setShowLabelPreview}>
-                <AlertDialogContent dir={isRTL ? 'rtl' : 'ltr'}>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                            <Tag className="h-5 w-5 text-emerald-500" />
-                            {language === 'ar' ? 'معاينة ملصق الرولون' : 'Roll Label Preview'}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {language === 'ar'
-                                ? 'تأكد من البيانات ثم اضغط تأكيد لإضافة الرولون'
-                                : 'Verify the data then press confirm to add the roll'
-                            }
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-
-                    {pendingItem && (
-                        <div className="my-4 p-4 border-2 border-dashed border-emerald-200 dark:border-emerald-800 rounded-xl bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/30">
-                            <div className="text-center space-y-3">
-                                <div className="w-20 h-20 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-lg mx-auto flex items-center justify-center">
-                                    <QrCode className="h-14 w-14 text-slate-400" />
-                                </div>
-                                <div className="font-mono text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                                    {pendingItem.rollNumber}
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <div className="text-end text-muted-foreground">{language === 'ar' ? 'المادة:' : 'Material:'}</div>
-                                    <div className="text-start font-medium">{pendingItem.materialName}</div>
-                                    <div className="text-end text-muted-foreground">{language === 'ar' ? 'اللون:' : 'Color:'}</div>
-                                    <div className="text-start font-medium">{pendingItem.colorName}</div>
-                                    <div className="text-end text-muted-foreground">{language === 'ar' ? 'الطول:' : 'Length:'}</div>
-                                    <div className="text-start font-medium">{pendingItem.rollLength} {language === 'ar' ? 'متر' : 'm'}</div>
-                                    <div className="text-end text-muted-foreground">{language === 'ar' ? 'الجودة:' : 'Quality:'}</div>
-                                    <div className="text-start font-medium">
-                                        {QUALITY_OPTIONS.find(q => q.value === pendingItem.quality)
-                                            ? (language === 'ar'
-                                                ? QUALITY_OPTIONS.find(q => q.value === pendingItem.quality)!.labelAr
-                                                : QUALITY_OPTIONS.find(q => q.value === pendingItem.quality)!.labelEn)
-                                            : 'A'}
-                                    </div>
-                                    <div className="text-end text-muted-foreground">{language === 'ar' ? 'الدفعة:' : 'Batch:'}</div>
-                                    <div className="text-start font-medium font-mono text-xs">{pendingItem.batchId}</div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => { setPendingItem(null); }}>
-                            {language === 'ar' ? 'إلغاء' : 'Cancel'}
-                        </AlertDialogCancel>
-                        <Button
-                            ref={confirmPrintBtnRef}
-                            className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
-                            onClick={confirmAddItem}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAddItem(); } }}
-                            disabled={isSaving}
-                        >
-                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                            {language === 'ar' ? 'تأكيد + طباعة' : 'Confirm + Print'}
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* ─── Label Preview Dialog (Shared Component) ─── */}
+            <RollLabelPreviewDialog
+                open={showLabelPreview}
+                onOpenChange={(open) => {
+                    setShowLabelPreview(open);
+                    if (!open) setPendingItem(null);
+                }}
+                rollData={pendingItem ? {
+                    rollNumber: pendingItem.rollNumber,
+                    materialName: pendingItem.materialName,
+                    colorName: pendingItem.colorName || undefined,
+                    rollLength: pendingItem.rollLength,
+                    quality: pendingItem.quality,
+                    batchId: pendingItem.batchId,
+                } : null}
+                onConfirm={(shouldPrint) => {
+                    confirmAddItem();
+                    if (shouldPrint) {
+                        console.log('[Receipt Print] 🖨️ Print label for:', pendingItem?.rollNumber);
+                    }
+                }}
+                loading={isSaving}
+                defaultPrint={true}
+                context="receipt"
+            />
         </div>
     );
 }

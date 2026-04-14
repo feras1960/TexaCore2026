@@ -41,7 +41,6 @@ interface PendingTransfer {
 
 export default function WarehouseDashboard() {
     const { t, language, direction } = useLanguage();
-    const isAr = language === 'ar';
     const { companyId } = useAuth();
 
     const {
@@ -78,7 +77,7 @@ export default function WarehouseDashboard() {
                                 <Warehouse className="w-6 h-6 text-orange-300" />
                             </div>
                             <h1 className="text-2xl font-bold text-white font-cairo">
-                                {isAr ? 'لوحة المستودعات' : 'Warehouse Dashboard'}
+                                {t('warehouse.dashboard.title')}
                             </h1>
                             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -86,7 +85,7 @@ export default function WarehouseDashboard() {
                             </span>
                         </div>
                         <p className="text-sm text-orange-200/80 font-tajawal ps-12">
-                            {isAr ? 'نظرة عامة على المخزون والمستودعات والحركات' : 'Overview of inventory, warehouses, and movements'}
+                            {t('warehouse.dashboard.subtitle')}
                         </p>
                     </div>
 
@@ -94,39 +93,39 @@ export default function WarehouseDashboard() {
                     <div className="flex flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
                             <Truck className="w-3.5 h-3.5 me-1.5" />
-                            {isAr ? 'استلام' : 'Receive'}
+                            {t('warehouse.dashboard.receive')}
                         </Button>
                         <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
                             <FileText className="w-3.5 h-3.5 me-1.5" />
-                            {isAr ? 'تسليم' : 'Dispatch'}
+                            {t('warehouse.dashboard.dispatch')}
                         </Button>
                         <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
                             <ArrowRightLeft className="w-3.5 h-3.5 me-1.5" />
-                            {isAr ? 'تحويل' : 'Transfer'}
+                            {t('warehouse.dashboard.transfer')}
                         </Button>
                         <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs">
                             <ClipboardCheck className="w-3.5 h-3.5 me-1.5" />
-                            {isAr ? 'جرد' : 'Audit'}
+                            {t('warehouse.dashboard.audit')}
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button size="sm" className="bg-orange-500/80 hover:bg-orange-500 border-0 text-white text-xs">
                                     <Plus className="w-3.5 h-3.5 me-1.5" />
-                                    {isAr ? 'إضافة' : 'Add'}
+                                    {t('warehouse.dashboard.add')}
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem className="gap-2">
                                     <Package className="w-4 h-4" />
-                                    {isAr ? 'مادة جديدة' : 'New Material'}
+                                    {t('warehouse.dashboard.newMaterial')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2">
                                     <Layers className="w-4 h-4" />
-                                    {isAr ? 'مجموعة جديدة' : 'New Category'}
+                                    {t('warehouse.dashboard.newCategory')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2">
                                     <Warehouse className="w-4 h-4" />
-                                    {isAr ? 'مستودع جديد' : 'New Warehouse'}
+                                    {t('warehouse.dashboard.newWarehouse')}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -139,7 +138,7 @@ export default function WarehouseDashboard() {
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="text-red-600 dark:text-red-400">{error}</p>
                     <Button variant="outline" size="sm" className="mt-2" onClick={refetchDashboard}>
-                        {isAr ? 'إعادة المحاولة' : 'Retry'}
+                        {t('warehouse.dashboard.retry')}
                     </Button>
                 </div>
             )}
@@ -149,28 +148,28 @@ export default function WarehouseDashboard() {
                 <>
                     <StatsGrid cols={4}>
                         <StatCard
-                            label={isAr ? 'إجمالي المواد' : 'Total Materials'}
+                            label={t('warehouse.dashboard.totalMaterials')}
                             value={stats.totalMaterials}
                             type="info"
                             icon={Package}
                             className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
                         />
                         <StatCard
-                            label={isAr ? 'الرولونات' : 'Rolls'}
+                            label={t('warehouse.dashboard.totalRolls')}
                             value={stats.totalRolls}
                             type="neutral"
                             icon={Boxes}
                             className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
                         />
                         <StatCard
-                            label={isAr ? 'المستودعات' : 'Warehouses'}
+                            label={t('warehouse.dashboard.totalWarehouses')}
                             value={stats.totalWarehouses}
                             type="positive"
                             icon={Warehouse}
                             className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
                         />
                         <StatCard
-                            label={isAr ? 'تنبيهات نقص' : 'Low Stock'}
+                            label={t('warehouse.dashboard.lowStock')}
                             value={stats.lowStockItems}
                             type={stats.lowStockItems > 0 ? 'negative' : 'positive'}
                             icon={AlertTriangle}
@@ -180,28 +179,28 @@ export default function WarehouseDashboard() {
 
                     <StatsGrid cols={4}>
                         <StatCard
-                            label={isAr ? 'حجوزات نشطة' : 'Active Reservations'}
+                            label={t('warehouse.dashboard.activeReservations')}
                             value={stats.activeReservations}
                             type="warning"
                             icon={Calendar}
                             className="bg-gradient-to-br from-amber-50/80 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 backdrop-blur-sm border border-amber-100/50 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all"
                         />
                         <StatCard
-                            label={isAr ? 'تسليمات معلقة' : 'Pending Deliveries'}
+                            label={t('warehouse.dashboard.pendingDeliveries')}
                             value={stats.pendingDeliveries}
                             type="info"
                             icon={Truck}
                             className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
                         />
                         <StatCard
-                            label={isAr ? 'تحويلات معلقة' : 'Pending Transfers'}
+                            label={t('warehouse.dashboard.pendingTransfers')}
                             value={pendingTransfers.length}
                             type="neutral"
                             icon={ArrowRightLeft}
                             className="bg-gradient-to-br from-orange-50/80 to-amber-50/50 dark:from-orange-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-orange-100/50 dark:border-orange-800/30 shadow-sm hover:shadow-md transition-all"
                         />
                         <StatCard
-                            label={isAr ? 'آخر النشاطات' : 'Recent Movements'}
+                            label={t('warehouse.dashboard.recentMovements')}
                             value={recentActivity.length}
                             type="neutral"
                             icon={Activity}
@@ -218,7 +217,7 @@ export default function WarehouseDashboard() {
                     <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-red-500" />
-                            {isAr ? 'تنبيهات نقص المخزون' : 'Low Stock Alerts'}
+                            {t('warehouse.dashboard.lowStockAlerts')}
                             <Badge variant="destructive" className="text-[10px] h-5 ms-auto">
                                 {lowStockItems.length}
                             </Badge>
@@ -229,7 +228,7 @@ export default function WarehouseDashboard() {
                             {lowStockItems.length === 0 ? (
                                 <div className="p-8 text-center text-gray-400">
                                     <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-green-500" />
-                                    <p className="text-sm font-tajawal">{isAr ? 'لا توجد تنبيهات' : 'No alerts'}</p>
+                                    <p className="text-sm font-tajawal">{t('warehouse.dashboard.noAlerts')}</p>
                                 </div>
                             ) : (
                                 lowStockItems.map((item) => (
@@ -259,7 +258,7 @@ export default function WarehouseDashboard() {
                     <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Clock className="w-4 h-4 text-amber-500" />
-                            {isAr ? 'التحويلات المعلقة' : 'Pending Transfers'}
+                            {t('warehouse.dashboard.pendingTransfers')}
                             <Badge variant="secondary" className="text-[10px] h-5 bg-amber-50 text-amber-700 border-0 ms-auto">
                                 {pendingTransfers.length}
                             </Badge>
@@ -270,7 +269,7 @@ export default function WarehouseDashboard() {
                             {pendingTransfers.length === 0 ? (
                                 <div className="p-8 text-center text-gray-400">
                                     <ArrowRightLeft className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                    <p className="text-sm font-tajawal">{isAr ? 'لا توجد تحويلات معلقة' : 'No pending transfers'}</p>
+                                    <p className="text-sm font-tajawal">{t('warehouse.dashboard.noPendingTransfers')}</p>
                                 </div>
                             ) : (
                                 pendingTransfers.map((transfer) => (
@@ -299,14 +298,14 @@ export default function WarehouseDashboard() {
                     <CardHeader className="pb-2 border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Warehouse className="w-4 h-4 text-orange-500" />
-                            {isAr ? 'سعة المستودعات' : 'Warehouse Capacity'}
+                            {t('warehouse.dashboard.warehouseCapacity')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4 space-y-3">
                         {warehouseCapacity.length === 0 ? (
                             <div className="text-center py-4 text-gray-400">
                                 <Warehouse className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                <p className="text-sm font-tajawal">{isAr ? 'لا توجد مستودعات' : 'No warehouses'}</p>
+                                <p className="text-sm font-tajawal">{t('warehouse.dashboard.noWarehouses')}</p>
                             </div>
                         ) : (
                             warehouseCapacity.map((wh) => (
@@ -331,7 +330,7 @@ export default function WarehouseDashboard() {
                 <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                     <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                         <Activity className="w-4 h-4 text-orange-500" />
-                        {isAr ? 'آخر النشاطات' : 'Recent Activity'}
+                        {t('warehouse.dashboard.recentActivity')}
                     </CardTitle>
                     <Badge variant="secondary" className="text-[11px] font-mono bg-orange-50 text-orange-600 border-0">
                         {recentActivity.length}
@@ -341,7 +340,7 @@ export default function WarehouseDashboard() {
                     <div className="divide-y divide-gray-100/50 dark:divide-gray-800/50">
                         {recentActivity.length === 0 ? (
                             <div className="p-8 text-center text-gray-400 font-tajawal">
-                                {isAr ? 'لا يوجد نشاط بعد' : 'No activity yet'}
+                                {t('warehouse.dashboard.noActivity')}
                             </div>
                         ) : (
                             recentActivity.map((act) => (

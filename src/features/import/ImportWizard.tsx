@@ -163,7 +163,10 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
             options={state.options}
             onExecute={executeImport}
             onUpdateRows={updateImportRows}
+            onUpdateOptions={updateOptions}
             isLoading={state.isLoading}
+            warehouseBreakdown={state.warehouseBreakdown}
+            warehouseList={state.warehouseList}
           />
         );
 

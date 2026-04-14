@@ -41,6 +41,8 @@ export interface StageConfig {
     key: string;
     label_ar: string;
     label_en: string;
+    /** Multilingual labels — keys: ar, en, ru, uk, tr */
+    labels?: Record<string, string>;
     icon: string;
     color: string;
     bgColor: string;

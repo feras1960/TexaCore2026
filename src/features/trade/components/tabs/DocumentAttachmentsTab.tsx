@@ -55,16 +55,16 @@ const { MAX_FILE_SIZE, MAX_FILES_PER_ENTITY, MAX_TOTAL_SIZE_PER_ENTITY, ALLOWED_
 
 // Attachment categories with icons & colors
 const ATTACHMENT_CATEGORIES = [
-    { value: 'contract', labelAr: 'عقد', labelEn: 'Contract', icon: FileSignature, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/40' },
-    { value: 'signature', labelAr: 'توقيع', labelEn: 'Signature', icon: FileSignature, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/40' },
-    { value: 'original_invoice', labelAr: 'فاتورة أصلية', labelEn: 'Original Invoice', icon: Receipt, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' },
-    { value: 'bill_of_lading', labelAr: 'بوليصة شحن', labelEn: 'Bill of Lading', icon: Ship, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40' },
-    { value: 'certificate', labelAr: 'شهادة منشأ', labelEn: 'Certificate of Origin', icon: Award, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' },
-    { value: 'receipt', labelAr: 'إيصال', labelEn: 'Receipt', icon: Receipt, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/40' },
-    { value: 'insurance', labelAr: 'تأمين', labelEn: 'Insurance', icon: Shield, color: 'text-teal-600 bg-teal-50 dark:bg-teal-950/40' },
-    { value: 'customs', labelAr: 'جمارك', labelEn: 'Customs', icon: FolderOpen, color: 'text-orange-600 bg-orange-50 dark:bg-orange-950/40' },
-    { value: 'bank_statement', labelAr: 'كشف حساب', labelEn: 'Bank Statement', icon: FileText, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' },
-    { value: 'other', labelAr: 'أخرى', labelEn: 'Other', icon: FolderOpen, color: 'text-gray-600 bg-gray-50 dark:bg-gray-800/40' },
+    { value: 'contract', labelAr: 'عقد', labelEn: 'Contract', labels: { ru: 'Договор', uk: 'Договір', tr: 'Sözleşme', de: 'Vertrag', it: 'Contratto', ro: 'Contract', pl: 'Umowa' }, icon: FileSignature, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/40' },
+    { value: 'signature', labelAr: 'توقيع', labelEn: 'Signature', labels: { ru: 'Подпись', uk: 'Підпис', tr: 'İmza', de: 'Unterschrift', it: 'Firma', ro: 'Semnătură', pl: 'Podpis' }, icon: FileSignature, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/40' },
+    { value: 'original_invoice', labelAr: 'فاتورة أصلية', labelEn: 'Original Invoice', labels: { ru: 'Оригинал счёта', uk: 'Оригінал рахунку', tr: 'Orijinal Fatura', de: 'Originalrechnung', it: 'Fattura originale', ro: 'Factură originală', pl: 'Faktura oryginał' }, icon: Receipt, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' },
+    { value: 'bill_of_lading', labelAr: 'بوليصة شحن', labelEn: 'Bill of Lading', labels: { ru: 'Коносамент', uk: 'Коносамент', tr: 'Konşimento', de: 'Frachtbrief', it: 'Polizza di carico', ro: 'Conosament', pl: 'Konosament' }, icon: Ship, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40' },
+    { value: 'certificate', labelAr: 'شهادة منشأ', labelEn: 'Certificate of Origin', labels: { ru: 'Сертификат происхождения', uk: 'Сертифікат походження', tr: 'Menşei Şahadetnamesi', de: 'Ursprungszeugnis', it: 'Certificato di origine', ro: 'Certificat de origine', pl: 'Certyfikat pochodzenia' }, icon: Award, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' },
+    { value: 'receipt', labelAr: 'إيصال', labelEn: 'Receipt', labels: { ru: 'Квитанция', uk: 'Квитанція', tr: 'Makbuz', de: 'Quittung', it: 'Ricevuta', ro: 'Chitanță', pl: 'Paragon' }, icon: Receipt, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/40' },
+    { value: 'insurance', labelAr: 'تأمين', labelEn: 'Insurance', labels: { ru: 'Страховка', uk: 'Страхування', tr: 'Sigorta', de: 'Versicherung', it: 'Assicurazione', ro: 'Asigurare', pl: 'Ubezpieczenie' }, icon: Shield, color: 'text-teal-600 bg-teal-50 dark:bg-teal-950/40' },
+    { value: 'customs', labelAr: 'جمارك', labelEn: 'Customs', labels: { ru: 'Таможня', uk: 'Митниця', tr: 'Gümrük', de: 'Zoll', it: 'Dogana', ro: 'Vamă', pl: 'Cło' }, icon: FolderOpen, color: 'text-orange-600 bg-orange-50 dark:bg-orange-950/40' },
+    { value: 'bank_statement', labelAr: 'كشف حساب', labelEn: 'Bank Statement', labels: { ru: 'Выписка', uk: 'Виписка', tr: 'Banka Ekstresi', de: 'Kontoauszug', it: 'Estratto conto', ro: 'Extras de cont', pl: 'Wyciąg bankowy' }, icon: FileText, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' },
+    { value: 'other', labelAr: 'أخرى', labelEn: 'Other', labels: { ru: 'Другое', uk: 'Інше', tr: 'Diğer', de: 'Andere', it: 'Altro', ro: 'Altele', pl: 'Inne' }, icon: FolderOpen, color: 'text-gray-600 bg-gray-50 dark:bg-gray-800/40' },
 ];
 
 // resolveEntityType is now imported from attachmentService
@@ -94,7 +94,48 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
     tradeMode,
     onChange,
 }) => {
-    const { isRTL } = useLanguage();
+    const { isRTL, language } = useLanguage();
+
+    // ═══ Multi-language local translator ═══
+    const ATTACH_LABELS: Record<string, Record<string, string>> = {
+        'Storage Used': { ru: 'Использовано', uk: 'Використано', tr: 'Kullanılan Depolama', de: 'Speicher verwendet', it: 'Spazio utilizzato', ro: 'Spațiu utilizat', pl: 'Użyte miejsce' },
+        'files': { ru: 'файлов', uk: 'файлів', tr: 'dosya', de: 'Dateien', it: 'file', ro: 'fișiere', pl: 'plików' },
+        'Attached Files': { ru: 'Прикреплённые файлы', uk: 'Прикріплені файли', tr: 'Ekli Dosyalar', de: 'Angehängte Dateien', it: 'File allegati', ro: 'Fișiere atașate', pl: 'Załączone pliki' },
+        'No attachments': { ru: 'Нет вложений', uk: 'Немає вкладень', tr: 'Ek yok', de: 'Keine Anhänge', it: 'Nessun allegato', ro: 'Niciun atașament', pl: 'Brak załączników' },
+        'Attach contracts, invoices, bills of lading, images...': { ru: 'Прикрепите договоры, счета, коносаменты, изображения...', uk: 'Прикріпіть договори, рахунки, коносаменти, зображення...', tr: 'Sözleşme, fatura, konşimento, resim ekleyin...', de: 'Verträge, Rechnungen, Frachtbriefe, Bilder anhängen...', it: 'Allega contratti, fatture, polizze di carico, immagini...', ro: 'Atașați contracte, facturi, conosamente, imagini...', pl: 'Dołącz umowy, faktury, konosamenty, zdjęcia...' },
+        'Loading...': { ru: 'Загрузка...', uk: 'Завантаження...', tr: 'Yükleniyor...', de: 'Laden...', it: 'Caricamento...', ro: 'Încărcare...', pl: 'Ładowanie...' },
+        'Uploading...': { ru: 'Загрузка...', uk: 'Завантаження...', tr: 'Yükleniyor...', de: 'Hochladen...', it: 'Caricamento...', ro: 'Se încarcă...', pl: 'Przesyłanie...' },
+        'Drop file here': { ru: 'Перетащите файл сюда', uk: 'Перетягніть файл сюди', tr: 'Dosyayı buraya bırakın', de: 'Datei hier ablegen', it: 'Rilascia il file qui', ro: 'Plasați fișierul aici', pl: 'Upuść plik tutaj' },
+        'Drag a file here or click to browse': { ru: 'Перетащите файл сюда или нажмите для выбора', uk: 'Перетягніть файл або натисніть для вибору', tr: 'Dosyayı sürükleyin veya tıklayarak seçin', de: 'Datei hierher ziehen oder klicken zum Durchsuchen', it: 'Trascina un file qui o clicca per sfogliare', ro: 'Trageți un fișier aici sau faceți clic pentru a alege', pl: 'Przeciągnij plik lub kliknij, aby przeglądać' },
+        'Upload Attachment': { ru: 'Загрузить вложение', uk: 'Завантажити вкладення', tr: 'Ek Yükle', de: 'Anhang hochladen', it: 'Carica allegato', ro: 'Încarcă atașament', pl: 'Prześlij załącznik' },
+        'Upload': { ru: 'Загрузить', uk: 'Завантажити', tr: 'Yükle', de: 'Hochladen', it: 'Carica', ro: 'Încarcă', pl: 'Prześlij' },
+        'Cancel': { ru: 'Отмена', uk: 'Скасувати', tr: 'İptal', de: 'Abbrechen', it: 'Annulla', ro: 'Anulare', pl: 'Anuluj' },
+        'Category': { ru: 'Категория', uk: 'Категорія', tr: 'Kategori', de: 'Kategorie', it: 'Categoria', ro: 'Categorie', pl: 'Kategoria' },
+        'Document Title': { ru: 'Название документа', uk: 'Назва документа', tr: 'Belge Başlığı', de: 'Dokumenttitel', it: 'Titolo documento', ro: 'Titlu document', pl: 'Tytuł dokumentu' },
+        'optional': { ru: 'необязательно', uk: 'необов\'язково', tr: 'isteğe bağlı', de: 'optional', it: 'opzionale', ro: 'opțional', pl: 'opcjonalnie' },
+        'e.g. Fabric supply contract...': { ru: 'Напр. Договор поставки тканей...', uk: 'Напр. Договір постачання тканин...', tr: 'Örn. Kumaş tedarik sözleşmesi...', de: 'z.B. Stoffliefervertrag...', it: 'Es. Contratto fornitura tessuti...', ro: 'Ex. Contract furnizare materiale...', pl: 'Np. Umowa dostawy tkanin...' },
+        'Doc Number': { ru: 'Номер документа', uk: 'Номер документа', tr: 'Belge No', de: 'Dok.Nr.', it: 'N. Doc', ro: 'Nr. Document', pl: 'Nr dokumentu' },
+        'Doc Date': { ru: 'Дата документа', uk: 'Дата документа', tr: 'Belge Tarihi', de: 'Dok.Datum', it: 'Data Doc', ro: 'Data Document', pl: 'Data dokumentu' },
+        'Notes': { ru: 'Примечания', uk: 'Примітки', tr: 'Notlar', de: 'Notizen', it: 'Note', ro: 'Note', pl: 'Notatki' },
+        'Additional notes...': { ru: 'Дополнительные примечания...', uk: 'Додаткові примітки...', tr: 'Ek notlar...', de: 'Zusätzliche Notizen...', it: 'Note aggiuntive...', ro: 'Note suplimentare...', pl: 'Dodatkowe uwagi...' },
+        'Failed to upload': { ru: 'Ошибка загрузки', uk: 'Помилка завантаження', tr: 'Yükleme başarısız', de: 'Hochladen fehlgeschlagen', it: 'Caricamento fallito', ro: 'Încărcare eșuată', pl: 'Przesyłanie nie powiodło się' },
+        'Upload error': { ru: 'Ошибка загрузки', uk: 'Помилка завантаження', tr: 'Yükleme hatası', de: 'Upload-Fehler', it: 'Errore caricamento', ro: 'Eroare încărcare', pl: 'Błąd przesyłania' },
+        'Delete this attachment?': { ru: 'Удалить это вложение?', uk: 'Видалити це вкладення?', tr: 'Bu eki sil?', de: 'Diesen Anhang löschen?', it: 'Eliminare questo allegato?', ro: 'Ștergeți acest atașament?', pl: 'Usunąć ten załącznik?' },
+        'Attachment deleted': { ru: 'Вложение удалено', uk: 'Вкладення видалено', tr: 'Ek silindi', de: 'Anhang gelöscht', it: 'Allegato eliminato', ro: 'Atașament șters', pl: 'Załącznik usunięty' },
+        'Delete failed': { ru: 'Ошибка удаления', uk: 'Помилка видалення', tr: 'Silme başarısız', de: 'Löschen fehlgeschlagen', it: 'Eliminazione fallita', ro: 'Ștergere eșuată', pl: 'Usuwanie nie powiodło się' },
+        'Download failed': { ru: 'Ошибка скачивания', uk: 'Помилка завантаження', tr: 'İndirme başarısız', de: 'Download fehlgeschlagen', it: 'Download fallito', ro: 'Descărcare eșuată', pl: 'Pobieranie nie powiodło się' },
+        'Preview failed': { ru: 'Ошибка предпросмотра', uk: 'Помилка попереднього перегляду', tr: 'Önizleme başarısız', de: 'Vorschau fehlgeschlagen', it: 'Anteprima fallita', ro: 'Previzualizare eșuată', pl: 'Podgląd nie powiódł się' },
+        'Previous': { ru: 'Предыдущий', uk: 'Попередній', tr: 'Önceki', de: 'Vorheriger', it: 'Precedente', ro: 'Anterior', pl: 'Poprzedni' },
+        'Next': { ru: 'Следующий', uk: 'Наступний', tr: 'Sonraki', de: 'Nächster', it: 'Successivo', ro: 'Următor', pl: 'Następny' },
+        'uploaded': { ru: 'загружен', uk: 'завантажено', tr: 'yüklendi', de: 'hochgeladen', it: 'caricato', ro: 'încărcat', pl: 'przesłano' },
+    };
+    const lt = (ar: string, en: string): string => {
+        if (language === 'ar') return ar;
+        if (language === 'en') return en;
+        const trans = ATTACH_LABELS[en];
+        if (trans && trans[language]) return trans[language];
+        return en;
+    };
     const { company, companyId } = useCompany();
     const { user } = useAuth();
     const tenantId = company?.tenant_id || companyId;
@@ -199,11 +240,11 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
             setUploadProgress(90);
 
             if (!result.success) {
-                toast.error(result.error || (isRTL ? 'فشل في رفع الملف' : 'Failed to upload'));
+                toast.error(result.error || (lt('فشل في رفع الملف', 'Failed to upload')));
                 return;
             }
 
-            toast.success(isRTL ? `تم رفع "${pendingFile.name}" بنجاح` : `"${pendingFile.name}" uploaded`);
+            toast.success(`"${pendingFile.name}" ${lt('تم الرفع بنجاح', 'uploaded')}`);
             await loadAll();
 
             // ─── تسجيل النشاط ───
@@ -231,7 +272,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                 });
             } catch { /* silent — لا نوقف العملية الأساسية */ }
         } catch (err: any) {
-            toast.error(isRTL ? 'خطأ أثناء الرفع' : 'Upload error');
+            toast.error(lt('خطأ أثناء الرفع', 'Upload error'));
             console.error('Upload error:', err);
         } finally {
             setUploadProgress(100);
@@ -241,11 +282,11 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
 
     // ─── Delete ───
     const handleDelete = async (att: Attachment) => {
-        if (!confirm(isRTL ? 'هل تريد حذف هذا المرفق؟' : 'Delete this attachment?')) return;
+        if (!confirm(lt('هل تريد حذف هذا المرفق؟', 'Delete this attachment?'))) return;
 
         const result = await attachmentService.delete(att.id);
         if (result.success) {
-            toast.success(isRTL ? 'تم حذف المرفق' : 'Attachment deleted');
+            toast.success(lt('تم حذف المرفق', 'Attachment deleted'));
             await loadAll();
 
             // ─── تسجيل النشاط ───
@@ -272,7 +313,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                 });
             } catch { /* silent */ }
         } else {
-            toast.error(result.error || (isRTL ? 'فشل الحذف' : 'Delete failed'));
+            toast.error(result.error || (lt('فشل الحذف', 'Delete failed')));
         }
     };
 
@@ -280,7 +321,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
     const handleDownload = async (att: Attachment) => {
         const result = await attachmentService.download(att.id);
         if (!result) {
-            toast.error(isRTL ? 'فشل التحميل' : 'Download failed');
+            toast.error(lt('فشل التحميل', 'Download failed'));
             return;
         }
         const url = URL.createObjectURL(result.blob);
@@ -295,7 +336,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
     const openPreview = async (att: Attachment) => {
         const url = await attachmentService.getSignedUrl(att.id);
         if (!url) {
-            toast.error(isRTL ? 'فشل فتح المعاينة' : 'Preview failed');
+            toast.error(lt('فشل فتح المعاينة', 'Preview failed'));
             return;
         }
         setPreviewAttachment(att);
@@ -357,7 +398,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
                             <Paperclip className="w-3.5 h-3.5" />
-                            {isRTL ? 'المساحة المستخدمة' : 'Storage Used'}
+                            {lt('المساحة المستخدمة', 'Storage Used')}
                         </span>
                         <span className="text-xs text-gray-500 font-mono">
                             {formatFileSize(totalSize)} / {formatFileSize(MAX_TOTAL_SIZE_PER_ENTITY)}
@@ -374,10 +415,10 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                     />
                     <div className="flex items-center justify-between mt-1.5">
                         <span className="text-xs text-gray-400">
-                            {attachments.length} / {MAX_FILES_PER_ENTITY} {isRTL ? 'مرفقات' : 'files'}
+                            {attachments.length} / {MAX_FILES_PER_ENTITY} {lt('مرفقات', 'files')}
                         </span>
                         <span className="text-xs text-gray-400">
-                            {isRTL ? `متبقي: ${formatFileSize(remainingSize)}` : `Remaining: ${formatFileSize(remainingSize)}`}
+                            {lt(`متبقي: ${formatFileSize(remainingSize)}`, `Remaining: ${formatFileSize(remainingSize)}`)}
                         </span>
                     </div>
                 </CardContent>
@@ -413,7 +454,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                 <>
                                     <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
                                     <p className="text-sm text-blue-600 font-medium">
-                                        {isRTL ? 'جاري الرفع...' : 'Uploading...'}
+                                        {lt('جاري الرفع...', 'Uploading...')}
                                     </p>
                                     <Progress value={uploadProgress} className="w-48 mt-2 h-1.5 [&>div]:bg-blue-500" />
                                 </>
@@ -427,15 +468,15 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                     </div>
                                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                         {dragOver
-                                            ? (isRTL ? 'أفلت الملف هنا' : 'Drop file here')
-                                            : (isRTL ? 'اسحب ملف هنا أو انقر للاختيار' : 'Drag a file here or click to browse')
+                                            ? (lt('أفلت الملف هنا', 'Drop file here'))
+                                            : (lt('اسحب ملف هنا أو انقر للاختيار', 'Drag a file here or click to browse'))
                                         }
                                     </p>
                                     <p className="text-xs text-gray-400 mt-1.5">
-                                        {isRTL
-                                            ? `PDF, JPG, PNG, WebP • حد أقصى ${formatFileSize(MAX_FILE_SIZE)} للملف`
-                                            : `PDF, JPG, PNG, WebP • Max ${formatFileSize(MAX_FILE_SIZE)} per file`
-                                        }
+                                        {lt(
+                                            `PDF, JPG, PNG, WebP • \u062d\u062f \u0623\u0642\u0635\u0649 ${formatFileSize(MAX_FILE_SIZE)} \u0644\u0644\u0645\u0644\u0641`,
+                                            `PDF, JPG, PNG, WebP • Max ${formatFileSize(MAX_FILE_SIZE)} per file`
+                                        )}
                                     </p>
                                 </>
                             )}
@@ -450,7 +491,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700 dark:text-gray-300">
                             <FileText className="w-4 h-4" />
-                            {isRTL ? 'الملفات المرفقة' : 'Attached Files'}
+                            {lt('الملفات المرفقة', 'Attached Files')}
                             {attachments.length > 0 && (
                                 <Badge variant="secondary" className="text-xs">{attachments.length}</Badge>
                             )}
@@ -488,15 +529,15 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                     {loadingFiles ? (
                         <div className="flex items-center justify-center py-8 text-gray-400">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                            <span className="text-sm">{isRTL ? 'جاري التحميل...' : 'Loading...'}</span>
+                            <span className="text-sm">{lt('جاري التحميل...', 'Loading...')}</span>
                         </div>
                     ) : attachments.length === 0 ? (
                         <div className="text-center py-8 text-gray-400">
                             <Paperclip className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                            <p className="text-sm">{isRTL ? 'لا توجد مرفقات' : 'No attachments'}</p>
+                            <p className="text-sm">{lt('لا توجد مرفقات', 'No attachments')}</p>
                             {isEditable && (
                                 <p className="text-xs mt-1 text-gray-300">
-                                    {isRTL ? 'ارفق عقود، فواتير، بواليص شحن، صور...' : 'Attach contracts, invoices, bills of lading, images...'}
+                                    {lt('ارفق عقود، فواتير، بواليص شحن، صور...', 'Attach contracts, invoices, bills of lading, images...')}
                                 </p>
                             )}
                         </div>
@@ -525,7 +566,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                             </p>
                                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                                 <Badge variant="outline" className="text-[10px] h-4">
-                                                    {isRTL ? catInfo.labelAr : catInfo.labelEn}
+                                                    {language === 'ar' ? catInfo.labelAr : (catInfo.labels?.[language] || catInfo.labelEn)}
                                                 </Badge>
                                                 {att.document_number && (
                                                     <span className="text-[10px] text-blue-500 font-mono">#{att.document_number}</span>
@@ -582,7 +623,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                         </p>
                                         <div className="flex items-center justify-between mt-1">
                                             <Badge variant="outline" className="text-[9px] h-3.5">
-                                                {isRTL ? catInfo.labelAr : catInfo.labelEn}
+                                                {language === 'ar' ? catInfo.labelAr : (catInfo.labels?.[language] || catInfo.labelEn)}
                                             </Badge>
                                             <span className="text-[9px] text-gray-400 font-mono">{formatFileSize(att.file_size)}</span>
                                         </div>
@@ -658,7 +699,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Upload className="w-4 h-4" />
-                            {isRTL ? 'رفع مرفق جديد' : 'Upload Attachment'}
+                            {lt('رفع مرفق جديد', 'Upload Attachment')}
                         </DialogTitle>
                     </DialogHeader>
 
@@ -677,7 +718,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
 
                             {/* Category */}
                             <div>
-                                <Label className="text-xs mb-1.5 block">{isRTL ? 'التصنيف' : 'Category'}</Label>
+                                <Label className="text-xs mb-1.5 block">{lt('التصنيف', 'Category')}</Label>
                                 <Select value={uploadForm.category} onValueChange={v => setUploadForm(f => ({ ...f, category: v }))}>
                                     <SelectTrigger className="h-9 text-sm">
                                         <SelectValue />
@@ -689,7 +730,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                                 <SelectItem key={cat.value} value={cat.value}>
                                                     <span className="flex items-center gap-2">
                                                         <Icon className={cn("w-3.5 h-3.5", cat.color.split(' ')[0])} />
-                                                        {isRTL ? cat.labelAr : cat.labelEn}
+                                                        {language === 'ar' ? cat.labelAr : (cat.labels?.[language] || cat.labelEn)}
                                                     </span>
                                                 </SelectItem>
                                             );
@@ -702,12 +743,12 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                             <div>
                                 <Label className="text-xs mb-1.5 flex items-center gap-1.5">
                                     <StickyNote className="w-3 h-3" />
-                                    {isRTL ? 'اسم المستند' : 'Document Title'}
-                                    <span className="text-gray-300 text-[10px]">({isRTL ? 'اختياري' : 'optional'})</span>
+                                    {lt('اسم المستند', 'Document Title')}
+                                    <span className="text-gray-300 text-[10px]">({lt('اختياري', 'optional')})</span>
                                 </Label>
                                 <Input
                                     className="h-9 text-sm"
-                                    placeholder={isRTL ? 'مثال: عقد توريد أقمشة...' : 'e.g. Fabric supply contract...'}
+                                    placeholder={lt('مثال: عقد توريد أقمشة...', 'e.g. Fabric supply contract...')}
                                     value={uploadForm.documentTitle}
                                     onChange={e => setUploadForm(f => ({ ...f, documentTitle: e.target.value }))}
                                 />
@@ -718,7 +759,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                 <div>
                                     <Label className="text-xs mb-1.5 flex items-center gap-1.5">
                                         <Hash className="w-3 h-3" />
-                                        {isRTL ? 'رقم المستند' : 'Doc Number'}
+                                        {lt('رقم المستند', 'Doc Number')}
                                     </Label>
                                     <Input
                                         className="h-9 text-sm"
@@ -730,7 +771,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                                 <div>
                                     <Label className="text-xs mb-1.5 flex items-center gap-1.5">
                                         <Calendar className="w-3 h-3" />
-                                        {isRTL ? 'تاريخ المستند' : 'Doc Date'}
+                                        {lt('تاريخ المستند', 'Doc Date')}
                                     </Label>
                                     <Input
                                         type="date"
@@ -744,13 +785,13 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                             {/* Notes */}
                             <div>
                                 <Label className="text-xs mb-1.5 block">
-                                    {isRTL ? 'ملاحظات' : 'Notes'}
-                                    <span className="text-gray-300 text-[10px] ms-1">({isRTL ? 'اختياري' : 'optional'})</span>
+                                    {lt('ملاحظات', 'Notes')}
+                                    <span className="text-gray-300 text-[10px] ms-1">({lt('اختياري', 'optional')})</span>
                                 </Label>
                                 <Textarea
                                     className="text-sm resize-none"
                                     rows={2}
-                                    placeholder={isRTL ? 'ملاحظات إضافية...' : 'Additional notes...'}
+                                    placeholder={lt('ملاحظات إضافية...', 'Additional notes...')}
                                     value={uploadForm.notes}
                                     onChange={e => setUploadForm(f => ({ ...f, notes: e.target.value }))}
                                 />
@@ -760,11 +801,11 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
 
                     <DialogFooter className="gap-2">
                         <Button variant="outline" onClick={() => setShowUploadDialog(false)}>
-                            {isRTL ? 'إلغاء' : 'Cancel'}
+                            {lt('إلغاء', 'Cancel')}
                         </Button>
                         <Button onClick={handleUpload} disabled={!pendingFile}>
                             <Upload className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'رفع المرفق' : 'Upload'}
+                            {lt('رفع المرفق', 'Upload')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -838,7 +879,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
                             <Button variant="ghost" size="sm" disabled={!canPrevious}
                                 onClick={() => navigatePreview('prev')}>
                                 <ChevronLeft className="w-4 h-4 me-1" />
-                                {isRTL ? 'التالي' : 'Previous'}
+                                {lt('التالي', 'Previous')}
                             </Button>
 
                             {isImage(previewAttachment) && (
@@ -861,7 +902,7 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
 
                             <Button variant="ghost" size="sm" disabled={!canNext}
                                 onClick={() => navigatePreview('next')}>
-                                {isRTL ? 'السابق' : 'Next'}
+                                {lt('السابق', 'Next')}
                                 <ChevronRight className="w-4 h-4 ms-1" />
                             </Button>
                         </div>
@@ -872,10 +913,10 @@ export const DocumentAttachmentsTab: React.FC<DocumentAttachmentsTabProps> = ({
             {/* ═══ Limits Info ═══ */}
             <div className="flex items-center gap-2 px-2 text-[11px] text-gray-400">
                 <AlertTriangle className="w-3 h-3 shrink-0" />
-                {isRTL
-                    ? `PDF, JPG, PNG, WebP • حد أقصى ${formatFileSize(MAX_FILE_SIZE)} للملف • ${formatFileSize(MAX_TOTAL_SIZE_PER_ENTITY)} إجمالي • ${MAX_FILES_PER_ENTITY} ملفات لكل مستند`
-                    : `PDF, JPG, PNG, WebP • Max ${formatFileSize(MAX_FILE_SIZE)}/file • ${formatFileSize(MAX_TOTAL_SIZE_PER_ENTITY)} total • ${MAX_FILES_PER_ENTITY} files/doc`
-                }
+                {lt(
+                    `PDF, JPG, PNG, WebP • حد أقصى ${formatFileSize(MAX_FILE_SIZE)} للملف • ${formatFileSize(MAX_TOTAL_SIZE_PER_ENTITY)} إجمالي • ${MAX_FILES_PER_ENTITY} ملفات لكل مستند`,
+                    `PDF, JPG, PNG, WebP • Max ${formatFileSize(MAX_FILE_SIZE)}/file • ${formatFileSize(MAX_TOTAL_SIZE_PER_ENTITY)} total • ${MAX_FILES_PER_ENTITY} files/doc`
+                )}
             </div>
         </div>
     );

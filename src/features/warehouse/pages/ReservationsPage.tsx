@@ -40,6 +40,7 @@ import {
     XCircle,
     AlertCircle
 } from 'lucide-react';
+import { matchesSearch } from '@/lib/utils/normalizeSearch';
 
 // Types for reservations
 interface Reservation {
@@ -136,14 +137,14 @@ export default function ReservationsPage() {
         return status.charAt(0).toUpperCase() + status.slice(1);
     };
 
-    // Filter reservations
+    // Filter reservations (smart multi-language)
     const filteredReservations = reservations.filter(res => {
         if (!searchQuery) return true;
-        const search = searchQuery.toLowerCase();
-        return (
-            res.reservation_number?.toLowerCase().includes(search) ||
-            res.roll?.roll_number.toLowerCase().includes(search) ||
-            res.customer?.name.toLowerCase().includes(search)
+        return matchesSearch(
+            searchQuery,
+            res.reservation_number || '',
+            res.roll?.roll_number || '',
+            res.customer?.name || '',
         );
     });
 

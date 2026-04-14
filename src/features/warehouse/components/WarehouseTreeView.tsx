@@ -42,6 +42,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────
 export interface WarehouseTreeItem {
+    [key: string]: any;
     id: string;
     code: string;
     name_ar: string;
@@ -55,6 +56,7 @@ export interface WarehouseTreeItem {
 }
 
 export interface BranchTreeItem {
+    [key: string]: any;
     id: string;
     code?: string;
     name_ar?: string;
@@ -67,6 +69,7 @@ export interface BranchTreeItem {
 }
 
 interface TreeNode {
+    [key: string]: any;
     id: string;
     type: 'branch' | 'warehouse';
     code?: string;
@@ -95,11 +98,45 @@ interface WarehouseTreeProps {
     collapseAllCount?: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────
-const getName = (node: { name_ar: string; name_en?: string | null }, lang: string) =>
-    lang === 'ar' ? node.name_ar : (node.name_en || node.name_ar);
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 
-const getTypeLabel = (type: string, isAr: boolean): string => {
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+const getName = (node: Record<string, any>, lang: string) =>
+    getLocalizedName(node, lang);
+
+// Multi-language labels for tree view UI
+const TREE_LABELS: Record<string, Record<string, string>> = {
+    'Edit': { ru: 'Редактировать', uk: 'Редагувати', tr: 'Düzenle', de: 'Bearbeiten', it: 'Modifica', ro: 'Editare', pl: 'Edytuj' },
+    'Add Warehouse': { ru: 'Добавить склад', uk: 'Додати склад', tr: 'Depo Ekle', de: 'Lager hinzufügen', it: 'Aggiungi magazzino', ro: 'Adaugă depozit', pl: 'Dodaj magazyn' },
+    'Delete': { ru: 'Удалить', uk: 'Видалити', tr: 'Sil', de: 'Löschen', it: 'Elimina', ro: 'Șterge', pl: 'Usuń' },
+    'bins': { ru: 'ячеек', uk: 'комірок', tr: 'bölme', de: 'Fächer', it: 'contenitori', ro: 'comp.', pl: 'pojemn.' },
+    'No data available': { ru: 'Нет данных', uk: 'Немає даних', tr: 'Veri yok', de: 'Keine Daten', it: 'Nessun dato', ro: 'Nu există date', pl: 'Brak danych' },
+    'Warehouses': { ru: 'Склады', uk: 'Склади', tr: 'Depolar', de: 'Lager', it: 'Magazzini', ro: 'Depozite', pl: 'Magazyny' },
+    'Inactive': { ru: 'Неактивный', uk: 'Неактивний', tr: 'Pasif', de: 'Inaktiv', it: 'Inattivo', ro: 'Inactiv', pl: 'Nieaktywny' },
+    'No warehouses in this branch': { ru: 'Нет складов в этом филиале', uk: 'Немає складів у цьому філіалі', tr: 'Bu şubede depo yok', de: 'Keine Lager in dieser Filiale', it: 'Nessun magazzino in questa filiale', ro: 'Niciun depozit în această filială', pl: 'Brak magazynów w tym oddziale' },
+    'Delete Branch': { ru: 'Удалить филиал', uk: 'Видалити філіал', tr: 'Şubeyi Sil', de: 'Filiale löschen', it: 'Elimina filiale', ro: 'Șterge filiala', pl: 'Usuń oddział' },
+    'Warehouse Info': { ru: 'Информация о складе', uk: 'Інформація про склад', tr: 'Depo Bilgisi', de: 'Lagerinformation', it: 'Info magazzino', ro: 'Info depozit', pl: 'Informacje o magazynie' },
+    'Type': { ru: 'Тип', uk: 'Тип', tr: 'Tür', de: 'Typ', it: 'Tipo', ro: 'Tip', pl: 'Typ' },
+    'Status': { ru: 'Статус', uk: 'Статус', tr: 'Durum', de: 'Status', it: 'Stato', ro: 'Stare', pl: 'Status' },
+    'Active': { ru: 'Активный', uk: 'Активний', tr: 'Aktif', de: 'Aktiv', it: 'Attivo', ro: 'Activ', pl: 'Aktywny' },
+    'Location Stats': { ru: 'Статистика мест', uk: 'Статистика місць', tr: 'Konum İstatistikleri', de: 'Standortstatistik', it: 'Statistiche posizioni', ro: 'Statistici locații', pl: 'Statystyki lokalizacji' },
+    'Storage Bins': { ru: 'Ячейки хранения', uk: 'Комірки зберігання', tr: 'Depo Bölmeleri', de: 'Lagerfächer', it: 'Contenitori', ro: 'Compartimente', pl: 'Pojemniki' },
+    'Edit Warehouse': { ru: 'Редактировать склад', uk: 'Редагувати склад', tr: 'Depoyu Düzenle', de: 'Lager bearbeiten', it: 'Modifica magazzino', ro: 'Editare depozit', pl: 'Edytuj magazyn' },
+    'Select a branch or warehouse to view details': { ru: 'Выберите филиал или склад для просмотра', uk: 'Виберіть філіал або склад для перегляду', tr: 'Ayrıntılar için bir şube veya depo seçin', de: 'Wählen Sie eine Filiale oder ein Lager', it: 'Seleziona una filiale o magazzino', ro: 'Selectați o filială sau depozit', pl: 'Wybierz oddział lub magazyn' },
+    'Loading tree...': { ru: 'Загрузка дерева...', uk: 'Завантаження дерева...', tr: 'Ağaç yükleniyor...', de: 'Baum wird geladen...', it: 'Caricamento albero...', ro: 'Încarcare arbore...', pl: 'Ładowanie drzewa...' },
+    'Unnamed Branch': { ru: 'Филиал без имени', uk: 'Філіал без назви', tr: 'İsimsiz Şube', de: 'Namenlose Filiale', it: 'Filiale senza nome', ro: 'Filială fără nume', pl: 'Oddział bez nazwy' },
+    'Unknown Branch': { ru: 'Неизвестный филиал', uk: 'Невідомий філіал', tr: 'Bilinmeyen Şube', de: 'Unbekannte Filiale', it: 'Filiale sconosciuta', ro: 'Filială necunoscută', pl: 'Nieznany oddział' },
+    'No Branch': { ru: 'Без филиала', uk: 'Без філіалу', tr: 'Şube Yok', de: 'Keine Filiale', it: 'Nessuna filiale', ro: 'Fără filială', pl: 'Bez oddziału' },
+    'Main': { ru: 'Основной', uk: 'Основний', tr: 'Ana', de: 'Haupt', it: 'Principale', ro: 'Principal', pl: 'Główny' },
+    'Branch': { ru: 'Филиальный', uk: 'Філіальний', tr: 'Şube', de: 'Filiale', it: 'Filiale', ro: 'Filială', pl: 'Oddział' },
+    'Store': { ru: 'Магазин', uk: 'Магазин', tr: 'Mağaza', de: 'Geschäft', it: 'Negozio', ro: 'Magazin', pl: 'Sklep' },
+    'Regular': { ru: 'Обычный', uk: 'Звичайний', tr: 'Normal', de: 'Normal', it: 'Regolare', ro: 'Normal', pl: 'Zwykły' },
+    'Market': { ru: 'Рынок', uk: 'Ринок', tr: 'Pazar', de: 'Markt', it: 'Mercato', ro: 'Piață', pl: 'Rynek' },
+    'Van': { ru: 'Фургон', uk: 'Фургон', tr: 'Kamyonet', de: 'Lieferwagen', it: 'Furgone', ro: 'Camionetă', pl: 'Van' },
+};
+
+const getTypeLabelMulti = (type: string, language: string): string => {
     const labels: Record<string, [string, string]> = {
         main: ['رئيسي', 'Main'],
         branch: ['فرعي', 'Branch'],
@@ -109,7 +146,19 @@ const getTypeLabel = (type: string, isAr: boolean): string => {
         van: ['شاحنة', 'Van'],
     };
     const [ar, en] = labels[type] || [type, type];
-    return isAr ? ar : en;
+    if (language === 'ar') return ar;
+    if (language === 'en') return en;
+    const trans = TREE_LABELS[en];
+    if (trans && trans[language]) return trans[language];
+    return en;
+};
+
+const tlTree = (ar: string, en: string, language: string): string => {
+    if (language === 'ar') return ar;
+    if (language === 'en') return en;
+    const trans = TREE_LABELS[en];
+    if (trans && trans[language]) return trans[language];
+    return en;
 };
 
 const getTypeBadgeClass = (type: string): string => {
@@ -245,7 +294,7 @@ function TreeNodeRow({
                     )}
                     {!isBranch && (node.locations_count ?? 0) > 0 && (
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30">
-                            {node.locations_count} {language === 'ar' ? 'موقع' : 'bins'}
+                            {node.locations_count} {tlTree('موقع', 'bins', language)}
                         </span>
                     )}
                 </div>
@@ -271,13 +320,13 @@ function TreeNodeRow({
                             {onEdit && (
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(node); }}>
                                     <Edit className="w-4 h-4 me-2" />
-                                    {language === 'ar' ? 'تعديل' : 'Edit'}
+                                    {tlTree('تعديل', 'Edit', language)}
                                 </DropdownMenuItem>
                             )}
                             {isBranch && onAdd && (
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAdd(node.id); }}>
                                     <Plus className="w-4 h-4 me-2" />
-                                    {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
+                                    {tlTree('إضافة مستودع', 'Add Warehouse', language)}
                                 </DropdownMenuItem>
                             )}
                             {!isBranch && onDelete && (node.locations_count ?? 0) === 0 && (
@@ -288,7 +337,7 @@ function TreeNodeRow({
                                         className="text-red-600 dark:text-red-400 focus:text-red-600"
                                     >
                                         <Trash2 className="w-4 h-4 me-2" />
-                                        {language === 'ar' ? 'حذف' : 'Delete'}
+                                        {tlTree('حذف', 'Delete', language)}
                                     </DropdownMenuItem>
                                 </>
                             )}
@@ -338,7 +387,6 @@ export function WarehouseTreeView({
 }: WarehouseTreeProps) {
     const { language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
-    const isAr = language === 'ar';
 
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -369,25 +417,17 @@ export function WarehouseTreeView({
             if (!hasName && !hasWarehouses) return;
 
             result.push({
+                ...b,
                 id: b.id,
                 type: 'branch',
                 code: b.code,
-                name_ar: b.name_ar?.trim() || (isAr ? 'فرع بدون اسم' : 'Unnamed Branch'),
-                name_en: b.name_en,
+                name_ar: b.name_ar?.trim() || (tlTree('فرع بدون اسم', 'Unnamed Branch', language)),
                 city: b.city,
                 is_main: b.is_main,
                 is_active: b.is_active !== false,
                 children: branchWarehouses.map(wh => ({
-                    id: wh.id,
+                    ...wh,
                     type: 'warehouse' as const,
-                    code: wh.code,
-                    name_ar: wh.name_ar,
-                    name_en: wh.name_en,
-                    warehouse_type: wh.warehouse_type,
-                    is_main: wh.is_main,
-                    is_active: wh.is_active,
-                    locations_count: wh.locations_count,
-                    rolls_count: wh.rolls_count,
                 })),
             });
         });
@@ -397,17 +437,11 @@ export function WarehouseTreeView({
                 result.push({
                     id: branchId,
                     type: 'branch',
-                    name_ar: isAr ? 'فرع غير معرّف' : 'Unknown Branch',
+                    name_ar: tlTree('فرع غير معرّف', 'Unknown Branch', language),
                     is_active: true,
                     children: whs.map(wh => ({
-                        id: wh.id,
+                        ...wh,
                         type: 'warehouse' as const,
-                        code: wh.code,
-                        name_ar: wh.name_ar,
-                        name_en: wh.name_en,
-                        warehouse_type: wh.warehouse_type,
-                        is_active: wh.is_active,
-                        locations_count: wh.locations_count,
                     })),
                 });
             }
@@ -417,22 +451,16 @@ export function WarehouseTreeView({
             result.push({
                 id: '__unassigned__',
                 type: 'branch',
-                name_ar: isAr ? 'بدون فرع' : 'No Branch',
+                name_ar: tlTree('بدون فرع', 'No Branch', language),
                 is_active: true,
                 children: unassigned.map(wh => ({
-                    id: wh.id,
+                    ...wh,
                     type: 'warehouse' as const,
-                    code: wh.code,
-                    name_ar: wh.name_ar,
-                    name_en: wh.name_en,
-                    warehouse_type: wh.warehouse_type,
-                    is_active: wh.is_active,
-                    locations_count: wh.locations_count,
                 })),
             });
         }
         return result;
-    }, [warehouses, branches, isAr]);
+    }, [warehouses, branches, language]);
 
     useEffect(() => {
         if (initializedRef.current || treeData.length === 0) return;
@@ -502,7 +530,7 @@ export function WarehouseTreeView({
         <div className="h-full overflow-y-auto p-2 bg-gray-50/50 dark:bg-gray-800/20" dir={direction}>
             {treeData.length === 0 ? (
                 <div className="text-center py-10 text-gray-500">
-                    {isAr ? 'لا توجد بيانات' : 'No data available'}
+                    {tlTree('لا توجد بيانات', 'No data available', language)}
                 </div>
             ) : treeData.map(node => (
                 <TreeNodeRow
@@ -554,13 +582,13 @@ export function WarehouseTreeView({
                             {isBranchSelected && onWarehouseAdd && (
                                 <Button onClick={() => onWarehouseAdd(selectedNode.id)} className="gap-2">
                                     <Plus className="w-4 h-4" />
-                                    {isAr ? 'إضافة مستودع' : 'Add Warehouse'}
+                                    {tlTree('إضافة مستودع', 'Add Warehouse', language)}
                                 </Button>
                             )}
                             {!isBranchSelected && onWarehouseEdit && (
                                 <Button variant="outline" onClick={() => handleTreeEdit(selectedNode)} className="gap-2">
                                     <Edit className="w-4 h-4" />
-                                    {isAr ? 'تعديل' : 'Edit'}
+                                    {tlTree('تعديل', 'Edit', language)}
                                 </Button>
                             )}
                         </div>
@@ -570,7 +598,7 @@ export function WarehouseTreeView({
                     {isBranchSelected && (
                         <div className="space-y-4">
                             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                                {isAr ? 'المستودعات' : 'Warehouses'} ({panelWarehouses.length})
+                                {tlTree('المستودعات', 'Warehouses', language)} ({panelWarehouses.length})
                             </h3>
                             {panelWarehouses.length > 0 ? panelWarehouses.map(item => (
                                 <div
@@ -586,7 +614,7 @@ export function WarehouseTreeView({
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium text-gray-900 dark:text-white truncate">{getName(item, language)}</span>
                                             {!item.is_active && (
-                                                <span className="text-[10px] px-1.5 bg-red-100 text-red-500 rounded">{isAr ? 'موقوف' : 'Inactive'}</span>
+                                                <span className="text-[10px] px-1.5 bg-red-100 text-red-500 rounded">{tlTree('موقوف', 'Inactive', language)}</span>
                                             )}
                                         </div>
                                         <div className="text-xs text-gray-500 font-mono mt-0.5">{item.code}</div>
@@ -594,12 +622,12 @@ export function WarehouseTreeView({
                                     <div className="flex items-center gap-2 px-4 flex-shrink-0">
                                         {item.warehouse_type && (
                                             <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', getTypeBadgeClass(item.warehouse_type))}>
-                                                {getTypeLabel(item.warehouse_type, isAr)}
+                                                {getTypeLabelMulti(item.warehouse_type, language)}
                                             </span>
                                         )}
                                         {(item.locations_count ?? 0) > 0 && (
                                             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded text-emerald-700 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30">
-                                                {item.locations_count} {isAr ? 'موقع' : 'bins'}
+                                                {item.locations_count} {tlTree('موقع', 'bins', language)}
                                             </span>
                                         )}
                                     </div>
@@ -608,12 +636,12 @@ export function WarehouseTreeView({
                             )) : (
                                 <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
                                     <Box className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                                    <p className="text-gray-500 mb-3">{isAr ? 'لا توجد مستودعات في هذا الفرع' : 'No warehouses in this branch'}</p>
+                                    <p className="text-gray-500 mb-3">{tlTree('لا توجد مستودعات في هذا الفرع', 'No warehouses in this branch', language)}</p>
                                     <div className="flex items-center justify-center gap-2 flex-wrap">
                                         {onWarehouseAdd && (
                                             <Button variant="outline" size="sm" className="gap-2" onClick={() => onWarehouseAdd(selectedNode.id)}>
                                                 <Plus className="w-3.5 h-3.5" />
-                                                {isAr ? 'إضافة مستودع' : 'Add Warehouse'}
+                                                {tlTree('إضافة مستودع', 'Add Warehouse', language)}
                                             </Button>
                                         )}
                                         {onBranchDelete && selectedNode.id !== '__unassigned__' && (
@@ -624,7 +652,7 @@ export function WarehouseTreeView({
                                                 onClick={() => onBranchDelete(selectedNode.id)}
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
-                                                {isAr ? 'حذف الفرع' : 'Delete Branch'}
+                                                {tlTree('حذف الفرع', 'Delete Branch', language)}
                                             </Button>
                                         )}
                                     </div>
@@ -638,31 +666,31 @@ export function WarehouseTreeView({
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{isAr ? 'معلومات المستودع' : 'Warehouse Info'}</h4>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{tlTree('معلومات المستودع', 'Warehouse Info', language)}</h4>
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center py-1">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400">{isAr ? 'النوع' : 'Type'}</span>
+                                            <span className="text-sm text-gray-600 dark:text-gray-400">{tlTree('النوع', 'Type', language)}</span>
                                             {selectedNode.warehouse_type && (
                                                 <span className={cn('text-xs font-medium px-2 py-1 rounded', getTypeBadgeClass(selectedNode.warehouse_type))}>
-                                                    {getTypeLabel(selectedNode.warehouse_type, isAr)}
+                                                    {getTypeLabelMulti(selectedNode.warehouse_type, language)}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex justify-between items-center py-1">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400">{isAr ? 'الحالة' : 'Status'}</span>
+                                            <span className="text-sm text-gray-600 dark:text-gray-400">{tlTree('الحالة', 'Status', language)}</span>
                                             <span className={cn('flex items-center gap-1 text-sm font-medium', selectedNode.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
                                                 {selectedNode.is_active
-                                                    ? <><CheckCircle2 className="w-4 h-4" /> {isAr ? 'نشط' : 'Active'}</>
-                                                    : <><XCircle className="w-4 h-4" /> {isAr ? 'موقوف' : 'Inactive'}</>
+                                                    ? <><CheckCircle2 className="w-4 h-4" /> {tlTree('نشط', 'Active', language)}</>
+                                                    : <><XCircle className="w-4 h-4" /> {tlTree('موقوف', 'Inactive', language)}</>
                                                 }
                                             </span>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
-                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{isAr ? 'إحصاءات المواقع' : 'Location Stats'}</h4>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">{tlTree('إحصاءات المواقع', 'Location Stats', language)}</h4>
                                     <div className="flex justify-between items-center py-1">
-                                        <span className="text-sm text-gray-600 dark:text-gray-400">{isAr ? 'مواقع التخزين' : 'Storage Bins'}</span>
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">{tlTree('مواقع التخزين', 'Storage Bins', language)}</span>
                                         <span className="font-mono font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-1 rounded">
                                             {selectedNode.locations_count ?? 0}
                                         </span>
@@ -671,7 +699,7 @@ export function WarehouseTreeView({
                             </div>
                             <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-800">
                                 <Button onClick={() => handleTreeEdit(selectedNode)}>
-                                    {isAr ? 'تعديل المستودع' : 'Edit Warehouse'}
+                                    {tlTree('تعديل المستودع', 'Edit Warehouse', language)}
                                 </Button>
                             </div>
                         </div>
@@ -680,7 +708,7 @@ export function WarehouseTreeView({
             ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400">
                     <Layers className="w-16 h-16 mb-4 opacity-20" />
-                    <p className="text-sm font-tajawal">{isAr ? 'اختر فرعاً أو مستودعاً لعرض التفاصيل' : 'Select a branch or warehouse to view details'}</p>
+                    <p className="text-sm font-tajawal">{tlTree('اختر فرعاً أو مستودعاً لعرض التفاصيل', 'Select a branch or warehouse to view details', language)}</p>
                 </div>
             )}
         </div>
@@ -694,7 +722,7 @@ export function WarehouseTreeView({
             <div className="flex items-center justify-center py-16 text-gray-400">
                 <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm">{isAr ? 'جارٍ تحميل الشجرة...' : 'Loading tree...'}</span>
+                    <span className="text-sm">{tlTree('جارٍ تحميل الشجرة...', 'Loading tree...', language)}</span>
                 </div>
             </div>
         );

@@ -42,6 +42,13 @@ export interface Warehouse {
     name?: string;  // Some DB schemas use 'name' directly instead of name_ar
     name_ar: string;
     name_en?: string;
+    name_ru?: string;
+    name_uk?: string;
+    name_tr?: string;
+    name_de?: string;
+    name_it?: string;
+    name_ro?: string;
+    name_pl?: string;
     warehouse_type: 'main' | 'branch' | 'store' | 'regular' | 'offline_market' | 'van';
     country?: string;
     city?: string;
@@ -203,9 +210,51 @@ export const warehouseService = {
     },
 
     /**
-     * Delete warehouse
+     * Delete warehouse — with safety checks
+     * لا يمكن حذف مستودع مرتبط بمواد أو حركات مخزون
      */
     async delete(id: string): Promise<void> {
+        // 1. Check for inventory movements
+        const { count: movementsCount } = await supabase
+            .from('inventory_movements')
+            .select('id', { count: 'exact', head: true })
+            .or(`to_warehouse_id.eq.${id},from_warehouse_id.eq.${id}`);
+
+        if (movementsCount && movementsCount > 0) {
+            throw new Error(`لا يمكن حذف هذا المستودع — يوجد ${movementsCount} حركة مخزون مرتبطة به.\nCannot delete: ${movementsCount} inventory movement(s) linked.`);
+        }
+
+        // 2. Check for materials assigned to this warehouse
+        const { count: materialsCount } = await supabase
+            .from('fabric_materials')
+            .select('id', { count: 'exact', head: true })
+            .eq('default_warehouse_id', id);
+
+        if (materialsCount && materialsCount > 0) {
+            throw new Error(`لا يمكن حذف هذا المستودع — يوجد ${materialsCount} مادة مرتبطة به.\nCannot delete: ${materialsCount} material(s) assigned.`);
+        }
+
+        // 3. Check for stock transfers
+        const { count: transfersCount } = await supabase
+            .from('stock_transfers')
+            .select('id', { count: 'exact', head: true })
+            .or(`to_warehouse_id.eq.${id},from_warehouse_id.eq.${id}`);
+
+        if (transfersCount && transfersCount > 0) {
+            throw new Error(`لا يمكن حذف هذا المستودع — يوجد ${transfersCount} تحويل مخزون مرتبط به.\nCannot delete: ${transfersCount} stock transfer(s) linked.`);
+        }
+
+        // 4. Check for fabric rolls
+        const { count: rollsCount } = await supabase
+            .from('fabric_rolls')
+            .select('id', { count: 'exact', head: true })
+            .eq('warehouse_id', id);
+
+        if (rollsCount && rollsCount > 0) {
+            throw new Error(`لا يمكن حذف هذا المستودع — يوجد ${rollsCount} رول قماش مرتبط به.\nCannot delete: ${rollsCount} fabric roll(s) stored.`);
+        }
+
+        // 5. All clear — delete
         const { error } = await supabase
             .from('warehouses')
             .delete()
@@ -1047,10 +1096,10 @@ export const warehouseService = {
         const saleTypes = ['sale', 'sale_invoice', 'issue', 'delivery'];
         const purTypes = ['receipt', 'purchase', 'container_receipt', 'goods_receipt', 'container'];
 
-        // ── أ) مبيعات: UUID مباشر ──
+        // ── أ) مبيعات: UUID مباشر (includes transfer_out from sales) ──
         const saleRefIds = [...new Set(
             allData
-                .filter((m: any) => saleTypes.includes(m.movement_type))
+                .filter((m: any) => saleTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice')
                 .map((m: any) => m.reference_id)
                 .filter(Boolean)
         )] as string[];
@@ -2216,6 +2265,47 @@ export const warehouseService = {
                             last_updated: roll.updated_at || null,
                         });
                     }
+                }
+            }
+
+            // ─── If no rolls found, check inventory_stock for per-warehouse breakdown ───
+            // This handles imported materials that have loose stock distributed across warehouses
+            if (warehouseMap.size === 0) {
+                // Step 1: Fetch inventory_stock rows (simple query, no joins)
+                const { data: stockRows, error: stockErr } = await supabase
+                    .from('inventory_stock')
+                    .select('warehouse_id, quantity_on_hand, updated_at')
+                    .eq('company_id', companyId)
+                    .eq('material_id', materialId)
+                    .gt('quantity_on_hand', 0);
+
+                if (!stockErr && stockRows && stockRows.length > 0) {
+                    // Step 2: Fetch warehouse details for all referenced warehouses
+                    const whIds = [...new Set(stockRows.map(r => r.warehouse_id))];
+                    const { data: whDetails } = await supabase
+                        .from('warehouses')
+                        .select('id, code, name_ar, name_en')
+                        .in('id', whIds);
+
+                    const whMap = new Map((whDetails || []).map((w: any) => [w.id, w]));
+
+                    for (const row of stockRows) {
+                        const wh = whMap.get(row.warehouse_id) as any;
+                        warehouseMap.set(row.warehouse_id, {
+                            warehouse_id: row.warehouse_id,
+                            warehouse_code: wh?.code || '',
+                            warehouse_name_ar: wh?.name_ar || '',
+                            warehouse_name_en: wh?.name_en || '',
+                            roll_count: 0,
+                            total_length: 0,
+                            available_length: 0,
+                            reserved_length: 0,
+                            loose_stock: Number(row.quantity_on_hand) || 0,
+                            last_updated: row.updated_at || null,
+                        });
+                    }
+                    // Return early — inventory_stock has the authoritative per-warehouse distribution
+                    return Array.from(warehouseMap.values());
                 }
             }
 

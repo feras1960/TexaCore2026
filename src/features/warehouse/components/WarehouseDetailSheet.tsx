@@ -267,8 +267,58 @@ function UnassignedRollCard({ roll, selected, onToggle }: {
 export function WarehouseDetailSheet({
     isOpen, onClose, selection, companyId, onOpenRoll, onRollsAssigned,
 }: WarehouseDetailSheetProps) {
-    const { isRTL } = useLanguage();
-    const T = (ar: string, en: string) => (isRTL ? ar : en);
+    const { isRTL, language } = useLanguage();
+    // ═══ Multi-language T() function ═══
+    const WH_LABELS: Record<string, Record<string, string>> = {
+        'Row': { ru: 'Ряд', uk: 'Ряд', tr: 'Satır', de: 'Reihe', it: 'Riga', ro: 'Rând', pl: 'Rząd' },
+        'Column': { ru: 'Столбец', uk: 'Стовпець', tr: 'Sütun', de: 'Spalte', it: 'Colonna', ro: 'Coloană', pl: 'Kolumna' },
+        'bins': { ru: 'ячеек', uk: 'комірок', tr: 'bölme', de: 'Fächer', it: 'contenitori', ro: 'compartimente', pl: 'pojemników' },
+        'Refresh': { ru: 'Обновить', uk: 'Оновити', tr: 'Yenile', de: 'Aktualisieren', it: 'Aggiorna', ro: 'Reîmprospătare', pl: 'Odśwież' },
+        'Cell': { ru: 'Ячейка', uk: 'Комірка', tr: 'Hücre', de: 'Zelle', it: 'Cella', ro: 'Celulă', pl: 'Komórka' },
+        'rolls': { ru: 'рулонов', uk: 'рулонів', tr: 'rulo', de: 'Rollen', it: 'rotoli', ro: 'role', pl: 'rolek' },
+        'unassigned': { ru: 'не назначено', uk: 'не призначено', tr: 'atanmamış', de: 'nicht zugewiesen', it: 'non assegnati', ro: 'neatribuite', pl: 'nieprzypisanych' },
+        '📊 Overview': { ru: '📊 Обзор', uk: '📊 Огляд', tr: '📊 Genel Bakış', de: '📊 Übersicht', it: '📊 Panoramica', ro: '📊 Prezentare', pl: '📊 Przegląd' },
+        'Rolls here': { ru: 'Рулонов здесь', uk: 'Рулонів тут', tr: 'Buradaki rulolar', de: 'Rollen hier', it: 'Rotoli qui', ro: 'Role aici', pl: 'Rolek tutaj' },
+        'Total Length': { ru: 'Общая длина', uk: 'Загальна довжина', tr: 'Toplam Uzunluk', de: 'Gesamtlänge', it: 'Lunghezza totale', ro: 'Lungime totală', pl: 'Łączna długość' },
+        'Capacity Used': { ru: 'Занятость', uk: 'Заповненість', tr: 'Kapasite', de: 'Kapazität', it: 'Capacità usata', ro: 'Capacitate', pl: 'Pojemność' },
+        'Bin Occupancy': { ru: 'Заполненность ячеек', uk: 'Заповненість комірок', tr: 'Bölme Doluluk', de: 'Fachbelegung', it: 'Occupazione', ro: 'Ocupare', pl: 'Obłożenie' },
+        'Click to view': { ru: 'Нажмите для просмотра', uk: 'Натисніть для перегляду', tr: 'Görüntülemek için tıklayın', de: 'Zum Anzeigen klicken', it: 'Clicca per vedere', ro: 'Clic pentru vizualizare', pl: 'Kliknij aby zobaczyć' },
+        'Add rolls to this location': { ru: 'Добавить рулоны в это место', uk: 'Додати рулони в це місце', tr: 'Bu konuma rulo ekle', de: 'Rollen hier hinzufügen', it: 'Aggiungi rotoli qui', ro: 'Adaugă role aici', pl: 'Dodaj rolki tutaj' },
+        'Add': { ru: 'Добавить', uk: 'Додати', tr: 'Ekle', de: 'Hinzufügen', it: 'Aggiungi', ro: 'Adaugă', pl: 'Dodaj' },
+        'All': { ru: 'Все', uk: 'Всі', tr: 'Tümü', de: 'Alle', it: 'Tutti', ro: 'Toate', pl: 'Wszystkie' },
+        'Roll #': { ru: 'Рулон №', uk: 'Рулон №', tr: 'Rulo #', de: 'Rolle #', it: 'Rotolo #', ro: 'Rolă #', pl: 'Rolka #' },
+        'Bin': { ru: 'Ячейка', uk: 'Комірка', tr: 'Bölme', de: 'Fach', it: 'Contenitore', ro: 'Compartiment', pl: 'Pojemnik' },
+        'Material': { ru: 'Материал', uk: 'Матеріал', tr: 'Malzeme', de: 'Material', it: 'Materiale', ro: 'Material', pl: 'Materiał' },
+        'Length': { ru: 'Длина', uk: 'Довжина', tr: 'Uzunluk', de: 'Länge', it: 'Lunghezza', ro: 'Lungime', pl: 'Długość' },
+        'Color': { ru: 'Цвет', uk: 'Колір', tr: 'Renk', de: 'Farbe', it: 'Colore', ro: 'Culoare', pl: 'Kolor' },
+        'Status': { ru: 'Статус', uk: 'Статус', tr: 'Durum', de: 'Status', it: 'Stato', ro: 'Stare', pl: 'Status' },
+        'No rolls in this location': { ru: 'Нет рулонов в этом месте', uk: 'Немає рулонів у цьому місці', tr: 'Bu konumda rulo yok', de: 'Keine Rollen an diesem Ort', it: 'Nessun rotolo in questa posizione', ro: 'Nicio rolă în această locație', pl: 'Brak rolek w tej lokalizacji' },
+        'Add a roll now': { ru: 'Добавить рулон', uk: 'Додати рулон', tr: 'Şimdi rulo ekle', de: 'Jetzt Rolle hinzufügen', it: 'Aggiungi un rotolo', ro: 'Adaugă o rolă', pl: 'Dodaj rolkę teraz' },
+        'No rolls in this bin': { ru: 'Нет рулонов в этой ячейке', uk: 'Немає рулонів у цій комірці', tr: 'Bu bölmede rulo yok', de: 'Keine Rollen in diesem Fach', it: 'Nessun rotolo in questo contenitore', ro: 'Nicio rolă în acest compartiment', pl: 'Brak rolek w tym pojemniku' },
+        'Show all': { ru: 'Показать все', uk: 'Показати все', tr: 'Tümünü göster', de: 'Alle anzeigen', it: 'Mostra tutti', ro: 'Arată toate', pl: 'Pokaż wszystkie' },
+        '📍 Target Bin': { ru: '📍 Целевая ячейка', uk: '📍 Цільова комірка', tr: '📍 Hedef Bölme', de: '📍 Zielfach', it: '📍 Contenitore destinazione', ro: '📍 Compartiment țintă', pl: '📍 Pojemnik docelowy' },
+        'Color Filter': { ru: 'Фильтр по цвету', uk: 'Фільтр кольору', tr: 'Renk Filtresi', de: 'Farbfilter', it: 'Filtro colore', ro: 'Filtru culoare', pl: 'Filtr kolorów' },
+        'Material Filter': { ru: 'Фильтр по материалу', uk: 'Фільтр матеріалу', tr: 'Malzeme Filtresi', de: 'Materialfilter', it: 'Filtro materiale', ro: 'Filtru material', pl: 'Filtr materiału' },
+        'selected': { ru: 'выбрано', uk: 'вибрано', tr: 'seçili', de: 'ausgewählt', it: 'selezionati', ro: 'selectate', pl: 'zaznaczonych' },
+        'Select all': { ru: 'Выбрать все', uk: 'Вибрати все', tr: 'Tümünü seç', de: 'Alle auswählen', it: 'Seleziona tutti', ro: 'Selectează tot', pl: 'Zaznacz wszystko' },
+        'Clear': { ru: 'Сбросить', uk: 'Скинути', tr: 'Temizle', de: 'Löschen', it: 'Cancella', ro: 'Șterge', pl: 'Wyczyść' },
+        'No unassigned rolls in this warehouse': { ru: 'Нет неназначенных рулонов на этом складе', uk: 'Немає непризначених рулонів на цьому складі', tr: 'Bu depoda atanmamış rulo yok', de: 'Keine nicht zugewiesenen Rollen in diesem Lager', it: 'Nessun rotolo non assegnato in questo magazzino', ro: 'Nicio rolă neatribuită', pl: 'Brak nieprzypisanych rolek' },
+        'No results for selected filter': { ru: 'Нет результатов для выбранного фильтра', uk: 'Немає результатів для обраного фільтра', tr: 'Seçili filtre için sonuç yok', de: 'Keine Ergebnisse für gewählten Filter', it: 'Nessun risultato per il filtro selezionato', ro: 'Niciun rezultat pentru filtrul selectat', pl: 'Brak wyników dla wybranego filtru' },
+        'Clear filters': { ru: 'Сбросить фильтры', uk: 'Скинути фільтри', tr: 'Filtreleri temizle', de: 'Filter löschen', it: 'Cancella filtri', ro: 'Șterge filtre', pl: 'Wyczyść filtry' },
+        'Vertical Shelves': { ru: 'Вертикальные полки', uk: 'Вертикальні полиці', tr: 'Dikey Raflar', de: 'Vertikale Regale', it: 'Scaffali verticali', ro: 'Rafturi verticale', pl: 'Półki pionowe' },
+        'Top': { ru: 'Верх', uk: 'Верх', tr: 'Üst', de: 'Oben', it: 'Alto', ro: 'Sus', pl: 'Góra' },
+        'Bottom': { ru: 'Низ', uk: 'Низ', tr: 'Alt', de: 'Unten', it: 'Basso', ro: 'Jos', pl: 'Dół' },
+        'Failed to load roll': { ru: 'Не удалось загрузить рулон', uk: 'Не вдалося завантажити рулон', tr: 'Rulo yüklenemedi', de: 'Rolle konnte nicht geladen werden', it: 'Impossibile caricare il rotolo', ro: 'Încărcarea rolei a eșuat', pl: 'Nie udało się wczytać rolki' },
+        'Assignment failed': { ru: 'Ошибка назначения', uk: 'Помилка призначення', tr: 'Atama başarısız', de: 'Zuweisung fehlgeschlagen', it: 'Assegnazione fallita', ro: 'Atribuirea a eșuat', pl: 'Przypisanie nie powiodło się' },
+        'Search by roll#, material, color...': { ru: 'Поиск по номеру, материалу, цвету...', uk: 'Пошук за номером, матеріалом, кольором...', tr: 'Rulo no, malzeme, renk ile ara...', de: 'Suche nach Rolle#, Material, Farbe...', it: 'Cerca per rotolo#, materiale, colore...', ro: 'Caută după rolă#, material, culoare...', pl: 'Szukaj wg nr rolki, materiału, koloru...' },
+    };
+    const T = (ar: string, en: string): string => {
+        if (language === 'ar') return ar;
+        if (language === 'en') return en;
+        const trans = WH_LABELS[en];
+        if (trans && trans[language]) return trans[language];
+        return en;
+    };
 
     type Tab = 'overview' | 'rolls' | 'add' | 'bins';
     const [activeTab, setActiveTab] = useState<Tab>('overview');

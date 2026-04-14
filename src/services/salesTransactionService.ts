@@ -99,7 +99,7 @@ export const salesTransactionService = {
         }
 
         // Enrich items with delivery rolls + warehouse name
-        if (data && data.items?.length > 0 && ['delivered', 'posted', 'in_delivery', 'completed', 'confirmed'].includes(data.stage)) {
+        if (data && data.items?.length > 0 && ['delivered', 'posted', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'completed', 'confirmed'].includes(data.stage)) {
             let rollsByMat: Record<string, any[]> = {};
             let deliveryWarehouseId: string | null = null;
             let deliveryWarehouseNameAr: string | null = null;
@@ -157,9 +157,58 @@ export const salesTransactionService = {
                 }
             } catch { /* ignore */ }
 
-            // الطريقة 2: (inventory_movements لا تحتوي على roll_id) — تُحذف
+            // ── الطريقة 2: inventory_movements (تحتوي roll_id) ──
+            if (Object.keys(rollsByMat).length === 0) {
+                try {
+                    console.log('[fetchById] 🔍 Method 2: checking inventory_movements for', id);
+                    const { data: movements, error: mvErr } = await supabase
+                        .from('inventory_movements')
+                        .select('roll_id, material_id, quantity')
+                        .eq('reference_id', id)
+                        .eq('reference_type', 'sale_invoice')
+                        .not('roll_id', 'is', null);
 
-            // ── الطريقة 3 (fallback): fabric_rolls بحالة sold للمواد ──
+                    console.log('[fetchById] 📦 Movements found:', movements?.length || 0, 'error:', mvErr?.message || 'none');
+
+                    if (movements && movements.length > 0) {
+                        // Deduplicate by roll_id (keep first occurrence)
+                        const seenRolls = new Set<string>();
+                        const uniqueMovements = movements.filter((m: any) => {
+                            if (seenRolls.has(m.roll_id)) return false;
+                            seenRolls.add(m.roll_id);
+                            return true;
+                        });
+
+                        console.log('[fetchById] 🎯 Unique rolls:', uniqueMovements.length);
+
+                        const rollIds = uniqueMovements.map((m: any) => m.roll_id);
+                        const { data: rollsData } = await supabase
+                            .from('fabric_rolls')
+                            .select('id, roll_number, current_length, status, material_id, color_name')
+                            .in('id', rollIds);
+
+                        console.log('[fetchById] 🧵 Fabric rolls fetched:', rollsData?.length || 0);
+                        const rollMap = new Map((rollsData || []).map((r: any) => [r.id, r]));
+
+                        for (const mv of uniqueMovements) {
+                            const matId = mv.material_id || rollMap.get(mv.roll_id)?.material_id;
+                            if (!matId) continue;
+                            const roll = rollMap.get(mv.roll_id);
+                            if (!rollsByMat[matId]) rollsByMat[matId] = [];
+                            rollsByMat[matId].push({
+                                roll_id: mv.roll_id,
+                                roll_number: roll?.roll_number || '',
+                                length: mv.quantity || roll?.current_length || 0,
+                                status: roll?.status || 'in_transit',
+                                color_name: roll?.color_name || undefined,
+                            });
+                        }
+                        console.log('[fetchById] ✅ rollsByMat populated:', Object.keys(rollsByMat).length, 'materials, total rolls:', Object.values(rollsByMat).flat().length);
+                    }
+                } catch (err) { console.error('[fetchById] ❌ Method 2 error:', err); }
+            }
+
+            // ── الطريقة 3 (fallback): fabric_rolls بحالة sold/delivered/in_transit ──
             if (Object.keys(rollsByMat).length === 0) {
                 const materialIds = [...new Set(data.items.map((i: any) => i.material_id).filter(Boolean))];
                 if (materialIds.length > 0) {
@@ -167,7 +216,7 @@ export const salesTransactionService = {
                         .from('fabric_rolls')
                         .select('id, roll_number, current_length, status, material_id, color_name')
                         .in('material_id', materialIds)
-                        .in('status', ['sold', 'delivered']);
+                        .in('status', ['sold', 'delivered', 'in_transit']);
                     if (rolls && rolls.length > 0) {
                         for (const r of rolls) {
                             if (!rollsByMat[r.material_id]) rollsByMat[r.material_id] = [];
@@ -193,13 +242,18 @@ export const salesTransactionService = {
             }
 
             // ── تطبيق البيانات على البنود ──
-            data.items = data.items.map((item: any) => ({
-                ...item,
-                delivery_rolls: rollsByMat[item.material_id] || [],
-                // نُعيّن اسم المستودع من إذن التسليم (الأدق) أو المعاملة
-                warehouse_name_ar: deliveryWarehouseNameAr || item.warehouse_name_ar || null,
-                warehouse_name_en: deliveryWarehouseNameEn || item.warehouse_name_en || null,
-            }));
+            data.items = data.items.map((item: any) => {
+                const rolls = rollsByMat[item.material_id] || [];
+                const deliveredQty = rolls.reduce((s: number, r: any) => s + Number(r.length || 0), 0);
+                return {
+                    ...item,
+                    delivery_rolls: rolls,
+                    delivered_qty: deliveredQty || item.delivered_qty || 0,
+                    // نُعيّن اسم المستودع من إذن التسليم (الأدق) أو المعاملة
+                    warehouse_name_ar: deliveryWarehouseNameAr || item.warehouse_name_ar || null,
+                    warehouse_name_en: deliveryWarehouseNameEn || item.warehouse_name_en || null,
+                };
+            });
 
             // تحديث اسم مستودع المعاملة الرئيسي أيضاً
             if (deliveryWarehouseNameAr) {

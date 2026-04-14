@@ -12,6 +12,8 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { warehouseService } from '@/services/warehouseService';
 import { useWarehouses, useDefaultBranch, useBranchesWithWarehouses } from '../hooks/useWarehouseQueries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,19 +53,29 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified';
 import type { UnifiedDocType, SheetMode } from '@/features/accounting/components/unified/types'; // Correct import path assumption
+import { matchesSearch as normalizedSearch } from '@/lib/utils/normalizeSearch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NexaTable, type Column } from '@/components/shared/tables/NexaTable';
 import { StatCard } from '@/components/shared/stats/StatCard';
 import { WarehouseTreeView, type BranchTreeItem } from '../components/WarehouseTreeView';
 import WarehouseLocationsPage from './WarehouseLocationsPage';
 import { TreePine, LayoutList, ChevronsDownUp, ChevronsUpDown, Building2, CheckCircle2, MapPinned, BarChart3 } from 'lucide-react';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 
 // Types
 interface WarehouseItem {
+    [key: string]: any;  // Allow dynamic name_* access
     id: string;
     code: string;
     name_ar: string;
     name_en?: string | null;
+    name_ru?: string | null;
+    name_uk?: string | null;
+    name_tr?: string | null;
+    name_de?: string | null;
+    name_it?: string | null;
+    name_ro?: string | null;
+    name_pl?: string | null;
     warehouse_type: 'main' | 'branch' | 'store' | 'regular' | 'offline_market' | 'van';
     city?: string | null;
     address?: string | null;
@@ -97,6 +109,33 @@ const generateWarehouseCode = (existingWarehouses: WarehouseItem[]) => {
 export default function WarehouseListPage() {
     const { t, language, isRTL } = useLanguage();
     const { companyId, tenantId } = useAuth();
+    const queryClient = useQueryClient();
+
+    // ═══ Multi-language local translator ═══
+    const WLP_LABELS: Record<string, Record<string, string>> = {
+        'Total Warehouses': { ru: 'Всего складов', uk: 'Всього складів', tr: 'Toplam Depo', de: 'Lager gesamt', it: 'Magazzini totali', ro: 'Total depozite', pl: 'Łącznie magazynów' },
+        'Active Warehouses': { ru: 'Активные склады', uk: 'Активні склади', tr: 'Aktif Depolar', de: 'Aktive Lager', it: 'Magazzini attivi', ro: 'Depozite active', pl: 'Aktywne magazyny' },
+        'Branches': { ru: 'Филиалы', uk: 'Філіали', tr: 'Şubeler', de: 'Filialen', it: 'Filiali', ro: 'Filiale', pl: 'Oddziały' },
+        'Storage Bins': { ru: 'Ячейки хранения', uk: 'Комірки зберігання', tr: 'Depo Bölmeleri', de: 'Lagerfächer', it: 'Contenitori', ro: 'Compartimente', pl: 'Pojemniki' },
+        'Tree View': { ru: 'Дерево', uk: 'Дерево', tr: 'Ağaç Görünümü', de: 'Baumansicht', it: 'Vista albero', ro: 'Arbore', pl: 'Widok drzewa' },
+        'Table View': { ru: 'Таблица', uk: 'Таблиця', tr: 'Tablo Görünümü', de: 'Tabellenansicht', it: 'Vista tabella', ro: 'Tabel', pl: 'Widok tabeli' },
+        'Expand All': { ru: 'Развернуть все', uk: 'Розгорнути все', tr: 'Tümünü Genişlet', de: 'Alle aufklappen', it: 'Espandi tutto', ro: 'Expandare', pl: 'Rozwiń wszystko' },
+        'Collapse All': { ru: 'Свернуть все', uk: 'Згорнути все', tr: 'Tümünü Daralt', de: 'Alle zuklappen', it: 'Comprimi tutto', ro: 'Restrângere', pl: 'Zwiń wszystko' },
+        'Search by name or code...': { ru: 'Поиск по имени или коду...', uk: 'Пошук за назвою або кодом...', tr: 'Ad veya kod ile ara...', de: 'Nach Name oder Code suchen...', it: 'Cerca per nome o codice...', ro: 'Caută după nume sau cod...', pl: 'Szukaj po nazwie lub kodzie...' },
+        'Main': { ru: 'Основной', uk: 'Основний', tr: 'Ana', de: 'Haupt', it: 'Principale', ro: 'Principal', pl: 'Główny' },
+        'Branch': { ru: 'Филиал', uk: 'Філіал', tr: 'Şube', de: 'Filiale', it: 'Filiale', ro: 'Filială', pl: 'Oddział' },
+        'No branch': { ru: 'Без филиала', uk: 'Без філіалу', tr: 'Şube yok', de: 'Keine Filiale', it: 'Nessuna filiale', ro: 'Fără filială', pl: 'Bez oddziału' },
+        'Manage warehouses, branches and storage locations': { ru: 'Управление складами, филиалами и зонами хранения', uk: 'Управління складами, філіалами та зонами зберігання', tr: 'Depo, şube ve depolama alanlarını yönetin', de: 'Verwaltung von Lagern, Filialen und Lagerzonen', it: 'Gestione magazzini, filiali e zone di stoccaggio', ro: 'Gestionare depozite, filiale și zone de depozitare', pl: 'Zarządzanie magazynami, oddziałami i strefami' },
+        'Delete Branch': { ru: 'Удалить филиал', uk: 'Видалити філіал', tr: 'Şubeyi Sil', de: 'Filiale löschen', it: 'Elimina filiale', ro: 'Șterge filiala', pl: 'Usuń oddział' },
+        'Are you sure you want to delete this branch? This action cannot be undone.': { ru: 'Вы уверены, что хотите удалить этот филиал? Это действие необратимо.', uk: 'Ви впевнені, що хочете видалити цей філіал? Цю дію не можна скасувати.', tr: 'Bu şubeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.', de: 'Sind Sie sicher, dass Sie diese Filiale löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.', it: 'Sei sicuro di voler eliminare questa filiale? Questa azione non può essere annullata.', ro: 'Sigur doriți să ștergeți această filială? Acțiunea nu poate fi anulată.', pl: 'Czy na pewno chcesz usunąć ten oddział? Tej operacji nie można cofnąć.' },
+    };
+    const lt = (ar: string, en: string): string => {
+        if (language === 'ar') return ar;
+        if (language === 'en') return en;
+        const trans = WLP_LABELS[en];
+        if (trans && trans[language]) return trans[language];
+        return en;
+    };
 
     // ⚡ React Query: cached data, instant tab switching
     const { warehouses, loading, error, refetch: refetchWarehouses, invalidate } = useWarehouses();
@@ -149,15 +188,17 @@ export default function WarehouseListPage() {
     // ── Filter: uses warehousesWithStats for unified data source
     const filteredWarehouses = useMemo(() => {
         return (warehousesWithStats as any[]).filter(wh => {
-            const matchesSearch =
-                wh.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                wh.name_ar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (wh.name_en && wh.name_en.toLowerCase().includes(searchTerm.toLowerCase()));
+            const searchMatch = !searchTerm || normalizedSearch(
+                searchTerm,
+                wh.code || '',
+                wh.name_ar || '',
+                wh.name_en || '',
+            );
 
             const matchesCity = cityFilter === 'all' || wh.city === cityFilter;
             const matchesType = typeFilter === 'all' || wh.warehouse_type === typeFilter;
 
-            return matchesSearch && matchesCity && matchesType;
+            return searchMatch && matchesCity && matchesType;
         });
     }, [warehousesWithStats, searchTerm, cityFilter, typeFilter]);
 
@@ -172,9 +213,7 @@ export default function WarehouseListPage() {
         , [warehousesWithStats]);
 
     // Helpers
-    const getWarehouseName = (wh: WarehouseItem) => {
-        return language === 'ar' ? wh.name_ar : (wh.name_en || wh.name_ar);
-    };
+    const getWarehouseName = (wh: any) => getLocalizedName(wh, language);
 
     const getTypeBadge = (type: string) => {
         const badgeConfigs: Record<string, { label: string; cls: string }> = {
@@ -221,11 +260,19 @@ export default function WarehouseListPage() {
         if (!companyId || !tenantId) throw new Error('Missing company/tenant');
 
         try {
-            const coreData: Partial<import('@/services/warehouseService').Warehouse> = {
+            const coreData: Partial<import('@/services/warehouseService').Warehouse> & Record<string, any> = {
                 code: data.code,
                 name: data.name_ar,
                 name_ar: data.name_ar,
                 name_en: data.name_en,
+                // Multi-language name fields
+                name_ru: data.name_ru || null,
+                name_uk: data.name_uk || null,
+                name_tr: data.name_tr || null,
+                name_de: data.name_de || null,
+                name_it: data.name_it || null,
+                name_ro: data.name_ro || null,
+                name_pl: data.name_pl || null,
                 warehouse_type: data.warehouse_type || 'regular',
                 is_active: data.is_active,
                 city: data.city,
@@ -267,10 +314,19 @@ export default function WarehouseListPage() {
             await warehouseService.delete(warehouseToDelete.id);
             setDeleteDialogOpen(false);
             setWarehouseToDelete(null);
-            // ⚡ Invalidate cache → triggers background refetch
+            // ⚡ REAL-TIME SYNC — same invalidation as sheet onDelete
             invalidate();
-        } catch (err) {
+            invalidateTree();
+            queryClient.invalidateQueries({ queryKey: ['warehouse'] });
+            queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+            queryClient.removeQueries({ queryKey: ['inventory-preload-materials'] });
+            queryClient.removeQueries({ queryKey: ['inventory-preload-rolls'] });
+            queryClient.removeQueries({ queryKey: ['inventory-preload-filters'] });
+            queryClient.invalidateQueries({ queryKey: ['fabric_materials'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory'] });
+        } catch (err: any) {
             console.error('Error deleting warehouse:', err);
+            toast.error(err.message || 'فشل حذف المستودع', { duration: 6000 });
         }
     };
 
@@ -312,13 +368,13 @@ export default function WarehouseListPage() {
             key: 'name_ar',
             align: 'start',
             render: (_, row) => {
-                const name = language === 'ar' ? row.name_ar : (row.name_en || row.name_ar);
+                const name = getLocalizedName(row, language);
                 return (
                     <div className="flex items-center gap-2">
                         <span className="font-medium font-tajawal text-erp-navy dark:text-white">{name}</span>
                         {row.is_main && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400">
-                                {isRTL ? 'رئيسي' : 'Main'}
+                                {lt('رئيسي', 'Main')}
                             </span>
                         )}
                     </div>
@@ -326,14 +382,14 @@ export default function WarehouseListPage() {
             }
         },
         {
-            title: isRTL ? 'الفرع' : 'Branch',
+            title: lt('الفرع', 'Branch'),
             key: 'branch_id',
             align: 'start',
             width: '170px',
             render: (_, row) => {
                 const branch = (branches as any[]).find(b => b.id === row.branch_id);
-                if (!branch) return <span className="text-gray-400 text-xs">{isRTL ? 'بدون فرع' : 'No branch'}</span>;
-                const branchName = language === 'ar' ? (branch.name_ar || branch.name_en) : (branch.name_en || branch.name_ar);
+                if (!branch) return <span className="text-gray-400 text-xs">{lt('بدون فرع', 'No branch')}</span>;
+                const branchName = getLocalizedName(branch, language);
                 return (
                     <div className="flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
@@ -355,7 +411,7 @@ export default function WarehouseListPage() {
             render: (_, row) => getTypeBadge(row.warehouse_type)
         },
         {
-            title: isRTL ? 'مواقع التخزين' : 'Storage Bins',
+            title: lt('مواقع التخزين', 'Storage Bins'),
             key: 'locations_count',
             align: 'center',
             width: '110px',
@@ -427,7 +483,7 @@ export default function WarehouseListPage() {
                         {t('warehouse.tabs.warehouses') || (isRTL ? 'إدارة المستودعات' : 'Warehouses')}
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
-                        {isRTL ? 'إدارة المستودعات والفروع والمواقع' : 'Manage warehouses, branches and storage locations'}
+                        {lt('إدارة المستودعات والفروع والمواقع', 'Manage warehouses, branches and storage locations')}
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -445,22 +501,22 @@ export default function WarehouseListPage() {
             {/* ── Stats — same as MaterialsPage ────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <StatCard
-                    label={isRTL ? 'إجمالي المستودعات' : 'Total Warehouses'}
+                    label={lt('إجمالي المستودعات', 'Total Warehouses')}
                     value={totalWarehouses}
                     icon={Warehouse}
                 />
                 <StatCard
-                    label={isRTL ? 'المستودعات النشطة' : 'Active Warehouses'}
+                    label={lt('المستودعات النشطة', 'Active Warehouses')}
                     value={activeWarehouses}
                     icon={CheckCircle2}
                 />
                 <StatCard
-                    label={isRTL ? 'الفروع' : 'Branches'}
+                    label={lt('الفروع', 'Branches')}
                     value={totalBranches}
                     icon={Building2}
                 />
                 <StatCard
-                    label={isRTL ? 'مواقع التخزين' : 'Storage Bins'}
+                    label={lt('مواقع التخزين', 'Storage Bins')}
                     value={totalLocations}
                     icon={MapPinned}
                 />
@@ -499,7 +555,7 @@ export default function WarehouseListPage() {
                                 className={cn('h-8 px-3', listMode === 'tree' ? 'bg-erp-navy text-white' : 'text-gray-600 dark:text-gray-400')}
                             >
                                 <TreePine className="w-4 h-4 me-2" />
-                                {isRTL ? 'عرض الشجرة' : 'Tree View'}
+                                {lt('عرض الشجرة', 'Tree View')}
                             </Button>
                             <Button
                                 variant={listMode === 'table' ? 'default' : 'ghost'}
@@ -508,7 +564,7 @@ export default function WarehouseListPage() {
                                 className={cn('h-8 px-3', listMode === 'table' ? 'bg-erp-navy text-white' : 'text-gray-600 dark:text-gray-400')}
                             >
                                 <LayoutList className="w-4 h-4 me-2" />
-                                {isRTL ? 'عرض الجدول' : 'Table View'}
+                                {lt('عرض الجدول', 'Table View')}
                             </Button>
                         </div>
 
@@ -517,11 +573,11 @@ export default function WarehouseListPage() {
                             <>
                                 <Button variant="outline" size="sm" onClick={() => setExpandAllCount(c => c + 1)} className="h-8">
                                     <ChevronsDownUp className="w-4 h-4 me-2" />
-                                    {isRTL ? 'فتح الكل' : 'Expand All'}
+                                    {lt('فتح الكل', 'Expand All')}
                                 </Button>
                                 <Button variant="outline" size="sm" onClick={() => setCollapseAllCount(c => c + 1)} className="h-8">
                                     <ChevronsUpDown className="w-4 h-4 me-2" />
-                                    {isRTL ? 'إغلاق الكل' : 'Collapse All'}
+                                    {lt('إغلاق الكل', 'Collapse All')}
                                 </Button>
                             </>
                         )}
@@ -559,7 +615,7 @@ export default function WarehouseListPage() {
                         <div className="relative flex-1 min-w-[180px]">
                             <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                             <Input
-                                placeholder={isRTL ? 'بحث بالاسم أو الكود...' : 'Search by name or code...'}
+                                placeholder={lt('بحث بالاسم أو الكود...', 'Search by name or code...')}
                                 className="ps-9 bg-gray-50 dark:bg-gray-800 border-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -576,7 +632,7 @@ export default function WarehouseListPage() {
                             onWarehouseEdit={handleEdit}
                             onWarehouseClick={handleRowClick}
                             onWarehouseAdd={(branchId) => {
-                                setSelectedWarehouse(null);
+                                setSelectedWarehouse({ branch_id: branchId } as any);
                                 setSheetMode('create');
                                 setFormOpen(true);
                             }}
@@ -611,12 +667,41 @@ export default function WarehouseListPage() {
                 onClose={() => setFormOpen(false)}
                 docType="warehouse"
                 mode={sheetMode}
-                data={selectedWarehouse || {
+                data={sheetMode === 'create' ? {
+                    code: generateWarehouseCode(warehouses),
+                    warehouse_type: 'regular',
+                    is_active: true,
+                    ...(selectedWarehouse || {}),  // includes branch_id when adding from tree
+                } : (selectedWarehouse || {
                     code: generateWarehouseCode(warehouses),
                     warehouse_type: 'regular',
                     is_active: true
-                }}
+                })}
                 onSave={handleSave}
+                onDelete={async () => {
+                    if (!selectedWarehouse?.id) return;
+                    try {
+                        await warehouseService.delete(selectedWarehouse.id);
+                        setFormOpen(false);
+                        setSelectedWarehouse(null);
+                        // ⚡ REAL-TIME SYNC — Invalidate ALL related caches immediately
+                        invalidate();
+                        invalidateTree();
+                        // Warehouse queries (all sub-keys)
+                        queryClient.invalidateQueries({ queryKey: ['warehouse'] });
+                        queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+                        // DataEngine preload caches — used by InventoryPage & MaterialSearch
+                        queryClient.removeQueries({ queryKey: ['inventory-preload-materials'] });
+                        queryClient.removeQueries({ queryKey: ['inventory-preload-rolls'] });
+                        queryClient.removeQueries({ queryKey: ['inventory-preload-filters'] });
+                        // Material & inventory queries
+                        queryClient.invalidateQueries({ queryKey: ['fabric_materials'] });
+                        queryClient.invalidateQueries({ queryKey: ['inventory'] });
+                        queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                    } catch (err: any) {
+                        throw err; // Let the sheet display the error toast
+                    }
+                }}
                 onModeChange={setSheetMode}
             />
 
@@ -643,12 +728,13 @@ export default function WarehouseListPage() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            {isRTL ? 'حذف الفرع' : 'Delete Branch'}
+                            {lt('حذف الفرع', 'Delete Branch')}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {isRTL
-                                ? 'هل أنت متأكد من حذف هذا الفرع؟ لا يمكن التراجع عن هذا الإجراء.'
-                                : 'Are you sure you want to delete this branch? This action cannot be undone.'}
+                            {lt(
+                                'هل أنت متأكد من حذف هذا الفرع؟ لا يمكن التراجع عن هذا الإجراء.',
+                                'Are you sure you want to delete this branch? This action cannot be undone.'
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

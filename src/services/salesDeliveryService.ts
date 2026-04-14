@@ -198,6 +198,65 @@ class SalesDeliveryService {
                 console.warn('⚠️ Stock movement error (non-blocking):', stockErr);
             }
 
+            // ─── 4b. حفظ الرولونات في inventory_movements (ليربطها TradeService بالفاتورة) ───
+            if (input.items && input.items.length > 0) {
+                try {
+                    // جمع كل roll_ids من البنود
+                    const allRollIds = input.items.flatMap((item: DeliveryItem) => item.roll_ids || []);
+                    
+                    if (allRollIds.length > 0) {
+                        // جلب بيانات الرولونات من fabric_rolls
+                        const { data: rollsData } = await supabase
+                            .from('fabric_rolls')
+                            .select('id, material_id, current_length, roll_number')
+                            .in('id', allRollIds);
+
+                        const rollMap = new Map((rollsData || []).map((r: any) => [r.id, r]));
+
+                        // بناء سجلات inventory_movements — سجل لكل رول
+                        const invMovements: any[] = [];
+                        for (const item of input.items) {
+                            for (const rollId of (item.roll_ids || [])) {
+                                const roll = rollMap.get(rollId);
+                                invMovements.push({
+                                    company_id: input.company_id,
+                                    tenant_id: transaction.tenant_id,
+                                    warehouse_id: input.warehouse_id || transaction.warehouse_id,
+                                    movement_type: 'OUT',
+                                    reference_type: 'sale_invoice',
+                                    reference_id: input.transaction_id,
+                                    roll_id: rollId,
+                                    material_id: item.material_id || roll?.material_id || null,
+                                    quantity: roll?.current_length || 0,
+                                    created_by: input.user_id,
+                                    notes: `تسليم بضاعة — ${transaction.invoice_no || transaction.draft_no}`,
+                                });
+                            }
+                        }
+
+                        if (invMovements.length > 0) {
+                            const { error: invErr } = await supabase
+                                .from('inventory_movements')
+                                .insert(invMovements);
+
+                            if (invErr) {
+                                console.warn('⚠️ inventory_movements insert failed (non-blocking):', invErr.message);
+                            } else {
+                                console.log(`✅ inventory_movements: saved ${invMovements.length} roll records for invoice ${input.transaction_id}`);
+
+                                // تحديث حالة الرولونات إلى delivered
+                                await supabase
+                                    .from('fabric_rolls')
+                                    .update({ status: 'delivered' })
+                                    .in('id', allRollIds);
+                            }
+                        }
+                    }
+                } catch (rollErr) {
+                    console.warn('⚠️ Roll inventory_movements error (non-blocking):', rollErr);
+                }
+            }
+
             // ─── 5. ترحيل القيود المحاسبية ───
             let journalEntryId: string | undefined;
             try {

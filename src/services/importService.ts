@@ -383,15 +383,19 @@ export const importService = {
   async parseFile(file: File): Promise<ParsedFile | null> {
     try {
       const fileType = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx';
-      const buffer = await file.arrayBuffer();
-
       let wb;
-      try {
-        wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-      } catch (xlsxErr) {
-        console.error('XLSX read error:', xlsxErr);
-        // Retry with different options
-        wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+      if (fileType === 'csv') {
+        // قراءة الملف كنص للمحافظة على ترميز UTF-8 (اللغات العربية وغيرها)
+        const text = await file.text();
+        wb = XLSX.read(text, { type: 'string', cellDates: true });
+      } else {
+        const buffer = await file.arrayBuffer();
+        try {
+          wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+        } catch (xlsxErr) {
+          console.error('XLSX read error:', xlsxErr);
+          wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+        }
       }
 
       const wsName = wb.SheetNames[0];

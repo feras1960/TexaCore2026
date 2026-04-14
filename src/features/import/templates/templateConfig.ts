@@ -364,14 +364,34 @@ export const TEMPLATE_CONFIGS: Record<string, TemplateConfig> = {
         description: { ar: 'وحدة القياس', en: 'Measurement unit', tr: 'Ölçü birimi', ru: 'Ед. измерения', uk: 'Од. виміру' }
       },
       {
-        field: 'sale_price', required: true, example: 50,
-        label: { ar: 'سعر البيع *', en: 'Sale Price *', tr: 'Satış Fiyatı *', ru: 'Цена продажи *', uk: 'Ціна продажу *' },
-        description: { ar: 'سعر البيع', en: 'Sale price', tr: 'Satış fiyatı', ru: 'Цена продажи', uk: 'Ціна продажу' }
+        field: 'purchase_price', required: false, example: 30,
+        label: { ar: 'سعر المعمل (FOB)', en: 'Purchase Price', tr: 'Alış Fiyatı', ru: 'Закупочная цена', uk: 'Закупівельна ціна' },
+        description: { ar: 'سعر الشراء من المصنع', en: 'Factory purchase price', tr: 'Fabrika alış fiyatı', ru: 'Заводская цена', uk: 'Заводська ціна' }
       },
       {
         field: 'cost_price', required: false, example: 35,
-        label: { ar: 'سعر التكلفة', en: 'Cost Price', tr: 'Maliyet', ru: 'Себестоимость', uk: 'Собівартість' },
-        description: { ar: 'سعر التكلفة', en: 'Cost price', tr: 'Maliyet fiyatı', ru: 'Себестоимость', uk: 'Собівартість' }
+        label: { ar: 'التكلفة الفعلية', en: 'Cost Price', tr: 'Maliyet', ru: 'Себестоимость', uk: 'Собівартість' },
+        description: { ar: 'التكلفة الفعلية أو تكلفة الإنتاج', en: 'Actual cost or production cost', tr: 'Gerçek maliyet', ru: 'Фактическая стоимость', uk: 'Фактична вартість' }
+      },
+      {
+        field: 'sale_price', required: true, example: 50,
+        label: { ar: 'سعر التجزئة *', en: 'Retail Price *', tr: 'Perakende Fiyatı *', ru: 'Розничная цена *', uk: 'Роздрібна ціна *' },
+        description: { ar: 'سعر البيع المفرد', en: 'Retail sale price', tr: 'Perakende satış fiyatı', ru: 'Розничная цена', uk: 'Роздрібна ціна' }
+      },
+      {
+        field: 'wholesale_price', required: false, example: 45,
+        label: { ar: 'سعر الجملة', en: 'Wholesale Price', tr: 'Toptan Fiyat', ru: 'Оптовая цена', uk: 'Оптова ціна' },
+        description: { ar: 'سعر بيع الجملة', en: 'Wholesale price', tr: 'Toptan satış fiyatı', ru: 'Оптовая цена', uk: 'Оптова ціна' }
+      },
+      {
+        field: 'half_wholesale_price', required: false, example: 48,
+        label: { ar: 'سعر نصف الجملة', en: 'Half-Wholesale Price', tr: 'Yarı Toptan', ru: 'Мелкооптовая цена', uk: 'Дрібнооптова ціна' },
+        description: { ar: 'سعر بيع نصف الجملة', en: 'Half-wholesale price', tr: 'Yarı toptan fiyatı', ru: 'Мелкооптовая цена', uk: 'Дрібнооптова ціна' }
+      },
+      {
+        field: 'special_price', required: false, example: 42,
+        label: { ar: 'السعر الخاص', en: 'Special Price', tr: 'Özel Fiyat', ru: 'Специальная цена', uk: 'Спеціальна ціна' },
+        description: { ar: 'السعر الخاص (لكبار العملاء)', en: 'Special price', tr: 'Özel fiyat', ru: 'Специальная цена', uk: 'Спеціальна ціна' }
       },
       {
         field: 'currency', required: false, example: 'USD',

@@ -51,6 +51,7 @@ import {
     Trash2,
     FolderTree
 } from 'lucide-react';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 
 // Types for locations
 interface LocationNode {
@@ -166,15 +167,14 @@ export default function LocationManagementPage() {
 
     // Get label for location type
     const getTypeLabel = (type: string) => {
-        if (language === 'ar') {
-            switch (type) {
-                case 'aisle': return 'ممر';
-                case 'rack': return 'رف';
-                case 'shelf': return 'طبقة';
-                case 'bin': return 'صندوق';
-                default: return type;
-            }
-        }
+        const typeLabels: Record<string, Record<string, string>> = {
+            aisle: { ar: 'ممر', en: 'Aisle', ru: 'Проход', uk: 'Прохід', tr: 'Koridor' },
+            rack:  { ar: 'رف', en: 'Rack', ru: 'Стеллаж', uk: 'Стелаж', tr: 'Raf' },
+            shelf: { ar: 'طبقة', en: 'Shelf', ru: 'Полка', uk: 'Полиця', tr: 'Raf Bölmesi' },
+            bin:   { ar: 'صندوق', en: 'Bin', ru: 'Ячейка', uk: 'Комірка', tr: 'Kutu' },
+        };
+        const labels = typeLabels[type];
+        if (labels) return labels[language] || labels.en;
         return type.charAt(0).toUpperCase() + type.slice(1);
     };
 
@@ -231,7 +231,7 @@ export default function LocationManagementPage() {
                     {/* Status */}
                     {!node.is_active && (
                         <Badge variant="secondary" className="text-xs">
-                            {language === 'ar' ? 'غير نشط' : 'Inactive'}
+                            {getLocalizedLabel('lm_inactive', language)}
                         </Badge>
                     )}
 
@@ -245,15 +245,15 @@ export default function LocationManagementPage() {
                         <DropdownMenuContent align="end">
                             <DropdownMenuItem className="gap-2">
                                 <Plus className="w-4 h-4" />
-                                {language === 'ar' ? 'إضافة فرعي' : 'Add Child'}
+                                {getLocalizedLabel('lm_add_child', language)}
                             </DropdownMenuItem>
                             <DropdownMenuItem className="gap-2">
                                 <Edit className="w-4 h-4" />
-                                {language === 'ar' ? 'تعديل' : 'Edit'}
+                                {getLocalizedLabel('lm_edit', language)}
                             </DropdownMenuItem>
                             <DropdownMenuItem className="gap-2 text-red-600">
                                 <Trash2 className="w-4 h-4" />
-                                {language === 'ar' ? 'حذف' : 'Delete'}
+                                {getLocalizedLabel('lm_delete', language)}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -275,10 +275,10 @@ export default function LocationManagementPage() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-                        {language === 'ar' ? 'إدارة المواقع' : 'Location Management'}
+                        {getLocalizedLabel('lm_title', language)}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        {language === 'ar' ? 'تنظيم المواقع داخل المستودعات (ممر / رف / طبقة / صندوق)' : 'Organize locations within warehouses (Aisle/Rack/Shelf/Bin)'}
+                        {getLocalizedLabel('lm_subtitle', language)}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -290,11 +290,11 @@ export default function LocationManagementPage() {
                         disabled={loading}
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                        <span className="hidden md:inline">{language === 'ar' ? 'تحديث' : 'Refresh'}</span>
+                        <span className="hidden md:inline">{getLocalizedLabel('rd_refresh', language)}</span>
                     </Button>
                     <Button size="sm" className="h-9 gap-2 bg-erp-teal hover:bg-erp-teal/90">
                         <Plus className="w-5 h-5" />
-                        {language === 'ar' ? 'موقع جديد' : 'New Location'}
+                        {getLocalizedLabel('lm_new_loc', language)}
                     </Button>
                 </div>
             </div>
@@ -307,12 +307,12 @@ export default function LocationManagementPage() {
                 >
                     <SelectTrigger className="w-full sm:w-64">
                         <WarehouseIcon className="w-4 h-4 me-2" />
-                        <SelectValue placeholder={language === 'ar' ? 'اختر المستودع' : 'Select Warehouse'} />
+                        <SelectValue placeholder={getLocalizedLabel('lm_select_wh', language)} />
                     </SelectTrigger>
                     <SelectContent>
                         {warehouses.map(wh => (
                             <SelectItem key={wh.id} value={wh.id}>
-                                {language === 'ar' ? wh.name_ar : (wh.name_en || wh.name_ar)}
+                                {language === 'ar' ? wh.name_ar : ((wh as any)[`name_${language}`] || wh.name_en || wh.name_ar)}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -321,7 +321,7 @@ export default function LocationManagementPage() {
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                        placeholder={language === 'ar' ? 'بحث بالكود أو الاسم...' : 'Search by code or name...'}
+                        placeholder={getLocalizedLabel('lm_search', language)}
                         className="ps-10"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -344,7 +344,7 @@ export default function LocationManagementPage() {
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base font-cairo flex items-center gap-2">
                         <FolderTree className="w-4 h-4" />
-                        {language === 'ar' ? 'هيكل المواقع' : 'Location Structure'}
+                        {getLocalizedLabel('lm_structure', language)}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -357,22 +357,20 @@ export default function LocationManagementPage() {
                     ) : !selectedWarehouse ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <WarehouseIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                            <p>{language === 'ar' ? 'اختر مستودعاً لعرض المواقع' : 'Select a warehouse to view locations'}</p>
+                            <p>{getLocalizedLabel('lm_select_wh_msg', language)}</p>
                         </div>
                     ) : locations.length === 0 ? (
                         <div className="text-center py-12">
                             <MapPin className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                             <h3 className="text-lg font-cairo font-bold text-gray-600 dark:text-gray-300 mb-2">
-                                {language === 'ar' ? 'لا توجد مواقع' : 'No Locations'}
+                                {getLocalizedLabel('lm_no_locs', language)}
                             </h3>
                             <p className="text-sm text-muted-foreground mb-4">
-                                {language === 'ar'
-                                    ? 'لم يتم إضافة أي مواقع في هذا المستودع بعد.'
-                                    : 'No locations have been added to this warehouse yet.'}
+                                {getLocalizedLabel('lm_no_locs_msg', language)}
                             </p>
                             <Button className="gap-2 bg-erp-teal hover:bg-erp-teal/90">
                                 <Plus className="w-4 h-4" />
-                                {language === 'ar' ? 'إضافة ممر' : 'Add Aisle'}
+                                {getLocalizedLabel('lm_add_aisle', language)}
                             </Button>
                         </div>
                     ) : (

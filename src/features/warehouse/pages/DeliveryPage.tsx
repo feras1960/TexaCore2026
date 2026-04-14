@@ -45,6 +45,7 @@ import {
     Printer,
     Download
 } from 'lucide-react';
+import { matchesSearch } from '@/lib/utils/normalizeSearch';
 
 export default function DeliveryPage() {
     const { t, language, direction } = useLanguage();
@@ -111,14 +112,14 @@ export default function DeliveryPage() {
         return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     };
 
-    // Filter delivery notes
+    // Filter delivery notes (smart multi-language)
     const filteredNotes = deliveryNotes.filter(note => {
         if (!searchQuery) return true;
-        const search = searchQuery.toLowerCase();
-        return (
-            note.note_number.toLowerCase().includes(search) ||
-            note.customer_name?.toLowerCase().includes(search) ||
-            note.delivery_address?.toLowerCase().includes(search)
+        return matchesSearch(
+            searchQuery,
+            note.note_number,
+            note.customer_name || '',
+            note.delivery_address || '',
         );
     });
 

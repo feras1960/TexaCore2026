@@ -70,6 +70,69 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
 
     const draftRolls = deliveryDraft?.rolls || [];
 
+    // ── Post-loading stages: in_transit, at_branch, sent_to_branch, delivered ──
+    // Read actual delivered data from items, not from draft
+    const postLoadingStages = ['in_transit', 'sent_to_branch', 'at_branch', 'delivered'];
+    if (postLoadingStages.includes(stage)) {
+        // Collect delivered rolls from items
+        const allDeliveredRolls = items.flatMap((i: any) => i.delivery_rolls || []);
+        const deliveredMeters = items.reduce((s: number, i: any) => s + Number(i.delivered_qty || 0), 0);
+        const expectedMeters = items.reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
+        const rollCount = allDeliveredRolls.length;
+
+        // If no delivery data, show minimal status
+        if (rollCount === 0 && deliveredMeters === 0) {
+            const config = stage === 'in_transit' || stage === 'sent_to_branch'
+                ? { icon: '🚚', label: isRTL ? 'بالطريق للفرع' : 'In Transit to Branch', color: 'border-blue-400 dark:border-blue-600', textColor: 'text-blue-700 dark:text-blue-300' }
+                : stage === 'at_branch'
+                    ? { icon: '🏪', label: isRTL ? 'في الفرع — بانتظار التسليم' : 'At Branch — Awaiting Delivery', color: 'border-purple-400 dark:border-purple-600', textColor: 'text-purple-700 dark:text-purple-300' }
+                    : { icon: '✅', label: isRTL ? 'تم التسليم' : 'Delivered', color: 'border-green-300 dark:border-green-700', textColor: 'text-green-700 dark:text-green-300' };
+
+            return (
+                <Card className={cn("shadow-sm overflow-hidden border-2", config.color)}>
+                    <CardContent className="p-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-base">{config.icon}</span>
+                            <span className={cn("text-sm font-semibold", config.textColor)}>
+                                {config.label}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+            );
+        }
+
+        // Has delivery data — show compact summary
+        const stageConfig = stage === 'in_transit' || stage === 'sent_to_branch'
+            ? { icon: '🚚', label: isRTL ? 'بالطريق للفرع' : 'In Transit to Branch', borderColor: 'border-blue-400 dark:border-blue-600', textColor: 'text-blue-700 dark:text-blue-300', badgeBg: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' }
+            : stage === 'at_branch'
+                ? { icon: '🏪', label: isRTL ? 'في الفرع — بانتظار التسليم' : 'At Branch — Awaiting Delivery', borderColor: 'border-purple-400 dark:border-purple-600', textColor: 'text-purple-700 dark:text-purple-300', badgeBg: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300' }
+                : { icon: '✅', label: isRTL ? 'تم التسليم' : 'Delivered', borderColor: 'border-green-300 dark:border-green-700', textColor: 'text-green-700 dark:text-green-300', badgeBg: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' };
+
+        return (
+            <Card className={cn("shadow-sm overflow-hidden border-2", stageConfig.borderColor)}>
+                <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="text-base">{stageConfig.icon}</span>
+                            <span className={cn("text-sm font-bold", stageConfig.textColor)}>
+                                {stageConfig.label}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Badge className={cn("text-xs", stageConfig.badgeBg)}>
+                                {rollCount} {isRTL ? 'رولون' : 'rolls'}
+                            </Badge>
+                            <Badge className={cn("text-xs", stageConfig.badgeBg)}>
+                                {deliveredMeters.toFixed(1)} / {expectedMeters.toFixed(1)} {isRTL ? 'متر' : 'm'}
+                            </Badge>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
     // Don't show for confirmed with no draft
     if (draftRolls.length === 0 && stage === 'confirmed') return null;
     // Show empty state for in_delivery with no rolls yet
@@ -104,23 +167,61 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
         rollsByMaterial[key].push(r);
     });
 
+    // ── Stage-aware label & colors ──
+    const bannerConfig = (() => {
+        switch (stage) {
+            case 'in_transit':
+            case 'sent_to_branch':
+                return {
+                    icon: '🚚',
+                    label: isRTL ? 'بالطريق للفرع' : 'In Transit to Branch',
+                    borderColor: 'border-blue-400 dark:border-blue-600',
+                    barColor: 'bg-blue-500',
+                    dot: 'bg-blue-400',
+                };
+            case 'at_branch':
+                return {
+                    icon: '🏪',
+                    label: isRTL ? 'في الفرع — بانتظار التسليم' : 'At Branch — Awaiting Delivery',
+                    borderColor: 'border-purple-400 dark:border-purple-600',
+                    barColor: 'bg-purple-500',
+                    dot: 'bg-purple-400',
+                };
+            case 'delivered':
+                return {
+                    icon: '✅',
+                    label: isRTL ? 'تم التسليم' : 'Delivered',
+                    borderColor: 'border-green-300 dark:border-green-700',
+                    barColor: 'bg-green-500',
+                    dot: 'bg-green-400',
+                };
+            default: // confirmed, in_delivery
+                return {
+                    icon: '🚛',
+                    label: isRTL ? 'حالة التحميل — مباشر' : 'Loading Status — Live',
+                    borderColor: stage === 'in_delivery' ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200',
+                    barColor: percent >= 100 ? 'bg-green-500' : percent > 50 ? 'bg-amber-500' : 'bg-blue-500',
+                    dot: 'bg-green-400',
+                };
+        }
+    })();
+
     return (
         <Card className={cn(
             "shadow-sm overflow-hidden border-2",
-            stage === 'in_delivery' ? "border-amber-300 dark:border-amber-700" :
-                stage === 'delivered' ? "border-green-300 dark:border-green-700" : "border-gray-200"
+            bannerConfig.borderColor
         )}>
             <CardContent className="p-3 space-y-2">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="text-base">🚛</span>
+                        <span className="text-base">{bannerConfig.icon}</span>
                         <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            {isRTL ? 'حالة التحميل — مباشر' : 'Loading Status — Live'}
+                            {bannerConfig.label}
                         </span>
                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                            <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", bannerConfig.dot)} />
+                            <span className={cn("relative inline-flex rounded-full h-2 w-2", bannerConfig.dot)} />
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -138,7 +239,7 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
                     <div
                         className={cn(
                             "h-2.5 rounded-full transition-all duration-500",
-                            percent >= 100 ? "bg-green-500" : percent > 50 ? "bg-amber-500" : "bg-blue-500"
+                            bannerConfig.barColor
                         )}
                         style={{ width: `${Math.round(percent)}%` }}
                     />

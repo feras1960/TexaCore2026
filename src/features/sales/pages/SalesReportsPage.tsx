@@ -55,7 +55,7 @@ export default function SalesReportsPage() {
         {
             accessorKey: 'growth', header: isRTL ? 'النمو' : 'Growth', cell: ({ getValue }) => {
                 const val = getValue() as number;
-                return <Badge variant={val >= 0 ? "outline" : "destructive"} className={val >= 0 ? "text-green-600 border-green-200 bg-green-50" : ""}>{val > 0 ? '+' : ''}{val}%</Badge>;
+                return <Badge variant={val >= 0 ? "outline" : "destructive"} className={val >= 0 ? "text-green-600 border-green-200 bg-green-50 dark:bg-green-900/30 dark:border-green-800" : ""}>{val > 0 ? '+' : ''}{val}%</Badge>;
             }
         }
     ], [isRTL]);
@@ -175,28 +175,28 @@ export default function SalesReportsPage() {
             <Tabs defaultValue="daily" className="w-full space-y-4" dir={isRTL ? 'rtl' : 'ltr'}>
                 <div className="relative">
                     <TabsList className="bg-muted/50 p-1 rounded-lg w-full justify-start overflow-x-auto flex-nowrap md:grid md:grid-cols-5 lg:flex lg:flex-wrap">
-                        <TabsTrigger value="daily" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                        <TabsTrigger value="daily" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                             <TrendingUp className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.dailySales', isRTL ? 'المبيعات اليومية' : 'Daily Sales')}
                         </TabsTrigger>
-                        <TabsTrigger value="products" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">
+                        <TabsTrigger value="products" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">
                             <Package className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.byProduct', isRTL ? 'تقارير الأصناف' : 'Product Reports')}
                         </TabsTrigger>
-                        <TabsTrigger value="customers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">
+                        <TabsTrigger value="customers" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">
                             <Users className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.customers', isRTL ? 'تقارير العملاء' : 'Customer Reports')}
                         </TabsTrigger>
-                        <TabsTrigger value="salespersons" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
+                        <TabsTrigger value="salespersons" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
                             <FileBarChart className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.bySalesperson', isRTL ? 'أداء المندوبين' : 'Agents Performance')}
                         </TabsTrigger>
-                        <TabsTrigger value="regions" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-amber-600 font-tajawal">
+                        <TabsTrigger value="regions" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-amber-600 font-tajawal">
                             <MapPin className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.byRegion', isRTL ? 'تحليل المناطق' : 'Regional Analysis')}
                         </TabsTrigger>
-                        <TabsTrigger value="categories" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
+                        <TabsTrigger value="categories" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
                             <BarChart2 className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.byCategory', isRTL ? 'تحليل الفئات' : 'Category Analysis')}
                         </TabsTrigger>
-                        <TabsTrigger value="returns" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">
+                        <TabsTrigger value="returns" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">
                             <RefreshCcw className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.returns', isRTL ? 'المرتجعات' : 'Returns')}
                         </TabsTrigger>
-                        <TabsTrigger value="profit" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-teal-600 font-tajawal">
+                        <TabsTrigger value="profit" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-teal-600 font-tajawal">
                             <Percent className="w-4 h-4 me-1.5" /> {t('sales.reportsPage.profit', isRTL ? 'هامش الربح' : 'Profit Margin')}
                         </TabsTrigger>
                     </TabsList>

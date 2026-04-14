@@ -23,6 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
+import { getLocalizedUnit, getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 import {
     Package,
     Plus,
@@ -47,12 +49,23 @@ import {
     ChevronsDownUp,
     ChevronsUpDown,
     Printer,
-    Upload
+    Upload,
+    Paintbrush,
+    Palette,
+    List,
+    ChevronDown
 } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ImportWizard } from '@/features/import';
 
 // Types
 interface Material {
+    [key: string]: any;  // Allow dynamic name_* access
     id: string;
     code: string;
     name_ar: string;
@@ -70,9 +83,11 @@ interface Material {
     parent_id?: string;
     parent_material_id?: string;
     variant_id?: string;
+    variant_data?: Record<string, any>;
     has_variants?: boolean;
     is_variant_parent?: boolean;
-    created_at: string;
+    is_virtual_group?: boolean;
+    created_at?: string;
 }
 
 interface MaterialTreeNode extends Material {
@@ -80,6 +95,7 @@ interface MaterialTreeNode extends Material {
 }
 
 type ViewMode = 'tree' | 'table';
+type TreeGroupMode = 'by_design' | 'by_color' | 'by_category' | 'flat';
 
 export default function MaterialsPage() {
     const { t, language, direction, isRTL } = useLanguage();
@@ -94,6 +110,16 @@ export default function MaterialsPage() {
     useEffect(() => {
         localStorage.setItem('materials_view_mode', viewMode);
     }, [viewMode]);
+
+    // Tree grouping mode — saved per user
+    const [treeGroupMode, setTreeGroupMode] = useState<TreeGroupMode>(() => {
+        const saved = localStorage.getItem('materials_tree_group_mode');
+        return (saved as TreeGroupMode) || 'by_design';
+    });
+    useEffect(() => {
+        localStorage.setItem('materials_tree_group_mode', treeGroupMode);
+    }, [treeGroupMode]);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -264,7 +290,8 @@ export default function MaterialsPage() {
             if (selectedMaterial?.id) {
                 // ⚠️ تنبيه عند تعديل مادة أم — النشر سيؤثر على الفرعيات
                 if (selectedMaterial.is_variant_parent || data.is_variant_parent) {
-                    const confirmMsg = language === 'ar'
+                    const isAr = language === 'ar';
+                    const confirmMsg = isAr
                         ? `⚠️ هذه مادة أم بمتغيرات.\nسيتم نشر التحديثات (الاسم، المواصفات، الأسعار) لجميع المواد الفرعية.\n\nهل تريد المتابعة؟`
                         : `⚠️ This is a variant parent material.\nUpdates (name, specs, prices) will be propagated to all child materials.\n\nContinue?`;
                     if (!confirm(confirmMsg)) return;
@@ -334,7 +361,7 @@ export default function MaterialsPage() {
             parent_id: g.parent_id,
             // Fallbacks
             category_id: 'group',
-            category: { id: 'group', name_ar: language === 'ar' ? 'مجموعة' : 'Group', name_en: 'Group' },
+            category: { id: 'group', name_ar: getLocalizedLabel('group_label', language), name_en: 'Group' },
             unit_id: null,
             unit: null
         }));
@@ -368,6 +395,8 @@ export default function MaterialsPage() {
         if (hideZeroStock) {
             filtered = filtered.filter(m => {
                 if (m.is_group) return true; // Keep groups, empty ones will be pruned in buildTree
+                // Keep variant children even if they have zero stock/rolls
+                if (m.parent_material_id) return true;
                 const stock = m.current_stock || m.rolls_total_length || 0;
                 const rolls = m.rolls_count || 0;
                 return stock > 0 || rolls > 0;
@@ -416,39 +445,55 @@ export default function MaterialsPage() {
         });
 
         // Third pass: create virtual groups for variant parents
-        // تجميع المتغيرات حسب المحور الأساسي (التصميم)
-        const createVirtualGroups = (nodes: MaterialTreeNode[]) => {
+        // تجميع ديناميكي حسب اختيار المستخدم
+        const createVirtualGroups = (nodes: MaterialTreeNode[], mode: TreeGroupMode) => {
+            // في الوضع المسطح — لا تجميع
+            if (mode === 'flat') return;
+
             nodes.forEach(node => {
                 // فقط للمواد الأم التي لها أطفال بـ variant_data
                 if (node.is_variant_parent && node.children && node.children.length > 0) {
                     const childrenWithData = node.children.filter(c => c.variant_data && Object.keys(c.variant_data).length > 1);
                     
                     if (childrenWithData.length > 0) {
-                        // اكتشاف المحور الأساسي (sort_order = 0 أو أول محور)
                         const firstChild = childrenWithData[0];
                         const axisKeys = Object.keys(firstChild.variant_data || {});
                         
                         if (axisKeys.length >= 2) {
-                            // ابحث عن المحور ذو sort_order = 0 (الأساسي/التصميم)
-                            const primaryAxisKey = axisKeys.reduce((best, key) => {
-                                const current = firstChild.variant_data?.[key]?.sort_order ?? 999;
-                                const bestOrder = firstChild.variant_data?.[best]?.sort_order ?? 999;
-                                return current < bestOrder ? key : best;
-                            }, axisKeys[0]);
+                            // تحديد المحور حسب وضع العرض
+                            let groupAxisKey: string;
                             
-                            // تجميع حسب المحور الأساسي
-                            const groups = new Map<string, { name_ar: string; name_en: string; children: MaterialTreeNode[] }>();
+                            if (mode === 'by_color') {
+                                // حسب اللون: المحور ذو sort_order الأعلى (الثاني)
+                                groupAxisKey = axisKeys.reduce((best, key) => {
+                                    const current = firstChild.variant_data?.[key]?.sort_order ?? 0;
+                                    const bestOrder = firstChild.variant_data?.[best]?.sort_order ?? 0;
+                                    return current > bestOrder ? key : best;
+                                }, axisKeys[0]);
+                            } else {
+                                // حسب التصميم (الافتراضي): المحور ذو sort_order الأقل (الأول)
+                                groupAxisKey = axisKeys.reduce((best, key) => {
+                                    const current = firstChild.variant_data?.[key]?.sort_order ?? 999;
+                                    const bestOrder = firstChild.variant_data?.[best]?.sort_order ?? 999;
+                                    return current < bestOrder ? key : best;
+                                }, axisKeys[0]);
+                            }
+                            
+                            // تجميع حسب المحور المُختار
+                            const groups = new Map<string, { names: Record<string, string>; children: MaterialTreeNode[] }>();
                             
                             childrenWithData.forEach(child => {
-                                const axisData = child.variant_data?.[primaryAxisKey];
+                                const axisData = child.variant_data?.[groupAxisKey];
                                 if (axisData) {
                                     const groupKey = axisData.value_id || axisData.code || axisData.name_ar;
                                     if (!groups.has(groupKey)) {
-                                        groups.set(groupKey, {
-                                            name_ar: axisData.name_ar || groupKey,
-                                            name_en: axisData.name_en || axisData.code || groupKey,
-                                            children: [],
+                                        const names: Record<string, string> = {};
+                                        Object.keys(axisData).forEach(k => {
+                                            if (k.startsWith('name_')) names[k] = axisData[k];
                                         });
+                                        if (!names.name_ar) names.name_ar = groupKey;
+                                        if (!names.name_en) names.name_en = axisData.code || groupKey;
+                                        groups.set(groupKey, { names, children: [] });
                                     }
                                     groups.get(groupKey)!.children.push(child);
                                 }
@@ -458,12 +503,12 @@ export default function MaterialsPage() {
                             if (groups.size > 1) {
                                 const virtualGroupNodes: MaterialTreeNode[] = [];
                                 groups.forEach((group, key) => {
-                                    const virtualId = `vg-${node.id}-${key}`;
+                                    const virtualId = `vg-${node.id}-${mode}-${key}`;
                                     virtualGroupNodes.push({
                                         id: virtualId,
                                         code: '',
-                                        name_ar: group.name_ar,
-                                        name_en: group.name_en,
+                                        ...group.names,
+                                        name_ar: group.names.name_ar,
                                         is_group: false,
                                         is_virtual_group: true,
                                         is_variant_parent: false,
@@ -472,7 +517,6 @@ export default function MaterialsPage() {
                                     } as MaterialTreeNode);
                                 });
                                 
-                                // المتغيرات التي ليس لها variant_data (محور واحد فقط) تبقى كما هي
                                 const remainingChildren = node.children.filter(c => !childrenWithData.includes(c));
                                 node.children = [...virtualGroupNodes, ...remainingChildren];
                             }
@@ -481,10 +525,14 @@ export default function MaterialsPage() {
                 }
                 
                 // Recurse into children
-                if (node.children) createVirtualGroups(node.children);
+                if (node.children) createVirtualGroups(node.children, mode);
             });
         };
-        createVirtualGroups(rootNodes);
+
+        // في وضع 'by_category' — عرض كل شيء مسطح تحت الأم بدون virtual groups
+        if (treeGroupMode !== 'by_category') {
+            createVirtualGroups(rootNodes, treeGroupMode);
+        }
 
         // Sort by group first, then variant parents, then by code
         const sortNodes = (nodes: MaterialTreeNode[]): MaterialTreeNode[] => {
@@ -531,7 +579,7 @@ export default function MaterialsPage() {
         }
 
         return tree;
-    }, [searchQuery, hideZeroStock, lowStockOnly]);
+    }, [searchQuery, hideZeroStock, lowStockOnly, treeGroupMode]);
 
     // Flatten tree for table view
     const flattenTree = useCallback((tree: MaterialTreeNode[], level = 0): any[] => {
@@ -617,11 +665,11 @@ export default function MaterialsPage() {
                         <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     )}
                     <span className={cn("font-tajawal", row.variant_id && "text-gray-600 dark:text-gray-400")}>
-                        {language === 'ar' ? row.name_ar : (row.name_en || row.name_ar)}
+                        {getLocalizedName(row, language)}
                     </span>
                     {row.is_variant_parent && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-purple-50 text-purple-600 border-purple-200">
-                            {language === 'ar' ? 'أم' : 'Parent'}
+                            {getLocalizedLabel('parent', language)}
                         </Badge>
                     )}
                 </div>
@@ -629,7 +677,7 @@ export default function MaterialsPage() {
         },
         {
             key: 'current_stock',
-            title: language === 'ar' ? 'الرصيد الاجمالي' : 'Total Stock',
+            title: getLocalizedLabel('total_stock', language),
             align: 'start',
             render: (_, row) => {
                 const stock = row.is_group ? row.aggregateStock : (row.current_stock || row.rolls_total_length || 0);
@@ -661,7 +709,7 @@ export default function MaterialsPage() {
                                         : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
                                 )}>
                                     {!isLeaf && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
-                                    {rolls} {language === 'ar' ? 'رول' : 'R'}
+                                    {rolls} {getLocalizedLabel('roll_short', language)}
                                 </span>
                             )}
                         </div>
@@ -673,17 +721,17 @@ export default function MaterialsPage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                         {stock > 0 && (
                             <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30">
-                                {Number(stock).toFixed(2)} {row.unit || ''}
+                                {Number(stock).toFixed(2)} {getLocalizedUnit(row.unit, language)}
                             </span>
                         )}
                         {(row.loose_stock || 0) > 0 && (
                             <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30">
-                                {Number(row.loose_stock).toFixed(1)} {language === 'ar' ? 'سائب' : 'loose'}
+                                {Number(row.loose_stock).toFixed(1)} {getLocalizedLabel('loose', language)}
                             </span>
                         )}
                         {rolls > 0 && (
                             <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30">
-                                {rolls} {language === 'ar' ? 'رول' : 'R'}
+                                {rolls} {getLocalizedLabel('roll_short', language)}
                             </span>
                         )}
                     </div>
@@ -697,7 +745,7 @@ export default function MaterialsPage() {
             render: (_, row) => row.category ? (
                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
                     <Layers className="w-3 h-3 me-1" />
-                    {language === 'ar' ? row.category.name_ar : (row.category.name_en || row.category.name_ar)}
+                    {getLocalizedName(row.category, language)}
                 </Badge>
             ) : '-'
         },
@@ -737,17 +785,17 @@ export default function MaterialsPage() {
     // Export to CSV
     const generateCSV = () => {
         const headers = [
-            language === 'ar' ? 'الكود' : 'Code',
-            language === 'ar' ? 'الاسم' : 'Name',
-            language === 'ar' ? 'التصنيف' : 'Category',
-            language === 'ar' ? 'الحالة' : 'Status',
+            getLocalizedLabel('code_label', language),
+            getLocalizedLabel('name_label', language),
+            getLocalizedLabel('category_label', language),
+            getLocalizedLabel('status_label', language),
         ];
 
         const rows = filteredMaterials.map(material => [
             material.code || '',
-            language === 'ar' ? material.name_ar : (material.name_en || material.name_ar),
-            material.category ? (language === 'ar' ? material.category.name_ar : material.category.name_en) : '',
-            material.is_active ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive'),
+            getLocalizedName(material, language),
+            material.category ? getLocalizedName(material.category, language) : '',
+            material.is_active ? getLocalizedLabel('active_label', language) : getLocalizedLabel('inactive', language),
         ]);
 
         return [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -759,10 +807,10 @@ export default function MaterialsPage() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-erp-navy dark:text-white font-cairo">
-                        {t('warehouse.tabs.materials') || (language === 'ar' ? 'إدارة المواد' : 'Materials Management')}
+                        {t('warehouse.tabs.materials')}
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-tajawal">
-                        {language === 'ar' ? 'إدارة المواد والمنتجات في قاعدة البيانات' : 'Manage materials and products in the database'}
+                        {getLocalizedLabel('manage_desc', language)}
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -776,15 +824,15 @@ export default function MaterialsPage() {
                     </Button>
                     <Button variant="outline" onClick={handleAddGroup}>
                         <FolderPlus className="w-4 h-4 me-2" />
-                        {language === 'ar' ? 'إضافة مجموعة' : 'Add Group'}
+                        {getLocalizedLabel('add_group', language)}
                     </Button>
                     <Button variant="outline" onClick={() => setShowImportWizard(true)}>
                         <Upload className="w-4 h-4 me-2" />
-                        {language === 'ar' ? 'استيراد' : 'Import'}
+                        {getLocalizedLabel('import', language)}
                     </Button>
                     <Button variant="teal" onClick={handleAddClick}>
                         <Plus className="w-4 h-4 me-2" />
-                        {t('warehouse.material.add') || (language === 'ar' ? 'مادة جديدة' : 'New Material')}
+                        {t('warehouse.material.add')}
                     </Button>
                 </div>
             </div>
@@ -792,35 +840,35 @@ export default function MaterialsPage() {
             {/* Stats — compact to give more space to tree */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <StatCard
-                    label={language === 'ar' ? 'إجمالي المواد' : 'Total Materials'}
+                    label={getLocalizedLabel('total_materials', language)}
                     value={totalMaterials}
                     icon={BarChart3}
                     size="compact"
                 />
                 <StatCard
-                    label={language === 'ar' ? 'المواد النشطة' : 'Active Materials'}
+                    label={getLocalizedLabel('active_materials', language)}
                     value={activeMaterials}
                     icon={CheckCircle2}
                     size="compact"
                 />
                 <StatCard
-                    label={language === 'ar' ? 'المجموعات' : 'Groups'}
+                    label={getLocalizedLabel('groups', language)}
                     value={groupsCount}
                     icon={Folder}
                     size="compact"
                 />
                 <StatCard
-                    label={language === 'ar' ? 'إجمالي المخزون' : 'Total Stock'}
+                    label={getLocalizedLabel('total_stock', language)}
                     value={totalStock.toLocaleString('en-US')}
-                    suffix={language === 'ar' ? 'م' : 'm'}
-                    subLabel={`${totalRolls} ${language === 'ar' ? 'رول' : 'Rolls'}`}
+                    suffix={getLocalizedUnit('meter', language)}
+                    subLabel={`${totalRolls} ${getLocalizedLabel('rolls', language)}`}
                     icon={Database}
                     size="compact"
                 />
                 <StatCard
-                    label={language === 'ar' ? 'المخزون السائب' : 'Loose Stock'}
+                    label={getLocalizedLabel('loose_total', language)}
                     value={totalLooseStock.toLocaleString('en-US', { maximumFractionDigits: 1 })}
-                    suffix={language === 'ar' ? 'م' : 'm'}
+                    suffix={getLocalizedUnit('meter', language)}
                     icon={Package}
                     size="compact"
                 />
@@ -836,7 +884,7 @@ export default function MaterialsPage() {
                     <div className="relative flex-1 min-w-[200px] sm:w-64">
                         <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                         <Input
-                            placeholder={t('warehouse.searchPlaceholder') || (language === 'ar' ? 'بحث بالاسم أو الكود...' : 'Search by name or code...')}
+                            placeholder={t('warehouse.searchPlaceholder')}
                             className="ps-9 bg-gray-50 dark:bg-gray-800 border-none text-gray-900 dark:text-gray-100"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -879,6 +927,81 @@ export default function MaterialsPage() {
 
                     {/* View Controls */}
                     <div className="flex items-center gap-2">
+                        {/* Tree Grouping Mode Selector */}
+                        {viewMode === 'tree' && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className={cn(
+                                            'h-8 px-3 gap-2 border-dashed',
+                                            treeGroupMode === 'by_design' && 'border-purple-300 text-purple-700 dark:border-purple-600 dark:text-purple-400',
+                                            treeGroupMode === 'by_color' && 'border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-400',
+                                            treeGroupMode === 'by_category' && 'border-emerald-300 text-emerald-700 dark:border-emerald-600 dark:text-emerald-400',
+                                            treeGroupMode === 'flat' && 'border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400',
+                                        )}
+                                    >
+                                        {treeGroupMode === 'by_design' && <Palette className="w-4 h-4" />}
+                                        {treeGroupMode === 'by_color' && <Paintbrush className="w-4 h-4" />}
+                                        {treeGroupMode === 'by_category' && <Folder className="w-4 h-4" />}
+                                        {treeGroupMode === 'flat' && <List className="w-4 h-4" />}
+                                        {treeGroupMode === 'by_design' && getLocalizedLabel('by_design', language)}
+                                        {treeGroupMode === 'by_color' && getLocalizedLabel('by_color', language)}
+                                        {treeGroupMode === 'by_category' && getLocalizedLabel('by_category', language)}
+                                        {treeGroupMode === 'flat' && getLocalizedLabel('flat_view', language)}
+                                        <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align={isRTL ? 'end' : 'start'} className="w-56">
+                                    <DropdownMenuItem
+                                        onClick={() => setTreeGroupMode('by_design')}
+                                        className={cn(treeGroupMode === 'by_design' && 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400')}
+                                    >
+                                        <Palette className="w-4 h-4 me-2 text-purple-500" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{getLocalizedLabel('by_design', language)}</span>
+                                            <span className="text-[10px] text-gray-400">{getLocalizedLabel('by_design_desc', language)}</span>
+                                        </div>
+                                        {treeGroupMode === 'by_design' && <CheckCircle2 className="w-4 h-4 ms-auto text-purple-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => setTreeGroupMode('by_color')}
+                                        className={cn(treeGroupMode === 'by_color' && 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400')}
+                                    >
+                                        <Paintbrush className="w-4 h-4 me-2 text-blue-500" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{getLocalizedLabel('by_color', language)}</span>
+                                            <span className="text-[10px] text-gray-400">{getLocalizedLabel('by_color_desc', language)}</span>
+                                        </div>
+                                        {treeGroupMode === 'by_color' && <CheckCircle2 className="w-4 h-4 ms-auto text-blue-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => setTreeGroupMode('by_category')}
+                                        className={cn(treeGroupMode === 'by_category' && 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400')}
+                                    >
+                                        <Folder className="w-4 h-4 me-2 text-emerald-500" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{getLocalizedLabel('by_category', language)}</span>
+                                            <span className="text-[10px] text-gray-400">{getLocalizedLabel('by_category_desc', language)}</span>
+                                        </div>
+                                        {treeGroupMode === 'by_category' && <CheckCircle2 className="w-4 h-4 ms-auto text-emerald-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => setTreeGroupMode('flat')}
+                                        className={cn(treeGroupMode === 'flat' && 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300')}
+                                    >
+                                        <List className="w-4 h-4 me-2 text-gray-500" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{getLocalizedLabel('flat_view', language)}</span>
+                                            <span className="text-[10px] text-gray-400">{getLocalizedLabel('flat_view_desc', language)}</span>
+                                        </div>
+                                        {treeGroupMode === 'flat' && <CheckCircle2 className="w-4 h-4 ms-auto text-gray-500" />}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
                         {/* View Mode Toggle */}
                         <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                             <Button
@@ -893,7 +1016,7 @@ export default function MaterialsPage() {
                                 )}
                             >
                                 <TreePine className="w-4 h-4 me-2" />
-                                {t('warehouse.material.treeView') || (language === 'ar' ? 'عرض الشجرة' : 'Tree View')}
+                                {getLocalizedLabel('tree_view', language)}
                             </Button>
                             <Button
                                 variant={viewMode === 'table' ? 'default' : 'ghost'}
@@ -907,7 +1030,7 @@ export default function MaterialsPage() {
                                 )}
                             >
                                 <LayoutList className="w-4 h-4 me-2" />
-                                {t('warehouse.material.tableView') || (language === 'ar' ? 'عرض الجدول' : 'Table View')}
+                                {getLocalizedLabel('table_view', language)}
                             </Button>
                         </div>
 
@@ -1002,7 +1125,7 @@ export default function MaterialsPage() {
                                         onCheckedChange={setHideZeroStock}
                                     />
                                     <Label htmlFor="hide-zero" className="text-sm cursor-pointer">
-                                        {language === 'ar' ? 'إخفاء الأرصدة الصفرية' : 'Hide zero stock'}
+                                        {getLocalizedLabel('hide_zero', language)}
                                     </Label>
                                 </div>
                                 <div className="flex items-center space-x-2 space-x-reverse">
@@ -1012,7 +1135,7 @@ export default function MaterialsPage() {
                                         onCheckedChange={setLowStockOnly}
                                     />
                                     <Label htmlFor="low-stock" className="text-sm cursor-pointer text-amber-600 dark:text-amber-500">
-                                        {language === 'ar' ? 'نواقص الحد الأدنى فقط' : 'Low stock only'}
+                                        {getLocalizedLabel('low_stock', language)}
                                     </Label>
                                 </div>
                             </div>
@@ -1032,12 +1155,10 @@ export default function MaterialsPage() {
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 font-cairo">
-                                {language === 'ar' ? 'لا توجد مواد بعد' : 'No Materials Yet'}
+                                {getLocalizedLabel('no_materials', language)}
                             </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed font-tajawal">
-                                {language === 'ar'
-                                    ? 'ابدأ بإضافة المواد يدوياً أو استورد بيانات المواد من ملف Excel مع الكميات والأسعار والعملات بضغطة واحدة'
-                                    : 'Start by adding materials manually or import your materials data from an Excel file with quantities, prices and currencies in one click'}
+                                {getLocalizedLabel('no_materials_desc', language)}
                             </p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -1048,21 +1169,19 @@ export default function MaterialsPage() {
                                 onClick={() => setShowImportWizard(true)}
                             >
                                 <Upload className="w-5 h-5" />
-                                {language === 'ar' ? 'استيراد من Excel' : 'Import from Excel'}
+                                {getLocalizedLabel('import_excel', language)}
                             </Button>
                             <Button variant="outline" size="lg" className="gap-2" onClick={handleAddClick}>
                                 <Plus className="w-5 h-5" />
-                                {language === 'ar' ? 'إضافة مادة' : 'Add Material'}
+                                {getLocalizedLabel('add_material', language)}
                             </Button>
                             <Button variant="outline" size="lg" className="gap-2" onClick={handleAddGroup}>
                                 <FolderPlus className="w-5 h-5" />
-                                {language === 'ar' ? 'إنشاء مجموعة' : 'Create Group'}
+                                {getLocalizedLabel('create_group', language)}
                             </Button>
                         </div>
                         <p className="text-xs text-gray-400 dark:text-gray-500 font-tajawal">
-                            {language === 'ar'
-                                ? '💡 يمكنك استيراد المواد مع الكميات الافتتاحية والأسعار والعملة والمستودع — سيتم إنشاء القيد المحاسبي تلقائياً'
-                                : '💡 Import materials with opening quantities, prices, currency and warehouse — accounting entries are created automatically'}
+                            {getLocalizedLabel('import_hint', language)}
                         </p>
                     </div>
                 </div>
@@ -1123,7 +1242,7 @@ export default function MaterialsPage() {
                     is_active: true,
                     group_id: selectedParent?.id || null, // For materials we use group_id
                     category_id: selectedParent?.id || null, // category_id holds group_id
-                    parent_name: selectedParent ? (language === 'ar' ? selectedParent.name_ar : (selectedParent.name_en || selectedParent.name_ar)) : null,
+                    parent_name: selectedParent ? getLocalizedName(selectedParent, language) : null,
                 }}
                 onSave={handleSave}
                 onDelete={async () => {

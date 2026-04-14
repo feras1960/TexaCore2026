@@ -28,12 +28,14 @@ import {
     MoreHorizontal,
     ChevronDown,
     Search,
+    Filter,
 } from 'lucide-react';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { usePrefetchLedgers } from '@/hooks/usePrefetchLedgers';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { partyBalanceService, type PartyBalance } from '@/services/partyBalanceService';
@@ -46,6 +48,9 @@ import { startOfMonth, endOfDay } from 'date-fns';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
+import { getLocalizedCountry } from '@/features/exchange/data/countries';
+import { getLocalizedCity } from '@/features/exchange/data/cities';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -125,11 +130,24 @@ export default function SuppliersList() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortField, setSortField] = useState('created_at');
     const [sortAsc, setSortAsc] = useState(false);
+    // ── Hide zero-balance toggle (persisted) ──
+    const [hideZeroBalance, setHideZeroBalance] = useState(() => {
+        try { return localStorage.getItem('suppliers_hideZeroBalance') === 'true'; } catch { return false; }
+    });
+    const toggleHideZeroBalance = useCallback(() => {
+        setHideZeroBalance(prev => {
+            const next = !prev;
+            try { localStorage.setItem('suppliers_hideZeroBalance', String(next)); } catch {}
+            return next;
+        });
+    }, []);
 
     // Date Filter State
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     // ─── Fetch Suppliers ─────────────────────────────────────────
+    // ⚡ language removed from queryFn — raw data is language-independent
+    //    Localized `name` is computed at render time via useMemo below
     const suppliersQuery = useCachedQuery({
         queryKey: ['suppliers_list', companyId],
         queryFn: async () => {
@@ -141,21 +159,28 @@ export default function SuppliersList() {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-
-            return (data || []).map((item: any) => ({
-                ...item,
-                name: language === 'ar'
-                    ? (item.name_ar || item.name_en || '')
-                    : (item.name_en || item.name_ar || ''),
-            })) as Supplier[];
+            return (data || []) as Supplier[];
         },
         enabled: !!companyId,
         staleTime: 30_000,
     });
 
     // ⚡ CACHE-FIRST: render instantly from cache
-    const suppliers = suppliersQuery.data ?? [];
+    const rawSuppliers = suppliersQuery.data ?? [];
     const isLoading = !!companyId && suppliersQuery.isPending;
+
+    // ─── Compute localized names at RENDER time (not query time) ──
+    const suppliers = useMemo(() =>
+        rawSuppliers.map(s => ({ ...s, name: getLocalizedName(s, language) })),
+        [rawSuppliers, language]
+    );
+
+    // ⚡ Prefetch ledger data for all suppliers (background)
+    const prefetchTargets = useMemo(() =>
+        suppliers.map((s: any) => ({ glAccountId: s.payable_account_id })),
+        [suppliers]
+    );
+    usePrefetchLedgers(prefetchTargets, companyId);
 
     // ─── Fetch Purchase Stats per Supplier ────────────────────────
     const { data: purchaseStats = {} } = useCachedQuery({
@@ -231,6 +256,14 @@ export default function SuppliersList() {
             );
         }
 
+        // Hide zero balance
+        if (hideZeroBalance) {
+            result = result.filter(s => {
+                const bal = supplierBalances.get(s.id);
+                return bal && Math.abs(bal.balance) > 0.001;
+            });
+        }
+
         // Sort
         result = [...result].sort((a: any, b: any) => {
             let av: any, bv: any;
@@ -247,7 +280,7 @@ export default function SuppliersList() {
         });
 
         return result;
-    }, [suppliers, activeTab, dateRange, searchTerm, sortField, sortAsc]);
+    }, [suppliers, activeTab, dateRange, searchTerm, sortField, sortAsc, supplierBalances, hideZeroBalance]);
 
     // ─── Handlers ────────────────────────────────────────────────
     const handleRowClick = useCallback((row: Supplier) => {
@@ -256,7 +289,7 @@ export default function SuppliersList() {
     }, []);
 
     const handleCreate = useCallback(() => {
-        toast.info(isRTL ? 'سيتم ربط نموذج إضافة المورد قريباً' : 'Add Supplier form coming soon...');
+        toast.info(t('suppliersList.addSupplier'));
     }, [isRTL]);
 
     const handleSort = useCallback((field: string) => {
@@ -298,7 +331,7 @@ export default function SuppliersList() {
     const columns: NexaListColumn<Supplier>[] = useMemo(() => [
         {
             id: 'code',
-            header: isRTL ? 'الكود' : 'Code',
+            header: t('table.code'),
             sortable: true,
             sortKey: 'code',
             cell: (row) => (
@@ -309,7 +342,7 @@ export default function SuppliersList() {
         },
         {
             id: 'name',
-            header: isRTL ? 'المورد' : 'Supplier',
+            header: t('suppliersList.supplier'),
             sortable: true,
             sortKey: 'name',
             cell: (row) => (
@@ -332,7 +365,7 @@ export default function SuppliersList() {
         },
         {
             id: 'type',
-            header: isRTL ? 'النوع' : 'Type',
+            header: t('table.type'),
             cell: (row) => {
                 const type = row.supplier_type || 'company';
                 const config: Record<string, { label: string; labelAr: string; cls: string }> = {
@@ -350,7 +383,7 @@ export default function SuppliersList() {
         },
         {
             id: 'phone',
-            header: isRTL ? 'الهاتف' : 'Phone',
+            header: t('table.phone'),
             cell: (row) => {
                 const phone = row.phone || row.mobile;
                 return phone ? (
@@ -365,9 +398,11 @@ export default function SuppliersList() {
         },
         {
             id: 'location',
-            header: isRTL ? 'الدولة / المدينة' : 'Location',
+            header: t('suppliersList.location'),
             cell: (row) => {
-                const loc = [row.city, row.country].filter(Boolean).join(', ');
+                const localizedCountry = getLocalizedCountry(row.country, language);
+                const localizedCity = getLocalizedCity(row.city, language);
+                const loc = [localizedCity, localizedCountry].filter(Boolean).join(', ');
                 return loc ? (
                     <div className="flex flex-col">
                         <span className="font-semibold text-sm text-gray-800 dark:text-white line-clamp-1 font-tajawal">{loc}</span>
@@ -379,7 +414,7 @@ export default function SuppliersList() {
         },
         {
             id: 'currency',
-            header: isRTL ? 'العملة' : 'Currency',
+            header: t('suppliersList.currency'),
             cell: (row) => {
                 const cur = row.currency || baseCurrency || 'USD';
                 const meta = CURRENCY_META[cur];
@@ -392,7 +427,7 @@ export default function SuppliersList() {
         },
         {
             id: 'invoices',
-            header: isRTL ? 'الفواتير' : 'Invoices',
+            header: t('suppliersList.invoices'),
             cell: (row) => {
                 const st = purchaseStats[row.id];
                 return (
@@ -407,7 +442,7 @@ export default function SuppliersList() {
         },
         {
             id: 'total_purchases',
-            header: isRTL ? 'إجمالي المشتريات' : 'Total Purchases',
+            header: t('suppliersList.totalPurchases'),
             align: 'end',
             sortable: true,
             sortKey: 'total_purchases',
@@ -428,7 +463,7 @@ export default function SuppliersList() {
         },
         {
             id: 'balance',
-            header: isRTL ? 'الرصيد' : 'Balance',
+            header: t('table.balance'),
             align: 'end',
             sortable: true,
             sortKey: 'balance',
@@ -447,11 +482,11 @@ export default function SuppliersList() {
                         <span className={cn("font-mono font-bold text-[14px] tracking-tight", color)} dir="ltr">
                             {getCurrencySymbol(cur)} {Math.abs(balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
-                        {balance > 0 && <span className="text-[10px] text-red-400">{isRTL ? 'مستحق لهم' : 'we owe'}</span>}
-                        {balance < 0 && <span className="text-[10px] text-green-400">{isRTL ? 'دفعنا أكثر' : 'overpaid'}</span>}
+                        {balance > 0 && <span className="text-[10px] text-red-400">{t('suppliersList.weOwe')}</span>}
+                        {balance < 0 && <span className="text-[10px] text-green-400">{t('suppliersList.overpaid')}</span>}
                         {subLedger && subLedger.transaction_count > 0 && (
                             <span className="text-[9px] text-gray-300 mt-0.5">
-                                {subLedger.transaction_count} {isRTL ? 'حركة' : 'txn'}
+                                {subLedger.transaction_count} {t('table.txn')}
                             </span>
                         )}
                     </div>
@@ -460,12 +495,12 @@ export default function SuppliersList() {
         },
         {
             id: 'rating',
-            header: isRTL ? 'التقييم' : 'Rating',
+            header: t('suppliersList.rating'),
             sortable: true,
             sortKey: 'rating',
             cell: (row) => renderRating(row.rating || 0),
         },
-    ], [isRTL, purchaseStats, baseCurrency, language, supplierBalances]);
+    ], [isRTL, purchaseStats, baseCurrency, language, supplierBalances, t]);
 
     // ─── Actions Renderer ────────────────────────────────────────
     const renderActions = useCallback((row: Supplier) => (
@@ -509,9 +544,7 @@ export default function SuppliersList() {
                             {t('purchases.suppliers') || (isRTL ? 'الموردين' : 'Suppliers')}
                         </h1>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            {isRTL
-                                ? `${filteredSuppliers.length} مورد — إجمالي ${suppliers.length}`
-                                : `${filteredSuppliers.length} suppliers — ${suppliers.length} total`}
+                            {`${filteredSuppliers.length} ${t('suppliersList.suppliers')} — ${suppliers.length} total`}
                         </p>
                     </div>
                 </div>
@@ -523,7 +556,7 @@ export default function SuppliersList() {
                         className="rounded-e-none gap-2 px-4 h-9 text-white shadow-sm bg-teal-600 hover:bg-teal-700"
                     >
                         <Plus className="w-4 h-4" />
-                        {isRTL ? 'إضافة مورد' : 'Add Supplier'}
+                        {t('suppliersList.addSupplier')}
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -533,16 +566,16 @@ export default function SuppliersList() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel className="text-xs text-muted-foreground font-normal font-tajawal">
-                                {isRTL ? 'إجراءات سريعة' : 'Quick Actions'}
+                                {t('suppliersList.quickActions')}
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleCreate} className="gap-2 cursor-pointer py-2.5">
                                 <div className="p-1 bg-teal-100 rounded text-teal-600"><Plus className="w-3.5 h-3.5" /></div>
-                                <span className="font-medium text-sm font-tajawal">{isRTL ? 'مورد جديد' : 'New Supplier'}</span>
+                                <span className="font-medium text-sm font-tajawal">{t('suppliersList.newSupplier')}</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem className="gap-2 cursor-pointer py-2.5" disabled>
                                 <div className="p-1 bg-blue-100 rounded text-blue-600"><FileText className="w-3.5 h-3.5" /></div>
-                                <span className="font-medium text-sm font-tajawal">{isRTL ? 'استيراد من ملف' : 'Import from File'}</span>
+                                <span className="font-medium text-sm font-tajawal">{t('suppliersList.importFromFile')}</span>
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -556,16 +589,16 @@ export default function SuppliersList() {
                         <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
                             <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                                 <Users className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'الكل' : 'All'}
+                                {t('common.all')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60 dark:bg-gray-700">{suppliers.length}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="active" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
                                 <Star className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'نشط' : 'Active'}
+                                {t('suppliersList.active')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700 dark:bg-emerald-900/20">{suppliers.filter(s => s.status === 'active').length}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="inactive" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-gray-500 font-tajawal">
-                                {isRTL ? 'غير نشط' : 'Inactive'}
+                                {t('suppliersList.inactive')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60 dark:bg-gray-700">{suppliers.filter(s => s.status !== 'active').length}</Badge>
                             </TabsTrigger>
                         </TabsList>
@@ -577,6 +610,22 @@ export default function SuppliersList() {
                         className="w-full sm:w-[260px]"
                         align={isRTL ? "end" : "start"}
                     />
+
+                    {/* Hide zero balance toggle */}
+                    <Button
+                        variant={hideZeroBalance ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn(
+                            'h-9 gap-1.5 text-xs font-tajawal ms-auto',
+                            hideZeroBalance
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                        )}
+                        onClick={toggleHideZeroBalance}
+                    >
+                        <Filter className="w-3.5 h-3.5" />
+                        {hideZeroBalance ? t('common.showAll') : t('suppliersList.hideZeroBalance')}
+                    </Button>
                 </div>
 
                 {/* ─── Content: NexaListTable ─── */}
@@ -585,9 +634,9 @@ export default function SuppliersList() {
                     columns={columns}
                     searchTerm={searchTerm}
                     onSearchChange={setSearchTerm}
-                    searchPlaceholder={isRTL ? 'بحث بالاسم، الكود، الهاتف...' : 'Search name, code, phone...'}
+                    searchPlaceholder={t('table.search')}
                     totalCount={suppliers.length}
-                    countLabel={isRTL ? 'مورد' : 'suppliers'}
+                    countLabel={t('suppliersList.suppliers')}
                     sortField={sortField}
                     sortAsc={sortAsc}
                     onSort={handleSort}
@@ -595,16 +644,14 @@ export default function SuppliersList() {
                     onRowClick={handleRowClick}
                     getRowKey={(row) => row.id}
                     isLoading={isLoading}
-                    emptyMessage={isRTL ? 'لا يوجد موردين' : 'No suppliers found'}
+                    emptyMessage={t('suppliersList.noSuppliers')}
                     showFooter={true}
                     footerLeftText={
-                        isRTL
-                            ? `عرض ${filteredSuppliers.length} من ${suppliers.length} مورد`
-                            : `Showing ${filteredSuppliers.length} of ${suppliers.length} suppliers`
+                        `Showing ${filteredSuppliers.length} of ${suppliers.length} ${t('suppliersList.suppliers')}`
                     }
                     footerRightContent={
                         <span className="font-mono font-bold text-erp-navy dark:text-white">
-                            {isRTL ? 'إجمالي المشتريات: ' : 'Total Purchases: '}
+                            {t('suppliersList.totalPurchases')}: 
                             {filteredSuppliers.reduce((sum, s) => sum + Number(s.total_purchases || 0), 0)
                                 .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             <span className="text-gray-400 ms-1">{baseCurrency || ''}</span>
@@ -630,7 +677,7 @@ export default function SuppliersList() {
                         party_type: 'supplier',
                         _partyType: 'supplier',
                         type: 'supplier',
-                        name: selectedSupplier.name_ar || selectedSupplier.name_en || selectedSupplier.name,
+                        name: getLocalizedName(selectedSupplier, language),
                         code: selectedSupplier.code,
                         current_balance: supplierBalances.get(selectedSupplier.id)?.balance || 0,
                         is_active: selectedSupplier.status === 'active',

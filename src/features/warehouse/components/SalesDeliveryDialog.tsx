@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useRBAC } from '@/hooks/useRBAC';
@@ -30,7 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
     Warehouse, FileText, Loader2, PackageCheck, Truck,
-    Wifi, WifiOff, RotateCcw, AlertTriangle,
+    Wifi, WifiOff, RotateCcw, AlertTriangle, Building2, Navigation,
 } from 'lucide-react';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -61,6 +62,7 @@ export function SalesDeliveryDialog({
     const { companyId, tenantId } = useAuth();
     const { hasAnyRole } = useRBAC();
     const { warehouses } = useWarehouses();
+    const queryClient = useQueryClient();
     const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
 
     // ═══ Edit mode toggle (internal) ═══
@@ -90,6 +92,7 @@ export function SalesDeliveryDialog({
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [draftRestored, setDraftRestored] = useState(false);
+    const draftRestoredRef = React.useRef(false); // Sync flag (no closure staleness)
     const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
     // Get the invoice ID
@@ -102,6 +105,7 @@ export function SalesDeliveryDialog({
             setIsDelivered(false);
             setSelectedRolls([]);
             setDraftRestored(false);
+            draftRestoredRef.current = false;
         }
     }, [isOpen]);
 
@@ -113,53 +117,227 @@ export function SalesDeliveryDialog({
     // would overwrite the draft saved by the Items tab.
 
     // ═══ Fetch invoice details + items + restore draft/delivered rolls ═══
+    // 🚀 CACHE-FIRST: React Query cache → localStorage → Supabase
+    //    Realtime keeps React Query fresh — UI should load INSTANTLY.
+    const invoiceCacheKey = `delivery_inv_${invoiceId}`;
+    const itemsCacheKey = `delivery_items_${invoiceId}`;
+    const rollsCacheKey = `delivery_rolls_${invoiceId}`;
+
+    // ── Helper: Search React Query cache for this invoice ──
+    const findInvoiceInCache = useCallback(() => {
+        // Search all sales_cycle_full query data
+        const allQueries = queryClient.getQueriesData<any[]>({ queryKey: ['sales_cycle_full'] });
+        for (const [, data] of allQueries) {
+            if (!data || !Array.isArray(data)) continue;
+            const found = data.find((tx: any) => tx.id === invoiceId);
+            if (found) return found;
+        }
+        // Also check sales_transactions_list
+        const listQueries = queryClient.getQueriesData<any[]>({ queryKey: ['sales_transactions_list'] });
+        for (const [, data] of listQueries) {
+            if (!data || !Array.isArray(data)) continue;
+            const found = data.find((tx: any) => tx.id === invoiceId);
+            if (found) return found;
+        }
+        return null;
+    }, [queryClient, invoiceId]);
+
     useEffect(() => {
         if (!invoiceId || !isOpen) return;
 
+        // ══════════════════════════════════════════════════════════════
+        // PHASE 1: INSTANT — React Query cache + localStorage (0ms)
+        // ══════════════════════════════════════════════════════════════
+
+        let cachedInvoice: any = null;
+        let cachedItems: any[] = [];
+        let fullyLoadedFromCache = false;
+
+        // A. 🔥 React Query cache — Realtime-fresh data (BEST SOURCE)
+        const rqInvoice = findInvoiceInCache();
+        if (rqInvoice) {
+            cachedInvoice = rqInvoice;
+            setInvoiceData(rqInvoice);
+            if (rqInvoice.warehouse_id) setSelectedWarehouseId(rqInvoice.warehouse_id);
+            console.log(`[Delivery] ⚡ Invoice from React Query cache`);
+
+            // items are nested in sales_cycle_full query
+            if (rqInvoice.items && Array.isArray(rqInvoice.items) && rqInvoice.items.length > 0) {
+                const mappedItems = rqInvoice.items.map((item: any) => ({
+                    id: item.id,
+                    material_id: item.material_id,
+                    material_name_ar: item.description_ar || item.description || '',
+                    material_name: item.description || '',
+                    color_id: item.color_id,
+                    color_name: item.color_name,
+                    quantity: item.quantity || 0,
+                    unit_price: item.unit_price || 0,
+                    total: item.total || 0,
+                    description: item.description,
+                }));
+                cachedItems = mappedItems;
+                setSourceItems(mappedItems);
+                fullyLoadedFromCache = true;
+                console.log(`[Delivery] ⚡ ${mappedItems.length} items from React Query cache`);
+            }
+        }
+
+        // B. localStorage invoice cache — persists across refreshes
+        if (!cachedInvoice || !cachedInvoice.stage) {
+            try {
+                const lsInv = localStorage.getItem(invoiceCacheKey);
+                if (lsInv) {
+                    const parsed = JSON.parse(lsInv);
+                    if (parsed?.id && parsed?.stage) {
+                        cachedInvoice = parsed;
+                        setInvoiceData(parsed);
+                        if (parsed.warehouse_id) setSelectedWarehouseId(parsed.warehouse_id);
+                        console.log(`[Delivery] ⚡ Invoice from localStorage cache (stage=${parsed.stage})`);
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+
+        // C. salesInvoice prop fallback (minimal data from StockMovementsPage)
+        if (!cachedInvoice) {
+            const localInv = salesInvoice;
+            if (localInv) {
+                cachedInvoice = localInv;
+                setInvoiceData((prev: any) => prev?.id === localInv.id ? prev : { ...localInv, id: invoiceId });
+                if (localInv.warehouse_id) setSelectedWarehouseId(localInv.warehouse_id);
+            }
+        }
+
+        // C. localStorage items cache (if not from RQ)
+        if (cachedItems.length === 0) {
+            try {
+                const lsItems = localStorage.getItem(itemsCacheKey);
+                if (lsItems) {
+                    const parsed = JSON.parse(lsItems);
+                    if (parsed?.length > 0) {
+                        cachedItems = parsed;
+                        setSourceItems(parsed);
+                        fullyLoadedFromCache = !!cachedInvoice;
+                        console.log(`[Delivery] ⚡ ${parsed.length} items from localStorage`);
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+
+        // E. Delivered rolls from localStorage cache
+        if (selectedRolls.length === 0 && !draftRestoredRef.current) {
+            try {
+                const lsRolls = localStorage.getItem(rollsCacheKey);
+                if (lsRolls) {
+                    const parsed = JSON.parse(lsRolls);
+                    if (parsed?.length > 0) {
+                        setSelectedRolls(parsed);
+                        setDraftRestored(true);
+                        draftRestoredRef.current = true;
+                        // If invoice is in a delivered stage, set isDelivered
+                        const stage = cachedInvoice?.stage;
+                        if (stage && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(stage)) {
+                            setIsDelivered(true);
+                        }
+                        console.log(`[Delivery] ⚡ ${parsed.length} rolls from localStorage cache`);
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+
+        // F. Draft rolls from localStorage
+        if (selectedRolls.length === 0 && !draftRestoredRef.current) {
+            try {
+                const localDraft = localStorage.getItem(draftKey);
+                if (localDraft) {
+                    const parsed = JSON.parse(localDraft);
+                    if (parsed?.rolls?.length > 0) {
+                        setSelectedRolls(parsed.rolls);
+                        setDraftRestored(true);
+                        draftRestoredRef.current = true;
+                        console.log(`[Draft] ⚡ ${parsed.rolls.length} rolls from localStorage`);
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // PHASE 2: BACKGROUND — Supabase sync (only if cache miss)
+        // ══════════════════════════════════════════════════════════════
+
+        // Only show loading spinner if we have NO local data at all
+        const hasLocalData = !!(cachedInvoice || cachedItems.length > 0);
+        if (!hasLocalData) setLoading(true);
+
         const fetchData = async () => {
-            setLoading(true);
-            setDraftRestored(false);
             setIsDelivered(false);
             try {
-                // 1. Fetch invoice header
-                const { data: inv, error: invErr } = await supabase
-                    .from('sales_transactions')
-                    .select('*')
-                    .eq('id', invoiceId)
-                    .maybeSingle();
+                // ══ STEP 1: PARALLEL — Fetch invoice + items + movements ALL at once ══
+                const [invRes, itemsRes, mvByIdRes, mvByNumRes] = await Promise.all([
+                    supabase
+                        .from('sales_transactions')
+                        .select('*')
+                        .eq('id', invoiceId)
+                        .maybeSingle(),
+                    supabase
+                        .from('sales_transaction_items')
+                        .select('*')
+                        .eq('transaction_id', invoiceId),
+                    // movements by reference_id (always needed for delivered/in_transit)
+                    supabase
+                        .from('inventory_movements')
+                        .select('roll_id, quantity, material_id, movement_type')
+                        .eq('reference_id', invoiceId),
+                    // movements by reference_number (fallback)
+                    salesInvoice?.invoice_no
+                        ? supabase
+                            .from('inventory_movements')
+                            .select('roll_id, quantity, material_id, movement_type')
+                            .eq('reference_number', salesInvoice.invoice_no)
+                        : Promise.resolve({ data: [] as any[], error: null }),
+                ]);
 
-                if (invErr) console.warn('[SalesDelivery] invoice fetch error:', invErr.message);
+                const inv = invRes.data;
+                const items = itemsRes.data;
+
                 if (inv) {
                     setInvoiceData(inv);
                     if (inv.warehouse_id) setSelectedWarehouseId(inv.warehouse_id);
+                    try { localStorage.setItem(invoiceCacheKey, JSON.stringify(inv)); } catch { }
                 }
 
-                // 2. Fetch invoice items
-                const { data: items, error: itemsErr } = await supabase
-                    .from('sales_transaction_items')
-                    .select('*')
-                    .eq('transaction_id', invoiceId);
+                // ══ STEP 2: PARALLEL — Material names + Roll data ══
+                // Prepare material IDs from items
+                const materialIds = items?.length
+                    ? [...new Set(items.map((i: any) => i.material_id).filter(Boolean))]
+                    : [];
 
-                if (itemsErr) console.warn('[SalesDelivery] items fetch error:', itemsErr.message);
+                // Prepare roll IDs from movements
+                let movements = (mvByIdRes.data?.length ? mvByIdRes.data : mvByNumRes.data) || [];
+                const saleMovements = movements.filter((m: any) =>
+                    ['sale', 'issue', 'delivery', 'transfer_out'].includes(m.movement_type) || !m.movement_type
+                );
+                const rollIds = saleMovements.map((m: any) => m.roll_id).filter(Boolean);
 
+                // Fire materials + rolls in PARALLEL
+                const [matsRes, rollsRes] = await Promise.all([
+                    materialIds.length > 0
+                        ? supabase.from('fabric_materials').select('id, name_ar, name_en').in('id', materialIds)
+                        : Promise.resolve({ data: [] as any[], error: null }),
+                    rollIds.length > 0
+                        ? supabase.from('fabric_rolls').select('id, roll_number, material_id, current_length, color_id, color_name, status, warehouse_id').in('id', rollIds)
+                        : Promise.resolve({ data: [] as any[], error: null }),
+                ]);
+
+                // Process materials
+                const materialsMap: Record<string, { name_ar: string; name_en: string }> = {};
+                matsRes.data?.forEach((m: any) => {
+                    materialsMap[m.id] = { name_ar: m.name_ar || '', name_en: m.name_en || '' };
+                });
+
+                // Process items with material names
                 if (items && items.length > 0) {
-                    const materialIds = [...new Set(items.map((i: any) => i.material_id).filter(Boolean))];
-                    let materialsMap: Record<string, { name_ar: string; name_en: string }> = {};
-
-                    if (materialIds.length > 0) {
-                        const { data: mats } = await supabase
-                            .from('fabric_materials')
-                            .select('id, name_ar, name_en')
-                            .in('id', materialIds);
-                        if (mats) {
-                            materialsMap = mats.reduce((acc: any, m: any) => {
-                                acc[m.id] = { name_ar: m.name_ar || '', name_en: m.name_en || '' };
-                                return acc;
-                            }, {});
-                        }
-                    }
-
-                    setSourceItems(items.map((item: any) => {
+                    const mappedItems = items.map((item: any) => {
                         const mat: any = materialsMap[item.material_id] || {};
                         return {
                             id: item.id,
@@ -173,106 +351,39 @@ export function SalesDeliveryDialog({
                             total: item.total || 0,
                             description: item.description,
                         };
-                    }));
-                } else {
+                    });
+                    setSourceItems(mappedItems);
+                    try { localStorage.setItem(itemsCacheKey, JSON.stringify(mappedItems)); } catch { }
+                } else if (items) {
                     setSourceItems([]);
                 }
 
-                // ═══ 3. AUTO-DETECT DELIVERED STATE ═══
-                // إذا كانت الفاتورة مسلّمة بالفعل ← جلب الرولونات من inventory_movements
-                const stageDelivered = ['delivered', 'partial_delivered', 'in_delivery'];
-                const isCompletedDelivery = inv && stageDelivered.includes(inv.stage);
+                // ══ STEP 3: Process rolls (already fetched in parallel) ══
+                const isCompletedDelivery = inv && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(inv.stage);
+                const isInDelivery = inv && inv.stage === 'in_delivery';
 
-                if (isCompletedDelivery) {
-                    console.log('[SalesDelivery] 📦 Stage is', inv.stage, '| invoiceId:', invoiceId, '| invoice_no:', inv.invoice_no);
-
-                    // محاولة 1: البحث بـ reference_id
-                    let movements: any[] = [];
-                    const { data: byId, error: mvErr1 } = await supabase
-                        .from('inventory_movements')
-                        .select('roll_id, quantity, material_id, movement_type, reference_id, reference_number')
-                        .eq('reference_id', invoiceId);
-
-                    if (mvErr1) console.warn('[SalesDelivery] byId error:', mvErr1.message);
-                    console.log('[SalesDelivery] byId found:', byId?.length ?? 0, byId?.slice(0, 2));
-
-                    if (byId && byId.length > 0) {
-                        movements = byId;
-                    } else if (inv.invoice_no) {
-                        // محاولة 2: البحث بـ reference_number (لو reference_id مختلف)
-                        const { data: byNum, error: mvErr2 } = await supabase
-                            .from('inventory_movements')
-                            .select('roll_id, quantity, material_id, movement_type, reference_id, reference_number')
-                            .eq('reference_number', inv.invoice_no);
-                        if (mvErr2) console.warn('[SalesDelivery] byNum error:', mvErr2.message);
-                        console.log('[SalesDelivery] byNum found:', byNum?.length ?? 0, byNum?.slice(0, 2));
-                        movements = byNum || [];
-                    }
-
-                    // فلترة على movement_type بعد الجلب (لا نُقيّد في الاستعلام)
-                    const saleMovements = movements.filter((m: any) =>
-                        ['sale', 'issue', 'delivery'].includes(m.movement_type) || !m.movement_type
-                    );
-                    console.log('[SalesDelivery] sale movements after filter:', saleMovements.length);
-
-                    if (saleMovements.length > 0) {
-                        const rollIds = saleMovements.map((m: any) => m.roll_id).filter(Boolean);
-                        if (rollIds.length > 0) {
-                            const { data: rolls } = await supabase
-                                .from('fabric_rolls')
-                                .select('id, roll_number, material_id, current_length, color_id, color_name, status, warehouse_id')
-                                .in('id', rollIds);
-
-                            if (rolls && rolls.length > 0) {
-                                const mapped = rolls.map((r: any) => {
-                                    const mv = saleMovements.find((m: any) => m.roll_id === r.id);
-                                    return {
-                                        ...r,
-                                        net_length: mv?.quantity || r.current_length || 0,
-                                        color_name: r.color_name || '',
-                                        _delivered: true,
-                                    };
-                                });
-                                console.log('[SalesDelivery] ✅ Loaded', mapped.length, 'delivered rolls');
-                                setSelectedRolls(mapped);
-                                setDraftRestored(true);
-                                setIsDelivered(inv.stage === 'delivered');
-                                return;
-                            }
-                        }
-                    }
-                    // لا توجد حركات — الحالة مسلّمة لكن قد يكون البيانات قديمة
-                    if (inv.stage === 'delivered') setIsDelivered(true);
+                if ((isCompletedDelivery || isInDelivery) && rollsRes.data && rollsRes.data.length > 0) {
+                    const mapped = rollsRes.data.map((r: any) => {
+                        const mv = saleMovements.find((m: any) => m.roll_id === r.id);
+                        return { ...r, net_length: mv?.quantity || r.current_length || 0, color_name: r.color_name || '', _delivered: true };
+                    });
+                    setSelectedRolls(mapped);
+                    setDraftRestored(true);
+                    draftRestoredRef.current = true;
+                    setIsDelivered(['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(inv.stage));
+                    // 💾 Cache rolls for instant reload after refresh
+                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(mapped)); } catch { }
                     return;
                 }
 
-                // ═══ 4. RESTORE DRAFT (for in-progress deliveries only) ═══
-                if (selectedRolls.length === 0 && !draftRestored) {
-                    let restoredRolls: any[] | null = null;
+                if (isCompletedDelivery) { setIsDelivered(true); return; }
 
-                    try {
-                        const localDraft = localStorage.getItem(draftKey);
-                        if (localDraft) {
-                            const parsed = JSON.parse(localDraft);
-                            if (parsed?.rolls?.length > 0) {
-                                restoredRolls = parsed.rolls;
-                                console.log(`[Draft] 📂 Restored ${restoredRolls!.length} rolls from localStorage`);
-                            }
-                        }
-                    } catch (e) { /* ignore */ }
-
-                    if (!restoredRolls && inv?.delivery_draft?.rolls?.length > 0) {
-                        restoredRolls = inv.delivery_draft.rolls;
-                        console.log(`[Draft] ☁️ Restored ${restoredRolls!.length} rolls from Supabase`);
-                    }
-
-                    if (restoredRolls && restoredRolls.length > 0) {
-                        setSelectedRolls(restoredRolls);
+                // ═══ 4. RESTORE DRAFT (Supabase fallback) ═══
+                if (!draftRestoredRef.current) {
+                    if (inv?.delivery_draft?.rolls?.length > 0) {
+                        setSelectedRolls(inv.delivery_draft.rolls);
                         setDraftRestored(true);
-                        toast.info(tl(
-                            `📂 تم استعادة مسودة التحميل (${restoredRolls.length} رولون)`,
-                            `📂 Delivery draft restored (${restoredRolls.length} rolls)`
-                        ));
+                        draftRestoredRef.current = true;
                     }
                 }
             } catch (err) {
@@ -342,6 +453,8 @@ export function SalesDeliveryDialog({
                     setSelectedRolls(mappedRolls);
                     setIsDelivered(true);
                     setDraftRestored(true);
+                    draftRestoredRef.current = true;
+                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(mappedRolls)); } catch { }
                     return;
                 }
             }
@@ -375,6 +488,8 @@ export function SalesDeliveryDialog({
                     setSelectedRolls(mapped);
                     setIsDelivered(true);
                     setDraftRestored(true);
+                    draftRestoredRef.current = true;
+                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(mapped)); } catch { }
                     return;
                 }
             }
@@ -392,17 +507,41 @@ export function SalesDeliveryDialog({
         if (updates?.selected_rolls) {
             setSelectedRolls(updates.selected_rolls);
         }
+        // Sync delivery-related fields back to invoiceData + DB
+        const fieldsToSync = ['delivery_method', 'driver_id', 'driver_name', 'driver_phone',
+            'receiving_branch_id', 'receiving_branch_name', 'delivery_notes',
+            'pickup_person_name', 'pickup_person_id_number', 'pickup_vehicle_number',
+            'pickup_vehicle_type', 'pickup_driver_name', 'pickup_driver_phone'];
+        const dbUpdates: Record<string, any> = {};
+        let hasFieldUpdate = false;
+        for (const field of fieldsToSync) {
+            if (field in (updates || {})) {
+                dbUpdates[field] = updates[field];
+                hasFieldUpdate = true;
+            }
+        }
+        if (hasFieldUpdate) {
+            setInvoiceData((prev: any) => prev ? { ...prev, ...dbUpdates } : prev);
+            if (invoiceId) {
+                supabase.from('sales_transactions')
+                    .update({ ...dbUpdates, updated_at: new Date().toISOString() })
+                    .eq('id', invoiceId)
+                    .then(() => { console.log('[SalesDelivery] ✅ Fields persisted:', Object.keys(dbUpdates)); },
+                          (err: any) => { console.warn('[SalesDelivery] DB update error:', err); });
+            }
+        }
     };
 
     // ═══ Enhanced data for UnifiedAccountingSheet ═══
     const enhancedData = useMemo(() => ({
         ...invoiceData,
+        items: sourceItems, // ← needed by SalesFinanceTab + StageJournalPreview
         source_items: sourceItems,
         warehouse_id: selectedWarehouseId,
         selected_rolls: selectedRolls,
         rolls_count: selectedRolls.length,
         total_length: selectedRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0),
-        view_mode: effectiveViewMode,  // ← يتغيّر ديناميكياً عند التبديل بين العرض والتعديل
+        view_mode: effectiveViewMode,
         onDeliveryDataChange: (updates: any) => onDeliveryDataChangeRef.current(updates),
     }), [invoiceData, sourceItems, selectedWarehouseId, selectedRolls, effectiveViewMode]);
 
@@ -425,7 +564,32 @@ export function SalesDeliveryDialog({
         if (updates?.selected_rolls) {
             setSelectedRolls(updates.selected_rolls);
         }
-    }, []);
+        // Persist delivery-related fields to invoiceData + DB
+        const fieldsToSync = ['delivery_method', 'driver_id', 'driver_name', 'driver_phone',
+            'receiving_branch_id', 'receiving_branch_name', 'delivery_notes',
+            'pickup_person_name', 'pickup_person_id_number', 'pickup_vehicle_number',
+            'pickup_vehicle_type', 'pickup_driver_name', 'pickup_driver_phone'];
+        const dbUpdates: Record<string, any> = {};
+        let hasFieldUpdate = false;
+        for (const field of fieldsToSync) {
+            if (field in (updates || {})) {
+                dbUpdates[field] = updates[field];
+                hasFieldUpdate = true;
+            }
+        }
+        if (hasFieldUpdate) {
+            // Update local invoiceData
+            setInvoiceData((prev: any) => prev ? { ...prev, ...dbUpdates } : prev);
+            // Persist to DB
+            if (invoiceId) {
+                supabase.from('sales_transactions')
+                    .update({ ...dbUpdates, updated_at: new Date().toISOString() })
+                    .eq('id', invoiceId)
+                    .then(() => { console.log('[SalesDelivery] ✅ Fields persisted:', Object.keys(dbUpdates)); }, 
+                          (err: any) => { console.warn('[SalesDelivery] DB update error:', err); });
+            }
+        }
+    }, [invoiceId]);
 
     // ═══ Save Draft Manually ═══
     const handleSaveDraft = useCallback(async () => {
@@ -478,15 +642,18 @@ export function SalesDeliveryDialog({
         return deliveryProgress.percent < 99;
     }, [deliveryProgress.percent]);
 
-    // ═══ Confirm Delivery (supports partial) ═══
+    // ═══ Confirm Delivery — delivery_method aware ═══
     const handleConfirmDelivery = useCallback(async () => {
         if (!invoiceId || !selectedWarehouseId || selectedRolls.length === 0) return;
 
         setIsCompleting(true);
         try {
             const now = new Date().toISOString();
+            const deliveryMethod = invoiceData?.delivery_method || 'store_pickup';
+            const isBranchDelivery = deliveryMethod === 'store_pickup';
+            const rollIds = selectedRolls.map(r => r.id);
 
-            // ── 1. Group selected rolls by material_id ──
+            // ── Group selected rolls by material_id ──
             const rollsByMaterial: Record<string, any[]> = {};
             for (const roll of selectedRolls) {
                 const matId = roll.material_id;
@@ -494,17 +661,28 @@ export function SalesDeliveryDialog({
                 rollsByMaterial[matId].push(roll);
             }
 
-            // ── 1.5 Fetch cost_per_meter from DB for accurate COGS ──
-            const rollIds = selectedRolls.map(r => r.id);
-            const { data: rollCosts } = await supabase
-                .from('fabric_rolls')
-                .select('id, material_id, cost_per_meter, current_length')
-                .in('id', rollIds);
+            // ═══ BATCH 1: Parallel — fetch costs + update roll status ═══
+            const rollStatus = isBranchDelivery ? 'in_transit' : 'sold';
+            const rollUpdate: any = { status: rollStatus, updated_at: now };
+            if (isBranchDelivery) rollUpdate.warehouse_id = null;
 
-            // Build cost map: material_id → { totalCost, totalLength }
+            const [costResult, rollUpdateResult] = await Promise.all([
+                // 1a. Fetch cost_per_meter
+                supabase.from('fabric_rolls')
+                    .select('id, material_id, cost_per_meter, current_length')
+                    .in('id', rollIds),
+                // 1b. Update roll status (independent)
+                supabase.from('fabric_rolls')
+                    .update(rollUpdate)
+                    .in('id', rollIds),
+            ]);
+
+            if (rollUpdateResult.error) throw new Error(`Roll update failed: ${rollUpdateResult.error.message}`);
+
+            // Build cost map from results
             const costByMaterial: Record<string, { totalCost: number; totalLength: number }> = {};
-            if (rollCosts) {
-                for (const rc of rollCosts) {
+            if (costResult.data) {
+                for (const rc of costResult.data) {
                     const matId = rc.material_id;
                     if (!costByMaterial[matId]) costByMaterial[matId] = { totalCost: 0, totalLength: 0 };
                     const len = Number(rc.current_length) || 0;
@@ -514,56 +692,15 @@ export function SalesDeliveryDialog({
                 }
             }
 
-            // ── 2. Update fabric_rolls status → 'sold' ──
-            const { error: rollError } = await supabase
-                .from('fabric_rolls')
-                .update({ status: 'sold', updated_at: now })
-                .in('id', rollIds);
-
-            if (rollError) throw new Error(`Roll update failed: ${rollError.message}`);
-
-            // ── 3. Update delivered_qty + cost_price on each sales_transaction_item ──
-            for (const item of sourceItems) {
-                const materialRolls = rollsByMaterial[item.material_id] || [];
-                if (materialRolls.length === 0) continue;
-
-                const deliveredLength = materialRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0);
-                const existingDelivered = Number(item.delivered_qty) || 0;
-                const newDelivered = existingDelivered + deliveredLength;
-
-                // Calculate weighted average cost_per_meter for this material
-                const matCost = costByMaterial[item.material_id];
-                const avgCostPerMeter = matCost && matCost.totalLength > 0
-                    ? matCost.totalCost / matCost.totalLength
-                    : 0;
-
-                const updatePayload: any = {
-                    delivered_qty: newDelivered,
-                    updated_at: now,
-                };
-
-                // Set cost_price (average cost per meter) for COGS calculation
-                if (avgCostPerMeter > 0) {
-                    updatePayload.cost_price = Math.round(avgCostPerMeter * 10000) / 10000;
-                }
-
-                const { error: itemErr } = await supabase
-                    .from('sales_transaction_items')
-                    .update(updatePayload)
-                    .eq('id', item.id);
-
-                if (itemErr) console.warn(`Item ${item.id} update error:`, itemErr.message);
-            }
-
-            // ── 4. Create inventory_movements (one per roll) ──
-            // stock_movements جدول غير موجود — نكتب في inventory_movements
-            const movNumber = `MV-SALE-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${invoiceData?.invoice_no?.slice(-6) || invoiceId?.slice(0, 6) || 'SALE'}`;
+            // ═══ BATCH 2: Parallel — update items + insert movements ═══
+            const movNumber = `MV-SALE-${now.slice(0, 10).replace(/-/g, '')}-${invoiceData?.invoice_no?.slice(-6) || invoiceId?.slice(0, 6) || 'SALE'}`;
+            const movType = isBranchDelivery ? 'transfer_out' : 'sale';
             const movementRows = selectedRolls.map((roll: any, idx: number) => ({
                 tenant_id: tenantId,
                 company_id: companyId,
                 movement_number: `${movNumber}-${idx + 1}`,
-                movement_date: now.slice(0, 10), // date only
-                movement_type: 'sale',
+                movement_date: now.slice(0, 10),
+                movement_type: movType,
                 material_id: roll.material_id || null,
                 color_id: roll.color_id || null,
                 roll_id: roll.id,
@@ -573,86 +710,96 @@ export function SalesDeliveryDialog({
                 reference_id: invoiceId,
                 reference_number: invoiceData?.invoice_no || invoiceData?.draft_no || '',
                 notes: tl(
-                    `تسليم مبيعات — رولون ${roll.roll_number || roll.id?.slice(0, 8)} (${(roll.net_length || roll.current_length || 0).toFixed(1)} م)${isPartialDelivery ? ' [جزئي]' : ' [كامل]'}`,
-                    `Sales delivery — roll ${roll.roll_number || roll.id?.slice(0, 8)} (${(roll.net_length || roll.current_length || 0).toFixed(1)}m)${isPartialDelivery ? ' [partial]' : ' [complete]'}`
+                    `${isBranchDelivery ? 'تحويل للفرع' : 'تسليم مبيعات'} — رولون ${roll.roll_number || roll.id?.slice(0, 8)} (${(roll.net_length || roll.current_length || 0).toFixed(1)} م)`,
+                    `${isBranchDelivery ? 'Branch transfer' : 'Sales delivery'} — roll ${roll.roll_number || roll.id?.slice(0, 8)} (${(roll.net_length || roll.current_length || 0).toFixed(1)}m)`
                 ),
             }));
 
-            const { error: movError } = await supabase
-                .from('inventory_movements')
-                .insert(movementRows);
+            // Build all item update promises
+            const itemUpdatePromises = sourceItems
+                .filter(item => (rollsByMaterial[item.material_id] || []).length > 0)
+                .map(item => {
+                    const materialRolls = rollsByMaterial[item.material_id];
+                    const deliveredLength = materialRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0);
+                    const newDelivered = (Number(item.delivered_qty) || 0) + deliveredLength;
+                    const matCost = costByMaterial[item.material_id];
+                    const avgCostPerMeter = matCost && matCost.totalLength > 0 ? matCost.totalCost / matCost.totalLength : 0;
+                    const updatePayload: any = {
+                        delivered_qty: newDelivered,
+                        quantity: newDelivered,
+                        updated_at: now,
+                    };
+                    if (avgCostPerMeter > 0) {
+                        updatePayload.cost_price = Math.round(avgCostPerMeter * 10000) / 10000;
+                    }
+                    return supabase.from('sales_transaction_items').update(updatePayload).eq('id', item.id);
+                });
 
-            if (movError) console.warn('inventory_movements insert error:', movError.message);
+            await Promise.all([
+                // 2a. Update all items in parallel
+                ...itemUpdatePromises,
+                // 2b. Insert movements (independent)
+                supabase.from('inventory_movements').insert(movementRows),
+            ]);
 
-
-            // ── 6. Determine stage: partial or complete ──
-            const totalRequired = sourceItems.reduce((s, si) => s + (Number(si.quantity) || 0), 0);
-
-            // Re-fetch all items to check total delivered across all deliveries
-            const { data: freshItems } = await supabase
-                .from('sales_transaction_items')
-                .select('quantity, delivered_qty')
-                .eq('transaction_id', invoiceId);
-
-            let totalNowDelivered = 0;
-            let totalExpected = 0;
-            if (freshItems) {
-                for (const fi of freshItems) {
-                    totalNowDelivered += Number(fi.delivered_qty) || 0;
-                    totalExpected += Number(fi.quantity) || 0;
-                }
+            // ═══ BATCH 3: Parallel — recalc totals + update stage ═══
+            // Recalculate from local data (skip extra DB fetch)
+            let newSubtotal = 0, newDiscount = 0, newTax = 0;
+            for (const item of sourceItems) {
+                const materialRolls = rollsByMaterial[item.material_id] || [];
+                const deliveredLength = materialRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0);
+                const qty = (Number(item.delivered_qty) || 0) + deliveredLength;
+                const price = Number(item.unit_price) || 0;
+                const lineTotal = qty * price;
+                const lineDiscount = lineTotal * (Number(item.discount_percent) || 0) / 100;
+                const lineTax = (lineTotal - lineDiscount) * (Number(item.tax_rate) || 0) / 100;
+                newSubtotal += lineTotal;
+                newDiscount += lineDiscount;
+                newTax += lineTax;
             }
+            const newTotal = newSubtotal - newDiscount + newTax;
 
-            const isFullyDelivered = totalExpected > 0 && totalNowDelivered >= totalExpected * 0.99;
-            const newStage = isFullyDelivered ? 'delivered' : 'in_delivery';
-
-            const { error: stageError } = await supabase
-                .from('sales_transactions')
+            const newStage = isBranchDelivery ? 'in_transit' : 'delivered';
+            await supabase.from('sales_transactions')
                 .update({
                     stage: newStage,
+                    subtotal: Math.round(newSubtotal * 100) / 100,
+                    discount_amount: Math.round(newDiscount * 100) / 100,
+                    tax_amount: Math.round(newTax * 100) / 100,
+                    total_amount: Math.round(newTotal * 100) / 100,
                     updated_at: now,
-                    delivery_draft: null, // Clear draft after confirm
-                    ...(isFullyDelivered ? { delivered_at: now } : {}),
+                    delivery_draft: null,
+                    ...(!isBranchDelivery ? { delivered_at: now } : {}),
                 })
                 .eq('id', invoiceId);
 
-            if (stageError) console.warn('Stage update error:', stageError.message);
-
-            // ── 7. Clean up localStorage draft ──
+            // Clean up localStorage draft
             try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
 
-            // ── 8. Auto-post invoice on full delivery ──
-            try {
-                if (isFullyDelivered && invoiceId) {
-                    console.log('[Accounting] 📒 Auto-posting sales invoice...');
-                    const { data: postResult, error: postError } = await supabase.rpc('post_sales_invoice', {
-                        p_invoice_id: invoiceId,
-                    });
-                    if (postError) {
-                        console.warn('[Accounting] Post error:', postError.message);
-                    } else if (postResult?.success) {
-                        console.log('[Accounting] ✅ Invoice posted! JE:', postResult.journal_entry_id);
-                    } else {
-                        console.warn('[Accounting] Post result:', postResult?.error);
-                    }
-                }
-            } catch (accErr) {
-                console.warn('[Accounting] Non-critical error:', accErr);
+            // ═══ Auto-post + notifications (non-blocking — fire and forget) ═══
+            if (!isBranchDelivery) {
+                supabase.rpc('post_sales_invoice', { p_invoice_id: invoiceId })
+                    .then(({ data: r, error: e }) => {
+                        if (e) console.warn('[Accounting] Post error:', e.message);
+                        else if (r?.success) console.log('[Accounting] ✅ Posted! JE:', r.journal_entry_id);
+                    }, () => {});
             }
 
-            // ── 9. Success ──
+            // Success toast — immediate
             const totalDeliveredLength = selectedRolls.reduce((s: number, r: any) => s + (r.net_length || r.current_length || 0), 0);
-            toast.success(tl(
-                isFullyDelivered
-                    ? `✅ تسليم كامل! ${selectedRolls.length} رولون — ${totalDeliveredLength.toFixed(1)} م — تم ترحيل الفاتورة`
-                    : `📦 تسليم جزئي — ${selectedRolls.length} رولون (${totalDeliveredLength.toFixed(1)} م). المتبقي: ${(totalExpected - totalNowDelivered).toFixed(1)} م`,
-                isFullyDelivered
-                    ? `✅ Full delivery! ${selectedRolls.length} rolls — ${totalDeliveredLength.toFixed(1)}m — Invoice posted`
-                    : `📦 Partial delivery — ${selectedRolls.length} rolls (${totalDeliveredLength.toFixed(1)}m). Remaining: ${(totalExpected - totalNowDelivered).toFixed(1)}m`
-            ));
+            if (isBranchDelivery) {
+                toast.success(tl(
+                    `🚚 تم إخراج ${selectedRolls.length} رولون (${totalDeliveredLength.toFixed(1)} م) — بالطريق للفرع`,
+                    `🚚 ${selectedRolls.length} rolls dispatched (${totalDeliveredLength.toFixed(1)}m) — In transit to branch`
+                ));
+            } else {
+                toast.success(tl(
+                    `✅ تسليم ${selectedRolls.length} رولون — ${totalDeliveredLength.toFixed(1)} م — تم الفوترة والترحيل`,
+                    `✅ Delivered ${selectedRolls.length} rolls — ${totalDeliveredLength.toFixed(1)}m — Invoiced & posted`
+                ));
+            }
 
-            // 🔔 Telegram: Notify warehouse staff (issue_order)
-            // → dispatch_notification already checks company settings internally
+            // 🔔 Telegram — fire and forget (non-blocking)
             if (companyId) {
                 const wh = warehouses.find(w => w.id === selectedWarehouseId);
                 const whName = wh ? (language === 'ar' ? (wh.name_ar || wh.name_en || '') : (wh.name_en || wh.name_ar || '')) : '';
@@ -669,9 +816,7 @@ export function SalesDeliveryDialog({
                     invoiceNumber: invoiceData?.invoice_no || '',
                 }).catch(() => { });
 
-                // 🔔 Telegram: Notify customer directly (if company setting enabled)
-                if (invoiceData?.customer_id) {
-                    // Check company-level setting before sending to customer
+                if (!isBranchDelivery && invoiceData?.customer_id) {
                     (async () => {
                         try {
                             const { data: cfg } = await supabase.from('telegram_bot_config')
@@ -701,7 +846,7 @@ export function SalesDeliveryDialog({
         } finally {
             setIsCompleting(false);
         }
-    }, [invoiceId, selectedWarehouseId, selectedRolls, sourceItems, companyId, tenantId, invoiceData, tl, onComplete, onOpenChange, draftKey]);
+    }, [invoiceId, selectedWarehouseId, selectedRolls, sourceItems, companyId, tenantId, invoiceData, tl, onComplete, onOpenChange, draftKey, language, warehouses, isPartialDelivery]);
 
     // ═══ Reverse Delivery — إلغاء التسليم (Manager Only) ═══
     const [showReverseConfirm, setShowReverseConfirm] = useState(false);
@@ -814,35 +959,302 @@ export function SalesDeliveryDialog({
         }
     }, [invoiceId, draftKey, tl, onComplete, onOpenChange]);
 
+    // ═══ Branch Receive — الفرع يؤكد استلام الشحنة ═══
+    const [isBranchActing, setIsBranchActing] = useState(false);
+
+    const handleBranchReceive = useCallback(async () => {
+        if (!invoiceId) return;
+        setIsBranchActing(true);
+        try {
+            const now = new Date().toISOString();
+
+            // 1. Get all rolls for this invoice that are in_transit
+            const { data: movements } = await supabase
+                .from('inventory_movements')
+                .select('roll_id')
+                .eq('reference_id', invoiceId)
+                .eq('movement_type', 'transfer_out');
+
+            const rollIds = [...new Set((movements || []).map(m => m.roll_id).filter(Boolean))];
+
+            // 2. Update rolls: in_transit → at_branch, assign to receiving branch warehouse
+            if (rollIds.length > 0) {
+                const { error: rollErr } = await supabase
+                    .from('fabric_rolls')
+                    .update({
+                        status: 'at_branch',
+                        warehouse_id: selectedWarehouseId, // Branch warehouse
+                        updated_at: now,
+                    })
+                    .in('id', rollIds);
+                if (rollErr) console.warn('[BranchReceive] roll update error:', rollErr.message);
+            }
+
+            // 3. Create transfer_in movements
+            const movNumber = `MV-BRN-${now.slice(0, 10).replace(/-/g, '')}-${invoiceData?.invoice_no?.slice(-6) || 'BRN'}`;
+            const inMovements = rollIds.map((rollId, idx) => ({
+                tenant_id: tenantId,
+                company_id: companyId,
+                movement_number: `${movNumber}-${idx + 1}`,
+                movement_date: now.slice(0, 10),
+                movement_type: 'transfer_in',
+                roll_id: rollId,
+                to_warehouse_id: selectedWarehouseId,
+                quantity: 0, // Will be filled from roll data
+                reference_type: 'sale_invoice',
+                reference_id: invoiceId,
+                reference_number: invoiceData?.invoice_no || '',
+                notes: tl('استلام الفرع للشحنة', 'Branch received shipment'),
+            }));
+
+            if (inMovements.length > 0) {
+                await supabase.from('inventory_movements').insert(inMovements);
+            }
+
+            // 4. Update invoice stage
+            await supabase
+                .from('sales_transactions')
+                .update({ stage: 'at_branch', updated_at: now })
+                .eq('id', invoiceId);
+
+            toast.success(tl(
+                `📥 تم استلام ${rollIds.length} رولون في الفرع — جاهز للتسليم للعميل`,
+                `📥 ${rollIds.length} rolls received at branch — Ready for customer delivery`
+            ));
+
+            onOpenChange(false);
+            onComplete?.();
+        } catch (err: any) {
+            console.error('[BranchReceive] error:', err);
+            toast.error(tl('❌ فشل في تأكيد الاستلام', '❌ Failed to confirm receipt'));
+        } finally {
+            setIsBranchActing(false);
+        }
+    }, [invoiceId, selectedWarehouseId, tenantId, companyId, invoiceData, tl, onComplete, onOpenChange]);
+
+    // ═══ Branch Deliver — الفرع يسلّم للعميل + فوترة ═══
+    const handleBranchDeliver = useCallback(async () => {
+        if (!invoiceId) return;
+        setIsBranchActing(true);
+        try {
+            const now = new Date().toISOString();
+
+            // 1. Get rolls at_branch for this invoice
+            const { data: movements } = await supabase
+                .from('inventory_movements')
+                .select('roll_id')
+                .eq('reference_id', invoiceId)
+                .in('movement_type', ['transfer_out', 'transfer_in']);
+
+            const rollIds = [...new Set((movements || []).map(m => m.roll_id).filter(Boolean))];
+
+            // 2. Update rolls: at_branch → sold
+            if (rollIds.length > 0) {
+                await supabase
+                    .from('fabric_rolls')
+                    .update({ status: 'sold', warehouse_id: null, updated_at: now })
+                    .in('id', rollIds);
+            }
+
+            // 3. Create sale movements from branch
+            const movNumber = `MV-BSALE-${now.slice(0, 10).replace(/-/g, '')}-${invoiceData?.invoice_no?.slice(-6) || 'BSALE'}`;
+            const saleMovements = rollIds.map((rollId, idx) => ({
+                tenant_id: tenantId,
+                company_id: companyId,
+                movement_number: `${movNumber}-${idx + 1}`,
+                movement_date: now.slice(0, 10),
+                movement_type: 'sale',
+                roll_id: rollId,
+                from_warehouse_id: selectedWarehouseId,
+                quantity: 0,
+                reference_type: 'sale_invoice',
+                reference_id: invoiceId,
+                reference_number: invoiceData?.invoice_no || '',
+                notes: tl('تسليم للعميل من الفرع', 'Delivered to customer from branch'),
+            }));
+
+            if (saleMovements.length > 0) {
+                await supabase.from('inventory_movements').insert(saleMovements);
+            }
+
+            // 4. Update invoice: delivered_at + stage
+            await supabase
+                .from('sales_transactions')
+                .update({ stage: 'delivered', delivered_at: now, updated_at: now })
+                .eq('id', invoiceId);
+
+            // 5. Auto-post (billing)
+            try {
+                console.log('[BranchDeliver] 📒 Auto-posting sales invoice...');
+                const { data: postResult, error: postError } = await supabase.rpc('post_sales_invoice', {
+                    p_invoice_id: invoiceId,
+                });
+                if (postError) {
+                    console.warn('[BranchDeliver] Post error:', postError.message);
+                } else if (postResult?.success) {
+                    console.log('[BranchDeliver] ✅ Invoice posted! JE:', postResult.journal_entry_id);
+                }
+            } catch (accErr) {
+                console.warn('[BranchDeliver] Non-critical error:', accErr);
+            }
+
+            // 6. Notify customer
+            if (companyId && invoiceData?.customer_id) {
+                telegramNotify.customerGoodsReady(companyId, {
+                    customerId: invoiceData.customer_id,
+                    customerName: invoiceData.customer_name || '',
+                    invoiceNumber: invoiceData.invoice_no || invoiceData.draft_no || '',
+                    totalQty: 0,
+                }).catch(() => { });
+            }
+
+            toast.success(tl(
+                `✅ تم تسليم العميل — تمت الفوترة والترحيل المحاسبي`,
+                `✅ Delivered to customer — Invoiced & posted`
+            ));
+
+            onOpenChange(false);
+            onComplete?.();
+        } catch (err: any) {
+            console.error('[BranchDeliver] error:', err);
+            toast.error(tl('❌ فشل في التسليم للعميل', '❌ Failed to deliver to customer'));
+        } finally {
+            setIsBranchActing(false);
+        }
+    }, [invoiceId, selectedWarehouseId, tenantId, companyId, invoiceData, tl, onComplete, onOpenChange]);
+
+    // ═══ Branch Return — إرجاع البضاعة للمستودع الأصلي ═══
+    const handleBranchReturn = useCallback(async () => {
+        if (!invoiceId) return;
+        setIsBranchActing(true);
+        try {
+            const now = new Date().toISOString();
+
+            // 1. Get original warehouse from transfer_out movements
+            const { data: outMovements } = await supabase
+                .from('inventory_movements')
+                .select('roll_id, from_warehouse_id')
+                .eq('reference_id', invoiceId)
+                .eq('movement_type', 'transfer_out');
+
+            const rollIds = [...new Set((outMovements || []).map(m => m.roll_id).filter(Boolean))];
+            const originalWarehouseId = outMovements?.[0]?.from_warehouse_id || selectedWarehouseId;
+
+            // 2. Return rolls to original warehouse
+            if (rollIds.length > 0) {
+                await supabase
+                    .from('fabric_rolls')
+                    .update({
+                        status: 'available',
+                        warehouse_id: originalWarehouseId,
+                        updated_at: now,
+                    })
+                    .in('id', rollIds);
+            }
+
+            // 3. Create return movements
+            const movNumber = `MV-RTN-${now.slice(0, 10).replace(/-/g, '')}-${invoiceData?.invoice_no?.slice(-6) || 'RTN'}`;
+            const returnMovements = rollIds.map((rollId, idx) => ({
+                tenant_id: tenantId,
+                company_id: companyId,
+                movement_number: `${movNumber}-${idx + 1}`,
+                movement_date: now.slice(0, 10),
+                movement_type: 'return',
+                roll_id: rollId,
+                to_warehouse_id: originalWarehouseId,
+                from_warehouse_id: selectedWarehouseId,
+                quantity: 0,
+                reference_type: 'sale_invoice',
+                reference_id: invoiceId,
+                reference_number: invoiceData?.invoice_no || '',
+                notes: tl('إرجاع من الفرع للمستودع', 'Returned from branch to warehouse'),
+            }));
+
+            if (returnMovements.length > 0) {
+                await supabase.from('inventory_movements').insert(returnMovements);
+            }
+
+            // 4. Reset delivered_qty
+            await supabase
+                .from('sales_transaction_items')
+                .update({ delivered_qty: 0, cost_price: null, updated_at: now })
+                .eq('transaction_id', invoiceId);
+
+            // 5. Update stage
+            await supabase
+                .from('sales_transactions')
+                .update({
+                    stage: 'returned',
+                    delivery_draft: null,
+                    delivered_at: null,
+                    updated_at: now,
+                })
+                .eq('id', invoiceId);
+
+            toast.success(tl(
+                `↩️ تم إرجاع ${rollIds.length} رولون للمستودع — لم تتم الفوترة`,
+                `↩️ ${rollIds.length} rolls returned to warehouse — No billing`
+            ));
+
+            onOpenChange(false);
+            onComplete?.();
+        } catch (err: any) {
+            console.error('[BranchReturn] error:', err);
+            toast.error(tl('❌ فشل في الإرجاع', '❌ Failed to return'));
+        } finally {
+            setIsBranchActing(false);
+        }
+    }, [invoiceId, selectedWarehouseId, tenantId, companyId, invoiceData, tl, onComplete, onOpenChange]);
+
     // ═══ Handle close ═══
     const handleClose = useCallback(() => {
         onOpenChange(false);
     }, [onOpenChange]);
 
-    // ═══ Header Extra ═══
+    // ═══ Header Extra — Compact single row + thin progress bar ═══
     const HeaderExtra = (
-        <div className="flex flex-col gap-0 border-b">
-            {/* Row 1: Warehouse + Invoice Info */}
-            <div className={`px-4 py-2.5 border-b bg-gradient-to-r ${effectiveViewMode
+        <div className="flex flex-col gap-0">
+            {/* Single merged row: Badge + Warehouse + Invoice + Stats + Actions */}
+            <div className={`px-4 py-2 bg-gradient-to-r ${effectiveViewMode
                 ? 'from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20'
                 : 'from-rose-50 to-orange-50 dark:from-rose-950/20 dark:to-orange-950/20'}`}>
-                <div className="flex items-center gap-4 flex-wrap">
-                    {/* Delivery Type Badge */}
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold text-sm ${effectiveViewMode
-                        ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
-                        : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'}`}>
-                        <div className={`p-1 rounded-md ${effectiveViewMode ? 'bg-teal-200' : 'bg-rose-200 dark:bg-rose-800'}`}>
-                            {effectiveViewMode ? <PackageCheck className="w-3.5 h-3.5" /> : <Truck className="w-3.5 h-3.5" />}
-                        </div>
-                        {effectiveViewMode ? tl('تم التسليم ✅', 'Delivered ✅') : tl('تسليم مبيعات', 'Sales Delivery')}
-                    </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                    {/* Delivery Type Badge — stage-aware */}
+                    {(() => {
+                        const stage = invoiceData?.stage;
+                        if (stage === 'in_transit') return (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                <Truck className="w-3.5 h-3.5" /> {tl('🚚 بالطريق للفرع', '🚚 In Transit')}
+                            </div>
+                        );
+                        if (stage === 'at_branch') return (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                <Building2 className="w-3.5 h-3.5" /> {tl('🏪 في الفرع', '🏪 At Branch')}
+                            </div>
+                        );
+                        if (stage === 'returned') return (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                                <RotateCcw className="w-3.5 h-3.5" /> {tl('↩️ مُرجع', '↩️ Returned')}
+                            </div>
+                        );
+                        if (effectiveViewMode) return (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300">
+                                <PackageCheck className="w-3.5 h-3.5" /> {tl('تم التسليم ✅', 'Delivered ✅')}
+                            </div>
+                        );
+                        return (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300">
+                                <Truck className="w-3.5 h-3.5" /> {tl('تسليم مبيعات', 'Sales Delivery')}
+                            </div>
+                        );
+                    })()}
 
                     {/* Warehouse — only in edit mode */}
                     {!effectiveViewMode && (
                         <div className="flex items-center gap-1.5">
-                            <Warehouse className="w-4 h-4 text-gray-400" />
+                            <Warehouse className="w-3.5 h-3.5 text-gray-400" />
                             <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                                <SelectTrigger className="h-9 w-[170px] text-sm bg-white dark:bg-slate-800 shadow-sm">
+                                <SelectTrigger className="h-7 w-[150px] text-xs bg-white dark:bg-slate-800 shadow-sm">
                                     <SelectValue placeholder={tl('اختر المستودع', 'Select warehouse')} />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -856,12 +1268,12 @@ export function SalesDeliveryDialog({
                         </div>
                     )}
 
-                    <div className="w-px h-7 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
+                    <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
 
-                    {/* Invoice Info + Customer */}
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <FileText className="w-4 h-4 shrink-0 text-rose-500" />
-                        <span className="text-sm font-mono font-bold text-rose-600">
+                    {/* Invoice + Customer — compact inline */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <FileText className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                        <span className="text-xs font-mono font-bold text-rose-600">
                             {invoiceData?.invoice_no || invoiceData?.draft_no || invoiceId?.substring(0, 8)}
                         </span>
                         {invoiceData?.customer_name && (
@@ -869,83 +1281,166 @@ export function SalesDeliveryDialog({
                                 <button
                                     type="button"
                                     onClick={() => onOpenInvoice(invoiceData)}
-                                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline truncate transition-colors font-medium"
+                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate transition-colors font-medium max-w-[180px]"
                                     title={tl('فتح الفاتورة المالية', 'Open Financial Invoice')}
                                 >
                                     — {invoiceData.customer_name}
                                 </button>
                             ) : (
-                                <span className="text-sm text-gray-600 truncate">
+                                <span className="text-xs text-gray-500 truncate max-w-[180px]">
                                     — {invoiceData.customer_name}
                                 </span>
                             )
                         )}
                     </div>
 
-                    {/* Right side actions */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Inline stats pills */}
+                    {sourceItems.length > 0 && (
+                        <>
+                            <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-gray-400">{tl('بنود', 'Items')}</span>
+                                <span className="text-xs font-bold text-blue-600 font-mono">{sourceItems.length}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-gray-400">{tl('رولونات', 'Rolls')}</span>
+                                <span className={`text-xs font-bold font-mono ${selectedRolls.length > 0 ? 'text-rose-600' : 'text-gray-400'}`}>
+                                    {selectedRolls.length}
+                                </span>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Delivery Method — read-only info badge (editing only from DeliveryInfoTab) */}
+                    <>
+                        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
+                        {(() => {
+                            const dm = invoiceData?.delivery_method || 'store_pickup';
+                            const colorClass = dm === 'store_pickup'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                : dm === 'direct_delivery'
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                    : dm === 'direct_pickup'
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+                            return (
+                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${colorClass}`}>
+                                    {dm === 'store_pickup' && <><Building2 className="w-3 h-3" /> {tl('عبر الفرع', 'Branch')}</>}
+                                    {dm === 'direct_pickup' && <><Warehouse className="w-3 h-3" /> {tl('مباشر', 'Pickup')}</>}
+                                    {dm === 'direct_delivery' && <><Truck className="w-3 h-3" /> {tl('توصيل', 'Delivery')}</>}
+                                    {dm === 'carrier' && <><Navigation className="w-3 h-3" /> {tl('شحن', 'Carrier')}</>}
+                                    {!['store_pickup', 'direct_pickup', 'direct_delivery', 'carrier'].includes(dm) && <><Truck className="w-3 h-3" /> {dm}</>}
+                                </div>
+                            );
+                        })()}
+                    </>
+
+                    {/* Right actions — pushed to end */}
+                    <div className="flex items-center gap-1.5 ms-auto shrink-0">
                         {effectiveViewMode ? (
                             <>
-                                {/* Rolls count */}
-                                <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-lg">
-                                    <PackageCheck className="w-3.5 h-3.5 text-teal-600" />
-                                    <span className="text-xs font-bold text-teal-700">
-                                        {selectedRolls.length} {tl('رولون مسلّم', 'rolls delivered')}
-                                    </span>
-                                </div>
                                 {/* Open Invoice button */}
                                 {onOpenInvoice && (
                                     <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => onOpenInvoice(invoiceData)}
-                                        className="gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs h-8"
+                                        className="gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-[11px] h-7 px-2"
                                     >
-                                        <FileText className="w-3.5 h-3.5" />
+                                        <FileText className="w-3 h-3" />
                                         {tl('الفاتورة', 'Invoice')}
                                     </Button>
                                 )}
-                                {/* Edit toggle — للمخوّلين فقط */}
+                                {/* Edit toggle */}
                                 {canEdit && (
                                     <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setIsEditing(true)}
-                                        className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 text-xs h-8"
+                                        className="gap-1 text-amber-600 border-amber-200 hover:bg-amber-50 text-[11px] h-7 px-2"
                                     >
                                         ✏️ {tl('تعديل', 'Edit')}
                                     </Button>
                                 )}
-                                {/* إلغاء التسليم — للمدراء فقط */}
-                                {canEdit && isDelivered && (
+                                {/* Reverse delivery — only for delivered/posted */}
+                                {canEdit && isDelivered && ['delivered', 'posted'].includes(invoiceData?.stage) && (
                                     <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setShowReverseConfirm(true)}
-                                        className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 text-xs h-8"
+                                        className="gap-1 text-red-600 border-red-200 hover:bg-red-50 text-[11px] h-7 px-2"
                                     >
-                                        <RotateCcw className="w-3.5 h-3.5" />
-                                        {tl('إلغاء التسليم', 'Reverse Delivery')}
+                                        <RotateCcw className="w-3 h-3" />
+                                        {tl('إلغاء', 'Reverse')}
                                     </Button>
+                                )}
+
+                                {/* ═══ Branch Actions — in_transit stage ═══ */}
+                                {invoiceData?.stage === 'in_transit' && (
+                                    <>
+                                        <Button
+                                            size="sm"
+                                            onClick={handleBranchReceive}
+                                            disabled={isBranchActing}
+                                            className="gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-lg shadow-blue-500/30 h-7 px-3 text-xs"
+                                        >
+                                            {isBranchActing ? <Loader2 className="w-3 h-3 animate-spin" /> : <PackageCheck className="w-3 h-3" />}
+                                            {tl('تأكيد الاستلام', 'Confirm Receipt')}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleBranchReturn}
+                                            disabled={isBranchActing}
+                                            className="gap-1 text-red-600 border-red-200 hover:bg-red-50 text-[11px] h-7 px-2"
+                                        >
+                                            <RotateCcw className="w-3 h-3" />
+                                            {tl('إرجاع', 'Return')}
+                                        </Button>
+                                    </>
+                                )}
+
+                                {/* ═══ Branch Actions — at_branch stage ═══ */}
+                                {invoiceData?.stage === 'at_branch' && (
+                                    <>
+                                        <Button
+                                            size="sm"
+                                            onClick={handleBranchDeliver}
+                                            disabled={isBranchActing}
+                                            className="gap-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold shadow-lg shadow-green-500/30 h-7 px-3 text-xs"
+                                        >
+                                            {isBranchActing ? <Loader2 className="w-3 h-3 animate-spin" /> : <PackageCheck className="w-3 h-3" />}
+                                            {tl('تسليم للعميل', 'Deliver to Customer')}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleBranchReturn}
+                                            disabled={isBranchActing}
+                                            className="gap-1 text-red-600 border-red-200 hover:bg-red-50 text-[11px] h-7 px-2"
+                                        >
+                                            <RotateCcw className="w-3 h-3" />
+                                            {tl('إرجاع', 'Return')}
+                                        </Button>
+                                    </>
                                 )}
                             </>
                         ) : (
                             <>
-                                {/* Online Badge */}
-                                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium ${navigator.onLine
+                                {/* Online badge — compact dot */}
+                                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${navigator.onLine
                                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                     : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                     }`}>
-                                    {navigator.onLine ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                                    {navigator.onLine ? tl('متصل', 'Online') : tl('غير متصل', 'Offline')}
+                                    {navigator.onLine ? <Wifi className="h-2.5 w-2.5" /> : <WifiOff className="h-2.5 w-2.5" />}
                                 </div>
-                                {/* Back to view mode if was viewMode originally */}
+                                {/* Back to view mode */}
                                 {viewMode && isEditing && (
                                     <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setIsEditing(false)}
-                                        className="gap-1.5 text-teal-600 border-teal-200 hover:bg-teal-50 text-xs h-8"
+                                        className="gap-1 text-teal-600 border-teal-200 hover:bg-teal-50 text-[11px] h-7 px-2"
                                     >
                                         👁 {tl('عرض', 'View')}
                                     </Button>
@@ -956,14 +1451,14 @@ export function SalesDeliveryDialog({
                                         size="sm"
                                         onClick={() => setShowConfirm(true)}
                                         disabled={isCompleting}
-                                        className="gap-2 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white font-bold shadow-lg shadow-rose-500/30 px-4"
+                                        className="gap-1.5 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white font-bold shadow-lg shadow-rose-500/30 px-3 h-7 text-xs"
                                     >
                                         {isCompleting
-                                            ? <Loader2 className="h-4 w-4 animate-spin" />
-                                            : <PackageCheck className="h-4 w-4" />
+                                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            : <PackageCheck className="h-3.5 w-3.5" />
                                         }
                                         {tl('تسليم', 'Deliver')}
-                                        <span className="bg-rose-800/30 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                                        <span className="bg-rose-800/30 text-white text-[9px] px-1 py-0.5 rounded-full font-mono">
                                             {selectedRolls.length}
                                         </span>
                                     </Button>
@@ -974,62 +1469,26 @@ export function SalesDeliveryDialog({
                 </div>
             </div>
 
-            {/* Row 2: Progress */}
+            {/* Thin progress bar — 3px, no labels */}
             {sourceItems.length > 0 && (
-                <div className="px-4 py-2.5 bg-gradient-to-r from-rose-50/50 to-orange-50/50 dark:from-rose-950/20 dark:to-orange-950/20">
-                    <div className="flex items-center gap-4 mb-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
-                                <Truck className="w-4 h-4 text-rose-600" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="text-sm font-bold text-gray-800 dark:text-white truncate">
-                                    {invoiceData?.customer_name || tl('فاتورة مبيعات', 'Sales Invoice')}
-                                </div>
-                                <div className="text-[11px] text-muted-foreground font-mono">
-                                    {invoiceData?.invoice_no || invoiceData?.draft_no || ''}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 ms-auto shrink-0">
-                            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border shadow-sm">
-                                <span className="text-[10px] text-gray-500">{tl('البنود', 'Items')}</span>
-                                <span className="text-sm font-bold text-blue-600">{sourceItems.length}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border shadow-sm">
-                                <span className="text-[10px] text-gray-500">{tl('رولونات', 'Rolls')}</span>
-                                <span className={`text-sm font-bold ${selectedRolls.length > 0 ? 'text-rose-600' : 'text-gray-400'}`}>
-                                    {selectedRolls.length}
-                                </span>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] capitalize bg-rose-50 text-rose-600 border-rose-200">
-                                {invoiceData?.stage || 'confirmed'}
-                            </Badge>
-                        </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] text-gray-500 font-medium shrink-0">
-                            {tl('تقدم التسليم', 'Delivery Progress')}
-                        </span>
-                        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all duration-500 ${deliveryProgress.percent >= 100
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                    : deliveryProgress.percent > 0
-                                        ? 'bg-gradient-to-r from-rose-500 to-orange-500'
-                                        : 'bg-gray-300'
-                                    }`}
-                                style={{ width: `${deliveryProgress.percent}%` }}
-                            />
-                        </div>
-                        <span className={`text-xs font-bold font-mono min-w-[40px] text-end ${deliveryProgress.percent >= 100 ? 'text-green-600' : 'text-rose-600'
-                            }`}>
+                <div className="relative h-[3px] bg-gray-200 dark:bg-gray-700">
+                    <div
+                        className={`absolute inset-y-0 start-0 rounded-e-full transition-all duration-700 ease-out ${deliveryProgress.percent >= 100
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                            : deliveryProgress.percent > 0
+                                ? 'bg-gradient-to-r from-rose-500 to-orange-500'
+                                : ''
+                            }`}
+                        style={{ width: `${deliveryProgress.percent}%` }}
+                    />
+                    {/* Percentage tooltip — only when > 0 */}
+                    {deliveryProgress.percent > 0 && (
+                        <span className={`absolute top-full mt-0.5 text-[9px] font-mono font-bold ${
+                            deliveryProgress.percent >= 100 ? 'text-green-600' : 'text-rose-500'
+                        }`} style={{ [document.documentElement.dir === 'rtl' ? 'right' : 'left']: `${Math.min(deliveryProgress.percent, 95)}%` }}>
                             {deliveryProgress.percent.toFixed(0)}%
                         </span>
-                    </div>
+                    )}
                 </div>
             )}
         </div>
@@ -1042,12 +1501,14 @@ export function SalesDeliveryDialog({
                 isOpen={isOpen}
                 onClose={handleClose}
                 docType={'sales_delivery' as UnifiedDocType}
+                tradeMode="sales"
                 mode={effectiveViewMode ? 'view' : 'create'}
                 data={enhancedData}
                 onSave={effectiveViewMode ? undefined : handleSave}
                 headerExtra={HeaderExtra}
                 onRefresh={onComplete}
                 defaultTab="sales_delivery_items"
+                hideMainDocTabs={true}
             />
 
             {/* Confirmation Dialog */}

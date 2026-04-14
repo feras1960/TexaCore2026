@@ -269,19 +269,19 @@ export default function PaymentsList() {
         switch (status) {
             case 'posted':
                 return {
-                    label: isRTL ? 'مرحّل' : 'Posted',
+                    label: t('purchasePayments.statusPosted'),
                     icon: CheckCircle2,
                     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                 };
             case 'cancelled':
                 return {
-                    label: isRTL ? 'ملغي' : 'Cancelled',
+                    label: t('purchasePayments.statusCancelled'),
                     icon: XCircle,
                     cls: 'bg-red-50 text-red-600 border-red-200',
                 };
             default:
                 return {
-                    label: isRTL ? 'مسودة' : 'Draft',
+                    label: t('purchasePayments.statusDraft'),
                     icon: Clock,
                     cls: 'bg-amber-50 text-amber-700 border-amber-200',
                 };
@@ -291,22 +291,22 @@ export default function PaymentsList() {
     const getPaymentMethodConfig = (method: string) => {
         const m = (method || '').toLowerCase();
         if (m.includes('bank') || m.includes('transfer') || m.includes('تحويل')) {
-            return { label: isRTL ? 'تحويل بنكي' : 'Bank Transfer', icon: Building2, cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+            return { label: t('purchasePayments.bankTransfer'), icon: Building2, cls: 'bg-blue-50 text-blue-700 border-blue-200' };
         }
         if (m.includes('check') || m.includes('cheque') || m.includes('شيك')) {
-            return { label: isRTL ? 'شيك' : 'Cheque', icon: Receipt, cls: 'bg-violet-50 text-violet-700 border-violet-200' };
+            return { label: t('purchasePayments.cheque'), icon: Receipt, cls: 'bg-violet-50 text-violet-700 border-violet-200' };
         }
         if (m.includes('card') || m.includes('بطاقة')) {
-            return { label: isRTL ? 'بطاقة' : 'Card', icon: CreditCard, cls: 'bg-pink-50 text-pink-700 border-pink-200' };
+            return { label: t('purchasePayments.card'), icon: CreditCard, cls: 'bg-pink-50 text-pink-700 border-pink-200' };
         }
-        return { label: isRTL ? 'نقداً' : 'Cash', icon: Banknote, cls: 'bg-green-50 text-green-700 border-green-200' };
+        return { label: t('purchasePayments.cash'), icon: Banknote, cls: 'bg-green-50 text-green-700 border-green-200' };
     };
 
     // ─── Columns — NexaListColumn format ─────────────────────────
     const columns: NexaListColumn<PaymentVoucher>[] = useMemo(() => [
         {
             id: 'voucher_number',
-            header: isRTL ? 'رقم السند' : 'Payment #',
+            header: t('purchasePayments.paymentNumber'),
             sortable: true,
             sortKey: 'voucher_date',
             cell: (row) => (
@@ -325,7 +325,7 @@ export default function PaymentsList() {
         },
         {
             id: 'supplier',
-            header: isRTL ? 'المورد / الجهة' : 'Supplier / Payee',
+            header: t('purchasePayments.supplierPayee'),
             sortable: true,
             sortKey: 'supplier',
             cell: (row) => {
@@ -346,7 +346,7 @@ export default function PaymentsList() {
         },
         {
             id: 'linked_to',
-            header: isRTL ? 'مرتبط بـ' : 'Linked To',
+            header: t('purchasePayments.linkedTo'),
             cell: (row) => {
                 if (row.container_id && row.container) {
                     return (
@@ -377,7 +377,7 @@ export default function PaymentsList() {
                     return (
                         <div className="flex items-center gap-1.5">
                             <Package className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                            <span className="text-[12px] text-teal-700">{isRTL ? 'شحنة' : 'Shipment'}</span>
+                            <span className="text-[12px] text-teal-700">{t('purchasePayments.shipment')}</span>
                         </div>
                     );
                 }
@@ -386,7 +386,7 @@ export default function PaymentsList() {
         },
         {
             id: 'amount',
-            header: isRTL ? 'المبلغ' : 'Amount',
+            header: t('purchasePayments.amount'),
             align: 'end',
             sortable: true,
             sortKey: 'amount',
@@ -405,7 +405,7 @@ export default function PaymentsList() {
         },
         {
             id: 'payment_method',
-            header: isRTL ? 'طريقة الدفع' : 'Method',
+            header: t('purchasePayments.method'),
             cell: (row) => {
                 const config = getPaymentMethodConfig(row.payment_method);
                 const Icon = config.icon;
@@ -422,7 +422,7 @@ export default function PaymentsList() {
         },
         {
             id: 'status',
-            header: isRTL ? 'الحالة' : 'Status',
+            header: t('table.status'),
             sortable: true,
             sortKey: 'status',
             cell: (row) => {
@@ -441,14 +441,14 @@ export default function PaymentsList() {
         },
         {
             id: 'notes',
-            header: isRTL ? 'ملاحظات' : 'Notes',
+            header: t('purchasePayments.notes'),
             cell: (row) => (
                 <span className="text-[12px] text-gray-500 line-clamp-1 max-w-[180px]">
                     {row.notes || '—'}
                 </span>
             ),
         },
-    ], [isRTL, baseCurrency]);
+    ], [isRTL, baseCurrency, t]);
 
     // ─── Actions Renderer ────────────────────────────────────────
     const renderActions = useCallback((row: PaymentVoucher) => (
@@ -459,16 +459,16 @@ export default function PaymentsList() {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="min-w-[160px]">
-                <DropdownMenuLabel className="text-[11px] text-gray-400">{isRTL ? 'إجراءات' : 'Actions'}</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[11px] text-gray-400">{t('purchasePayments.actions')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleRowClick(row)} className="gap-2 cursor-pointer text-sm">
                     <Eye className="h-3.5 w-3.5" />
-                    {isRTL ? 'عرض التفاصيل' : 'View Details'}
+                    {t('purchasePayments.viewDetails')}
                 </DropdownMenuItem>
                 {row.journal_entry_id && (
                     <DropdownMenuItem className="gap-2 cursor-pointer text-sm" disabled>
                         <FileText className="h-3.5 w-3.5" />
-                        {isRTL ? 'عرض القيد المحاسبي' : 'View Journal Entry'}
+                        {t('purchasePayments.viewJournalEntry')}
                     </DropdownMenuItem>
                 )}
             </DropdownMenuContent>
@@ -489,12 +489,10 @@ export default function PaymentsList() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-erp-navy dark:text-white leading-tight">
-                            {isRTL ? 'المدفوعات' : 'Payments'}
+                            {t('purchasePayments.payments')}
                         </h1>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            {isRTL
-                                ? `${filteredPayments.length} سند صرف — إجمالي ${payments.length}`
-                                : `${filteredPayments.length} vouchers — ${payments.length} total`}
+                            {`${filteredPayments.length} ${t('purchasePayments.vouchers')} — ${payments.length} total`}
                         </p>
                     </div>
                 </div>
@@ -511,7 +509,7 @@ export default function PaymentsList() {
                         className="gap-2 px-4 h-9 text-white shadow-sm bg-red-600 hover:bg-red-700"
                     >
                         <Plus className="w-4 h-4" />
-                        {isRTL ? 'سند صرف جديد' : 'New Payment'}
+                        {t('purchasePayments.newPayment')}
                     </Button>
                 </div>
             </div>
@@ -524,21 +522,21 @@ export default function PaymentsList() {
                             {/* الكل */}
                             <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                                 <CircleDollarSign className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'الكل' : 'All'}
+                                {t('common.all')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{tabCounts.all}</Badge>
                             </TabsTrigger>
 
                             {/* فواتير مشتريات */}
                             <TabsTrigger value="purchase_invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
                                 <FileText className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'فواتير مشتريات' : 'Purchase Invoices'}
+                                {t('purchasePayments.purchaseInvoices')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{tabCounts.purchase_invoice}</Badge>
                             </TabsTrigger>
 
                             {/* كونتينرات */}
                             <TabsTrigger value="container" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">
                                 <Ship className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'كونتينرات' : 'Containers'}
+                                {t('purchasePayments.containers')}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-blue-100/60 text-blue-700">{tabCounts.container}</Badge>
                             </TabsTrigger>
                         </TabsList>
@@ -546,7 +544,7 @@ export default function PaymentsList() {
 
                     {/* Summary chip */}
                     <div className="flex items-center gap-1.5 ms-auto">
-                        <span className="text-[11px] text-gray-400">{isRTL ? 'إجمالي المدفوع:' : 'Total Paid:'}</span>
+                        <span className="text-[11px] text-gray-400">{t('purchasePayments.totalPaid')}</span>
                         <span className="font-mono font-bold text-sm text-red-600" dir="ltr">
                             {tabTotals[activeTab].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
@@ -561,10 +559,10 @@ export default function PaymentsList() {
 
                     searchTerm={searchTerm}
                     onSearchChange={setSearchTerm}
-                    searchPlaceholder={isRTL ? 'بحث برقم السند، المورد، الكونتينر...' : 'Search payment #, supplier, container...'}
+                    searchPlaceholder={t('table.search')}
 
                     totalCount={payments.length}
-                    countLabel={isRTL ? 'سند' : 'vouchers'}
+                    countLabel={t('purchasePayments.vouchers')}
 
                     sortField={sortField}
                     sortAsc={sortAsc}
@@ -579,22 +577,20 @@ export default function PaymentsList() {
                     emptyIcon={<Wallet className="w-12 h-12 text-gray-300" />}
                     emptyMessage={
                         activeTab === 'purchase_invoice'
-                            ? (isRTL ? 'لا توجد مدفوعات لفواتير المشتريات' : 'No purchase invoice payments')
+                            ? t('purchasePayments.noPurchasePayments')
                             : activeTab === 'container'
-                                ? (isRTL ? 'لا توجد مدفوعات للكونتينرات' : 'No container payments')
-                                : (isRTL ? 'لا توجد مدفوعات' : 'No payments found')
+                                ? t('purchasePayments.noContainerPayments')
+                                : t('purchasePayments.noPayments')
                     }
 
                     showFooter={true}
                     footerLeftText={
-                        isRTL
-                            ? `عرض ${filteredPayments.length} من ${payments.length} سند`
-                            : `Showing ${filteredPayments.length} of ${payments.length} vouchers`
+                        `Showing ${filteredPayments.length} of ${payments.length} ${t('purchasePayments.vouchers')}`
                     }
                     footerRightContent={
                         <div className="flex items-center gap-3">
                             <span className="font-mono font-bold text-red-600 dark:text-red-400" dir="ltr">
-                                {isRTL ? 'إجمالي: ' : 'Total: '}
+                                {t('purchasePayments.total')}
                                 {filteredPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
                                     .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 <span className="text-gray-400 ms-1 text-xs">{baseCurrency || ''}</span>
@@ -627,7 +623,7 @@ export default function PaymentsList() {
                     mode={docMode === 'view' ? 'view' : 'edit'}
                     onSave={async (data) => {
                         console.log('Save Payment', data);
-                        toast.success(isRTL ? 'تم الحفظ بنجاح' : 'Saved successfully');
+                        toast.success(t('purchasePayments.savedSuccess'));
                         setIsSheetOpen(false);
                     }}
                 />

@@ -14,10 +14,11 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Badge } from '@/components/ui/badge';
@@ -79,9 +80,8 @@ interface JournalEntryInfo {
     }[];
 }
 
-// ── Cache for fetched data ──
-interface CachedData {
-    key: string;
+// ── Cached data shape (stored in queryClient) ──
+interface CachedMovementDetail {
     rows: any[];
     journal: JournalEntryInfo | null;
 }
@@ -95,15 +95,13 @@ export function MovementDetailDialog({
     const { language, direction } = useLanguage();
     const { companyId } = useAuth();
     const isRTL = language === 'ar';
+    const queryClient = useQueryClient();
 
     const [loading, setLoading] = useState(false);
     const [journal, setJournal] = useState<JournalEntryInfo | null>(null);
     const [allMovementRows, setAllMovementRows] = useState<any[]>([]);
     const [journalOpen, setJournalOpen] = useState(false);
     const [materialSheet, setMaterialSheet] = useState<{ open: boolean; data: any }>({ open: false, data: null });
-
-    // ── Cache ref: stores last fetched data by reference_number ──
-    const cacheRef = useRef<CachedData | null>(null);
 
     const t = (ar: string, en: string) => isRTL ? ar : en;
 
@@ -112,12 +110,14 @@ export function MovementDetailDialog({
         if (!open || !movement) return;
 
         const cacheKey = movement.reference_number || movement.id || '';
+        const queryKey = ['movement-detail-v4', companyId, cacheKey];
 
-        // ═══ CHECK CACHE: if same movement, restore instantly ═══
-        if (cacheRef.current?.key === cacheKey) {
-            setAllMovementRows(cacheRef.current.rows);
-            setJournal(cacheRef.current.journal);
-            return; // No fetch needed!
+        // ═══ CHECK CACHE: queryClient persists across mount/unmount ═══
+        const cached = queryClient.getQueryData<CachedMovementDetail>(queryKey);
+        if (cached) {
+            setAllMovementRows(cached.rows);
+            setJournal(cached.journal);
+            return; // ⚡ Instant — no fetch needed!
         }
 
         const fetchDetails = async () => {
@@ -134,19 +134,19 @@ export function MovementDetailDialog({
                     ? new Date(movement.movement_date).toISOString().split('T')[0]
                     : '';
 
-                // ═══ STEP 1: Parallel — fetch movement rows + journal header simultaneously ═══
+                // ═══ STEP 1: Fetch movement rows + journal candidates simultaneously ═══
                 const [movementResult, journalResult] = await Promise.all([
-                    // (A) Movement rows
+                    // (A) Movement rows — include reference_id for direct journal linking
                     referenceNumber
                         ? supabase
                             .from('inventory_movements')
-                            .select('id, movement_number, material_id, quantity, unit_cost, total_cost, movement_date, notes, to_warehouse_id')
+                            .select('id, movement_number, material_id, quantity, unit_cost, total_cost, movement_date, notes, to_warehouse_id, reference_id')
                             .eq('company_id', compId)
                             .eq('reference_number', referenceNumber)
                             .order('created_at', { ascending: true })
                         : Promise.resolve({ data: null }),
 
-                    // (B) Journal entry header (opening_balance type)
+                    // (B) Journal entry candidates (opening_balance type) — fallback pool
                     refType === 'opening_balance'
                         ? supabase
                             .from('journal_entries')
@@ -162,16 +162,45 @@ export function MovementDetailDialog({
                 const rows = movementResult.data || [];
                 const journalEntries = journalResult.data || [];
 
-                // Find best matching journal
-                let foundJournal = journalEntries.length > 0
-                    ? (journalEntries.find((j: any) =>
-                        j.entry_date === movementDate ||
-                        j.entry_number?.includes('PROD') ||
-                        j.entry_number?.includes('MAT')
-                    ) || journalEntries[0])
-                    : null;
+                // ═══ Find the correct journal entry ═══
+                let foundJournal: any = null;
 
-                // Fallback: search by reference_number (only if no journal found yet)
+                // Priority 1: DIRECT LINK — reference_id from inventory_movements
+                const directJournalId = rows.find((r: any) => r.reference_id)?.reference_id;
+                if (directJournalId) {
+                    // Check if it's already in the fetched candidates
+                    foundJournal = journalEntries.find((j: any) => j.id === directJournalId);
+                    if (!foundJournal) {
+                        // Fetch directly by ID
+                        const { data: directJ } = await supabase
+                            .from('journal_entries')
+                            .select('id, entry_number, entry_date, description_ar, description_en, entry_type, status, is_posted, currency, exchange_rate, total_debit, total_credit')
+                            .eq('id', directJournalId)
+                            .maybeSingle();
+                        if (directJ) foundJournal = directJ;
+                    }
+                }
+
+                // Priority 2: Heuristic — PROD/MAT entries (exclude SUPP/CUST)
+                if (!foundJournal && journalEntries.length > 0) {
+                    foundJournal = journalEntries.find((j: any) =>
+                        j.entry_number?.includes('PROD') || j.entry_number?.includes('MAT')
+                    );
+                    if (!foundJournal) {
+                        foundJournal = journalEntries.find((j: any) =>
+                            j.entry_date === movementDate &&
+                            !j.entry_number?.includes('SUPP') &&
+                            !j.entry_number?.includes('CUST')
+                        );
+                    }
+                    if (!foundJournal) {
+                        foundJournal = journalEntries.find((j: any) =>
+                            !j.entry_number?.includes('SUPP') && !j.entry_number?.includes('CUST')
+                        ) || journalEntries[0];
+                    }
+                }
+
+                // Priority 3: Fallback search by reference_number
                 if (!foundJournal && referenceNumber) {
                     const { data: je2 } = await supabase
                         .from('journal_entries')
@@ -182,57 +211,91 @@ export function MovementDetailDialog({
                     if (je2) foundJournal = je2;
                 }
 
-                // ═══ STEP 2: Parallel — fetch materials + journal lines + warehouse names ═══
+                // ═══ Self-healing: backfill reference_id on legacy movements ═══
+                if (foundJournal && !directJournalId && rows.length > 0) {
+                    const idsToFix = rows.filter((r: any) => !r.reference_id).map((r: any) => r.id);
+                    if (idsToFix.length > 0) {
+                        supabase
+                            .from('inventory_movements')
+                            .update({ reference_id: foundJournal.id })
+                            .in('id', idsToFix)
+                            .then(({ error }) => {
+                                if (error) console.warn('Self-heal reference_id failed:', error.message);
+                                else console.log(`✅ Self-healed ${idsToFix.length} movements → journal ${foundJournal.entry_number}`);
+                            });
+                    }
+                }
+
+                // ═══ STEP 2: Build material & warehouse maps (from PRELOADED cache or fetch) ═══
                 const matIds = [...new Set(rows.map((r: any) => r.material_id).filter(Boolean))];
                 const warehouseIds = [...new Set(rows.map((r: any) => r.to_warehouse_id).filter(Boolean))];
 
-                const [materialsResult, journalLinesResult, warehousesResult] = await Promise.all([
-                    // (A) Materials
-                    matIds.length > 0
-                        ? supabase
-                            .from('fabric_materials')
-                            .select('id, code, name_ar, name_en, unit, purchase_price, selling_price, currency')
-                            .in('id', matIds)
-                        : Promise.resolve({ data: null }),
+                // ⚡ Try preloaded caches FIRST (already loaded by DataPreloader)
+                const cachedMats = queryClient.getQueryData<any[]>(['inventory-preload-materials', compId]);
+                const cachedWhList = queryClient.getQueryData<any[]>(['warehouse', 'list', compId]);
 
-                    // (B) Journal lines
-                    foundJournal
-                        ? supabase
-                            .from('journal_entry_lines')
-                            .select('id, line_number, debit, credit, debit_fc, credit_fc, currency, exchange_rate, description, account_id, account:chart_of_accounts(account_code, name_ar, name_en)')
-                            .eq('entry_id', foundJournal.id)
-                            .order('line_number', { ascending: true })
-                        : Promise.resolve({ data: null }),
-
-                    // (C) Warehouse names
-                    warehouseIds.length > 0
-                        ? supabase
-                            .from('warehouses')
-                            .select('id, name_ar, name_en')
-                            .in('id', warehouseIds)
-                        : Promise.resolve({ data: null }),
-                ]);
-
-                // ── Build material map ──
+                // Build material map from cache or fetch
                 const matMap: Record<string, any> = {};
-                (materialsResult.data || []).forEach((m: any) => { matMap[m.id] = m; });
+                if (cachedMats && cachedMats.length > 0) {
+                    // ⚡ INSTANT — use preloaded materials
+                    for (const m of cachedMats) { matMap[m.id] = m; }
+                } else if (matIds.length > 0) {
+                    const { data: matData } = await supabase
+                        .from('fabric_materials')
+                        .select('id, code, name_ar, name_en, name_tr, name_ru, name_uk, category, unit, purchase_price, selling_price, currency, custom_fields')
+                        .in('id', matIds);
+                    (matData || []).forEach((m: any) => { matMap[m.id] = m; });
+                }
 
-                // ── Build warehouse map ──
+                // Build warehouse map from cache or fetch
                 const whMap: Record<string, any> = {};
-                (warehousesResult.data || []).forEach((w: any) => { whMap[w.id] = w; });
+                if (cachedWhList && cachedWhList.length > 0) {
+                    // ⚡ INSTANT — use preloaded warehouses
+                    for (const w of cachedWhList) { whMap[w.id] = w; }
+                } else if (warehouseIds.length > 0) {
+                    const { data: whData } = await supabase
+                        .from('warehouses')
+                        .select('id, name_ar, name_en')
+                        .in('id', warehouseIds);
+                    (whData || []).forEach((w: any) => { whMap[w.id] = w; });
+                }
+
+                // Journal lines (only if needed — not cached)
+                let journalLinesData: any[] = [];
+                if (foundJournal) {
+                    const { data } = await supabase
+                        .from('journal_entry_lines')
+                        .select('id, line_number, debit, credit, debit_fc, credit_fc, currency, exchange_rate, description, account_id, account:chart_of_accounts(account_code, name_ar, name_en)')
+                        .eq('entry_id', foundJournal.id)
+                        .order('line_number', { ascending: true });
+                    journalLinesData = data || [];
+                }
 
                 // ── Build enriched rows ──
                 const enrichedRows = rows.length > 0
-                    ? rows.map((r: any) => ({
+                    ? rows.map((r: any) => {
+                        const mat = matMap[r.material_id] || {};
+                        const cf = mat.custom_fields || {};
+                        return {
                         ...r,
-                        material_name_ar: matMap[r.material_id]?.name_ar || '',
-                        material_name_en: matMap[r.material_id]?.name_en || '',
-                        material_code: matMap[r.material_id]?.code || '',
-                        material_unit: matMap[r.material_id]?.unit || 'meter',
-                        material_currency: matMap[r.material_id]?.currency || '',
-                        material_purchase_price: matMap[r.material_id]?.purchase_price || 0,
+                        material_name_ar: mat.name_ar || '',
+                        material_name_en: mat.name_en || '',
+                        material_name_tr: mat.name_tr || '',
+                        material_name_ru: mat.name_ru || '',
+                        material_name_uk: mat.name_uk || '',
+                        material_code: mat.code || '',
+                        material_category: mat.category || '',
+                        material_unit: mat.unit || 'meter',
+                        material_currency: mat.currency || '',
+                        material_purchase_price: mat.purchase_price || 0,
+                        material_selling_price: mat.selling_price || 0,
+                        material_cost_price: Number(cf._cost_price || 0),
+                        material_wholesale_price: Number(cf._wholesale_price || 0),
+                        material_half_wholesale_price: Number(cf._half_wholesale_price || 0),
+                        material_special_price: Number(cf._special_price || 0),
                         warehouse_name: whMap[r.to_warehouse_id]?.name_ar || whMap[r.to_warehouse_id]?.name_en || '—',
-                    }))
+                        };
+                    })
                     : [];
                 setAllMovementRows(enrichedRows);
 
@@ -242,7 +305,7 @@ export function MovementDetailDialog({
                     journalData = {
                         ...foundJournal,
                         exchange_rate: foundJournal.exchange_rate || 1,
-                        lines: (journalLinesResult.data || []).map((l: any) => ({
+                        lines: journalLinesData.map((l: any) => ({
                             id: l.id,
                             line_number: l.line_number,
                             account_code: l.account?.account_code || '',
@@ -259,8 +322,8 @@ export function MovementDetailDialog({
                     setJournal(journalData);
                 }
 
-                // ═══ SAVE TO CACHE ═══
-                cacheRef.current = { key: cacheKey, rows: enrichedRows, journal: journalData };
+                // ═══ SAVE TO queryClient CACHE (persists across mount/unmount) ═══
+                queryClient.setQueryData(queryKey, { rows: enrichedRows, journal: journalData });
             } catch (err) {
                 console.error('MovementDetailDialog fetch error:', err);
             } finally {
@@ -341,28 +404,44 @@ export function MovementDetailDialog({
                     </div>
 
                     {/* Summary cards */}
-                    <div className="grid grid-cols-3 gap-2.5 mt-4">
-                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2.5 text-center">
-                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-semibold">
+                    <div className="grid grid-cols-4 gap-2 mt-4">
+                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-2.5 py-2.5 text-center">
+                            <p className="text-[9px] text-white/60 uppercase tracking-wider font-semibold">
                                 {t('المواد', 'Materials')}
                             </p>
-                            <p className="text-xl font-bold font-mono mt-0.5">
-                                {allMovementRows.length || movement.items_count || '—'}
+                            <p className="text-lg font-bold font-mono mt-0.5">
+                                {(() => {
+                                    if (allMovementRows.length === 0) return movement.items_count || '—';
+                                    const uniqueMats = new Set(allMovementRows.map(r => r.material_id));
+                                    return uniqueMats.size;
+                                })()}
                             </p>
                         </div>
-                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2.5 text-center">
-                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-semibold">
+                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-2.5 py-2.5 text-center">
+                            <p className="text-[9px] text-white/60 uppercase tracking-wider font-semibold">
                                 {t('الكمية', 'Quantity')}
                             </p>
-                            <p className="text-xl font-bold font-mono mt-0.5">
+                            <p className="text-lg font-bold font-mono mt-0.5">
                                 {Number(allMovementRows.length > 0
                                     ? allMovementRows.reduce((s, r) => s + (Number(r.quantity) || 0), 0)
                                     : totalQty
                                 ).toLocaleString('en-US')}
                             </p>
                         </div>
-                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2.5 text-center">
-                            <p className="text-[10px] text-white/60 uppercase tracking-wider font-semibold">
+                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-2.5 py-2.5 text-center">
+                            <p className="text-[9px] text-white/60 uppercase tracking-wider font-semibold">
+                                {t('القيمة (بالتكلفة)', 'Value (Cost)')}
+                            </p>
+                            <p className="text-lg font-bold font-mono mt-0.5">
+                                {fmtNum(allMovementRows.length > 0
+                                    ? allMovementRows.reduce((s, r) => s + (Number(r.total_cost) || 0), 0)
+                                    : totalValue
+                                )}
+                            </p>
+                            <p className="text-[9px] text-white/50 font-mono">{allMovementRows[0]?.material_currency || movement.currency || 'USD'}</p>
+                        </div>
+                        <div className="bg-white/15 backdrop-blur-sm rounded-lg px-2.5 py-2.5 text-center">
+                            <p className="text-[9px] text-white/60 uppercase tracking-wider font-semibold">
                                 {t('التاريخ', 'Date')}
                             </p>
                             <p className="text-sm font-bold mt-1">
@@ -402,106 +481,288 @@ export function MovementDetailDialog({
                                     <InfoCard
                                         icon={<Warehouse className="w-4 h-4 text-teal-500" />}
                                         label={t('المستودع', 'Warehouse')}
-                                        value={movement.to_warehouse_name || movement.warehouse_name || movement.from_warehouse_name || '—'}
+                                        value={(() => {
+                                            if (allMovementRows.length > 0) {
+                                                const uniqueWhs = new Map<string, string>();
+                                                allMovementRows.forEach(r => {
+                                                    const whId = r.to_warehouse_id;
+                                                    if (whId && !uniqueWhs.has(whId)) {
+                                                        uniqueWhs.set(whId, r.warehouse_name || '—');
+                                                    }
+                                                });
+                                                if (uniqueWhs.size > 1) {
+                                                    return (
+                                                        <div className="text-xs">
+                                                            <span className="font-semibold text-teal-600 dark:text-teal-400">{uniqueWhs.size} {t('مستودعات', 'warehouses')}</span>
+                                                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                                                {Array.from(uniqueWhs.values()).join(' • ')}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return Array.from(uniqueWhs.values())[0] || '—';
+                                            }
+                                            return movement.to_warehouse_name || movement.warehouse_name || movement.from_warehouse_name || '—';
+                                        })()}
                                     />
                                     <InfoCard
                                         icon={<Import className="w-4 h-4 text-indigo-500" />}
                                         label={t('النوع', 'Type')}
-                                        value={t('رصيد افتتاحي', 'Opening Balance')}
+                                        value={t('بضاعة أول المدة', 'Opening Balance')}
                                     />
                                 </div>
                             </section>
 
-                            {/* ── Section 2: Materials Table ── */}
+                            {/* ── Section 2: Materials Table (consolidated by material) ── */}
+                            {(() => {
+                                // ═══ Consolidate rows by material_id with per-warehouse breakdown ═══
+                                const warehouseSet = new Map<string, string>(); // id → name
+                                const matConsolidated = new Map<string, {
+                                    material_id: string;
+                                    material_code: string;
+                                    material_name_ar: string;
+                                    material_name_en: string;
+                                    material_name_tr: string;
+                                    material_name_ru: string;
+                                    material_name_uk: string;
+                                    material_category: string;
+                                    material_unit: string;
+                                    material_currency: string;
+                                    unit_cost: number;
+                                    purchase_price: number;
+                                    selling_price: number;
+                                    cost_price: number;
+                                    wholesale_price: number;
+                                    half_wholesale_price: number;
+                                    special_price: number;
+                                    warehouses: Map<string, number>; // warehouse_id → qty
+                                    total_qty: number;
+                                    total_cost: number;
+                                }>();
+
+                                for (const row of allMovementRows) {
+                                    const mid = row.material_id;
+                                    const whId = row.to_warehouse_id || 'unknown';
+                                    const whName = row.warehouse_name || '—';
+                                    const qty = Number(row.quantity) || 0;
+                                    const cost = Number(row.total_cost) || 0;
+
+                                    if (!warehouseSet.has(whId)) warehouseSet.set(whId, whName);
+
+                                    if (matConsolidated.has(mid)) {
+                                        const existing = matConsolidated.get(mid)!;
+                                        existing.warehouses.set(whId, (existing.warehouses.get(whId) || 0) + qty);
+                                        existing.total_qty += qty;
+                                        existing.total_cost += cost;
+                                        if (row.unit_cost > 0 && existing.unit_cost <= 0) existing.unit_cost = row.unit_cost;
+                                    } else {
+                                        const warehouses = new Map<string, number>();
+                                        warehouses.set(whId, qty);
+                                        matConsolidated.set(mid, {
+                                            material_id: mid,
+                                            material_code: row.material_code || '',
+                                            material_name_ar: row.material_name_ar || '',
+                                            material_name_en: row.material_name_en || '',
+                                            material_name_tr: row.material_name_tr || '',
+                                            material_name_ru: row.material_name_ru || '',
+                                            material_name_uk: row.material_name_uk || '',
+                                            material_category: row.material_category || '',
+                                            material_unit: row.material_unit || 'meter',
+                                            material_currency: row.material_currency || '',
+                                            unit_cost: Number(row.unit_cost) || 0,
+                                            purchase_price: Number(row.material_purchase_price) || 0,
+                                            selling_price: Number(row.material_selling_price) || 0,
+                                            cost_price: Number(row.material_cost_price) || 0,
+                                            wholesale_price: Number(row.material_wholesale_price) || 0,
+                                            half_wholesale_price: Number(row.material_half_wholesale_price) || 0,
+                                            special_price: Number(row.material_special_price) || 0,
+                                            warehouses,
+                                            total_qty: qty,
+                                            total_cost: cost,
+                                        });
+                                    }
+                                }
+
+                                const consolidatedRows = Array.from(matConsolidated.values());
+                                const warehouseColumns = Array.from(warehouseSet.entries()); // [[id,name], ...]
+                                const grandTotalQty = consolidatedRows.reduce((s, r) => s + r.total_qty, 0);
+                                const grandTotalValue = consolidatedRows.reduce((s, r) => s + r.total_cost, 0);
+                                const warehouseTotals = warehouseColumns.map(([whId]) =>
+                                    consolidatedRows.reduce((s, r) => s + (r.warehouses.get(whId) || 0), 0)
+                                );
+
+                                return (
                             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
                                 <div className="px-4 pt-4 pb-2">
                                     <SectionTitle
                                         icon={<Layers className="w-4 h-4" />}
                                         title={t('بنود الحركة', 'Movement Items')}
-                                        badge={allMovementRows.length > 0 ? `${allMovementRows.length}` : undefined}
+                                        badge={consolidatedRows.length > 0 ? `${consolidatedRows.length}` : undefined}
                                     />
                                 </div>
 
-                                {allMovementRows.length > 0 ? (
+                                {consolidatedRows.length > 0 ? (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="bg-gray-50 dark:bg-gray-800/80 border-y border-gray-100 dark:border-gray-700">
-                                                    <th className="px-4 py-2.5 text-start font-bold text-gray-500 dark:text-gray-400 text-[11px] uppercase tracking-wider w-8">
+                                                    <th className="px-2 py-2 text-center font-bold text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider w-7">
                                                         #
                                                     </th>
-                                                    <th className="px-3 py-2.5 text-start font-bold text-gray-500 dark:text-gray-400 text-[11px] uppercase tracking-wider">
+                                                    <th className="px-2 py-2 text-start font-bold text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider min-w-[160px]">
                                                         {t('المادة', 'Material')}
                                                     </th>
-                                                    <th className="px-3 py-2.5 text-end font-bold text-gray-500 dark:text-gray-400 text-[11px] uppercase tracking-wider">
-                                                        {t('الكمية', 'Qty')}
-                                                    </th>
-                                                    <th className="px-3 py-2.5 text-end font-bold text-gray-500 dark:text-gray-400 text-[11px] uppercase tracking-wider">
-                                                        {t('سعر الوحدة', 'Unit Price')}
-                                                    </th>
-                                                    <th className="px-4 py-2.5 text-end font-bold text-gray-500 dark:text-gray-400 text-[11px] uppercase tracking-wider">
+                                                    {warehouseColumns.map(([whId, whName]) => (
+                                                        <th key={whId} className="px-2 py-2 text-center font-bold text-blue-600 dark:text-blue-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                            <div className="flex items-center justify-center gap-0.5">
+                                                                <Warehouse className="w-2.5 h-2.5" />
+                                                                {whName}
+                                                            </div>
+                                                        </th>
+                                                    ))}
+                                                    <th className="px-2 py-2 text-end font-bold text-gray-700 dark:text-gray-300 text-[10px] uppercase tracking-wider bg-gray-100/50 dark:bg-gray-700/30">
                                                         {t('الإجمالي', 'Total')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-emerald-600 dark:text-emerald-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                        {t('شراء', 'Buy')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-orange-600 dark:text-orange-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                        {t('تكلفة', 'Cost')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-rose-600 dark:text-rose-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                        {t('بيع', 'Sale')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-blue-600 dark:text-blue-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                        {t('جملة', 'W.Sale')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-indigo-600 dark:text-indigo-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                        {t('نص جملة', '½W.S')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-violet-600 dark:text-violet-400 text-[9px] uppercase tracking-wider whitespace-nowrap">
+                                                        {t('خاص', 'Spcl')}
+                                                    </th>
+                                                    <th className="px-2 py-2 text-end font-bold text-indigo-700 dark:text-indigo-400 text-[10px] uppercase tracking-wider bg-indigo-50/50 dark:bg-indigo-900/20">
+                                                        <div>{t('القيمة', 'Value')}</div>
+                                                        <div className="text-[8px] font-normal text-indigo-500/70 dark:text-indigo-400/50">{t('(بالتكلفة)', '(cost)')}</div>
                                                     </th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                                                {allMovementRows.map((row, i) => {
+                                                {consolidatedRows.map((row, i) => {
                                                     const unitLabel = row.material_unit === 'meter' ? t('م', 'm')
                                                         : row.material_unit === 'kg' ? t('كغ', 'kg')
                                                             : row.material_unit === 'yard' ? t('ي', 'yd')
                                                                 : row.material_unit || t('م', 'm');
                                                     return (
                                                         <tr
-                                                            key={row.id || i}
+                                                            key={row.material_id || i}
                                                             className="hover:bg-indigo-50/50 dark:hover:bg-indigo-900/15 transition-colors cursor-pointer group"
                                                             onClick={async () => {
                                                                 if (row.material_id) {
-                                                                    // Fetch full material data for the sheet
-                                                                    const { data: fullMat } = await supabase
-                                                                        .from('fabric_materials')
-                                                                        .select('*')
-                                                                        .eq('id', row.material_id)
-                                                                        .maybeSingle();
+                                                                    const cachedMats = queryClient.getQueryData<any[]>(['inventory-preload-materials', companyId]);
+                                                                    const fullMat = cachedMats?.find((m: any) => m.id === row.material_id);
                                                                     if (fullMat) {
                                                                         setMaterialSheet({ open: true, data: fullMat });
+                                                                    } else {
+                                                                        const { data } = await supabase.from('fabric_materials').select('*').eq('id', row.material_id).maybeSingle();
+                                                                        if (data) setMaterialSheet({ open: true, data });
                                                                     }
                                                                 }
                                                             }}
                                                         >
-                                                            <td className="px-4 py-3 text-center">
-                                                                <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold inline-flex items-center justify-center">
+                                                            {/* # */}
+                                                            <td className="px-2 py-2 text-center align-top">
+                                                                <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[9px] font-bold inline-flex items-center justify-center mt-0.5">
                                                                     {i + 1}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-3 py-3">
-                                                                <div className="min-w-0 flex items-center gap-1.5">
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className="font-semibold text-gray-800 dark:text-gray-200 text-[12px] truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                                            {isRTL ? row.material_name_ar : row.material_name_en || row.material_name_ar || '—'}
+                                                            {/* Material — all names */}
+                                                            <td className="px-2 py-2 align-top">
+                                                                <div className="min-w-0">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <p className="font-semibold text-gray-800 dark:text-gray-200 text-[11px] truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                                            {row.material_name_ar || '—'}
                                                                         </p>
-                                                                        <p className="text-[10px] font-mono text-gray-400 mt-0.5">{row.material_code}</p>
+                                                                        <ExternalLink className="w-2.5 h-2.5 text-gray-300 group-hover:text-indigo-500 transition-colors flex-shrink-0" />
                                                                     </div>
-                                                                    <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-indigo-500 transition-colors flex-shrink-0" />
+                                                                    {row.material_name_en && (
+                                                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate" dir="ltr">{row.material_name_en}</p>
+                                                                    )}
+                                                                    {row.material_name_uk && (
+                                                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate" dir="ltr">{row.material_name_uk}</p>
+                                                                    )}
+                                                                    <p className="text-[9px] font-mono text-gray-400 mt-0.5">{row.material_code}</p>
                                                                 </div>
                                                             </td>
-                                                            <td className="px-3 py-3 text-end">
-                                                                <span className="font-mono font-bold text-[13px] text-gray-800 dark:text-gray-200 tabular-nums">
-                                                                    {Number(row.quantity || 0).toLocaleString('en-US')}
+                                                            {/* Warehouse columns */}
+                                                            {warehouseColumns.map(([whId]) => {
+                                                                const qty = row.warehouses.get(whId) || 0;
+                                                                return (
+                                                                    <td key={whId} className="px-2 py-2 text-center align-top">
+                                                                        {qty > 0 ? (
+                                                                            <span className="font-mono font-medium text-[11px] text-gray-700 dark:text-gray-300 tabular-nums">
+                                                                                {Number(qty).toLocaleString('en-US')}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-gray-300 dark:text-gray-600 text-[10px]">—</span>
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            {/* Total Qty */}
+                                                            <td className="px-2 py-2 text-end align-top bg-gray-50/50 dark:bg-gray-800/30">
+                                                                <span className="font-mono font-bold text-[11px] text-gray-800 dark:text-gray-200 tabular-nums">
+                                                                    {Number(row.total_qty).toLocaleString('en-US')}
                                                                 </span>
-                                                                <span className="text-[10px] text-muted-foreground ms-0.5">{unitLabel}</span>
+                                                                <span className="text-[8px] text-muted-foreground ms-0.5">{unitLabel}</span>
                                                             </td>
-                                                            <td className="px-3 py-3 text-end">
-                                                                <span className="font-mono text-[12px] text-gray-600 dark:text-gray-400 tabular-nums">
-                                                                    {row.unit_cost > 0 ? fmtNum(row.unit_cost) : '—'}
+                                                            {/* Purchase Price */}
+                                                            <td className="px-2 py-2 text-end align-top">
+                                                                <span className="font-mono text-[10px] text-emerald-700 dark:text-emerald-400 tabular-nums">
+                                                                    {row.purchase_price > 0 ? fmtNum(row.purchase_price) : '—'}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-4 py-3 text-end">
-                                                                {(row.total_cost > 0) ? (
-                                                                    <span className="font-mono font-bold text-[13px] text-indigo-700 dark:text-indigo-400 tabular-nums">
+                                                            {/* Cost Price */}
+                                                            <td className="px-2 py-2 text-end align-top">
+                                                                <span className="font-mono text-[10px] text-orange-700 dark:text-orange-400 tabular-nums">
+                                                                    {row.cost_price > 0 ? fmtNum(row.cost_price) : '—'}
+                                                                </span>
+                                                            </td>
+                                                            {/* Sale Price */}
+                                                            <td className="px-2 py-2 text-end align-top">
+                                                                <span className="font-mono text-[10px] text-rose-700 dark:text-rose-400 tabular-nums">
+                                                                    {row.selling_price > 0 ? fmtNum(row.selling_price) : '—'}
+                                                                </span>
+                                                            </td>
+                                                            {/* Wholesale */}
+                                                            <td className="px-2 py-2 text-end align-top">
+                                                                <span className="font-mono text-[10px] text-blue-700 dark:text-blue-400 tabular-nums">
+                                                                    {row.wholesale_price > 0 ? fmtNum(row.wholesale_price) : '—'}
+                                                                </span>
+                                                            </td>
+                                                            {/* Half Wholesale */}
+                                                            <td className="px-2 py-2 text-end align-top">
+                                                                <span className="font-mono text-[10px] text-indigo-700 dark:text-indigo-400 tabular-nums">
+                                                                    {row.half_wholesale_price > 0 ? fmtNum(row.half_wholesale_price) : '—'}
+                                                                </span>
+                                                            </td>
+                                                            {/* Special */}
+                                                            <td className="px-2 py-2 text-end align-top">
+                                                                <span className="font-mono text-[10px] text-violet-700 dark:text-violet-400 tabular-nums">
+                                                                    {row.special_price > 0 ? fmtNum(row.special_price) : '—'}
+                                                                </span>
+                                                            </td>
+                                                            {/* Total Value */}
+                                                            <td className="px-2 py-2 text-end align-top bg-indigo-50/30 dark:bg-indigo-900/10">
+                                                                {row.total_cost > 0 ? (
+                                                                    <>
+                                                                    <span className="font-mono font-bold text-[11px] text-indigo-700 dark:text-indigo-400 tabular-nums">
                                                                         {fmtNum(row.total_cost)}
                                                                     </span>
+                                                                    <span className="text-[8px] text-indigo-500/60 dark:text-indigo-400/50 ms-0.5">{row.material_currency || 'USD'}</span>
+                                                                    </>
                                                                 ) : (
-                                                                    <span className="text-gray-400">—</span>
+                                                                    <span className="text-gray-400 text-[10px]">—</span>
                                                                 )}
                                                             </td>
                                                         </tr>
@@ -511,19 +772,26 @@ export function MovementDetailDialog({
                                             {/* Footer totals */}
                                             <tfoot>
                                                 <tr className="bg-indigo-50/50 dark:bg-indigo-900/10 border-t-2 border-indigo-200 dark:border-indigo-800">
-                                                    <td colSpan={2} className="px-4 py-3 font-bold text-gray-700 dark:text-gray-300 text-[12px]">
-                                                        <Coins className="w-4 h-4 inline me-1.5 text-indigo-500 -mt-0.5" />
+                                                    <td colSpan={2} className="px-2 py-2.5 font-bold text-gray-700 dark:text-gray-300 text-[11px]">
+                                                        <Coins className="w-3.5 h-3.5 inline me-1 text-indigo-500 -mt-0.5" />
                                                         {t('الإجمالي', 'Total')}
-                                                        <span className="text-[10px] text-muted-foreground font-normal ms-2">
-                                                            ({allMovementRows.length} {t('صنف', 'items')})
+                                                        <span className="text-[9px] text-muted-foreground font-normal ms-1.5">
+                                                            ({consolidatedRows.length} {t('مادة', 'materials')})
                                                         </span>
                                                     </td>
-                                                    <td className="px-3 py-3 text-end font-mono font-bold text-[14px] text-gray-800 dark:text-gray-200 tabular-nums">
-                                                        {Number(allMovementRows.reduce((s, r) => s + (Number(r.quantity) || 0), 0)).toLocaleString('en-US')}
+                                                    {warehouseColumns.map(([whId], idx) => (
+                                                        <td key={whId} className="px-2 py-2.5 text-center font-mono font-bold text-[11px] text-blue-700 dark:text-blue-400 tabular-nums">
+                                                            {Number(warehouseTotals[idx]).toLocaleString('en-US')}
+                                                        </td>
+                                                    ))}
+                                                    <td className="px-2 py-2.5 text-end font-mono font-bold text-[12px] text-gray-800 dark:text-gray-200 tabular-nums bg-gray-100/50 dark:bg-gray-700/30">
+                                                        {Number(grandTotalQty).toLocaleString('en-US')}
                                                     </td>
-                                                    <td className="px-3 py-3" />
-                                                    <td className="px-4 py-3 text-end font-mono font-bold text-[14px] text-indigo-700 dark:text-indigo-400 tabular-nums">
-                                                        {fmtNum(totalValue)}
+                                                    {/* 6 empty price columns */}
+                                                    <td colSpan={6} className="px-2 py-2.5" />
+                                                    <td className="px-2 py-2.5 text-end font-mono font-bold text-[12px] text-indigo-700 dark:text-indigo-400 tabular-nums bg-indigo-50/30 dark:bg-indigo-900/10">
+                                                        {fmtNum(grandTotalValue)}
+                                                        <span className="text-[8px] text-indigo-500/60 dark:text-indigo-400/50 ms-0.5 font-normal">{consolidatedRows[0]?.material_currency || 'USD'}</span>
                                                     </td>
                                                 </tr>
                                             </tfoot>
@@ -535,6 +803,8 @@ export function MovementDetailDialog({
                                     </div>
                                 )}
                             </section>
+                                );
+                            })()}
 
                             {/* ── Section 3: Journal Entry (Accordion) ── */}
                             {journal && (

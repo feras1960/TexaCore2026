@@ -136,7 +136,7 @@ export default function SalesPaymentsList() {
             }
 
             return (data || []).reduce((acc: any, curr: any) => {
-                acc[curr.id] = isRTL ? (curr.name_ar || curr.name_en) : (curr.name_en || curr.name_ar);
+                acc[curr.id] = language === 'ar' ? (curr.name_ar || curr.name_en) : (curr.name_en || curr.name_ar);
                 return acc;
             }, {});
         },
@@ -168,7 +168,7 @@ export default function SalesPaymentsList() {
         {
             accessorKey: 'voucher_date',
             header: t('table.date') || 'Date',
-            cell: (info: any) => <span className="text-gray-600 font-mono text-xs">{new Date(info.getValue()).toLocaleDateString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US')}</span>
+            cell: (info: any) => <span className="text-gray-600 dark:text-gray-400 font-mono text-xs">{new Date(info.getValue()).toLocaleDateString(language === 'ar' ? 'ar-u-nu-latn' : 'en-US')}</span>
         },
         {
             accessorKey: 'customer_name',
@@ -191,7 +191,7 @@ export default function SalesPaymentsList() {
         },
         {
             accessorKey: 'currency',
-            header: language === 'ar' ? 'العملة' : 'Currency',
+            header: t('common.currency') || 'Currency',
             size: 70,
             cell: (info: any) => {
                 const curr = info.getValue() || companyCurrency;
@@ -220,10 +220,10 @@ export default function SalesPaymentsList() {
             header: t('table.status') || 'Status',
             cell: (info: any) => {
                 const status = info.getValue();
-                let color = 'bg-gray-100 text-gray-600';
-                if (status === 'posted') color = 'bg-blue-100 text-blue-700';
-                if (status === 'draft') color = 'bg-yellow-100 text-yellow-700';
-                if (status === 'cancelled') color = 'bg-red-100 text-red-700';
+                let color = 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+                if (status === 'posted') color = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+                if (status === 'draft') color = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+                if (status === 'cancelled') color = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
 
                 return (
                     <Badge variant="secondary" className={`${color} px-2 py-0.5 capitalize`}>
@@ -273,35 +273,35 @@ export default function SalesPaymentsList() {
             </div>
 
             {/* Filters Area */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0 bg-gray-50/50 p-2 rounded-lg border border-gray-100">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0 bg-gray-50/50 dark:bg-gray-900/50 p-2 rounded-lg border border-gray-100 dark:border-gray-800">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto" dir={direction}>
                     <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
-                        <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
+                        <TabsTrigger value="all" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                             <CreditCard className="w-4 h-4 me-1.5" />
                             {t('status.all') || 'All'}
                         </TabsTrigger>
-                        <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-yellow-600 font-tajawal">{t('status.draft') || 'Draft'}</TabsTrigger>
-                        <TabsTrigger value="posted" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">{t('status.posted') || 'Posted'}</TabsTrigger>
-                        <TabsTrigger value="cancelled" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-red-600 font-tajawal">{t('status.cancelled') || 'Cancelled'}</TabsTrigger>
+                        <TabsTrigger value="draft" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-yellow-600 font-tajawal">{t('status.draft') || 'Draft'}</TabsTrigger>
+                        <TabsTrigger value="posted" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">{t('status.posted') || 'Posted'}</TabsTrigger>
+                        <TabsTrigger value="cancelled" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-red-600 font-tajawal">{t('status.cancelled') || 'Cancelled'}</TabsTrigger>
                     </TabsList>
                 </Tabs>
 
                 <DateRangePicker
                     date={dateRange}
                     setDate={setDateRange}
-                    className="w-full sm:w-[260px] bg-white"
+                    className="w-full sm:w-[260px] bg-white dark:bg-gray-800"
                     align={isRTL ? "end" : "start"}
                 />
             </div>
 
             {/* Data Table */}
-            <div className="flex-1 min-h-0 border rounded-lg bg-white shadow-sm overflow-hidden">
+            <div className="flex-1 min-h-0 border dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
                 <NexaDataTable
                     data={payments}
                     columns={columns}
                     onRowClick={handleRowClick}
                     enableSearch
-                    searchPlaceholder={isRTL ? "بحث برقم السند..." : "Search receipt #..."}
+                    searchPlaceholder={t('table.search')}
                 />
             </div>
 

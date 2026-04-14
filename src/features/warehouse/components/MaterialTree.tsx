@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
+import { getLocalizedUnit, getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { ChevronRight, ChevronDown, Folder, Package, Plus, Trash2, MoreHorizontal, Layers, Archive, CheckCircle2, Box, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +28,7 @@ import {
 
 // Types
 interface MaterialTreeNode {
+    [key: string]: any;
     id: string;
     code: string;
     name_ar: string;
@@ -64,9 +67,9 @@ interface MaterialTreeProps {
     collapseAllCount?: number; // increment to collapse all
 }
 
-// Helper to get name based on language
-const getName = (node: MaterialTreeNode, lang: string) => {
-    return lang === 'ar' ? node.name_ar : (node.name_en || node.name_ar);
+// Helper to get name based on language (supports all 9 languages)
+const getName = (node: any, lang: string) => {
+    return getLocalizedName(node, lang);
 };
 
 // Helper for group stock aggregation
@@ -175,7 +178,7 @@ function TreeNode({
                     {(hasChildren || isExpandable) ? (
                         isExpanded ? (
                             <ChevronDown className="w-4 h-4" />
-                        ) : language === 'ar' ? (
+                        ) : ['ar', 'he', 'fa', 'ur'].includes(language) ? (
                             <ChevronRight className="w-4 h-4 rotate-180" />
                         ) : (
                             <ChevronRight className="w-4 h-4" />
@@ -244,7 +247,7 @@ function TreeNode({
                                     "text-xs font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
                                     isSelected ? "text-blue-50 bg-blue-900/40" : "text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30"
                                 )}>
-                                    {Number(node.current_stock || node.rolls_total_length || 0).toFixed(2)} {node.unit || ''}
+                                    {Number(node.current_stock || node.rolls_total_length || 0).toFixed(2)} {getLocalizedUnit(node.unit, language)}
                                 </span>
                             )}
                             {(node.loose_stock || 0) > 0 && (
@@ -252,7 +255,7 @@ function TreeNode({
                                     "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
                                     isSelected ? "text-amber-50 bg-amber-900/40" : "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30"
                                 )}>
-                                    {Number(node.loose_stock).toFixed(1)} {language === 'ar' ? 'سائب' : 'loose'}
+                                    {Number(node.loose_stock).toFixed(1)} {getLocalizedLabel('loose', language)}
                                 </span>
                             )}
                             {(node.rolls_count || 0) > 0 && (
@@ -260,7 +263,7 @@ function TreeNode({
                                     "text-xs font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
                                     isSelected ? "text-purple-50 bg-purple-900/40" : "text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30"
                                 )}>
-                                    {node.rolls_count} {language === 'ar' ? 'رول' : 'R'}
+                                    {node.rolls_count} {getLocalizedLabel('roll_short', language)}
                                 </span>
                             )}
                         </div>
@@ -283,7 +286,7 @@ function TreeNode({
                                             : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
                                 )}>
                                     {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
-                                    {Number(aggregateData.stock).toFixed(2)}
+                                    {Number(aggregateData.stock).toFixed(2)} {getLocalizedUnit('meter', language)}
                                 </span>
                             )}
                             {aggregateData.loose > 0 && (
@@ -298,7 +301,7 @@ function TreeNode({
                                             : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
                                 )}>
                                     {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
-                                    {Number(aggregateData.loose).toFixed(0)} {language === 'ar' ? 'سائب' : 'loose'}
+                                    {Number(aggregateData.loose).toFixed(0)} {getLocalizedLabel('loose', language)}
                                 </span>
                             )}
                             {aggregateData.rolls > 0 && (
@@ -313,7 +316,7 @@ function TreeNode({
                                             : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
                                 )}>
                                     {!isLeafGroup && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
-                                    {aggregateData.rolls} {language === 'ar' ? 'رول' : 'R'}
+                                    {aggregateData.rolls} {getLocalizedLabel('roll_short', language)}
                                 </span>
                             )}
                             {node.children && node.children.length > 0 && (
@@ -346,7 +349,7 @@ function TreeNode({
                                 e.stopPropagation();
                                 onEdit(node);
                             }}
-                            title={language === 'ar' ? "تفاصيل المادة" : "Material Details"}
+                            title={getLocalizedLabel('mat_details', language)}
                         >
                             <Eye className="w-3.5 h-3.5" />
                         </Button>
@@ -360,7 +363,7 @@ function TreeNode({
                                 e.stopPropagation();
                                 onAddChild(node);
                             }}
-                            title={language === 'ar' ? "إضافة مادة" : "Add Material"}
+                            title={getLocalizedLabel('add_material', language)}
                         >
                             <Plus className="w-3.5 h-3.5" />
                         </Button>
@@ -376,13 +379,13 @@ function TreeNode({
                             {onEdit && (
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(node); }}>
                                     <Layers className="w-4 h-4 me-2" />
-                                    {language === 'ar' ? 'تعديل' : 'Edit'}
+                                    {getLocalizedLabel('edit', language)}
                                 </DropdownMenuItem>
                             )}
                             {onAddChild && node.is_group && (
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddChild(node); }}>
                                     <Plus className="w-4 h-4 me-2" />
-                                    {language === 'ar' ? 'إضافة فرعي' : 'Add Child'}
+                                    {getLocalizedLabel('add_child', language)}
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
@@ -392,7 +395,7 @@ function TreeNode({
                                     className="text-red-600 dark:text-red-400 focus:text-red-600"
                                 >
                                     <Trash2 className="w-4 h-4 me-2" />
-                                    {language === 'ar' ? 'حذف' : 'Delete'}
+                                    {getLocalizedLabel('delete', language)}
                                 </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>
@@ -543,7 +546,7 @@ export function MaterialTree({
                     <div className="h-full overflow-y-auto p-2 bg-gray-50/50 dark:bg-gray-800/20" dir={direction}>
                         {data.length === 0 ? (
                             <div className="text-center py-10 text-gray-500">
-                                {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+                                {getLocalizedLabel('no_data', language)}
                             </div>
                         ) : (
                             data.map(node => (
@@ -595,13 +598,13 @@ export function MaterialTree({
                                         {isGroupSelected && onEdit && (
                                             <Button variant="outline" onClick={() => onEdit(selectedNode)} className="gap-2">
                                                 <Layers className="w-4 h-4" />
-                                                {language === 'ar' ? 'تعديل' : 'Edit group'}
+                                                {getLocalizedLabel('edit_group', language)}
                                             </Button>
                                         )}
                                         {onAddChild && isGroupSelected && (
                                             <Button onClick={() => onAddChild(selectedNode)} className="gap-2">
                                                 <Plus className="w-4 h-4" />
-                                                {language === 'ar' ? 'إضافة مادة' : 'Add Material'}
+                                                {getLocalizedLabel('add_material', language)}
                                             </Button>
                                         )}
                                     </div>
@@ -611,7 +614,7 @@ export function MaterialTree({
                                 {isGroupSelected && (
                                     <div className="space-y-4">
                                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                                            {language === 'ar' ? 'المحتويات' : 'Contents'} ({rightPanelItems.length})
+                                            {getLocalizedLabel('contents', language)} ({rightPanelItems.length})
                                         </h3>
 
                                         <div className="grid grid-cols-1 gap-2">
@@ -642,7 +645,7 @@ export function MaterialTree({
                                                                 {getName(item, language)}
                                                             </span>
                                                             {!item.is_active && (
-                                                                <span className="text-[10px] px-1.5 bg-gray-100 text-gray-500 rounded">Inactive</span>
+                                                                <span className="text-[10px] px-1.5 bg-gray-100 text-gray-500 rounded">{getLocalizedLabel('inactive', language)}</span>
                                                             )}
                                                         </div>
                                                         <div className="text-xs text-gray-500 font-mono mt-0.5">
@@ -677,7 +680,7 @@ export function MaterialTree({
                                                                                 : "text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800"
                                                                         )}>
                                                                             {!isItemLeaf && <span className="opacity-60 me-0.5 text-[9px]">Σ</span>}
-                                                                            {stats.rolls} {language === 'ar' ? 'رول' : 'R'}
+                                                                            {stats.rolls} {getLocalizedLabel('roll_short', language)}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -686,17 +689,17 @@ export function MaterialTree({
                                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                                 {((item.current_stock || 0) > 0 || (item.rolls_total_length || 0) > 0) && (
                                                                     <span className="font-bold text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs">
-                                                                        {item.current_stock || item.rolls_total_length || 0} {item.unit || '-'}
+                                                                        {item.current_stock || item.rolls_total_length || 0} {getLocalizedUnit(item.unit, language)}
                                                                     </span>
                                                                 )}
                                                                 {(item.loose_stock || 0) > 0 && (
                                                                     <span className="font-bold text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30 px-2 py-0.5 rounded text-xs">
-                                                                        {Number(item.loose_stock).toFixed(1)} {language === 'ar' ? 'سائب' : 'loose'}
+                                                                        {Number(item.loose_stock).toFixed(1)} {getLocalizedLabel('loose', language)}
                                                                     </span>
                                                                 )}
                                                                 {(item.rolls_count || 0) > 0 && (
                                                                     <span className="font-bold text-purple-700 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30 px-2 py-0.5 rounded text-xs">
-                                                                        {item.rolls_count} {language === 'ar' ? 'رول' : 'R'}
+                                                                        {item.rolls_count} {getLocalizedLabel('roll_short', language)}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -704,14 +707,14 @@ export function MaterialTree({
                                                     </div>
 
                                                     <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 p-0 h-8 w-8 text-gray-400 hover:text-gray-600">
-                                                        <ChevronRight className={cn("w-4 h-4", language === 'ar' && "rotate-180")} />
+                                                        <ChevronRight className={cn("w-4 h-4", ['ar', 'he', 'fa', 'ur'].includes(language) && "rotate-180")} />
                                                     </Button>
                                                 </div>
                                             )) : (
                                                 <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
                                                     <Box className="w-10 h-10 mx-auto text-gray-300 mb-2" />
                                                     <p className="text-gray-500">
-                                                        {language === 'ar' ? 'هذا المجلد فارغ' : 'This folder is empty'}
+                                                        {getLocalizedLabel('empty_folder', language)}
                                                     </p>
                                                 </div>
                                             )}
@@ -720,33 +723,40 @@ export function MaterialTree({
                                 )}
 
                                 {/* Content for Item: Details */}
-                                {!isGroupSelected && (
+                                {!isGroupSelected && (() => {
+                                    // For variant parents, use aggregate from children
+                                    const isParent = selectedNode.is_variant_parent && selectedNode.children && selectedNode.children.length > 0;
+                                    const parentAgg = isParent ? getGroupAggregate(selectedNode.children) : null;
+                                    const displayStock = isParent ? parentAgg!.stock : (selectedNode.current_stock || selectedNode.rolls_total_length || 0);
+                                    const displayRolls = isParent ? parentAgg!.rolls : (selectedNode.rolls_count || 0);
+                                    const displayLoose = isParent ? parentAgg!.loose : (selectedNode.loose_stock || 0);
+                                    return (
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
                                                 <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                                                    {language === 'ar' ? 'معلومات المخزون' : 'Stock Information'}
+                                                    {getLocalizedLabel('stock_info', language)}
                                                 </h4>
                                                 <div className="space-y-3">
                                                     <div className="flex justify-between items-center py-1">
-                                                        <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'إجمالي الكمية' : 'Total Quantity'}</span>
+                                                        <span className="text-sm text-gray-600 dark:text-gray-400">{getLocalizedLabel('total_qty', language)}</span>
                                                         <span className="font-mono font-bold bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-800 dark:text-gray-200">
-                                                            {selectedNode.current_stock || selectedNode.rolls_total_length || 0} {selectedNode.unit}
+                                                            {Number(displayStock).toFixed(2)} {getLocalizedUnit(selectedNode.unit || 'meter', language)}
                                                         </span>
                                                     </div>
-                                                    {(selectedNode.rolls_count || 0) > 0 && (
+                                                    {displayRolls > 0 && (
                                                         <div className="flex justify-between items-center py-1">
-                                                            <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'عدد الرولونات' : 'Rolls Count'}</span>
+                                                            <span className="text-sm text-gray-600 dark:text-gray-400">{getLocalizedLabel('rolls_count', language)}</span>
                                                             <span className="font-mono font-bold bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded">
-                                                                {selectedNode.rolls_count} {language === 'ar' ? 'رول' : 'Rolls'}
+                                                                {displayRolls} {getLocalizedLabel('rolls', language)}
                                                             </span>
                                                         </div>
                                                     )}
-                                                    {(selectedNode.loose_stock || 0) > 0 && (
+                                                    {displayLoose > 0 && (
                                                         <div className="flex justify-between items-center py-1">
-                                                            <span className="text-sm text-gray-600 dark:text-gray-400">{language === 'ar' ? 'الكمية السائبة' : 'Loose Stock'}</span>
+                                                            <span className="text-sm text-gray-600 dark:text-gray-400">{getLocalizedLabel('loose_stock', language)}</span>
                                                             <span className="font-mono font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded">
-                                                                {selectedNode.loose_stock} {selectedNode.unit}
+                                                                {selectedNode.loose_stock} {getLocalizedUnit(selectedNode.unit, language)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -755,7 +765,7 @@ export function MaterialTree({
 
                                             <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
                                                 <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                                                    {language === 'ar' ? 'الوصف' : 'Description'}
+                                                    {getLocalizedLabel('description', language)}
                                                 </h4>
                                                 <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                                     {selectedNode.description || '-'}
@@ -767,25 +777,25 @@ export function MaterialTree({
                                                 <div className="flex items-center justify-between">
                                                     <div>
                                                         <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                                                            {language === 'ar' ? 'المتجر الإلكتروني' : 'E-commerce'}
+                                                            {getLocalizedLabel('ecommerce', language)}
                                                         </h4>
                                                         <div className="flex items-center gap-2">
                                                             {(selectedNode as any).custom_fields?.ecommerce_published ? (
                                                                 <span className="flex items-center gap-1 text-sm text-green-600 font-medium">
                                                                     <CheckCircle2 className="w-4 h-4" />
-                                                                    {language === 'ar' ? 'منشور في المتجر' : 'Published on Store'}
+                                                                    {getLocalizedLabel('published', language)}
                                                                 </span>
                                                             ) : (
                                                                 <span className="flex items-center gap-1 text-sm text-gray-500 font-medium">
                                                                     <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
-                                                                    {language === 'ar' ? 'غير منشور' : 'Not Published'}
+                                                                    {getLocalizedLabel('not_published', language)}
                                                                 </span>
                                                             )}
                                                         </div>
                                                     </div>
                                                     {(selectedNode as any).custom_fields?.ecommerce_published && (
                                                         <div className="text-end">
-                                                            <div className="text-xs text-gray-500 mb-1">{language === 'ar' ? 'سعر البيع' : 'Selling Price'}</div>
+                                                            <div className="text-xs text-gray-500 mb-1">{getLocalizedLabel('sell_price', language)}</div>
                                                             <div className="font-mono font-bold text-erp-navy dark:text-white">
                                                                 {(selectedNode as any).custom_fields?.ecommerce_price || 0}
                                                             </div>
@@ -797,16 +807,17 @@ export function MaterialTree({
 
                                         <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-800">
                                             <Button onClick={() => onEdit && onEdit(selectedNode)}>
-                                                {language === 'ar' ? 'تعديل البطاقة' : 'Edit Item'}
+                                                {getLocalizedLabel('edit_item', language)}
                                             </Button>
                                         </div>
                                     </div>
-                                )}
+                                    );
+                                })()}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-gray-400">
                                 <Layers className="w-16 h-16 mb-4 opacity-20" />
-                                <p>{language === 'ar' ? 'اختر عنصراً لعرض التفاصيل' : 'Select an item to view details'}</p>
+                                <p>{getLocalizedLabel('select_item', language)}</p>
                             </div>
                         )}
                     </div>

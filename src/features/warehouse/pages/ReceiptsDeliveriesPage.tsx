@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 import {
     ArrowDownToLine,
     ArrowLeftRight,
@@ -102,14 +103,14 @@ export default function ReceiptsDeliveriesPage() {
         if (diffMs < 0) return '';
 
         const diffMins = Math.floor(diffMs / (1000 * 60));
-        if (diffMins < 60) return `${diffMins} ${isRTL ? 'د' : 'm'}`;
+        if (diffMins < 60) return `${diffMins} ${getLocalizedLabel('time_m', language)}`;
 
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        if (diffHours < 24) return `${diffHours} ${isRTL ? 'س' : 'h'}`;
+        if (diffHours < 24) return `${diffHours} ${getLocalizedLabel('time_h', language)}`;
 
         const diffDays = Math.floor(diffHours / 24);
-        return `${diffDays} ${isRTL ? 'يوم' : 'd'}`;
-    }, [isRTL]);
+        return `${diffDays} ${getLocalizedLabel('time_d', language)}`;
+    }, [language]);
 
     // ═══ Document Logic ═══
     const handleConfirmReceipt = useCallback(async (receipt: any) => {
@@ -128,7 +129,7 @@ export default function ReceiptsDeliveriesPage() {
             if (transfer) {
                 setTransferDeliveryDialog({ open: true, transfer });
             } else {
-                toast.error(isRTL ? 'المناقلة غير موجودة' : 'Transfer not found');
+                toast.error(getLocalizedLabel('err_transfer_nf', language));
             }
             return;
         }
@@ -149,7 +150,7 @@ export default function ReceiptsDeliveriesPage() {
             if (docType === 'container') {
                 const { data: container } = await supabase.from('containers').select('*').eq('id', sourceId).maybeSingle();
                 if (container) { setContainerSheet({ open: true, data: { ...container, party_id: container.supplier_id } }); return; }
-                toast.error(isRTL ? 'الكونتينر غير موجود' : 'Container not found');
+                toast.error(getLocalizedLabel('err_container_nf', language));
                 return;
             }
 
@@ -165,7 +166,7 @@ export default function ReceiptsDeliveriesPage() {
                     }
                     return;
                 }
-                toast.error(isRTL ? 'المناقلة غير موجودة' : 'Transfer not found');
+                toast.error(getLocalizedLabel('err_transfer_nf', language));
                 return;
             }
 
@@ -199,10 +200,10 @@ export default function ReceiptsDeliveriesPage() {
                 return;
             }
 
-            toast.error(isRTL ? 'المستند غير موجود في قاعدة البيانات' : 'Document not found in database');
+            toast.error(getLocalizedLabel('err_doc_nf', language));
         } catch (err: any) {
             console.error('handleViewSourceDocument error:', err);
-            toast.error(isRTL ? 'خطأ في تحميل المستند' : 'Error loading document');
+            toast.error(getLocalizedLabel('err_doc_load', language));
         }
     }, [isRTL]);
 
@@ -252,7 +253,7 @@ export default function ReceiptsDeliveriesPage() {
     const completedColumns: NexaListColumn<any>[] = useMemo(() => [
         {
             id: 'receipt_number',
-            header: isRTL ? 'رقم إذن الاستلام' : 'GRN #',
+            header: getLocalizedLabel('rd_grn', language),
             sortable: true,
             sortKey: 'receipt_number',
             cell: (row: any) => (
@@ -269,19 +270,19 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'source',
-            header: isRTL ? 'المصدر' : 'Source',
+            header: getLocalizedLabel('rd_source', language),
             cell: (row: any) => {
                 const src = row.container_id
-                    ? (isRTL ? '📦 كونتينر' : '📦 Container')
+                    ? getLocalizedLabel('rd_cont_src', language)
                     : row.invoice_id
-                        ? (isRTL ? '📄 فاتورة' : '📄 Invoice')
-                        : (isRTL ? '📋 طلب' : '📋 Order');
+                        ? getLocalizedLabel('rd_inv_src', language)
+                        : getLocalizedLabel('rd_order_src', language);
                 return <span className="text-sm text-gray-600">{src}</span>;
             },
         },
         {
             id: 'rolls',
-            header: isRTL ? 'رولونات' : 'Rolls',
+            header: getLocalizedLabel('col_rolls', language),
             cell: (row: any) => (
                 <span className="font-mono font-bold text-teal-700">
                     {row.total_rolls ?? '—'}
@@ -290,7 +291,7 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'length',
-            header: isRTL ? 'الكمية (م)' : 'Qty (m)',
+            header: getLocalizedLabel('rd_qty_m', language),
             cell: (row: any) => (
                 <span className="font-mono text-sm">
                     {row.total_length_m ? Number(row.total_length_m).toLocaleString() : '—'}
@@ -299,7 +300,7 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'completed_date',
-            header: isRTL ? 'تاريخ الاستلام' : 'Completed',
+            header: getLocalizedLabel('rd_completed', language),
             sortable: true,
             sortKey: 'completed_date',
             cell: (row: any) => (
@@ -308,7 +309,7 @@ export default function ReceiptsDeliveriesPage() {
                 </span>
             ),
         },
-    ], [isRTL, formatDate]);
+    ], [language, formatDate]);
 
     const renderCompletedActions = useCallback((row: any) => (
         <div className="flex items-center gap-1.5 justify-end">
@@ -325,7 +326,7 @@ export default function ReceiptsDeliveriesPage() {
                 }}
             >
                 <Eye className="h-3.5 w-3.5" />
-                {isRTL ? 'عرض' : 'View'}
+                {getLocalizedLabel('act_view', language)}
             </Button>
         </div>
     ), [isRTL, handleViewSourceDocument]);
@@ -334,7 +335,7 @@ export default function ReceiptsDeliveriesPage() {
     const columns: NexaListColumn<any>[] = useMemo(() => [
         {
             id: 'reference',
-            header: isRTL ? 'رقم المستند' : 'Document #',
+            header: getLocalizedLabel('rd_doc_num', language),
             sortable: true,
             sortKey: 'reference',
             cell: (row: any) => {
@@ -359,7 +360,7 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'supplier',
-            header: isRTL ? 'الجهة' : 'Party',
+            header: getLocalizedLabel('rd_party', language),
             sortable: true,
             sortKey: 'supplier',
             cell: (row: any) => (
@@ -368,7 +369,7 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'amount',
-            header: isRTL ? 'المبلغ' : 'Amount',
+            header: getLocalizedLabel('rd_amount', language),
             sortable: true,
             sortKey: 'amount',
             cell: (row: any) => (
@@ -381,7 +382,7 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'date',
-            header: isRTL ? 'التاريخ' : 'Date',
+            header: getLocalizedLabel('rd_date', language),
             sortable: true,
             sortKey: 'date',
             cell: (row: any) => (
@@ -392,26 +393,27 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'doc_status',
-            header: isRTL ? 'حالة المستند' : 'Doc Status',
+            header: getLocalizedLabel('rd_doc_status', language),
             sortable: true,
             sortKey: 'doc_status',
             cell: (row: any) => {
                 const isSalesRow = row.type === 'sale_invoice' || row.source_type === 'sale_invoice';
                 const isTransferRow = row.type === 'transfer';
                 const status = isSalesRow ? (row.stage || 'confirmed') : isTransferRow ? (row.stage || row.invoice_status || 'confirmed') : (row.invoice_status || row.status || 'unknown');
-                const stageLabels: Record<string, { ar: string; en: string; cls: string }> = {
-                    confirmed: { ar: 'مؤكدة', en: 'Confirmed', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-                    loading: { ar: 'قيد التحميل', en: 'Loading', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    shipped: { ar: 'في الطريق', en: 'Shipped', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-                    sent_to_branch: { ar: 'أُرسلت للفرع', en: 'Sent to Branch', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-                    in_delivery: { ar: 'قيد التسليم', en: 'In Delivery', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    delivered: { ar: 'تم التسليم', en: 'Delivered', cls: 'bg-green-50 text-green-700 border-green-200' },
-                    received: { ar: 'تم الاستلام', en: 'Received', cls: 'bg-green-50 text-green-700 border-green-200' },
+                const stageLabels: Record<string, { labelKey: string; cls: string }> = {
+                    confirmed: { labelKey: 'st_confirmed', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                    loading: { labelKey: 'st_loading', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    shipped: { labelKey: 'st_shipped', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                    sent_to_branch: { labelKey: 'st_sent_branch', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                    in_delivery: { labelKey: 'st_in_delivery', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    in_transit: { labelKey: 'st_in_transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                    delivered: { labelKey: 'st_delivered', cls: 'bg-green-50 text-green-700 border-green-200' },
+                    received: { labelKey: 'st_received', cls: 'bg-green-50 text-green-700 border-green-200' },
                 };
                 const sl = stageLabels[status];
                 if (sl) {
                     return <Badge variant="outline" className={cn('text-[10px] sm:text-xs', sl.cls)}>
-                        {isRTL ? sl.ar : sl.en}
+                        {getLocalizedLabel(sl.labelKey, language)}
                     </Badge>;
                 }
                 return <Badge variant="outline" className="text-[10px] sm:text-xs">
@@ -421,7 +423,7 @@ export default function ReceiptsDeliveriesPage() {
         },
         {
             id: 'receipt_status',
-            header: isRTL ? 'حالة الاستلام' : 'Receipt',
+            header: getLocalizedLabel('rd_receipt_st', language),
             sortable: true,
             sortKey: 'receipt_status',
             cell: (row: any) => {
@@ -432,17 +434,18 @@ export default function ReceiptsDeliveriesPage() {
                     const stage = row.stage || 'confirmed';
                     const hasDraft = !!row.delivery_draft;
                     const salesCfg: Record<string, { icon: any; label: string; cls: string }> = {
-                        confirmed: { icon: null, label: isRTL ? 'لم يبدأ' : 'Pending', cls: 'bg-gray-50 text-gray-500 border-gray-200' },
-                        sent_to_branch: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: isRTL ? 'أُرسلت للفرع' : 'Sent to Branch', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-                        in_delivery: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: isRTL ? 'قيد التسليم' : 'In Delivery', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                        delivered: { icon: <CheckCircle2 className="h-3 w-3" />, label: isRTL ? 'تم التسليم' : 'Delivered', cls: 'bg-green-50 text-green-700 border-green-200' },
+                        confirmed: { icon: null, label: getLocalizedLabel('rs_pending', language), cls: 'bg-gray-50 text-gray-500 border-gray-200' },
+                        sent_to_branch: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: getLocalizedLabel('st_sent_branch', language), cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                        in_delivery: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: getLocalizedLabel('st_in_delivery', language), cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                        in_transit: { icon: <Truck className="h-3 w-3" />, label: getLocalizedLabel('st_in_transit', language), cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                        delivered: { icon: <CheckCircle2 className="h-3 w-3" />, label: getLocalizedLabel('st_delivered', language), cls: 'bg-green-50 text-green-700 border-green-200' },
                     };
                     const sc = salesCfg[stage] || salesCfg.confirmed;
                     const elapsed = getElapsedTime(row.pending_since || row.created_at);
                     const timerLabel = stage === 'confirmed'
-                        ? (isRTL ? 'منذ التأكيد' : 'Since confirmed')
-                        : (stage === 'in_delivery' || stage === 'sent_to_branch')
-                            ? (isRTL ? 'منذ الإخراج' : 'Since dispatch')
+                        ? getLocalizedLabel('rs_since_conf', language)
+                        : (stage === 'in_delivery' || stage === 'sent_to_branch' || stage === 'in_transit')
+                            ? getLocalizedLabel('rs_since_disp', language)
                             : '';
                     return (
                         <div className="flex flex-col items-center gap-1 justify-center">
@@ -471,11 +474,11 @@ export default function ReceiptsDeliveriesPage() {
                 }
 
                 const cfg: Record<string, { icon: any; label: string; cls: string }> = {
-                    draft: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: isRTL ? 'قيد الاستلام' : 'In Progress', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    in_progress: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: isRTL ? 'قيد الاستلام' : 'In Progress', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-                    partial: { icon: <ArrowDownToLine className="h-3 w-3" />, label: isRTL ? 'استلام جزئي' : 'Partial', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-                    completed: { icon: <CheckCircle2 className="h-3 w-3" />, label: isRTL ? 'مكتمل' : 'Done', cls: 'bg-green-50 text-green-700 border-green-200' },
-                    none: { icon: null, label: isRTL ? 'لم يبدأ' : 'Pending', cls: 'bg-gray-50 text-gray-500 border-gray-200' },
+                    draft: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: getLocalizedLabel('rs_in_progress', language), cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    in_progress: { icon: <Clock className="h-3 w-3 animate-pulse" />, label: getLocalizedLabel('rs_in_progress', language), cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                    partial: { icon: <ArrowDownToLine className="h-3 w-3" />, label: getLocalizedLabel('rs_partial', language), cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+                    completed: { icon: <CheckCircle2 className="h-3 w-3" />, label: getLocalizedLabel('rs_done', language), cls: 'bg-green-50 text-green-700 border-green-200' },
+                    none: { icon: null, label: getLocalizedLabel('rs_pending', language), cls: 'bg-gray-50 text-gray-500 border-gray-200' },
                 };
                 const c = cfg[rs] || cfg.none;
                 return (
@@ -484,7 +487,7 @@ export default function ReceiptsDeliveriesPage() {
                             {c.icon}{c.label}
                         </Badge>
                         {elapsed && (
-                            <span className="text-[9px] text-muted-foreground font-mono flex items-center gap-0.5" title={isRTL ? 'الوقت المنقضي' : 'Elapsed Time'}>
+                            <span className="text-[9px] text-muted-foreground font-mono flex items-center gap-0.5" title={getLocalizedLabel('rs_elapsed', language)}>
                                 <Clock className="w-2.5 h-2.5 opacity-50" />
                                 {elapsed}
                             </span>
@@ -493,7 +496,7 @@ export default function ReceiptsDeliveriesPage() {
                 );
             }
         }
-    ], [isRTL, formatDate]);
+    ], [language, formatDate]);
 
     const renderActions = useCallback((row: any) => {
         const rs = row.receipt_status || 'none';
@@ -505,10 +508,10 @@ export default function ReceiptsDeliveriesPage() {
         // Transfer-specific button labels
         const getTransferActionLabel = () => {
             const stage = row.stage || row.invoice_status;
-            if (stage === 'confirmed') return isRTL ? 'تسليم من المستودع' : 'Dispatch';
-            if (stage === 'loading') return isRTL ? 'إرسال' : 'Ship';
-            if (stage === 'shipped') return isRTL ? 'تأكيد الاستلام' : 'Confirm Receipt';
-            return isRTL ? 'معالجة' : 'Process';
+            if (stage === 'confirmed') return getLocalizedLabel('act_dispatch', language);
+            if (stage === 'loading') return getLocalizedLabel('act_ship', language);
+            if (stage === 'shipped') return getLocalizedLabel('act_conf_recv', language);
+            return getLocalizedLabel('act_process', language);
         };
 
         const getTransferActionColor = () => {
@@ -525,11 +528,11 @@ export default function ReceiptsDeliveriesPage() {
                 <Button
                     size="sm" variant="outline"
                     className="h-8 px-2 text-xs border-gray-200 hover:border-indigo-400 hover:text-indigo-600 gap-1"
-                    title={isRTL ? 'عرض المستند المرجعي' : 'View source document'}
+                    title={getLocalizedLabel('act_view_src', language)}
                     onClick={(e) => { e.stopPropagation(); handleViewSourceDocument(row); }}
                 >
                     <Eye className="h-3.5 w-3.5" />
-                    {isRTL ? 'عرض' : 'View'}
+                    {getLocalizedLabel('act_view', language)}
                 </Button>
                 {/* فتح الإجراء المناسب حسب نوع المستند */}
                 <Button
@@ -550,10 +553,10 @@ export default function ReceiptsDeliveriesPage() {
                         <><ArrowLeftRight className="h-3.5 w-3.5" />{getTransferActionLabel()}</>
                     ) : isSales ? (
                         salesHasDraft
-                            ? <><Truck className="h-3.5 w-3.5" />{isRTL ? 'متابعة التسليم' : 'Continue'}</>
-                            : <><Truck className="h-3.5 w-3.5" />{isRTL ? 'تسليم' : 'Deliver'}</>
+                            ? <><Truck className="h-3.5 w-3.5" />{getLocalizedLabel('act_cont_del', language)}</>
+                            : <><Truck className="h-3.5 w-3.5" />{getLocalizedLabel('act_deliver', language)}</>
                     ) : (
-                        <><ArrowDownToLine className="h-3.5 w-3.5" />{hasDraft ? (isRTL ? 'متابعة' : 'Continue') : (isRTL ? 'استلام' : 'Receive')}</>
+                        <><ArrowDownToLine className="h-3.5 w-3.5" />{hasDraft ? getLocalizedLabel('act_continue', language) : getLocalizedLabel('act_receive', language)}</>
                     )}
                 </Button>
             </div>
@@ -570,17 +573,17 @@ export default function ReceiptsDeliveriesPage() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-                            {isRTL ? 'أذون الاستلام والتسليم' : 'Receipts & Deliveries'}
+                            {getLocalizedLabel('rd_title', language)}
                         </h1>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                            {isRTL ? 'الأذونات المعلقة بانتظار التعامل المخزني' : 'Pending documents waiting for warehouse processing'}
+                            {getLocalizedLabel('rd_subtitle', language)}
                         </p>
                     </div>
                 </div>
                 {/* Manual Refresh Button */}
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] text-gray-400 font-mono hidden sm:block">
-                        {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {getLocalizedLabel('rd_updated', language)} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                     <Button
                         variant="outline"
@@ -590,7 +593,7 @@ export default function ReceiptsDeliveriesPage() {
                         disabled={receiptsLoading}
                     >
                         <RefreshCw className={`w-4 h-4 ${receiptsLoading ? 'animate-spin' : ''}`} />
-                        <span className="hidden md:inline">{isRTL ? 'تحديث' : 'Refresh'}</span>
+                        <span className="hidden md:inline">{getLocalizedLabel('rd_refresh', language)}</span>
                     </Button>
                     {/* Quick open buttons for previewing dialogs */}
                     <Button
@@ -600,7 +603,7 @@ export default function ReceiptsDeliveriesPage() {
                         onClick={() => setReceiptDialog({ open: true, type: 'purchase_local', reference: '' })}
                     >
                         <ArrowDownToLine className="w-4 h-4" />
-                        <span className="hidden md:inline">{isRTL ? 'إذن استلام' : 'Receipt'}</span>
+                        <span className="hidden md:inline">{getLocalizedLabel('rd_receipt', language)}</span>
                     </Button>
                     <Button
                         variant="outline"
@@ -609,7 +612,7 @@ export default function ReceiptsDeliveriesPage() {
                         onClick={() => setSalesDeliveryDialog({ open: true, salesInvoice: null })}
                     >
                         <Truck className="w-4 h-4" />
-                        <span className="hidden md:inline">{isRTL ? 'إذن تسليم' : 'Delivery'}</span>
+                        <span className="hidden md:inline">{getLocalizedLabel('rd_delivery', language)}</span>
                     </Button>
                 </div>
             </div>
@@ -617,11 +620,11 @@ export default function ReceiptsDeliveriesPage() {
             {/* ═══ Summary Cards ═══ */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                    { labelAr: 'الكل', labelEn: 'Total', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ClipboardList },
-                    { labelAr: 'مشتريات', labelEn: 'Purchases', value: counts.purchases, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: ArrowDownToLine },
-                    { labelAr: 'مبيعات', labelEn: 'Sales', value: counts.sales, color: 'text-rose-600 dark:text-rose-400', bg: 'from-rose-500/10 to-rose-600/5 border-rose-200/60 dark:border-rose-800/40', iconBg: 'text-rose-500 bg-rose-50 dark:bg-rose-900/40', icon: Truck },
-                    { labelAr: 'كونتينرات', labelEn: 'Containers', value: counts.containers, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/60 dark:border-indigo-800/40', iconBg: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40', icon: Package },
-                    { labelAr: 'مناقلات', labelEn: 'Transfers', value: counts.transfers, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: ArrowLeftRight },
+                    { labelKey: 'rd_tab_all', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ClipboardList },
+                    { labelKey: 'rd_purchases', value: counts.purchases, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: ArrowDownToLine },
+                    { labelKey: 'rd_sales', value: counts.sales, color: 'text-rose-600 dark:text-rose-400', bg: 'from-rose-500/10 to-rose-600/5 border-rose-200/60 dark:border-rose-800/40', iconBg: 'text-rose-500 bg-rose-50 dark:bg-rose-900/40', icon: Truck },
+                    { labelKey: 'rd_containers', value: counts.containers, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/60 dark:border-indigo-800/40', iconBg: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40', icon: Package },
+                    { labelKey: 'rd_transfers', value: counts.transfers, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: ArrowLeftRight },
                 ].map((stat, i) => {
                     const StatIcon = stat.icon;
                     return (
@@ -629,7 +632,7 @@ export default function ReceiptsDeliveriesPage() {
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">
-                                        {isRTL ? stat.labelAr : stat.labelEn}
+                                        {getLocalizedLabel(stat.labelKey, language)}
                                     </p>
                                     <p className={cn('text-2xl font-bold font-mono mt-1', stat.color)} dir="ltr">{stat.value}</p>
                                 </div>
@@ -648,27 +651,27 @@ export default function ReceiptsDeliveriesPage() {
                     <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
                         <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                             <ClipboardList className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'الكل' : 'All'}
+                            {getLocalizedLabel('rd_tab_all', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{counts.all}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="purchases" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
                             <ArrowDownToLine className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'استلام مشتريات' : 'Purchases'}
+                            {getLocalizedLabel('rd_tab_purch', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{counts.purchases}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">
                             <Truck className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'تسليم مبيعات' : 'Sales'}
+                            {getLocalizedLabel('rd_tab_sales', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-rose-100/60 text-rose-700">{counts.sales}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="containers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">
                             <Package className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'استلام كونتينرات' : 'Containers'}
+                            {getLocalizedLabel('rd_tab_cont', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-indigo-100/60 text-indigo-700">{counts.containers}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="transfers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
                             <ArrowLeftRight className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'مناقلات' : 'Transfers'}
+                            {getLocalizedLabel('rd_tab_trans', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{counts.transfers}</Badge>
                         </TabsTrigger>
                     </TabsList>
@@ -683,7 +686,7 @@ export default function ReceiptsDeliveriesPage() {
                     getRowKey={(r: any) => r.id}
                     renderActions={renderActions}
                     onRowClick={(row: any) => handleConfirmReceipt(row)}
-                    searchPlaceholder={isRTL ? 'بحث بالمرجع، المورد، أو الوصف...' : 'Search by reference or supplier...'}
+                    searchPlaceholder={getLocalizedLabel('rd_search', language)}
                     isRTL={isRTL}
                     direction={direction as 'rtl' | 'ltr'}
                     sortField={sortField}
@@ -696,7 +699,7 @@ export default function ReceiptsDeliveriesPage() {
 
                 {/* Footer Totals */}
                 <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 dark:bg-slate-800/50 dark:border-slate-800 flex justify-between items-center text-sm">
-                    <span className="text-gray-500">{isRTL ? 'الإجمالي' : 'Total Amount'}:</span>
+                    <span className="text-gray-500">{getLocalizedLabel('rd_total_amt', language)}:</span>
                     <span className="font-bold font-mono tracking-tight text-erp-navy dark:text-white">
                         {totalAmountPending.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         <span className="text-gray-400 font-sans text-xs ms-1">{baseCurrency || ''}</span>

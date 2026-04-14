@@ -119,7 +119,7 @@ function getStageColor(status: string): string {
     }
 }
 
-function getDaysInfo(etaDate: string | null, isRTL: boolean): { text: string; color: string; isOverdue: boolean } | null {
+function getDaysInfo(etaDate: string | null, t: (key: string, params?: any) => string): { text: string; color: string; isOverdue: boolean } | null {
     if (!etaDate) return null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -128,19 +128,19 @@ function getDaysInfo(etaDate: string | null, isRTL: boolean): { text: string; co
     const diff = differenceInDays(eta, today);
     if (diff > 0) {
         return {
-            text: isRTL ? `${diff} يوم متبقي` : `${diff}d remaining`,
+            text: t('containers.daysRemaining', { n: diff }),
             color: diff <= 3 ? 'text-amber-600' : 'text-blue-600',
             isOverdue: false,
         };
     } else if (diff === 0) {
         return {
-            text: isRTL ? 'اليوم!' : 'Today!',
+            text: t('containers.today'),
             color: 'text-emerald-600',
             isOverdue: false,
         };
     } else {
         return {
-            text: isRTL ? `متأخر ${Math.abs(diff)} يوم` : `${Math.abs(diff)}d overdue`,
+            text: t('containers.overdue', { n: Math.abs(diff) }),
             color: 'text-red-600',
             isOverdue: true,
         };
@@ -437,7 +437,7 @@ export default function ContainersList() {
     const columns: NexaListColumn<ContainerRow>[] = useMemo(() => [
         {
             id: 'container_number',
-            header: isRTL ? 'رقم الحاوية' : 'Container #',
+            header: t('containers.containerNumber'),
             sortable: true,
             sortKey: 'container_number',
             cell: (row) => (
@@ -455,7 +455,7 @@ export default function ContainersList() {
         },
         {
             id: 'container_name',
-            header: isRTL ? 'اسم الحاوية' : 'Name',
+            header: t('containers.name'),
             cell: (row) => {
                 const name = row.container_name || (row as any).supplier_display || '';
                 return (
@@ -480,7 +480,7 @@ export default function ContainersList() {
         },
         {
             id: 'route',
-            header: isRTL ? 'المسار' : 'Route',
+            header: t('containers.route'),
             cell: (row) => {
                 const from = row.port_of_loading || row.origin_country;
                 const to = row.port_of_discharge;
@@ -488,13 +488,13 @@ export default function ContainersList() {
                 return (
                     <div className="flex items-center gap-1.5 text-[11px]">
                         {from && (
-                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium border border-blue-100">
+                            <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium border border-blue-100 dark:border-blue-800">
                                 {from}
                             </span>
                         )}
                         {from && to && <ArrowRightLeft className="w-3 h-3 text-gray-300" />}
                         {to && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-medium border border-emerald-100">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-100 dark:border-emerald-800">
                                 {to}
                             </span>
                         )}
@@ -504,7 +504,7 @@ export default function ContainersList() {
         },
         {
             id: 'size_type',
-            header: isRTL ? 'الحجم' : 'Size',
+            header: t('containers.size'),
             cell: (row) => {
                 const size = row.container_size;
                 const type = row.container_type;
@@ -512,7 +512,7 @@ export default function ContainersList() {
                 return (
                     <div className="flex items-center gap-1">
                         {size && (
-                            <span className="text-[11px] font-mono font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                            <span className="text-[11px] font-mono font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
                                 {size}
                             </span>
                         )}
@@ -527,7 +527,7 @@ export default function ContainersList() {
         },
         {
             id: 'progress',
-            header: isRTL ? 'التقدم' : 'Progress',
+            header: t('containers.progress'),
             cell: (row) => {
                 const prog = getStageProgress(row.status);
                 const color = getStageColor(row.status);
@@ -537,7 +537,7 @@ export default function ContainersList() {
                             <span className="text-[10px] font-semibold text-gray-500">{prog.current}/{prog.total}</span>
                             <span className="text-[10px] text-gray-400">{prog.percent}%</span>
                         </div>
-                        <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div className="w-full h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                             <div
                                 className={cn("h-full rounded-full transition-all duration-500", color)}
                                 style={{ width: `${prog.percent}%` }}
@@ -549,13 +549,13 @@ export default function ContainersList() {
         },
         {
             id: 'eta',
-            header: isRTL ? 'الوصول المتوقع' : 'ETA',
+            header: t('containers.eta'),
             sortable: true,
             sortKey: 'eta',
             cell: (row) => {
                 const eta = row.eta || row.arrival_date;
                 if (!eta) return <span className="text-[11px] text-gray-300">—</span>;
-                const daysInfo = getDaysInfo(eta, isRTL);
+                const daysInfo = getDaysInfo(eta, t);
                 return (
                     <div className="flex flex-col">
                         <span className="text-[11px] font-mono text-gray-500">
@@ -572,14 +572,14 @@ export default function ContainersList() {
         },
         {
             id: 'linked_invoices',
-            header: isRTL ? 'الفواتير' : 'Invoices',
+            header: t('containers.invoices'),
             cell: (row) => {
                 const count = invoiceCounts[row.id] || 0;
                 if (count === 0) return <span className="text-[11px] text-gray-300">—</span>;
                 return (
                     <div className="flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="text-[12px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-full border border-purple-100">
+                        <span className="text-[12px] font-semibold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded-full border border-purple-100 dark:border-purple-800">
                             {count}
                         </span>
                     </div>
@@ -588,7 +588,7 @@ export default function ContainersList() {
         },
         {
             id: 'total_landed_cost',
-            header: isRTL ? 'التكلفة' : 'Cost',
+            header: t('containers.cost'),
             align: 'end',
             sortable: true,
             sortKey: 'total_landed_cost',
@@ -605,7 +605,7 @@ export default function ContainersList() {
                         </span>
                         {tax > 0 && taxPosted && (
                             <span className="text-[10px] text-rose-500 font-mono" dir="ltr">
-                                {isRTL ? 'ضريبة: ' : 'Tax: '}{getCurrencySymbol(cur)} {tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {t('containers.tax')} {getCurrencySymbol(cur)} {tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                         )}
                     </div>
@@ -614,7 +614,7 @@ export default function ContainersList() {
         },
         {
             id: 'status',
-            header: isRTL ? 'الحالة' : 'Status',
+            header: t('table.status'),
             sortable: true,
             sortKey: 'status',
             cell: (row) => <ContainerStatusBadge status={row.status || 'draft'} varianceStatus={row.variance_status} />,
@@ -625,7 +625,7 @@ export default function ContainersList() {
     const renderActions = useCallback((row: ContainerRow) => (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-7 w-7 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100">
+                <Button variant="ghost" className="h-7 w-7 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-800">
                     <MoreHorizontal className="h-4 w-4" />
                 </Button>
             </DropdownMenuTrigger>
@@ -634,7 +634,7 @@ export default function ContainersList() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleRowClick(row)} className="gap-2 cursor-pointer text-sm">
                     <Eye className="h-3.5 w-3.5" />
-                    {isRTL ? 'عرض التفاصيل' : 'View Details'}
+                    {t('containers.viewDetails')}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
@@ -644,77 +644,77 @@ export default function ContainersList() {
     const kanbanColumns: KanbanColumnDef[] = useMemo(() => [
         {
             id: 'draft',
-            title: isRTL ? 'مسودة' : 'Draft',
+            title: t('containers.draft'),
             color: 'border-gray-400',
-            bgColor: 'bg-gray-50/40',
+            bgColor: 'bg-gray-50/40 dark:bg-gray-900/20',
             accentHex: '#9ca3af',
             icon: <Clock className="w-4 h-4 text-gray-500" />,
         },
         {
             id: 'booked',
-            title: isRTL ? 'تم الحجز' : 'Booked',
+            title: t('containers.booked'),
             color: 'border-sky-500',
-            bgColor: 'bg-sky-50/40',
+            bgColor: 'bg-sky-50/40 dark:bg-sky-950/20',
             accentHex: '#0ea5e9',
             icon: <FileText className="w-4 h-4 text-sky-600" />,
         },
         {
             id: 'loading',
-            title: isRTL ? 'تحميل' : 'Loading',
+            title: t('containers.loading'),
             color: 'border-amber-500',
-            bgColor: 'bg-amber-50/40',
+            bgColor: 'bg-amber-50/40 dark:bg-amber-950/20',
             accentHex: '#d97706',
             icon: <Truck className="w-4 h-4 text-amber-600" />,
         },
         {
             id: 'in_transit',
-            title: isRTL ? 'في البحر' : 'In Transit',
+            title: t('containers.inTransit'),
             color: 'border-blue-500',
-            bgColor: 'bg-blue-50/40',
+            bgColor: 'bg-blue-50/40 dark:bg-blue-950/20',
             accentHex: '#2563eb',
             icon: <Ship className="w-4 h-4 text-blue-600" />,
         },
         {
             id: 'at_port',
-            title: isRTL ? 'في الميناء' : 'At Port',
+            title: t('containers.atPort'),
             color: 'border-violet-500',
-            bgColor: 'bg-violet-50/40',
+            bgColor: 'bg-violet-50/40 dark:bg-violet-950/20',
             accentHex: '#7c3aed',
             icon: <Anchor className="w-4 h-4 text-violet-600" />,
         },
         {
             id: 'customs',
-            title: isRTL ? 'بالجمركة' : 'Customs',
+            title: t('containers.customs'),
             color: 'border-orange-500',
-            bgColor: 'bg-orange-50/40',
+            bgColor: 'bg-orange-50/40 dark:bg-orange-950/20',
             accentHex: '#ea580c',
             icon: <Globe className="w-4 h-4 text-orange-600" />,
         },
         {
             id: 'cleared',
-            title: isRTL ? 'تم التخليص' : 'Cleared',
+            title: t('containers.cleared'),
             color: 'border-emerald-500',
-            bgColor: 'bg-emerald-50/40',
+            bgColor: 'bg-emerald-50/40 dark:bg-emerald-950/20',
             accentHex: '#059669',
             icon: <PackageCheck className="w-4 h-4 text-emerald-600" />,
         },
         {
             id: 'in_receiving',
-            title: isRTL ? 'قيد الاستلام' : 'Receiving',
+            title: t('containers.receiving'),
             color: 'border-teal-500',
-            bgColor: 'bg-teal-50/40',
+            bgColor: 'bg-teal-50/40 dark:bg-teal-950/20',
             accentHex: '#0d9488',
             icon: <Warehouse className="w-4 h-4 text-teal-600" />,
         },
         {
             id: 'received',
-            title: isRTL ? 'مستلم' : 'Received',
+            title: t('containers.received'),
             color: 'border-green-500',
-            bgColor: 'bg-green-50/40',
+            bgColor: 'bg-green-50/40 dark:bg-green-950/20',
             accentHex: '#16a34a',
             icon: <Warehouse className="w-4 h-4 text-green-600" />,
         },
-    ], [isRTL]);
+    ], [isRTL, t]);
 
     const kanbanItems: KanbanItem[] = useMemo(() =>
         containers.map((c: any) => ({
@@ -729,9 +729,9 @@ export default function ContainersList() {
 
     // ─── Tab label helper ────────────────────────────────────────
     const getTabLabel = (value: string) => {
-        if (value === 'all') return isRTL ? 'الكل' : 'All';
+        if (value === 'all') return t('common.all');
         const def = CONTAINER_STATUSES.find(s => s.key === value);
-        if (def) return isRTL ? def.label_ar : def.label_en;
+        if (def) return language === 'ar' ? def.label_ar : def.label_en;
         return value;
     };
 
@@ -760,37 +760,35 @@ export default function ContainersList() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-erp-navy dark:text-white leading-tight">
-                            {isRTL ? 'إدارة الحاويات' : 'Containers Management'}
+                            {t('containers.management')}
                         </h1>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            {isRTL
-                                ? `${filteredContainers.length} حاوية — إجمالي ${containers.length}`
-                                : `${filteredContainers.length} containers — ${containers.length} total`}
+                            {`${filteredContainers.length} ${t('containers.containerLabel')} — ${containers.length} total`}
                         </p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                     {/* View Switcher */}
-                    <div className="flex bg-muted/50 p-1 rounded-lg border border-gray-200/50">
+                    <div className="flex bg-muted/50 p-1 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
                         <Button
                             variant="ghost"
                             size="sm"
                             className={cn(
                                 "h-8 px-3 gap-1.5 text-xs font-medium transition-all",
-                                viewMode === 'list' ? 'bg-white shadow-sm text-erp-navy' : 'text-gray-500 hover:text-gray-700'
+                                viewMode === 'list' ? 'bg-white dark:bg-gray-800 shadow-sm text-erp-navy dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                             )}
                             onClick={() => handleSetViewMode('list')}
                         >
                             <List className="w-4 h-4" />
-                            {isRTL ? 'جدول' : 'List'}
+                            {t('containers.list')}
                         </Button>
                         <Button
                             variant="ghost"
                             size="sm"
                             className={cn(
                                 "h-8 px-3 gap-1.5 text-xs font-medium transition-all",
-                                viewMode === 'kanban' ? 'bg-white shadow-sm text-erp-navy' : 'text-gray-500 hover:text-gray-700'
+                                viewMode === 'kanban' ? 'bg-white dark:bg-gray-800 shadow-sm text-erp-navy dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                             )}
                             onClick={() => handleSetViewMode('kanban')}
                         >
@@ -803,10 +801,10 @@ export default function ContainersList() {
                     <Button
                         onClick={() => setReceiptDialog({ open: true })}
                         variant="outline"
-                        className="gap-2 px-4 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-400 shadow-sm"
+                        className="gap-2 px-4 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-400 shadow-sm dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-300"
                     >
                         <ArrowDownToLine className="w-4 h-4" />
-                        {isRTL ? 'استلام مواد' : 'Receive Goods'}
+                        {t('containers.receiveGoods')}
                     </Button>
 
                     {/* Create Button */}
@@ -815,7 +813,7 @@ export default function ContainersList() {
                         className="gap-2 px-4 h-9 text-white shadow-sm bg-indigo-600 hover:bg-indigo-700"
                     >
                         <Plus className="w-4 h-4" />
-                        {isRTL ? 'إضافة حاوية' : 'Add Container'}
+                        {t('containers.addContainer')}
                     </Button>
                 </div>
             </div>
@@ -830,7 +828,7 @@ export default function ContainersList() {
                                     <TabsTrigger
                                         key={tab.value}
                                         value={tab.value}
-                                        className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal"
+                                        className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal"
                                     >
                                         {getTabIcon(tab.value)}
                                         {getTabLabel(tab.value)}
@@ -855,10 +853,10 @@ export default function ContainersList() {
 
                         searchTerm={searchTerm}
                         onSearchChange={setSearchTerm}
-                        searchPlaceholder={isRTL ? 'بحث برقم الحاوية، الاسم، الشحنة...' : 'Search container #, name, shipment...'}
+                        searchPlaceholder={t('table.search')}
 
                         totalCount={containers.length}
-                        countLabel={isRTL ? 'حاوية' : 'containers'}
+                        countLabel={t('containers.containerLabel')}
 
                         sortField={sortField}
                         sortAsc={sortAsc}
@@ -873,20 +871,18 @@ export default function ContainersList() {
                         emptyIcon={<Ship className="w-12 h-12 text-gray-300" />}
                         emptyMessage={
                             statusFilter !== 'all'
-                                ? (isRTL ? `لا توجد حاويات بحالة "${getTabLabel(statusFilter)}"` : `No containers with status "${getTabLabel(statusFilter)}"`)
-                                : (isRTL ? 'لا توجد حاويات' : 'No containers found')
+                                ? `${t('containers.noContainersWithStatus')} "${getTabLabel(statusFilter)}"`
+                                : t('containers.noContainersFound')
                         }
 
                         showFooter={true}
                         footerLeftText={
-                            isRTL
-                                ? `عرض ${filteredContainers.length} من ${containers.length} حاوية`
-                                : `Showing ${filteredContainers.length} of ${containers.length} containers`
+                            `Showing ${filteredContainers.length} of ${containers.length} ${t('containers.containerLabel')}`
                         }
                         footerRightContent={
                             <div className="flex items-center gap-3">
                                 <span className="font-mono font-bold text-gray-700 dark:text-gray-300" dir="ltr">
-                                    {isRTL ? 'إجمالي التكاليف: ' : 'Total Cost: '}
+                                    {t('containers.totalCost')}
                                     {filteredContainers.reduce((s, c) => s + Number(c.total_landed_cost || c.total_cost || 0), 0)
                                         .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     <span className="text-gray-400 ms-1 text-xs">{baseCurrency || ''}</span>
@@ -901,7 +897,7 @@ export default function ContainersList() {
                 ) : (
                     /* ─── Kanban View ─── */
                     <div
-                        className="overflow-hidden rounded-lg border bg-gradient-to-br from-gray-50 to-slate-50 shadow-sm"
+                        className="overflow-hidden rounded-lg border dark:border-gray-800 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900 dark:to-gray-950 shadow-sm"
                         dir={direction}
                         style={{ height: 'calc(100vh - 240px)' }}
                     >
@@ -910,7 +906,7 @@ export default function ContainersList() {
                             items={kanbanItems}
                             direction={direction}
                             isLoading={isLoading}
-                            emptyText={isRTL ? 'لا توجد حاويات' : 'No containers'}
+                            emptyText={t('containers.noContainersFound')}
                             renderCard={(doc, _colId) => (
                                 <div
                                     className="p-3.5 space-y-2.5 cursor-pointer"
@@ -979,7 +975,7 @@ export default function ContainersList() {
                                             )}
                                         </div>
                                         {doc.eta && (() => {
-                                            const dInfo = getDaysInfo(doc.eta, isRTL);
+                                            const dInfo = getDaysInfo(doc.eta, t);
                                             return dInfo ? (
                                                 <span className={cn("text-[10px] font-semibold", dInfo.color)}>
                                                     {dInfo.isOverdue ? '⚠ ' : ''}{dInfo.text}

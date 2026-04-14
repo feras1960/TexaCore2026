@@ -251,7 +251,7 @@ export const autoRollService = {
                     reserved_length: 0,
                     color_id: input.colorId || null,
                     color_name: input.colorName || null,
-                    status: 'available',
+                    status: 'reserved',  // 🔑 reserved until delivery is confirmed — doesn't show in general inventory
                     cost_per_meter: 0,
                     cost_status: 'pending',
                     notes: `${purposeLabel} | Ref: ${input.referenceNumber || 'N/A'}`,
@@ -291,25 +291,60 @@ export const autoRollService = {
     },
 
     /**
-     * 🗑️ حذف رول JIT خاطئ
+     * 🗑️ حذف رول مُنشأ تلقائياً (JIT / Auto)
+     * يعتمد على source_type بدلاً من اسم الرولون
+     * يحذف أي رول بـ source_type = 'auto_sales_delivery' أو 'auto_transfer'
      */
-    async deleteJITRoll(rollId: string): Promise<boolean> {
+    async deleteAutoRoll(rollId: string): Promise<boolean> {
         try {
             const { error } = await supabase
                 .from('fabric_rolls')
                 .delete()
                 .eq('id', rollId)
-                .like('roll_number', 'JIT-%');
+                .in('source_type', ['auto_sales_delivery', 'auto_transfer']);
 
             if (error) {
                 console.error('[AutoRoll] Delete failed:', error.message);
                 return false;
             }
-            console.log(`[AutoRoll] 🗑️ Deleted JIT roll: ${rollId}`);
+            console.log(`[AutoRoll] 🗑️ Deleted auto roll: ${rollId}`);
             return true;
         } catch (err: any) {
             console.error('[AutoRoll] Delete exception:', err.message);
             return false;
         }
+    },
+
+    /**
+     * ✅ تفعيل رولونات محجوزة بعد تأكيد التسليم
+     * يغيّر الحالة من 'reserved' إلى 'available' (أو 'sold' حسب السياق)
+     */
+    async activateRolls(rollIds: string[], newStatus: 'available' | 'sold' = 'available'): Promise<boolean> {
+        if (rollIds.length === 0) return true;
+        try {
+            const { error } = await supabase
+                .from('fabric_rolls')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .in('id', rollIds)
+                .eq('status', 'reserved');
+
+            if (error) {
+                console.error('[AutoRoll] Activate failed:', error.message);
+                return false;
+            }
+            console.log(`[AutoRoll] ✅ Activated ${rollIds.length} rolls → ${newStatus}`);
+            return true;
+        } catch (err: any) {
+            console.error('[AutoRoll] Activate exception:', err.message);
+            return false;
+        }
+    },
+
+    /**
+     * 🗑️ (Legacy) حذف رول JIT — يوجّه للدالة الجديدة
+     * @deprecated استخدم deleteAutoRoll بدلاً منها
+     */
+    async deleteJITRoll(rollId: string): Promise<boolean> {
+        return this.deleteAutoRoll(rollId);
     },
 };

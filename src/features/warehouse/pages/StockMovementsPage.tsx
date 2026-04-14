@@ -20,10 +20,12 @@ import { SalesDeliveryDialog } from '../components/SalesDeliveryDialog';
 import { TransferDeliveryDialog } from '../components/TransferDeliveryDialog';
 import { MaterialReceiptDialog } from '../components/MaterialReceiptDialog';
 import { MovementDetailDialog } from '../components/MovementDetailDialog';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getLocalizedLabel, getLocalizedUnit } from '@/lib/utils/getLocalizedUnit';
 import {
     Select,
     SelectContent,
@@ -48,6 +50,7 @@ import {
     Warehouse,
     User,
     Building2,
+    Import,
 } from 'lucide-react';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
@@ -65,6 +68,7 @@ const movementTypeColors: Record<string, string> = {
     'adjustment': 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400',
     'container': 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400',
     'delivery': 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400',
+    'opening_balance': 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400',
 };
 
 export default function StockMovementsPage() {
@@ -102,22 +106,33 @@ export default function StockMovementsPage() {
     const [movementDetail, setMovementDetail] = useState<{ open: boolean; movement: any }>({ open: false, movement: null });
     // ── داخل إذن التسليم: يفتح الفاتورة المالية عند الضغط على العميل ──
     const [salesInvoiceSheet, setSalesInvoiceSheet] = useState<{ open: boolean; invoiceData: any }>({ open: false, invoiceData: null });
+    // ── Journal Entry Sheet: فتح القيد المحاسبي المرتبط ──
+    const [journalSheet, setJournalSheet] = useState<{ open: boolean; data: any }>({ open: false, data: null });
 
     // ⚡ React Query: cached data — Pull on Demand
+    // Memoize filters to prevent new object reference on each render → avoids re-fetch
+    const stableFilters = useMemo(() => ({
+        dateFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
+        dateTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
+        warehouse: selectedWarehouse !== 'all' ? selectedWarehouse : undefined,
+    }), [dateRange?.from?.getTime(), dateRange?.to?.getTime(), selectedWarehouse]);
+
     const {
         movements,
         loading,
         error,
         refetch: refetchMovements,
-    } = useStockMovements({
-        dateFrom: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
-        dateTo: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
-        warehouse: selectedWarehouse !== 'all' ? selectedWarehouse : undefined,
-    });
+    } = useStockMovements(stableFilters);
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
     // 🔑 إثراء أسماء الجهات عبر reference_number
     const [partyNames, setPartyNames] = useState<Record<string, string>>({});
+
+    // Use a stable fingerprint of movements to avoid re-running on every render
+    const movementsFingerprint = useMemo(() => {
+        if (!movements || movements.length === 0) return '';
+        return `${movements.length}-${movements[0]?.id || ''}-${movements[movements.length - 1]?.id || ''}`;
+    }, [movements]);
 
     useEffect(() => {
         if (!movements || movements.length === 0 || !companyId) return;
@@ -204,7 +219,8 @@ export default function StockMovementsPage() {
         };
 
         fetchPartyNames();
-    }, [movements, companyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [movementsFingerprint, companyId]);
 
 
     const handleManualRefresh = useCallback(() => {
@@ -225,9 +241,9 @@ export default function StockMovementsPage() {
 
         // Sub-tabs filtering
         if (subFilter === 'purchases') result = result.filter(m => purchasesTypes.includes(m.movement_type));
-        else if (subFilter === 'sales') result = result.filter(m => salesTypes.includes(m.movement_type));
+        else if (subFilter === 'sales') result = result.filter(m => salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice');
         else if (subFilter === 'containers') result = result.filter(m => containerTypes.includes(m.movement_type));
-        else if (subFilter === 'transfers') result = result.filter(m => transferTypes.includes(m.movement_type));
+        else if (subFilter === 'transfers') result = result.filter(m => transferTypes.includes(m.movement_type) && m.reference_type !== 'sale_invoice');
 
         // Search filtering
         if (searchQuery) {
@@ -250,6 +266,7 @@ export default function StockMovementsPage() {
                 existing.material_names.add(
                     (language === 'ar' ? m.material_name_ar : m.material_name_en) || m.material_name_ar || m.material_name_en || ''
                 );
+                if (m.to_warehouse_name) existing.warehouse_names.add(m.to_warehouse_name);
                 if (m.roll_id) existing.roll_ids.add(m.roll_id);
             } else {
                 const rollIds = new Set<string>();
@@ -261,6 +278,7 @@ export default function StockMovementsPage() {
                     material_names: new Set([
                         (language === 'ar' ? m.material_name_ar : m.material_name_en) || m.material_name_ar || m.material_name_en || ''
                     ]),
+                    warehouse_names: new Set(m.to_warehouse_name ? [m.to_warehouse_name] : []),
                     roll_ids: rollIds,
                     receipt_rolls_count: m.receipt_rolls_count || 0,
                     _groupKey: key,
@@ -315,42 +333,43 @@ export default function StockMovementsPage() {
         if (diffMs < 0) return '';
 
         const diffMins = Math.floor(diffMs / (1000 * 60));
-        if (diffMins < 60) return `${diffMins} ${isRTL ? 'د' : 'm'}`;
+        if (diffMins < 60) return `${diffMins} ${getLocalizedLabel('time_m', language)}`;
 
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        if (diffHours < 24) return `${diffHours} ${isRTL ? 'س' : 'h'}`;
+        if (diffHours < 24) return `${diffHours} ${getLocalizedLabel('time_h', language)}`;
 
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        if (diffDays < 30) return `${diffDays} ${isRTL ? (diffDays > 10 ? 'يوم' : 'أيام') : 'd'}`;
+        if (diffDays < 30) return `${diffDays} ${getLocalizedLabel('time_d', language)}`;
 
         const diffMonths = Math.floor(diffDays / 30);
-        return `${diffMonths} ${isRTL ? (diffMonths === 1 ? 'شهر' : 'أشهر') : 'mo'}`;
+        return `${diffMonths} ${language === 'ar' ? (diffMonths === 1 ? 'شهر' : 'أشهر') : language === 'ru' ? 'мес' : language === 'uk' ? 'міс' : language === 'tr' ? 'ay' : 'mo'}`;
     };
 
     // خريطة ثابتة لأنواع الحركات — بديل للمفاتيح غير المترجمة
-    const movementTypeLabels: Record<string, { ar: string; en: string }> = {
-        'sale': { ar: 'مبيعات', en: 'Sale' },
-        'sale_invoice': { ar: 'فاتورة مبيعات', en: 'Sales Invoice' },
-        'issue': { ar: 'صرف بضاعة', en: 'Issue' },
-        'delivery': { ar: 'تسليم', en: 'Delivery' },
-        'receipt': { ar: 'استلام', en: 'Receipt' },
-        'purchase': { ar: 'مشتريات', en: 'Purchase' },
-        'purchase_invoice': { ar: 'فاتورة شراء', en: 'Purchase Invoice' },
-        'return': { ar: 'مرتجع', en: 'Return' },
-        'container': { ar: 'كونتينر', en: 'Container' },
-        'container_receipt': { ar: 'استلام كونتينر', en: 'Container Receipt' },
-        'goods_receipt': { ar: 'إذن استلام', en: 'GRN' },
-        'transfer': { ar: 'مناقلة', en: 'Transfer' },
-        'transfer_in': { ar: 'مناقلة واردة', en: 'Transfer In' },
-        'transfer_out': { ar: 'مناقلة صادرة', en: 'Transfer Out' },
-        'adjustment': { ar: 'تسوية', en: 'Adjustment' },
-        'adjustment_in': { ar: 'تسوية واردة', en: 'Adj. In' },
-        'adjustment_out': { ar: 'تسوية صادرة', en: 'Adj. Out' },
+    const movementTypeLabels: Record<string, string> = {
+        'sale': 'mt_sale',
+        'sale_invoice': 'mt_sale_inv',
+        'issue': 'mt_issue',
+        'delivery': 'mt_delivery',
+        'receipt': 'mt_receipt',
+        'purchase': 'mt_purchase',
+        'purchase_invoice': 'mt_purchase_inv',
+        'return': 'mt_return',
+        'container': 'mt_container',
+        'container_receipt': 'mt_container_rec',
+        'goods_receipt': 'mt_grn',
+        'transfer': 'mt_transfer',
+        'transfer_in': 'mt_transfer_in',
+        'transfer_out': 'mt_transfer_out',
+        'adjustment': 'mt_adjustment',
+        'adjustment_in': 'mt_adj_in',
+        'adjustment_out': 'mt_adj_out',
+        'opening_balance': 'mt_opening_bal',
     };
 
     const getMovementTypeLabel = (type: string) => {
         const entry = movementTypeLabels[type];
-        if (entry) return isRTL ? entry.ar : entry.en;
+        if (entry) return getLocalizedLabel(entry, language);
         // fallback: محاولة ترجمة من i18n
         const key = `warehouse.stockMovements.types.${type}`;
         const translated = t(key);
@@ -366,7 +385,7 @@ export default function StockMovementsPage() {
     const handleOpenLinkedInvoice = useCallback(async (movement: any) => {
         try {
             if (!movement.reference_id || movement.reference_type !== 'goods_receipt') {
-                toast.info(language === 'ar' ? 'لا توجد فاتورة مرتبطة' : 'No linked invoice found');
+                toast.info(getLocalizedLabel('err_no_linked_inv', language));
                 return;
             }
 
@@ -377,7 +396,7 @@ export default function StockMovementsPage() {
                 .single();
 
             if (!receipt) {
-                toast.error(language === 'ar' ? 'لم يتم العثور على إذن الاستلام' : 'Receipt not found');
+                toast.error(getLocalizedLabel('err_receipt_nf', language));
                 return;
             }
 
@@ -387,13 +406,13 @@ export default function StockMovementsPage() {
                     const { data: invoices } = await supabase.from('purchase_transactions').select('*').eq('source_order_id', receipt.order_id).limit(1);
                     if (invoices?.length) { setLinkedInvoiceSheet({ open: true, invoiceData: invoices[0] }); return; }
                 }
-                toast.info(language === 'ar' ? 'لا توجد فاتورة مرتبطة بالاستلام' : 'No invoice linked to this receipt');
+                toast.info(getLocalizedLabel('err_no_inv_linked', language));
                 return;
             }
 
             const { data: invoice } = await supabase.from('purchase_transactions').select('*').eq('id', invoiceId).single();
             if (invoice) { setLinkedInvoiceSheet({ open: true, invoiceData: invoice }); }
-            else { toast.error(language === 'ar' ? 'لم يتم العثور على الفاتورة' : 'Invoice not found'); }
+            else { toast.error(getLocalizedLabel('err_inv_nf', language)); }
         } catch (err: any) {
             console.error('Failed to load linked invoice:', err);
             toast.error(err.message);
@@ -422,47 +441,26 @@ export default function StockMovementsPage() {
                 }
             }
 
-            // ══ حركات المبيعات → فتح فاتورة المبيعات ══
-            const isSalesMovement = salesTypes.includes(m.movement_type);
+            // ══ حركات المبيعات → فتح إذن التسليم فوراً ══
+            // 🔑 تشمل: sale, issue, delivery, sale_invoice AND transfer_out with reference_type='sale_invoice'
+            const isSalesMovement = salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice';
             if (isSalesMovement) {
-                // البحث عن فاتورة المبيعات عبر reference_id أو reference_number
-                let salesInvoice: any = null;
-
-                // محاولة 1: reference_id هو sales_transaction
-                if (m.reference_id) {
-                    const { data: st } = await supabase
-                        .from('sales_transactions')
-                        .select('*')
-                        .eq('id', m.reference_id)
-                        .maybeSingle();
-                    if (st) salesInvoice = st;
-                }
-
-                // محاولة 2: reference_number هو رقم الفاتورة
-                if (!salesInvoice && m.reference_number) {
-                    const { data: st } = await supabase
-                        .from('sales_transactions')
-                        .select('*')
-                        .or(`invoice_no.eq.${m.reference_number},delivery_no.eq.${m.reference_number},order_no.eq.${m.reference_number}`)
-                        .maybeSingle();
-                    if (st) salesInvoice = st;
-                }
-
-                if (salesInvoice) {
-                    // فتح SalesDeliveryDialog (إذن التسليم بتبويباته الكاملة)
-                    // يحتوي على: الرولونات، تفاصيل التسليم، وزر لفتح الفاتورة المالية
-                    setSalesDeliveryDialog({
-                        open: true,
-                        salesInvoice: {
-                            ...salesInvoice,
-                            // id مطلوب لـ SalesDeliveryDialog
-                            id: salesInvoice.id,
-                            source_id: salesInvoice.id,
-                        },
-                    });
+                const saleId = m.reference_id;
+                if (!saleId) {
+                    toast.info(getLocalizedLabel('err_no_linked_sale', language));
                     return;
                 }
-                toast.info(isRTL ? 'لم يتم العثور على فاتورة المبيعات المرتبطة' : 'No linked sales invoice found');
+                // ⚡ فتح فوري — SalesDeliveryDialog يحمّل بياناته بنفسه via useEffect
+                // نمرر فقط الـ id + أي بيانات متاحة من الحركة نفسها
+                setSalesDeliveryDialog({
+                    open: true,
+                    salesInvoice: {
+                        id: saleId,
+                        source_id: saleId,
+                        invoice_no: m.reference_number || undefined,
+                        customer_name: m.party_name || undefined,
+                    },
+                });
                 return;
             }
 
@@ -527,9 +525,7 @@ export default function StockMovementsPage() {
                 if (found) return;
             }
 
-            toast.info(isRTL
-                ? 'لا توجد وثيقة مرتبطة بهذه الحركة'
-                : 'No linked document for this movement');
+            toast.info(getLocalizedLabel('err_no_linked_mov', language));
         } catch (err: any) {
             console.error('handleOpenDocument error:', err);
             toast.error(err.message);
@@ -545,9 +541,9 @@ export default function StockMovementsPage() {
         return {
             all: countUnique(movements),
             purchases: countUnique(movements.filter(m => purchasesTypes.includes(m.movement_type))),
-            sales: countUnique(movements.filter(m => salesTypes.includes(m.movement_type))),
+            sales: countUnique(movements.filter(m => salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice')),
             containers: countUnique(movements.filter(m => containerTypes.includes(m.movement_type))),
-            transfers: countUnique(movements.filter(m => transferTypes.includes(m.movement_type))),
+            transfers: countUnique(movements.filter(m => transferTypes.includes(m.movement_type) && m.reference_type !== 'sale_invoice')),
         };
     }, [movements]);
 
@@ -555,7 +551,7 @@ export default function StockMovementsPage() {
     const columns: NexaListColumn<any>[] = useMemo(() => [
         {
             id: 'date',
-            header: isRTL ? 'التاريخ' : 'Date',
+            header: getLocalizedLabel('sm_date', language),
             sortable: true,
             sortKey: 'date',
             cell: (m: any) => {
@@ -573,7 +569,7 @@ export default function StockMovementsPage() {
                         </span>
                         <span className="text-[10px] text-muted-foreground/70 ms-5 flex items-center gap-0.5">
                             <Clock className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
-                            {isRTL ? 'منذ ' : ''}{getElapsedTime(m.movement_date || m.created_at)}{!isRTL ? ' ago' : ''}
+                            {getLocalizedLabel('sm_since', language)}{getElapsedTime(m.movement_date || m.created_at)}{getLocalizedLabel('sm_ago', language)}
                         </span>
                     </div>
                 );
@@ -581,26 +577,38 @@ export default function StockMovementsPage() {
         },
         {
             id: 'type',
-            header: isRTL ? 'نوع الحركة' : 'Movement Type',
+            header: getLocalizedLabel('sm_type', language),
             sortable: true,
             sortKey: 'type',
-            cell: (m: any) => (
-                <Badge variant="outline" className={`${movementTypeColors[m.movement_type] || 'bg-gray-50 border-gray-200'} flex items-center gap-1.5 w-fit text-xs px-2 py-0.5 font-medium`}>
-                    {getMovementTypeIcon(m.movement_type)}
-                    {getMovementTypeLabel(m.movement_type)}
-                </Badge>
-            )
+            cell: (m: any) => {
+                // opening_balance → show as special type
+                const isOpeningBalance = m.reference_type === 'opening_balance';
+                // transfer_out from sales → show as "تسليم مبيعات"
+                const displayType = isOpeningBalance ? 'opening_balance'
+                    : (m.movement_type === 'transfer_out' && m.reference_type === 'sale_invoice') ? 'delivery'
+                    : m.movement_type;
+                return (
+                    <Badge variant="outline" className={`${movementTypeColors[displayType] || 'bg-gray-50 border-gray-200'} flex items-center gap-1.5 w-fit text-xs px-2 py-0.5 font-medium`}>
+                        {isOpeningBalance ? <Import className="h-3.5 w-3.5" /> : getMovementTypeIcon(displayType)}
+                        {isOpeningBalance
+                            ? getLocalizedLabel('mt_opening_bal', language)
+                            : m.movement_type === 'transfer_out' && m.reference_type === 'sale_invoice'
+                            ? getLocalizedLabel('mt_sales_del', language)
+                            : getMovementTypeLabel(m.movement_type)}
+                    </Badge>
+                );
+            }
         },
         {
             // عمود الجهة الذكي: من → إلى حسب نوع الحركة
             id: 'flow',
-            header: isRTL ? 'من → إلى' : 'From → To',
+            header: getLocalizedLabel('sm_flow', language),
             cell: (m: any) => {
                 const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
-                const isSales = salesTypes.includes(m.movement_type);
+                const isSales = salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice';
                 const isContainer = containerTypes.includes(m.movement_type);
                 const isPurchase = purchasesTypes.includes(m.movement_type);
-                const isTransfer = transferTypes.includes(m.movement_type);
+                const isTransfer = transferTypes.includes(m.movement_type) && m.reference_type !== 'sale_invoice';
 
                 // من طرف
                 let fromNode: React.ReactNode = null;
@@ -636,6 +644,13 @@ export default function StockMovementsPage() {
                             <span className="truncate max-w-[110px]" title={wName}>{wName}</span>
                         </div>
                     );
+                } else if (m.reference_type === 'opening_balance') {
+                    fromNode = (
+                        <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                            <Import className="h-3 w-3 flex-shrink-0" />
+                            <span className="text-[11px] font-semibold">{getLocalizedLabel('mt_opening_bal', language)}</span>
+                        </div>
+                    );
                 }
 
                 // إلى طرف
@@ -646,6 +661,25 @@ export default function StockMovementsPage() {
                         <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
                             <User className="h-3 w-3 flex-shrink-0" />
                             <span className="truncate max-w-[110px] font-semibold" title={customer}>{customer}</span>
+                        </div>
+                    );
+                } else if (m.reference_type === 'opening_balance') {
+                    // Opening balance → show all unique warehouses
+                    const whNames = m.warehouse_names ? Array.from(m.warehouse_names as Set<string>) : [];
+                    const dest = whNames.length > 1
+                        ? (`${whNames.length} ${getLocalizedLabel('sm_warehouses', language)}`)
+                        : (m.to_warehouse_name || m.warehouse_name || '—');
+                    toNode = (
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1 text-indigo-700 dark:text-indigo-300 font-medium">
+                                <Warehouse className="h-3 w-3 flex-shrink-0 text-indigo-500" />
+                                <span className="truncate max-w-[130px]" title={dest}>{dest}</span>
+                            </div>
+                            {whNames.length > 1 && (
+                                <span className="text-[10px] text-muted-foreground ms-4 truncate max-w-[140px]">
+                                    {whNames.join(' • ')}
+                                </span>
+                            )}
                         </div>
                     );
                 } else {
@@ -671,7 +705,7 @@ export default function StockMovementsPage() {
         },
         {
             id: 'material',
-            header: isRTL ? 'المحتويات' : 'Contents',
+            header: getLocalizedLabel('sm_contents', language),
             sortable: true,
             sortKey: 'material',
             cell: (m: any) => {
@@ -682,7 +716,7 @@ export default function StockMovementsPage() {
                     <div className="flex flex-col">
                         <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
                             {uniqueCount > 1
-                                ? (isRTL ? `${uniqueCount} مادة` : `${uniqueCount} items`)
+                                ? (`${uniqueCount} ${getLocalizedLabel('sm_items', language)}`)
                                 : displayName}
                         </span>
                         {uniqueCount > 1 && (
@@ -696,7 +730,7 @@ export default function StockMovementsPage() {
         },
         {
             id: 'quantity',
-            header: isRTL ? 'الكمية' : 'Quantity',
+            header: getLocalizedLabel('sm_quantity', language),
             sortable: true,
             sortKey: 'quantity',
             cell: (m: any) => {
@@ -705,11 +739,11 @@ export default function StockMovementsPage() {
                     <div className="flex flex-col gap-0.5">
                         <span className="font-mono font-semibold text-sm tabular-nums text-gray-800 dark:text-gray-200">
                             {Number(m.total_quantity || m.quantity || 0).toLocaleString('en-US')}
-                            <span className="text-[10px] text-muted-foreground font-normal ms-1">{m.unit || (isRTL ? 'م' : 'm')}</span>
+                            <span className="text-[10px] text-muted-foreground font-normal ms-1">{m.unit || getLocalizedUnit('meter', language)}</span>
                         </span>
                         {rollCount > 0 && (
                             <span className="text-[11px] text-muted-foreground font-medium">
-                                {rollCount} {isRTL ? 'رول' : 'rolls'}
+                                {rollCount} {getLocalizedLabel('sm_rolls', language)}
                             </span>
                         )}
                     </div>
@@ -718,12 +752,12 @@ export default function StockMovementsPage() {
         },
         {
             id: 'reference',
-            header: isRTL ? 'المرجع والجهة' : 'Ref & Party',
+            header: getLocalizedLabel('sm_ref_party', language),
             sortable: true,
             sortKey: 'reference',
             cell: (m: any) => {
                 const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
-                const isSales = salesTypes.includes(m.movement_type);
+                const isSales = salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice';
                 const isPurchase = purchasesTypes.includes(m.movement_type);
                 const isContainer = containerTypes.includes(m.movement_type);
                 return (
@@ -753,7 +787,7 @@ export default function StockMovementsPage() {
         },
         {
             id: 'status',
-            header: isRTL ? 'الحالة' : 'Status',
+            header: getLocalizedLabel('sm_status', language),
             sortable: true,
             sortKey: 'status',
             cell: (m: any) => {
@@ -765,18 +799,18 @@ export default function StockMovementsPage() {
                 if (isTransfer) {
                     // For transfers, show the actual transfer status
                     if (m.movement_type === 'transfer_out') {
-                        label = isRTL ? 'مرسلة' : 'Shipped';
+                        label = getLocalizedLabel('sm_shipped', language);
                         variant = 'secondary';
                     } else if (m.movement_type === 'transfer_in') {
-                        label = isRTL ? 'مستلمة' : 'Received';
+                        label = getLocalizedLabel('sm_received', language);
                         variant = 'default';
                     } else {
-                        label = isRTL ? 'مناقلة' : 'Transfer';
+                        label = getLocalizedLabel('mt_transfer', language);
                         variant = 'outline';
                     }
                 } else {
-                    label = status === 'completed' ? (isRTL ? 'مكتمل' : 'Completed')
-                        : status === 'pending' ? (isRTL ? 'معلق' : 'Pending')
+                    label = status === 'completed' ? getLocalizedLabel('sm_completed', language)
+                        : status === 'pending' ? getLocalizedLabel('sm_pending', language)
                             : status;
                     variant = status === 'completed' ? 'default' : 'secondary';
                 }
@@ -790,7 +824,7 @@ export default function StockMovementsPage() {
                 );
             }
         },
-    ], [isRTL, language, t, salesTypes, containerTypes, purchasesTypes, transferTypes, partyNames]);
+    ], [language, t, salesTypes, containerTypes, purchasesTypes, transferTypes, partyNames]);
 
     return (
         <div className="flex flex-col space-y-3" dir={direction}>
@@ -802,10 +836,10 @@ export default function StockMovementsPage() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-                            {isRTL ? 'حركات المخزون' : 'Stock Movements'}
+                            {getLocalizedLabel('sm_title', language)}
                         </h1>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                            {isRTL ? 'سجل شامل لجميع حركات الأصناف والمواد في المستودعات' : 'Comprehensive record of all item and material movements'}
+                            {getLocalizedLabel('sm_subtitle', language)}
                         </p>
                     </div>
                 </div>
@@ -814,11 +848,11 @@ export default function StockMovementsPage() {
             {/* ═══ Summary Cards ═══ */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                    { labelAr: 'الكل', labelEn: 'Total', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: Package },
-                    { labelAr: 'مشتريات', labelEn: 'Purchases', value: counts.purchases, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: Truck },
-                    { labelAr: 'مبيعات', labelEn: 'Sales', value: counts.sales, color: 'text-rose-600 dark:text-rose-400', bg: 'from-rose-500/10 to-rose-600/5 border-rose-200/60 dark:border-rose-800/40', iconBg: 'text-rose-500 bg-rose-50 dark:bg-rose-900/40', icon: ShoppingCart },
-                    { labelAr: 'كونتينرات', labelEn: 'Containers', value: counts.containers, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/60 dark:border-indigo-800/40', iconBg: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40', icon: Package },
-                    { labelAr: 'مناقلات', labelEn: 'Transfers', value: counts.transfers, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: ArrowLeftRight },
+                    { labelKey: 'rd_tab_all', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: Package },
+                    { labelKey: 'rd_purchases', value: counts.purchases, color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40', iconBg: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40', icon: Truck },
+                    { labelKey: 'rd_sales', value: counts.sales, color: 'text-rose-600 dark:text-rose-400', bg: 'from-rose-500/10 to-rose-600/5 border-rose-200/60 dark:border-rose-800/40', iconBg: 'text-rose-500 bg-rose-50 dark:bg-rose-900/40', icon: ShoppingCart },
+                    { labelKey: 'rd_containers', value: counts.containers, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/60 dark:border-indigo-800/40', iconBg: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40', icon: Package },
+                    { labelKey: 'rd_transfers', value: counts.transfers, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-600/5 border-purple-200/60 dark:border-purple-800/40', iconBg: 'text-purple-500 bg-purple-50 dark:bg-purple-900/40', icon: ArrowLeftRight },
                 ].map((stat, i) => {
                     const StatIcon = stat.icon;
                     return (
@@ -826,7 +860,7 @@ export default function StockMovementsPage() {
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">
-                                        {isRTL ? stat.labelAr : stat.labelEn}
+                                        {getLocalizedLabel(stat.labelKey, language)}
                                     </p>
                                     <p className={cn('text-2xl font-bold font-mono mt-1', stat.color)} dir="ltr">{stat.value}</p>
                                 </div>
@@ -848,14 +882,14 @@ export default function StockMovementsPage() {
                     {/* Warehouse */}
                     <div className="flex flex-col gap-1 min-w-[180px]">
                         <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
-                            {isRTL ? 'المستودع' : 'Warehouse'}
+                            {getLocalizedLabel('sm_warehouse', language)}
                         </span>
                         <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
                             <SelectTrigger className="h-8 text-xs border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                                <SelectValue placeholder={isRTL ? 'كل المستودعات' : 'All Warehouses'} />
+                                <SelectValue placeholder={getLocalizedLabel('sm_all_wh', language)} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all" className="text-xs">{isRTL ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
+                                <SelectItem value="all" className="text-xs">{getLocalizedLabel('sm_all_wh', language)}</SelectItem>
                                 {warehouses.map((w: any) => (
                                     <SelectItem key={w.id} value={w.id} className="text-xs">
                                         {isRTL ? (w.name_ar || w.name_en) : (w.name_en || w.name_ar)}
@@ -868,7 +902,7 @@ export default function StockMovementsPage() {
                     {/* Date Range */}
                     <div className="flex flex-col gap-1">
                         <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
-                            {isRTL ? 'الفترة' : 'Period'}
+                            {getLocalizedLabel('sm_period', language)}
                         </span>
                         <div className="flex items-center gap-1">
                             <DateRangePicker
@@ -892,7 +926,7 @@ export default function StockMovementsPage() {
                     {/* Spacer + Refresh */}
                     <div className="flex items-end gap-2 ms-auto">
                         <span className="text-[10px] text-gray-400 hidden lg:block pb-1.5">
-                            {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            {getLocalizedLabel('rd_updated', language)} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <Button
                             variant="outline"
@@ -902,7 +936,7 @@ export default function StockMovementsPage() {
                             disabled={loading}
                         >
                             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                            <span className="hidden md:inline">{isRTL ? 'تحديث' : 'Refresh'}</span>
+                            <span className="hidden md:inline">{getLocalizedLabel('rd_refresh', language)}</span>
                         </Button>
                     </div>
                 </div>
@@ -913,27 +947,27 @@ export default function StockMovementsPage() {
                         <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
                             <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                                 <Package className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'الكل' : 'All'}
+                                {getLocalizedLabel('rd_tab_all', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{counts.all}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="purchases" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-emerald-600 font-tajawal">
                                 <Truck className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'مشتريات' : 'Purchases'}
+                                {getLocalizedLabel('rd_tab_purch', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-emerald-100/60 text-emerald-700">{counts.purchases}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-rose-600 font-tajawal">
                                 <ShoppingCart className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'مبيعات' : 'Sales'}
+                                {getLocalizedLabel('rd_tab_sales', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-rose-100/60 text-rose-700">{counts.sales}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="containers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-indigo-600 font-tajawal">
                                 <Package className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'كونتينرات' : 'Containers'}
+                                {getLocalizedLabel('rd_tab_cont', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-indigo-100/60 text-indigo-700">{counts.containers}</Badge>
                             </TabsTrigger>
                             <TabsTrigger value="transfers" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-purple-600 font-tajawal">
                                 <ArrowLeftRight className="w-4 h-4 me-1.5" />
-                                {isRTL ? 'مناقلات' : 'Transfers'}
+                                {getLocalizedLabel('rd_tab_trans', language)}
                                 <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-purple-100/60 text-purple-700">{counts.transfers}</Badge>
                             </TabsTrigger>
                         </TabsList>
@@ -946,7 +980,7 @@ export default function StockMovementsPage() {
                     columns={columns}
                     getRowKey={(r: any) => r.id}
                     isLoading={loading}
-                    searchPlaceholder={isRTL ? 'ابحث بالصنف أو المرجع...' : 'Search material or reference...'}
+                    searchPlaceholder={getLocalizedLabel('sm_search', language)}
                     searchTerm={searchQuery}
                     onSearchChange={setSearchQuery}
                     onRowClick={(m: any) => handleOpenDocument(m)}
@@ -958,7 +992,7 @@ export default function StockMovementsPage() {
                     }}
                     isRTL={isRTL}
                     direction={direction as 'rtl' | 'ltr'}
-                    emptyMessage={isRTL ? 'لم يتم العثور على حركات مطابقة' : 'No movements found'}
+                    emptyMessage={getLocalizedLabel('sm_empty', language)}
                 />
             </div>
 
@@ -1064,11 +1098,37 @@ export default function StockMovementsPage() {
                 open={movementDetail.open}
                 onOpenChange={(open) => setMovementDetail(prev => ({ ...prev, open }))}
                 movement={movementDetail.movement}
-                onOpenJournal={(journalId) => {
-                    // يمكن فتح القيد في UnifiedAccountingSheet لاحقاً
-                    console.log('Open journal:', journalId);
+                onOpenJournal={async (journalId) => {
+                    try {
+                        const { data: je } = await supabase
+                            .from('journal_entries')
+                            .select('*, lines:journal_entry_lines(*, account:chart_of_accounts(id, account_code, name_ar, name_en))')
+                            .eq('id', journalId)
+                            .single();
+                        if (je) {
+                            setJournalSheet({ open: true, data: je });
+                        } else {
+                            toast.error(getLocalizedLabel('err_journal_nf', language));
+                        }
+                    } catch (err) {
+                        console.error('Failed to load journal:', err);
+                        toast.error(getLocalizedLabel('err_journal_load', language));
+                    }
                 }}
             />
+
+            {/* Journal Entry Sheet — عرض القيد المحاسبي المرتبط */}
+            {journalSheet.open && journalSheet.data && (
+                <UnifiedAccountingSheet
+                    key={`journal-${journalSheet.data.id}`}
+                    isOpen={journalSheet.open}
+                    onClose={() => setJournalSheet({ open: false, data: null })}
+                    docType="journal"
+                    mode="view"
+                    data={journalSheet.data}
+                    documentId={journalSheet.data.id}
+                />
+            )}
         </div>
     );
 }

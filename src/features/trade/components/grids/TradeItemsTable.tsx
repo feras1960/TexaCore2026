@@ -65,7 +65,7 @@ export const TradeItemsTable: React.FC<TradeItemsTableProps> = ({
         toast.info(isRTL ? `جاري البحث عن: ${barcode}` : `Searching for: ${barcode}`);
 
         // Example: Add a dummy item
-        const newItem: TradeItem = {
+        const newItem = {
             id: crypto.randomUUID(),
             item_code: barcode, // Use barcode as code
             item_name: `سجاد (باركود ${barcode})`,
@@ -75,7 +75,7 @@ export const TradeItemsTable: React.FC<TradeItemsTableProps> = ({
             total: 150,
             unit: 'm',
             rolls_count: 0
-        };
+        } as TradeItem;
 
         onItemsChange([...items, newItem]);
         setBarcode('');
@@ -219,7 +219,6 @@ export const TradeItemsTable: React.FC<TradeItemsTableProps> = ({
                     showTotalsFooter={true}
                     showAmountInWords={true}
                     debitKey="total"
-                    currency={isRTL ? 'ر.س' : ''}
 
                     // Editing - Instant Mode
                     enableInstantEdit={!readOnly} // No Save/Cancel buttons

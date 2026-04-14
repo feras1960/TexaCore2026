@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { useCompanyCurrencies, currencyMetadata, getCurrencyDisplayName } from '@/hooks/useCompanyCurrencies';
 import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
+import { matchesSearch } from '@/lib/utils/normalizeSearch';
 
 export { getCurrencyDisplayName };
 
@@ -22,6 +23,9 @@ export interface InventoryMaterialRow {
     material_id: string;
     material_name_ar: string;
     material_name_en: string;
+    material_name_ru: string;
+    material_name_uk: string;
+    material_name_tr: string;
     material_code: string;
     material_unit: string;
     group_id: string | null;
@@ -29,6 +33,12 @@ export interface InventoryMaterialRow {
     selling_price: number;
     min_stock: number;
     season: string | null;          // winter | spring | summer | autumn | null
+
+    // Extended prices (from custom_fields)
+    wholesale_price: number;         // سعر الجملة
+    half_wholesale_price: number;    // سعر نصف الجملة
+    special_price: number;           // سعر خاص
+    cost_price: number;              // سعر التكلفة
 
     // Aggregated stock
     total_rolls: number;
@@ -98,6 +108,7 @@ export function useInventoryPage() {
 
     const [materials, setMaterials] = useState<InventoryMaterialRow[]>([]);
     const [allRolls, setAllRolls] = useState<any[]>([]); // raw rolls for warehouse re-aggregation;
+    const [allStock, setAllStock] = useState<any[]>([]); // inventory_stock for per-warehouse distribution
     const [filterOptions, setFilterOptions] = useState<FilterOptions>({
         warehouses: [],
         materials: [],
@@ -146,12 +157,13 @@ export function useInventoryPage() {
         if (!forceRefresh) {
             const cachedRolls = queryClient.getQueryData(['inventory-preload-rolls', companyId]) as any[] | undefined;
             const cachedMats = queryClient.getQueryData(['inventory-preload-materials', companyId]) as any[] | undefined;
+            const cachedStock = queryClient.getQueryData(['inventory-preload-stock', companyId]) as any[] | undefined;
 
             // ⚡ Check if arrays EXIST in cache (even if empty = valid!)
             if (cachedRolls !== undefined && cachedMats !== undefined) {
                 hadCachedData = true;
                 hasDataLoaded.current = true;
-                _processAndSetData(cachedRolls, cachedMats);
+                _processAndSetData(cachedRolls, cachedMats, cachedStock);
                 // Don't show loading — data is already visible!
             }
         }
@@ -167,7 +179,7 @@ export function useInventoryPage() {
         setError(null);
 
         try {
-            const [rollsResult, matsResult, warehousesResult, colorsResult, batchesResult] = await Promise.all([
+            const [rollsResult, matsResult, warehousesResult, colorsResult, batchesResult, stockResult] = await Promise.all([
                 supabase
                     .from('fabric_rolls')
                     .select(`
@@ -182,7 +194,7 @@ export function useInventoryPage() {
 
                 supabase
                     .from('fabric_materials')
-                    .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock, currency, default_warehouse_id')
+                    .select('id, name_ar, name_en, name_ru, name_uk, name_tr, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock, currency, default_warehouse_id, custom_fields')
                     .eq('company_id', companyId)
                     .eq('status', 'active')
                     .then(r => { if (r.error) throw r.error; return r.data || []; }),
@@ -199,11 +211,18 @@ export function useInventoryPage() {
                 supabase.from('batches').select('id, batch_number')
                     .eq('company_id', companyId).order('created_at', { ascending: false })
                     .then(r => r.data || []),
+
+                // inventory_stock for per-warehouse loose stock distribution
+                supabase.from('inventory_stock')
+                    .select('material_id, warehouse_id, quantity_on_hand, average_cost')
+                    .eq('company_id', companyId)
+                    .then(r => r.data || []),
             ]);
 
             // Cache for next time
             queryClient.setQueryData(['inventory-preload-rolls', companyId], rollsResult);
             queryClient.setQueryData(['inventory-preload-materials', companyId], matsResult);
+            queryClient.setQueryData(['inventory-preload-stock', companyId], stockResult);
 
             // Update filter options
             setFilterOptions(prev => ({
@@ -214,9 +233,9 @@ export function useInventoryPage() {
                 batches: batchesResult,
             }));
 
-            // Process & set data
+            // Process & set data (includes inventory_stock for loose stock)
             hasDataLoaded.current = true;
-            _processAndSetData(rollsResult, matsResult);
+            _processAndSetData(rollsResult, matsResult, stockResult);
         } catch (err: any) {
             console.error('[useInventoryPage] Error:', err);
             setError(err.message || 'Failed to load inventory');
@@ -226,7 +245,7 @@ export function useInventoryPage() {
     }, [companyId]);
 
     // ─── Shared data processing logic ─────────────────────
-    const _processAndSetData = useCallback((rolls: any[], mats: any[]) => {
+    const _processAndSetData = useCallback((rolls: any[], mats: any[], stockData?: any[]) => {
         // Resolve container numbers
         const containerIds = [...new Set(
             rolls.map((r: any) => r.container_id).filter(Boolean) as string[]
@@ -237,10 +256,14 @@ export function useInventoryPage() {
 
         // Initialize all materials
         for (const mat of mats || []) {
+            const cf = mat.custom_fields || {};
             materialMap.set(mat.id, {
                 material_id: mat.id,
                 material_name_ar: mat.name_ar || '',
                 material_name_en: mat.name_en || mat.name_ar || '',
+                material_name_ru: mat.name_ru || '',
+                material_name_uk: mat.name_uk || '',
+                material_name_tr: mat.name_tr || '',
                 material_code: mat.code || '',
                 material_unit: mat.unit || 'meter',
                 group_id: mat.group_id || null,
@@ -248,6 +271,11 @@ export function useInventoryPage() {
                 selling_price: Number(mat.selling_price) || 0,
                 min_stock: Number(mat.min_stock) || 0,
                 season: mat.season || null,
+                // Extended prices from custom_fields
+                wholesale_price: Number(cf._wholesale_price || 0),
+                half_wholesale_price: Number(cf._half_wholesale_price || 0),
+                special_price: Number(cf._special_price || 0),
+                cost_price: Number(cf._cost_price || 0),
                 total_rolls: 0,
                 total_meters: 0,
                 available_meters: 0,
@@ -297,19 +325,66 @@ export function useInventoryPage() {
             }
         }
 
+        // ═══ Build inventory_stock index for per-warehouse data ═══
+        const stockByMaterial = new Map<string, { warehouse_id: string; qty: number; avg_cost: number }[]>();
+        if (stockData && stockData.length > 0) {
+            for (const sr of stockData) {
+                const matId = sr.material_id;
+                if (!matId) continue;
+                const qty = Number(sr.quantity_on_hand) || 0;
+                if (qty <= 0) continue;
+                if (!stockByMaterial.has(matId)) stockByMaterial.set(matId, []);
+                stockByMaterial.get(matId)!.push({
+                    warehouse_id: sr.warehouse_id,
+                    qty,
+                    avg_cost: Number(sr.average_cost) || 0,
+                });
+            }
+        }
+
         // Finalize
         for (const [matId, row] of materialMap.entries()) {
-            row.warehouse_count = warehouseTracker.get(matId)?.size || 0;
+            const rollWhCount = warehouseTracker.get(matId)?.size || 0;
             const acc = costAccumulator.get(matId);
             if (acc && acc.count > 0) {
                 row.avg_cost_per_meter = acc.totalCost / acc.count;
                 row.total_stock_value = acc.totalCost;
             }
             row.loose_stock = Math.max(0, row.current_stock - row.total_meters);
+
+            // For materials with loose stock but no rolls, use inventory_stock for warehouse_count & value
+            const stockEntries = stockByMaterial.get(matId);
+            if (stockEntries && stockEntries.length > 0) {
+                // warehouse_count: combine roll warehouses + stock warehouses
+                const allWhIds = new Set<string>(warehouseTracker.get(matId) || []);
+                for (const se of stockEntries) allWhIds.add(se.warehouse_id);
+                row.warehouse_count = allWhIds.size;
+
+                // If no roll-based value, compute from inventory_stock avg_cost
+                if (row.total_stock_value === 0 && row.current_stock > 0) {
+                    const totalFromStock = stockEntries.reduce((s, e) => s + (e.qty * (e.avg_cost || row.purchase_price)), 0);
+                    if (totalFromStock > 0) {
+                        row.total_stock_value = totalFromStock;
+                        row.avg_cost_per_meter = totalFromStock / row.current_stock;
+                    } else if (row.purchase_price > 0) {
+                        // Fallback: use purchase_price for valuation
+                        row.total_stock_value = row.current_stock * row.purchase_price;
+                        row.avg_cost_per_meter = row.purchase_price;
+                    }
+                }
+            } else {
+                row.warehouse_count = rollWhCount;
+                // Fallback valuation for loose-only materials without inventory_stock
+                if (row.total_stock_value === 0 && row.current_stock > 0 && row.purchase_price > 0) {
+                    row.total_stock_value = row.current_stock * row.purchase_price;
+                    row.avg_cost_per_meter = row.purchase_price;
+                }
+            }
         }
 
-        // Store raw rolls for warehouse re-aggregation
+        // Store raw rolls + stock for warehouse re-aggregation
         setAllRolls(rolls || []);
+        setAllStock(stockData || []);
         setMaterials(Array.from(materialMap.values()));
         setLoading(false);
     }, []);
@@ -351,40 +426,36 @@ export function useInventoryPage() {
                     whMap.set(roll.material_id, { rolls: 1, total: len, available: avail, reserved, value: cost });
                 }
             }
-
-            // Build a set of material IDs that have rolls in ANY warehouse
-            const materialsWithRolls = new Set<string>(allRolls.map(r => r.material_id).filter(Boolean));
-
-            // Determine the first warehouse ID for fallback
-            const firstWhId = filterOptions.warehouses.length > 0 ? filterOptions.warehouses[0].id : null;
+            // Build inventory_stock index for this warehouse
+            const stockInWh = new Map<string, number>();
+            for (const sr of allStock) {
+                if (sr.warehouse_id === selectedWhId) {
+                    const qty = Number(sr.quantity_on_hand) || 0;
+                    if (qty > 0) stockInWh.set(sr.material_id, qty);
+                }
+            }
 
             // Override material rows with warehouse-specific quantities
-            // Also keep materials with loose stock assigned to this warehouse
             result = result
                 .map(m => {
                     const wh = whMap.get(m.material_id);
-                    const hasRollsHere = !!wh;
-                    const hasRollsAnywhere = materialsWithRolls.has(m.material_id);
+                    const rollTotal = wh?.total || 0;
+                    const stockQty = stockInWh.get(m.material_id) || 0;
+                    // Loose stock for this warehouse = inventory_stock qty - roll total
+                    const looseHere = Math.max(0, stockQty - rollTotal);
 
-                    // Check if loose stock belongs to this warehouse:
-                    // 1. default_warehouse_id matches selected
-                    // 2. No default + has rolls HERE (first warehouse with rolls)
-                    // 3. No default + no rolls ANYWHERE → fallback to first warehouse
-                    const looseAssignedHere = m.loose_stock > 0 && (
-                        m.default_warehouse_id === selectedWhId ||
-                        (!m.default_warehouse_id && hasRollsHere) ||
-                        (!m.default_warehouse_id && !hasRollsAnywhere && selectedWhId === firstWhId)
-                    );
-                    const keepLoose = looseAssignedHere ? m.loose_stock : 0;
+                    // current_stock for this warehouse view
+                    const effectiveStock = Math.max(stockQty, rollTotal);
 
                     return {
                         ...m,
                         total_rolls: wh?.rolls || 0,
-                        total_meters: wh?.total || 0,
+                        total_meters: rollTotal,
                         available_meters: wh?.available || 0,
                         reserved_meters: wh?.reserved || 0,
-                        total_stock_value: wh?.value || 0,
-                        loose_stock: keepLoose,
+                        total_stock_value: wh?.value || (looseHere > 0 ? looseHere * m.purchase_price : 0),
+                        loose_stock: looseHere,
+                        current_stock: effectiveStock,
                     };
                 })
                 .filter(m => m.total_rolls > 0 || m.loose_stock > 0); // only materials present in this warehouse
@@ -395,22 +466,22 @@ export function useInventoryPage() {
             result = result.filter(m => m.total_rolls > 0 || m.loose_stock > 0);
         }
 
-        // Search: name, code, OR color name (ar/en)
+        // Search: smart multi-language multi-term search
         if (filters.search) {
-            const q = filters.search.toLowerCase().trim();
-            result = result.filter(m => {
-                if (m.material_name_ar.includes(q)) return true;
-                if (m.material_name_en.toLowerCase().includes(q)) return true;
-                if (m.material_code.toLowerCase().includes(q)) return true;
-                // Search by color name — look up color names from filterOptions
-                return m.color_ids.some(cid => {
+            result = result.filter(m => matchesSearch(
+                filters.search,
+                m.material_name_ar,
+                m.material_name_en,
+                m.material_name_ru,
+                m.material_name_uk,
+                m.material_name_tr,
+                m.material_code,
+                // Include color names
+                ...m.color_ids.map(cid => {
                     const color = filterOptions.colors.find(c => c.id === cid);
-                    return color && (
-                        color.name_ar.toLowerCase().includes(q) ||
-                        color.name_en.toLowerCase().includes(q)
-                    );
-                });
-            });
+                    return color ? `${color.name_ar} ${color.name_en}` : '';
+                }),
+            ));
         }
 
         // Color filter
@@ -456,7 +527,7 @@ export function useInventoryPage() {
         }
 
         return result;
-    }, [materials, allRolls, filters, filterOptions.colors]);
+    }, [materials, allRolls, allStock, filters, filterOptions.colors]);
 
 
     // ─── Active currency (filter currency or base) ────────
@@ -510,13 +581,14 @@ export function useInventoryPage() {
     return {
         materials: filteredMaterials,
         allMaterials: materials,
+        allRolls, // expose for local warehouse stock computation
         filterOptions,
         filters,
         setFilters,
         summary,
         loading,
         error,
-        refetch: fetchData,
+        refetch: () => fetchData(true),
         hasActiveFilters,
         resetFilters,
         // Currency utilities

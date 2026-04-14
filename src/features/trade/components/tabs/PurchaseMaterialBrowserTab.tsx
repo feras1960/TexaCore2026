@@ -165,11 +165,10 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set());
 
     // ─── Data ───────────────────────────────────────────────────
-    const { materials, groups, isLoading, isSearching, totalCount, fetchVariantChildren } =
+    const { materials, groups, isLoading, isSearching, totalCount, fetchVariantChildren, fetchRollDetails, fetchWarehouseStock } =
         useMaterialSearch({
             search: searchText,
             groupId: selectedGroup,
-            category: selectedCategory,
             inStockOnly,
             belowMinStock,
             supplierId: selectedSupplier,
@@ -185,34 +184,13 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
     // ─── Handlers ───────────────────────────────────────────────
 
     /** Toggle material expand → loads variant children for parents */
-    const toggleExpand = useCallback(async (materialId: string) => {
+    const toggleExpand = useCallback((materialId: string) => {
         if (expandedMaterial === materialId) {
             setExpandedMaterial(null);
             return;
         }
         setExpandedMaterial(materialId);
-
-        // Check if this is a variant parent
-        const material = materials.find(m => m.id === materialId);
-        const isParent = material?.is_variant_parent || material?.has_variants;
-
-        if (isParent && !variantChildrenCache[materialId]) {
-            // Fetch variant children if not cached
-            setVariantChildrenLoading(prev => new Set(prev).add(materialId));
-            try {
-                const children = await fetchVariantChildren(materialId);
-                setVariantChildrenCache(prev => ({ ...prev, [materialId]: children }));
-            } catch {
-                setVariantChildrenCache(prev => ({ ...prev, [materialId]: [] }));
-            } finally {
-                setVariantChildrenLoading(prev => {
-                    const next = new Set(prev);
-                    next.delete(materialId);
-                    return next;
-                });
-            }
-        }
-    }, [expandedMaterial, materials, variantChildrenCache, fetchVariantChildren]);
+    }, [expandedMaterial]);
 
     /** Open add dialog for a material */
     const handleOpenDialog = useCallback((material: MaterialSearchResult) => {
@@ -688,8 +666,8 @@ export const PurchaseMaterialBrowserTab: React.FC<PurchaseMaterialBrowserTabProp
                                     {/* ─── Expanded: Variants (new) or Colors (legacy) ─── */}
                                     {isExpanded && (() => {
                                         const isParent = material.is_variant_parent || material.has_variants;
-                                        const variantChildren = variantChildrenCache[material.id] || [];
-                                        const isVarLoading = variantChildrenLoading.has(material.id);
+                                        const variantChildren = isParent ? fetchVariantChildren(material.id) : [];
+                                        const isVarLoading = false;
 
                                         // Group variant children by their group (design)
                                         const variantGroups: { name_ar: string; name_en: string; items: MaterialSearchResult[] }[] = [];

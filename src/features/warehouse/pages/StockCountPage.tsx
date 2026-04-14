@@ -25,6 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StockCountSheet } from '@/features/warehouse/components/StockCountSheet';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 import { toast } from 'sonner';
 import {
     ClipboardCheck,
@@ -52,48 +53,43 @@ import {
 
 const statusConfig: Record<string, {
     color: string;
-    labelAr: string;
-    labelEn: string;
+    labelKey: string;
     icon: any;
     accentColor: string;
 }> = {
     planned: {
         color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400',
-        labelAr: 'مخطط',
-        labelEn: 'Planned',
+        labelKey: 'sc_planned',
         icon: ClipboardList,
         accentColor: '#3b82f6',
     },
     in_progress: {
         color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400',
-        labelAr: 'جاري التنفيذ',
-        labelEn: 'In Progress',
+        labelKey: 'sc_in_progress',
         icon: Play,
         accentColor: '#eab308',
     },
     completed: {
         color: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400',
-        labelAr: 'مكتمل',
-        labelEn: 'Completed',
+        labelKey: 'sc_completed',
         icon: CheckCircle2,
         accentColor: '#22c55e',
     },
     cancelled: {
         color: 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/30 dark:text-gray-400',
-        labelAr: 'ملغى',
-        labelEn: 'Cancelled',
+        labelKey: 'sc_cancelled',
         icon: AlertCircle,
         accentColor: '#9ca3af',
     },
 };
 
 // ─── Count Mode Labels ────────────────────────────────────────
-const countModeLabels: Record<string, { ar: string; en: string; icon: any; badgeClass: string }> = {
-    full:         { ar: 'جرد كامل',    en: 'Full Count',    icon: ClipboardCheck, badgeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
-    barcode_scan: { ar: 'مسح باركود',   en: 'Barcode Scan',  icon: Scan,           badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    loose_only:   { ar: 'مخزون سائب',   en: 'Loose Stock',   icon: Boxes,          badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
-    partial:      { ar: 'جرد جزئي',    en: 'Partial Count', icon: Package,        badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
-    scheduled:    { ar: 'جرد مجدول',    en: 'Scheduled',     icon: CalendarClock,  badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
+const countModeLabels: Record<string, { labelKey: string; icon: any; badgeClass: string }> = {
+    full:         { labelKey: 'sc_full',      icon: ClipboardCheck, badgeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
+    barcode_scan: { labelKey: 'sc_barcode',   icon: Scan,           badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    loose_only:   { labelKey: 'sc_loose',     icon: Boxes,          badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
+    partial:      { labelKey: 'sc_partial',   icon: Package,        badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
+    scheduled:    { labelKey: 'sc_scheduled', icon: CalendarClock,  badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -132,11 +128,11 @@ export default function StockCountPage() {
             setStockCounts(data || []);
         } catch (err: any) {
             console.error('Error loading stock counts:', err);
-            toast.error(isRTL ? 'فشل تحميل بيانات الجرد' : 'Failed to load stock count data');
+            toast.error(getLocalizedLabel('err_sc_load', language));
         } finally {
             setLoading(false);
         }
-    }, [companyId, isRTL]);
+    }, [companyId, language]);
 
     useEffect(() => {
         if (companyId) loadData();
@@ -192,13 +188,13 @@ export default function StockCountPage() {
 
     const getWarehouseName = useCallback((warehouseId: string) => {
         const wh = warehouses.find((w: any) => w.id === warehouseId);
-        return wh ? (isRTL ? wh.name_ar : (wh.name_en || wh.name_ar)) : '—';
-    }, [warehouses, isRTL]);
+        return wh ? (language === 'ar' ? wh.name_ar : (wh[`name_${language}`] || wh.name_en || wh.name_ar)) : '—';
+    }, [warehouses, language]);
 
     const getModeLabel = useCallback((mode: string) => {
         const m = countModeLabels[mode] || countModeLabels.full;
-        return isRTL ? m.ar : m.en;
-    }, [isRTL]);
+        return getLocalizedLabel(m.labelKey, language);
+    }, [language]);
 
     // ─── Counts ───
     const counts = useMemo(() => ({
@@ -250,7 +246,7 @@ export default function StockCountPage() {
     const columns: NexaListColumn<any>[] = useMemo(() => [
         {
             id: 'count_number',
-            header: isRTL ? 'رقم الجرد' : 'Count #',
+            header: getLocalizedLabel('sc_col_num', language),
             sortable: true,
             sortKey: 'count_number',
             cell: (row: any) => {
@@ -277,7 +273,7 @@ export default function StockCountPage() {
         },
         {
             id: 'warehouse',
-            header: isRTL ? 'المستودع' : 'Warehouse',
+            header: getLocalizedLabel('sc_col_wh', language),
             sortable: true,
             sortKey: 'warehouse',
             cell: (row: any) => (
@@ -289,21 +285,21 @@ export default function StockCountPage() {
         },
         {
             id: 'count_mode',
-            header: isRTL ? 'نوع الجرد' : 'Count Type',
+            header: getLocalizedLabel('sc_col_type', language),
             cell: (row: any) => {
                 const mode = countModeLabels[row.count_mode] || countModeLabels.full;
                 const ModeIcon = mode.icon;
                 return (
                     <Badge variant="outline" className={cn('text-[10px] sm:text-xs gap-1', mode.badgeClass)}>
                         <ModeIcon className="h-3 w-3" />
-                        {isRTL ? mode.ar : mode.en}
+                        {getLocalizedLabel(mode.labelKey, language)}
                     </Badge>
                 );
             },
         },
         {
             id: 'count_date',
-            header: isRTL ? 'التاريخ' : 'Date',
+            header: getLocalizedLabel('sc_col_date', language),
             sortable: true,
             sortKey: 'count_date',
             cell: (row: any) => (
@@ -314,7 +310,7 @@ export default function StockCountPage() {
         },
         {
             id: 'items',
-            header: isRTL ? 'البنود' : 'Items',
+            header: getLocalizedLabel('sc_col_items', language),
             sortable: true,
             sortKey: 'items',
             align: 'center',
@@ -326,7 +322,7 @@ export default function StockCountPage() {
         },
         {
             id: 'status',
-            header: isRTL ? 'الحالة' : 'Status',
+            header: getLocalizedLabel('sc_col_status', language),
             sortable: true,
             sortKey: 'status',
             align: 'center',
@@ -334,12 +330,12 @@ export default function StockCountPage() {
                 const sc = statusConfig[row.status] || statusConfig.planned;
                 return (
                     <Badge variant="outline" className={cn('text-[10px] sm:text-xs', sc.color)}>
-                        {isRTL ? sc.labelAr : sc.labelEn}
+                        {getLocalizedLabel(sc.labelKey, language)}
                     </Badge>
                 );
             },
         },
-    ], [isRTL, formatDate, getWarehouseName]);
+    ], [language, formatDate, getWarehouseName]);
 
     // ─── Row Actions ───
     const renderActions = useCallback((row: any) => {
@@ -353,7 +349,7 @@ export default function StockCountPage() {
                         onClick={(e) => { e.stopPropagation(); openStockCountSheet(row); }}
                     >
                         <Play className="h-3.5 w-3.5" />
-                        {isRTL ? 'بدء' : 'Start'}
+                        {getLocalizedLabel('sc_start', language)}
                     </Button>
                 )}
                 {status === 'in_progress' && (
@@ -363,7 +359,7 @@ export default function StockCountPage() {
                         onClick={(e) => { e.stopPropagation(); openStockCountSheet(row); }}
                     >
                         <ArrowRight className="h-3.5 w-3.5" />
-                        {isRTL ? 'متابعة' : 'Continue'}
+                        {getLocalizedLabel('sc_continue', language)}
                     </Button>
                 )}
                 {status === 'completed' && (
@@ -373,12 +369,12 @@ export default function StockCountPage() {
                         onClick={(e) => { e.stopPropagation(); openStockCountSheet(row); }}
                     >
                         <BarChart3 className="h-3.5 w-3.5" />
-                        {isRTL ? 'التقرير' : 'Report'}
+                        {getLocalizedLabel('sc_report', language)}
                     </Button>
                 )}
             </div>
         );
-    }, [isRTL, openStockCountSheet]);
+    }, [language, openStockCountSheet]);
 
     // ─── Row Accent ───
     const getRowAccent = useCallback((row: any) => {
@@ -402,10 +398,10 @@ export default function StockCountPage() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-                            {isRTL ? 'الجرد المخزني' : 'Stock Count'}
+                            {getLocalizedLabel('sc_title', language)}
                         </h1>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                            {isRTL ? 'إدارة وتنفيذ جرد المستودعات' : 'Manage and execute warehouse inventory counts'}
+                            {getLocalizedLabel('sc_subtitle', language)}
                         </p>
                     </div>
                 </div>
@@ -413,7 +409,7 @@ export default function StockCountPage() {
                 <div className="flex items-center gap-2">
                     {/* Last Refresh */}
                     <span className="text-[10px] text-gray-400 font-mono hidden sm:block">
-                        {isRTL ? 'آخر تحديث:' : 'Updated:'} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {getLocalizedLabel('rd_updated', language)} {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
 
                     {/* Refresh */}
@@ -425,7 +421,7 @@ export default function StockCountPage() {
                         disabled={loading}
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                        <span className="hidden md:inline">{isRTL ? 'تحديث' : 'Refresh'}</span>
+                        <span className="hidden md:inline">{getLocalizedLabel('rd_refresh', language)}</span>
                     </Button>
 
                     {/* Green Stock Count Sheet Button */}
@@ -434,7 +430,7 @@ export default function StockCountPage() {
                         className="gap-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-bold shadow-lg shadow-teal-500/20 px-4"
                     >
                         <ClipboardList className="w-4 h-4" />
-                        {isRTL ? 'جرد جديد' : 'New Count'}
+                        {getLocalizedLabel('sc_new', language)}
                     </Button>
 
                     <StockCountSheet
@@ -460,10 +456,10 @@ export default function StockCountPage() {
             {/* ═══ Summary Cards (Gradient style like ReceiptsDeliveriesPage) ═══ */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                    { labelAr: 'الكل', labelEn: 'Total', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ClipboardList },
-                    { labelAr: 'مخطط', labelEn: 'Planned', value: counts.planned, color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-600/5 border-blue-200/60 dark:border-blue-800/40', iconBg: 'text-blue-500 bg-blue-50 dark:bg-blue-900/40', icon: Calendar },
-                    { labelAr: 'جاري', labelEn: 'In Progress', value: counts.inProgress, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-600/5 border-amber-200/60 dark:border-amber-800/40', iconBg: 'text-amber-500 bg-amber-50 dark:bg-amber-900/40', icon: Play },
-                    { labelAr: 'مكتمل', labelEn: 'Completed', value: counts.completed, color: 'text-green-600 dark:text-green-400', bg: 'from-green-500/10 to-green-600/5 border-green-200/60 dark:border-green-800/40', iconBg: 'text-green-500 bg-green-50 dark:bg-green-900/40', icon: CheckCircle2 },
+                    { labelKey: 'rd_tab_all', value: counts.all, color: 'text-gray-700 dark:text-gray-300', bg: 'from-gray-500/10 to-gray-600/5 border-gray-200/60 dark:border-gray-700/40', iconBg: 'text-gray-500 bg-gray-50 dark:bg-gray-800', icon: ClipboardList },
+                    { labelKey: 'sc_planned', value: counts.planned, color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-600/5 border-blue-200/60 dark:border-blue-800/40', iconBg: 'text-blue-500 bg-blue-50 dark:bg-blue-900/40', icon: Calendar },
+                    { labelKey: 'sc_active', value: counts.inProgress, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-600/5 border-amber-200/60 dark:border-amber-800/40', iconBg: 'text-amber-500 bg-amber-50 dark:bg-amber-900/40', icon: Play },
+                    { labelKey: 'sc_completed', value: counts.completed, color: 'text-green-600 dark:text-green-400', bg: 'from-green-500/10 to-green-600/5 border-green-200/60 dark:border-green-800/40', iconBg: 'text-green-500 bg-green-50 dark:bg-green-900/40', icon: CheckCircle2 },
                 ].map((stat, i) => {
                     const StatIcon = stat.icon;
                     return (
@@ -471,7 +467,7 @@ export default function StockCountPage() {
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">
-                                        {isRTL ? stat.labelAr : stat.labelEn}
+                                        {getLocalizedLabel(stat.labelKey, language)}
                                     </p>
                                     <p className={cn('text-2xl font-bold font-mono mt-1', stat.color)} dir="ltr">{stat.value}</p>
                                 </div>
@@ -490,22 +486,22 @@ export default function StockCountPage() {
                     <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max">
                         <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 font-tajawal">
                             <ClipboardList className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'الكل' : 'All'}
+                            {getLocalizedLabel('rd_tab_all', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-gray-200/60">{counts.all}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="planned" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-blue-600 font-tajawal">
                             <Calendar className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'مخطط' : 'Planned'}
+                            {getLocalizedLabel('sc_planned', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-blue-100/60 text-blue-700">{counts.planned}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="in_progress" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-amber-600 font-tajawal">
                             <Play className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'جاري' : 'Active'}
+                            {getLocalizedLabel('sc_active', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-amber-100/60 text-amber-700">{counts.inProgress}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="completed" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-[13px] px-4 h-9 text-green-600 font-tajawal">
                             <CheckCircle2 className="w-4 h-4 me-1.5" />
-                            {isRTL ? 'مكتمل' : 'Done'}
+                            {getLocalizedLabel('sc_done', language)}
                             <Badge variant="secondary" className="ms-1.5 text-[11px] px-1.5 py-0 h-[18px] bg-green-100/60 text-green-700">{counts.completed}</Badge>
                         </TabsTrigger>
                     </TabsList>
@@ -520,7 +516,7 @@ export default function StockCountPage() {
                     getRowKey={(r: any) => r.id}
                     renderActions={renderActions}
                     onRowClick={(row: any) => openStockCountSheet(row)}
-                    searchPlaceholder={isRTL ? 'بحث برقم الجرد أو المستودع...' : 'Search by count number or warehouse...'}
+                    searchPlaceholder={getLocalizedLabel('sc_search', language)}
                     isRTL={isRTL}
                     direction={direction as 'rtl' | 'ltr'}
                     sortField={sortField}
@@ -530,7 +526,7 @@ export default function StockCountPage() {
                         else { setSortField(field); setSortAsc(false); }
                     }}
                     isLoading={loading}
-                    emptyMessage={isRTL ? 'لا يوجد جرود بعد' : 'No stock counts yet'}
+                    emptyMessage={getLocalizedLabel('sc_empty', language)}
                     getRowAccent={(row: any) => {
                         const sc = statusConfig[row.status];
                         if (!sc) return 'border-s-gray-200';
@@ -540,7 +536,7 @@ export default function StockCountPage() {
                         return 'border-s-blue-400';
                     }}
                     totalCount={stockCounts.length}
-                    countLabel={isRTL ? 'جرد' : 'count'}
+                    countLabel={getLocalizedLabel('sc_count', language)}
                     showFooter={true}
                 />
             </div>

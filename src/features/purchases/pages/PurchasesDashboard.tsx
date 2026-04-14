@@ -15,7 +15,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, CURRENCY_META, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
@@ -76,14 +78,14 @@ export default function PurchasesDashboard() {
     const { currencyCode: baseCurrency, currencySymbol: baseSymbol } = useCompanyCurrency(language as 'ar' | 'en');
     const { lookupRate, isLoading: ratesLoading } = useExchangeRateLookup();
 
-    const [loading, setLoading] = useState(false);
+    const queryClient = useQueryClient();
+
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Restore user preference from localStorage
     const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
         try { return localStorage.getItem('purchases_dashboard_currency') || 'all'; } catch { return 'all'; }
     });
-    const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
 
     // Date Range Filter — default: start of current month → today
     const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
@@ -104,46 +106,17 @@ export default function PurchasesDashboard() {
     useEffect(() => {
         try { localStorage.setItem('purchases_dashboard_currency', selectedCurrency); } catch { }
     }, [selectedCurrency]);
-
     useEffect(() => {
-        try {
-            localStorage.setItem('purchases_dashboard_daterange', JSON.stringify({
-                from: dateRange?.from?.toISOString(),
-                to: dateRange?.to?.toISOString(),
-            }));
-        } catch { }
+        try { localStorage.setItem('purchases_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch { }
     }, [dateRange]);
 
-    // Data
-    const [totalPurchases, setTotalPurchases] = useState(0);
-    const [totalLastMonth, setTotalLastMonth] = useState(0);
-    const [pendingOrders, setPendingOrders] = useState(0);
-    const [unpaidBalance, setUnpaidBalance] = useState(0);
-    const [unpaidCount, setUnpaidCount] = useState(0);
-    const [inTransit, setInTransit] = useState(0);
-    const [totalInvoices, setTotalInvoices] = useState(0);
-    const [avgInvoiceValue, setAvgInvoiceValue] = useState(0);
-    const [yearlyPurchases, setYearlyPurchases] = useState(0);
-    const [yearlyPurchasesLastYear, setYearlyPurchasesLastYear] = useState(0);
-    const [activeSuppliers, setActiveSuppliers] = useState(0);
-    const [totalSuppliers, setTotalSuppliers] = useState(0);
-    const [monthly, setMonthly] = useState<{ label: string; total: number; count: number }[]>([]);
-    const [stages, setStages] = useState<{ stage: string; label: string; count: number; total: number; color: string }[]>([]);
-    const [containerStatuses, setContainerStatuses] = useState<{ label: string; count: number; color: string }[]>([]);
-    const [recent, setRecent] = useState<{ id: string; stage: string; supplierName: string; amount: number; convertedAmount: number; currency: string; date: string }[]>([]);
-    const [topSuppliers, setTopSuppliers] = useState<{ name: string; total: number; count: number }[]>([]);
-    const [isLive, setIsLive] = useState(false);
-
-    const realtimeRef = useRef<any>(null);
-
-    // Display currency: when "all" show base currency, else the selected one
+    // Display currency
     const displayCurrency = selectedCurrency === 'all' ? (baseCurrency || 'USD') : selectedCurrency;
     const sym = getCurrencySymbol(displayCurrency);
     const displayCurrencyLabel = selectedCurrency === 'all'
-        ? (isAr ? `بالعملة الأساسية (${displayCurrency})` : `Base (${displayCurrency})`)
+        ? `${t('purchasesDashboard.baseCurrency')} (${displayCurrency})`
         : displayCurrency;
 
-    // ─── Convert amount to display currency ─────────────────────
     const convertAmount = useCallback((amount: number, fromCurrency: string): number => {
         if (!amount || !fromCurrency) return amount;
         if (fromCurrency === displayCurrency) return amount;
@@ -151,16 +124,18 @@ export default function PurchasesDashboard() {
         return amount * rate;
     }, [displayCurrency, lookupRate]);
 
-    // ─── Fetch ──────────────────────────────────────────────────
-    const fetchData = useCallback(async () => {
-        if (!companyId) return;
-        try {
-            // Run all queries in PARALLEL for faster loading
+    // Stable date strings for queryKey
+    const fromDateStr = dateRange?.from?.toISOString()?.slice(0, 10) || '';
+    const toDateStr = dateRange?.to?.toISOString()?.slice(0, 10) || '';
+
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['purchases', 'dashboard', companyId, fromDateStr, toDateStr, selectedCurrency],
+        queryFn: async () => {
+            if (!companyId) return null;
+
             const [txsRes, ctrsRes, supsRes] = await Promise.all([
-                supabase
-                    .from('purchase_transactions')
-                    .select('id, stage, supplier_id, supplier_name, currency, total_amount, created_at')
-                    .eq('company_id', companyId),
+                supabase.from('purchase_transactions').select('id, stage, supplier_id, supplier_name, currency, total_amount, created_at').eq('company_id', companyId),
                 supabase.from('containers').select('id, status').eq('company_id', companyId),
                 supabase.from('suppliers').select('id, name_ar, name_en').eq('company_id', companyId),
             ]);
@@ -169,90 +144,50 @@ export default function PurchasesDashboard() {
             const containers = ctrsRes.data || [];
             const allSups = supsRes.data || [];
 
-            // Discover available currencies
             const currs = [...new Set(allRows.map(r => r.currency).filter(Boolean))] as string[];
-            if (currs.length > 0) {
-                const allCurrs = baseCurrency && !currs.includes(baseCurrency)
-                    ? [baseCurrency, ...currs]
-                    : currs;
-                setAvailableCurrencies(allCurrs);
-            }
+            const availableCurrencies = currs.length > 0
+                ? (baseCurrency && !currs.includes(baseCurrency) ? [baseCurrency, ...currs] : currs) : [];
 
-            const rows = allRows;
-
-            // Date filter bounds for date-based KPIs
             const fromDate = dateRange?.from || startOfMonth(new Date());
             const toDate = dateRange?.to ? endOfDay(dateRange.to) : endOfDay(new Date());
+            const dateFilteredRows = allRows.filter(r => { const d = new Date(r.created_at); return d >= fromDate && d <= toDate; });
 
-            // Filter by date range
-            const dateFilteredRows = rows.filter(r => {
-                const d = new Date(r.created_at);
-                return d >= fromDate && d <= toDate;
-            });
-
-            // ── Time-based calculations (within date range) ──
             const now = new Date();
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
             const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
             const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
-            const thisMonthRows = rows.filter(r => new Date(r.created_at) >= monthStart);
-            const lastMonthRows = rows.filter(r => {
-                const d = new Date(r.created_at);
-                return d >= lastMonthStart && d <= lastMonthEnd;
-            });
+            const thisMonthRows = allRows.filter(r => new Date(r.created_at) >= monthStart);
+            const lastMonthRows = allRows.filter(r => { const d = new Date(r.created_at); return d >= lastMonthStart && d <= lastMonthEnd; });
 
-            // Convert all amounts to display currency
-            const thisMonthTotal = thisMonthRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
-            const lastMonthTotal = lastMonthRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
-
-            setTotalPurchases(thisMonthTotal);
-            setTotalLastMonth(lastMonthTotal);
-            setPendingOrders(dateFilteredRows.filter(r => r.stage === 'draft' || r.stage === 'confirmed').length);
+            const totalPurchases = thisMonthRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
+            const totalLastMonth = lastMonthRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
+            const pendingOrders = dateFilteredRows.filter(r => r.stage === 'draft' || r.stage === 'confirmed').length;
 
             const unpaid = dateFilteredRows.filter(r => ['confirmed', 'posted', 'partial_paid'].includes(r.stage));
-            setUnpaidBalance(unpaid.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0));
-            setUnpaidCount(unpaid.length);
+            const unpaidBalance = unpaid.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
+            const unpaidCount = unpaid.length;
 
-            // ── New KPIs ──
-            setTotalInvoices(dateFilteredRows.length);
+            const totalInvoices = dateFilteredRows.length;
             const totalAllAmount = dateFilteredRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
-            setAvgInvoiceValue(dateFilteredRows.length > 0 ? totalAllAmount / dateFilteredRows.length : 0);
+            const avgInvoiceValue = dateFilteredRows.length > 0 ? totalAllAmount / dateFilteredRows.length : 0;
 
-            // ── Yearly purchases ──
             const yearStart = new Date(now.getFullYear(), 0, 1);
             const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
             const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
-            const thisYearRows = rows.filter(r => new Date(r.created_at) >= yearStart);
-            const lastYearRows = rows.filter(r => {
-                const d = new Date(r.created_at);
-                return d >= lastYearStart && d <= lastYearEnd;
-            });
-            setYearlyPurchases(thisYearRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0));
-            setYearlyPurchasesLastYear(lastYearRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0));
+            const yearlyPurchases = allRows.filter(r => new Date(r.created_at) >= yearStart).reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
+            const yearlyPurchasesLastYear = allRows.filter(r => { const d = new Date(r.created_at); return d >= lastYearStart && d <= lastYearEnd; }).reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0);
 
-            // ── Containers ──
-            setInTransit(containers.filter(c => !['received', 'closed'].includes(c.status)).length);
-
+            const inTransit = containers.filter(c => !['received', 'closed'].includes(c.status)).length;
             const ctrMap: Record<string, number> = {};
             containers.forEach(c => { ctrMap[c.status] = (ctrMap[c.status] || 0) + 1; });
-            setContainerStatuses(
-                Object.entries(ctrMap).map(([s, count]) => ({
-                    label: isAr ? (CONTAINER_META[s]?.ar || s) : (CONTAINER_META[s]?.en || s),
-                    count,
-                    color: CONTAINER_META[s]?.color || '#9CA3AF',
-                }))
-            );
+            const containerStatuses = Object.entries(ctrMap).map(([s, count]) => ({
+                label: language === 'ar' ? (CONTAINER_META[s]?.ar || s) : (CONTAINER_META[s]?.en || s),
+                count, color: CONTAINER_META[s]?.color || '#9CA3AF',
+            }));
 
-            // ── Suppliers — use name_ar / name_en from suppliers table ──
             const supMap: Record<string, string> = {};
-            allSups?.forEach(s => {
-                supMap[s.id] = isAr
-                    ? (s.name_ar || s.name_en || '')
-                    : (s.name_en || s.name_ar || '');
-            });
-
-            // Build supplier name: prefer supplier map (name_ar/name_en), fallback to supplier_name field
+            allSups?.forEach(s => { supMap[s.id] = language === 'ar' ? (s.name_ar || s.name_en || '') : (s.name_en || s.name_ar || ''); });
             const getSupName = (r: any) => supMap[r.supplier_id] || r.supplier_name || '';
 
             const supTotals: Record<string, { name: string; total: number; count: number }> = {};
@@ -263,117 +198,94 @@ export default function PurchasesDashboard() {
                     supTotals[r.supplier_id].count += 1;
                 }
             });
-            setActiveSuppliers(new Set(dateFilteredRows.map(r => r.supplier_id).filter(Boolean)).size);
-            setTotalSuppliers(allSups?.length || 0);
+            const activeSuppliers = new Set(dateFilteredRows.map(r => r.supplier_id).filter(Boolean)).size;
+            const totalSuppliers = allSups?.length || 0;
+            const topSuppliers = Object.values(supTotals)
+                .map(d => ({ name: d.name || t('purchasesDashboard.supplier'), total: d.total, count: d.count }))
+                .sort((a, b) => b.total - a.total).slice(0, 4);
 
-            setTopSuppliers(
-                Object.values(supTotals)
-                    .map(d => ({ name: d.name || (isAr ? 'مورد' : 'Supplier'), total: d.total, count: d.count }))
-                    .sort((a, b) => b.total - a.total)
-                    .slice(0, 4)
-            );
-
-            // ── Monthly trend (last 6 months, always shown) ──
-            const mNames = isAr
+            const mNames = language === 'ar'
                 ? ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
                 : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const pts: typeof monthly = [];
+            const monthly: { label: string; total: number; count: number }[] = [];
             for (let i = 5; i >= 0; i--) {
                 const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-                const mRows = rows.filter(r => { const rd = new Date(r.created_at); return rd >= d && rd <= end; });
-                pts.push({
-                    label: mNames[d.getMonth()],
-                    total: mRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0),
-                    count: mRows.length,
-                });
+                const mRows = allRows.filter(r => { const rd = new Date(r.created_at); return rd >= d && rd <= end; });
+                monthly.push({ label: mNames[d.getMonth()], total: mRows.reduce((s, r) => s + convertAmount(r.total_amount || 0, r.currency), 0), count: mRows.length });
             }
-            setMonthly(pts);
 
-            // ── Stages ──
             const stgMap: Record<string, { count: number; total: number }> = {};
-            dateFilteredRows.forEach(r => {
-                if (!stgMap[r.stage]) stgMap[r.stage] = { count: 0, total: 0 };
-                stgMap[r.stage].count++;
-                stgMap[r.stage].total += convertAmount(r.total_amount || 0, r.currency);
-            });
-            setStages(
-                Object.entries(stgMap).map(([s, d]) => ({
-                    stage: s, label: isAr ? (STAGE_META[s]?.ar || s) : (STAGE_META[s]?.en || s),
-                    count: d.count, total: d.total, color: STAGE_META[s]?.color || '#9CA3AF',
-                }))
-            );
+            dateFilteredRows.forEach(r => { if (!stgMap[r.stage]) stgMap[r.stage] = { count: 0, total: 0 }; stgMap[r.stage].count++; stgMap[r.stage].total += convertAmount(r.total_amount || 0, r.currency); });
+            const stages = Object.entries(stgMap).map(([s, d]) => ({
+                stage: s, label: language === 'ar' ? (STAGE_META[s]?.ar || s) : (STAGE_META[s]?.en || s),
+                count: d.count, total: d.total, color: STAGE_META[s]?.color || '#9CA3AF',
+            }));
 
-            // ── Recent — reuse already-fetched data, sort client-side ──
             const recentRows = [...allRows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
-            setRecent(recentRows.map(r => ({
+            const recent = recentRows.map(r => ({
                 id: r.id, stage: r.stage,
-                supplierName: supMap[r.supplier_id] || r.supplier_name || (isAr ? 'مورد' : 'Supplier'),
-                amount: r.total_amount || 0,
-                convertedAmount: convertAmount(r.total_amount || 0, r.currency),
+                supplierName: supMap[r.supplier_id] || r.supplier_name || t('purchasesDashboard.supplier'),
+                amount: r.total_amount || 0, convertedAmount: convertAmount(r.total_amount || 0, r.currency),
                 currency: r.currency || '', date: r.created_at,
-            })));
+            }));
 
-        } catch (e) { console.error('Dashboard error:', e); }
-        finally { setLoading(false); setIsRefreshing(false); }
-    }, [companyId, isAr, convertAmount, dateRange, baseCurrency]);
+            return {
+                totalPurchases, totalLastMonth, pendingOrders, unpaidBalance, unpaidCount,
+                inTransit, totalInvoices, avgInvoiceValue, yearlyPurchases, yearlyPurchasesLastYear,
+                activeSuppliers, totalSuppliers, monthly, stages, containerStatuses, recent, topSuppliers,
+                availableCurrencies,
+            };
+        },
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    // Derive stats from cached data
+    const availableCurrencies = rawData?.availableCurrencies ?? [];
+    const totalPurchases = rawData?.totalPurchases ?? 0;
+    const totalLastMonth = rawData?.totalLastMonth ?? 0;
+    const pendingOrders = rawData?.pendingOrders ?? 0;
+    const unpaidBalance = rawData?.unpaidBalance ?? 0;
+    const unpaidCount = rawData?.unpaidCount ?? 0;
+    const inTransit = rawData?.inTransit ?? 0;
+    const totalInvoices = rawData?.totalInvoices ?? 0;
+    const avgInvoiceValue = rawData?.avgInvoiceValue ?? 0;
+    const yearlyPurchases = rawData?.yearlyPurchases ?? 0;
+    const yearlyPurchasesLastYear = rawData?.yearlyPurchasesLastYear ?? 0;
+    const activeSuppliers = rawData?.activeSuppliers ?? 0;
+    const totalSuppliers = rawData?.totalSuppliers ?? 0;
+    const monthly = rawData?.monthly ?? [];
+    const stages = rawData?.stages ?? [];
+    const containerStatuses = rawData?.containerStatuses ?? [];
+    const recent = rawData?.recent ?? [];
+    const topSuppliers = rawData?.topSuppliers ?? [];
+    const isLive = true;
 
-    // ─── Supabase Realtime ───────────────────────────────────────
+    // ─── Supabase Realtime — invalidate cache ───────────────────
     useEffect(() => {
         if (!companyId) return;
-
-        // Clean up previous subscription
-        if (realtimeRef.current) {
-            supabase.removeChannel(realtimeRef.current);
-        }
-
         const channel = supabase
             .channel('purchases-dashboard')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'purchase_transactions',
-                    filter: `company_id=eq.${companyId}`,
-                },
-                () => { fetchData(); }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'containers',
-                    filter: `company_id=eq.${companyId}`,
-                },
-                () => { fetchData(); }
-            )
-            .subscribe((status) => {
-                setIsLive(status === 'SUBSCRIBED');
-            });
-
-        realtimeRef.current = channel;
-
-        return () => {
-            supabase.removeChannel(channel);
-            setIsLive(false);
-        };
-    }, [companyId, fetchData]);
-
-
-
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_transactions', filter: `company_id=eq.${companyId}` }, () => {
+                queryClient.invalidateQueries({ queryKey: ['purchases', 'dashboard'] });
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'containers', filter: `company_id=eq.${companyId}` }, () => {
+                queryClient.invalidateQueries({ queryKey: ['purchases', 'dashboard'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
     const pctChange = totalLastMonth > 0 ? ((totalPurchases - totalLastMonth) / totalLastMonth * 100) : undefined;
     const yearlyPctChange = yearlyPurchasesLastYear > 0 ? ((yearlyPurchases - yearlyPurchasesLastYear) / yearlyPurchasesLastYear * 100) : undefined;
 
     const timeAgo = (d: string) => {
         const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-        if (mins < 60) return isAr ? `منذ ${mins} دقيقة` : `${mins}m ago`;
+        if (mins < 60) return t('purchasesDashboard.minutesAgo', { n: mins });
         const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return isAr ? `منذ ${hrs} ساعة` : `${hrs}h ago`;
-        return isAr ? `منذ ${Math.floor(hrs / 24)} يوم` : `${Math.floor(hrs / 24)}d ago`;
+        if (hrs < 24) return t('purchasesDashboard.hoursAgo', { n: hrs });
+        return t('purchasesDashboard.daysAgo', { n: Math.floor(hrs / 24) });
     };
 
     // ─── Chart Options ───────────────────────────────────────────
@@ -417,7 +329,7 @@ export default function PurchasesDashboard() {
         },
         series: [
             {
-                name: isAr ? 'المشتريات' : 'Purchases',
+                name: t('purchasesDashboard.purchases'),
                 type: 'line', smooth: 0.5,
                 lineStyle: { width: 2.5, color: '#00D4AA' },
                 symbol: 'circle', symbolSize: 6,
@@ -451,7 +363,7 @@ export default function PurchasesDashboard() {
                                 <ShoppingBag className="w-6 h-6 text-erp-teal" />
                             </div>
                             <h1 className="text-2xl font-bold text-white font-cairo">
-                                {isAr ? 'لوحة المشتريات' : 'Purchases Dashboard'}
+                                {t('purchasesDashboard.title')}
                             </h1>
                             {isLive && (
                                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
@@ -461,7 +373,7 @@ export default function PurchasesDashboard() {
                             )}
                         </div>
                         <p className="text-sm text-indigo-200/80 font-tajawal ps-12">
-                            {isAr ? 'نظرة عامة على عمليات الشراء والموردين' : 'Overview of purchasing operations and suppliers'}
+                            {t('purchasesDashboard.subtitle')}
                         </p>
                     </div>
 
@@ -478,17 +390,17 @@ export default function PurchasesDashboard() {
                         <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
                             <SelectTrigger className="w-full lg:w-[175px] bg-white/10 backdrop-blur-sm h-10 text-sm border-white/20 text-white hover:bg-white/20 transition-colors">
                                 <Coins className="w-4 h-4 me-2 text-erp-teal" />
-                                <SelectValue placeholder={isAr ? 'كل العملات' : 'All Currencies'} />
+                                <SelectValue placeholder={t('purchasesDashboard.allCurrencies')} />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">
-                                    🌍 {isAr ? 'كل العملات (محوّلة)' : 'All (Converted)'}
+                                    🌍 {t('purchasesDashboard.allConverted')}
                                 </SelectItem>
                                 {availableCurrencies.map(c => {
                                     const m = CURRENCY_META[c];
                                     return (
                                         <SelectItem key={c} value={c}>
-                                            {m?.flag || '🏳️'} {isAr ? m?.nameAr : m?.nameEn} ({c})
+                                            {m?.flag || '🏳️'} {language === 'ar' ? m?.nameAr : m?.nameEn} ({c})
                                         </SelectItem>
                                     );
                                 })}
@@ -501,27 +413,27 @@ export default function PurchasesDashboard() {
             {/* ─ Stats Grid Row 1 — Financial KPIs (Glass Cards) ── */}
             <StatsGrid cols={4}>
                 <StatCard
-                    label={isAr ? 'مشتريات الشهر' : 'This Month'}
+                    label={t('purchasesDashboard.thisMonth')}
                     value={totalPurchases}
                     type="positive"
                     change={pctChange ? Number(pctChange.toFixed(1)) : undefined}
-                    changeLabel={isAr ? 'عن الشهر السابق' : 'vs last month'}
+                    changeLabel={t('purchasesDashboard.vsLastMonth')}
                     icon={ShoppingBag}
                     formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
                     className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'مشتريات السنة' : 'This Year'}
+                    label={t('purchasesDashboard.thisYear')}
                     value={yearlyPurchases}
                     type="info"
                     change={yearlyPctChange ? Number(yearlyPctChange.toFixed(1)) : undefined}
-                    changeLabel={isAr ? 'عن السنة السابقة' : 'vs last year'}
+                    changeLabel={t('purchasesDashboard.vsLastYear')}
                     icon={TrendingUp}
                     formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
                     className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'متوسط الفاتورة' : 'Avg. Invoice'}
+                    label={t('purchasesDashboard.avgInvoice')}
                     value={avgInvoiceValue}
                     type="neutral"
                     icon={BarChart3}
@@ -529,7 +441,7 @@ export default function PurchasesDashboard() {
                     className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'غير مدفوع' : 'Unpaid'}
+                    label={t('purchasesDashboard.unpaid')}
                     value={unpaidBalance}
                     type={unpaidBalance > 0 ? 'negative' : 'neutral'}
                     icon={AlertTriangle}
@@ -542,29 +454,29 @@ export default function PurchasesDashboard() {
             {/* ─ Stats Grid Row 2 — Operational KPIs (Glass Cards) ── */}
             <StatsGrid cols={4}>
                 <StatCard
-                    label={isAr ? 'إجمالي الفواتير' : 'Total Invoices'}
+                    label={t('purchasesDashboard.totalInvoices')}
                     value={totalInvoices}
                     type="neutral"
                     icon={Hash}
                     className="bg-gradient-to-br from-slate-50/80 to-gray-50/50 dark:from-slate-950/30 dark:to-gray-950/20 backdrop-blur-sm border border-slate-100/50 dark:border-slate-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'طلبات معلقة' : 'Pending Orders'}
+                    label={t('purchasesDashboard.pendingOrders')}
                     value={pendingOrders}
                     type="warning"
                     icon={Clock}
                     className="bg-gradient-to-br from-yellow-50/80 to-amber-50/50 dark:from-yellow-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-yellow-100/50 dark:border-yellow-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'حاويات نشطة' : 'Active Containers'}
+                    label={t('purchasesDashboard.activeContainers')}
                     value={inTransit}
                     type="info"
                     icon={Ship}
-                    suffix={isAr ? 'حاوية' : 'containers'}
+                    suffix={t('purchasesDashboard.containers')}
                     className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
                 />
                 <StatCard
-                    label={isAr ? 'الموردين النشطين' : 'Active Suppliers'}
+                    label={t('purchasesDashboard.activeSuppliers')}
                     value={`${activeSuppliers}/${totalSuppliers}`}
                     type="positive"
                     icon={Users}
@@ -579,10 +491,10 @@ export default function PurchasesDashboard() {
                     <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-erp-teal" />
-                            {isAr ? 'المشتريات الشهرية' : 'Monthly Purchases'}
+                            {t('purchasesDashboard.monthlyPurchases')}
                             {selectedCurrency === 'all' && (
                                 <span className="text-[10px] text-gray-400 font-normal font-tajawal">
-                                    ({isAr ? `محوّلة لـ ${displayCurrency}` : `converted to ${displayCurrency}`})
+                                    ({t('purchasesDashboard.convertedTo')} {displayCurrency})
                                 </span>
                             )}
                         </CardTitle>
@@ -592,7 +504,7 @@ export default function PurchasesDashboard() {
                         <div className="w-full min-h-[280px]">
                             {monthly.length === 0 ? (
                                     <div className="h-full flex items-center justify-center text-sm text-gray-300 font-tajawal">
-                                        {isAr ? 'جاري تحميل البيانات...' : 'Loading data...'}
+                                        {t('purchasesDashboard.loadingData')}
                                     </div>
                             ) : (
                                 <ReactECharts
@@ -611,7 +523,7 @@ export default function PurchasesDashboard() {
                     <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Package className="w-4 h-4 text-erp-teal" />
-                            {isAr ? 'حالة الفواتير' : 'Invoice Status'}
+                            {t('purchasesDashboard.invoiceStatus')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
@@ -641,7 +553,7 @@ export default function PurchasesDashboard() {
                             </div>
                         ) : (
                             <div className="h-48 flex items-center justify-center text-sm text-gray-400 font-tajawal">
-                                {isAr ? 'لا توجد فواتير' : 'No invoices'}
+                                {t('purchasesDashboard.noInvoices')}
                             </div>
                         )}
                     </CardContent>
@@ -655,7 +567,7 @@ export default function PurchasesDashboard() {
                     <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <FileText className="w-4 h-4 text-erp-teal" />
-                            {isAr ? 'أحدث عمليات الشراء' : 'Recent Purchases'}
+                            {t('purchasesDashboard.recentPurchases')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
@@ -676,7 +588,7 @@ export default function PurchasesDashboard() {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <Badge className={cn('px-2 py-0.5 text-xs border-0', STAGE_META[r.stage]?.badge || 'bg-gray-100 text-gray-700')}>
-                                            {isAr ? (STAGE_META[r.stage]?.ar || r.stage) : (STAGE_META[r.stage]?.en || r.stage)}
+                                            {language === 'ar' ? (STAGE_META[r.stage]?.ar || r.stage) : (STAGE_META[r.stage]?.en || r.stage)}
                                         </Badge>
                                         <div className="text-end min-w-[100px]">
                                             <span className="font-semibold text-erp-navy dark:text-white font-mono text-sm block" dir="ltr">
@@ -693,7 +605,7 @@ export default function PurchasesDashboard() {
                             ))}
                             {recent.length === 0 && (
                                 <div className="py-8 text-center text-sm text-gray-400 font-tajawal">
-                                    {isAr ? 'لا توجد عمليات' : 'No transactions'}
+                                    {t('purchasesDashboard.noTransactions')}
                                 </div>
                             )}
                         </div>
@@ -705,7 +617,7 @@ export default function PurchasesDashboard() {
                     <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
                         <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
                             <Star className="w-4 h-4 text-amber-500" />
-                            {isAr ? 'أفضل الموردين' : 'Top Suppliers'}
+                            {t('purchasesDashboard.topSuppliers')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
@@ -726,7 +638,7 @@ export default function PurchasesDashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-gray-900 dark:text-white truncate text-sm font-tajawal">{s.name}</p>
-                                        <p className="text-xs text-gray-500 font-tajawal">{s.count} {isAr ? 'فاتورة' : 'invoices'}</p>
+                                        <p className="text-xs text-gray-500 font-tajawal">{s.count} {t('purchasesDashboard.invoice')}</p>
                                     </div>
                                     <p className="font-semibold text-erp-teal font-mono text-sm" dir="ltr">
                                         {sym} {s.total.toLocaleString()}
@@ -735,7 +647,7 @@ export default function PurchasesDashboard() {
                             ))}
                             {topSuppliers.length === 0 && (
                                 <div className="py-8 text-center text-sm text-gray-400 font-tajawal">
-                                    {isAr ? 'لا توجد بيانات' : 'No data'}
+                                    {t('purchasesDashboard.noData')}
                                 </div>
                             )}
                         </div>
