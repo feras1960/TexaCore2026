@@ -1,0 +1,6 @@
+code,name_ar,name_en,name_tr,name_ru,phone,email,address,city,country,currency,payment_terms,opening_balance
+SUP001,اسطنبول لصناعة الأقمشة,Istanbul Fabric Industry,İstanbul Kumaş Sanayi,,+902122223344,export@istanbulkumas.com,Merter Tekstil Merkezi,Istanbul,تركيا,USD,30,0
+SUP002,بورصة للنسيج,Bursa Textile Inc.,Bursa Tekstil A.Ş.,,+902243334455,sales@bursatekstil.com.tr,Demirtaş OSB,Bursa,تركيا,USD,45,15000
+SUP003,مجموعة زيجيانغ للحرير,Zhejiang Silk Group Co.,,Чжэцзян Шелк Групп,+865714445566,info@zhejiang-silk.cn,Hangzhou,Zhejiang,الصين,USD,60,0
+SUP004,قوانغتشو للمنسوجات العالمية,Guangzhou Global Textiles,,Гуанчжоу Глобал Текстиль,+862055566778,sales@gz-textiles.com,Haizhu District,Guangzhou,الصين,USD,30,50000
+SUP005,مجموعة خبي للقطن,Hebei Cotton Group,,Хэбэй Хлопок Групп,+863116667788,export@hebei-cotton.cn,Shijiazhuang,Hebei,الصين,USD,90,0

@@ -1,0 +1,6 @@
+code,name_ar,name_en,name_uk,phone,email,address,city,country,currency,credit_limit,opening_balance
+CUST001,تيكستايل كونتاكت ل.م.د,Textile-Contact LLC,"ТОВ ""Текстиль-Контакт""",+380441112233,info@tk-kontakt.ua,вул. Сортувальна 2,Київ,أوكرانيا,USD,500000,0
+CUST002,أقمشة أوكرانيا ش.خ,Fabrics of Ukraine PE,"ПП ""Тканини України""",+380322223344,sales@tkanyny.ua,вул. Городоцька 15,Львів,أوكرانيا,USD,100000,5000
+CUST003,مصنع كييف للأزياء,Kyiv Fashion Factory,"ТОВ ""Київська Фабрика Моди""",+380483334455,factory@kff.com.ua,вул. Дерибасівська 5,Одеса,أوكرانيا,USD,200000,-10000
+CUST004,ستايل ديزاين,Style Design PJSC,"ПрАТ ""Стиль Дизайн""",+380574445566,design@style.kh.ua,пр. Науки 10,Харків,أوكرانيا,USD,150000,10000
+CUST005,ميلنيك إيفان,Melnyk Ivan FOP,ФОП Мельник І.В.,+380565556677,ivan.m@gmail.com,пр. Яворницького 20,Дніпро,أوكرانيا,USD,50000,0
