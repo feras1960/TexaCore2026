@@ -1,8 +1,12 @@
 /**
  * ⚙️ HR Settings — إعدادات الموارد البشرية
+ * ⚡ PERFORMANCE: useCachedQuery for initial load
  */
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useCompany } from '@/hooks/useCompany';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,29 +37,32 @@ const defaultSettings: HRSettingsType = {
 export default function HRSettingsTab() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
     const [settings, setSettings] = useState<HRSettingsType>(defaultSettings);
-    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    useEffect(() => { loadSettings(); }, []);
+    // ─── Cache-first query for initial settings ────────────
+    const { data: cachedSettings } = useCachedQuery({
+        queryKey: ['hr', 'settings', companyId],
+        queryFn: async () => getHRSettings(),
+        enabled: !!companyId,
+        staleTime: 5 * 60 * 1000,     // 5 min for settings
+        gcTime: 24 * 60 * 60 * 1000,
+    });
 
-    async function loadSettings() {
-        try {
-            const data = await getHRSettings();
-            if (data) setSettings(data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }
+    // Sync cached data into local form state
+    useEffect(() => {
+        if (cachedSettings) setSettings(cachedSettings);
+    }, [cachedSettings]);
 
     async function handleSave() {
         setSaving(true);
         try {
             const { id, tenant_id, ...toSave } = settings;
             await saveHRSettings(toSave as any);
+            queryClient.invalidateQueries({ queryKey: ['hr', 'settings'] });
             toast.success(isRTL ? 'تم حفظ الإعدادات ✅' : 'Settings saved ✅');
         } catch {
             toast.error(isRTL ? 'فشل الحفظ' : 'Save failed');

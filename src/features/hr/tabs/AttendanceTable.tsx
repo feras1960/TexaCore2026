@@ -1,8 +1,13 @@
 /**
  * ⏰ Attendance Table — جدول الحضور والانصراف باستخدام NexaListTable
+ * ⚡ PERFORMANCE: useCachedQuery (IndexedDB persistence)
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
@@ -16,36 +21,52 @@ import { toast } from 'sonner';
 export default function AttendanceTable() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [records, setRecords] = useState<AttendanceRecord[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-    useEffect(() => { loadData(); }, [selectedDate]);
-
-    async function loadData() {
-        try {
-            setLoading(true);
+    // ─── Cache-first query (keyed by date) ────────────
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'attendance', companyId, selectedDate],
+        queryFn: async () => {
             const [attData, empData] = await Promise.all([
                 getAttendance(selectedDate),
                 getEmployees(),
             ]);
-            setRecords(attData);
-            setEmployees(empData);
-        } catch (err) {
-            console.error(err);
-            toast.error(isRTL ? 'فشل تحميل الحضور' : 'Failed to load attendance');
-        } finally {
-            setLoading(false);
-        }
-    }
+            return { records: attData, employees: empData };
+        },
+        enabled: !!companyId,
+        staleTime: 1 * 60 * 1000,     // 1 min for attendance (more time-sensitive)
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+
+    const records = rawData?.records ?? [];
+    const employees = rawData?.employees ?? [];
+
+    // ─── Realtime ────────────
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('hr-attendance-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'attendance'] });
+                queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
+
+    const invalidateAttendance = () => {
+        queryClient.invalidateQueries({ queryKey: ['hr', 'attendance'] });
+        queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+    };
 
     async function handleCheckIn(empId: string) {
         try {
             await checkIn(empId, 'manual');
-            await loadData();
+            invalidateAttendance();
             toast.success(isRTL ? 'تم تسجيل الحضور' : 'Checked in');
         } catch {
             toast.error(isRTL ? 'فشل تسجيل الحضور' : 'Check-in failed');
@@ -55,7 +76,7 @@ export default function AttendanceTable() {
     async function handleCheckOut(empId: string) {
         try {
             await checkOut(empId);
-            await loadData();
+            invalidateAttendance();
             toast.success(isRTL ? 'تم تسجيل الانصراف' : 'Checked out');
         } catch {
             toast.error(isRTL ? 'فشل تسجيل الانصراف' : 'Check-out failed');

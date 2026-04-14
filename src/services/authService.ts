@@ -62,15 +62,17 @@ export async function signInWithMetadata(
       // Silently ignore profile fetch errors
     }
 
-    // 3. Check if user is super admin (ignore errors)
-    let isSuper = false;
+    // 3. Check if user is super admin (from metadata — RPC is unreliable)
+    let isSuper = authData.user.user_metadata?.is_super_admin === true;
     try {
-      const { data: superAdminCheck } = await supabase.rpc('is_super_admin', {
+      const { data: superAdminCheck, error: rpcError } = await supabase.rpc('is_super_admin', {
         p_user_id: authData.user.id,
       });
-      isSuper = superAdminCheck === true;
+      if (!rpcError) {
+        isSuper = superAdminCheck === true;
+      }
     } catch {
-      // Ignore super admin check errors
+      // Ignore — use metadata fallback
     }
 
     // 4. Update user metadata with tenant_id, company_id, and is_super_admin
@@ -125,18 +127,19 @@ export async function signInWithMetadata(
  */
 export async function checkSuperAdmin(userId: string): Promise<boolean> {
   try {
+    // Try RPC first, fall back to metadata
     const { data, error } = await supabase.rpc('is_super_admin', {
       p_user_id: userId,
     });
 
     if (error) {
-      console.error('Error checking super admin:', error);
-      return false;
+      // RPC unavailable — use metadata fallback
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.user_metadata?.is_super_admin === true;
     }
 
     return data === true;
   } catch (error) {
-    console.error('Super admin check error:', error);
     return false;
   }
 }
@@ -188,13 +191,15 @@ export async function getCurrentUserWithMetadata(): Promise<AuthUser | null> {
       }
     }
 
-    // 🛡️ SECURITY: استدعاء الدالة الآمنة للتحقق من Super Admin
-    let isSuper = false;
-    try {
-      const { data: superAdminCheck } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
-      isSuper = superAdminCheck === true;
-    } catch {
-      // Ignore super admin check errors - default to false
+    // 🛡️ Super admin check — metadata first, RPC fallback
+    let isSuper = user.user_metadata?.is_super_admin === true;
+    if (!isSuper) {
+      try {
+        const { data: superAdminCheck, error: rpcErr } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
+        if (!rpcErr) isSuper = superAdminCheck === true;
+      } catch {
+        // RPC unavailable — use metadata value
+      }
     }
 
     return {

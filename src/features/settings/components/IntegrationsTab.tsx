@@ -362,7 +362,7 @@ export default function IntegrationsTab() {
     const openEditWizard = (type: IntegrationType) => {
         setWizardType(type);
         setWizardStep(1);
-        setFormData({ ...integrations[type] } || {});
+        setFormData(integrations[type] ? { ...integrations[type] } : {});
         setShowSecret(false);
         setTestStatus(integrations[type]?.connected ? 'success' : 'idle');
         setWizardEditing(true);

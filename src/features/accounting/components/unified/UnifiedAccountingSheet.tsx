@@ -20,6 +20,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2, Anchor, Ship, ExternalLink, AlertTriangle, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 import {
     AlertDialog,
     AlertDialogContent,
@@ -118,6 +119,7 @@ export function UnifiedAccountingSheet({
     headerExtra,
     hideActions = false,
     hideTabs = false,
+    hideMainDocTabs = false,
     // Navigation props
     onNavigatePrev,
     onNavigateNext,
@@ -196,7 +198,7 @@ export function UnifiedAccountingSheet({
             return [{
                 id: initialData.id || documentId || 'primary',
                 type: docType,
-                title: initialData.name || initialData.entry_number || t(config.titleKey) || 'Document',
+                title: getLocalizedName(initialData, language) || initialData.entry_number || t(config.titleKey) || 'Document',
                 titleAr: initialData.nameAr || initialData.name_ar || initialData.name,
                 code: initialData.code || initialData.entry_number,
                 data: initialData,
@@ -218,7 +220,7 @@ export function UnifiedAccountingSheet({
             setOpenDocs([{
                 id: primaryId,
                 type: docType,
-                title: data.name || data.entry_number || data.name_en || 'Document',
+                title: getLocalizedName(data, language) || data.entry_number || t('common.document'),
                 titleAr: data.name_ar || data.name,
                 code: data.code || data.account_code || data.entry_number,
                 data: data,
@@ -369,10 +371,25 @@ export function UnifiedAccountingSheet({
                     }
                 }
 
+                // ═══ Preserve locally-set party/customer/supplier fields ═══
+                // When user selects a customer in the form, it's stored in local state.
+                // Parent's initialData won't have these selections, so we must preserve them.
+                const preservePartyFields: Record<string, any> = {};
+                const partyFields = ['party_id', 'customer_id', 'supplier_id', 'party_name', 'customer_name',
+                                     'warehouse_id', 'salesperson_id', 'currency', 'exchange_rate',
+                                     'delivery_method', 'shipping_address_id', 'date', 'due_date', 'user_notes',
+                                     'is_pos', 'auto_update_stock', 'receipt_mode'];
+                for (const field of partyFields) {
+                    if (prev?.[field] != null && prev[field] !== '' && (initialData[field] == null || initialData[field] === undefined || initialData[field] === '')) {
+                        preservePartyFields[field] = prev[field];
+                    }
+                }
+
                 return {
                     ...initialData,
                     ...(mergedItems ? { items: mergedItems } : {}),
                     ...preserveFinancials,
+                    ...preservePartyFields,
                     ...preservePostingState,
                 };
             });
@@ -511,10 +528,13 @@ export function UnifiedAccountingSheet({
         if (!isTradeDocType) return;
         // Containers fetch their own items via ShipmentItemsTab → container_items
         if (docType === 'trade_container') return;
+        // sales_delivery handles its own loading via SalesDeliveryDialog (local-first cache)
+        if (docType === 'sales_delivery') return;
         const docId = initialData?.id || documentId;
         if (!docId) return;
-        // Skip if items are already loaded
+        // Skip if items are already loaded (from join query cache or previous fetch)
         if (initialData?.items && initialData.items.length > 0) return;
+        if (data?.items && Array.isArray(data.items) && data.items.length > 0) return;
         // Only fetch for view/edit mode (not create)
         if (initialMode === 'create') return;
 
@@ -883,6 +903,12 @@ export function UnifiedAccountingSheet({
                         "bg-gray-50 dark:bg-gray-900"
                     )}
                     side={isRTL ? 'left' : 'right'}
+                    onInteractOutside={(e) => {
+                        // Always prevent closing by outside clicks.
+                        // This sheet has nested dialogs, toasts, dropdowns, etc. that all
+                        // render outside the sheet DOM. The user can close via ✕ or cancel buttons.
+                        e.preventDefault();
+                    }}
                 >
                     <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
                         {/* Accessibility requirements */}
@@ -928,6 +954,10 @@ export function UnifiedAccountingSheet({
                                                                 if (mode === 'create') return language === 'ar' ? 'إنشاء كونتينر' : 'New Container';
                                                                 return language === 'ar' ? 'تفاصيل الكونتينر' : 'Container Details';
                                                             }
+                                                            // Special title for sales delivery
+                                                            if (docType === 'sales_delivery') {
+                                                                return language === 'ar' ? 'إذن تسليم مبيعات' : 'Sales Delivery Note';
+                                                            }
                                                             const stage = data?.stage || data?.document_stage || data?.status;
                                                             const isSales = tradeMode === 'sales';
                                                             const isTransfer = tradeMode === 'transfer';
@@ -945,6 +975,7 @@ export function UnifiedAccountingSheet({
                                                                     en: isTransfer ? 'Posted Transfer' : isSales ? 'Posted Sales Invoice' : 'Posted Purchase Invoice'
                                                                 },
                                                                 in_delivery: { ar: 'فاتورة مبيعات — قيد التسليم', en: 'Sales Invoice — In Delivery' },
+                                                                in_transit: { ar: 'فاتورة مبيعات — بالطريق للفرع', en: 'Sales Invoice — In Transit' },
                                                                 sent_to_branch: { ar: 'فاتورة مبيعات — أُرسلت للفرع', en: 'Sales Invoice — Sent to Branch' },
                                                                 delivered: { ar: 'فاتورة مبيعات — تم التسليم', en: 'Sales Invoice — Delivered' },
                                                                 in_receiving: { ar: 'فاتورة مشتريات — قيد الاستلام', en: 'Purchase Invoice — In Receiving' },
@@ -985,9 +1016,7 @@ export function UnifiedAccountingSheet({
                                                                 const docTitle = accountingTitles[docType];
                                                                 if (docTitle) return language === 'ar' ? docTitle.ar : docTitle.en;
                                                             }
-                                                            return (language === 'ar'
-                                                                ? (data?.nameAr || data?.name_ar || data?.name)
-                                                                : (data?.name_en || data?.name)) || t(config.titleKey);
+                                                            return getLocalizedName(data, language) || t(config.titleKey);
                                                         })()
 
                                                     )}
@@ -1002,6 +1031,9 @@ export function UnifiedAccountingSheet({
                                                         partially_received: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
                                                         in_receiving: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
                                                         in_delivery: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+                                                        in_transit: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                        sent_to_branch: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                        delivered: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
                                                         received: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
                                                         fully_received: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
                                                         completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
@@ -1019,6 +1051,9 @@ export function UnifiedAccountingSheet({
                                                         partially_received: { ar: 'مستلم جزئياً', en: 'Partially Received' },
                                                         in_receiving: { ar: 'جاري الاستلام', en: 'In Receiving' },
                                                         in_delivery: { ar: 'قيد التسليم', en: 'In Delivery' },
+                                                        in_transit: { ar: 'بالطريق للفرع', en: 'In Transit' },
+                                                        sent_to_branch: { ar: 'أُرسلت للفرع', en: 'Sent to Branch' },
+                                                        delivered: { ar: 'تم التسليم', en: 'Delivered' },
                                                         received: { ar: 'مستلم', en: 'Received' },
                                                         fully_received: { ar: 'مستلم بالكامل', en: 'Fully Received' },
                                                         completed: { ar: 'مكتمل', en: 'Completed' },
@@ -1097,6 +1132,37 @@ export function UnifiedAccountingSheet({
                                                         </span>
                                                     );
                                                 })()}
+
+                                                {/* ═══ Auto-Save Status Indicator ═══ */}
+                                                {isTradeDocType && (() => {
+                                                    // Active auto-save states take priority
+                                                    if (isAutoSaving) {
+                                                        return (
+                                                            <span className="text-[11px] font-medium shrink-0 text-blue-500 animate-pulse flex items-center gap-1">
+                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                                                {language === 'ar' ? 'جارٍ الحفظ...' : 'Saving...'}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (autoUnsaved) {
+                                                        return (
+                                                            <span className="text-[11px] font-medium shrink-0 text-amber-500 flex items-center gap-1">
+                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                {language === 'ar' ? 'تغييرات غير محفوظة' : 'Unsaved changes'}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    // After auto-save or for existing saved documents
+                                                    if (autoSavedAt || data?.id) {
+                                                        return (
+                                                            <span className="text-[11px] font-medium shrink-0 text-emerald-500 flex items-center gap-1">
+                                                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                                                {language === 'ar' ? 'محفوظة' : 'Saved'}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
@@ -1134,7 +1200,7 @@ export function UnifiedAccountingSheet({
                                             }}
                                             hasChanges={hasChanges}
                                             // Confirmation
-                                            showConfirmAction={isTradeDocType && docType !== 'trade_container'}
+                                            showConfirmAction={isTradeDocType && docType !== 'trade_container' && docType !== 'sales_delivery'}
                                             confirmationStatus={data?.confirmation_status}
                                             tradeMode={tradeMode as 'sales' | 'purchase'}
                                             isAccountingDocType={isAccountingDocType}
@@ -1209,17 +1275,18 @@ export function UnifiedAccountingSheet({
                             </div>
                         )}
 
-                        {/* Main Document Tabs — always visible to enable multi-document MDI */}
+                        {/* Main Document Tabs — hidden for single-doc use cases like SalesDelivery */}
+                        {!hideMainDocTabs && (
                         <MainDocumentTabs
-                            documents={openDocs.length > 0 ? openDocs : [{
+                            documents={(openDocs.length > 0 ? openDocs : [{
                                 id: documentId || data?.id || 'primary',
                                 type: docType,
-                                title: data?.name || data?.entry_number || data?.name_en || (language === 'ar' ? 'مستند' : 'Document'),
+                                title: getLocalizedName(data, language) || data?.entry_number || t('common.document'),
                                 titleAr: data?.name_ar || data?.name,
                                 code: data?.code || data?.account_code || data?.entry_number,
                                 data: data,
                                 isClosable: false,
-                            }]}
+                            }]).map(d => d.id === activeDocId ? { ...d, data: effectiveData, code: effectiveData?.code || d.code } : d)}
                             activeId={activeDocId || documentId || data?.id || 'primary'}
                             onTabChange={(id) => {
                                 if (id === activeDocId) return;
@@ -1270,6 +1337,7 @@ export function UnifiedAccountingSheet({
                                 isClosable: true,
                             }) : undefined}
                         />
+                        )}
 
                         {/* Content Area */}
                         <div className="flex-1 flex flex-col overflow-hidden min-h-0" ref={contentRef}>

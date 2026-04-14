@@ -100,15 +100,8 @@ export const isSuperAdmin = async (): Promise<boolean> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // ✅ استدعاء الدالة الآمنة من قاعدة البيانات
-    const { data, error } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
-
-    if (error) {
-      console.error('Error checking super admin status:', error);
-      return false;
-    }
-
-    return data === true;
+    // ✅ Use cached metadata — RPC is unreliable (502/CORS)
+    return user.user_metadata?.is_super_admin === true;
   } catch {
     return false;
   }

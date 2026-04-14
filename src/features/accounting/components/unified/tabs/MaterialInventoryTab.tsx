@@ -12,6 +12,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,6 +130,7 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
     const { companyId } = useCompany();
     const { actions: cartActions } = useCart();
     const isRTL = language === 'ar';
+    const queryClient = useQueryClient();
 
     // Bilingual helper (Stabilization Pattern — Constitution §4.4)
     const t = (ar: string, en: string) => language === 'ar' ? ar : en;
@@ -137,61 +139,114 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
     const inventoryQuery = useCachedQuery({
         queryKey: ['material-inventory', companyId, data?.id],
         queryFn: async () => {
-            const [stockData, warehouses] = await Promise.all([
-                warehouseService.getMaterialStockByWarehouse(companyId!, data!.id),
-                warehouseService.getAll(companyId!),
-            ]);
+            const materialId = data!.id;
 
-            // ─── Client-side fallback: ensure loose stock is visible ───
-            // IMPORTANT: Use || not ?? — bulk_stock=0 must fall through to current_stock
-            const bulkVal = Number(data?.bulk_stock || 0);
-            const looseVal = Number(data?.loose_stock || 0);
-            const currentVal = Number(data?.current_stock || 0);
-            const rolledTotal = stockData.reduce((s, r) => s + (r.total_length || 0), 0);
-            // Loose stock = best known loose value, or (current_stock - rolled) if no explicit value
-            const looseStock = Math.max(0, bulkVal || looseVal || Math.max(0, currentVal - rolledTotal));
-            let rows = stockData;
+            // ──── Try preloaded cache first (instant) ────
+            const cachedStock = queryClient.getQueryData(['inventory-preload-stock', companyId]) as any[] | undefined;
+            const cachedWarehouses = queryClient.getQueryData(['warehouse', 'list', companyId]) as any[] | undefined;
+            const cachedRolls = queryClient.getQueryData(['inventory-preload-rolls', companyId]) as any[] | undefined;
 
-            if (rows.length === 0 && looseStock > 0) {
-                // Material has loose stock but no rolls anywhere — create a warehouse row
-                const { data: firstWh } = await supabase
-                    .from('warehouses')
-                    .select('id, code, name_ar, name_en')
-                    .eq('company_id', companyId!)
-                    .eq('is_active', true)
-                    .order('created_at', { ascending: true })
-                    .limit(1)
-                    .single();
-                if (firstWh) {
-                    rows = [{
-                        warehouse_id: firstWh.id,
-                        warehouse_code: firstWh.code || '',
-                        warehouse_name_ar: firstWh.name_ar || '',
-                        warehouse_name_en: firstWh.name_en || '',
-                        roll_count: 0,
-                        total_length: 0,
-                        available_length: 0,
-                        reserved_length: 0,
-                        loose_stock: looseStock,
+            let rows: InventoryRecord[] = [];
+            let allWarehouses: WarehouseBasic[] = [];
+
+            // Build warehouse list from cache or fetch
+            if (cachedWarehouses && cachedWarehouses.length > 0) {
+                allWarehouses = cachedWarehouses.map((w: any) => ({
+                    id: w.id, code: w.code || '', name_ar: w.name_ar || '', name_en: w.name_en || '',
+                }));
+            } else {
+                const whs = await warehouseService.getAll(companyId!);
+                allWarehouses = whs.map((w: any) => ({
+                    id: w.id, code: w.code || '', name_ar: w.name_ar || '', name_en: w.name_en || '',
+                }));
+            }
+            const whLookup = new Map(allWarehouses.map(w => [w.id, w]));
+
+            // Build roll-based warehouse aggregation from cache
+            const materialRolls = cachedRolls?.filter((r: any) => r.material_id === materialId) || [];
+            const rollWarehouseMap = new Map<string, InventoryRecord>();
+            for (const roll of materialRolls) {
+                const whId = roll.warehouse_id;
+                const wh = whLookup.get(whId) || (roll.warehouses as any);
+                const existing = rollWarehouseMap.get(whId);
+                if (existing) {
+                    existing.roll_count += 1;
+                    existing.total_length += Number(roll.current_length) || 0;
+                    existing.available_length += (Number(roll.current_length) || 0) - (Number(roll.reserved_length) || 0);
+                    existing.reserved_length += Number(roll.reserved_length) || 0;
+                } else {
+                    rollWarehouseMap.set(whId, {
+                        warehouse_id: whId,
+                        warehouse_code: wh?.code || '',
+                        warehouse_name_ar: wh?.name_ar || '',
+                        warehouse_name_en: wh?.name_en || '',
+                        roll_count: 1,
+                        total_length: Number(roll.current_length) || 0,
+                        available_length: (Number(roll.current_length) || 0) - (Number(roll.reserved_length) || 0),
+                        reserved_length: Number(roll.reserved_length) || 0,
+                        loose_stock: 0,
                         last_updated: null,
-                    }];
+                    });
                 }
-            } else if (rows.length > 0 && looseStock > 0) {
-                // Rows exist but loose stock wasn't attached by the service
-                const hasLoose = rows.some(w => (w.loose_stock || 0) > 0);
-                if (!hasLoose) {
-                    rows = rows.map((r, i) => i === 0 ? { ...r, loose_stock: looseStock } : r);
+            }
+
+            if (rollWarehouseMap.size > 0) {
+                // Has rolls — use roll-based aggregation
+                rows = Array.from(rollWarehouseMap.values());
+            } else if (cachedStock && cachedStock.length > 0) {
+                // No rolls — check preloaded inventory_stock for per-warehouse breakdown
+                const materialStock = cachedStock.filter((s: any) => s.material_id === materialId);
+                if (materialStock.length > 0) {
+                    rows = materialStock.map((s: any) => {
+                        const wh = whLookup.get(s.warehouse_id);
+                        return {
+                            warehouse_id: s.warehouse_id,
+                            warehouse_code: wh?.code || '',
+                            warehouse_name_ar: wh?.name_ar || '',
+                            warehouse_name_en: wh?.name_en || '',
+                            roll_count: 0,
+                            total_length: 0,
+                            available_length: 0,
+                            reserved_length: 0,
+                            loose_stock: Number(s.quantity_on_hand) || 0,
+                            last_updated: s.updated_at || null,
+                        };
+                    });
+                }
+            }
+
+            // ──── Fallback: if cache yielded nothing, call service API ────
+            if (rows.length === 0) {
+                const stockData = await warehouseService.getMaterialStockByWarehouse(companyId!, materialId);
+                rows = stockData;
+            }
+
+            // ──── Client-side fallback: ensure loose stock is visible ────
+            if (rows.length === 0) {
+                const currentVal = Number(data?.current_stock || data?.bulk_stock || data?.loose_stock || 0);
+                if (currentVal > 0) {
+                    const defaultWhId = data?.default_warehouse_id;
+                    const wh = defaultWhId ? whLookup.get(defaultWhId) : allWarehouses[0];
+                    if (wh) {
+                        rows = [{
+                            warehouse_id: wh.id,
+                            warehouse_code: wh.code || '',
+                            warehouse_name_ar: wh.name_ar || '',
+                            warehouse_name_en: wh.name_en || '',
+                            roll_count: 0,
+                            total_length: 0,
+                            available_length: 0,
+                            reserved_length: 0,
+                            loose_stock: currentVal,
+                            last_updated: null,
+                        }];
+                    }
                 }
             }
 
             return {
                 stockData: rows,
-                warehouses: warehouses.map((w: any) => ({
-                    id: w.id,
-                    code: w.code || '',
-                    name_ar: w.name_ar || '',
-                    name_en: w.name_en || '',
-                })),
+                warehouses: allWarehouses,
             };
         },
         enabled: !!companyId && !!data?.id,
@@ -206,7 +261,14 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
     const error = inventoryQuery.error
         ? (inventoryQuery.error as any).message || t('فشل في تحميل بيانات المخزون', 'Failed to load inventory data')
         : null;
-    const fetchInventory = () => { inventoryQuery.refetch(); };
+    const fetchInventory = () => {
+        // Clear preloaded caches so refetch gets fresh data from server
+        queryClient.removeQueries({ queryKey: ['inventory-preload-stock', companyId] });
+        queryClient.removeQueries({ queryKey: ['inventory-preload-rolls', companyId] });
+        queryClient.removeQueries({ queryKey: ['material-inventory', companyId, data?.id] });
+        // Re-run the query (will hit API since caches are cleared)
+        inventoryQuery.refetch();
+    };
 
     // Filters
     const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');

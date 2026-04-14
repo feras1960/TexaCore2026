@@ -234,6 +234,39 @@ class ConfirmationService {
             });
         }
 
+        // 6. Check: Delivery method (required for sales invoices/orders)
+        const isSalesDoc = docType === 'sales_invoice' || docType === 'sales_order';
+        if (isSalesDoc) {
+            const hasDeliveryMethod = !!docData.delivery_method;
+            checks.push({
+                id: 'delivery_method_set',
+                label_ar: 'طريقة التوصيل محددة',
+                label_en: 'Delivery method is set',
+                passed: hasDeliveryMethod,
+                required: true,
+                details: hasDeliveryMethod
+                    ? undefined
+                    : 'يجب تحديد طريقة التوصيل في تبويب الشحن والتوصيل',
+            });
+            if (!hasDeliveryMethod) blockers.push('no_delivery_method');
+
+            // 6b. If direct_delivery, require shipping address
+            if (docData.delivery_method === 'direct_delivery') {
+                const hasAddress = !!(docData.shipping_address_id || docData.shipping_address);
+                checks.push({
+                    id: 'shipping_address_set',
+                    label_ar: 'عنوان التوصيل محدد',
+                    label_en: 'Shipping address is set',
+                    passed: hasAddress,
+                    required: true,
+                    details: hasAddress
+                        ? undefined
+                        : 'يجب تحديد عنوان العميل للتوصيل المباشر',
+                });
+                if (!hasAddress) blockers.push('no_shipping_address');
+            }
+        }
+
         return {
             isValid: blockers.length === 0,
             checks,

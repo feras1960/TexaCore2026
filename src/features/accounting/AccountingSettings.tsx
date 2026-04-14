@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useRBAC } from '@/hooks/useRBAC';
 import CurrencyManagementTab from './components/CurrencyManagementTab';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 
 // Types
 interface CompanySettings {
@@ -138,6 +139,47 @@ interface ExchangeSettingsData {
   auto_post_variance?: boolean;
 }
 
+// Core accounting account code → setting key mapping (standard textile ERP codes)
+const CORE_ACCOUNT_CODE_MAP: Record<string, string> = {
+  // Financial
+  '1110': 'default_cash_account_id',        // الصندوق
+  '1120': 'default_bank_account_id',        // البنك
+  '1210': 'default_receivable_account_id',  // الذمم المدينة
+  '2110': 'default_payable_account_id',     // الذمم الدائنة
+  // Operational
+  '4110': 'default_revenue_account_id',     // الإيرادات
+  '5110': 'default_expense_account_id',     // المصروفات
+  '5120': 'default_purchase_account_id',    // المشتريات / تكلفة البضاعة
+  '1140': 'default_inventory_account_id',   // المخزون
+  '1145': 'default_transit_purchase_account_id', // مشتريات بالطريق
+  '1510': 'default_tax_input_account_id',   // ضريبة مدخلات
+  '2120': 'default_tax_output_account_id',  // ضريبة مخرجات
+  '5130': 'default_freight_in_account_id',  // مصاريف الشحن
+  // Advanced
+  '3110': 'default_retained_earnings_account_id', // الأرباح المختزنة
+  '433': 'default_fx_gain_account_id',      // أرباح فروقات عملات
+  '543': 'default_fx_loss_account_id',      // خسائر فروقات عملات
+};
+
+// Alternative code patterns to try (some charts use 3-digit, 4-digit, or different numbering)
+const CORE_ACCOUNT_CODE_ALTERNATIVES: Record<string, string[]> = {
+  'default_cash_account_id':        ['1110', '111', '1010', '101', '100'],
+  'default_bank_account_id':        ['1120', '112', '1020', '102'],
+  'default_receivable_account_id':  ['1210', '121', '1200', '120', '130'],
+  'default_payable_account_id':     ['2110', '211', '2010', '201', '210'],
+  'default_revenue_account_id':     ['4110', '411', '4010', '401', '410'],
+  'default_expense_account_id':     ['5110', '511', '5010', '501', '510'],
+  'default_purchase_account_id':    ['5120', '512', '5020', '502', '520'],
+  'default_inventory_account_id':   ['1140', '114', '1040', '104', '115'],
+  'default_transit_purchase_account_id': ['1145', '1150', '115'],
+  'default_tax_input_account_id':   ['1510', '151', '1500', '150', '1310'],
+  'default_tax_output_account_id':  ['2120', '212', '2020', '202', '2210'],
+  'default_freight_in_account_id':  ['5130', '513', '5030', '503'],
+  'default_retained_earnings_account_id': ['3110', '311', '3010', '301'],
+  'default_fx_gain_account_id':     ['433', '4330', '430'],
+  'default_fx_loss_account_id':     ['543', '5430', '540'],
+};
+
 // Exchange account code → setting key mapping (V7 Chart)
 const EXCHANGE_ACCOUNT_CODE_MAP: Record<string, keyof ExchangeSettingsData> = {
   '433': 'profit_account_id',
@@ -180,7 +222,7 @@ export default function AccountingSettings() {
     date_format: 'DD/MM/YYYY',
     number_format: 'en-US',
     vat_enabled: true,
-    vat_rate: 15,
+    vat_rate: 0,
     auto_post_entries: false,
     require_approval: true,
     journal_entry_prefix: 'JE',
@@ -238,6 +280,12 @@ export default function AccountingSettings() {
 
   // Load data when company is ready — using React Query for caching
   const queryClient = useQueryClient();
+  // Force refresh on mount to avoid stale IndexedDB cache issues
+  useEffect(() => {
+    if (companyId) {
+      queryClient.invalidateQueries({ queryKey: ['accounting', 'settings', companyId] });
+    }
+  }, [companyId, queryClient]);
   const { data: loadedData, isLoading: queryLoading } = useCachedQuery({
     queryKey: ['accounting', 'settings', companyId],
     queryFn: async () => {
@@ -260,8 +308,8 @@ export default function AccountingSettings() {
       return { settingsRes, companyRes, yearsRes, entriesRes, accountsRes, currenciesRes, ccRes, exSettingsRes, companyBaseCurrency };
     },
     enabled: !!companyId && !companyLoading,
-    staleTime: 30 * 60 * 1000,      // 30 min — settings rarely change
-    gcTime: 24 * 60 * 60 * 1000,     // 24 hours
+    staleTime: 5 * 60 * 1000,       // 5 min — refresh more often
+    gcTime: 30 * 60 * 1000,          // 30 min
   });
 
   // Process loaded data into state (only when data changes)
@@ -273,15 +321,28 @@ export default function AccountingSettings() {
     if (!settingsRes || !companyRes || !yearsRes || !accountsRes || !currenciesRes) return;
 
     if (settingsRes.data) {
+      const effectiveBase = settingsRes.data.base_currency || companyBaseCurrency || 'USD';
       setSettings({
         ...settingsRes.data,
-        supported_currencies: settingsRes.data.supported_currencies || [companyBaseCurrency],
-        default_sales_currency: settingsRes.data.default_sales_currency || companyBaseCurrency,
-        default_purchase_currency: settingsRes.data.default_purchase_currency || companyBaseCurrency,
+        base_currency: effectiveBase,
+        supported_currencies: (settingsRes.data.supported_currencies && settingsRes.data.supported_currencies.length > 0)
+          ? settingsRes.data.supported_currencies
+          : (effectiveBase ? [effectiveBase] : ['USD']),
+        default_sales_currency: settingsRes.data.default_sales_currency || effectiveBase,
+        default_purchase_currency: settingsRes.data.default_purchase_currency || effectiveBase,
         default_international_purchase_currency: settingsRes.data.default_international_purchase_currency || '',
       });
     } else {
-      setSettings(prev => ({ ...prev, company_id: companyId, base_currency: companyBaseCurrency }));
+      // No settings row — create defaults with USD
+      const effectiveBase = companyBaseCurrency || 'USD';
+      setSettings(prev => ({
+        ...prev,
+        company_id: companyId,
+        base_currency: effectiveBase,
+        supported_currencies: [effectiveBase],
+        default_sales_currency: effectiveBase,
+        default_purchase_currency: effectiveBase,
+      }));
     }
     if (companyRes.data?.accounting_settings) {
       setEditSettings(prev => ({ ...prev, ...companyRes.data.accounting_settings }));
@@ -289,13 +350,70 @@ export default function AccountingSettings() {
     if (yearsRes.data) setFiscalYears(yearsRes.data);
     setHasJournalEntries((entriesRes.count || 0) > 0);
     if (accountsRes.data) {
-      setAccounts(accountsRes.data.map((a: any) => ({
+      const mappedAccounts = accountsRes.data.map((a: any) => ({
         id: a.id, account_code: a.account_code, name_ar: a.name_ar, name_en: a.name_en,
         classification: a.account_types?.classification || '',
         type_name_ar: a.account_types?.name_ar || '', type_name_en: a.account_types?.name_en || '',
         is_cash_account: a.is_cash_account || false, is_bank_account: a.is_bank_account || false,
         is_receivable: a.is_receivable || false, is_payable: a.is_payable || false,
-      })));
+      }));
+      setAccounts(mappedAccounts);
+
+      // ═══ Auto-map core accounts if not already set ═══
+      const codeToIdMap = new Map<string, string>();
+      accountsRes.data.forEach((a: any) => {
+        if (!codeToIdMap.has(a.account_code)) codeToIdMap.set(a.account_code, a.id);
+      });
+
+      setSettings(prev => {
+        const updated = { ...prev };
+        let changed = false;
+
+        // 1) Try direct code mapping
+        for (const [code, settingKey] of Object.entries(CORE_ACCOUNT_CODE_MAP)) {
+          if (!(updated as any)[settingKey]) {
+            const accountId = codeToIdMap.get(code);
+            if (accountId) {
+              (updated as any)[settingKey] = accountId;
+              changed = true;
+            }
+          }
+        }
+
+        // 2) Try alternative codes for still-empty fields
+        for (const [settingKey, altCodes] of Object.entries(CORE_ACCOUNT_CODE_ALTERNATIVES)) {
+          if (!(updated as any)[settingKey]) {
+            for (const code of altCodes) {
+              const accountId = codeToIdMap.get(code);
+              if (accountId) {
+                (updated as any)[settingKey] = accountId;
+                changed = true;
+                break;
+              }
+            }
+          }
+        }
+
+        // 3) Flag-based fallback: use is_cash_account, is_bank_account, etc.
+        if (!updated.default_cash_account_id) {
+          const cashAcc = mappedAccounts.find(a => a.is_cash_account);
+          if (cashAcc) { (updated as any).default_cash_account_id = cashAcc.id; changed = true; }
+        }
+        if (!updated.default_bank_account_id) {
+          const bankAcc = mappedAccounts.find(a => a.is_bank_account);
+          if (bankAcc) { (updated as any).default_bank_account_id = bankAcc.id; changed = true; }
+        }
+        if (!updated.default_receivable_account_id) {
+          const recAcc = mappedAccounts.find(a => a.is_receivable);
+          if (recAcc) { (updated as any).default_receivable_account_id = recAcc.id; changed = true; }
+        }
+        if (!updated.default_payable_account_id) {
+          const payAcc = mappedAccounts.find(a => a.is_payable);
+          if (payAcc) { (updated as any).default_payable_account_id = payAcc.id; changed = true; }
+        }
+
+        return changed ? updated : prev;
+      });
     }
     if (currenciesRes.data) {
       const uniqueCurrencies = new Map();
@@ -363,14 +481,14 @@ export default function AccountingSettings() {
       }
 
       toast({
-        title: language === 'ar' ? 'تم الحفظ' : 'Saved',
-        description: language === 'ar' ? 'تم حفظ الإعدادات بنجاح' : 'Settings saved successfully',
+        title: getLocalizedLabel('stg_saved', language),
+        description: getLocalizedLabel('stg_settings_saved_successfully', language),
       });
     } catch (error) {
       console.error('Error saving settings:', error);
       toast({
-        title: language === 'ar' ? 'خطأ' : 'Error',
-        description: language === 'ar' ? 'حدث خطأ في حفظ الإعدادات' : 'Failed to save settings',
+        title: getLocalizedLabel('stg_error', language),
+        description: getLocalizedLabel('stg_failed_to_save_settings', language),
         variant: 'destructive',
       });
     } finally {
@@ -441,8 +559,8 @@ export default function AccountingSettings() {
       // Don't allow removing base currency
       if (code === settings.base_currency) {
         toast({
-          title: language === 'ar' ? 'لا يمكن الحذف' : 'Cannot Remove',
-          description: language === 'ar' ? 'لا يمكن إزالة العملة الأساسية' : 'Cannot remove base currency',
+          title: getLocalizedLabel('stg_cannot_remove', language),
+          description: getLocalizedLabel('stg_cannot_remove_base_currency', language),
           variant: 'destructive',
         });
         return;
@@ -484,15 +602,15 @@ export default function AccountingSettings() {
               <CardHeader className="pb-4">
                 <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white">
                   <DollarSign className="w-5 h-5 text-erp-teal" />
-                  {language === 'ar' ? 'تنسيق الأرقام' : 'Number Format'}
+                  {getLocalizedLabel('stg_number_format', language)}
                 </CardTitle>
                 <CardDescription className="font-tajawal">
-                  {language === 'ar' ? 'إعدادات عرض الأرقام والتواريخ في النظام' : 'Number and date display settings'}
+                  {getLocalizedLabel('stg_number_and_date_display_settin', language)}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="font-tajawal text-sm">{language === 'ar' ? 'دقة الأرقام العشرية' : 'Decimal Places'}</Label>
+                  <Label className="font-tajawal text-sm">{getLocalizedLabel('stg_decimal_places', language)}</Label>
                   <Select
                     value={String(settings.decimal_places)}
                     onValueChange={(v) => updateSetting('decimal_places', parseInt(v))}
@@ -509,7 +627,7 @@ export default function AccountingSettings() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-tajawal text-sm">{language === 'ar' ? 'تنسيق التاريخ' : 'Date Format'}</Label>
+                  <Label className="font-tajawal text-sm">{getLocalizedLabel('stg_date_format', language)}</Label>
                   <Select
                     value={settings.date_format}
                     onValueChange={(v) => updateSetting('date_format', v)}
@@ -532,20 +650,18 @@ export default function AccountingSettings() {
               <CardHeader className="pb-4">
                 <CardTitle className="font-tajawal flex items-center gap-2 text-erp-navy dark:text-white">
                   <FileText className="w-5 h-5 text-erp-teal" />
-                  {language === 'ar' ? 'سير العمل' : 'Workflow'}
+                  {getLocalizedLabel('stg_workflow', language)}
                 </CardTitle>
                 <CardDescription className="font-tajawal">
-                  {language === 'ar' ? 'إعدادات الترحيل التلقائي والموافقات' : 'Auto-posting and approval settings'}
+                  {getLocalizedLabel('stg_auto_posting_and_approval_sett', language)}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                   <div className="space-y-0.5">
-                    <Label className="font-tajawal text-sm font-medium">{language === 'ar' ? 'ترحيل تلقائي للقيود' : 'Auto-post Entries'}</Label>
+                    <Label className="font-tajawal text-sm font-medium">{getLocalizedLabel('stg_auto_post_entries', language)}</Label>
                     <p className="text-xs text-gray-500 font-tajawal">
-                      {language === 'ar'
-                        ? 'ترحيل القيود تلقائياً بعد الحفظ'
-                        : 'Auto-post entries after saving'}
+                      {getLocalizedLabel('stg_auto_post_entries_after_saving', language)}
                     </p>
                   </div>
                   <Switch
@@ -555,11 +671,9 @@ export default function AccountingSettings() {
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                   <div className="space-y-0.5">
-                    <Label className="font-tajawal text-sm font-medium">{language === 'ar' ? 'طلب موافقة' : 'Require Approval'}</Label>
+                    <Label className="font-tajawal text-sm font-medium">{getLocalizedLabel('stg_require_approval', language)}</Label>
                     <p className="text-xs text-gray-500 font-tajawal">
-                      {language === 'ar'
-                        ? 'طلب موافقة قبل الترحيل'
-                        : 'Require approval before posting'}
+                      {getLocalizedLabel('stg_require_approval_before_postin', language)}
                     </p>
                   </div>
                   <Switch
@@ -571,6 +685,7 @@ export default function AccountingSettings() {
             </Card>
           </div>
         </div>
+
 
         {/* Currency Tab — Delegated to CurrencyManagementTab */}
         <div className={activeTab === 'currencies' ? 'mt-6' : 'hidden'}>
@@ -594,7 +709,6 @@ export default function AccountingSettings() {
               'default_purchase_account_id',
               'default_inventory_account_id',
               'default_transit_purchase_account_id',
-              'default_tax_input_account_id', 'default_tax_output_account_id',
               'default_fx_gain_account_id', 'default_fx_loss_account_id',
               'default_freight_in_account_id',
               'default_retained_earnings_account_id',
@@ -636,18 +750,18 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <DollarSign className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'إعدادات العملات' : 'Currency Settings'}
+                {getLocalizedLabel('stg_currency_settings', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar' ? 'العملة الرئيسية والعملة المحلية — تُقفل بعد أول حركة محاسبية' : 'Base and local currency — locked after first journal entry'}
+                {getLocalizedLabel('stg_base_and_local_currency_locked', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Base Currency */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'العملة الرئيسية' : 'Base Currency'}</Label>
-                  {hasJournalEntries && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex items-center gap-1"><Lock className="w-3 h-3" />{language === 'ar' ? 'مقفلة' : 'Locked'}</Badge>}
+                  <Label>{getLocalizedLabel('stg_base_currency', language)}</Label>
+                  {hasJournalEntries && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex items-center gap-1"><Lock className="w-3 h-3" />{getLocalizedLabel('stg_locked', language)}</Badge>}
                 </div>
                 <Select
                   value={settings.base_currency || ''}
@@ -655,7 +769,7 @@ export default function AccountingSettings() {
                   disabled={hasJournalEntries}
                 >
                   <SelectTrigger className={hasJournalEntries ? 'opacity-70 cursor-not-allowed' : ''}>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر العملة...' : 'Select currency...'} />
+                    <SelectValue placeholder={getLocalizedLabel('stg_select_currency', language)} />
                   </SelectTrigger>
                   <SelectContent>
                     {currencies.map(c => (
@@ -667,22 +781,22 @@ export default function AccountingSettings() {
                 </Select>
                 <p className="text-xs text-gray-400">
                   {hasJournalEntries
-                    ? (language === 'ar' ? '🔒 لا يمكن تغيير العملة الرئيسية بعد وجود قيود محاسبية' : '🔒 Cannot change base currency after journal entries exist')
-                    : (language === 'ar' ? 'عملة المحاسبة الأساسية — جميع التقارير تصدر بها' : 'Primary accounting currency — all reports are generated in this currency')}
+                    ? (getLocalizedLabel('stg_cannot_change_base_currency_af', language))
+                    : (getLocalizedLabel('stg_primary_accounting_currency_al', language))}
                 </p>
               </div>
 
               {/* Default Sales Currency */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'عملة البيع الافتراضية' : 'Default Sales Currency'}</Label>
+                  <Label>{getLocalizedLabel('stg_default_sales_currency', language)}</Label>
                 </div>
                 <Select
                   value={settings.default_sales_currency || ''}
                   onValueChange={(v) => updateSetting('default_sales_currency', v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر العملة...' : 'Select currency...'} />
+                    <SelectValue placeholder={getLocalizedLabel('stg_select_currency', language)} />
                   </SelectTrigger>
                   <SelectContent>
                     {(settings.supported_currencies || []).map(code => {
@@ -695,20 +809,20 @@ export default function AccountingSettings() {
                     })}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'العملة المستخدمة افتراضياً في فواتير المبيعات' : 'Default currency for sales invoices'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_default_currency_for_sales_inv', language)}</p>
               </div>
 
               {/* Default Purchase Currency */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'عملة الشراء الافتراضية' : 'Default Purchase Currency'}</Label>
+                  <Label>{getLocalizedLabel('stg_default_purchase_currency', language)}</Label>
                 </div>
                 <Select
                   value={settings.default_purchase_currency || ''}
                   onValueChange={(v) => updateSetting('default_purchase_currency', v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر العملة...' : 'Select currency...'} />
+                    <SelectValue placeholder={getLocalizedLabel('stg_select_currency', language)} />
                   </SelectTrigger>
                   <SelectContent>
                     {(settings.supported_currencies || []).map(code => {
@@ -721,12 +835,12 @@ export default function AccountingSettings() {
                     })}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'العملة المستخدمة افتراضياً في فواتير المشتريات' : 'Default currency for purchase invoices'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_default_currency_for_purchase_', language)}</p>
               </div>
 
               {/* Supported Currencies Info */}
               <div className="space-y-2">
-                <Label>{language === 'ar' ? 'العملات المدعومة' : 'Supported Currencies'}</Label>
+                <Label>{getLocalizedLabel('stg_supported_currencies', language)}</Label>
                 <div className="flex flex-wrap gap-2">
                   {(settings.supported_currencies || []).map(code => {
                     const cur = currencies.find(c => c.code === code);
@@ -737,7 +851,7 @@ export default function AccountingSettings() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'العملات المفعّلة — يمكن إضافة المزيد من تبويب العملات' : 'Active currencies — add more from the Currencies tab'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_active_currencies_add_more_fro', language)}</p>
               </div>
             </CardContent>
           </Card>
@@ -747,79 +861,79 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Wallet className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'الحسابات المالية' : 'Financial Accounts'}
+                {getLocalizedLabel('stg_financial_accounts', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar' ? 'الصندوق والبنك والذمم' : 'Cash, bank, and receivables/payables'}
+                {getLocalizedLabel('stg_cash_bank_and_receivables_paya', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Cash */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب الصندوق' : 'Cash Account'}</Label>
+                  <Label>{getLocalizedLabel('stg_cash_account', language)}</Label>
                   {settings.default_cash_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_cash_account_id || ''} onValueChange={(v) => updateSetting('default_cash_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في سندات القبض والصرف النقدي' : 'Used for cash receipts and payments'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_used_for_cash_receipts_and_pay', language)}</p>
               </div>
 
               {/* Bank */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب البنك' : 'Bank Account'}</Label>
+                  <Label>{getLocalizedLabel('stg_bank_account', language)}</Label>
                   {settings.default_bank_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_bank_account_id || ''} onValueChange={(v) => updateSetting('default_bank_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في التحويلات البنكية والإيداعات' : 'Used for bank transfers and deposits'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_used_for_bank_transfers_and_de', language)}</p>
               </div>
 
               {/* Receivable */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'الذمم المدينة' : 'Accounts Receivable'}</Label>
+                  <Label>{getLocalizedLabel('stg_accounts_receivable', language)}</Label>
                   {settings.default_receivable_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_receivable_account_id || ''} onValueChange={(v) => updateSetting('default_receivable_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب العملاء - يُستخدم في فواتير المبيعات' : 'Customer account - used in sales invoices'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_customer_account_used_in_sales', language)}</p>
               </div>
 
               {/* Payable */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'الذمم الدائنة' : 'Accounts Payable'}</Label>
+                  <Label>{getLocalizedLabel('stg_accounts_payable', language)}</Label>
                   {settings.default_payable_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_payable_account_id || ''} onValueChange={(v) => updateSetting('default_payable_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('liabilities'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب الموردين - يُستخدم في فواتير المشتريات' : 'Vendor account - used in purchase invoices'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_vendor_account_used_in_purchas', language)}</p>
               </div>
             </CardContent>
           </Card>
@@ -829,147 +943,128 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileText className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'حسابات التشغيل' : 'Operational Accounts'}
+                {getLocalizedLabel('stg_operational_accounts', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar' ? 'الإيرادات والمصروفات والمشتريات' : 'Revenue, expenses, and purchases'}
+                {getLocalizedLabel('stg_revenue_expenses_and_purchases', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Revenue */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب الإيرادات' : 'Revenue Account'}</Label>
+                  <Label>{getLocalizedLabel('stg_revenue_account', language)}</Label>
                   {settings.default_revenue_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_revenue_account_id || ''} onValueChange={(v) => updateSetting('default_revenue_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('income'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم تلقائياً في فواتير المبيعات' : 'Auto-used in sales invoices'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_auto_used_in_sales_invoices', language)}</p>
               </div>
 
               {/* Expense */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب المصروفات' : 'Expense Account'}</Label>
+                  <Label>{getLocalizedLabel('stg_expense_account', language)}</Label>
                   {settings.default_expense_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_expense_account_id || ''} onValueChange={(v) => updateSetting('default_expense_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('expenses'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم في المصروفات العامة والتشغيلية' : 'Used for general and operational expenses'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_used_for_general_and_operation', language)}</p>
               </div>
 
               {/* Purchases/COGS */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب المشتريات / تكلفة البضاعة' : 'Purchases / COGS'}</Label>
+                  <Label>{getLocalizedLabel('stg_purchases_cogs', language)}</Label>
                   {(settings as any).default_purchase_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'مطلوب ❗' : 'Required ❗'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_required', language)}</Badge>}
                 </div>
                 <Select value={(settings as any).default_purchase_account_id || ''} onValueChange={(v) => updateSetting('default_purchase_account_id' as any, v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('expenses'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'الجانب المدين في فواتير المشتريات — ضروري للترحيل' : 'Debit side for purchase invoices — required for posting'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_debit_side_for_purchase_invoic', language)}</p>
               </div>
 
-              {/* Tax Input Account */}
-              <div className="space-y-2">
+              {/* Tax Accounts → Managed in /system-config/tax */}
+              <div className="col-span-full p-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/20">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'ضريبة القيمة المضافة — مدخلات' : 'VAT Input (Purchases)'}</Label>
-                  {settings.default_tax_input_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                  <Receipt className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-500 font-tajawal">
+                    {language === 'ar'
+                      ? 'حسابات الضريبة (مدخلات / مخرجات) تُدار من '
+                      : 'Tax accounts (input / output) are managed in '}
+                    <a href="/system-config/tax" className="text-erp-teal hover:underline font-medium">
+                      {getLocalizedLabel('stg_settings_tax_compliance', language)}
+                    </a>
+                  </span>
                 </div>
-                <Select value={settings.default_tax_input_account_id || ''} onValueChange={(v) => updateSetting('default_tax_input_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
-                  <SelectContent>
-                    {renderGroupedOptions(getAccountsByClassification('assets', 'liabilities'))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'ضريبة المشتريات القابلة للاسترداد' : 'Recoverable VAT on purchases'}</p>
-              </div>
-
-              {/* Tax Output Account */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'ضريبة القيمة المضافة — مخرجات' : 'VAT Output (Sales)'}</Label>
-                  {settings.default_tax_output_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
-                </div>
-                <Select value={settings.default_tax_output_account_id || ''} onValueChange={(v) => updateSetting('default_tax_output_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
-                  <SelectContent>
-                    {renderGroupedOptions(getAccountsByClassification('liabilities'))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'ضريبة المبيعات المستحقة للدفع' : 'VAT payable on sales'}</p>
               </div>
 
               {/* Inventory Account */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب المخزون' : 'Inventory Account'}</Label>
+                  <Label>{getLocalizedLabel('stg_inventory_account', language)}</Label>
                   {settings.default_inventory_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_inventory_account_id || ''} onValueChange={(v) => updateSetting('default_inventory_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'حساب البضاعة / مخزون الأقمشة' : 'Goods / fabric inventory account'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_goods_fabric_inventory_account', language)}</p>
               </div>
 
               {/* Transit Purchase Account (1145) */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'حساب مشتريات بالطريق' : 'Purchases in Transit'}</Label>
+                  <Label>{getLocalizedLabel('stg_purchases_in_transit', language)}</Label>
                   {settings.default_transit_purchase_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'مطلوب ❗' : 'Required ❗'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_required', language)}</Badge>}
                 </div>
                 <Select value={settings.default_transit_purchase_account_id || ''} onValueChange={(v) => updateSetting('default_transit_purchase_account_id' as any, v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'الحساب الوسيط للفواتير الدولية (1145) — ينتقل منه للكونتينر أو المخزون عند الاستلام' : 'Transit account for international invoices (1145) — transfers to container or inventory on receipt'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_transit_account_for_internatio', language)}</p>
               </div>
 
               {/* Freight In */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? 'مصاريف الشحن والنقل' : 'Freight In'}</Label>
+                  <Label>{getLocalizedLabel('stg_freight_in', language)}</Label>
                   {settings.default_freight_in_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_freight_in_account_id || ''} onValueChange={(v) => updateSetting('default_freight_in_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('expenses'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'تكاليف الشحن على المشتريات والشحنات' : 'Shipping costs on purchases and shipments'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_shipping_costs_on_purchases_an', language)}</p>
               </div>
             </CardContent>
           </Card>
@@ -979,62 +1074,62 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Globe className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'حسابات متقدمة' : 'Advanced Accounts'}
+                {getLocalizedLabel('stg_advanced_accounts', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar' ? 'فروقات العملات، الأرباح المحتجزة، والسلف' : 'Currency differences, retained earnings, and advances'}
+                {getLocalizedLabel('stg_currency_differences_retained_', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Retained Earnings */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? '📊 الأرباح المحتجزة' : '📊 Retained Earnings'}</Label>
+                  <Label>{getLocalizedLabel('stg_retained_earnings', language)}</Label>
                   {settings.default_retained_earnings_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_retained_earnings_account_id || ''} onValueChange={(v) => updateSetting('default_retained_earnings_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('equity'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'يُستخدم عند إقفال السنة المالية — تُرحل إليه الأرباح' : 'Used for year-end closing — profits are transferred here'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_used_for_year_end_closing_prof', language)}</p>
               </div>
 
               {/* Customer Advance */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? '🧾 سلف العملاء' : '🧾 Customer Advances'}</Label>
+                  <Label>{getLocalizedLabel('stg_customer_advances', language)}</Label>
                   {settings.default_customer_advance_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_customer_advance_account_id || ''} onValueChange={(v) => updateSetting('default_customer_advance_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('liabilities'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'دفعات مقدمة من العملاء قبل التسليم' : 'Advance payments from customers before delivery'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_advance_payments_from_customer', language)}</p>
               </div>
 
               {/* Supplier Advance */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>{language === 'ar' ? '🧾 سلف الموردين' : '🧾 Supplier Advances'}</Label>
+                  <Label>{getLocalizedLabel('stg_supplier_advances', language)}</Label>
                   {settings.default_supplier_advance_account_id
-                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                    ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                    : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                 </div>
                 <Select value={settings.default_supplier_advance_account_id || ''} onValueChange={(v) => updateSetting('default_supplier_advance_account_id', v)}>
-                  <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                   <SelectContent>
                     {renderGroupedOptions(getAccountsByClassification('assets'))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400">{language === 'ar' ? 'دفعات مقدمة للموردين قبل الاستلام' : 'Advance payments to suppliers before receipt'}</p>
+                <p className="text-xs text-gray-400">{getLocalizedLabel('stg_advance_payments_to_suppliers_', language)}</p>
               </div>
             </CardContent>
           </Card>
@@ -1046,48 +1141,48 @@ export default function AccountingSettings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <ArrowRightLeft className="w-5 h-5 text-amber-500" />
-                    {language === 'ar' ? 'حسابات الصرافة والحوالات' : 'Exchange & Remittance Accounts'}
+                    {getLocalizedLabel('stg_exchange_remittance_accounts', language)}
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-300 text-amber-600 ms-2">
-                      {language === 'ar' ? 'موديول الصرافة' : 'Exchange Module'}
+                      {getLocalizedLabel('stg_exchange_module', language)}
                     </Badge>
                   </CardTitle>
                   <CardDescription>
-                    {language === 'ar' ? 'حسابات الصرف وفروقات العملات — تظهر عند تفعيل موديول الصرافة' : 'Exchange and FX difference accounts — shown when Exchange module is active'}
+                    {getLocalizedLabel('stg_exchange_and_fx_difference_acc', language)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Exchange Profit */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? '💱 أرباح فروقات عملات - صرافة' : '💱 FX Gains - Exchange'}</Label>
+                      <Label>{getLocalizedLabel('stg_fx_gains_exchange', language)}</Label>
                       {exchangeSettings.profit_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.profit_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, profit_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('income'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'أرباح عمليات صرف العملات المباشرة (433)' : 'Gains from direct currency exchange operations (433)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_gains_from_direct_currency_exc', language)}</p>
                   </div>
 
                   {/* Exchange Loss */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? '💱 خسائر فروقات عملات - صرافة' : '💱 FX Losses - Exchange'}</Label>
+                      <Label>{getLocalizedLabel('stg_fx_losses_exchange', language)}</Label>
                       {exchangeSettings.loss_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.loss_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, loss_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('expenses'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'خسائر عمليات صرف العملات المباشرة (543)' : 'Losses from direct currency exchange operations (543)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_losses_from_direct_currency_ex', language)}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1097,62 +1192,62 @@ export default function AccountingSettings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Send className="w-5 h-5 text-blue-500" />
-                    {language === 'ar' ? 'حسابات الحوالات' : 'Remittance Accounts'}
+                    {getLocalizedLabel('stg_remittance_accounts', language)}
                   </CardTitle>
                   <CardDescription>
-                    {language === 'ar' ? 'العمولات والذمم المتعلقة بالحوالات الصادرة والواردة' : 'Commissions and receivables/payables for remittances'}
+                    {getLocalizedLabel('stg_commissions_and_receivables_pa', language)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Commission Income */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? 'إيرادات عمولات حوالات' : 'Remittance Commission Income'}</Label>
+                      <Label>{getLocalizedLabel('stg_remittance_commission_income', language)}</Label>
                       {exchangeSettings.commission_income_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.commission_income_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, commission_income_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('income'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'عمولتنا من كل حوالة صادرة/واردة (432)' : 'Our commission per remittance (432)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_our_commission_per_remittance_', language)}</p>
                   </div>
 
                   {/* Remittance Payable */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? 'حوالات مستحقة للتسليم' : 'Remittances Payable'}</Label>
+                      <Label>{getLocalizedLabel('stg_remittances_payable', language)}</Label>
                       {exchangeSettings.remittance_payable_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.remittance_payable_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, remittance_payable_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('liabilities'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'التزامنا بتسليم حوالات للمستقبلين (231)' : 'Our obligation to deliver remittances (231)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_our_obligation_to_deliver_remi', language)}</p>
                   </div>
 
                   {/* Remittance Receivable */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? 'ذمم حوالات صادرة' : 'Outgoing Remittance Receivables'}</Label>
+                      <Label>{getLocalizedLabel('stg_outgoing_remittance_receivable', language)}</Label>
                       {exchangeSettings.remittance_receivable_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.remittance_receivable_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, remittance_receivable_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('assets'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'مبالغ حوالات ننتظر تحصيلها من الشريك/الوكيل (131)' : 'Remittance amounts awaiting collection (131)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_remittance_amounts_awaiting_co', language)}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1162,45 +1257,45 @@ export default function AccountingSettings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Landmark className="w-5 h-5 text-violet-500" />
-                    {language === 'ar' ? 'حسابات الوكلاء والشركاء' : 'Agent & Partner Accounts'}
+                    {getLocalizedLabel('stg_agent_partner_accounts', language)}
                   </CardTitle>
                   <CardDescription>
-                    {language === 'ar' ? 'الذمم والالتزامات المتبادلة مع الوكلاء والشركاء' : 'Mutual receivables and payables with agents and partners'}
+                    {getLocalizedLabel('stg_mutual_receivables_and_payable', language)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Agents Payable */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? 'ذمم الوكلاء الدائنة' : 'Agents Payable'}</Label>
+                      <Label>{getLocalizedLabel('stg_agents_payable', language)}</Label>
                       {exchangeSettings.agents_payable_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.agents_payable_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, agents_payable_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('liabilities'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'مبالغ مستحقة عليّنا للوكلاء (232)' : 'Amounts we owe to agents (232)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_amounts_we_owe_to_agents_232', language)}</p>
                   </div>
 
                   {/* Partners Payable */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>{language === 'ar' ? 'ذمم الشركاء الدائنة' : 'Partners Payable'}</Label>
+                      <Label>{getLocalizedLabel('stg_partners_payable', language)}</Label>
                       {exchangeSettings.partners_receivable_account_id
-                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{language === 'ar' ? 'مُعيّن' : 'Set'}</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{language === 'ar' ? 'غير مُعيّن' : 'Not set'}</Badge>}
+                        ? <Badge variant="default" className="bg-green-500 text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_set', language)}</Badge>
+                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{getLocalizedLabel('stg_not_set', language)}</Badge>}
                     </div>
                     <Select value={exchangeSettings.partners_receivable_account_id || ''} onValueChange={(v) => setExchangeSettings(prev => ({ ...prev, partners_receivable_account_id: v, company_id: prev.company_id || companyId || '' }))}>
-                      <SelectTrigger><SelectValue placeholder={language === 'ar' ? 'اختر حساب...' : 'Select account...'} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={getLocalizedLabel('stg_select_account', language)} /></SelectTrigger>
                       <SelectContent>
                         {renderGroupedOptions(getAccountsByClassification('liabilities', 'assets'))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400">{language === 'ar' ? 'ذمم الشركاء الدائنة — حسابات جارية (233)' : 'Partner current accounts (233)'}</p>
+                    <p className="text-xs text-gray-400">{getLocalizedLabel('stg_partner_current_accounts_233', language)}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1210,28 +1305,28 @@ export default function AccountingSettings() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    {language === 'ar' ? 'الترحيل التلقائي — الصرافة' : 'Auto-Post — Exchange'}
+                    {getLocalizedLabel('stg_auto_post_exchange', language)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">{language === 'ar' ? 'ترحيل تلقائي — عمليات الصرف' : 'Auto-post exchange operations'}</Label>
-                      <p className="text-xs text-gray-500">{language === 'ar' ? 'ترحيل القيد تلقائياً عند إتمام عملية الصرف' : 'Auto-post entry when exchange is completed'}</p>
+                      <Label className="text-sm font-medium">{getLocalizedLabel('stg_auto_post_exchange_operations', language)}</Label>
+                      <p className="text-xs text-gray-500">{getLocalizedLabel('stg_auto_post_entry_when_exchange_', language)}</p>
                     </div>
                     <Switch checked={exchangeSettings.auto_post_exchange || false} onCheckedChange={(v) => setExchangeSettings(prev => ({ ...prev, auto_post_exchange: v, company_id: prev.company_id || companyId || '' }))} />
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">{language === 'ar' ? 'ترحيل تلقائي — الحوالات' : 'Auto-post remittances'}</Label>
-                      <p className="text-xs text-gray-500">{language === 'ar' ? 'ترحيل القيد تلقائياً عند حفظ الحوالة' : 'Auto-post entry when remittance is saved'}</p>
+                      <Label className="text-sm font-medium">{getLocalizedLabel('stg_auto_post_remittances', language)}</Label>
+                      <p className="text-xs text-gray-500">{getLocalizedLabel('stg_auto_post_entry_when_remittanc', language)}</p>
                     </div>
                     <Switch checked={exchangeSettings.auto_post_remittance || false} onCheckedChange={(v) => setExchangeSettings(prev => ({ ...prev, auto_post_remittance: v, company_id: prev.company_id || companyId || '' }))} />
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-medium">{language === 'ar' ? 'ترحيل تلقائي — فروقات العملات' : 'Auto-post FX variances'}</Label>
-                      <p className="text-xs text-gray-500">{language === 'ar' ? 'ترحيل فروقات أسعار العملات تلقائياً' : 'Auto-post currency rate differences'}</p>
+                      <Label className="text-sm font-medium">{getLocalizedLabel('stg_auto_post_fx_variances', language)}</Label>
+                      <p className="text-xs text-gray-500">{getLocalizedLabel('stg_auto_post_currency_rate_differ', language)}</p>
                     </div>
                     <Switch checked={exchangeSettings.auto_post_variance || false} onCheckedChange={(v) => setExchangeSettings(prev => ({ ...prev, auto_post_variance: v, company_id: prev.company_id || companyId || '' }))} />
                   </div>
@@ -1246,7 +1341,7 @@ export default function AccountingSettings() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">
-                {language === 'ar' ? 'السنوات المالية' : 'Fiscal Years'}
+                {getLocalizedLabel('stg_fiscal_years', language)}
               </h2>
               <p className="text-sm text-gray-500">
                 {language === 'ar'
@@ -1256,7 +1351,7 @@ export default function AccountingSettings() {
             </div>
             <Button variant="outline" className="gap-2">
               <Calendar className="w-4 h-4" />
-              {language === 'ar' ? 'إضافة سنة جديدة' : 'Add New Year'}
+              {getLocalizedLabel('stg_add_new_year', language)}
             </Button>
           </div>
 
@@ -1264,7 +1359,7 @@ export default function AccountingSettings() {
             {fiscalYears.length === 0 ? (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>{language === 'ar' ? 'لا توجد سنوات مالية' : 'No Fiscal Years'}</AlertTitle>
+                <AlertTitle>{getLocalizedLabel('stg_no_fiscal_years', language)}</AlertTitle>
                 <AlertDescription>
                   {language === 'ar'
                     ? 'لم يتم تعريف أي سنة مالية بعد. قم بإضافة سنة مالية جديدة.'
@@ -1287,12 +1382,12 @@ export default function AccountingSettings() {
                             </span>
                             {year.is_current && (
                               <Badge variant="default" className="bg-erp-teal">
-                                {language === 'ar' ? 'الحالية' : 'Current'}
+                                {getLocalizedLabel('stg_current', language)}
                               </Badge>
                             )}
                             {year.is_closed && (
                               <Badge variant="secondary">
-                                {language === 'ar' ? 'مغلقة' : 'Closed'}
+                                {getLocalizedLabel('stg_closed', language)}
                               </Badge>
                             )}
                           </div>
@@ -1318,18 +1413,16 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Hash className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'ترقيم القيود' : 'Entry Numbering'}
+                {getLocalizedLabel('stg_entry_numbering', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar'
-                  ? 'تكوين نظام ترقيم القيود المحاسبية'
-                  : 'Configure journal entry numbering system'}
+                {getLocalizedLabel('stg_configure_journal_entry_numb', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label>{language === 'ar' ? 'بادئة رقم القيد' : 'Entry Number Prefix'}</Label>
+                  <Label>{getLocalizedLabel('stg_entry_number_prefix', language)}</Label>
                   <Input
                     value={settings.journal_entry_prefix}
                     onChange={(e) => updateSetting('journal_entry_prefix', e.target.value)}
@@ -1337,13 +1430,11 @@ export default function AccountingSettings() {
                     maxLength={10}
                   />
                   <p className="text-xs text-gray-500">
-                    {language === 'ar'
-                      ? `مثال: ${settings.journal_entry_prefix}-2026-00001`
-                      : `Example: ${settings.journal_entry_prefix}-2026-00001`}
+                    {`${getLocalizedLabel('stg_example', language)}: ${settings.journal_entry_prefix}-2026-00001`}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>{language === 'ar' ? 'الرقم التسلسلي الحالي' : 'Current Sequence'}</Label>
+                  <Label>{getLocalizedLabel('stg_current_sequence', language)}</Label>
                   <Input
                     type="number"
                     value={settings.current_entry_number}
@@ -1357,11 +1448,9 @@ export default function AccountingSettings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{language === 'ar' ? 'إعادة الترقيم سنوياً' : 'Reset Yearly'}</Label>
+                  <Label>{getLocalizedLabel('stg_reset_yearly', language)}</Label>
                   <p className="text-sm text-gray-500">
-                    {language === 'ar'
-                      ? 'إعادة الترقيم من 1 مع بداية كل سنة مالية'
-                      : 'Reset numbering to 1 at the start of each fiscal year'}
+                    {getLocalizedLabel('stg_reset_numbering_to_1_at_the_', language)}
                   </p>
                 </div>
                 <Switch
@@ -1372,7 +1461,7 @@ export default function AccountingSettings() {
 
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
-                <AlertTitle>{language === 'ar' ? 'التنسيق الحالي' : 'Current Format'}</AlertTitle>
+                <AlertTitle>{getLocalizedLabel('stg_current_format', language)}</AlertTitle>
                 <AlertDescription className="font-mono">
                   {settings.journal_entry_prefix}-{new Date().getFullYear()}-{String(settings.current_entry_number).padStart(5, '0')}
                 </AlertDescription>
@@ -1388,12 +1477,10 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Calendar className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'نمط إدارة السنوات المالية' : 'Fiscal Year Management Mode'}
+                {getLocalizedLabel('stg_fiscal_year_management_mode', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar'
-                  ? 'اختر كيفية التعامل مع السنوات المالية المُغلقة'
-                  : 'Choose how to handle closed fiscal years'}
+                {getLocalizedLabel('stg_choose_how_to_handle_closed_', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1415,19 +1502,17 @@ export default function AccountingSettings() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-erp-navy">
-                          {language === 'ar' ? 'السنوات المستقلة' : 'Independent Years'}
+                          {getLocalizedLabel('stg_independent_years', language)}
                         </h3>
                         {editSettings.fiscal_year_mode === 'independent' && (
                           <CheckCircle2 className="w-5 h-5 text-erp-teal" />
                         )}
                       </div>
                       <p className="text-sm text-slate-600 mt-2">
-                        {language === 'ar'
-                          ? 'كل سنة مالية مُغلقة تُعتبر مستقلة. يمكن التعديل على القيود بدون التأثير على السنوات اللاحقة.'
-                          : 'Each closed fiscal year is independent. You can edit entries without affecting subsequent years.'}
+                        {getLocalizedLabel('stg_each_closed_fiscal_year_is_i', language)}
                       </p>
                       <Badge variant="secondary" className="mt-3">
-                        {language === 'ar' ? '⚡ مُوصى به للشركات الصغيرة والمتوسطة' : '⚡ Recommended for SMBs'}
+                        {getLocalizedLabel('stg_recommended_for_smbs', language)}
                       </Badge>
                     </div>
                   </div>
@@ -1450,19 +1535,17 @@ export default function AccountingSettings() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-erp-navy">
-                          {language === 'ar' ? 'السنوات المترابطة' : 'Linked Years'}
+                          {getLocalizedLabel('stg_linked_years', language)}
                         </h3>
                         {editSettings.fiscal_year_mode === 'linked' && (
                           <CheckCircle2 className="w-5 h-5 text-erp-teal" />
                         )}
                       </div>
                       <p className="text-sm text-slate-600 mt-2">
-                        {language === 'ar'
-                          ? 'السنوات المالية مُرتبطة. لا يمكن تعديل السنوات المُغلقة. التصحيح يتم بقيد تسوية في السنة الحالية.'
-                          : 'Fiscal years are linked. Cannot edit closed years. Corrections require adjustment entries in current year.'}
+                        {getLocalizedLabel('stg_fiscal_years_are_linked__can', language)}
                       </p>
                       <Badge variant="secondary" className="mt-3">
-                        {language === 'ar' ? '🏢 مُوصى به للشركات الكبيرة والمُلزمة ضريبياً' : '🏢 Recommended for large/regulated companies'}
+                        {getLocalizedLabel('stg_recommended_for_large_regulate', language)}
                       </Badge>
                     </div>
                   </div>
@@ -1476,23 +1559,19 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Edit2 className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'إعدادات التعديل' : 'Edit Settings'}
+                {getLocalizedLabel('stg_edit_settings', language)}
               </CardTitle>
               <CardDescription>
-                {language === 'ar'
-                  ? 'تحكم في طريقة التعديل على القيود المُرحلة'
-                  : 'Control how posted entries can be edited'}
+                {getLocalizedLabel('stg_control_how_posted_entries_c', language)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'السماح بالتعديل المباشر على القيود المُرحلة' : 'Allow direct edit on posted entries'}</Label>
+                    <Label>{getLocalizedLabel('stg_allow_direct_edit_on_posted_en', language)}</Label>
                     <p className="text-sm text-gray-500">
-                      {language === 'ar'
-                        ? 'النظام يُلغي الترحيل تلقائياً للتعديل ثم يُعيد الترحيل'
-                        : 'System auto-unposts, edits, then re-posts'}
+                      {getLocalizedLabel('stg_system_auto_unposts__edits__', language)}
                     </p>
                   </div>
                   <Switch
@@ -1506,11 +1585,9 @@ export default function AccountingSettings() {
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'إعادة الترحيل تلقائياً بعد الحفظ' : 'Auto re-post after save'}</Label>
+                    <Label>{getLocalizedLabel('stg_auto_re_post_after_save', language)}</Label>
                     <p className="text-sm text-gray-500">
-                      {language === 'ar'
-                        ? 'ترحيل القيد تلقائياً بعد حفظ التعديلات'
-                        : 'Automatically post entry after saving edits'}
+                      {getLocalizedLabel('stg_automatically_post_entry_aft', language)}
                     </p>
                   </div>
                   <Switch
@@ -1524,11 +1601,9 @@ export default function AccountingSettings() {
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'طلب سبب للتعديل' : 'Require edit reason'}</Label>
+                    <Label>{getLocalizedLabel('stg_require_edit_reason', language)}</Label>
                     <p className="text-sm text-gray-500">
-                      {language === 'ar'
-                        ? 'إلزام المستخدم بإدخال سبب عند التعديل'
-                        : 'Require user to enter a reason when editing'}
+                      {getLocalizedLabel('stg_require_user_to_enter_a_reas', language)}
                     </p>
                   </div>
                   <Switch
@@ -1542,11 +1617,9 @@ export default function AccountingSettings() {
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'إشعار عند التعديل على المُرحل' : 'Notify on posted edit'}</Label>
+                    <Label>{getLocalizedLabel('stg_notify_on_posted_edit', language)}</Label>
                     <p className="text-sm text-gray-500">
-                      {language === 'ar'
-                        ? 'إرسال إشعار عند التعديل على قيد مُرحل'
-                        : 'Send notification when editing posted entries'}
+                      {getLocalizedLabel('stg_send_notification_when_editi', language)}
                     </p>
                   </div>
                   <Switch
@@ -1567,23 +1640,19 @@ export default function AccountingSettings() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Lock className="w-5 h-5 text-erp-teal" />
-                  {language === 'ar' ? 'إعدادات السنوات المُغلقة' : 'Closed Year Settings'}
+                  {getLocalizedLabel('stg_closed_year_settings', language)}
                 </CardTitle>
                 <CardDescription>
-                  {language === 'ar'
-                    ? 'تحكم في صلاحيات التعديل على السنوات المالية المُغلقة (النظام المستقل)'
-                    : 'Control edit permissions for closed fiscal years (Independent mode)'}
+                  {getLocalizedLabel('stg_control_edit_permissions_for', language)}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg border border-amber-200">
                     <div className="space-y-0.5">
-                      <Label>{language === 'ar' ? 'السماح بالتعديل على السنوات المُغلقة' : 'Allow edit on closed years'}</Label>
+                      <Label>{getLocalizedLabel('stg_allow_edit_on_closed_years', language)}</Label>
                       <p className="text-sm text-amber-700">
-                        {language === 'ar'
-                          ? '⚠️ التعديلات لن تؤثر على الأرصدة الافتتاحية للسنوات اللاحقة'
-                          : '⚠️ Edits will not affect opening balances of subsequent years'}
+                        {getLocalizedLabel('stg__edits_will_not_affect_openin', language)}
                       </p>
                     </div>
                     <Switch
@@ -1597,11 +1666,9 @@ export default function AccountingSettings() {
 
                   <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                     <div className="space-y-0.5">
-                      <Label>{language === 'ar' ? 'السماح بالحذف في السنوات المُغلقة' : 'Allow delete in closed years'}</Label>
+                      <Label>{getLocalizedLabel('stg_allow_delete_in_closed_years', language)}</Label>
                       <p className="text-sm text-red-700">
-                        {language === 'ar'
-                          ? '❌ غير مُوصى به - الحذف يُسجّل في Audit Log'
-                          : '❌ Not recommended - Deletions are logged in Audit'}
+                        {getLocalizedLabel('stg__not_recommended___deletions_', language)}
                       </p>
                     </div>
                     <Switch
@@ -1615,11 +1682,9 @@ export default function AccountingSettings() {
 
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                     <div className="space-y-0.5">
-                      <Label>{language === 'ar' ? 'ربط قيود التسوية بالقيود الأصلية' : 'Link adjustment entries to originals'}</Label>
+                      <Label>{getLocalizedLabel('stg_link_adjustment_entries_to_ori', language)}</Label>
                       <p className="text-sm text-gray-500">
-                        {language === 'ar'
-                          ? 'إنشاء رابط بين قيد التسوية والقيد الأصلي'
-                          : 'Create a link between adjustment and original entry'}
+                        {getLocalizedLabel('stg_create_a_link_between_adjust', language)}
                       </p>
                     </div>
                     <Switch
@@ -1639,11 +1704,9 @@ export default function AccountingSettings() {
           {editSettings.fiscal_year_mode === 'linked' && (
             <Alert className="border-blue-200 bg-blue-50">
               <Info className="h-4 w-4 text-blue-600" />
-              <AlertTitle className="text-blue-800">{language === 'ar' ? 'نظام السنوات المترابطة' : 'Linked Years Mode'}</AlertTitle>
+              <AlertTitle className="text-blue-800">{getLocalizedLabel('stg_linked_years_mode', language)}</AlertTitle>
               <AlertDescription className="text-blue-700">
-                {language === 'ar'
-                  ? 'في هذا النظام، لا يمكن التعديل على السنوات المالية المُغلقة. أي تصحيحات يجب أن تتم عبر قيد تسوية في السنة المالية الحالية، مرتبط بالقيد الأصلي.'
-                  : 'In this mode, closed fiscal years cannot be edited. Any corrections must be made through an adjustment entry in the current fiscal year, linked to the original entry.'}
+                {getLocalizedLabel('stg_in_this_mode__closed_fiscal_', language)}
               </AlertDescription>
             </Alert>
           )}
@@ -1653,18 +1716,16 @@ export default function AccountingSettings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <AlertCircle className="w-5 h-5 text-erp-teal" />
-                {language === 'ar' ? 'الإشعارات' : 'Notifications'}
+                {getLocalizedLabel('stg_notifications', language)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'إشعار المدير المالي عند التعديل على سنة مُغلقة' : 'Notify CFO on closed year edit'}</Label>
+                    <Label>{getLocalizedLabel('stg_notify_cfo_on_closed_year_edit', language)}</Label>
                     <p className="text-sm text-gray-500">
-                      {language === 'ar'
-                        ? 'إرسال إشعار للمدير المالي'
-                        : 'Send notification to CFO'}
+                      {getLocalizedLabel('stg_send_notification_to_cfo', language)}
                     </p>
                   </div>
                   <Switch
@@ -1678,11 +1739,9 @@ export default function AccountingSettings() {
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div className="space-y-0.5">
-                    <Label>{language === 'ar' ? 'إشعار عند التسويات الكبيرة' : 'Notify on large adjustments'}</Label>
+                    <Label>{getLocalizedLabel('stg_notify_on_large_adjustments', language)}</Label>
                     <p className="text-sm text-gray-500">
-                      {language === 'ar'
-                        ? `قيمة أكبر من ${editSettings.notifications.large_adjustment_threshold.toLocaleString()}`
-                        : `Value greater than ${editSettings.notifications.large_adjustment_threshold.toLocaleString()}`}
+                      {`${getLocalizedLabel('stg_value_greater_than', language)} ${editSettings.notifications.large_adjustment_threshold.toLocaleString()}`}
                     </p>
                   </div>
                   <Switch
@@ -1697,7 +1756,7 @@ export default function AccountingSettings() {
 
               {editSettings.notifications.notify_on_large_adjustments && (
                 <div className="space-y-2">
-                  <Label>{language === 'ar' ? 'حد التسوية الكبيرة' : 'Large Adjustment Threshold'}</Label>
+                  <Label>{getLocalizedLabel('stg_large_adjustment_threshold', language)}</Label>
                   <Input
                     type="number"
                     value={editSettings.notifications.large_adjustment_threshold}
@@ -1721,12 +1780,10 @@ export default function AccountingSettings() {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Landmark className="w-5 h-5 text-erp-teal" />
-                    {language === 'ar' ? 'إدارة مراكز التكلفة' : 'Cost Center Management'}
+                    {getLocalizedLabel('stg_cost_center_management', language)}
                   </CardTitle>
                   <CardDescription>
-                    {language === 'ar'
-                      ? 'إضافة وتعديل وحذف مراكز التكلفة المستخدمة في القيود اليومية'
-                      : 'Add, edit and delete cost centers used in journal entries'}
+                    {getLocalizedLabel('stg_add__edit_and_delete_cost_ce', language)}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -1747,7 +1804,7 @@ export default function AccountingSettings() {
                     setNewCC({ code: '', name_ar: '', name_en: '', is_active: true });
                   }}>
                     <Plus className="w-4 h-4" />
-                    {language === 'ar' ? 'إضافة' : 'Add'}
+                    {getLocalizedLabel('stg_add', language)}
                   </Button>
                 </div>
               </div>
@@ -1757,19 +1814,19 @@ export default function AccountingSettings() {
               {showAddCC && (
                 <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
                   <Input
-                    placeholder={language === 'ar' ? 'الرمز' : 'Code'}
+                    placeholder={getLocalizedLabel('stg_code', language)}
                     value={newCC.code}
                     onChange={(e) => setNewCC(p => ({ ...p, code: e.target.value }))}
                     className="w-24"
                   />
                   <Input
-                    placeholder={language === 'ar' ? 'الاسم بالعربية' : 'Name (Arabic)'}
+                    placeholder={getLocalizedLabel('stg_name_arabic', language)}
                     value={newCC.name_ar}
                     onChange={(e) => setNewCC(p => ({ ...p, name_ar: e.target.value }))}
                     className="flex-1"
                   />
                   <Input
-                    placeholder={language === 'ar' ? 'الاسم بالإنجليزية' : 'Name (English)'}
+                    placeholder={getLocalizedLabel('stg_name_english', language)}
                     value={newCC.name_en}
                     onChange={(e) => setNewCC(p => ({ ...p, name_en: e.target.value }))}
                     className="flex-1"
@@ -1785,13 +1842,13 @@ export default function AccountingSettings() {
                         is_active: true,
                       });
                       if (error) throw error;
-                      toast({ title: language === 'ar' ? 'تمت الإضافة' : 'Added', description: newCC.name_ar });
+                      toast({ title: getLocalizedLabel('stg_added', language), description: newCC.name_ar });
                       setShowAddCC(false);
                       // Refresh
                       const { data } = await supabase.from('cost_centers').select('*').eq('company_id', companyId).order('code');
                       if (data) setCostCentersList(data);
                     } catch (err: any) {
-                      toast({ title: language === 'ar' ? 'خطأ' : 'Error', description: err.message, variant: 'destructive' });
+                      toast({ title: getLocalizedLabel('stg_error', language), description: err.message, variant: 'destructive' });
                     } finally {
                       setSavingCC(false);
                     }
@@ -1809,18 +1866,18 @@ export default function AccountingSettings() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/50">
-                      <th className="px-4 py-2.5 text-start font-medium w-24">{language === 'ar' ? 'الرمز' : 'Code'}</th>
-                      <th className="px-4 py-2.5 text-start font-medium">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</th>
-                      <th className="px-4 py-2.5 text-start font-medium">{language === 'ar' ? 'الاسم بالإنجليزية' : 'English Name'}</th>
-                      <th className="px-4 py-2.5 text-center font-medium w-24">{language === 'ar' ? 'الحالة' : 'Status'}</th>
-                      <th className="px-4 py-2.5 text-center font-medium w-24">{language === 'ar' ? 'إجراءات' : 'Actions'}</th>
+                      <th className="px-4 py-2.5 text-start font-medium w-24">{getLocalizedLabel('stg_code', language)}</th>
+                      <th className="px-4 py-2.5 text-start font-medium">{getLocalizedLabel('stg_arabic_name', language)}</th>
+                      <th className="px-4 py-2.5 text-start font-medium">{getLocalizedLabel('stg_english_name', language)}</th>
+                      <th className="px-4 py-2.5 text-center font-medium w-24">{getLocalizedLabel('stg_status', language)}</th>
+                      <th className="px-4 py-2.5 text-center font-medium w-24">{getLocalizedLabel('stg_actions', language)}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {costCentersList.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                          {language === 'ar' ? 'لا توجد مراكز تكلفة. اضغط "إضافة" لإنشاء مركز تكلفة جديد.' : 'No cost centers. Click "Add" to create one.'}
+                          {getLocalizedLabel('stg_no_cost_centers_click_add_to_c', language)}
                         </td>
                       </tr>
                     ) : costCentersList.map((cc) => (
@@ -1849,7 +1906,7 @@ export default function AccountingSettings() {
                                     is_active: editingCC.is_active,
                                   }).eq('id', editingCC.id);
                                   if (!error) {
-                                    toast({ title: language === 'ar' ? 'تم التحديث' : 'Updated' });
+                                    toast({ title: getLocalizedLabel('stg_updated', language) });
                                     setEditingCC(null);
                                     const { data } = await supabase.from('cost_centers').select('*').eq('company_id', companyId).order('code');
                                     if (data) setCostCentersList(data);
@@ -1870,7 +1927,7 @@ export default function AccountingSettings() {
                             <td className="px-4 py-2.5">{cc.name_en}</td>
                             <td className="px-4 py-2.5 text-center">
                               <Badge variant={cc.is_active ? 'default' : 'secondary'} className="text-[10px]">
-                                {cc.is_active ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'معطل' : 'Inactive')}
+                                {cc.is_active ? (getLocalizedLabel('stg_active', language)) : (getLocalizedLabel('stg_inactive', language))}
                               </Badge>
                             </td>
                             <td className="px-4 py-2.5 text-center">
@@ -1879,11 +1936,11 @@ export default function AccountingSettings() {
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={async () => {
-                                  if (!confirm(language === 'ar' ? 'هل أنت متأكد من الحذف؟' : 'Are you sure?')) return;
+                                  if (!confirm(getLocalizedLabel('stg_are_you_sure', language))) return;
                                   const { error } = await supabase.from('cost_centers').delete().eq('id', cc.id);
                                   if (!error) {
                                     setCostCentersList(prev => prev.filter(c => c.id !== cc.id));
-                                    toast({ title: language === 'ar' ? 'تم الحذف' : 'Deleted' });
+                                    toast({ title: getLocalizedLabel('stg_deleted', language) });
                                   }
                                 }}>
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1899,9 +1956,7 @@ export default function AccountingSettings() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                {language === 'ar'
-                  ? `إجمالي مراكز التكلفة: ${costCentersList.length}`
-                  : `Total cost centers: ${costCentersList.length}`}
+                {`${getLocalizedLabel('stg_total_cost_centers_', language)} ${costCentersList.length}`}
               </p>
             </CardContent>
           </Card>
@@ -1919,12 +1974,12 @@ export default function AccountingSettings() {
             {saving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {language === 'ar' ? 'جاري الحفظ...' : 'Saving...'}
+                {getLocalizedLabel('stg_saving', language)}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                {language === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}
+                {getLocalizedLabel('stg_save_settings', language)}
               </>
             )}
           </Button>

@@ -98,34 +98,51 @@ export default function VATSettlement() {
 
     // ─── Load accounts (cached via React Query) ───
     const { data: vatAccounts } = useCachedQuery({
-        queryKey: ['accounting', 'vat-accounts', companyId],
+        queryKey: ['accounting', 'vat-accounts-v2', companyId],
         queryFn: async () => {
             if (!companyId) return null;
-            const [settingsRes, outputAccRes, banksRes] = await Promise.all([
-                supabase.from('company_accounting_settings').select('default_tax_input_account_id').eq('company_id', companyId).single(),
-                supabase.from('chart_of_accounts').select('id, account_code, name_ar, name_en').eq('company_id', companyId).eq('account_code', '214').single(),
-                supabase.from('chart_of_accounts').select('id, account_code, name_ar, name_en').eq('company_id', companyId).eq('is_detail', true).or('account_code.like.112%,account_code.like.111%').order('account_code'),
+            const [settingsRes, banksRes] = await Promise.all([
+                supabase.from('company_accounting_settings')
+                    .select('default_tax_input_account_id, default_tax_output_account_id')
+                    .eq('company_id', companyId).single(),
+                supabase.from('chart_of_accounts')
+                    .select('id, account_code, name_ar, name_en')
+                    .eq('company_id', companyId).eq('is_detail', true)
+                    .or('account_code.like.112%,account_code.like.111%')
+                    .order('account_code'),
             ]);
 
             let inputId = '';
             let inputName = '';
-            if (settingsRes.data?.default_tax_input_account_id) {
-                inputId = settingsRes.data.default_tax_input_account_id;
-                const { data: acc } = await supabase.from('chart_of_accounts').select('account_code, name_ar, name_en').eq('id', inputId).single();
-                if (acc) inputName = `${acc.account_code} — ${acc.name_ar}`;
-            }
-
             let outputId = '';
             let outputName = '';
-            if (outputAccRes.data) {
-                outputId = outputAccRes.data.id;
-                outputName = `${outputAccRes.data.account_code} — ${outputAccRes.data.name_ar}`;
+
+            const accountIds: string[] = [];
+            if (settingsRes.data?.default_tax_input_account_id) accountIds.push(settingsRes.data.default_tax_input_account_id);
+            if (settingsRes.data?.default_tax_output_account_id) accountIds.push(settingsRes.data.default_tax_output_account_id);
+
+            if (accountIds.length > 0) {
+                const { data: accounts } = await supabase
+                    .from('chart_of_accounts')
+                    .select('id, account_code, name_ar, name_en')
+                    .in('id', accountIds);
+
+                accounts?.forEach(acc => {
+                    if (acc.id === settingsRes.data?.default_tax_input_account_id) {
+                        inputId = acc.id;
+                        inputName = `${acc.account_code} — ${acc.name_ar}`;
+                    }
+                    if (acc.id === settingsRes.data?.default_tax_output_account_id) {
+                        outputId = acc.id;
+                        outputName = `${acc.account_code} — ${acc.name_ar}`;
+                    }
+                });
             }
 
             return { inputId, inputName, outputId, outputName, banks: banksRes.data || [] };
         },
         enabled: !!companyId,
-        staleTime: 30 * 60 * 1000,   // 30 min — accounts rarely change
+        staleTime: 5 * 60 * 1000,   // 5 min — tax accounts can change from settings
         gcTime: 24 * 60 * 60 * 1000,
     });
 

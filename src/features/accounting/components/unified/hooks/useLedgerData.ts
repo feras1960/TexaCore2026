@@ -390,7 +390,7 @@ export function useLedgerData({
 // Helper: Enrich entries with counter account info
 // ═══════════════════════════════════════════
 
-async function enrichWithCounterAccounts(
+export async function enrichWithCounterAccounts(
     entries: LedgerEntry[],
     currentAccountId: string
 ): Promise<ExtendedLedgerEntry[]> {

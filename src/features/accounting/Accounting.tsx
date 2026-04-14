@@ -49,7 +49,7 @@ import AccountingReports from './AccountingReports';
 import Parties from './Parties';
 import AccountingSettings from './AccountingSettings';
 import BudgetPage from './BudgetPage';
-import VATSettlement from './VATSettlement';
+// VATSettlement is now embedded in /system-config/tax
 import EquityPartnersPage from './EquityPartnersPage';
 import RecurringEntriesPage from './RecurringEntriesPage';
 
@@ -87,7 +87,7 @@ export default function Accounting() {
       if (path.includes('/parties')) return 'parties';
       if (path.includes('/equity-partners')) return 'equity-partners';
       if (path.includes('/budget')) return 'budget';
-      if (path.includes('/vat-settlement')) return 'vat-settlement';
+
       if (path.includes('/recurring')) return 'recurring';
       if (path.includes('/settings')) return 'settings';
       if (path.includes('/reports')) return 'reports';
@@ -169,12 +169,7 @@ export default function Accounting() {
       icon: RefreshCw,
       component: RecurringEntriesPage,
     },
-    {
-      id: 'vat-settlement',
-      labelKey: 'accounting.vatSettlement',
-      icon: Scale,
-      component: VATSettlement,
-    },
+
     {
       id: 'settings',
       labelKey: 'accounting.settings',

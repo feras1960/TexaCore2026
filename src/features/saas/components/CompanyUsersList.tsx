@@ -4,7 +4,7 @@ import { UserProfile, userProfilesService } from '@/services/userProfilesService
 import { Loader2, Mail, Phone, Shield, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 
 interface CompanyUsersListProps {
     companyId: string;

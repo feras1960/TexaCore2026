@@ -1,8 +1,13 @@
 /**
  * 📋 Contracts Table — جدول العقود باستخدام NexaListTable
+ * ⚡ PERFORMANCE: useCachedQuery (IndexedDB persistence)
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaListTable, NexaListColumn, NexaListFilter } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
@@ -14,26 +19,33 @@ import { toast } from 'sonner';
 export default function ContractsTable() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [contracts, setContracts] = useState<EmployeeContract[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
-    useEffect(() => { loadContracts(); }, []);
+    // ─── Cache-first query ────────────
+    const { data: contracts = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'contracts', companyId],
+        queryFn: async () => getContracts(),
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
 
-    async function loadContracts() {
-        try {
-            setLoading(true);
-            const data = await getContracts();
-            setContracts(data);
-        } catch (err) {
-            console.error(err);
-            toast.error(isRTL ? 'فشل تحميل العقود' : 'Failed to load contracts');
-        } finally {
-            setLoading(false);
-        }
-    }
+    // ─── Realtime ────────────
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('hr-contracts-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'employee_contracts' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'contracts'] });
+                queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
 
     const statusConfig: Record<string, { label: string; className: string }> = {
         active: { label: isRTL ? 'ساري' : 'Active', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },

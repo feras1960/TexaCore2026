@@ -85,10 +85,10 @@ class BranchesService {
 
             // Run queries in parallel — each wrapped in try-catch for resilience
             const [whResult, userResult, managerResult] = await Promise.all([
-                supabase.from('warehouses').select('branch_id').in('branch_id', branchIds).then(r => r.data).catch(() => null),
-                supabase.from('user_profiles').select('branch_id').in('branch_id', branchIds).then(r => r.data).catch(() => null),
+                supabase.from('warehouses').select('branch_id').in('branch_id', branchIds).then(r => r.data),
+                supabase.from('user_profiles').select('branch_id').in('branch_id', branchIds).then(r => r.data),
                 managerIds.length > 0
-                    ? supabase.from('user_profiles').select('id, full_name, email').in('id', managerIds).then(r => r.data).catch(() => null)
+                    ? supabase.from('user_profiles').select('id, full_name, email').in('id', managerIds).then(r => r.data)
                     : Promise.resolve(null),
             ]);
 

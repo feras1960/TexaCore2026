@@ -27,9 +27,9 @@ import {
   MoreHorizontal, Eye, FileText, Coins,
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
-// AddFundDialog removed — using UnifiedAccountingSheet in create mode instead
 import QuickActionsBar from './components/QuickActionsBar';
 import { AccountingPageHeader } from './components/shared/AccountingPageHeader';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 import { cn } from '@/lib/utils';
 import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
 import {
@@ -56,7 +56,14 @@ export default function FundsManagement() {
   const { currencyCode: baseCurrency } = useCompanyCurrency(language as 'ar' | 'en');
   const isRTL = direction === 'rtl';
   const { currencyOptions, getRate } = useViewCurrency();
-  const [displayCurrency, setDisplayCurrency] = useState<string>('all');
+  const [displayCurrency, setDisplayCurrency] = useState<string>('auto');
+
+  // Set default currency to baseCurrency once it's loaded to show immediate totals
+  useEffect(() => {
+    if (baseCurrency && displayCurrency === 'auto') {
+      setDisplayCurrency(baseCurrency);
+    }
+  }, [baseCurrency, displayCurrency]);
 
   // ─── Data ───────────────────────────────────────────────────
   const { funds: rawFunds, loading: isLoading, refetch: refetchFunds, invalidate: invalidateFunds } = useFunds();
@@ -112,16 +119,17 @@ export default function FundsManagement() {
   }, [rawFunds, companyId, baseCurrency]);
 
   // ─── Currency conversion ───────────────────────────────────
-  const isConverting = displayCurrency !== 'all';
+  const actualDisplayCurrency = displayCurrency === 'auto' ? (baseCurrency || 'all') : displayCurrency;
+  const isConverting = actualDisplayCurrency !== 'all';
   const convertBalance = useCallback((amount: number, fromCurrency: string): number => {
-    if (!isConverting || !fromCurrency || fromCurrency === displayCurrency) return amount;
-    const rate = getRate(fromCurrency, displayCurrency);
+    if (!isConverting || !fromCurrency || fromCurrency === actualDisplayCurrency) return amount;
+    const rate = getRate(fromCurrency, actualDisplayCurrency);
     return rate > 0 ? amount * rate : amount;
-  }, [isConverting, displayCurrency, getRate]);
+  }, [isConverting, actualDisplayCurrency, getRate]);
 
   // ─── Stats ──────────────────────────────────────────────────
   // عند "جميع العملات" لا يجب جمع مبالغ بعملات مختلفة — بلا معنى محاسبي
-  const showTotals = displayCurrency !== 'all';
+  const showTotals = actualDisplayCurrency !== 'all';
   const stats = useMemo(() => {
     let cashCount = 0, bankCount = 0;
     let totalCash = 0, totalBank = 0;
@@ -142,7 +150,7 @@ export default function FundsManagement() {
       }
     });
 
-    const effectiveCurrency = isConverting ? displayCurrency : (baseCurrency || 'USD');
+    const effectiveCurrency = isConverting ? actualDisplayCurrency : (baseCurrency || 'USD');
 
     return {
       totalFunds: rawFunds.length,
@@ -153,7 +161,7 @@ export default function FundsManagement() {
       grandTotal: totalCash + totalBank,
       effectiveCurrency,
     };
-  }, [rawFunds, fundBalances, convertBalance, isConverting, displayCurrency, baseCurrency, showTotals]);
+  }, [rawFunds, fundBalances, convertBalance, isConverting, actualDisplayCurrency, baseCurrency, showTotals]);
 
   // ─── Filtering ──────────────────────────────────────────────
   const filteredFunds = useMemo(() => {
@@ -202,14 +210,37 @@ export default function FundsManagement() {
   const fmtAmount = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const getFundName = (fund: any) => {
-    const nameMap: Record<string, string> = {
-      ar: fund.name_ar,
-      en: fund.name_en,
-      tr: fund.name_tr,
-      ru: fund.name_ru,
-      uk: fund.name_uk,
+    // 1. Try explicit database translation first
+    const dbName = fund[`name_${language}`];
+    if (dbName && dbName.trim().length > 0) return dbName;
+
+    // 2. Fallback dictionary for system-generated default accounts that might lack translations in DB
+    const sysNames: Record<string, Record<string, string>> = {
+      'cash': { ar: 'الصندوق (الخزينة)', ru: 'Касса', uk: 'Каса', tr: 'Kasa' },
+      'cash - base currency': { ar: 'الصندوق - العملة الأساسية', ru: 'Касса - Базовая валюта', uk: 'Каса - Базова валюта', tr: 'Kasa - Temel Para Birimi' },
+      'cash - local currency': { ar: 'الصندوق - العملة المحلية', ru: 'Касса - Местная валюта', uk: 'Каса - Місцева валюта', tr: 'Kasa - Yerel Para Birimi' },
+      'petty cash': { ar: 'صندوق النثرية', ru: 'Мелкая касса', uk: 'Дрібна каса', tr: 'Küçük Kasa' },
+      'banks': { ar: 'البنوك', ru: 'Банковский счёт', uk: 'Банківський рахунок', tr: 'Bankalar' },
+      'bank - base currency': { ar: 'البنك - العملة الأساسية', ru: 'Банковский счёт - Базовая валюта', uk: 'Банківський рахунок - Базова валюта', tr: 'Banka - Temel Para Birimi' },
+      'bank - local currency': { ar: 'البنك - العملة المحلية', ru: 'Банковский счёт - Местная валюта', uk: 'Банківський рахунок - Місцева валюта', tr: 'Banka - Yerel Para Birimi' },
+      // Arabic fallbacks just in case
+      'الصندوق (الخزينة)': { en: 'Cash', ru: 'Касса', uk: 'Каса', tr: 'Kasa' },
+      'الصندوق': { en: 'Cash', ru: 'Касса', uk: 'Каса', tr: 'Kasa' },
+      'البنوك': { en: 'Banks', ru: 'Банковский счёт', uk: 'Банківський рахунок', tr: 'Bankalar' },
     };
-    return nameMap[language] || fund.name_en || fund.name_ar || '';
+
+    const baseEn = (fund.name_en || '').toLowerCase().trim();
+    if (sysNames[baseEn] && sysNames[baseEn][language]) {
+      return sysNames[baseEn][language];
+    }
+
+    const baseAr = (fund.name_ar || '').trim();
+    if (sysNames[baseAr] && sysNames[baseAr][language]) {
+      return sysNames[baseAr][language];
+    }
+
+    // 3. Ultimate fallback to EN or AR
+    return fund.name_en || fund.name_ar || fund.account_code || '';
   };
 
   // ─── Handlers ───────────────────────────────────────────────
@@ -333,7 +364,7 @@ export default function FundsManagement() {
         const rawBalance = bal ? bal.balance : 0;
         const fundCur = bal?.currency || fund.currency || baseCurrency || 'USD';
         const displayBalance = convertBalance(rawBalance, fundCur);
-        const displayCur = isConverting ? displayCurrency : fundCur;
+        const displayCur = isConverting ? actualDisplayCurrency : fundCur;
         const color = displayBalance > 0
           ? 'text-green-600 dark:text-green-400'
           : displayBalance < 0
@@ -384,7 +415,7 @@ export default function FundsManagement() {
         </Badge>
       ),
     },
-  ], [isRTL, fundBalances, baseCurrency, convertBalance, isConverting, displayCurrency, language]);
+  ], [isRTL, fundBalances, baseCurrency, convertBalance, isConverting, actualDisplayCurrency, language]);
 
   // ─── Actions ────────────────────────────────────────────────
   const renderActions = useCallback((fund: any) => (
@@ -456,7 +487,7 @@ export default function FundsManagement() {
                   {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.totalCash)}
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 font-tajawal mt-1">{isRTL ? 'اختر عملة' : 'Select currency'}</p>
+                <p className="text-sm text-gray-400 font-tajawal mt-1">{getLocalizedLabel('je_select_cur', language)}</p>
               )}
             </div>
           </CardContent>
@@ -475,7 +506,7 @@ export default function FundsManagement() {
                   {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.totalBank)}
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 font-tajawal mt-1">{isRTL ? 'اختر عملة' : 'Select currency'}</p>
+                <p className="text-sm text-gray-400 font-tajawal mt-1">{getLocalizedLabel('je_select_cur', language)}</p>
               )}
             </div>
           </CardContent>
@@ -494,7 +525,7 @@ export default function FundsManagement() {
                   {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.grandTotal)}
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 font-tajawal mt-1">{isRTL ? 'اختر عملة' : 'Select currency'}</p>
+                <p className="text-sm text-gray-400 font-tajawal mt-1">{getLocalizedLabel('je_select_cur', language)}</p>
               )}
             </div>
           </CardContent>
@@ -524,7 +555,7 @@ export default function FundsManagement() {
         {/* Currency filter */}
         <div className="flex items-center gap-2">
           <select
-            value={displayCurrency}
+            value={actualDisplayCurrency}
             onChange={(e) => setDisplayCurrency(e.target.value)}
             className="h-8 px-2 text-xs border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700"
           >
@@ -564,11 +595,11 @@ export default function FundsManagement() {
               {showTotals ? (
                 <>
                   {t('stats.total')}: {getCurrencySymbol(effectiveCurrency)} {fmtAmount(stats.grandTotal)}
-                  <span className="text-gray-400 ms-1">{displayCurrency}</span>
+                  <span className="text-gray-400 ms-1">{actualDisplayCurrency}</span>
                 </>
               ) : (
                 <span className="text-gray-400 text-xs font-tajawal">
-                  {isRTL ? 'اختر عملة لعرض المجاميع' : 'Select currency for totals'}
+                  {getLocalizedLabel('je_select_cur_totals', language)}
                 </span>
               )}
             </span>

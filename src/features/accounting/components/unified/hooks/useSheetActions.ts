@@ -551,7 +551,15 @@ export function useTradeSave(
                 };
 
                 const result = await createContainer(containerPayload as any);
-                setData((prev: any) => ({ ...prev, ...result, id: result.id }));
+                // Merge result but skip null values to preserve locally-set fields
+                // (e.g., delivery_method set to 'store_pickup' locally but null in DB)
+                setData((prev: any) => {
+                    const filtered: Record<string, any> = { id: result.id };
+                    for (const [k, v] of Object.entries(result)) {
+                        if (v !== null && v !== undefined) filtered[k] = v;
+                    }
+                    return { ...prev, ...filtered };
+                });
                 setMode('edit');
             } else {
                 const updates: Record<string, any> = {
@@ -591,11 +599,12 @@ export function useTradeSave(
         // Build document payload
         const items = saveData.items || [];
 
-        // Validate: party_id is required for invoices/orders (but NOT for transfers)
+        // Validate: party_id is required for CONFIRMED invoices/orders (drafts can save without it)
         const partyId = saveData.party_id || saveData.customer_id || saveData.supplier_id;
         const isTransferMode = tradeMode === 'transfer';
-        if ((docType === 'trade_invoice' || docType === 'trade_order') && !partyId && !isTransferMode) {
-            const errorMsg = language === 'ar' ? 'عذراً، يجب تحديد المورد/العميل قبل الحفظ' : 'Supplier/Customer is required';
+        const isDraftSave = !saveData._post && !saveData._confirm;
+        if ((docType === 'trade_invoice' || docType === 'trade_order') && !partyId && !isTransferMode && !isDraftSave) {
+            const errorMsg = language === 'ar' ? 'عذراً، يجب تحديد المورد/العميل قبل التأكيد' : 'Supplier/Customer is required before confirmation';
             toast.error(errorMsg);
             throw new Error(errorMsg);
         }
@@ -625,6 +634,15 @@ export function useTradeSave(
             if (saveData.receipt_mode) docPayload.receipt_mode = saveData.receipt_mode;
         }
 
+        // Sales-specific fields
+        if (modeKey === 'sales') {
+            if (saveData.delivery_method) docPayload.delivery_method = saveData.delivery_method;
+            if (saveData.shipping_address_id) docPayload.shipping_address_id = saveData.shipping_address_id;
+            if (saveData.shipping_address) docPayload.shipping_address = saveData.shipping_address;
+            if (saveData.due_date) docPayload.due_date = saveData.due_date;
+            if (saveData.salesperson_id) docPayload.salesperson_id = saveData.salesperson_id;
+        }
+
         // Expenses & Attachments
         if (saveData.expenses) {
             docPayload.expenses = saveData.expenses;
@@ -644,7 +662,15 @@ export function useTradeSave(
         // Create or Update
         if (mode === 'create' || !docId) {
             const result = await TradeService.createTradeDocument(docPayload, serviceDocType, docPayload.currency);
-            setData((prev: any) => ({ ...prev, ...result, id: result.id }));
+            // Merge result but skip null values to preserve locally-set fields
+            // (e.g., delivery_method set to 'store_pickup' locally but null in DB)
+            setData((prev: any) => {
+                const filtered: Record<string, any> = { id: result.id };
+                for (const [k, v] of Object.entries(result)) {
+                    if (v !== null && v !== undefined) filtered[k] = v;
+                }
+                return { ...prev, ...filtered };
+            });
             setMode('edit');
             return result;
         } else {
@@ -681,7 +707,7 @@ export function useTradeAutoSave(
         id: currentDocId,
         stage: currentStage || 'draft',
         onSave: autoSaveHandler,
-        delay: 5000,
+        delay: 1500, // Near-instant save: saves ~1.5s after last change
         disabled: !isTradeDocType || mode === 'view' || isNonDraftStage,
     });
 }
@@ -1842,8 +1868,24 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 if (error) throw error;
 
                                 // Update local state with new ID
+                                const savedPartyData = { ...data, ...inserted, id: inserted.id };
                                 setData((prev: any) => ({ ...prev, ...inserted, id: inserted.id }));
                                 toast.success(language === 'ar' ? 'تم إنشاء الجهة بنجاح' : 'Party created successfully');
+
+                                setHasChanges(false);
+                                // Invalidate party queries — refetch trade_customers to ensure dropdown has new party
+                                queryClient.invalidateQueries({ queryKey: ['parties_suppliers'] });
+                                queryClient.invalidateQueries({ queryKey: ['parties_customers'] });
+                                queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
+                                queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+                                queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                                // Force refetch and WAIT — ensures dropdown list includes new party before closing
+                                await queryClient.refetchQueries({ queryKey: ['trade_customers'] });
+                                if (onSave) {
+                                    await onSave(savedPartyData);
+                                } else {
+                                    setMode('view');
+                                }
                             } else {
                                 // UPDATE existing party
                                 const { error } = await supabase
@@ -1853,17 +1895,20 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                                 if (error) throw error;
                                 toast.success(language === 'ar' ? 'تم حفظ بيانات الجهة بنجاح' : 'Party saved successfully');
-                            }
 
-                            setHasChanges(false);
-                            // Invalidate party queries to refresh the list immediately
-                            queryClient.invalidateQueries({ queryKey: ['parties_suppliers'] });
-                            queryClient.invalidateQueries({ queryKey: ['parties_customers'] });
-                            queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
-                            queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
-                            queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
-                            if (onSave) await onSave(data);
-                            setMode('view');
+                                setHasChanges(false);
+                                queryClient.invalidateQueries({ queryKey: ['parties_suppliers'] });
+                                queryClient.invalidateQueries({ queryKey: ['parties_customers'] });
+                                queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
+                                queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+                                queryClient.invalidateQueries({ queryKey: ['trade_customers'] });
+                                queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
+                                if (onSave) {
+                                    await onSave(data);
+                                } else {
+                                    setMode('view');
+                                }
+                            }
                         } catch (err: any) {
                             console.error('[Party Save Error]', err);
                             toast.error(language === 'ar' ? 'فشل حفظ بيانات الجهة' : 'Failed to save party', {
@@ -2457,9 +2502,19 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         const confirmed = window.confirm(t('messages.confirmDelete') || 'هل أنت متأكد من الحذف؟');
                         if (confirmed) {
                             setLoading(true);
-                            await onDelete();
-                            toast.success(t('messages.deletedSuccessfully') || 'تم الحذف بنجاح');
-                            onClose();
+                            try {
+                                await onDelete();
+                                toast.success(t('messages.deletedSuccessfully') || 'تم الحذف بنجاح');
+                                onClose();
+                            } catch (deleteErr: any) {
+                                console.error('[Delete Error]', deleteErr);
+                                toast.error(
+                                    language === 'ar' ? '🚫 فشل الحذف' : '🚫 Delete failed',
+                                    { description: deleteErr.message || '', duration: 6000 }
+                                );
+                            } finally {
+                                setLoading(false);
+                            }
                         }
                     } else if (docType === 'recurring' && (documentId || data?.id)) {
                         // ─── Recurring: حذف من recurring_entries ───
@@ -2717,6 +2772,56 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                         }
 
                         // ═══ Standard (Sales/Purchase) confirmation ═══
+
+                        // ── Sales validation: delivery_method required ──
+                        const VALID_DELIVERY_METHODS = ['store_pickup', 'direct_pickup', 'direct_delivery', 'carrier'];
+                        if (modeKey === 'sales') {
+                            // Auto-apply default delivery method if not set
+                            // (UI shows store_pickup by default, so this matches user expectation)
+                            let deliveryMethod = data?.delivery_method;
+                            if (!deliveryMethod) {
+                                deliveryMethod = 'store_pickup';
+                                // Persist the default to DB and local state
+                                setData((prev: any) => prev ? { ...prev, delivery_method: 'store_pickup' } : prev);
+                                await supabase.from(tableName)
+                                    .update({ delivery_method: 'store_pickup' })
+                                    .eq('id', docId);
+                            }
+                            const isValidMethod = VALID_DELIVERY_METHODS.includes(deliveryMethod);
+                            console.log('[SaveConfirm] 🔍 delivery_method check:', { deliveryMethod, isValidMethod, modeKey });
+
+                            if (!isValidMethod) {
+                                toast.error(
+                                    language === 'ar'
+                                        ? '⚠️ يجب تحديد طريقة التوصيل في تبويب "الدفعات والقيد والتوصيل" قبل التأكيد'
+                                        : '⚠️ Delivery method must be set in Shipping tab before confirmation',
+                                    { duration: 6000 }
+                                );
+                                // Revert stage back to draft since save already happened
+                                await supabase.from(tableName)
+                                    .update({ stage: 'draft', updated_at: new Date().toISOString() })
+                                    .eq('id', docId);
+                                setData((prev: any) => prev ? { ...prev, stage: 'draft' } : prev);
+                                setLoading(false);
+                                break;
+                            }
+                            // If direct_delivery, require shipping address
+                            if (deliveryMethod === 'direct_delivery' && !data?.shipping_address_id && !data?.shipping_address) {
+                                toast.error(
+                                    language === 'ar'
+                                        ? '⚠️ يجب تحديد عنوان التوصيل للعميل في تبويب الشحن والتوصيل'
+                                        : '⚠️ Customer shipping address required for direct delivery',
+                                    { duration: 6000 }
+                                );
+                                await supabase.from(tableName)
+                                    .update({ stage: 'draft', updated_at: new Date().toISOString() })
+                                    .eq('id', docId);
+                                setData((prev: any) => prev ? { ...prev, stage: 'draft' } : prev);
+                                setLoading(false);
+                                break;
+                            }
+                        }
+
                         // Step 2: Confirm (update stage)
                         const { error } = await supabase
                             .from(tableName)

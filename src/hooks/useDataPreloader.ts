@@ -161,16 +161,59 @@ export function useDataPreloader() {
                 gcTime: GC_TIME,
             }),
 
-            // 11. 🏭 Inventory Page — fabric_materials (all active materials for inventory aggregation)
+            // 11. 🏭 Inventory Page — fabric_materials (all active materials, full detail for variants)
             queryClient.prefetchQuery({
                 queryKey: ['inventory-preload-materials', companyId],
                 queryFn: async () => {
                     const { data } = await supabase
                         .from('fabric_materials')
-                        .select('id, name_ar, name_en, code, unit, group_id, purchase_price, selling_price, min_stock, status, season, current_stock, currency, default_warehouse_id')
+                        .select('*')
                         .eq('company_id', companyId)
                         .eq('status', 'active');
                     return data || [];
+                },
+                staleTime: DYNAMIC,
+                gcTime: GC_TIME,
+            }),
+
+            // 12. 👶 Material Variants — same data, dedicated key for useMaterialSearch.fetchVariantChildren
+            // This ensures variant lookup always has parent_material_id even after stale cache restore
+            queryClient.prefetchQuery({
+                queryKey: ['materials-full-detail', companyId],
+                queryFn: async () => {
+                    const { data } = await supabase
+                        .from('fabric_materials')
+                        .select('*')
+                        .eq('company_id', companyId)
+                        .eq('status', 'active');
+                    return data || [];
+                },
+                staleTime: DYNAMIC,
+                gcTime: GC_TIME,
+            }),
+
+            // 13. 📦 Inventory Stock — per-warehouse breakdown (for material card instant display)
+            queryClient.prefetchQuery({
+                queryKey: ['inventory-preload-stock', companyId],
+                queryFn: async () => {
+                    const { data } = await supabase
+                        .from('inventory_stock')
+                        .select('material_id, warehouse_id, quantity_on_hand, updated_at')
+                        .eq('company_id', companyId)
+                        .gt('quantity_on_hand', 0);
+                    return data || [];
+                },
+                staleTime: DYNAMIC,
+                gcTime: GC_TIME,
+            }),
+
+            // 14. 📊 Stock Movements — preload for instant /warehouse/stockMovements access
+            queryClient.prefetchQuery({
+                queryKey: ['warehouse', 'stock-movements', companyId, { dateFrom: undefined, dateTo: undefined, warehouse: undefined }],
+                queryFn: async () => {
+                    try {
+                        return await warehouseService.getInventoryMovements(companyId!, { limit: 500 });
+                    } catch { return []; }
                 },
                 staleTime: DYNAMIC,
                 gcTime: GC_TIME,

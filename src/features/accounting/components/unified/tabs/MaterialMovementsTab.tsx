@@ -51,7 +51,7 @@ import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 
 // ─── Types ──────────────────────────────────────────────────────
-type MovementType = 'all' | 'sale' | 'purchase' | 'transfer' | 'adjustment' | 'stock_count' | 'sales_return' | 'purchase_return' | 'in' | 'out';
+type MovementType = 'all' | 'sale' | 'purchase' | 'opening_balance' | 'transfer' | 'adjustment' | 'stock_count' | 'sales_return' | 'purchase_return' | 'in' | 'out';
 
 interface RollLine {
     id: string;
@@ -104,6 +104,7 @@ const getMovementTypeConfig = (language: string) => ({
     all: { label: language === 'ar' ? 'الكل' : 'All', icon: Filter, color: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300', activeColor: 'bg-gray-700 text-white border-gray-700', badgeColor: 'bg-gray-200 text-gray-700' },
     sale: { label: language === 'ar' ? 'مبيعات' : 'Sales', icon: ShoppingCart, color: 'bg-red-50 text-red-700 border-red-300 dark:bg-red-900/20 dark:text-red-400', activeColor: 'bg-red-600 text-white border-red-600', badgeColor: 'bg-red-100 text-red-800' },
     purchase: { label: language === 'ar' ? 'مشتريات' : 'Purchases', icon: Package, color: 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400', activeColor: 'bg-blue-600 text-white border-blue-600', badgeColor: 'bg-blue-100 text-blue-800' },
+    opening_balance: { label: language === 'ar' ? 'بضائع أول المدة' : 'Opening Balance', icon: PackagePlus, color: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400', activeColor: 'bg-emerald-600 text-white border-emerald-600', badgeColor: 'bg-emerald-100 text-emerald-800' },
     transfer: { label: language === 'ar' ? 'مناقلات' : 'Transfers', icon: ArrowRightLeft, color: 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-900/20 dark:text-purple-400', activeColor: 'bg-purple-600 text-white border-purple-600', badgeColor: 'bg-purple-100 text-purple-800' },
     adjustment: { label: language === 'ar' ? 'تسويات' : 'Adj.', icon: ClipboardCheck, color: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400', activeColor: 'bg-amber-600 text-white border-amber-600', badgeColor: 'bg-amber-100 text-amber-800' },
     stock_count: { label: language === 'ar' ? 'جرد مخزني' : 'Stock Count', icon: ClipboardCheck, color: 'bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-900/20 dark:text-teal-400', activeColor: 'bg-teal-600 text-white border-teal-600', badgeColor: 'bg-teal-100 text-teal-800' },
@@ -113,7 +114,9 @@ const getMovementTypeConfig = (language: string) => ({
     out: { label: language === 'ar' ? 'إخراج' : 'Stock Out', icon: PackageMinus, color: 'bg-gray-50 text-gray-700 border-gray-300 dark:bg-gray-900/20 dark:text-gray-400', activeColor: 'bg-gray-600 text-white border-gray-600', badgeColor: 'bg-gray-100 text-gray-800' },
 });
 
-const mapMovementType = (dbType: string): MovementType => {
+const mapMovementType = (dbType: string, referenceNumber?: string): MovementType => {
+    // Opening balance imports have OB-IMPORT reference numbers
+    if (referenceNumber && referenceNumber.startsWith('OB-IMPORT')) return 'opening_balance';
     const t = dbType?.toLowerCase() || '';
     if (t.includes('sale_return') || t.includes('sales_return')) return 'sales_return';
     if (t.includes('purchase_return')) return 'purchase_return';
@@ -176,7 +179,7 @@ function processAndGroup(
 
     groupMap.forEach((g) => {
         const rows = g.rows;
-        const displayType = mapMovementType(g.type);
+        const displayType = mapMovementType(g.type, g.key);
         const out = isOutgoing(g.type);
 
         let totalQty = 0;
@@ -248,15 +251,22 @@ function processAndGroup(
                     });
                 });
             } else {
-                // No rolls found — show single summary row
-                const whFrom = isRTL ? firstRow?.from_warehouse?.name_ar : (firstRow?.from_warehouse?.name_en || firstRow?.from_warehouse?.name_ar);
-                const whTo2 = isRTL ? firstRow?.to_warehouse?.name_ar : (firstRow?.to_warehouse?.name_en || firstRow?.to_warehouse?.name_ar);
-                rolls.push({
-                    id: rows[0]?.id || g.key,
-                    roll_number: isAr ? 'تجميعي' : 'Aggregate',
-                    quantity: totalQty,
-                    warehouse_from: whFrom,
-                    warehouse_to: whTo2,
+                // No rolls found — show per-warehouse breakdown from movement rows
+                // Each movement row may target a different warehouse (e.g., imports distribute across warehouses)
+                rows.forEach((m: any) => {
+                    const whFrom = isRTL ? m.from_warehouse?.name_ar : (m.from_warehouse?.name_en || m.from_warehouse?.name_ar);
+                    const whTo = isRTL ? m.to_warehouse?.name_ar : (m.to_warehouse?.name_en || m.to_warehouse?.name_ar);
+                    const qty = Math.abs(Number(m.quantity) || 0);
+                    const signedQty = out ? -qty : qty;
+                    rolls.push({
+                        id: m.id,
+                        roll_number: whTo || whFrom || (isAr ? 'تجميعي' : 'Aggregate'),
+                        quantity: signedQty,
+                        unit_cost: m.unit_cost,
+                        total_cost: m.total_cost,
+                        warehouse_from: whFrom,
+                        warehouse_to: whTo,
+                    });
                 });
             }
         }
@@ -291,10 +301,17 @@ function processAndGroup(
 
         runningBalance += totalQty;
 
-        // Warehouse display (use first row)
-        const firstRow = rows[0];
-        const whFrom = isRTL ? firstRow.from_warehouse?.name_ar : (firstRow.from_warehouse?.name_en || firstRow.from_warehouse?.name_ar);
-        const whTo = isRTL ? firstRow.to_warehouse?.name_ar : (firstRow.to_warehouse?.name_en || firstRow.to_warehouse?.name_ar);
+        // Warehouse display — collect all unique warehouses from the group
+        const uniqueWarehouses = new Set<string>();
+        rows.forEach((r: any) => {
+            const whName = out
+                ? (isRTL ? r.from_warehouse?.name_ar : (r.from_warehouse?.name_en || r.from_warehouse?.name_ar))
+                : (isRTL ? r.to_warehouse?.name_ar : (r.to_warehouse?.name_en || r.to_warehouse?.name_ar));
+            if (whName) uniqueWarehouses.add(whName);
+        });
+        const warehouseDisplay = uniqueWarehouses.size > 0
+            ? Array.from(uniqueWarehouses).join(' + ')
+            : undefined;
 
         result.push({
             key: g.key,
@@ -305,7 +322,7 @@ function processAndGroup(
             displayType,
             totalQty,
             totalValue: totalValue || undefined,
-            warehouse: out ? whFrom : whTo,
+            warehouse: warehouseDisplay,
             runningBalance,
             rolls,
             _notes: rows[0]?.notes,  // carry notes for stock_count_conversion display
@@ -621,10 +638,26 @@ export function MaterialMovementsTab({ data, onOpenDocument }: MaterialMovements
 
     // ─── Open original document ───────────────────────────────
     const handleOpenDoc = async (group: MovementGroup) => {
-        if (!group.reference_id) return;
-
         const refType = group.reference_type || '';
         let docType = 'purchase_invoice';
+
+        // Opening balance imports → open MovementDetailDialog
+        if (group.displayType === 'opening_balance' || refType === 'opening_balance') {
+            if (onOpenDocument) {
+                onOpenDocument('opening_balance', group.key, {
+                    reference_number: group.key,
+                    movement_type: 'receipt',
+                    reference_type: 'opening_balance',
+                    totalQty: group.totalQty,
+                    totalValue: group.totalValue,
+                    warehouse: group.warehouse,
+                    date: group.date,
+                });
+            }
+            return;
+        }
+
+        if (!group.reference_id) return;
 
         if (refType.includes('sale') || group.displayType === 'sale') docType = 'sale_invoice';
         else if (refType.includes('container') || group.type.includes('container')) docType = 'container';
@@ -669,7 +702,7 @@ export function MaterialMovementsTab({ data, onOpenDocument }: MaterialMovements
     const hasActiveFilters = activeFilter !== 'all' || !!dateFrom || !!dateTo || !!searchQuery;
     const clearFilters = () => { setActiveFilter('all'); setDateFrom(''); setDateTo(''); setSearchQuery(''); };
 
-    const filterTypes: MovementType[] = ['all', 'purchase', 'sale', 'transfer', 'stock_count', 'adjustment', 'sales_return', 'purchase_return'];
+    const filterTypes: MovementType[] = ['all', 'opening_balance', 'purchase', 'sale', 'transfer', 'stock_count', 'adjustment', 'sales_return', 'purchase_return'];
 
     // ─── Format date ──────────────────────────────────────────
     const fmtDate = (d: string) => {
@@ -878,7 +911,7 @@ export function MaterialMovementsTab({ data, onOpenDocument }: MaterialMovements
                                 const isExpanded = expandedKeys.has(group.key);
                                 const isIn = group.totalQty > 0;
                                 const hasRolls = group.rolls.length > 0;
-                                const hasDoc = !!group.reference_id && !!onOpenDocument;
+                                const hasDoc = (!!group.reference_id || group.displayType === 'opening_balance') && !!onOpenDocument;
 
                                 return (
                                     <div key={group.key} className="group">

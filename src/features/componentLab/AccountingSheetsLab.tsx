@@ -67,9 +67,11 @@ import { UniversalDetailSheet } from '@/components/sheets';
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 
 // Mock account data for testing
-const MOCK_ACCOUNT = {
+const MOCK_ACCOUNT: any = {
     id: 'acc-001',
     code: '1101',
+    account_code: '1101',
+    tenant_id: 'ten-001',
     name: 'الصندوق الرئيسي',
     nameAr: 'الصندوق الرئيسي',
     name_en: 'Main Cash',

@@ -17,7 +17,7 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.materials',
         icon: 'Search',
         component: 'MaterialBrowserTab',
-        showInModes: ['create', 'edit'],
+        showInModes: ['view', 'create', 'edit'],
     },
     attachments: {
         id: 'attachments',
@@ -58,7 +58,7 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.materials',
         icon: 'Search',
         component: 'PurchaseMaterialBrowserTab',
-        showInModes: ['create', 'edit'],
+        showInModes: ['view', 'create', 'edit'],
     },
     supplierInfo: {
         id: 'supplier_info',
@@ -149,13 +149,13 @@ const STAGE_TAB: Record<string, TabConfig> = {
         ...TAB.materialBrowser,
         visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation'],
-        showInModes: ['create', 'edit'],
+        showInModes: ['view', 'create', 'edit'],
     },
     purchaseMaterialBrowserStaged: {
         ...TAB.purchaseMaterialBrowser,
         visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation'],
-        showInModes: ['create', 'edit'],
+        showInModes: ['view', 'create', 'edit'],
     },
     // ── مورد (stage-aware) ──
     supplierInfoStaged: {
@@ -196,13 +196,13 @@ const STAGE_TAB: Record<string, TabConfig> = {
     // ── المبيعات: دفعات + قيد + توصيل (stage-aware) ──
     salesFinanceStaged: {
         ...TAB.salesFinance,
-        visibleInStages: ['draft', 'quotation', 'reservation', 'order', 'confirmed', 'delivery', 'in_delivery', 'delivered', 'invoice', 'posted', 'partial_paid', 'paid'],
+        visibleInStages: ['draft', 'quotation', 'reservation', 'order', 'confirmed', 'delivery', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivered', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation', 'order', 'invoice', 'partial_paid'],
     },
     // ── القيد المحاسبي (stage-aware) ──
     journalPreviewStaged: {
         ...TAB.journalPreview,
-        visibleInStages: ['confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'invoice', 'posted', 'partial_paid', 'paid'],
+        visibleInStages: ['confirmed', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivered', 'partially_received', 'received', 'invoice', 'posted', 'partial_paid', 'paid'],
     },
 };
 
@@ -305,6 +305,15 @@ const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
     in_delivery: [
         { id: 'confirm_delivery', labelAr: 'تأكيد التسليم', labelEn: 'Confirm Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
     ],
+    // ── مراحل التسليم عبر الفرع ──
+    in_transit: [
+        { id: 'confirm_branch_receipt', labelAr: 'تأكيد الاستلام في الفرع', labelEn: 'Confirm Branch Receipt', icon: '📥', targetStage: 'at_branch', variant: 'success', requiresConfirm: true, confirmMessageAr: 'تأكيد استلام البضاعة في الفرع؟', confirmMessageEn: 'Confirm goods received at branch?' },
+        { id: 'return_goods', labelAr: 'إرجاع البضاعة', labelEn: 'Return Goods', icon: '↩️', targetStage: 'confirmed', variant: 'destructive', requiresReason: true },
+    ],
+    at_branch: [
+        { id: 'confirm_customer_delivery', labelAr: 'تأكيد التسليم للعميل', labelEn: 'Confirm Customer Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
+        { id: 'return_to_warehouse', labelAr: 'إرجاع للمستودع', labelEn: 'Return to Warehouse', icon: '🔙', targetStage: 'confirmed', variant: 'destructive', requiresReason: true },
+    ],
     delivered: [],
     posted: [
         { id: 'collect', labelAr: 'تحصيل دفعة', labelEn: 'Collect Payment', icon: '💰', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
@@ -348,7 +357,7 @@ const TRANSFER_STAGE_ORDER = ['draft', 'confirmed', 'loading', 'shipped', 'recei
 
 // Stage order constants
 const PURCHASE_STAGE_ORDER = ['draft', 'quotation', 'order', 'approved', 'confirmed', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'];
-const SALES_STAGE_ORDER = ['draft', 'quotation', 'reservation', 'order', 'delivery', 'invoice', 'confirmed', 'sent_to_branch', 'in_delivery', 'delivered', 'posted', 'partial_paid', 'paid'];
+const SALES_STAGE_ORDER = ['draft', 'quotation', 'reservation', 'order', 'delivery', 'invoice', 'confirmed', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivered', 'posted', 'partial_paid', 'paid'];
 
 // ═══════════════════════════════════════════════════════════════
 // Common Action Definitions

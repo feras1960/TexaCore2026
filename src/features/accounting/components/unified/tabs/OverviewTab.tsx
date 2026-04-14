@@ -26,6 +26,7 @@ import {
     AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 import { QuickStats } from '../components/QuickStats';
 import { formatCurrency, formatNumber, formatDate, getCurrencySymbol } from '../utils/formatters';
 import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
@@ -296,11 +297,7 @@ export function OverviewTab({
     }
 
     // ═══ View Mode Helpers ═══
-    const getName = () => {
-        if (language === 'ar' && data?.name_ar) return data.name_ar;
-        if (language === 'en' && data?.name_en) return data.name_en;
-        return data?.name || data?.name_ar || '-';
-    };
+    const getName = () => getLocalizedName(data, language);
 
     const accountTypeColor: Record<string, string> = {
         asset: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
@@ -319,7 +316,7 @@ export function OverviewTab({
     const getAccountTypeName = (typeId: string) => {
         const found = accountTypes.find(t => t.id === typeId);
         if (!found) return typeCode || '-';
-        return language === 'ar' ? found.name_ar : (found.name_en || found.name_ar);
+        return getLocalizedName(found, language);
     };
 
     // currencyOptions now from companyCurrencies (fetched from DB)
@@ -352,10 +349,10 @@ export function OverviewTab({
                         {/* رمز الحساب — يتولّد تلقائياً عند الإنشاء */}
                         <div>
                             <Label className="text-xs text-gray-500">
-                                {t('accounting.account.code') || 'رمز الحساب'}
+                                {t('accounting.account.code')}
                                 {isCreate && (
                                     <span className="text-[10px] text-gray-400 ms-1">
-                                        ({language === 'ar' ? 'تلقائي' : 'Auto'})
+                                        ({t('accounting.auto')})
                                     </span>
                                 )}
                             </Label>
@@ -365,7 +362,7 @@ export function OverviewTab({
                                     onChange={(e) => handleChange('account_code', e.target.value)}
                                     className="mt-1 font-mono font-bold"
                                     dir="ltr"
-                                    placeholder={language === 'ar' ? 'اختر المجموعة أولاً' : 'Select parent first'}
+                                    placeholder={t('accounting.selectParentFirst')}
                                 />
                             ) : (
                                 <p className="font-mono font-bold text-erp-primary text-lg mt-1">
@@ -377,7 +374,7 @@ export function OverviewTab({
                         {/* اسم الحساب (العربي — دائماً مطلوب) */}
                         <div>
                             <Label className="text-xs text-gray-500">
-                                {t('accounting.account.name') || 'اسم الحساب'} (العربية) <span className="text-red-500">*</span>
+                                {t('accounting.account.name')} ({t('languages.arabic') || 'العربية'}) <span className="text-red-500">*</span>
                             </Label>
                             {isEditable ? (
                                 <Input
@@ -395,10 +392,10 @@ export function OverviewTab({
                         {/* نوع الحساب — يُورث تلقائياً من المجموعة الأم */}
                         <div>
                             <Label className="text-xs text-gray-500">
-                                {t('accounting.account.type') || 'نوع الحساب'}
+                                {t('accounting.account.type')}
                                 {isEditable && data?.parent_id && (
                                     <span className="text-[10px] text-gray-400 ms-1">
-                                        ({language === 'ar' ? 'يُحدد من المجموعة' : 'Inherited from group'})
+                                        ({t('accounting.inheritedFromGroup')})
                                     </span>
                                 )}
                             </Label>
@@ -409,12 +406,12 @@ export function OverviewTab({
                                     onValueChange={(v) => handleChange('account_type_id', v)}
                                 >
                                     <SelectTrigger className="mt-1">
-                                        <SelectValue placeholder={language === 'ar' ? 'اختر نوع الحساب' : 'Select type'} />
+                                        <SelectValue placeholder={t('accounting.selectType')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {accountTypes.map((type) => (
                                             <SelectItem key={type.id} value={type.id}>
-                                                {language === 'ar' ? type.name_ar : (type.name_en || type.name_ar)}
+                                                {getLocalizedName(type, language)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -428,7 +425,7 @@ export function OverviewTab({
                                     {isEditable && (
                                         <span className="text-[10px] text-gray-400 flex items-center gap-1">
                                             <Info className="w-3 h-3" />
-                                            {language === 'ar' ? 'نوع الحساب موروث من المجموعة الأم' : 'Type inherited from parent group'}
+                                            {t('accounting.typeInheritedInfo')}
                                         </span>
                                     )}
                                 </div>
@@ -439,13 +436,13 @@ export function OverviewTab({
                         {!isCreate && (
                             <div>
                                 <Label className="text-xs text-gray-500">
-                                    {language === 'ar' ? 'نوع السجل' : 'Record Type'}
+                                    {t('accounting.recordType')}
                                 </Label>
                                 <div className="mt-1">
                                     <Badge variant={data?.is_group ? 'secondary' : 'outline'} className="text-xs">
                                         {data?.is_group
-                                            ? (language === 'ar' ? '📁 مجموعة' : '📁 Group')
-                                            : (language === 'ar' ? '📄 حساب تفصيلي' : '📄 Detail Account')}
+                                            ? `📁 ${t('accounting.group')}`
+                                            : `📄 ${t('accounting.detail')}`}
                                     </Badge>
                                 </div>
                             </div>
@@ -455,8 +452,8 @@ export function OverviewTab({
                         <div>
                             <Label className="text-xs text-gray-500">
                                 {isCreate
-                                    ? (language === 'ar' ? 'ضمن مجموعة' : 'Under Group')
-                                    : (t('accounting.parent') || 'الحساب الأب')}
+                                    ? t('accounting.underGroup')
+                                    : t('accounting.parent')}
                                 {isCreate && <span className="text-red-500 ms-1">*</span>}
                             </Label>
                             {isEditable ? (
@@ -465,18 +462,18 @@ export function OverviewTab({
                                     onValueChange={(v) => handleParentChange(v === '__none__' ? null : v)}
                                 >
                                     <SelectTrigger className="mt-1">
-                                        <SelectValue placeholder={language === 'ar' ? 'اختر المجموعة' : 'Select group'} />
+                                        <SelectValue placeholder={t('accounting.selectGroup')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {!isCreate && (
                                             <SelectItem value="__none__">
-                                                {language === 'ar' ? '— بدون أب (رئيسي)' : '— No parent (root)'}
+                                                {t('accounting.noParentRoot')}
                                             </SelectItem>
                                         )}
                                         {parentOptions.map((a: any) => (
                                             <SelectItem key={a.id} value={a.id}>
                                                 <span className="font-mono text-xs me-2">{a.account_code || a.code}</span>
-                                                {a.name_ar || a.name}
+                                                {getLocalizedName(a, language)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -484,10 +481,10 @@ export function OverviewTab({
                             ) : (
                                 <p className="text-sm mt-1">
                                     {data?.parent
-                                        ? `${data.parent.code || data.parent.account_code} — ${data.parent.name_ar || data.parent.name}`
+                                        ? `${data.parent.code || data.parent.account_code} — ${getLocalizedName(data.parent, language)}`
                                         : (data?.parent_id
-                                            ? (language === 'ar' ? 'مرتبط بحساب أب' : 'Has parent')
-                                            : (language === 'ar' ? 'حساب رئيسي' : 'Root account'))}
+                                            ? t('accounting.hasParent')
+                                            : t('accounting.rootAccount'))}
                                 </p>
                             )}
                         </div>
@@ -502,8 +499,8 @@ export function OverviewTab({
                             <CardTitle className="text-sm font-medium flex items-center gap-2">
                                 <Activity className="w-4 h-4 text-gray-400" />
                                 {isEditable
-                                    ? (language === 'ar' ? 'الإعدادات' : 'Settings')
-                                    : (t('accounting.activity') || 'النشاط')}
+                                    ? t('accounting.settings')
+                                    : (t('accounting.activity'))}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -516,7 +513,7 @@ export function OverviewTab({
                                         onValueChange={(v) => handleChange('currency', v)}
                                     >
                                         <SelectTrigger className="mt-1">
-                                            <SelectValue placeholder={language === 'ar' ? 'اختر العملة' : 'Select currency'} />
+                                            <SelectValue placeholder={t('accounting.selectCurrency')} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {companyCurrencies.map((c) => (
@@ -549,7 +546,7 @@ export function OverviewTab({
                             {/* الحالة */}
                             <div>
                                 <Label className="text-xs text-gray-500">
-                                    {language === 'ar' ? 'الحالة' : 'Status'}
+                                    {t('common.status._')}
                                 </Label>
                                 {isEditable ? (
                                     <div className="flex items-center gap-3 mt-2">
@@ -559,8 +556,8 @@ export function OverviewTab({
                                         />
                                         <span className={cn('text-sm', data?.is_active !== false ? 'text-green-600' : 'text-red-500')}>
                                             {data?.is_active !== false
-                                                ? (language === 'ar' ? '✓ نشط' : '✓ Active')
-                                                : (language === 'ar' ? '✗ غير نشط' : '✗ Inactive')}
+                                                ? `✓ ${t('common.status.active')}`
+                                                : `✗ ${t('common.status.inactive')}`}
                                         </span>
                                     </div>
                                 ) : (
@@ -575,8 +572,8 @@ export function OverviewTab({
                                             )}
                                         >
                                             {data?.is_active !== false
-                                                ? (language === 'ar' ? '✓ نشط' : '✓ Active')
-                                                : (language === 'ar' ? '✗ غير نشط' : '✗ Inactive')}
+                                                ? `✓ ${t('common.status.active')}`
+                                                : `✗ ${t('common.status.inactive')}`}
                                         </Badge>
                                     </div>
                                 )}
@@ -615,7 +612,7 @@ export function OverviewTab({
                                         value={
                                             data?.last_activity
                                                 ? formatDate(data.last_activity, useArabicNumerals)
-                                                : (language === 'ar' ? 'لا توجد حركات' : 'No movements')
+                                                : t('accounting.noMovements')
                                         }
                                     />
                                     <InfoRow
@@ -639,13 +636,13 @@ export function OverviewTab({
                                 <Textarea
                                     value={data?.description || ''}
                                     onChange={(e) => handleChange('description', e.target.value)}
-                                    placeholder={language === 'ar' ? 'ملاحظات أو وصف للحساب...' : 'Account notes or description...'}
+                                    placeholder={t('accounting.accountNotes')}
                                     rows={3}
                                     className="text-sm"
                                 />
                             ) : (
                                 <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                                    {data?.description || (language === 'ar' ? 'لا يوجد وصف' : 'No description')}
+                                    {data?.description || t('accounting.noDescription')}
                                 </p>
                             )}
                         </CardContent>
@@ -659,7 +656,7 @@ export function OverviewTab({
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-sm font-medium flex items-center gap-2">
                             <Globe className="w-4 h-4 text-gray-400" />
-                            {language === 'ar' ? 'الأسماء بلغات أخرى' : 'Names in Other Languages'}
+                            {t('accounting.namesInOtherLanguages')}
                         </CardTitle>
                         <Button
                             variant="ghost"
@@ -670,8 +667,8 @@ export function OverviewTab({
                             {showLanguages ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             <span className="ms-1">
                                 {showLanguages
-                                    ? (language === 'ar' ? 'إخفاء' : 'Hide')
-                                    : (language === 'ar' ? 'عرض' : 'Show')}
+                                    ? t('common.hide')
+                                    : t('common.show')}
                             </span>
                         </Button>
                     </div>
@@ -730,7 +727,7 @@ export function OverviewTab({
                                         <SelectTrigger className="w-full text-xs text-gray-500">
                                             <div className="flex items-center gap-1">
                                                 <Plus className="w-3 h-3" />
-                                                {language === 'ar' ? 'إضافة لغة...' : 'Add language...'}
+                                                {t('accounting.addLanguage')}
                                             </div>
                                         </SelectTrigger>
                                         <SelectContent>
@@ -751,7 +748,7 @@ export function OverviewTab({
                         {/* No languages message (view mode) */}
                         {!isEditable && visibleLanguages.length === 0 && !LANGUAGE_CONFIG.some(l => !l.required && data?.[l.field]) && (
                             <p className="text-xs text-gray-400 text-center py-2">
-                                {language === 'ar' ? 'لم تُضف ترجمات بلغات أخرى' : 'No translations added yet'}
+                                {t('accounting.noTranslations')}
                             </p>
                         )}
                     </CardContent>
@@ -772,14 +769,14 @@ export function OverviewTab({
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <BalanceItem
                                     label={t('accounting.openingBalance') || 'الرصيد الافتتاحي'}
-                                    subtitle={language === 'ar' ? 'رصيد بداية الفترة' : 'Period opening'}
+                                    subtitle={t('accounting.periodOpening')}
                                     value={enhancedData?.opening_balance || 0}
                                     currency={currency || data?.currency || ''}
                                     useArabicNumerals={useArabicNumerals}
                                 />
                                 <BalanceItem
                                     label={t('accounting.entry.debit') || 'مدين'}
-                                    subtitle={language === 'ar' ? 'ما دخل للحساب' : 'Inflow'}
+                                    subtitle={t('accounting.inflow')}
                                     value={enhancedData?.total_debit || 0}
                                     currency={currency || data?.currency || ''}
                                     useArabicNumerals={useArabicNumerals}
@@ -787,7 +784,7 @@ export function OverviewTab({
                                 />
                                 <BalanceItem
                                     label={t('accounting.entry.credit') || 'دائن'}
-                                    subtitle={language === 'ar' ? 'ما خرج من الحساب' : 'Outflow'}
+                                    subtitle={t('accounting.outflow')}
                                     value={enhancedData?.total_credit || 0}
                                     currency={currency || data?.currency || ''}
                                     useArabicNumerals={useArabicNumerals}
@@ -798,10 +795,10 @@ export function OverviewTab({
                                     const isPositive = balance > 0;
                                     const isZero = Math.abs(balance) < 0.01;
                                     const balanceHint = isZero
-                                        ? (language === 'ar' ? 'مُصفّى' : 'Settled')
+                                        ? t('accounting.settled')
                                         : isPositive
-                                            ? (language === 'ar' ? '💰 لنا (مدين)' : '💰 Receivable')
-                                            : (language === 'ar' ? '📤 علينا (دائن)' : '📤 Payable');
+                                            ? t('accounting.receivable')
+                                            : t('accounting.payable');
                                     return (
                                         <BalanceItem
                                             label={t('accounting.account.balance') || 'الرصيد'}
@@ -826,9 +823,7 @@ export function OverviewTab({
                     <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                         <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
                         <p className="text-xs text-amber-700 dark:text-amber-400">
-                            {language === 'ar'
-                                ? '⚠️ هذا الحساب عليه حركات محاسبية — لا يمكن حذفه. يمكنك تعديل بياناته الأساسية فقط.'
-                                : '⚠️ This account has transactions — it cannot be deleted. You can only edit its basic data.'}
+                            {t('accounting.hasTransactionsWarning')}
                         </p>
                     </div>
                 )

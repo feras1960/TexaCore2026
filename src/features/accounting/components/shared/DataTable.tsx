@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, ChevronLeft, ChevronRight, Loader2, FileX } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { matchesSearch } from '@/lib/utils/normalizeSearch';
 
 export interface Column<T> {
     header: string;
@@ -47,13 +48,13 @@ export function DataTable<T extends { id?: string | number }>({
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    // Filter data
+    // Filter data (smart multi-language search)
     const filteredData = React.useMemo(() => {
         if (!searchKey || !searchTerm) return data;
         return data.filter((item) => {
             const value = item[searchKey];
             if (typeof value === 'string') {
-                return value.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesSearch(searchTerm, value);
             }
             return false;
         });

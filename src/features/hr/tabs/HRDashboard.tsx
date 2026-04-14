@@ -14,6 +14,8 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,55 +37,46 @@ export default function HRDashboard() {
     const isAr = language === 'ar';
     const { companyId } = useCompany();
 
-    const [stats, setStats] = useState({
-        totalEmployees: 0,
-        presentToday: 0,
-        pendingLeaves: 0,
-        expiringContracts: 0,
-        departments: [] as Array<{ id: string; name_ar: string; name_en?: string }>,
-        employees: [] as Array<{ id: string; department_id?: string; hire_date?: string }>,
-    });
-    const [recentLeaves, setRecentLeaves] = useState<LeaveRequest[]>([]);
-    const [expiringContractsList, setExpiringContractsList] = useState<EmployeeContract[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const queryClient = useQueryClient();
 
-    async function loadDashboard() {
-        try {
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'dashboard', companyId],
+        queryFn: async () => {
             const [dashStats, leaves, contracts] = await Promise.all([
                 getHRDashboardStats(),
                 getLeaveRequests({ status: 'pending' }),
                 getContracts(),
             ]);
-            setStats(dashStats);
-            setRecentLeaves(leaves.slice(0, 5));
             const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-            setExpiringContractsList(
-                contracts.filter(c => c.status === 'active' && c.end_date && new Date(c.end_date) < thirtyDays).slice(0, 5)
-            );
-        } catch (err) {
-            console.error('Failed to load HR dashboard:', err);
-        } finally {
-            setLoading(false);
-        }
-    }
+            return {
+                stats: dashStats,
+                recentLeaves: leaves.slice(0, 5),
+                expiringContractsList: contracts.filter(c => c.status === 'active' && c.end_date && new Date(c.end_date) < thirtyDays).slice(0, 5),
+            };
+        },
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
 
-    useEffect(() => { loadDashboard(); }, []);
+    const stats = rawData?.stats ?? { totalEmployees: 0, presentToday: 0, pendingLeaves: 0, expiringContracts: 0, departments: [] as Array<{ id: string; name_ar: string; name_en?: string }>, employees: [] as Array<{ id: string; department_id?: string; hire_date?: string }> };
+    const recentLeaves = rawData?.recentLeaves ?? [];
+    const expiringContractsList = rawData?.expiringContractsList ?? [];
 
-    // Realtime
+    // Realtime — invalidate cache
     useEffect(() => {
         if (!companyId) return;
         const channel = supabase
             .channel('hr-dashboard-live')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `company_id=eq.${companyId}` }, () => {
-                loadDashboard();
+                queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, () => {
-                loadDashboard();
+                queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
             })
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, [companyId]);
+    }, [companyId, queryClient]);
 
     // Department distribution
     const deptDistribution = stats.departments.map(dept => ({

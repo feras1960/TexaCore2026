@@ -114,6 +114,9 @@ const REALTIME_SUBSCRIPTIONS = [
         queryKeys: [
             ['warehouse', 'materials'],
             ['warehouse', 'dashboard-stats'],
+            ['inventory-preload-rolls'],
+            ['inventory-preload-stock'],
+            ['material-inventory'],
         ],
     },
     {
@@ -121,6 +124,25 @@ const REALTIME_SUBSCRIPTIONS = [
         queryKeys: [
             ['warehouse', 'materials'],
             ['warehouse', 'groups'],
+            ['warehouse', 'dashboard-stats'],
+            ['material-inventory'],
+            ['inventory-preload-materials'],
+            ['inventory-preload-stock'],
+        ],
+    },
+    {
+        table: 'inventory_stock',
+        queryKeys: [
+            ['inventory-preload-stock'],
+            ['material-inventory'],
+            ['warehouse', 'materials'],
+        ],
+    },
+    {
+        table: 'inventory_movements',
+        queryKeys: [
+            ['material-movements'],
+            ['warehouse', 'materials'],
             ['warehouse', 'dashboard-stats'],
         ],
     },
@@ -130,6 +152,11 @@ const REALTIME_SUBSCRIPTIONS = [
             ['warehouse', 'list'],
             ['warehouse', 'tree'],
             ['warehouse', 'capacity'],
+            ['warehouse', 'dashboard-stats'],
+            // DataEngine preload caches — must be cleared on warehouse changes
+            ['inventory-preload-materials'],
+            ['inventory-preload-rolls'],
+            ['inventory-preload-filters'],
         ],
     },
     {
@@ -209,7 +236,7 @@ export function useGlobalRealtime() {
                         filter: `company_id=eq.${companyId}`,
                     },
                     (payload: any) => {
-                        // Debounce: wait 500ms before invalidating (handles bulk operations)
+                        // Debounce: wait 300ms before invalidating (handles bulk operations)
                         const timerKey = sub.table;
                         const existing = debounceTimers.current.get(timerKey);
                         if (existing) clearTimeout(existing);
@@ -217,12 +244,18 @@ export function useGlobalRealtime() {
                         debounceTimers.current.set(
                             timerKey,
                             setTimeout(() => {
-                                console.log(`🔄 [GlobalRealtime] ${sub.table} changed → invalidating`, sub.queryKeys.length, 'queries');
+                                const eventType = payload?.eventType || 'UPDATE';
+                                console.log(`🔄 [GlobalRealtime] ${sub.table} ${eventType} → invalidating`, sub.queryKeys.length, 'queries');
                                 for (const key of sub.queryKeys) {
+                                    if (eventType === 'DELETE') {
+                                        // DELETE → remove cache entirely so stale data disappears instantly
+                                        queryClient.removeQueries({ queryKey: key });
+                                    }
+                                    // Always invalidate to trigger refetch
                                     queryClient.invalidateQueries({ queryKey: key });
                                 }
                                 debounceTimers.current.delete(timerKey);
-                            }, 500)
+                            }, 300)
                         );
                     }
                 )

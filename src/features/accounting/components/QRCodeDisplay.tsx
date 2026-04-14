@@ -1,5 +1,5 @@
 import React from 'react';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Card } from '@/components/ui/card';
 
 interface QRCodeDisplayProps {
@@ -22,7 +22,7 @@ export default function QRCodeDisplay({
                     {title}
                 </div>
             )}
-            <QRCode
+            <QRCodeSVG
                 value={value}
                 size={size}
                 level="M"

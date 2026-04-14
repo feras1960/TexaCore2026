@@ -5,7 +5,7 @@
  * code-splitting via React.lazy for faster initial load.
  */
 
-import React, { lazy, Suspense, useCallback, useRef } from 'react';
+import React, { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -48,11 +48,13 @@ const MaterialAdditionalInfoTab = lazy(() => import('../tabs').then(m => ({ defa
 const MaterialGroupInfoTab = lazy(() => import('../tabs').then(m => ({ default: m.MaterialGroupInfoTab })));
 const MaterialDetailsTab = lazy(() => import('../tabs/MaterialDetailsTab').then(m => ({ default: m.MaterialDetailsTab })));
 
-// Trade
-const TradeMainTab = lazy(() => import('../tabs/TradeMainTab').then(m => ({ default: m.TradeMainTab })));
+// Trade — Eager imports (always needed in trade documents, no lazy spinner delay)
+import { TradeMainTab } from '../tabs/TradeMainTab';
+import { MaterialBrowserTab } from '@/features/trade/components/tabs/MaterialBrowserTab';
+import { PurchaseMaterialBrowserTab } from '@/features/trade/components/tabs/PurchaseMaterialBrowserTab';
+
+// Trade — Lazy imports (less frequently used tabs)
 const TradeShippingTab = lazy(() => import('../tabs/TradeShippingTab').then(m => ({ default: m.TradeShippingTab })));
-const MaterialBrowserTab = lazy(() => import('@/features/trade/components/tabs/MaterialBrowserTab').then(m => ({ default: m.MaterialBrowserTab })));
-const PurchaseMaterialBrowserTab = lazy(() => import('@/features/trade/components/tabs/PurchaseMaterialBrowserTab').then(m => ({ default: m.PurchaseMaterialBrowserTab })));
 const PaymentReceiptTab = lazy(() => import('@/features/trade/components/tabs/PaymentReceiptTab').then(m => ({ default: m.PaymentReceiptTab })));
 const CustomerShippingTab = lazy(() => import('@/features/trade/components/tabs/CustomerShippingTab').then(m => ({ default: m.CustomerShippingTab })));
 const NexaAgentTab = lazy(() => import('@/features/trade/components/tabs/NexaAgentTab').then(m => ({ default: m.NexaAgentTab })));
@@ -93,6 +95,9 @@ const RollLocationTab = lazy(() => import('../tabs/RollLocationTab').then(m => (
 // Recurring — القيود المتكررة
 const RecurringScheduleTab = lazy(() => import('../tabs/RecurringScheduleTab').then(m => ({ default: m.RecurringScheduleTab })));
 const RecurringHistoryTab = lazy(() => import('../tabs/RecurringHistoryTab').then(m => ({ default: m.RecurringHistoryTab })));
+
+// Movement Detail (opening_balance)
+const MovementDetailDialog = lazy(() => import('@/features/warehouse/components/MovementDetailDialog').then(m => ({ default: m.MovementDetailDialog })));
 
 // ═══ Loading fallback ═══
 function TabLoading() {
@@ -167,14 +172,18 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
     const activeTabRef = useRef(currentActiveTab);
     activeTabRef.current = currentActiveTab;
 
+    // State for opening_balance MovementDetailDialog (must be at hook level, not inside switch)
+    const [obDialogState, setObDialogState] = useState<{ open: boolean; movement: any }>({ open: false, movement: null });
+
     const renderTabContent = useCallback((tabId: string): React.ReactNode => {
         const content = renderTabContentInner(tabId);
-        // Wrap lazy-loaded tabs in Suspense
-        if (content && tabId !== 'entry' && tabId !== 'form' && tabId !== 'overview') {
+        // Wrap lazy-loaded tabs in Suspense (skip eagerly-imported tabs)
+        const eagerTabs = ['entry', 'form', 'overview', 'material_browser', 'purchase_material_browser', 'trade_details'];
+        if (content && !eagerTabs.includes(tabId)) {
             return <Suspense fallback={<TabLoading />}>{content}</Suspense>;
         }
         return content;
-    }, [data, mode, docType, tradeMode, loading, companyId, documentId, currentStage, options, useArabicNumerals, onChange, openDocs]);
+    }, [data, mode, docType, tradeMode, loading, companyId, documentId, currentStage, options, useArabicNumerals, onChange, openDocs, obDialogState]);
 
     function renderTabContentInner(tabId: string): React.ReactNode {
         switch (tabId) {
@@ -308,7 +317,13 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'movements':
                 if (docType === 'material') {
-                    const handleMovDoc = async (movDocType: string, movDocId: string) => {
+                    const handleMovDoc = async (movDocType: string, movDocId: string, movDocData?: any) => {
+                        // Opening balance → open MovementDetailDialog (same as StockMovementsPage)
+                        if (movDocType === 'opening_balance') {
+                            setObDialogState({ open: true, movement: movDocData || { reference_number: movDocId } });
+                            return;
+                        }
+
                         const existingDoc = openDocs.find(d => d.id === movDocId);
                         if (existingDoc) { setActiveDocId(movDocId); return; }
 
@@ -341,14 +356,12 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                 mdiType = 'party'; typeIcon = '👤';
                                 docTitle = language === 'ar' ? 'كشف حساب عميل' : 'Customer Account';
                                 const { data: cust } = await supabase.from('customers').select('*').eq('id', movDocId).single();
-                                // _partyType is used by ledger case to pick receivable_account_id
                                 docData = { ...cust, _partyType: 'customer', partyType: 'customer', type: 'party', status: 'active', id: movDocId };
                                 docTitle = cust?.name_ar || cust?.name_en || docTitle;
                             } else if (movDocType === 'party_supplier') {
                                 mdiType = 'party'; typeIcon = '🏢';
                                 docTitle = language === 'ar' ? 'كشف حساب مورد' : 'Supplier Account';
                                 const { data: supp } = await supabase.from('suppliers').select('*').eq('id', movDocId).single();
-                                // _partyType is used by ledger case to pick payable_account_id
                                 docData = { ...supp, _partyType: 'supplier', partyType: 'supplier', type: 'party', status: 'active', id: movDocId };
                                 docTitle = supp?.name_ar || supp?.name_en || supp?.company_name || docTitle;
                             } else {
@@ -374,13 +387,21 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                                     lastActiveTab: defaultTab,
                                 }];
                             });
-                            // NOTE: Do NOT call setData here — it would overwrite
-                            // the original material sheet's data with the new doc's data.
-                            // The new doc's data is already inside openDocs[].data
                             setActiveDocId(movDocId);
                         } catch (err) { console.error('[movements MDI] open doc error:', err); }
                     };
-                    return <MaterialMovementsTab data={data} onOpenDocument={handleMovDoc} />;
+                    return (
+                        <>
+                            <MaterialMovementsTab data={data} onOpenDocument={handleMovDoc} />
+                            <Suspense fallback={null}>
+                                <MovementDetailDialog
+                                    open={obDialogState.open}
+                                    onOpenChange={(v) => setObDialogState(prev => ({ ...prev, open: v }))}
+                                    movement={obDialogState.movement}
+                                />
+                            </Suspense>
+                        </>
+                    );
                 }
                 break;
 
@@ -929,7 +950,13 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                     <SalesDeliveryItemsTab
                         data={data}
                         mode={mode}
-                        onChange={onChange}
+                        onChange={(updates: any) => {
+                            onChange(updates);
+                            // 🔑 Propagate roll changes up to SalesDeliveryDialog header
+                            if (data?.onDeliveryDataChange && updates?.selected_rolls) {
+                                data.onDeliveryDataChange(updates);
+                            }
+                        }}
                     />
                 );
 

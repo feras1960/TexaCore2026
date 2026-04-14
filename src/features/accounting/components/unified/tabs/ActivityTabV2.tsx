@@ -126,6 +126,43 @@ export function ActivityTabV2({
 }: ActivityTabV2Props) {
     const { direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
+
+    // ═══ Multi-language local translator ═══
+    const ACTIVITY_LABELS: Record<string, Record<string, string>> = {
+        'All': { ru: 'Все', uk: 'Всі', tr: 'Tümü', de: 'Alle', it: 'Tutti', ro: 'Toate', pl: 'Wszystkie' },
+        'Lifecycle': { ru: 'Жизненный цикл', uk: 'Життєвий цикл', tr: 'Yaşam Döngüsü', de: 'Lebenszyklus', it: 'Ciclo di vita', ro: 'Ciclu de viață', pl: 'Cykl życia' },
+        'Notes': { ru: 'Заметки', uk: 'Замітки', tr: 'Notlar', de: 'Notizen', it: 'Note', ro: 'Note', pl: 'Notatki' },
+        'Events': { ru: 'События', uk: 'Події', tr: 'Olaylar', de: 'Ereignisse', it: 'Eventi', ro: 'Evenimente', pl: 'Zdarzenia' },
+        'Milestones': { ru: 'Вехи', uk: 'Віхи', tr: 'Kilometre taşları', de: 'Meilensteine', it: 'Traguardi', ro: 'Repere', pl: 'Kamienie milowe' },
+        'Note added': { ru: 'Заметка добавлена', uk: 'Замітку додано', tr: 'Not eklendi', de: 'Notiz hinzugefügt', it: 'Nota aggiunta', ro: 'Notă adăugată', pl: 'Dodano notatkę' },
+        'Failed to add note': { ru: 'Не удалось добавить заметку', uk: 'Не вдалося додати замітку', tr: 'Not eklenemedi', de: 'Notiz konnte nicht hinzugefügt werden', it: 'Impossibile aggiungere nota', ro: 'Adăugare notă eșuată', pl: 'Nie udało się dodać notatki' },
+        'Error': { ru: 'Ошибка', uk: 'Помилка', tr: 'Hata', de: 'Fehler', it: 'Errore', ro: 'Eroare', pl: 'Błąd' },
+        'Deleted': { ru: 'Удалено', uk: 'Видалено', tr: 'Silindi', de: 'Gelöscht', it: 'Eliminato', ro: 'Șters', pl: 'Usunięto' },
+        'Delete this entry?': { ru: 'Удалить эту запись?', uk: 'Видалити цей запис?', tr: 'Bu kaydı sil?', de: 'Diesen Eintrag löschen?', it: 'Eliminare questa voce?', ro: 'Ștergeți această intrare?', pl: 'Usunąć ten wpis?' },
+        'Delete': { ru: 'Удалить', uk: 'Видалити', tr: 'Sil', de: 'Löschen', it: 'Elimina', ro: 'Șterge', pl: 'Usuń' },
+        'Pin': { ru: 'Закрепить', uk: 'Закріпити', tr: 'Sabitle', de: 'Anheften', it: 'Fissa', ro: 'Fixează', pl: 'Przypnij' },
+        'Unpin': { ru: 'Открепить', uk: 'Відкріпити', tr: 'Sabitlemeyi kaldır', de: 'Lösen', it: 'Togli', ro: 'Dezfixează', pl: 'Odepnij' },
+        'Save the document first to track activity': { ru: 'Сохраните документ, чтобы отслеживать активность', uk: 'Збережіть документ для відстеження активності', tr: 'Aktiviteyi takip etmek için önce belgeyi kaydedin', de: 'Speichern Sie das Dokument zuerst, um die Aktivität zu verfolgen', it: 'Salva prima il documento per tracciare l\'attività', ro: 'Salvați documentul mai întâi pentru a urmări activitatea', pl: 'Zapisz dokument, aby śledzić aktywność' },
+        'Document Lifecycle': { ru: 'Жизненный цикл документа', uk: 'Життєвий цикл документа', tr: 'Belge Yaşam Döngüsü', de: 'Dokumentenlebenszyklus', it: 'Ciclo di vita del documento', ro: 'Ciclul de viață al documentului', pl: 'Cykl życia dokumentu' },
+        'Lifecycle not available for this type': { ru: 'Жизненный цикл недоступен для этого типа', uk: 'Життєвий цикл недоступний для цього типу', tr: 'Bu tür için yaşam döngüsü mevcut değil', de: 'Lebenszyklus für diesen Typ nicht verfügbar', it: 'Ciclo di vita non disponibile per questo tipo', ro: 'Ciclul de viață nu este disponibil pentru acest tip', pl: 'Cykl życia niedostępny dla tego typu' },
+        'Use Notes & Events section': { ru: 'Используйте раздел Заметки и События', uk: 'Використовуйте розділ Замітки та Події', tr: 'Notlar ve Olaylar bölümünü kullanın', de: 'Verwenden Sie den Bereich Notizen & Ereignisse', it: 'Usa la sezione Note & Eventi', ro: 'Folosiți secțiunea Note și Evenimente', pl: 'Użyj sekcji Notatki i Zdarzenia' },
+        'No activity yet': { ru: 'Пока нет активности', uk: 'Ще немає активності', tr: 'Henüz aktivite yok', de: 'Noch keine Aktivität', it: 'Nessuna attività ancora', ro: 'Nicio activitate încă', pl: 'Brak aktywności' },
+        'Write a note or log an event': { ru: 'Напишите заметку или создайте событие', uk: 'Напишіть замітку або створіть подію', tr: 'Bir not yazın veya olay kaydedin', de: 'Schreiben Sie eine Notiz oder protokollieren Sie ein Ereignis', it: 'Scrivi una nota o registra un evento', ro: 'Scrieți o notă sau înregistrați un eveniment', pl: 'Napisz notatkę lub zarejestruj zdarzenie' },
+        'Event': { ru: 'Событие', uk: 'Подія', tr: 'Olay', de: 'Ereignis', it: 'Evento', ro: 'Eveniment', pl: 'Zdarzenie' },
+        'Quick Events': { ru: 'Быстрые события', uk: 'Швидкі події', tr: 'Hızlı Olaylar', de: 'Schnellereignisse', it: 'Eventi rapidi', ro: 'Evenimente rapide', pl: 'Szybkie zdarzenia' },
+        '⚡ Quick Events': { ru: '⚡ Быстрые события', uk: '⚡ Швидкі події', tr: '⚡ Hızlı Olaylar', de: '⚡ Schnellereignisse', it: '⚡ Eventi rapidi', ro: '⚡ Evenimente rapide', pl: '⚡ Szybkie zdarzenia' },
+        'Write a note...': { ru: 'Напишите заметку...', uk: 'Напишіть замітку...', tr: 'Not yazın...', de: 'Notiz schreiben...', it: 'Scrivi una nota...', ro: 'Scrieți o notă...', pl: 'Napisz notatkę...' },
+        'Enter to send • Shift+Enter for new line': { ru: 'Enter для отправки • Shift+Enter для новой строки', uk: 'Enter для надсилання • Shift+Enter для нового рядка', tr: 'Göndermek için Enter • Yeni satır için Shift+Enter', de: 'Enter zum Senden • Shift+Enter für neue Zeile', it: 'Invio per inviare • Shift+Invio per nuova riga', ro: 'Enter pentru trimitere • Shift+Enter pentru linie nouă', pl: 'Enter aby wysłać • Shift+Enter dla nowej linii' },
+        'just now': { ru: 'только что', uk: 'щойно', tr: 'az önce', de: 'gerade eben', it: 'adesso', ro: 'chiar acum', pl: 'właśnie' },
+        'items': { ru: 'элементов', uk: 'елементів', tr: 'öğe', de: 'Elemente', it: 'elementi', ro: 'elemente', pl: 'elementów' },
+    };
+    const lt = (ar: string, en: string): string => {
+        if (language === 'ar') return ar;
+        if (language === 'en') return en;
+        const trans = ACTIVITY_LABELS[en];
+        if (trans && trans[language]) return trans[language];
+        return en;
+    };
     const { company, companyId } = useCompany();
     const tenantId = propTenantId || company?.tenant_id || companyId;
 
@@ -198,12 +235,12 @@ export function ActivityTabV2({
             if (result.success) {
                 setNoteText('');
                 await loadActivities();
-                toast.success(isRTL ? 'تمت إضافة الملاحظة' : 'Note added');
+                toast.success(lt('تمت إضافة الملاحظة', 'Note added'));
             } else {
-                toast.error(result.error || (isRTL ? 'فشل في إضافة الملاحظة' : 'Failed to add note'));
+                toast.error(result.error || (lt('فشل في إضافة الملاحظة', 'Failed to add note')));
             }
         } catch (err) {
-            toast.error(isRTL ? 'خطأ' : 'Error');
+            toast.error(lt('خطأ', 'Error'));
         }
         setSubmitting(false);
     };
@@ -227,7 +264,7 @@ export function ActivityTabV2({
                 );
             }
         } catch (err) {
-            toast.error(isRTL ? 'خطأ' : 'Error');
+            toast.error(lt('خطأ', 'Error'));
         }
         setSubmitting(false);
     };
@@ -242,11 +279,11 @@ export function ActivityTabV2({
 
     // ─── Delete ───
     const handleDelete = async (entry: DocumentActivityEntry) => {
-        if (!confirm(isRTL ? 'هل تريد حذف هذا السجل؟' : 'Delete this entry?')) return;
+        if (!confirm(lt('هل تريد حذف هذا السجل؟', 'Delete this entry?'))) return;
         const success = await documentActivityService.deleteActivity(entry.id);
         if (success) {
             await loadActivities();
-            toast.success(isRTL ? 'تم الحذف' : 'Deleted');
+            toast.success(lt('تم الحذف', 'Deleted'));
         }
     };
 
@@ -259,19 +296,48 @@ export function ActivityTabV2({
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
 
-        if (diffMins < 1) return isRTL ? 'الآن' : 'just now';
-        if (diffMins < 60) return isRTL ? `منذ ${diffMins} دقيقة` : `${diffMins}m ago`;
-        if (diffHours < 24) return isRTL ? `منذ ${diffHours} ساعة` : `${diffHours}h ago`;
-        if (diffDays < 7) return isRTL ? `منذ ${diffDays} يوم` : `${diffDays}d ago`;
+        if (diffMins < 1) return lt('الآن', 'just now');
+        if (diffMins < 60) {
+            const timeAgo: Record<string, string> = {
+                ar: `منذ ${diffMins} دقيقة`, en: `${diffMins}m ago`, ru: `${diffMins} мин. назад`,
+                uk: `${diffMins} хв. тому`, tr: `${diffMins} dk. önce`, de: `vor ${diffMins} Min.`,
+                it: `${diffMins} min fa`, ro: `acum ${diffMins} min`, pl: `${diffMins} min temu`,
+            };
+            return timeAgo[language] || timeAgo.en;
+        }
+        if (diffHours < 24) {
+            const hoursAgo: Record<string, string> = {
+                ar: `منذ ${diffHours} ساعة`, en: `${diffHours}h ago`, ru: `${diffHours} ч. назад`,
+                uk: `${diffHours} год. тому`, tr: `${diffHours} sa. önce`, de: `vor ${diffHours} Std.`,
+                it: `${diffHours} ore fa`, ro: `acum ${diffHours} ore`, pl: `${diffHours} godz. temu`,
+            };
+            return hoursAgo[language] || hoursAgo.en;
+        }
+        if (diffDays < 7) {
+            const daysAgo: Record<string, string> = {
+                ar: `منذ ${diffDays} يوم`, en: `${diffDays}d ago`, ru: `${diffDays} дн. назад`,
+                uk: `${diffDays} дн. тому`, tr: `${diffDays} gün önce`, de: `vor ${diffDays} Tagen`,
+                it: `${diffDays} giorni fa`, ro: `acum ${diffDays} zile`, pl: `${diffDays} dni temu`,
+            };
+            return daysAgo[language] || daysAgo.en;
+        }
 
-        return date.toLocaleDateString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
+        const localeMap: Record<string, string> = {
+            ar: 'ar-u-nu-latn', en: 'en-US', ru: 'ru-RU', uk: 'uk-UA',
+            tr: 'tr-TR', de: 'de-DE', it: 'it-IT', ro: 'ro-RO', pl: 'pl-PL',
+        };
+        return date.toLocaleDateString(localeMap[language] || 'en-US', {
             month: 'short', day: 'numeric', year: diffDays > 365 ? 'numeric' : undefined,
             hour: '2-digit', minute: '2-digit',
         });
     };
 
     const formatFullDate = (timestamp: string): string => {
-        return new Date(timestamp).toLocaleString(isRTL ? 'ar-u-nu-latn' : 'en-US', {
+        const localeMap2: Record<string, string> = {
+            ar: 'ar-u-nu-latn', en: 'en-US', ru: 'ru-RU', uk: 'uk-UA',
+            tr: 'tr-TR', de: 'de-DE', it: 'it-IT', ro: 'ro-RO', pl: 'pl-PL',
+        };
+        return new Date(timestamp).toLocaleString(localeMap2[language] || 'en-US', {
             year: 'numeric', month: 'long', day: 'numeric',
             hour: '2-digit', minute: '2-digit',
         });
@@ -307,7 +373,7 @@ export function ActivityTabV2({
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                 <StickyNote className="w-12 h-12 mb-3 opacity-40" />
                 <p className="text-sm">
-                    {isRTL ? 'احفظ المستند أولاً لتسجيل النشاط' : 'Save the document first to track activity'}
+                    {lt('احفظ المستند أولاً لتسجيل النشاط', 'Save the document first to track activity')}
                 </p>
             </div>
         );
@@ -351,7 +417,7 @@ export function ActivityTabV2({
                                         : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400"
                                 )}
                             >
-                                {isRTL ? f.labelAr : f.labelEn}
+                                {lt(f.labelAr, f.labelEn)}
                                 {f.key !== 'lifecycle' && (counts as any)[f.key] > 0 && (
                                     <span className={cn(
                                         "ms-1 text-[9px]",
@@ -389,9 +455,9 @@ export function ActivityTabV2({
                 {filter === 'lifecycle' && !hasLifecycleLog && (
                     <div className="flex flex-col items-center justify-center h-40 text-gray-400">
                         <Clock className="w-10 h-10 mb-2 opacity-30" />
-                        <p className="text-xs">{isRTL ? 'دورة الحياة غير متاحة لهذا النوع' : 'Lifecycle not available for this type'}</p>
+                        <p className="text-xs">{lt('دورة الحياة غير متاحة لهذا النوع', 'Lifecycle not available for this type')}</p>
                         <p className="text-[10px] mt-1 text-gray-300">
-                            {isRTL ? 'استخدم قسم الملاحظات والأحداث' : 'Use Notes & Events section'}
+                            {lt('استخدم قسم الملاحظات والأحداث', 'Use Notes & Events section')}
                         </p>
                     </div>
                 )}
@@ -407,7 +473,7 @@ export function ActivityTabV2({
                                         <div className="flex items-center gap-1.5 mb-2">
                                             <Clock className="w-3.5 h-3.5 text-purple-500" />
                                             <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
-                                                {isRTL ? 'دورة حياة المستند' : 'Document Lifecycle'}
+                                                {lt('دورة حياة المستند', 'Document Lifecycle')}
                                             </span>
                                         </div>
                                         <ActivityTimeline
@@ -426,9 +492,9 @@ export function ActivityTabV2({
                                 ) : filteredActivities.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-40 text-gray-400">
                                         <Clock className="w-10 h-10 mb-2 opacity-30" />
-                                        <p className="text-xs">{isRTL ? 'لا يوجد نشاط بعد' : 'No activity yet'}</p>
+                                        <p className="text-xs">{lt('لا يوجد نشاط بعد', 'No activity yet')}</p>
                                         <p className="text-[10px] mt-1 text-gray-300">
-                                            {isRTL ? 'اكتب ملاحظة أو سجل حدثاً' : 'Write a note or log an event'}
+                                            {lt('اكتب ملاحظة أو سجل حدثاً', 'Write a note or log an event')}
                                         </p>
                                     </div>
                                 ) : (
@@ -448,7 +514,7 @@ export function ActivityTabV2({
                                                 // Fallback label for unknown/unregistered event codes
                                                 const fallbackLabel = entry.event_code
                                                     ? (isRTL ? entry.event_code.replace(/_/g, ' ') : entry.event_code.replace(/_/g, ' '))
-                                                    : (isRTL ? 'حدث' : 'Event');
+                                                    : (lt('حدث', 'Event'));
 
                                                 return (
                                                     <div key={entry.id} className="relative flex gap-2.5 group">
@@ -508,7 +574,7 @@ export function ActivityTabV2({
                                                                         </PopoverTrigger>
                                                                         <PopoverContent
                                                                             className="w-32 p-1"
-                                                                            align={isRTL ? 'start' : 'end'}
+                                                                            align={lt('start', 'end')}
                                                                             side="bottom"
                                                                         >
                                                                             <button
@@ -517,8 +583,8 @@ export function ActivityTabV2({
                                                                             >
                                                                                 {entry.is_pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
                                                                                 {entry.is_pinned
-                                                                                    ? (isRTL ? 'إلغاء التثبيت' : 'Unpin')
-                                                                                    : (isRTL ? 'تثبيت' : 'Pin')
+                                                                                    ? (lt('إلغاء التثبيت', 'Unpin'))
+                                                                                    : (lt('تثبيت', 'Pin'))
                                                                                 }
                                                                             </button>
                                                                             <button
@@ -526,7 +592,7 @@ export function ActivityTabV2({
                                                                                 className="flex items-center gap-2 w-full px-2 py-1.5 text-[11px] rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                                                             >
                                                                                 <Trash2 className="w-3 h-3" />
-                                                                                {isRTL ? 'حذف' : 'Delete'}
+                                                                                {lt('حذف', 'Delete')}
                                                                             </button>
                                                                         </PopoverContent>
                                                                     </Popover>
@@ -599,7 +665,7 @@ export function ActivityTabV2({
                                                                 if (m.items_count && m.items_count > 0) {
                                                                     details.push(
                                                                         <span key="items" className="text-[10px] text-gray-500">
-                                                                            📦 {m.items_count} {isRTL ? 'بند' : 'items'}
+                                                                            📦 {m.items_count} {lt('بند', 'items')}
                                                                         </span>
                                                                     );
                                                                 }
@@ -694,7 +760,7 @@ export function ActivityTabV2({
                             {showQuickEvents && (
                                 <div className="mb-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
                                     <p className="text-[10px] text-gray-400 mb-1.5 font-medium">
-                                        {isRTL ? '⚡ أحداث سريعة' : '⚡ Quick Events'}
+                                        {lt('⚡ أحداث سريعة', '⚡ Quick Events')}
                                     </p>
                                     <div className="flex flex-wrap gap-1">
                                         {QUICK_EVENTS.map((code) => {
@@ -740,7 +806,7 @@ export function ActivityTabV2({
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="text-[10px]">
-                                        {isRTL ? 'أحداث سريعة' : 'Quick Events'}
+                                        {lt('أحداث سريعة', 'Quick Events')}
                                     </TooltipContent>
                                 </Tooltip>
 
@@ -750,7 +816,7 @@ export function ActivityTabV2({
                                         ref={textareaRef}
                                         value={noteText}
                                         onChange={(e) => setNoteText(e.target.value)}
-                                        placeholder={isRTL ? 'اكتب ملاحظة...' : 'Write a note...'}
+                                        placeholder={lt('اكتب ملاحظة...', 'Write a note...')}
                                         className={cn(
                                             "min-h-[36px] max-h-[120px] resize-none text-xs py-2 pe-10",
                                             "border-gray-200 dark:border-gray-700",
@@ -790,7 +856,7 @@ export function ActivityTabV2({
 
                             {/* Hint */}
                             <p className="text-[9px] text-gray-300 dark:text-gray-600 mt-1 text-center">
-                                {isRTL ? 'Enter للإرسال • Shift+Enter لسطر جديد' : 'Enter to send • Shift+Enter for new line'}
+                                {lt('Enter للإرسال • Shift+Enter لسطر جديد', 'Enter to send • Shift+Enter for new line')}
                             </p>
                         </div>
                     </>

@@ -851,6 +851,22 @@ export const warehouseConfig: DocumentConfig = {
             variant: 'default',
             showInModes: ['edit', 'create'],
         },
+        {
+            id: 'print',
+            labelKey: 'actions.print',
+            icon: 'Printer',
+            variant: 'outline',
+            showInModes: ['view'],
+        },
+        {
+            id: 'delete',
+            labelKey: 'actions.delete',
+            icon: 'Trash2',
+            variant: 'destructive',
+            showInModes: ['view'],
+            requiresConfirm: true,
+            confirmMessageKey: 'messages.confirmDelete',
+        },
     ],
     stats: [
         {

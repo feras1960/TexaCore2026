@@ -17,6 +17,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { usePrefetchLedgers } from '@/hooks/usePrefetchLedgers';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -28,7 +29,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Users, Truck, Building2, TrendingUp, TrendingDown,
   Plus, Phone, Star, FileText, MoreHorizontal, Eye,
-  CreditCard, Upload, ChevronDown, Coins,
+  CreditCard, Upload, ChevronDown, Coins, Filter,
   Wallet, ArrowDownRight, ArrowUpRight,
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
@@ -36,6 +37,8 @@ import { UnifiedAccountingSheet } from '@/features/accounting/components/unified
 import { ImportWizard } from '@/features/import';
 import { cn } from '@/lib/utils';
 import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
+import { matchesSearch } from '@/lib/utils/normalizeSearch';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,17 +81,8 @@ interface Party {
   };
 }
 
-/** الحصول على الاسم المحلي حسب اللغة مع fallback: اللغة المطلوبة → الإنجليزية → العربية */
-function getLocalizedName(row: any, lang: string): string {
-  const nameMap: Record<string, string> = {
-    ar: row.name_ar,
-    en: row.name_en,
-    tr: row.name_tr,
-    ru: row.name_ru,
-    uk: row.name_uk,
-  };
-  return nameMap[lang] || row.name || row.name_ar || row.name_en || '';
-}
+/** الحصول على الاسم المحلي — uses shared utility now */
+// Removed inline getLocalizedName — using imported version from @/lib/utils/getLocalizedName
 
 // ═══════════════════════════════════════════════════════════════
 export default function Parties() {
@@ -97,7 +91,17 @@ export default function Parties() {
   const { currencyCode: baseCurrency } = useCompanyCurrency(language as 'ar' | 'en');
   const isRTL = direction === 'rtl';
   const { currencyOptions, getRate } = useViewCurrency();
-  const [displayCurrency, setDisplayCurrency] = useState<string>('all');
+  const [displayCurrency, setDisplayCurrency] = useState<string>(() => {
+    // Auto-select base currency if available (single-currency companies)
+    return baseCurrency || 'all';
+  });
+
+  // Sync display currency when baseCurrency loads (async)
+  React.useEffect(() => {
+    if (baseCurrency && displayCurrency === 'all') {
+      setDisplayCurrency(baseCurrency);
+    }
+  }, [baseCurrency]);
 
   // Effective currency for display
   const effectiveCurrency = displayCurrency !== 'all' ? displayCurrency : (baseCurrency || 'USD');
@@ -117,6 +121,17 @@ export default function Parties() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('created_at');
   const [sortAsc, setSortAsc] = useState(false);
+  // ── Hide zero-balance toggle (persisted) ──
+  const [hideZeroBalance, setHideZeroBalance] = useState(() => {
+    try { return localStorage.getItem('parties_hideZeroBalance') === 'true'; } catch { return false; }
+  });
+  const toggleHideZeroBalance = useCallback(() => {
+    setHideZeroBalance(prev => {
+      const next = !prev;
+      try { localStorage.setItem('parties_hideZeroBalance', String(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   // Sheet states
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
@@ -205,6 +220,15 @@ export default function Parties() {
     [rawCustomers, language]
   );
 
+  // ⚡ Prefetch ledger data for all parties (background)
+  const prefetchTargets = useMemo(() => {
+    const targets: { glAccountId: string | null | undefined }[] = [];
+    suppliers.forEach(s => targets.push({ glAccountId: s.payable_account_id }));
+    customers.forEach(c => targets.push({ glAccountId: c.receivable_account_id }));
+    return targets;
+  }, [suppliers, customers]);
+  usePrefetchLedgers(prefetchTargets, companyId);
+
   // ─── Fetch Sub-Ledger Balances ───────────────────────────────
   const { data: rawSupplierBalances } = useCachedQuery({
     queryKey: ['party_balances_supplier', companyId],
@@ -213,7 +237,7 @@ export default function Parties() {
       return partyBalanceService.getAllPartyBalances(companyId, 'supplier');
     },
     enabled: !!companyId,
-    staleTime: 2 * 60 * 1000,  // 2 min — Realtime handles updates
+    staleTime: 10_000,  // 10s — same as CustomersList/SuppliersList
   });
   // ⚡ ensureMap: IndexedDB persistence converts Map → Object. This restores it.
   const supplierBalances = useMemo(() => ensureMap<string, PartyBalance>(rawSupplierBalances), [rawSupplierBalances]);
@@ -225,7 +249,7 @@ export default function Parties() {
       return partyBalanceService.getAllPartyBalances(companyId, 'customer');
     },
     enabled: !!companyId,
-    staleTime: 2 * 60 * 1000,  // 2 min — Realtime handles updates
+    staleTime: 10_000,  // 10s — same as CustomersList/SuppliersList
   });
   const customerBalances = useMemo(() => ensureMap<string, PartyBalance>(rawCustomerBalances), [rawCustomerBalances]);
 
@@ -250,17 +274,30 @@ export default function Parties() {
       result = result.filter(p => p.status === activeStatusTab);
     }
 
-    // Search
+    // Search (smart multi-language)
     if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
       result = result.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.code || '').toLowerCase().includes(q) ||
-        (p.name_ar || '').toLowerCase().includes(q) ||
-        (p.name_en || '').toLowerCase().includes(q) ||
-        (p.phone || '').toLowerCase().includes(q) ||
-        (p.email || '').toLowerCase().includes(q)
+        matchesSearch(
+          searchTerm,
+          p.name || '',
+          p.code || '',
+          p.name_ar || '',
+          p.name_en || '',
+          p.name_ru || '',
+          p.name_uk || '',
+          p.name_tr || '',
+          p.phone || '',
+          p.email || '',
+        )
       );
+    }
+
+    // Hide zero balance
+    if (hideZeroBalance) {
+      result = result.filter(p => {
+        const bal = currentBalances.get(p.id);
+        return bal && Math.abs(bal.balance) > 0.001;
+      });
     }
 
     // Sort
@@ -283,7 +320,7 @@ export default function Parties() {
     });
 
     return result;
-  }, [currentData, activeStatusTab, searchTerm, sortField, sortAsc, currentBalances]);
+  }, [currentData, activeStatusTab, searchTerm, sortField, sortAsc, currentBalances, hideZeroBalance]);
 
   // ─── Stats ───────────────────────────────────────────────────
   // عند "جميع العملات" لا يجب جمع مبالغ بعملات مختلفة — بلا معنى محاسبي
@@ -374,7 +411,7 @@ export default function Parties() {
               </p>
               {row.account ? (
                 <span className="text-[10px] text-gray-400 font-mono">
-                  {row.account.account_code} - {isRTL ? row.account.name_ar : row.account.name_en}
+                  {row.account.account_code} - {getLocalizedName(row.account, language)}
                 </span>
               ) : row.email ? (
                 <span className="text-[10px] text-gray-400">{row.email}</span>
@@ -702,6 +739,25 @@ export default function Parties() {
               </select>
             </div>
           )}
+
+          {/* Hide zero balance toggle */}
+          <Button
+            variant={hideZeroBalance ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              'h-7 gap-1.5 text-xs font-tajawal',
+              hideZeroBalance
+                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+            )}
+            onClick={toggleHideZeroBalance}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            {isRTL
+              ? (hideZeroBalance ? 'إظهار الكل' : 'إخفاء بدون رصيد')
+              : (hideZeroBalance ? 'Show All' : 'Hide Zero Balance')
+            }
+          </Button>
         </div>
 
         {/* ─── NexaListTable ─── */}

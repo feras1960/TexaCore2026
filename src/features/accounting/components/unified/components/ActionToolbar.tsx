@@ -314,28 +314,6 @@ export function EnhancedActionToolbar({
                 </>
             )}
 
-            {/* Refresh - only in view mode */}
-            {isViewMode && (
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onAction('refresh')}
-                                disabled={disabled || loading}
-                                className="gap-1.5 text-gray-700 hover:bg-gray-100 hover:text-erp-primary dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
-                                <span className="hidden lg:inline">{t('common.refresh') || 'تحديث'}</span>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>{t('common.refresh') || 'تحديث'}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            )}
 
             {/* ✅ Save & Confirm — for draft TRADE invoices only (step 1 of workflow) */}
             {isViewMode && isPostable && isDraft && !isReceivedDoc && !isAccountingDocType && (
@@ -349,7 +327,7 @@ export function EnhancedActionToolbar({
                                 disabled={disabled || loading}
                                 className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
                             >
-                                <ShieldCheck className="w-4 h-4" />
+                                <Send className="w-4 h-4" />
                                 <span>{t('actions.saveAndConfirm')}</span>
                             </Button>
                         </TooltipTrigger>
@@ -617,11 +595,36 @@ export function EnhancedActionToolbar({
                         );
                     }
 
-                    // Sales invoices in EDIT mode: just "Save" — posting is via warehouse
+                    // Sales invoices
                     const isSalesInvoice = tradeMode === 'sales' && docType === 'trade_invoice';
 
+                    // Draft sales invoice in edit mode: show "Confirm & Send" directly
+                    // (auto-save handles persistence, so plain "Save" is redundant)
+                    if (isSalesInvoice && isEditMode && isDraft) {
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onAction('save_confirm')}
+                                            disabled={disabled || loading}
+                                            className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                            <span>{t('actions.saveAndConfirm')}</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{t('actions.confirmSalesTooltip')}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    }
+
+                    // Non-draft sales invoice in edit mode: plain Save (editing confirmed doc)
                     if (isSalesInvoice && isEditMode) {
-                        // Edit mode for sales invoices: plain Save only
                         return (
                             <TooltipProvider>
                                 <Tooltip>
@@ -657,7 +660,7 @@ export function EnhancedActionToolbar({
                                             disabled={disabled || loading}
                                             className="gap-1.5 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-md shadow-emerald-500/20"
                                         >
-                                            <ShieldCheck className="w-4 h-4" />
+                                            <Send className="w-4 h-4" />
                                             <span>{t('actions.saveAndConfirm')}</span>
                                         </Button>
                                     </TooltipTrigger>
@@ -793,9 +796,9 @@ export function EnhancedActionToolbar({
                 )
             }
 
-            {/* Cancel Button (in edit/create mode) */}
+            {/* Cancel Button (in edit/create mode) — hidden for auto-saved trade drafts */}
             {
-                (isEditMode || isCreateMode) && (
+                (isEditMode || isCreateMode) && !(isPostable && isDraft && !isAccountingDocType && isEditMode) && (
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>

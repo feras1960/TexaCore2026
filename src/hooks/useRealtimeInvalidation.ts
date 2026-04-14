@@ -105,72 +105,88 @@ export function useRealtimeInvalidation(config: RealtimeInvalidationConfig) {
     const queryClient = useQueryClient();
     const channelRef = useRef<RealtimeChannel | null>(null);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const retryCountRef = useRef(0);
+    const MAX_RETRIES = 3;
 
     useEffect(() => {
         // Don't subscribe if disabled or missing companyId
         if (!enabled || !companyId) return;
 
-        // Build a unique channel name per hook instance
-        const channelName = `rt-${table}-${companyId}-${Math.random().toString(36).substring(2, 10)}`;
+        // Reset retry count on fresh mount
+        retryCountRef.current = 0;
 
-        // Clean up existing channel if any
-        if (channelRef.current) {
-            supabase.removeChannel(channelRef.current);
-        }
+        const subscribe = () => {
+            // Build a unique channel name per hook instance
+            const channelName = `rt-${table}-${companyId}-${Math.random().toString(36).substring(2, 10)}`;
 
-        // Build the subscription config
-        const subscriptionConfig: any = {
-            event,
-            schema,
-            table,
+            // Clean up existing channel if any
+            if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+            }
+
+            // Build the subscription config
+            const subscriptionConfig: any = {
+                event,
+                schema,
+                table,
+            };
+
+            // Add server-side filter if provided
+            if (filter) {
+                subscriptionConfig.filter = filter;
+            }
+
+            // Create the channel
+            const channel = supabase
+                .channel(channelName)
+                .on(
+                    'postgres_changes' as any,
+                    subscriptionConfig,
+                    (payload: any) => {
+                        // Call optional event handler
+                        onEvent?.(payload);
+
+                        // Debounce invalidation to handle bulk changes
+                        if (debounceTimerRef.current) {
+                            clearTimeout(debounceTimerRef.current);
+                        }
+
+                        debounceTimerRef.current = setTimeout(() => {
+                            // Invalidate all specified query keys
+                            for (const key of queryKeys) {
+                                queryClient.invalidateQueries({ queryKey: key });
+                            }
+                        }, debounceMs);
+                    }
+                )
+                .subscribe((status: string) => {
+                    if (status === 'SUBSCRIBED') {
+                        retryCountRef.current = 0; // Reset on success
+                    } else if (status === 'CHANNEL_ERROR') {
+                        retryCountRef.current += 1;
+                        if (retryCountRef.current <= MAX_RETRIES) {
+                            // Retry with exponential backoff
+                            const delay = Math.min(2000 * Math.pow(2, retryCountRef.current - 1), 30000);
+                            console.warn(`[Realtime] ⚠️ ${table} subscription failed (${retryCountRef.current}/${MAX_RETRIES}), retrying in ${delay}ms...`);
+                            setTimeout(() => {
+                                if (channelRef.current) {
+                                    supabase.removeChannel(channelRef.current);
+                                }
+                                subscribe();
+                            }, delay);
+                        }
+                        // After MAX_RETRIES: silently give up (React Query staleTime handles freshness)
+                    }
+                });
+
+            channelRef.current = channel;
         };
 
-        // Add server-side filter if provided
-        if (filter) {
-            subscriptionConfig.filter = filter;
-        }
-
-        // Create the channel
-        const channel = supabase
-            .channel(channelName)
-            .on(
-                'postgres_changes' as any,
-                subscriptionConfig,
-                (payload: any) => {
-                    console.log(`[Realtime] ${table} ${payload.eventType}`, {
-                        table,
-                        event: payload.eventType,
-                        id: payload.new?.id || payload.old?.id,
-                    });
-
-                    // Call optional event handler
-                    onEvent?.(payload);
-
-                    // Debounce invalidation to handle bulk changes
-                    if (debounceTimerRef.current) {
-                        clearTimeout(debounceTimerRef.current);
-                    }
-
-                    debounceTimerRef.current = setTimeout(() => {
-                        // Invalidate all specified query keys
-                        for (const key of queryKeys) {
-                            queryClient.invalidateQueries({ queryKey: key });
-                        }
-                    }, debounceMs);
-                }
-            )
-            .subscribe((status: string) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log(`[Realtime] ✅ Subscribed to ${table} changes`);
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error(`[Realtime] ❌ Failed to subscribe to ${table}`);
-                }
-            });
-
-        channelRef.current = channel;
+        subscribe();
 
         // Cleanup on unmount or dependency change
         return () => {
+            retryCountRef.current = MAX_RETRIES + 1; // Prevent retries after unmount
             if (debounceTimerRef.current) {
                 clearTimeout(debounceTimerRef.current);
             }

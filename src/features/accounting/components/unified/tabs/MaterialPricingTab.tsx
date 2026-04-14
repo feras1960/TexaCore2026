@@ -181,13 +181,17 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
     });
 
     // ═══════════ Computed values ═══════════
+    const cf = data?.custom_fields || {};
     const purchasePrice = Number(data?.purchase_price || 0);
+    const costPrice = Number(data?.cost_price || cf._cost_price || 0);
     const costPerMeter = Number(data?.cost_per_meter || 0);
     const sellingPrice = Number(data?.selling_price || 0);
-    const wholesalePrice = Number(data?.wholesale_price || 0);
+    const wholesalePrice = Number(data?.wholesale_price || cf._wholesale_price || 0);
+    const halfWholesalePrice = Number(data?.half_wholesale_price || cf._half_wholesale_price || 0);
+    const specialPrice = Number(data?.special_price || cf._special_price || 0);
     const onlinePrice = Number(data?.online_price || 0);
     const actualCost = pricingData?.avgLandedCost || pricingData?.avgCostPerMeter || Number(data?.avg_cost_per_unit || 0);
-    const baseCost = actualCost > 0 ? actualCost : purchasePrice;
+    const baseCost = actualCost > 0 ? actualCost : (costPrice > 0 ? costPrice : purchasePrice);
 
     // Unit label based on material unit
     const unitKey = (data?.unit || 'meter').toLowerCase();
@@ -366,6 +370,25 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                             {/* Production Cost */}
                             <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-purple-50/30 dark:hover:bg-purple-900/5">
                                 <td className="px-4 py-3 flex items-center gap-2">
+                                    <DollarSign className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">{t('سعر التكلفة', 'Cost Price')}</span>
+                                </td>
+                                <td className="px-4 py-3 text-end">
+                                    {isReadOnly ? (
+                                        <span className={cn('font-mono', costPrice > 0 ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-gray-300')}>
+                                            {costPrice > 0 ? `${currSymbol} ${fmt(costPrice)}` : '—'}
+                                        </span>
+                                    ) : <PriceInput id="cost_price" value={costPrice} field="cost_price" />}
+                                </td>
+                                <td className="px-4 py-3"></td>
+                                <td className="px-4 py-3 text-xs text-gray-400">
+                                    {t(`سعر التكلفة / ${unitLabel.ar}`, `Cost price / ${unitLabel.en}`)}
+                                </td>
+                            </tr>
+
+                            {/* Production/Manufacturing Cost */}
+                            <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-purple-50/30 dark:hover:bg-purple-900/5">
+                                <td className="px-4 py-3 flex items-center gap-2">
                                     <Layers className="w-4 h-4 text-purple-400 flex-shrink-0" />
                                     <span className="font-medium text-gray-700 dark:text-gray-300">{t('تكلفة الإنتاج', 'Production Cost')}</span>
                                 </td>
@@ -486,6 +509,40 @@ export function MaterialPricingTab({ data, mode = 'view', onChange }: MaterialPr
                                     ) : <PriceInput id="online_price" value={onlinePrice} field="online_price" />}
                                 </td>
                                 <td className="px-4 py-3 text-center"><MarginBadge val={calcMargin(onlinePrice)} /></td>
+                                <td className="px-4 py-3 text-center text-gray-400">—</td>
+                            </tr>
+
+                            {/* Half Wholesale */}
+                            <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/5">
+                                <td className="px-4 py-3 flex items-center gap-2">
+                                    <Tag className="w-4 h-4 text-teal-400 flex-shrink-0" />
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{t('سعر نصف الجملة', 'Semi-Wholesale')}</span>
+                                </td>
+                                <td className="px-4 py-3 text-end">
+                                    {isReadOnly ? (
+                                        <span className={cn('font-mono font-semibold', halfWholesalePrice > 0 ? 'text-gray-800 dark:text-gray-200' : 'text-gray-300')}>
+                                            {halfWholesalePrice > 0 ? `${currSymbol} ${fmt(halfWholesalePrice)}` : '—'}
+                                        </span>
+                                    ) : <PriceInput id="half_wholesale_price" value={halfWholesalePrice} field="half_wholesale_price" />}
+                                </td>
+                                <td className="px-4 py-3 text-center"><MarginBadge val={calcMargin(halfWholesalePrice)} /></td>
+                                <td className="px-4 py-3 text-center text-gray-400">—</td>
+                            </tr>
+
+                            {/* Special Price */}
+                            <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/5">
+                                <td className="px-4 py-3 flex items-center gap-2">
+                                    <Crown className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{t('السعر الخاص', 'Special Price')}</span>
+                                </td>
+                                <td className="px-4 py-3 text-end">
+                                    {isReadOnly ? (
+                                        <span className={cn('font-mono font-semibold', specialPrice > 0 ? 'text-gray-800 dark:text-gray-200' : 'text-gray-300')}>
+                                            {specialPrice > 0 ? `${currSymbol} ${fmt(specialPrice)}` : '—'}
+                                        </span>
+                                    ) : <PriceInput id="special_price" value={specialPrice} field="special_price" />}
+                                </td>
+                                <td className="px-4 py-3 text-center"><MarginBadge val={calcMargin(specialPrice)} /></td>
                                 <td className="px-4 py-3 text-center text-gray-400">—</td>
                             </tr>
 

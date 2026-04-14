@@ -161,6 +161,7 @@ export interface UnifiedAccountingSheetProps {
     headerExtra?: React.ReactNode;    // Extra content rendered ABOVE the header
     hideActions?: boolean;
     hideTabs?: boolean;
+    hideMainDocTabs?: boolean;  // Hide the main MDI document tabs bar
 }
 
 // Edit option from permission check

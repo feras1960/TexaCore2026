@@ -9,14 +9,14 @@ import {
 } from 'lucide-react';
 import { UnifiedAccountingSheet } from './unified/UnifiedAccountingSheet';
 import { UnifiedDocType } from './unified/types';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 
 interface QuickActionsBarProps {
   className?: string;
 }
 
 export default function QuickActionsBar({ className = '' }: QuickActionsBarProps) {
-  const { t, direction } = useLanguage();
-  const isRTL = direction === 'rtl';
+  const { direction, language } = useLanguage();
   const [activeDocType, setActiveDocType] = useState<UnifiedDocType | null>(null);
 
   const handleClose = () => {
@@ -33,7 +33,7 @@ export default function QuickActionsBar({ className = '' }: QuickActionsBarProps
           onClick={() => setActiveDocType('receipt')}
         >
           <ArrowDownRight className="w-3.5 h-3.5 text-green-600" />
-          {isRTL ? 'سندات القبض' : 'Receipts'}
+          {getLocalizedLabel('je_receipts', language)}
         </Button>
 
         {/* Payment Voucher — المدفوعات */}
@@ -43,7 +43,7 @@ export default function QuickActionsBar({ className = '' }: QuickActionsBarProps
           onClick={() => setActiveDocType('payment')}
         >
           <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
-          {isRTL ? 'المدفوعات' : 'Payments'}
+          {getLocalizedLabel('je_payments', language)}
         </Button>
 
         {/* Cash Journal — يومية صندوق */}
@@ -53,7 +53,7 @@ export default function QuickActionsBar({ className = '' }: QuickActionsBarProps
           onClick={() => setActiveDocType('cash')}
         >
           <Wallet className="w-3.5 h-3.5 text-purple-600" />
-          {isRTL ? 'يومية صندوق' : 'Cash Journal'}
+          {getLocalizedLabel('je_cash', language)}
         </Button>
 
         {/* Journal Entry — قيد يومية */}
@@ -62,7 +62,7 @@ export default function QuickActionsBar({ className = '' }: QuickActionsBarProps
           onClick={() => setActiveDocType('journal')}
         >
           <Plus className="w-3.5 h-3.5" />
-          {isRTL ? 'قيد يومية' : 'Journal Entry'}
+          {getLocalizedLabel('je_journal', language)}
         </Button>
       </div>
 

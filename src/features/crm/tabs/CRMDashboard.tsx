@@ -13,6 +13,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, CURRENCY_META, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
@@ -50,11 +52,12 @@ export default function CRMDashboard() {
   const { currencyCode: baseCurrency } = useCompanyCurrency(language as 'ar' | 'en');
   const { lookupRate } = useExchangeRateLookup();
 
+  const queryClient = useQueryClient();
+
   // Currency
   const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
     try { return localStorage.getItem('crm_dashboard_currency') || 'all'; } catch { return 'all'; }
   });
-  const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
   const displayCurrency = selectedCurrency === 'all' ? (baseCurrency || 'USD') : selectedCurrency;
   const sym = getCurrencySymbol(displayCurrency);
 
@@ -75,84 +78,50 @@ export default function CRMDashboard() {
     try { localStorage.setItem('crm_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch {}
   }, [dateRange]);
 
-  const [loading, setLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // KPIs
-  const [totalCustomers, setTotalCustomers] = useState(0);
-  const [newCustomersMonth, setNewCustomersMonth] = useState(0);
-  const [activeCustomers, setActiveCustomers] = useState(0);
-  const [totalReceivables, setTotalReceivables] = useState(0);
-  const [avgCustomerValue, setAvgCustomerValue] = useState(0);
-  const [totalSalesVolume, setTotalSalesVolume] = useState(0);
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [topCustomerName, setTopCustomerName] = useState('-');
-  const [topCustomerAmount, setTopCustomerAmount] = useState(0);
-  const [monthly, setMonthly] = useState<{ label: string; count: number }[]>([]);
-  const [recentCustomers, setRecentCustomers] = useState<{ id: string; name: string; phone: string; email: string; created_at: string; total_sales: number }[]>([]);
-  const [topCustomers, setTopCustomers] = useState<{ name: string; total: number; count: number }[]>([]);
-  const [isLive, setIsLive] = useState(false);
-
   // Convert
   const convertAmount = useCallback((amount: number, fromCurrency: string): number => {
     if (!amount || !fromCurrency || fromCurrency === displayCurrency) return amount;
     return amount * lookupRate(fromCurrency, displayCurrency);
   }, [displayCurrency, lookupRate]);
 
-  // ─── Fetch ───────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    if (!companyId) return;
-    // ⚡ No setLoading(true) — render dashboard structure immediately
+  // ─── Cache-first query (IndexedDB persistence) ────────────
+  const { data: rawData, isLoading: loading } = useCachedQuery({
+    queryKey: ['crm', 'dashboard', companyId, selectedCurrency],
+    queryFn: async () => {
+      if (!companyId) return null;
 
-    try {
-      // ⚡ Parallel fetch: all 3 queries at once
       const [settingsRes, customersRes, salesRes] = await Promise.all([
         supabase.from('company_accounting_settings').select('supported_currencies').eq('company_id', companyId).single(),
         supabase.from('customers').select('id, name_ar, name_en, phone, email, created_at').eq('company_id', companyId).order('created_at', { ascending: false }),
         supabase.from('sales_transactions').select('customer_id, customer_name, total_amount, currency, stage, created_at').eq('company_id', companyId),
       ]);
 
-      if (settingsRes.data?.supported_currencies) setAvailableCurrencies(settingsRes.data.supported_currencies);
-
+      const availableCurrencies = settingsRes.data?.supported_currencies || [];
       const now = new Date();
       const monthStart = startOfMonth(now);
-
       const allCustomers = customersRes.data || [];
-      setTotalCustomers(allCustomers.length);
+      const totalCustomers = allCustomers.length;
+      const newCustomersMonth = allCustomers.filter(c => new Date(c.created_at) >= monthStart).length;
 
-      // New this month
-      const newThisMonth = allCustomers.filter(c => new Date(c.created_at) >= monthStart);
-      setNewCustomersMonth(newThisMonth.length);
-
-      // Recent 8
-      setRecentCustomers(allCustomers.slice(0, 8).map(c => ({
+      const recentCustomers = allCustomers.slice(0, 8).map(c => ({
         id: c.id,
         name: isAr ? (c.name_ar || c.name_en || '-') : (c.name_en || c.name_ar || '-'),
-        phone: c.phone || '-',
-        email: c.email || '-',
+        phone: c.phone || '-', email: c.email || '-',
         created_at: c.created_at ? format(new Date(c.created_at), 'yyyy-MM-dd') : '-',
         total_sales: 0,
-      })));
+      }));
 
-      // Sales data for customer analytics
       const sales = salesRes.data || [];
-
-      // Active customers (have transactions)
       const activeIds = new Set(sales.map(s => s.customer_id).filter(Boolean));
-      setActiveCustomers(activeIds.size);
-
-      // Total sales volume
+      const activeCustomers = activeIds.size;
       const totalVol = sales.reduce((s, tx) => s + convertAmount(Number(tx.total_amount || 0), tx.currency), 0);
-      setTotalSalesVolume(totalVol);
-      setAvgCustomerValue(activeIds.size > 0 ? totalVol / activeIds.size : 0);
+      const totalSalesVolume = totalVol;
+      const avgCustomerValue = activeIds.size > 0 ? totalVol / activeIds.size : 0;
 
-      // Receivables (unpaid)
       const unpaid = sales.filter(s => s.stage === 'posted' || s.stage === 'partial_paid' || s.stage === 'confirmed' || s.stage === 'delivered');
-      const recvTotal = unpaid.reduce((s, tx) => s + convertAmount(Number(tx.total_amount || 0), tx.currency), 0);
-      setTotalReceivables(recvTotal);
-      setOverdueCount(unpaid.length);
+      const totalReceivables = unpaid.reduce((s, tx) => s + convertAmount(Number(tx.total_amount || 0), tx.currency), 0);
+      const overdueCount = unpaid.length;
 
-      // Top customer by sales
       const customerMap = new Map<string, { name: string; total: number; count: number }>();
       sales.forEach(tx => {
         const key = tx.customer_id || tx.customer_name || 'unknown';
@@ -162,48 +131,57 @@ export default function CRMDashboard() {
         customerMap.set(key, existing);
       });
       const sortedCustomers = [...customerMap.values()].sort((a, b) => b.total - a.total);
-      setTopCustomers(sortedCustomers.slice(0, 5));
-      if (sortedCustomers[0]) {
-        setTopCustomerName(sortedCustomers[0].name);
-        setTopCustomerAmount(sortedCustomers[0].total);
-      }
+      const topCustomers = sortedCustomers.slice(0, 5);
+      const topCustomerName = sortedCustomers[0]?.name || '-';
+      const topCustomerAmount = sortedCustomers[0]?.total || 0;
 
-      // Monthly new customers (6 months)
       const monthlyData: { label: string; count: number }[] = [];
       for (let i = 5; i >= 0; i--) {
         const d = subMonths(now, i);
         const mStart = startOfMonth(d);
         const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
         const label = new Intl.DateTimeFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { month: 'short' }).format(d);
-        const count = allCustomers.filter(c => {
-          const cd = new Date(c.created_at);
-          return cd >= mStart && cd <= mEnd;
-        }).length;
+        const count = allCustomers.filter(c => { const cd = new Date(c.created_at); return cd >= mStart && cd <= mEnd; }).length;
         monthlyData.push({ label, count });
       }
-      setMonthly(monthlyData);
 
-    } catch (err) {
-      console.error('CRM dashboard fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId, isAr, convertAmount]);
+      return {
+        availableCurrencies, totalCustomers, newCustomersMonth, activeCustomers,
+        totalReceivables, avgCustomerValue, totalSalesVolume, overdueCount,
+        topCustomerName, topCustomerAmount, monthly: monthlyData, recentCustomers, topCustomers,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+  });
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // Derive stats
+  const availableCurrencies = rawData?.availableCurrencies ?? [];
+  const totalCustomers = rawData?.totalCustomers ?? 0;
+  const newCustomersMonth = rawData?.newCustomersMonth ?? 0;
+  const activeCustomers = rawData?.activeCustomers ?? 0;
+  const totalReceivables = rawData?.totalReceivables ?? 0;
+  const avgCustomerValue = rawData?.avgCustomerValue ?? 0;
+  const totalSalesVolume = rawData?.totalSalesVolume ?? 0;
+  const overdueCount = rawData?.overdueCount ?? 0;
+  const topCustomerName = rawData?.topCustomerName ?? '-';
+  const topCustomerAmount = rawData?.topCustomerAmount ?? 0;
+  const monthly = rawData?.monthly ?? [];
+  const recentCustomers = rawData?.recentCustomers ?? [];
+  const topCustomers = rawData?.topCustomers ?? [];
 
-  // Realtime
+  // Realtime — invalidate cache
   useEffect(() => {
     if (!companyId) return;
     const channel = supabase
       .channel('crm-dashboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers', filter: `company_id=eq.${companyId}` }, () => {
-        setIsLive(true);
-        fetchData();
+        queryClient.invalidateQueries({ queryKey: ['crm', 'dashboard'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [companyId, fetchData]);
+  }, [companyId, queryClient]);
 
 
 

@@ -78,42 +78,46 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         tradeDefaultsAppliedRef.current = true;
 
         (async () => {
+            const updates: Record<string, any> = {};
+
+            // ═══ Sales: default delivery_method = store_pickup (always) ═══
+            if (tradeMode === 'sales' && !data.delivery_method) {
+                updates.delivery_method = 'store_pickup';
+            }
+
             try {
                 const prefs = await getTablePreferences(`trade_defaults_${tradeMode}`);
-                if (!prefs) return;
-                const defaults = (prefs as any).custom_data || (prefs as any).columnVisibility || {};
-                if (!defaults || typeof defaults !== 'object') return;
+                const defaults = prefs ? ((prefs as any).custom_data || (prefs as any).columnVisibility || {}) : {};
+                if (defaults && typeof defaults === 'object') {
+                    // Apply receipt_mode default (purchase only)
+                    if (tradeMode === 'purchase' && defaults.receipt_mode && !data.receipt_mode) {
+                        updates.receipt_mode = defaults.receipt_mode;
+                    }
 
-                const updates: Record<string, any> = {};
+                    // Apply auto_update_stock default
+                    if (defaults.auto_update_stock !== undefined && data.auto_update_stock === undefined) {
+                        updates.auto_update_stock = defaults.auto_update_stock;
+                    }
 
-                // Apply receipt_mode default (purchase only)
-                if (tradeMode === 'purchase' && defaults.receipt_mode && !data.receipt_mode) {
-                    updates.receipt_mode = defaults.receipt_mode;
-                }
+                    // Apply default warehouse
+                    if (defaults.stock_warehouse_id && !data.stock_warehouse_id) {
+                        updates.stock_warehouse_id = defaults.stock_warehouse_id;
+                    }
 
-                // Apply auto_update_stock default
-                if (defaults.auto_update_stock !== undefined && data.auto_update_stock === undefined) {
-                    updates.auto_update_stock = defaults.auto_update_stock;
-                }
-
-                // Apply default warehouse
-                if (defaults.stock_warehouse_id && !data.stock_warehouse_id) {
-                    updates.stock_warehouse_id = defaults.stock_warehouse_id;
-                }
-
-                // ═══ Transfer: auto-fill from_warehouse from user defaults ═══
-                if (tradeMode === 'transfer' && defaults.from_warehouse_id && !data.from_warehouse_id && !data.warehouse_id) {
-                    updates.warehouse_id = defaults.from_warehouse_id;
-                    updates.from_warehouse_id = defaults.from_warehouse_id;
-                    console.log(`[TradeMainTab] 🏭 Applied default from_warehouse:`, defaults.from_warehouse_id);
-                }
-
-                if (Object.keys(updates).length > 0) {
-                    console.log(`[TradeMainTab] 📋 Applied trade defaults:`, updates);
-                    onChange(updates);
+                    // ═══ Transfer: auto-fill from_warehouse from user defaults ═══
+                    if (tradeMode === 'transfer' && defaults.from_warehouse_id && !data.from_warehouse_id && !data.warehouse_id) {
+                        updates.warehouse_id = defaults.from_warehouse_id;
+                        updates.from_warehouse_id = defaults.from_warehouse_id;
+                        console.log(`[TradeMainTab] 🏭 Applied default from_warehouse:`, defaults.from_warehouse_id);
+                    }
                 }
             } catch (e) {
                 console.warn('[TradeMainTab] Could not load trade defaults:', e);
+            }
+
+            if (Object.keys(updates).length > 0) {
+                console.log(`[TradeMainTab] 📋 Applied trade defaults:`, updates);
+                onChange(updates);
             }
         })();
     }, [mode, tradeMode]); // Only on mount for create mode
@@ -238,7 +242,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     // For sales: delivered, posted, in_delivery
     // For purchases: received, partially_received, in_receiving, posted
     const purchaseReceiptStages = ['received', 'partially_received', 'in_receiving', 'posted'];
-    const salesDeliveryStages = ['delivered', 'posted', 'in_delivery'];
+    const salesDeliveryStages = ['delivered', 'posted', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch'];
     const isDeliveredStage = tradeMode === 'purchase'
         ? purchaseReceiptStages.includes(data.stage || '')
         : salesDeliveryStages.includes(data.stage || '');
@@ -314,6 +318,15 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
         staleTime: 120000,
     });
 
+    // ─── Warehouse name lookup — for enriching items loaded from DB ───
+    const warehouseNameMap = useMemo(() => {
+        const map = new Map<string, string>();
+        warehousesList.forEach((w: { id: string; name: string }) => {
+            map.set(w.id, w.name);
+        });
+        return map;
+    }, [warehousesList]);
+
     // ─── Map ALL items to InvoiceLineItem format ───
     const lineItems: InvoiceLineItem[] = useMemo(() => {
         // 🌍 International purchases: override stored tax values to 0
@@ -343,8 +356,8 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 total: total,
                 currency: item.currency || data.currency || companyCurrency || 'SAR',
                 exchange_rate: Number(item.exchange_rate || 1),
-                warehouse_id: item.warehouse_id || '',
-                warehouse_name_ar: item.warehouse_name_ar || '',
+                warehouse_id: item.warehouse_id || data.warehouse_id || '',
+                warehouse_name_ar: item.warehouse_name_ar || warehouseNameMap.get(item.warehouse_id) || warehouseNameMap.get(data.warehouse_id) || '',
                 warehouse_name_en: item.warehouse_name_en || '',
                 available_stock: item.available_stock,
                 preferred_rolls: item.preferred_rolls || [],
@@ -355,7 +368,22 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 delivery_rolls: item.delivery_rolls || [],
             };
         });
-    }, [resolvedItems, data.currency, companyCurrency, tradeMode, data.receipt_mode]);
+    }, [resolvedItems, data.currency, data.warehouse_id, companyCurrency, tradeMode, data.receipt_mode, warehouseNameMap]);
+
+    // ─── Auto-sync document warehouse_id from items ───
+    // When all items share the same warehouse and document has no warehouse_id, auto-set it
+    useEffect(() => {
+        if (!lineItems || lineItems.length === 0) return;
+        if (data.warehouse_id) return; // Already set at document level
+
+        const warehouseIds = new Set(lineItems.map(i => i.warehouse_id).filter(Boolean));
+        if (warehouseIds.size === 1) {
+            const singleWhId = Array.from(warehouseIds)[0];
+            if (singleWhId) {
+                onChange({ warehouse_id: singleWhId });
+            }
+        }
+    }, [lineItems, data.warehouse_id, onChange]);
 
     // ─── Handle items update ───
     const handleItemsChange = useCallback((updatedItems: InvoiceLineItem[]) => {
@@ -635,6 +663,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                 supportedCurrencies={supportedCurrencies}
                                 onCurrencyChange={handleCurrencyChange}
                                 viewMode={mode}
+                                companyId={companyId}
                             />
 
                             {/* 1.5 Customer Pricing Info Bar — only for Sales with selected customer */}
@@ -769,7 +798,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
             )}
 
             {/* ═══ Sales Delivery Progress — Real-time ═══ */}
-            {tradeMode === 'sales' && data.id && ['in_delivery', 'delivered', 'confirmed'].includes(data.stage || '') && (
+            {tradeMode === 'sales' && data.id && ['in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivered', 'confirmed'].includes(data.stage || '') && (
                 <DeliveryProgressBanner
                     invoiceId={data.id}
                     stage={data.stage || 'confirmed'}

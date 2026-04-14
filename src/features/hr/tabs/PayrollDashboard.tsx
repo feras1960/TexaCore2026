@@ -1,9 +1,14 @@
 /**
  * 💰 Payroll Dashboard — كشوف الرواتب الشاملة (NexaListTable)
  * يشمل: فترات الرواتب + كشوف مفصلة + مكونات الراتب
+ * ⚡ PERFORMANCE: useCachedQuery (IndexedDB persistence)
  */
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Badge } from '@/components/ui/badge';
@@ -27,12 +32,11 @@ import { toast } from 'sonner';
 export default function PayrollDashboard() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
     const [entries, setEntries] = useState<PayrollEntry[]>([]);
-    const [components, setComponents] = useState<SalaryComponent[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
-    const [loading, setLoading] = useState(true);
     const [entriesLoading, setEntriesLoading] = useState(false);
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [activeTab, setActiveTab] = useState('periods');
@@ -44,20 +48,39 @@ export default function PayrollDashboard() {
         period_month: new Date().getMonth() + 1,
     });
 
-    useEffect(() => { loadData(); }, []);
-
-    async function loadData() {
-        try {
-            setLoading(true);
+    // ─── Cache-first query ────────────
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'payroll', companyId],
+        queryFn: async () => {
             const [p, c] = await Promise.all([getPayrollPeriods(), getSalaryComponents()]);
-            setPeriods(p);
-            setComponents(c);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }
+            return { periods: p, components: c };
+        },
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+
+    const periods = rawData?.periods ?? [];
+    const components = rawData?.components ?? [];
+
+    // ─── Realtime ────────────
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('hr-payroll-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_periods' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'payroll'] });
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_entries' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'payroll'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
+
+    const invalidatePayroll = () => {
+        queryClient.invalidateQueries({ queryKey: ['hr', 'payroll'] });
+    };
 
     async function loadEntries(periodId: string) {
         try {
@@ -89,7 +112,7 @@ export default function PayrollDashboard() {
 
             toast.success(isRTL ? 'تم إنشاء فترة الرواتب' : 'Payroll period created');
             setShowCreateDialog(false);
-            loadData();
+            invalidatePayroll();
         } catch {
             toast.error(isRTL ? 'فشل الإنشاء' : 'Creation failed');
         }
@@ -99,7 +122,7 @@ export default function PayrollDashboard() {
         try {
             await updatePayrollPeriodStatus(id, newStatus);
             toast.success(isRTL ? 'تم تحديث الحالة' : 'Status updated');
-            loadData();
+            invalidatePayroll();
         } catch {
             toast.error(isRTL ? 'فشل التحديث' : 'Update failed');
         }

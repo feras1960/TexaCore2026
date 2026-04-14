@@ -119,6 +119,8 @@ export function useViewCurrency(): UseViewCurrencyReturn {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (_cachedCurrencyData) {
             if (stored && _cachedCurrencyData.options.includes(stored)) return stored;
+            // Auto-select if only one currency is available
+            if (_cachedCurrencyData.options.length === 1) return _cachedCurrencyData.options[0];
             return _cachedCurrencyData.baseCurrency || 'all';
         }
         return stored || 'all';
@@ -143,6 +145,9 @@ export function useViewCurrency(): UseViewCurrencyReturn {
                 const stored = localStorage.getItem(STORAGE_KEY);
                 if (stored && data.options.includes(stored)) {
                     setSelectedCurrencyState(stored);
+                } else if (data.options.length === 1) {
+                    // Auto-select if only one currency is available
+                    setSelectedCurrencyState(data.options[0]);
                 } else if (data.baseCurrency) {
                     setSelectedCurrencyState(data.baseCurrency);
                 }

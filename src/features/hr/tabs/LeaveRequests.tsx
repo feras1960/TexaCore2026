@@ -1,8 +1,13 @@
 /**
  * 🌴 Leave Requests — طلبات الإجازات باستخدام NexaListTable
+ * ⚡ PERFORMANCE: useCachedQuery (IndexedDB persistence)
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { NexaListTable, NexaListColumn, NexaListFilter } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
@@ -22,11 +27,9 @@ import { toast } from 'sonner';
 export default function LeaveRequests() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [requests, setRequests] = useState<LeaveRequest[]>([]);
-    const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -41,31 +44,48 @@ export default function LeaveRequests() {
         employee_id: '', leave_type_id: '', start_date: '', end_date: '', reason: ''
     });
 
-    useEffect(() => { loadData(); }, []);
-
-    async function loadData() {
-        try {
-            setLoading(true);
+    // ─── Cache-first query ────────────
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'leaves', companyId],
+        queryFn: async () => {
             const [reqData, typesData, empData] = await Promise.all([
                 getLeaveRequests(),
                 getLeaveTypes(),
                 getEmployees(),
             ]);
-            setRequests(reqData);
-            setLeaveTypes(typesData);
-            setEmployees(empData);
-        } catch (err) {
-            console.error(err);
-            toast.error(isRTL ? 'فشل تحميل البيانات' : 'Failed to load data');
-        } finally {
-            setLoading(false);
-        }
-    }
+            return { requests: reqData, leaveTypes: typesData, employees: empData };
+        },
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+
+    const requests = rawData?.requests ?? [];
+    const leaveTypes = rawData?.leaveTypes ?? [];
+    const employees = rawData?.employees ?? [];
+
+    // ─── Realtime ────────────
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('hr-leaves-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'leaves'] });
+                queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
+
+    const invalidateLeaves = () => {
+        queryClient.invalidateQueries({ queryKey: ['hr', 'leaves'] });
+        queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+    };
 
     async function handleApprove(id: string) {
         try {
             await approveLeaveRequest(id, 'current-user');
-            setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
+            invalidateLeaves();
             toast.success(isRTL ? 'تمت الموافقة' : 'Approved');
         } catch {
             toast.error(isRTL ? 'فشلت الموافقة' : 'Approval failed');
@@ -75,7 +95,7 @@ export default function LeaveRequests() {
     async function handleReject() {
         try {
             await rejectLeaveRequest(selectedRequestId, rejectReason);
-            setRequests(prev => prev.map(r => r.id === selectedRequestId ? { ...r, status: 'rejected' } : r));
+            invalidateLeaves();
             setShowRejectDialog(false);
             setRejectReason('');
             toast.success(isRTL ? 'تم الرفض' : 'Rejected');
@@ -90,12 +110,12 @@ export default function LeaveRequests() {
                 (new Date(newRequest.end_date).getTime() - new Date(newRequest.start_date).getTime()) / (1000 * 60 * 60 * 24)
             ) + 1;
 
-            const created = await createLeaveRequest({
+            await createLeaveRequest({
                 ...newRequest,
                 total_days: days,
                 status: 'pending',
             });
-            setRequests(prev => [created, ...prev]);
+            invalidateLeaves();
             setShowNewDialog(false);
             setNewRequest({ employee_id: '', leave_type_id: '', start_date: '', end_date: '', reason: '' });
             toast.success(isRTL ? 'تم إنشاء الطلب' : 'Request created');

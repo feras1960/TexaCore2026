@@ -106,6 +106,18 @@ export const COUNTRIES: Country[] = [
 ];
 
 /**
+ * Normalize Arabic text for robust searching
+ */
+function normalizeArabic(text: string): string {
+  if (!text) return '';
+  return text.toLowerCase().trim()
+    .replace(/[أإآا]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[يى]/g, 'ی') // Replace standard yaa and alif maqsurah with farsi yaa for uniform search
+    .replace(/\s+/g, ' ');
+}
+
+/**
  * Get localized country name
  */
 export function getCountryName(code: string, lang: string): string {
@@ -120,9 +132,38 @@ export function getCountryName(code: string, lang: string): string {
 export function findCountryByName(name: string): Country | undefined {
   if (!name) return undefined;
   const q = name.toLowerCase().trim();
+  const normQ = normalizeArabic(name);
+  
   return COUNTRIES.find(c =>
     c.name_en.toLowerCase() === q ||
     c.name_ar === q ||
+    normalizeArabic(c.name_ar) === normQ ||
     c.code.toLowerCase() === q
   );
+}
+
+/**
+ * Get localized country name using standard Intl browser APIs based on country code
+ * Fallback to the original name if mapping fails
+ */
+export function getLocalizedCountry(name: string, language: string): string {
+  if (!name) return '';
+  const country = findCountryByName(name);
+  if (!country) return name; // Could be a custom city or name not in the list
+  
+  try {
+    // Map internal language codes to standard BCP 47
+    const langMap: Record<string, string> = {
+      ar: 'ar-SA',
+      en: 'en-US',
+      ru: 'ru-RU',
+      uk: 'uk-UA',
+      tr: 'tr-TR'
+    };
+    const locale = langMap[language] || language;
+    return new Intl.DisplayNames([locale], { type: 'region' }).of(country.code) || name;
+  } catch (e) {
+    // Fallback if browser doesn't support Intl.DisplayNames for this locale
+    return language === 'ar' ? country.name_ar : country.name_en;
+  }
 }

@@ -12,7 +12,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,23 +50,12 @@ export default function EcommerceDashboard() {
     const { direction, language } = useLanguage();
     const isAr = language === 'ar';
     const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [loading, setLoading] = useState(true);
-    const [totalSales, setTotalSales] = useState(0);
-    const [totalOrders, setTotalOrders] = useState(0);
-    const [totalCustomers, setTotalCustomers] = useState(0);
-    const [pendingOrders, setPendingOrders] = useState(0);
-    const [shippedOrders, setShippedOrders] = useState(0);
-    const [completedOrders, setCompletedOrders] = useState(0);
-    const [avgOrderValue, setAvgOrderValue] = useState(0);
-    const [currency, setCurrency] = useState('UAH');
-    const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
-    const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
-
-    const fetchDashboard = useCallback(async () => {
-        setLoading(true);
-        try {
-            // ⚡ Parallel fetch: both queries at once
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['ecommerce', 'dashboard', companyId],
+        queryFn: async () => {
             const [ordersRes, itemsRes] = await Promise.all([
                 supabase.from('ecommerce_orders')
                     .select('id, order_number, customer_name, total_amount, status, payment_status, currency, created_at, customer_phone')
@@ -73,24 +64,17 @@ export default function EcommerceDashboard() {
             ]);
 
             const allOrders = ordersRes.data || [];
-            setRecentOrders(allOrders.slice(0, 8).map(o => ({
+            const recentOrders: RecentOrder[] = allOrders.slice(0, 8).map(o => ({
                 id: o.id, order_number: o.order_number, customer_name: o.customer_name,
                 total_amount: o.total_amount, status: o.status, payment_status: o.payment_status,
                 currency: o.currency, created_at: o.created_at,
-            })));
+            }));
 
             const validOrders = allOrders.filter(o => !['cancelled', 'returned'].includes(o.status));
             const sales = validOrders.reduce((s, o) => s + (o.total_amount || 0), 0);
-            setTotalSales(sales);
-            setTotalOrders(allOrders.length);
-            setPendingOrders(allOrders.filter(o => o.status === 'pending').length);
-            setShippedOrders(allOrders.filter(o => o.status === 'shipped').length);
-            setCompletedOrders(allOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length);
-            setTotalCustomers(new Set(allOrders.map(o => o.customer_phone)).size);
-            setAvgOrderValue(validOrders.length > 0 ? sales / validOrders.length : 0);
-            setCurrency(allOrders[0]?.currency || 'UAH');
 
             const items = itemsRes.data;
+            let topProducts: TopProduct[] = [];
             if (items?.length) {
                 const map: Record<string, { name: any; sold: number; rev: number }> = {};
                 items.forEach(it => {
@@ -99,23 +83,50 @@ export default function EcommerceDashboard() {
                     map[k].sold += it.quantity;
                     map[k].rev += it.total_price;
                 });
-                setTopProducts(Object.values(map).sort((a, b) => b.rev - a.rev).slice(0, 5)
-                    .map(p => ({ product_name: p.name, total_sold: p.sold, total_revenue: p.rev })));
+                topProducts = Object.values(map).sort((a, b) => b.rev - a.rev).slice(0, 5)
+                    .map(p => ({ product_name: p.name, total_sold: p.sold, total_revenue: p.rev }));
             }
-        } catch (err) { console.error('Ecommerce dashboard error:', err); }
-        finally { setLoading(false); }
-    }, []);
 
-    useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+            return {
+                totalSales: sales,
+                totalOrders: allOrders.length,
+                totalCustomers: new Set(allOrders.map(o => o.customer_phone)).size,
+                pendingOrders: allOrders.filter(o => o.status === 'pending').length,
+                shippedOrders: allOrders.filter(o => o.status === 'shipped').length,
+                completedOrders: allOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length,
+                avgOrderValue: validOrders.length > 0 ? sales / validOrders.length : 0,
+                currency: allOrders[0]?.currency || 'UAH',
+                recentOrders,
+                topProducts,
+            };
+        },
+        enabled: true,
+        staleTime: 2 * 60 * 1000,       // 2 minutes
+        gcTime: 24 * 60 * 60 * 1000,    // 24 hours (IndexedDB)
+    });
 
-    // Realtime
+    // Derive stats from cached data
+    const totalSales = rawData?.totalSales ?? 0;
+    const totalOrders = rawData?.totalOrders ?? 0;
+    const totalCustomers = rawData?.totalCustomers ?? 0;
+    const pendingOrders = rawData?.pendingOrders ?? 0;
+    const shippedOrders = rawData?.shippedOrders ?? 0;
+    const completedOrders = rawData?.completedOrders ?? 0;
+    const avgOrderValue = rawData?.avgOrderValue ?? 0;
+    const currency = rawData?.currency ?? 'UAH';
+    const recentOrders = rawData?.recentOrders ?? [];
+    const topProducts = rawData?.topProducts ?? [];
+
+    // Realtime — invalidate cache instead of re-fetching directly
     useEffect(() => {
         const channel = supabase
             .channel('ecommerce-dashboard-live')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'ecommerce_orders' }, () => fetchDashboard())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'ecommerce_orders' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['ecommerce', 'dashboard'] });
+            })
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, [fetchDashboard]);
+    }, [queryClient]);
 
     const fmt = (val: number) => new Intl.NumberFormat(isAr ? 'ar-u-nu-latn' : 'en-US', { maximumFractionDigits: 0 }).format(val);
     const getName = (name: any) => {

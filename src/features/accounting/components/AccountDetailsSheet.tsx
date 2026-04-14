@@ -547,8 +547,8 @@ export default function AccountDetailsSheet({
                   <ScrollArea key={tab.id} className="h-full">
                     <div className="p-4">
                       {tab.type === 'edit' && <EditAccountTab account={tab.data} language={language} t={t} direction={direction} onSaveSuccess={() => { refetchLedger(); refetchPayments(); }} />}
-                      {tab.type === 'invoice' && <InvoiceDetailTab data={tab.data} language={language} t={t} />}
-                      {tab.type === 'journal' && <JournalDetailTab data={tab.data} language={language} t={t} />}
+                      {tab.type === 'invoice' && <InvoiceDetailTab data={tab.data} account={account} language={language} t={t} />}
+                      {tab.type === 'journal' && <JournalDetailTab data={tab.data} account={account} language={language} t={t} />}
                       {tab.type === 'payment' && <PaymentDetailTab data={tab.data} language={language} t={t} />}
                       {tab.type === 'receipt' && <ReceiptDetailTab data={tab.data} language={language} t={t} />}
                     </div>
@@ -668,6 +668,7 @@ function OverviewTab({
   recentActivities,
   onRefresh
 }: any) {
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   // Use real stats from props
   const stats = {
     totalTransactions: realStats?.transactionCount || ledgerEntries.length,
@@ -1960,6 +1961,7 @@ function ReservationsTab({ account, language, t }: any) {
 
 // ===== AI ANALYSIS TAB =====
 function AIAnalysisTab({ account, language, t, ledgerEntries, totalDebit, totalCredit }: any) {
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const insights = [
     {
       type: 'trend',
@@ -2342,7 +2344,8 @@ function AccountInfoWithLedger({
 }
 
 // Invoice Detail Tab Component
-function InvoiceDetailTab({ data, language, t }: any) {
+function InvoiceDetailTab({ data, account, language, t }: any) {
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [status, setStatus] = useState(data?.status || 'confirmed');
   const [isEditing, setIsEditing] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({
@@ -2653,7 +2656,8 @@ function InvoiceDetailTab({ data, language, t }: any) {
 }
 
 // Journal Detail Tab Component
-function JournalDetailTab({ data, language, t }: any) {
+function JournalDetailTab({ data, account, language, t }: any) {
+  const { currencyCode: companyCurrency } = useCompanyCurrency();
   const [isEditing, setIsEditing] = useState(false);
   const [journalForm, setJournalForm] = useState({
     number: data?.reference || 'JV-001',

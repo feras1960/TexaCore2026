@@ -62,11 +62,11 @@ type ViewMode = 'chronological' | 'grouped';
 // ═══ Quick Date Presets ═══
 type DatePreset = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
 
-const DATE_PRESETS: { id: DatePreset; label_ar: string; label_en: string; icon: React.ReactNode }[] = [
-    { id: 'month', label_ar: 'الشهر', label_en: 'Month', icon: <Calendar className="w-3.5 h-3.5" /> },
-    { id: 'quarter', label_ar: 'الربع', label_en: 'Quarter', icon: <CalendarRange className="w-3.5 h-3.5" /> },
-    { id: 'year', label_ar: 'السنة', label_en: 'Year', icon: <CalendarDays className="w-3.5 h-3.5" /> },
-    { id: 'all', label_ar: 'الكل', label_en: 'All', icon: <Layers className="w-3.5 h-3.5" /> },
+const DATE_PRESETS: { id: DatePreset; label_ar: string; label_en: string; labels?: Record<string, string>; icon: React.ReactNode }[] = [
+    { id: 'month', label_ar: 'الشهر', label_en: 'Month', labels: { ru: 'Месяц', uk: 'Місяць', tr: 'Ay', de: 'Monat', it: 'Mese', ro: 'Lună', pl: 'Miesiąc' }, icon: <Calendar className="w-3.5 h-3.5" /> },
+    { id: 'quarter', label_ar: 'الربع', label_en: 'Quarter', labels: { ru: 'Квартал', uk: 'Квартал', tr: 'Çeyrek', de: 'Quartal', it: 'Trimestre', ro: 'Trimestru', pl: 'Kwartał' }, icon: <CalendarRange className="w-3.5 h-3.5" /> },
+    { id: 'year', label_ar: 'السنة', label_en: 'Year', labels: { ru: 'Год', uk: 'Рік', tr: 'Yıl', de: 'Jahr', it: 'Anno', ro: 'An', pl: 'Rok' }, icon: <CalendarDays className="w-3.5 h-3.5" /> },
+    { id: 'all', label_ar: 'الكل', label_en: 'All', labels: { ru: 'Все', uk: 'Всі', tr: 'Tümü', de: 'Alle', it: 'Tutti', ro: 'Toate', pl: 'Wszystkie' }, icon: <Layers className="w-3.5 h-3.5" /> },
 ];
 
 // ═══ Movement Type Filter ═══
@@ -86,6 +86,58 @@ export function LedgerTab({
 }: LedgerTabProps) {
     const { t, direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
+
+    // ═══ Multi-language local translator ═══
+    const LEDGER_LABELS: Record<string, Record<string, string>> = {
+        'Transactions': { ru: 'Транзакции', uk: 'Транзакції', tr: 'İşlemler', de: 'Transaktionen', it: 'Transazioni', ro: 'Tranzacții', pl: 'Transakcje' },
+        'Total Debit': { ru: 'Итого дебет', uk: 'Всього дебет', tr: 'Toplam Borç', de: 'Gesamtsoll', it: 'Totale dare', ro: 'Total debit', pl: 'Suma debetów' },
+        'Total Credit': { ru: 'Итого кредит', uk: 'Всього кредит', tr: 'Toplam Alacak', de: 'Gesamthaben', it: 'Totale avere', ro: 'Total credit', pl: 'Suma kredytów' },
+        'Current Balance': { ru: 'Текущий баланс', uk: 'Поточний баланс', tr: 'Mevcut Bakiye', de: 'Aktueller Saldo', it: 'Saldo attuale', ro: 'Sold curent', pl: 'Bieżące saldo' },
+        'Period:': { ru: 'Период:', uk: 'Період:', tr: 'Dönem:', de: 'Zeitraum:', it: 'Periodo:', ro: 'Perioadă:', pl: 'Okres:' },
+        'Type': { ru: 'Тип', uk: 'Тип', tr: 'Tür', de: 'Typ', it: 'Tipo', ro: 'Tip', pl: 'Typ' },
+        'All': { ru: 'Все', uk: 'Всі', tr: 'Tümü', de: 'Alle', it: 'Tutti', ro: 'Toate', pl: 'Wszystkie' },
+        'Debit Only': { ru: 'Только дебет', uk: 'Тільки дебет', tr: 'Sadece Borç', de: 'Nur Soll', it: 'Solo dare', ro: 'Doar debit', pl: 'Tylko debet' },
+        'Credit Only': { ru: 'Только кредит', uk: 'Тільки кредит', tr: 'Sadece Alacak', de: 'Nur Haben', it: 'Solo avere', ro: 'Doar credit', pl: 'Tylko kredyt' },
+        'Document': { ru: 'Документ', uk: 'Документ', tr: 'Belge', de: 'Dokument', it: 'Documento', ro: 'Document', pl: 'Dokument' },
+        '🧾 Invoices': { ru: '🧾 Счета', uk: '🧾 Рахунки', tr: '🧾 Faturalar', de: '🧾 Rechnungen', it: '🧾 Fatture', ro: '🧾 Facturi', pl: '🧾 Faktury' },
+        '💰 Payments': { ru: '💰 Платежи', uk: '💰 Платежі', tr: '💰 Ödemeler', de: '💰 Zahlungen', it: '💰 Pagamenti', ro: '💰 Plăți', pl: '💰 Płatności' },
+        'Currency': { ru: 'Валюта', uk: 'Валюта', tr: 'Para Birimi', de: 'Währung', it: 'Valuta', ro: 'Monedă', pl: 'Waluta' },
+        ' (Account)': { ru: ' (Счёт)', uk: ' (Рахунок)', tr: ' (Hesap)', de: ' (Konto)', it: ' (Conto)', ro: ' (Cont)', pl: ' (Konto)' },
+        'Monthly': { ru: 'Помесячно', uk: 'Помісячно', tr: 'Aylık', de: 'Monatlich', it: 'Mensile', ro: 'Lunar', pl: 'Miesięcznie' },
+        'On': { ru: 'Вкл', uk: 'Увімк', tr: 'Açık', de: 'Ein', it: 'On', ro: 'Activat', pl: 'Wł.' },
+        'Off': { ru: 'Выкл', uk: 'Вимк', tr: 'Kapalı', de: 'Aus', it: 'Off', ro: 'Dezactivat', pl: 'Wył.' },
+        'Filters': { ru: 'Фильтры', uk: 'Фільтри', tr: 'Filtreler', de: 'Filter', it: 'Filtri', ro: 'Filtre', pl: 'Filtry' },
+        'Clear All': { ru: 'Сбросить', uk: 'Скинути', tr: 'Temizle', de: 'Alle löschen', it: 'Cancella', ro: 'Șterge tot', pl: 'Wyczyść' },
+        'Date': { ru: 'Дата', uk: 'Дата', tr: 'Tarih', de: 'Datum', it: 'Data', ro: 'Dată', pl: 'Data' },
+        'Ref': { ru: 'Ссылка', uk: 'Посилання', tr: 'Ref', de: 'Ref', it: 'Rif', ro: 'Ref', pl: 'Ref' },
+        'Description': { ru: 'Описание', uk: 'Опис', tr: 'Açıklama', de: 'Beschreibung', it: 'Descrizione', ro: 'Descriere', pl: 'Opis' },
+        'Counter Acct': { ru: 'Корр. счёт', uk: 'Кор. рахунок', tr: 'Karşı Hesap', de: 'Gegenkonto', it: 'Conto contro', ro: 'Cont coresp.', pl: 'K-to koresp.' },
+        'Debit': { ru: 'Дебет', uk: 'Дебет', tr: 'Borç', de: 'Soll', it: 'Dare', ro: 'Debit', pl: 'Debet' },
+        'Credit': { ru: 'Кредит', uk: 'Кредит', tr: 'Alacak', de: 'Haben', it: 'Avere', ro: 'Credit', pl: 'Kredyt' },
+        'Balance': { ru: 'Баланс', uk: 'Баланс', tr: 'Bakiye', de: 'Saldo', it: 'Saldo', ro: 'Sold', pl: 'Saldo' },
+        'Cur': { ru: 'Вал.', uk: 'Вал.', tr: 'PB', de: 'Whr.', it: 'Val.', ro: 'Val.', pl: 'Wal.' },
+        'CC': { ru: 'ЦЗ', uk: 'ЦВ', tr: 'MM', de: 'KSt', it: 'CdC', ro: 'CC', pl: 'MPK' },
+        'Dr': { ru: 'Д', uk: 'Д', tr: 'B', de: 'S', it: 'D', ro: 'D', pl: 'D' },
+        'Cr': { ru: 'K', uk: 'K', tr: 'A', de: 'H', it: 'A', ro: 'C', pl: 'K' },
+        'D': { ru: 'Д', uk: 'Д', tr: 'B', de: 'S', it: 'D', ro: 'D', pl: 'D' },
+        'C': { ru: 'K', uk: 'K', tr: 'A', de: 'H', it: 'A', ro: 'C', pl: 'K' },
+        'Opening:': { ru: 'Начальный:', uk: 'Початковий:', tr: 'Açılış:', de: 'Eröffnung:', it: 'Apertura:', ro: 'Deschidere:', pl: 'Otwarcie:' },
+        'Balance:': { ru: 'Баланс:', uk: 'Баланс:', tr: 'Bakiye:', de: 'Saldo:', it: 'Saldo:', ro: 'Sold:', pl: 'Saldo:' },
+        'Search description, entry number, or counter account...': { ru: 'Поиск по описанию, номеру записи или корр. счёту...', uk: 'Пошук за описом, номером запису або кор. рахунком...', tr: 'Açıklama, kayıt no veya karşı hesap ara...', de: 'Beschreibung, Buchungsnr. oder Gegenkonto suchen...', it: 'Cerca descrizione, numero registrazione o controconto...', ro: 'Caută descriere, nr. înregistrare sau cont coresp...', pl: 'Szukaj opisu, nr. wpisu lub konta koresp...' },
+        'entries': { ru: 'записей', uk: 'записів', tr: 'kayıt', de: 'Einträge', it: 'voci', ro: 'înregistrări', pl: 'wpisów' },
+        'Timeline': { ru: 'Хронология', uk: 'Хронологія', tr: 'Zaman Çizelgesi', de: 'Zeitachse', it: 'Cronologia', ro: 'Cronologie', pl: 'Oś czasu' },
+        'Grouped': { ru: 'Группировка', uk: 'Групування', tr: 'Gruplandı', de: 'Gruppiert', it: 'Raggruppato', ro: 'Grupat', pl: 'Grupowane' },
+        'Chronological': { ru: 'Хронологический', uk: 'Хронологічний', tr: 'Kronolojik', de: 'Chronologisch', it: 'Cronologico', ro: 'Cronologic', pl: 'Chronologicznie' },
+        'Group invoices with payments': { ru: 'Группировать счета с платежами', uk: 'Групувати рахунки з платежами', tr: 'Faturaları ödemelerle grupla', de: 'Rechnungen mit Zahlungen gruppieren', it: 'Raggruppa fatture con pagamenti', ro: 'Grupează facturi cu plăți', pl: 'Grupuj faktury z płatnościami' },
+        'Multiple': { ru: 'Несколько', uk: 'Декілька', tr: 'Çoklu', de: 'Mehrere', it: 'Multiplo', ro: 'Multiple', pl: 'Wiele' },
+    };
+    const lt = (ar: string, en: string): string => {
+        if (language === 'ar') return ar;
+        if (language === 'en') return en;
+        const trans = LEDGER_LABELS[en];
+        if (trans && trans[language]) return trans[language];
+        return en;
+    };
     const { supportedCurrencies, baseCurrency: settingsBaseCurrency } = useAccountingSettings();
     const { getRate } = useViewCurrency();
 
@@ -298,7 +350,7 @@ export function LedgerTab({
     // ═══ Column Definitions ═══
     const dateCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'date',
-        header: isRTL ? 'التاريخ' : 'Date',
+        header: lt('التاريخ', 'Date'),
         sortKey: 'date',
         sortable: true,
         width: 'w-[85px]',
@@ -314,7 +366,7 @@ export function LedgerTab({
 
     const referenceCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'reference',
-        header: isRTL ? 'المرجع' : 'Ref',
+        header: lt('المرجع', 'Ref'),
         width: 'w-[55px]',
         cell: (row) => {
             // Abbreviate long reference: "JE-17713680391085-3873" → "...3873"
@@ -330,7 +382,7 @@ export function LedgerTab({
 
     const descriptionCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'description',
-        header: isRTL ? 'البيان' : 'Description',
+        header: lt('البيان', 'Description'),
         width: 'min-w-[120px]',
         cell: (row) => (
             <p className="text-xs text-gray-800 dark:text-gray-200">
@@ -341,7 +393,7 @@ export function LedgerTab({
 
     const counterAccountCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'counterAccount',
-        header: isRTL ? 'الحساب المقابل' : 'Counter Acct',
+        header: lt('الحساب المقابل', 'Counter Acct'),
         width: 'w-[100px]',
         cell: (row) => {
             const ca = row.counterAccount;
@@ -355,14 +407,14 @@ export function LedgerTab({
                             {ca.accountCode}
                         </span>
                         <span className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-[80px]">
-                            {isRTL ? ca.accountNameAr : (ca.accountNameEn || ca.accountNameAr)}
+                            {language === 'ar' ? ca.accountNameAr : (ca[`accountName_${language}`] || ca.accountNameEn || ca.accountNameAr)}
                         </span>
                     </div>
                 );
             }
             return (
                 <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded-full">
-                    {isRTL ? `متعددة (${ca.otherLinesCount})` : `Multiple (${ca.otherLinesCount})`}
+                    {lt('متعددة', 'Multiple')} ({ca.otherLinesCount})
                 </span>
             );
         },
@@ -370,7 +422,7 @@ export function LedgerTab({
 
     const debitCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'debit',
-        header: isRTL ? 'مدين' : 'Debit',
+        header: lt('مدين', 'Debit'),
         align: 'end',
         width: 'w-[85px]',
         sortKey: 'debit',
@@ -388,7 +440,7 @@ export function LedgerTab({
 
     const creditCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'credit',
-        header: isRTL ? 'دائن' : 'Credit',
+        header: lt('دائن', 'Credit'),
         align: 'end',
         width: 'w-[85px]',
         sortKey: 'credit',
@@ -406,7 +458,7 @@ export function LedgerTab({
 
     const balanceCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'balance',
-        header: isRTL ? 'الرصيد' : 'Balance',
+        header: lt('الرصيد', 'Balance'),
         align: 'end',
         width: 'w-[90px]',
         cell: (row) => {
@@ -420,7 +472,7 @@ export function LedgerTab({
                 )}>
                     {formatNumber(Math.abs(row.balance))}
                     <span className="text-[9px] ms-0.5 opacity-60">
-                        {isPositive ? (isRTL ? 'م' : 'D') : (isRTL ? 'د' : 'C')}
+                        {isPositive ? (lt('م', 'D')) : (lt('د', 'C'))}
                     </span>
                 </span>
             );
@@ -429,7 +481,7 @@ export function LedgerTab({
 
     const currencyCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'currency',
-        header: isRTL ? 'العملة' : 'Cur',
+        header: lt('العملة', 'Cur'),
         align: 'center',
         width: 'w-[50px]',
         cell: (row) => (
@@ -441,7 +493,7 @@ export function LedgerTab({
 
     const costCenterCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'costCenter',
-        header: isRTL ? 'م.التكلفة' : 'CC',
+        header: lt('م.التكلفة', 'CC'),
         width: 'w-[70px]',
         cell: (row) => (
             <span className="text-[10px] text-gray-500 dark:text-gray-400">
@@ -476,14 +528,14 @@ export function LedgerTab({
         // Movement filter
         f.push({
             id: 'movement',
-            label: isRTL ? 'النوع' : 'Type',
+            label: lt('النوع', 'Type'),
             type: 'select' as const,
             value: movementFilter,
             onChange: (v: string) => setMovementFilter(v as MovementFilter),
             options: [
-                { value: 'all', label: isRTL ? 'الكل' : 'All' },
-                { value: 'debit', label: isRTL ? 'مدين فقط' : 'Debit Only' },
-                { value: 'credit', label: isRTL ? 'دائن فقط' : 'Credit Only' },
+                { value: 'all', label: lt('الكل', 'All') },
+                { value: 'debit', label: lt('مدين فقط', 'Debit Only') },
+                { value: 'credit', label: lt('دائن فقط', 'Credit Only') },
             ],
         });
 
@@ -491,14 +543,14 @@ export function LedgerTab({
         if (partyMode) {
             f.push({
                 id: 'entryType',
-                label: isRTL ? 'المستند' : 'Document',
+                label: lt('المستند', 'Document'),
                 type: 'select' as const,
                 value: entryTypeFilter,
                 onChange: (v: string) => setEntryTypeFilter(v as EntryTypeFilter),
                 options: [
-                    { value: 'all', label: isRTL ? 'الكل' : 'All' },
-                    { value: 'invoices', label: isRTL ? '🧾 فواتير فقط' : '🧾 Invoices' },
-                    { value: 'payments', label: isRTL ? '💰 دفعات فقط' : '💰 Payments' },
+                    { value: 'all', label: lt('الكل', 'All') },
+                    { value: 'invoices', label: lt('🧾 فواتير فقط', '🧾 Invoices') },
+                    { value: 'payments', label: lt('💰 دفعات فقط', '💰 Payments') },
                 ],
             });
         }
@@ -514,7 +566,7 @@ export function LedgerTab({
             if (currencyOptions.size > 0) {
                 f.push({
                     id: 'currency',
-                    label: isRTL ? 'العملة' : 'Currency',
+                    label: lt('العملة', 'Currency'),
                     type: 'select' as const,
                     value: localCurrency || accountCurrency || effectiveBaseCurrency,
                     onChange: (v: string) => {
@@ -524,7 +576,7 @@ export function LedgerTab({
                     },
                     options: [...currencyOptions].map(c => ({
                         value: c,
-                        label: c + (c === accountCurrency ? (isRTL ? ' (الحساب)' : ' (Account)') : ''),
+                        label: c + (c === accountCurrency ? (lt(' (الحساب)', ' (Account)')) : ''),
                     })),
                 });
             }
@@ -533,13 +585,13 @@ export function LedgerTab({
         // Monthly groups toggle
         f.push({
             id: 'monthlyGroup',
-            label: isRTL ? 'تجميع شهري' : 'Monthly',
+            label: lt('تجميع شهري', 'Monthly'),
             type: 'select' as const,
             value: showMonthlyGroups ? 'on' : 'off',
             onChange: (v: string) => setShowMonthlyGroups(v === 'on'),
             options: [
-                { value: 'on', label: isRTL ? 'مُفعّل' : 'On' },
-                { value: 'off', label: isRTL ? 'مُعطّل' : 'Off' },
+                { value: 'on', label: lt('مُفعّل', 'On') },
+                { value: 'off', label: lt('مُعطّل', 'Off') },
             ],
         });
 
@@ -555,7 +607,7 @@ export function LedgerTab({
         return (
             <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1">
-                    <span className="text-gray-400">{isRTL ? 'افتتاحي:' : 'Opening:'}</span>
+                    <span className="text-gray-400">{lt('افتتاحي:', 'Opening:')}</span>
                     <span className="font-mono font-semibold text-gray-600 dark:text-gray-300">
                         {formatNumber(stats.openingBalance)}
                     </span>
@@ -576,7 +628,7 @@ export function LedgerTab({
                 </div>
                 <span className="text-gray-200 dark:text-gray-700">|</span>
                 <div className="flex items-center gap-1">
-                    <span className="text-gray-400">{isRTL ? 'الرصيد:' : 'Balance:'}</span>
+                    <span className="text-gray-400">{lt('الرصيد:', 'Balance:')}</span>
                     <span className={cn(
                         "font-mono font-bold",
                         stats.currentBalance >= 0
@@ -585,7 +637,7 @@ export function LedgerTab({
                     )}>
                         {formatNumber(Math.abs(stats.currentBalance))}
                         <span className="text-[10px] ms-0.5 opacity-60">
-                            {stats.currentBalance >= 0 ? (isRTL ? 'م' : 'D') : (isRTL ? 'د' : 'C')}
+                            {stats.currentBalance >= 0 ? (lt('م', 'D')) : (lt('د', 'C'))}
                         </span>
                     </span>
                     <span className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded">
@@ -602,30 +654,30 @@ export function LedgerTab({
             {stats && (
                 <div className="grid grid-cols-4 gap-3">
                     <SummaryCard
-                        label={isRTL ? 'عدد الحركات' : 'Transactions'}
+                        label={lt('عدد الحركات', 'Transactions')}
                         value={stats.transactionCount.toString()}
                         icon={<Layers className="w-4 h-4" />}
                         color="indigo"
                         isRTL={isRTL}
                     />
                     <SummaryCard
-                        label={isRTL ? 'مجموع المدين' : 'Total Debit'}
+                        label={lt('مجموع المدين', 'Total Debit')}
                         value={formatNumber(stats.totalDebit)}
                         icon={<TrendingUp className="w-4 h-4" />}
                         color="emerald"
                         isRTL={isRTL}
                     />
                     <SummaryCard
-                        label={isRTL ? 'مجموع الدائن' : 'Total Credit'}
+                        label={lt('مجموع الدائن', 'Total Credit')}
                         value={formatNumber(stats.totalCredit)}
                         icon={<TrendingDown className="w-4 h-4" />}
                         color="red"
                         isRTL={isRTL}
                     />
                     <SummaryCard
-                        label={isRTL ? 'الرصيد الحالي' : 'Current Balance'}
+                        label={lt('الرصيد الحالي', 'Current Balance')}
                         value={formatNumber(Math.abs(stats.currentBalance))}
-                        suffix={`${stats.currentBalance >= 0 ? (isRTL ? 'مدين' : 'Dr') : (isRTL ? 'دائن' : 'Cr')} ${activeCurrency}`}
+                        suffix={`${stats.currentBalance >= 0 ? (lt('مدين', 'Dr')) : (lt('دائن', 'Cr'))} ${activeCurrency}`}
                         icon={<Minus className="w-4 h-4" />}
                         color={stats.currentBalance >= 0 ? 'emerald' : 'red'}
                         isRTL={isRTL}
@@ -636,7 +688,7 @@ export function LedgerTab({
             {/* ═══ Quick Date Presets + View Mode Toggle ═══ */}
             <div className="flex items-center gap-2 px-1">
                 <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                    {isRTL ? 'الفترة:' : 'Period:'}
+                    {lt('الفترة:', 'Period:')}
                 </span>
                 {DATE_PRESETS.map((preset) => (
                     <button
@@ -650,7 +702,7 @@ export function LedgerTab({
                         )}
                     >
                         {preset.icon}
-                        {isRTL ? preset.label_ar : preset.label_en}
+                        {language === 'ar' ? preset.label_ar : (preset.labels?.[language] || preset.label_en)}
                     </button>
                 ))}
 
@@ -659,7 +711,7 @@ export function LedgerTab({
                     <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 ms-2">
                         <button
                             onClick={() => setViewMode('chronological')}
-                            title={isRTL ? 'عرض زمني' : 'Chronological'}
+                            title={lt('عرض زمني', 'Chronological')}
                             className={cn(
                                 "flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-all",
                                 viewMode === 'chronological'
@@ -668,11 +720,11 @@ export function LedgerTab({
                             )}
                         >
                             <ListOrdered className="w-3.5 h-3.5" />
-                            {isRTL ? 'زمني' : 'Timeline'}
+                            {lt('زمني', 'Timeline')}
                         </button>
                         <button
                             onClick={() => setViewMode('grouped')}
-                            title={isRTL ? 'تجميع الفواتير مع دفعاتها' : 'Group invoices with payments'}
+                            title={lt('تجميع الفواتير مع دفعاتها', 'Group invoices with payments')}
                             className={cn(
                                 "flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-all",
                                 viewMode === 'grouped'
@@ -681,7 +733,7 @@ export function LedgerTab({
                             )}
                         >
                             <LayoutList className="w-3.5 h-3.5" />
-                            {isRTL ? 'تجميع' : 'Grouped'}
+                            {lt('تجميع', 'Grouped')}
                         </button>
                     </div>
                 )}
@@ -723,9 +775,9 @@ export function LedgerTab({
                 columns={columns}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
-                searchPlaceholder={isRTL ? 'بحث في البيان أو رقم القيد أو الحساب المقابل...' : 'Search description, entry number, or counter account...'}
+                searchPlaceholder={lt('بحث في البيان أو رقم القيد أو الحساب المقابل...', 'Search description, entry number, or counter account...')}
                 totalCount={entries.length}
-                countLabel={isRTL ? 'حركة' : 'entries'}
+                countLabel={lt('حركة', 'entries')}
                 filters={nexaFilters}
                 hasActiveFilters={movementFilter !== 'all' || !showMonthlyGroups || (localCurrency !== accountCurrency && localCurrency !== '') || (partyMode && viewMode !== 'chronological') || (partyMode && entryTypeFilter !== 'all')}
                 onClearFilters={() => {
@@ -736,8 +788,8 @@ export function LedgerTab({
                     setLocalCurrency(accountCurrency || effectiveBaseCurrency);
                     setCurrency(accountCurrency || effectiveBaseCurrency);
                 }}
-                filtersLabel={isRTL ? 'فلاتر' : 'Filters'}
-                clearFiltersLabel={isRTL ? 'مسح الفلاتر' : 'Clear All'}
+                filtersLabel={lt('فلاتر', 'Filters')}
+                clearFiltersLabel={lt('مسح الفلاتر', 'Clear All')}
                 getRowAccent={getRowAccent}
                 getRowKey={(row) => row.id}
                 showRowNumbers={true}
@@ -745,10 +797,20 @@ export function LedgerTab({
                 isRTL={isRTL}
                 direction={direction}
                 showFooter={true}
-                footerLeftText={isRTL
-                    ? `عرض ${displayEntries.length} من ${entries.length} حركة`
-                    : `Showing ${displayEntries.length} of ${entries.length} entries`
-                }
+                footerLeftText={(() => {
+                    const footerTexts: Record<string, string> = {
+                        ar: `\u0639\u0631\u0636 ${displayEntries.length} \u0645\u0646 ${entries.length} \u062d\u0631\u0643\u0629`,
+                        en: `Showing ${displayEntries.length} of ${entries.length} entries`,
+                        ru: `\u041f\u043e\u043a\u0430\u0437\u0430\u043d\u043e ${displayEntries.length} \u0438\u0437 ${entries.length} \u0437\u0430\u043f\u0438\u0441\u0435\u0439`,
+                        uk: `\u041f\u043e\u043a\u0430\u0437\u0430\u043d\u043e ${displayEntries.length} \u0437 ${entries.length} \u0437\u0430\u043f\u0438\u0441\u0456\u0432`,
+                        tr: `${entries.length} kay\u0131ttan ${displayEntries.length} g\u00f6steriliyor`,
+                        de: `${displayEntries.length} von ${entries.length} Eintr\u00e4gen`,
+                        it: `${displayEntries.length} di ${entries.length} voci`,
+                        ro: `${displayEntries.length} din ${entries.length} \u00eenregistr\u0103ri`,
+                        pl: `${displayEntries.length} z ${entries.length} wpis\u00f3w`,
+                    };
+                    return footerTexts[language] || footerTexts.en;
+                })()}
                 footerRightContent={footerRight}
                 // Expandable rows
                 renderExpandedRow={(row) => (

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { subscriptionService, SubscriptionStatusInfo } from '@/services/subscriptionService';
 import { Loader2, CreditCard, Calendar, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage } from '@/app/providers/LanguageProvider';
 import { format } from 'date-fns';
 
 interface CompanySubscriptionProps {

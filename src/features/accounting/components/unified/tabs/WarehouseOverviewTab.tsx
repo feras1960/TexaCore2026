@@ -35,6 +35,7 @@ import { formatDate } from '../utils/formatters';
 import { branchesService, Branch } from '@/services/branchesService';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 
 // ─── Keeper Type ──────────────────────────────────────────────
 interface WarehouseKeeper {
@@ -258,19 +259,56 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                             onChange={(v) => handleChange('code', v)}
                             mono
                         />
-                        <Field
-                            label={t('warehouse.nameAr') || 'الاسم (عربي)'}
-                            value={data?.name_ar}
-                            isEditing={isEditing}
-                            onChange={(v) => handleChange('name_ar', v)}
-                            required
-                        />
-                        <Field
-                            label={t('warehouse.nameEn') || 'الاسم (إنجليزي)'}
-                            value={data?.name_en}
-                            isEditing={isEditing}
-                            onChange={(v) => handleChange('name_en', v)}
-                        />
+
+                        {/* ── Name fields: current language first, then ar/en ── */}
+                        {(() => {
+                            const LANG_LABELS: Record<string, string> = {
+                                ar: 'العربية', en: 'English', ru: 'Русский', uk: 'Українська',
+                                tr: 'Türkçe', de: 'Deutsch', it: 'Italiano', ro: 'Română', pl: 'Polski',
+                            };
+                            const currentLangLabel = LANG_LABELS[language] || language.toUpperCase();
+
+                            // In view mode: show only current language name (getLocalizedName handles fallback)
+                            if (!isEditing) {
+                                return (
+                                    <InfoRow
+                                        label={`${t('warehouse.name') || 'الاسم'} (${currentLangLabel})`}
+                                        value={getLocalizedName(data, language)}
+                                    />
+                                );
+                            }
+
+                            // In edit mode: current language (required) + English
+                            const fields: { lang: string; key: string; label: string; required?: boolean }[] = [];
+
+                            // Current language field (required) — this is ar when browsing Arabic
+                            fields.push({
+                                lang: language,
+                                key: language === 'ar' ? 'name_ar' : `name_${language}`,
+                                label: `${t('warehouse.name') || 'الاسم'} (${currentLangLabel})`,
+                                required: true,
+                            });
+
+                            // English (if not already the current language)
+                            if (language !== 'en') {
+                                fields.push({
+                                    lang: 'en',
+                                    key: 'name_en',
+                                    label: `${t('warehouse.name') || 'الاسم'} (${LANG_LABELS.en})`,
+                                });
+                            }
+
+                            return fields.map(f => (
+                                <Field
+                                    key={f.key}
+                                    label={f.label}
+                                    value={data?.[f.key]}
+                                    isEditing={true}
+                                    onChange={(v) => handleChange(f.key, v)}
+                                    required={f.required}
+                                />
+                            ));
+                        })()}
 
                         {isEditing ? (
                             <div className="space-y-1">
@@ -319,7 +357,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                         <SelectItem value="_none">{t('warehouse.noBranch')}</SelectItem>
                                         {branches.map(b => (
                                             <SelectItem key={b.id} value={b.id}>
-                                                {isAr ? b.name : (b.name_en || b.name)}
+                                                {getLocalizedName(b, language)}
                                                 {b.is_main ? ` ⭐` : ''}
                                             </SelectItem>
                                         ))}
@@ -333,7 +371,7 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
                                     currentBranch ? (
                                         <Badge variant="outline" className="text-xs gap-1">
                                             <GitBranch className="w-3 h-3" />
-                                            {isAr ? currentBranch.name : (currentBranch.name_en || currentBranch.name)}
+                                            {getLocalizedName(currentBranch, language)}
                                             {currentBranch.is_main && ' ⭐'}
                                         </Badge>
                                     ) : (
@@ -639,8 +677,8 @@ export function WarehouseOverviewTab({ data, mode = 'view', onChange }: Warehous
             {/* System Info */}
             {!isEditing && (
                 <div className="flex items-center gap-4 text-xs text-gray-400 px-2">
-                    <span>Created: {formatDate(data?.created_at)}</span>
-                    {data?.updated_at && <span>Updated: {formatDate(data.updated_at)}</span>}
+                    <span>{t('common.created')}: {formatDate(data?.created_at)}</span>
+                    {data?.updated_at && <span>{t('common.updated')}: {formatDate(data.updated_at)}</span>}
                 </div>
             )}
         </div>

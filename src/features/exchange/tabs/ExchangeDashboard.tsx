@@ -9,7 +9,7 @@
 import React, { useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,7 @@ export default function ExchangeDashboard() {
   const { companyId } = useCompany();
 
   // ─── Fetch Summary Counts ──────────────────────────────────
-  const { data: summary, isLoading } = useQuery({
+  const { data: summary, isLoading } = useCachedQuery({
     queryKey: ['exchange_dashboard', companyId],
     queryFn: async () => {
       if (!companyId) return null;
@@ -47,11 +47,9 @@ export default function ExchangeDashboard() {
 
       const [ops, rem, agents, partners, customers] = await Promise.all([
         safeQuery(supabase.from('exchange_transactions').select('id', { count: 'exact', head: true }).eq('company_id', companyId)),
-        // remittances table not yet created — return empty
         Promise.resolve({ count: 0, data: [] }),
         safeQuery(supabase.from('exchange_agents').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active')),
         safeQuery(supabase.from('exchange_partners').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active')),
-        // customers/parties table not yet available — return empty
         Promise.resolve({ count: 0, data: [] }),
       ]);
 
@@ -67,11 +65,12 @@ export default function ExchangeDashboard() {
       };
     },
     enabled: !!companyId,
-    staleTime: 30_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
   });
 
   // ─── Fetch Recent Operations ──────────────────────────────
-  const { data: recentOps = [] } = useQuery({
+  const { data: recentOps = [] } = useCachedQuery({
     queryKey: ['exchange_recent_ops', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -87,29 +86,20 @@ export default function ExchangeDashboard() {
       } catch { return []; }
     },
     enabled: !!companyId,
-    staleTime: 30_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
   });
 
   // ─── Fetch Recent Remittances ──────────────────────────────
-  const { data: recentRemittances = [] } = useQuery({
+  const { data: recentRemittances = [] } = useCachedQuery({
     queryKey: ['exchange_recent_rem', companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      // remittances table not yet created — return empty
       return [];
-      // try {
-      //   const { data, error } = await supabase
-      //     .from('remittances')
-      //     .select('id, remittance_number, remittance_type, sender_name, receiver_name, amount, currency, status, remittance_date')
-      //     .eq('company_id', companyId)
-      //     .order('remittance_date', { ascending: false })
-      //     .limit(5);
-      //   if (error) return [];
-      //   return data || [];
-      // } catch { return []; }
     },
     enabled: !!companyId,
-    staleTime: 30_000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
   });
 
   const s = summary || { totalOperations: 0, totalRemittances: 0, pendingRemittances: 0, activeAgents: 0, activePartners: 0, activeCustomers: 0 };

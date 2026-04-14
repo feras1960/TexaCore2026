@@ -193,7 +193,7 @@ export const accountsService = {
   async getGridAccounts(companyId: string): Promise<Account[]> {
     const { data, error } = await supabase
       .from('chart_of_accounts')
-      .select('id, company_id, account_code, name_ar, name_en, is_group, currency, current_balance, current_balance_fc')
+      .select('id, company_id, account_code, name_ar, name_en, name_ru, name_uk, name_tr, is_group, currency, current_balance, current_balance_fc')
       .eq('company_id', companyId)
       .eq('is_active', true)
       .order('account_code', { ascending: true });

@@ -72,6 +72,7 @@ interface PopupRegistry {
   status: 'ready' | 'wip' | 'planned';
   path: string;
   route?: string; // Route to open component in its place
+  badge?: string;
 }
 
 // Mock data for Universal Detail Sheet
@@ -455,7 +456,7 @@ const MOCK_MODULE_DATA = {
 };
 
 // Code snippets for copying
-const CODE_SNIPPETS: Record<DocType, string> = {
+const CODE_SNIPPETS: Record<string, string> = {
   // SaaS Sheets
   tenant: `<UniversalDetailSheet
   isOpen={isOpen}
@@ -560,9 +561,9 @@ const CODE_SNIPPETS: Record<DocType, string> = {
   receipt: '',
 };
 
-// Tab info for each DocType
-const TABS_INFO: Record<DocType, { id: string; label: string; labelAr: string; icon?: string }[]> = {
-  // === SaaS Sheets ===
+// Mock sub-tabs for each entity type
+const DOC_TABS: Record<string, { id: string; label: string; labelAr: string; icon?: string }[]> = {
+  // SaaS Sheets ===
   tenant: [
     { id: 'overview', label: 'Overview', labelAr: 'نظرة عامة' },
     { id: 'subscriptions', label: 'Subscriptions', labelAr: 'الاشتراكات' },
@@ -921,8 +922,8 @@ export default function ComponentLab() {
   };
 
   // Get doc type label
-  const getDocTypeLabel = (docType: DocType, isAr: boolean) => {
-    const labels: Record<DocType, { en: string; ar: string }> = {
+  const getDocTypeLabel = (docType: string, isAr: boolean) => {
+    const labels: Record<string, { en: string; ar: string }> = {
       tenant: { en: 'Tenant', ar: 'مشترك' },
       agent: { en: 'Agent', ar: 'وكيل' },
       plan: { en: 'Plan', ar: 'باقة' },
@@ -945,8 +946,8 @@ export default function ComponentLab() {
   };
 
   // Get doc type color
-  const getDocTypeColor = (docType: DocType) => {
-    const colors: Record<DocType, string> = {
+  const getDocTypeColor = (docType: string) => {
+    const colors: Record<string, string> = {
       tenant: 'bg-blue-500',
       agent: 'bg-purple-500',
       plan: 'bg-indigo-500',

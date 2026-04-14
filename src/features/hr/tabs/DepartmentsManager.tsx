@@ -1,8 +1,13 @@
 /**
  * 🏢 Departments & Positions Manager — إدارة الأقسام والمسميات
+ * ⚡ PERFORMANCE: useCachedQuery (IndexedDB persistence)
  */
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,32 +22,50 @@ import { toast } from 'sonner';
 export default function DepartmentsManager() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [departments, setDepartments] = useState<Department[]>([]);
-    const [positions, setPositions] = useState<Position[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
     const [showDeptDialog, setShowDeptDialog] = useState(false);
     const [showPosDialog, setShowPosDialog] = useState(false);
     const [editingDept, setEditingDept] = useState<Department | null>(null);
     const [deptForm, setDeptForm] = useState({ name_ar: '', name_en: '', code: '', description: '' });
     const [posForm, setPosForm] = useState({ name_ar: '', name_en: '', code: '', department_id: '', min_salary: '', max_salary: '' });
 
-    useEffect(() => { loadData(); }, []);
-
-    async function loadData() {
-        try {
-            setLoading(true);
+    // ─── Cache-first query ────────────
+    const { data: rawData, isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'departments-manager', companyId],
+        queryFn: async () => {
             const [depts, pos, emps] = await Promise.all([getDepartments(), getPositions(), getEmployees()]);
-            setDepartments(depts);
-            setPositions(pos);
-            setEmployees(emps);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }
+            return { departments: depts, positions: pos, employees: emps };
+        },
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+
+    const departments = rawData?.departments ?? [];
+    const positions = rawData?.positions ?? [];
+    const employees = rawData?.employees ?? [];
+
+    // ─── Realtime ────────────
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('hr-depts-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'departments-manager'] });
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'positions' }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'departments-manager'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
+
+    const invalidateAll = () => {
+        queryClient.invalidateQueries({ queryKey: ['hr', 'departments-manager'] });
+        queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+    };
 
     function getEmployeeCount(deptId: string) {
         return employees.filter(e => e.department_id === deptId).length;
@@ -60,7 +83,7 @@ export default function DepartmentsManager() {
             setShowDeptDialog(false);
             setEditingDept(null);
             setDeptForm({ name_ar: '', name_en: '', code: '', description: '' });
-            loadData();
+            invalidateAll();
         } catch {
             toast.error(isRTL ? 'فشل الحفظ' : 'Save failed');
         }
@@ -75,7 +98,7 @@ export default function DepartmentsManager() {
         try {
             await deleteDepartment(id);
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
-            loadData();
+            invalidateAll();
         } catch {
             toast.error(isRTL ? 'فشل الحذف' : 'Delete failed');
         }
@@ -91,7 +114,7 @@ export default function DepartmentsManager() {
             toast.success(isRTL ? 'تم إنشاء المسمى' : 'Position created');
             setShowPosDialog(false);
             setPosForm({ name_ar: '', name_en: '', code: '', department_id: '', min_salary: '', max_salary: '' });
-            loadData();
+            invalidateAll();
         } catch {
             toast.error(isRTL ? 'فشل الحفظ' : 'Save failed');
         }

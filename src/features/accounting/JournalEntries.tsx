@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { toast } from 'sonner';
+import { getLocalizedLabel } from '@/lib/utils/getLocalizedUnit';
 
 // Maps to UnifiedAccountingSheet docType
 type AccountingDocType = 'journal' | 'cash' | 'receipt' | 'payment' | 'transfer' | 'exchange';
@@ -99,35 +100,35 @@ export default function JournalEntries() {
 
   // ─── Entry type labels ───
   const entryTypes = useMemo(() => [
-    { value: 'all', label: isRTL ? 'الكل' : 'All' },
-    { value: 'journal', label: isRTL ? 'قيد يومية' : 'Journal' },
-    { value: 'opening_balance', label: isRTL ? 'رصيد افتتاحي' : 'Opening Balance' },
-    { value: 'opening', label: isRTL ? 'افتتاحي' : 'Opening' },
-    { value: 'closing', label: isRTL ? 'إغلاق' : 'Closing' },
-    { value: 'receipt', label: isRTL ? 'سند قبض' : 'Receipt' },
-    { value: 'payment', label: isRTL ? 'سند صرف' : 'Payment' },
-    { value: 'cash', label: isRTL ? 'يومية صندوق' : 'Cash' },
-    { value: 'sales', label: isRTL ? 'مبيعات' : 'Sales' },
-    { value: 'sales_invoice', label: isRTL ? 'فاتورة مبيعات' : 'Sales Inv.' },
-    { value: 'sales_cogs', label: isRTL ? 'تكلفة مبيعات' : 'COGS' },
-    { value: 'purchase', label: isRTL ? 'مشتريات' : 'Purchase' },
-    { value: 'purchase_invoice', label: isRTL ? 'ف. مشتريات' : 'Purch. Inv.' },
-    { value: 'container_expense', label: isRTL ? 'م. كونتينر' : 'Cont. Exp.' },
-    { value: 'container', label: isRTL ? 'كونتينر' : 'Container' },
-    { value: 'container_tax', label: isRTL ? 'ضريبة كونتينر' : 'Cont. Tax' },
-    { value: 'container_close', label: isRTL ? 'إغلاق كونتينر' : 'Cont. Close' },
-    { value: 'goods_receipt', label: isRTL ? 'استلام بضاعة' : 'Goods Receipt' },
-    { value: 'return', label: isRTL ? 'مرتجع' : 'Return' },
-    { value: 'expense', label: isRTL ? 'مصروف' : 'Expense' },
-    { value: 'transfer', label: isRTL ? 'تحويل' : 'Transfer' },
-    { value: 'exchange', label: isRTL ? 'صرافة' : 'Exchange' },
-    { value: 'depreciation', label: isRTL ? 'إهلاك' : 'Depreciation' },
-    { value: 'payroll', label: isRTL ? 'رواتب' : 'Payroll' },
-    { value: 'adjustment', label: isRTL ? 'تسوية' : 'Adjustment' },
-    { value: 'vat_settlement', label: isRTL ? 'تسوية ضريبة' : 'VAT Settlement' },
-    { value: 'mixed', label: isRTL ? 'مختلف' : 'Mixed' },
-    { value: 'manual', label: isRTL ? 'يدوي' : 'Manual' },
-  ], [isRTL]);
+    { value: 'all', label: getLocalizedLabel('je_all', language) },
+    { value: 'journal', label: getLocalizedLabel('je_journal', language) },
+    { value: 'opening_balance', label: getLocalizedLabel('je_opening_balance', language) },
+    { value: 'opening', label: getLocalizedLabel('je_opening', language) },
+    { value: 'closing', label: getLocalizedLabel('je_closing', language) },
+    { value: 'receipt', label: getLocalizedLabel('je_receipt', language) },
+    { value: 'payment', label: getLocalizedLabel('je_payment', language) },
+    { value: 'cash', label: getLocalizedLabel('je_cash', language) },
+    { value: 'sales', label: getLocalizedLabel('je_sales', language) },
+    { value: 'sales_invoice', label: getLocalizedLabel('je_sales_invoice', language) },
+    { value: 'sales_cogs', label: getLocalizedLabel('je_sales_cogs', language) },
+    { value: 'purchase', label: getLocalizedLabel('je_purchase', language) },
+    { value: 'purchase_invoice', label: getLocalizedLabel('je_purchase_invoice', language) },
+    { value: 'container_expense', label: getLocalizedLabel('je_cont_exp', language) },
+    { value: 'container', label: getLocalizedLabel('je_container', language) },
+    { value: 'container_tax', label: getLocalizedLabel('je_cont_tax', language) },
+    { value: 'container_close', label: getLocalizedLabel('je_cont_close', language) },
+    { value: 'goods_receipt', label: getLocalizedLabel('je_goods_receipt', language) },
+    { value: 'return', label: getLocalizedLabel('je_return', language) },
+    { value: 'expense', label: getLocalizedLabel('je_expense', language) },
+    { value: 'transfer', label: getLocalizedLabel('je_transfer', language) },
+    { value: 'exchange', label: getLocalizedLabel('je_exchange', language) },
+    { value: 'depreciation', label: getLocalizedLabel('je_depreciation', language) },
+    { value: 'payroll', label: getLocalizedLabel('je_payroll', language) },
+    { value: 'adjustment', label: getLocalizedLabel('je_adjustment', language) },
+    { value: 'vat_settlement', label: getLocalizedLabel('je_vat', language) },
+    { value: 'mixed', label: getLocalizedLabel('je_mixed', language) },
+    { value: 'manual', label: getLocalizedLabel('je_manual', language) },
+  ], [language]);
 
   // ─── Data fetching via React Query — fetch ALL entries (date filter only) ───
   const journalFilters = useMemo(() => ({
@@ -180,10 +181,10 @@ export default function JournalEntries() {
           id: line.id,
           account_id: line.account_id,
           account: line.account
-            ? `${line.account.account_code} - ${isRTL ? line.account.name_ar : line.account.name_en}`
+            ? `${line.account.account_code} - ${language === 'ar' ? line.account.name_ar : line.account.name_en}`
             : '-',
           account_code: line.account?.account_code || '',
-          account_name: isRTL ? line.account?.name_ar : line.account?.name_en || '',
+          account_name: language === 'ar' ? line.account?.name_ar : line.account?.name_en || '',
           description: line.description || '',
           debit: Number(line.debit || 0),
           credit: Number(line.credit || 0),
@@ -503,7 +504,7 @@ export default function JournalEntries() {
   const columns: NexaListColumn<any>[] = useMemo(() => {
     const debitCol: NexaListColumn<any> = {
       id: 'totalDebit',
-      header: isRTL ? 'المدين' : 'Debit',
+      header: getLocalizedLabel('je_debit', language),
       sortable: true,
       sortKey: 'totalDebit',
       align: 'end',
@@ -526,7 +527,7 @@ export default function JournalEntries() {
 
     const creditCol: NexaListColumn<any> = {
       id: 'totalCredit',
-      header: isRTL ? 'الدائن' : 'Credit',
+      header: getLocalizedLabel('je_credit', language),
       sortable: true,
       sortKey: 'totalCredit',
       align: 'end',
@@ -549,7 +550,7 @@ export default function JournalEntries() {
 
     const dateCol: NexaListColumn<any> = {
       id: 'date',
-      header: isRTL ? 'التاريخ' : 'Date',
+      header: getLocalizedLabel('je_date', language),
       sortable: true,
       sortKey: 'date',
       width: 'min-w-[110px]',
@@ -568,14 +569,14 @@ export default function JournalEntries() {
 
     const descriptionCol: NexaListColumn<any> = {
       id: 'description',
-      header: isRTL ? 'البيان' : 'Description',
+      header: getLocalizedLabel('je_desc', language),
       width: 'min-w-[220px]',
       cell: (row) => (
         <div className="max-w-[320px] truncate">
           <span className="text-sm text-gray-700 dark:text-gray-300">{row.description || '—'}</span>
           {row.lines?.length > 0 && (
             <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-              {row.lines[0]?.account_name} {row.lines.length > 1 ? `+ ${row.lines.length - 1} ${isRTL ? 'آخرين' : 'more'}` : ''}
+              {row.lines[0]?.account_name} {row.lines.length > 1 ? `+ ${row.lines.length - 1} ${getLocalizedLabel('je_others', language)}` : ''}
             </div>
           )}
         </div>
@@ -584,7 +585,7 @@ export default function JournalEntries() {
 
     const voucherNoCol: NexaListColumn<any> = {
       id: 'voucherNo',
-      header: isRTL ? 'رقم القيد' : 'Entry #',
+      header: getLocalizedLabel('je_entry_no', language),
       sortable: true,
       sortKey: 'voucherNo',
       width: 'min-w-[140px]',
@@ -593,22 +594,22 @@ export default function JournalEntries() {
 
     const referenceCol: NexaListColumn<any> = {
       id: 'reference',
-      header: isRTL ? 'المرجع' : 'Reference',
+      header: getLocalizedLabel('je_ref', language),
       width: 'min-w-[100px]',
       cell: (row) => <span className="text-xs text-slate-600 font-mono">{row.reference || '—'}</span>,
     };
 
     const statusCol: NexaListColumn<any> = {
       id: 'status',
-      header: isRTL ? 'الحالة' : 'Status',
+      header: getLocalizedLabel('je_status', language),
       width: 'min-w-[90px]',
       cell: (row) => {
         const s = row.status || 'draft';
         const cfg: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-          posted: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', label: isRTL ? 'مرحّل' : 'Posted' },
-          draft: { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500', label: isRTL ? 'مسودة' : 'Draft' },
-          pending: { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', label: isRTL ? 'معلّق' : 'Pending' },
-          cancelled: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500', label: isRTL ? 'ملغي' : 'Cancelled' },
+          posted: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', label: getLocalizedLabel('je_post', language) },
+          draft: { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500', label: getLocalizedLabel('je_dft', language) },
+          pending: { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', label: getLocalizedLabel('je_pend', language) },
+          cancelled: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500', label: getLocalizedLabel('je_canc', language) },
         };
         const style = cfg[s] || cfg.draft;
         return (
@@ -622,7 +623,7 @@ export default function JournalEntries() {
 
     const typeCol: NexaListColumn<any> = {
       id: 'type',
-      header: isRTL ? 'النوع' : 'Type',
+      header: getLocalizedLabel('je_type', language),
       width: 'min-w-[100px]',
       cell: (row) => (
         <Badge variant="outline" className={cn("font-medium border shadow-sm text-xs", getTypeStyle(row.type))}>
@@ -636,7 +637,7 @@ export default function JournalEntries() {
     return isRTL
       ? [debitCol, creditCol, dateCol, descriptionCol, voucherNoCol, referenceCol, statusCol, typeCol]
       : [typeCol, statusCol, referenceCol, voucherNoCol, descriptionCol, dateCol, creditCol, debitCol];
-  }, [isRTL, entryTypes]);
+  }, [isRTL, language, entryTypes]);
 
   // ══════════════════════════════════════════════════════════════
   // RENDER
@@ -652,9 +653,9 @@ export default function JournalEntries() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
-              {t('accounting.journalEntries')}
+              {getLocalizedLabel('je_title', language)}
             </h1>
-            <p className="text-slate-400 dark:text-slate-500 text-xs mt-0.5">{t('accounting.manageEntries')}</p>
+            <p className="text-slate-400 dark:text-slate-500 text-xs mt-0.5">{getLocalizedLabel('je_subtitle', language)}</p>
           </div>
         </div>
 
@@ -671,14 +672,14 @@ export default function JournalEntries() {
       <div className="flex flex-wrap items-center gap-3 px-1 mb-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto" dir={direction}>
           <TabsList className="bg-muted/50 p-1 rounded-lg inline-flex w-full sm:w-max overflow-x-auto">
-            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{isRTL ? 'الكل' : 'All'}{badge(allEntries.length)}</TabsTrigger>
-            <TabsTrigger value="posted" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-green-600">{isRTL ? 'مرحّل' : 'Posted'}{badge(tabCounts.posted || 0)}</TabsTrigger>
-            <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-yellow-600">{isRTL ? 'مسودة' : 'Draft'}{badge(tabCounts.draft || 0)}</TabsTrigger>
-            <TabsTrigger value="journal" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-blue-600">{isRTL ? 'قيد يومية' : 'Journal'}{badge(tabCounts.journal || 0)}</TabsTrigger>
-            <TabsTrigger value="receipt" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-emerald-600">{isRTL ? 'سند قبض' : 'Receipt'}{badge(tabCounts.receipt || 0)}</TabsTrigger>
-            <TabsTrigger value="payment" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-red-600">{isRTL ? 'سند صرف' : 'Payment'}{badge(tabCounts.payment || 0)}</TabsTrigger>
-            <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{isRTL ? 'مبيعات' : 'Sales'}{badge(tabCounts.sales || 0)}</TabsTrigger>
-            <TabsTrigger value="purchase_invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-orange-600">{isRTL ? 'مشتريات' : 'Purchase'}{badge(tabCounts.purchase_invoice || 0)}</TabsTrigger>
+            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8">{getLocalizedLabel('je_all', language)}{badge(allEntries.length)}</TabsTrigger>
+            <TabsTrigger value="posted" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-green-600">{getLocalizedLabel('je_post', language)}{badge(tabCounts.posted || 0)}</TabsTrigger>
+            <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-yellow-600">{getLocalizedLabel('je_dft', language)}{badge(tabCounts.draft || 0)}</TabsTrigger>
+            <TabsTrigger value="journal" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-blue-600">{getLocalizedLabel('je_journal', language)}{badge(tabCounts.journal || 0)}</TabsTrigger>
+            <TabsTrigger value="receipt" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-emerald-600">{getLocalizedLabel('je_receipt', language)}{badge(tabCounts.receipt || 0)}</TabsTrigger>
+            <TabsTrigger value="payment" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-red-600">{getLocalizedLabel('je_payment', language)}{badge(tabCounts.payment || 0)}</TabsTrigger>
+            <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-indigo-600">{getLocalizedLabel('je_sales', language)}{badge(tabCounts.sales || 0)}</TabsTrigger>
+            <TabsTrigger value="purchase_invoice" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs px-3 h-8 text-orange-600">{getLocalizedLabel('je_purchase', language)}{badge(tabCounts.purchase_invoice || 0)}</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -702,10 +703,7 @@ export default function JournalEntries() {
             onClick={() => setShowSystemEntries(prev => !prev)}
           >
             {showSystemEntries ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            {isRTL
-              ? (showSystemEntries ? 'إخفاء قيود النظام' : 'إظهار قيود النظام')
-              : (showSystemEntries ? 'Hide System' : 'Show System')
-            }
+            {showSystemEntries ? getLocalizedLabel('je_hide_sys', language) : getLocalizedLabel('je_show_sys', language)}
           </Button>
         )}
       </div>
@@ -714,27 +712,27 @@ export default function JournalEntries() {
       <div className="flex flex-wrap items-center gap-3 px-1 mb-3">
         <div className="flex items-center gap-4 bg-white dark:bg-slate-900 rounded-lg border px-4 py-2.5 shadow-sm flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 font-medium">{isRTL ? 'إجمالي المدين' : 'Total Debit'}</span>
+            <span className="text-[11px] text-slate-400 font-medium">{getLocalizedLabel('je_t_debit', language)}</span>
             <span className="font-mono font-bold text-[14px] text-green-600" dir="ltr">{formatCurrency(totals.totalDebit)}</span>
           </div>
           <div className="w-px h-5 bg-slate-200" />
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 font-medium">{isRTL ? 'إجمالي الدائن' : 'Total Credit'}</span>
+            <span className="text-[11px] text-slate-400 font-medium">{getLocalizedLabel('je_t_credit', language)}</span>
             <span className="font-mono font-bold text-[14px] text-red-600" dir="ltr">{formatCurrency(totals.totalCredit)}</span>
           </div>
           <div className="w-px h-5 bg-slate-200" />
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 font-medium">{isRTL ? 'صافي الحركة' : 'Net Movement'}</span>
+            <span className="text-[11px] text-slate-400 font-medium">{getLocalizedLabel('je_t_net', language)}</span>
             <span className={cn("font-mono font-bold text-[14px]", totals.totalDebit - totals.totalCredit === 0 ? 'text-slate-500' : 'text-amber-600')} dir="ltr">
               {formatCurrency(totals.totalDebit - totals.totalCredit)}
             </span>
           </div>
           <div className="w-px h-5 bg-slate-200" />
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-400 font-medium">{isRTL ? 'عدد القيود' : 'Entries'}</span>
+            <span className="text-[11px] text-slate-400 font-medium">{getLocalizedLabel('je_t_count', language)}</span>
             <span className="font-bold text-[14px] text-slate-700 dark:text-slate-200">{totals.count}</span>
-            {totals.postedCount > 0 && <Badge variant="secondary" className="bg-green-100 text-green-700 h-5 px-1.5 text-[10px]">{totals.postedCount} {isRTL ? 'مرحّل' : 'posted'}</Badge>}
-            {totals.draftCount > 0 && <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 h-5 px-1.5 text-[10px]">{totals.draftCount} {isRTL ? 'مسودة' : 'draft'}</Badge>}
+            {totals.postedCount > 0 && <Badge variant="secondary" className="bg-green-100 text-green-700 h-5 px-1.5 text-[10px]">{totals.postedCount} {getLocalizedLabel('je_post', language).toLowerCase()}</Badge>}
+            {totals.draftCount > 0 && <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 h-5 px-1.5 text-[10px]">{totals.draftCount} {getLocalizedLabel('je_dft', language).toLowerCase()}</Badge>}
           </div>
         </div>
       </div>
@@ -745,9 +743,9 @@ export default function JournalEntries() {
         columns={columns}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder={isRTL ? 'بحث في القيود...' : 'Search entries...'}
+        searchPlaceholder={getLocalizedLabel('je_search', language)}
         totalCount={filteredData.length}
-        countLabel={isRTL ? 'قيد' : 'entries'}
+        countLabel={getLocalizedLabel('je_entries', language)}
         sortField={sortField}
         sortAsc={sortAsc}
         onSort={handleSort}
@@ -755,20 +753,20 @@ export default function JournalEntries() {
         getRowKey={(row: any) => row.id}
         isLoading={loading}
         emptyIcon={<FileText className="w-12 h-12 text-gray-300" />}
-        emptyMessage={isRTL ? 'لا توجد قيود مطابقة' : 'No matching entries'}
+        emptyMessage={getLocalizedLabel('je_no_match', language)}
         showFooter={true}
-        footerLeftText={`${filteredData.length} ${isRTL ? 'قيد' : 'entries'}`}
+        footerLeftText={`${filteredData.length} ${getLocalizedLabel('je_entries', language)}`}
         footerRightContent={
           <div className="flex items-center gap-4 text-xs font-mono font-bold">
             <span className="text-green-600" dir="ltr">
-              {isRTL ? 'مدين: ' : 'Dr: '}{formatCurrency(totals.totalDebit)}
+              {getLocalizedLabel('je_dr', language)}{formatCurrency(totals.totalDebit)}
             </span>
             <span className="text-red-600" dir="ltr">
-              {isRTL ? 'دائن: ' : 'Cr: '}{formatCurrency(totals.totalCredit)}
+              {getLocalizedLabel('je_cr', language)}{formatCurrency(totals.totalCredit)}
             </span>
             {totals.totalDebit - totals.totalCredit !== 0 && (
               <span className="text-amber-600 border-s border-gray-300 ps-3" dir="ltr">
-                {isRTL ? 'فرق: ' : 'Diff: '}{formatCurrency(totals.totalDebit - totals.totalCredit)}
+                {getLocalizedLabel('je_diff', language)}{formatCurrency(totals.totalDebit - totals.totalCredit)}
               </span>
             )}
           </div>

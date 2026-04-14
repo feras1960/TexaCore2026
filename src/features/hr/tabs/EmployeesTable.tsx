@@ -1,10 +1,19 @@
 /**
  * 👤 Employees Table — جدول الموظفين باستخدام NexaListTable
  * مع EmployeeSheet للعرض/التعديل/الإنشاء
+ * 
+ * ⚡ PERFORMANCE: Uses useCachedQuery (IndexedDB persistence)
+ *    - Instant load from cache on page open
+ *    - Background revalidation after staleTime (2 min)
+ *    - Realtime: Supabase channel → invalidateQueries
  */
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
+import { useCompany } from '@/hooks/useCompany';
+import { supabase } from '@/lib/supabase';
 import { NexaListTable, NexaListColumn } from '@/components/ui/nexa-list-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,9 +30,9 @@ import EmployeeSheet, { type SheetMode } from '../components/sheet/EmployeeSheet
 export default function EmployeesTable() {
     const { language } = useLanguage();
     const isRTL = language === 'ar';
+    const { companyId } = useCompany();
+    const queryClient = useQueryClient();
 
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
 
     // ═══ Sheet State ═══
@@ -38,26 +47,45 @@ export default function EmployeesTable() {
     };
     const closeSheet = () => setSheetOpen(false);
 
-    useEffect(() => { loadEmployees(); }, []);
-
-    async function loadEmployees() {
-        try {
-            setLoading(true);
+    // ─── Cache-first query (IndexedDB persistence) ────────────
+    const { data: employees = [], isLoading: loading } = useCachedQuery({
+        queryKey: ['hr', 'employees', companyId],
+        queryFn: async () => {
             const data = await getEmployees();
-            setEmployees(data);
-        } catch (err) {
-            console.error(err);
-            toast.error(isRTL ? 'فشل تحميل الموظفين' : 'Failed to load employees');
-        } finally {
-            setLoading(false);
-        }
-    }
+            return data;
+        },
+        enabled: !!companyId,
+        staleTime: 2 * 60 * 1000,     // 2 min
+        gcTime: 24 * 60 * 60 * 1000,  // 24h in IndexedDB
+    });
+
+    // ─── Supabase Realtime — invalidate cache ───────────────────
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('hr-employees-live')
+            .on('postgres_changes', {
+                event: '*', schema: 'public', table: 'employees',
+                filter: `company_id=eq.${companyId}`,
+            }, () => {
+                queryClient.invalidateQueries({ queryKey: ['hr', 'employees'] });
+                queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+            })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, queryClient]);
+
+    // ─── Invalidate helper for after save/delete ─────────────────
+    const invalidateEmployees = () => {
+        queryClient.invalidateQueries({ queryKey: ['hr', 'employees'] });
+        queryClient.invalidateQueries({ queryKey: ['hr', 'dashboard'] });
+    };
 
     async function handleDelete(id: string) {
         if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الموظف؟' : 'Delete this employee?')) return;
         try {
             await deleteEmployee(id);
-            setEmployees(prev => prev.filter(e => e.id !== id));
+            invalidateEmployees();
             toast.success(isRTL ? 'تم حذف الموظف' : 'Employee deleted');
         } catch {
             toast.error(isRTL ? 'فشل الحذف' : 'Delete failed');
@@ -274,8 +302,8 @@ export default function EmployeesTable() {
                 onClose={closeSheet}
                 mode={sheetMode}
                 employeeId={sheetEmployeeId}
-                onSaved={() => loadEmployees()}
-                onRefresh={() => loadEmployees()}
+                onSaved={invalidateEmployees}
+                onRefresh={invalidateEmployees}
             />
         </div>
     );

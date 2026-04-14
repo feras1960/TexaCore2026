@@ -315,20 +315,25 @@ export default function JournalEntryForm({
     try {
       const journalEntriesService = (await import('@/services/journalEntriesService')).default;
 
-      const entryData = {
+      const entryData: Partial<CreateJournalEntryInput> = {
         company_id: companyId,
         entry_date: format(date, 'yyyy-MM-dd'),
         reference,
         description,
-        status: status || 'draft',
+        status: (status || 'draft') as 'draft' | 'posted' | 'cancelled',
         entry_type: voucherType, // Save selected type
-        lines: validRows.map((row: JournalEntryRow) => ({
-          account_id: row.accountId,
-          description: row.description,
-          debit: Number(row.debit) || 0,
-          credit: Number(row.credit) || 0,
-          cost_center_id: row.costCenter || null,
-        }))
+        lines: validRows.map((row: JournalEntryRow) => {
+          const line: any = {
+            account_id: row.accountId,
+            description: row.description,
+            debit: Number(row.debit) || 0,
+            credit: Number(row.credit) || 0,
+          };
+          if (row.costCenter) {
+            line.cost_center_id = row.costCenter;
+          }
+          return line;
+        })
       };
 
       if (editMode && entryId) {
@@ -336,7 +341,7 @@ export default function JournalEntryForm({
         toast.success(t('common.success'));
         if (onUpdate) onUpdate();
       } else {
-        await journalEntriesService.create(entryData);
+        await journalEntriesService.create(entryData as CreateJournalEntryInput);
         toast.success(t('common.success'));
         onSave();
       }

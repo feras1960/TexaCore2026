@@ -109,7 +109,7 @@ export default function WebsiteManagerPage() {
             });
 
             // إنشاء صفحات افتراضية
-            await websiteService.seedDefaultPages(site.id, newSite.site_type);
+            await websiteService.seedDefaultPages(site.id, newSite.site_type as any);
 
             setShowCreateDialog(false);
             setNewSite({ name: '', slug: '', site_type: 'landing', domain: '' });

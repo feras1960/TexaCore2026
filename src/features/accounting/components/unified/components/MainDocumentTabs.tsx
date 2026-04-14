@@ -22,6 +22,7 @@ import {
     Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 import type { OpenDocument, UnifiedDocType } from '../types';
 
 // Icon mapping
@@ -120,13 +121,17 @@ export function MainDocumentTabs({
                                     "text-sm font-medium max-w-[120px] truncate",
                                     isActive ? "text-gray-900 dark:text-white" : "text-gray-600 dark:text-gray-400"
                                 )}>
-                                    {(language === 'ar' && doc.titleAr) ? doc.titleAr : doc.title}
+                                    {/* Resolve name from data dynamically for current language */}
+                                    {doc.data
+                                        ? (getLocalizedName(doc.data, language) || doc.title)
+                                        : ((language === 'ar' && doc.titleAr) ? doc.titleAr : doc.title)
+                                    }
                                 </span>
 
-                                {/* Code badge */}
-                                {doc.code && (
+                                {/* Code badge — use live data code */}
+                                {(doc.data?.code || doc.code) && (
                                     <span className="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                                        {doc.code}
+                                        {doc.data?.code || doc.code}
                                     </span>
                                 )}
 

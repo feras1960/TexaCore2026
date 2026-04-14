@@ -101,7 +101,14 @@ export default function AccountingDashboard() {
 
   // Currency filter with localStorage
   const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
-    try { return localStorage.getItem('acct_dashboard_currency') || 'all'; } catch { return 'all'; }
+    try {
+      const stored = localStorage.getItem('acct_dashboard_currency');
+      // If stored preference exists and is not 'all', use it
+      if (stored && stored !== 'all') return stored;
+      // Otherwise default to baseCurrency if available
+      if (baseCurrency) return baseCurrency;
+      return 'all';
+    } catch { return 'all'; }
   });
 
   const displayCurrency = selectedCurrency === 'all' ? (baseCurrency || 'USD') : selectedCurrency;
@@ -129,6 +136,13 @@ export default function AccountingDashboard() {
   useEffect(() => {
     try { localStorage.setItem('acct_dashboard_currency', selectedCurrency); } catch {}
   }, [selectedCurrency]);
+
+  // Auto-select base currency when only one currency is supported
+  useEffect(() => {
+    if (baseCurrency && selectedCurrency === 'all') {
+      setSelectedCurrency(baseCurrency);
+    }
+  }, [baseCurrency]);
 
   const [isLive, setIsLive] = useState(false);
 

@@ -56,6 +56,7 @@ import { Label } from '@/components/ui/label';
 import { useRBAC } from '@/hooks/useRBAC';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { usePrefetchLedgers } from '@/hooks/usePrefetchLedgers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -388,6 +389,15 @@ export function ChartOfAccounts() {
       };
     });
   }, [accounts, rpcBalances, baseCurrency]);
+
+  // ⚡ Prefetch ledger data for ACTIVE non-group accounts with transactions
+  const chartPrefetchTargets = useMemo(() =>
+    accountsWithRpcBalances
+      .filter(a => !a.is_group && a.is_active && (rpcBalances.get(a.id)?.transaction_count || 0) > 0)
+      .map(a => ({ glAccountId: a.id })),
+    [accountsWithRpcBalances, rpcBalances]
+  );
+  usePrefetchLedgers(chartPrefetchTargets, companyId);
 
   // ═══ Convert from account's native currency → display currency ═══
   const enhancedConvertBalance = useCallback((amount: number, accountCurrency: string, _accountId?: string): number => {

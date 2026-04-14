@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,40 +46,22 @@ import {
 
 export function SaaSDashboard() {
   const { language, t } = useLanguage();
+  const queryClient = useQueryClient();
   const [selectedProduct, setSelectedProduct] = useState('all');
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Charts data
-  const [subscribersGrowth, setSubscribersGrowth] = useState<any[]>([]);
-  const [revenueTrend, setRevenueTrend] = useState<any[]>([]);
-  const [planDistribution, setPlanDistribution] = useState<any[]>([]);
-  const [productRevenue, setProductRevenue] = useState<any[]>([]);
-  const [churnRate, setChurnRate] = useState<any>({ total: 0, active: 0, cancelled: 0, churnRate: 0 });
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [recentPayments, setRecentPayments] = useState<any[]>([]);
-
-  // Payment form dialog
+  // Payment form dialog (UI-only state)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [deletingPayment, setDeletingPayment] = useState<any>(null);
 
-  useEffect(() => {
-    loadAllData();
-  }, [selectedProduct, selectedCurrency]);
-
-  const loadAllData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Load main stats
-      const statsData = await saasStatsService.getDashboardStats();
-      setStats(statsData);
-
-      // Load charts data in parallel
-      const [growth, revenue, distribution, prodRevenue, churn, payMethods, recPayments] = await Promise.all([
+  // ─── Cache-first query (IndexedDB persistence) ────────────
+  const { data: rawData, isLoading: loading, error: queryError } = useCachedQuery({
+    queryKey: ['saas', 'dashboard', selectedProduct, selectedCurrency],
+    queryFn: async () => {
+      // Load main stats + charts data in parallel
+      const [statsData, growth, revenue, distribution, prodRevenue, churn, payMethods, recPayments] = await Promise.all([
+        saasStatsService.getDashboardStats(),
         saasStatsService.getSubscribersGrowth(),
         saasStatsService.getRevenueTrend(),
         saasStatsService.getPlanDistribution(),
@@ -87,20 +71,32 @@ export function SaaSDashboard() {
         saasStatsService.getRecentPayments(10),
       ]);
 
-      setSubscribersGrowth(growth);
-      setRevenueTrend(revenue);
-      setPlanDistribution(distribution);
-      setProductRevenue(prodRevenue);
-      setChurnRate(churn);
-      setPaymentMethods(payMethods);
-      setRecentPayments(recPayments);
-    } catch (err: any) {
-      console.error('Error loading stats:', err);
-      setError(err.message || 'Failed to load statistics');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        stats: statsData,
+        subscribersGrowth: growth,
+        revenueTrend: revenue,
+        planDistribution: distribution,
+        productRevenue: prodRevenue,
+        churnRate: churn,
+        paymentMethods: payMethods,
+        recentPayments: recPayments,
+      };
+    },
+    enabled: true,
+    staleTime: 2 * 60 * 1000,       // 2 minutes
+    gcTime: 24 * 60 * 60 * 1000,    // 24 hours (IndexedDB)
+  });
+
+  // Derive data from cached query
+  const stats = rawData?.stats ?? null;
+  const subscribersGrowth = rawData?.subscribersGrowth ?? [];
+  const revenueTrend = rawData?.revenueTrend ?? [];
+  const planDistribution = rawData?.planDistribution ?? [];
+  const productRevenue = rawData?.productRevenue ?? [];
+  const churnRate = rawData?.churnRate ?? { total: 0, active: 0, cancelled: 0, churnRate: 0 };
+  const paymentMethods = rawData?.paymentMethods ?? [];
+  const recentPayments = rawData?.recentPayments ?? [];
+  const error = queryError?.message || null;
 
   const handleAddPayment = () => {
     setEditingPayment(null);
@@ -129,7 +125,7 @@ export function SaaSDashboard() {
       if (error) throw error;
 
       toast.success(language === 'ar' ? 'تم حذف الدفعة بنجاح' : 'Payment deleted successfully');
-      loadAllData(); // Reload data
+      queryClient.invalidateQueries({ queryKey: ['saas', 'dashboard'] });
     } catch (error: any) {
       console.error('Error deleting payment:', error);
       toast.error(error.message || (language === 'ar' ? 'حدث خطأ أثناء الحذف' : 'Error deleting payment'));
@@ -139,7 +135,7 @@ export function SaaSDashboard() {
   };
 
   const handlePaymentSuccess = () => {
-    loadAllData(); // Reload all data after successful payment operation
+    queryClient.invalidateQueries({ queryKey: ['saas', 'dashboard'] });
   };
 
   // Filter stats based on selected product

@@ -10,7 +10,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -258,14 +260,7 @@ export default function Dashboard() {
   const isRTL = direction === 'rtl';
   const isDark = resolvedTheme === 'dark';
 
-  const [stats, setStats] = useState<DashboardStats>({
-    totalSales: 0, totalPurchases: 0, totalCustomers: 0,
-    totalSuppliers: 0, totalMaterials: 0, totalEmployees: 0,
-    totalJournalEntries: 0, pendingOrders: 0,
-    recentSalesOrders: [], recentPurchaseOrders: [],
-    chartData: [], topEmployees: [],
-  });
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // ─── Currency selector from company_accounting_settings ───────
   const {
@@ -294,11 +289,11 @@ export default function Dashboard() {
     localStorage.setItem('dashboard_currency_pref', val);
   };
 
-  // ─── Fetch real data from Supabase ────────────────────────────
-  const fetchDashboardData = useCallback(async () => {
-    if (!company?.id) return;
-    try {
-      setLoading(true);
+  // ─── Fetch dashboard data via useCachedQuery (IndexedDB persistence!) ────
+  const { data: rawData, isLoading: loading } = useCachedQuery({
+    queryKey: ['dashboard', 'main', company?.id, selectedCurrency],
+    queryFn: async () => {
+      if (!company?.id) return null;
       const companyId = company.id;
       const baseCurr = companyBaseCurrency || (company as any)?.settings?.base_currency || 'USD';
       const rangeDate = new Date();
@@ -339,7 +334,7 @@ export default function Dashboard() {
       const totalSales = salesRes.data?.reduce((s, r) => s + convertAmount(Number(r.total_amount) || 0, r.currency || baseCurr, selectedCurrency, baseCurr, rates), 0) || 0;
       const totalPurchases = purchasesRes.data?.reduce((s, r) => s + convertAmount(Number(r.total_amount) || 0, r.currency || baseCurr, selectedCurrency, baseCurr, rates), 0) || 0;
 
-      setStats({
+      return {
         totalSales, totalPurchases,
         totalCustomers: customersRes.count || 0,
         totalSuppliers: suppliersRes.count || 0,
@@ -350,26 +345,39 @@ export default function Dashboard() {
         recentSalesOrders: recentSalesRes.data || [],
         recentPurchaseOrders: recentPurchasesRes.data || [],
         chartData,
-        topEmployees
-      });
-    } catch (err) {
-      console.error('Dashboard fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [company?.id, selectedCurrency, isAr, companyBaseCurrency]);
+        topEmployees,
+      };
+    },
+    enabled: !!company?.id,
+    staleTime: 2 * 60 * 1000,       // 2 minutes — show cached, revalidate in background
+    gcTime: 24 * 60 * 60 * 1000,    // 24 hours — persisted in IndexedDB
+  });
 
-  useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
+  // ─── Derive stats from cached query data ────────────────────
+  const stats: DashboardStats = rawData || {
+    totalSales: 0, totalPurchases: 0, totalCustomers: 0,
+    totalSuppliers: 0, totalMaterials: 0, totalEmployees: 0,
+    totalJournalEntries: 0, pendingOrders: 0,
+    recentSalesOrders: [], recentPurchaseOrders: [],
+    chartData: [], topEmployees: [],
+  };
 
-  // Realtime
+  // Realtime — invalidate query instead of re-fetching directly
   useEffect(() => {
     if (!company?.id) return;
     const channel = supabase.channel('dashboard-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, fetchDashboardData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_invoices' }, fetchDashboardData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard', 'main'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_invoices' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard', 'main'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_invoices' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard', 'main'] });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [company?.id, fetchDashboardData]);
+  }, [company?.id, queryClient]);
 
   // ═══════════════════════════════════════════
   // ECharts Options
@@ -520,7 +528,7 @@ export default function Dashboard() {
                 {isAr ? 'لوحة التحكم المركزية' : 'Command Center'}
               </h1>
               <p className="text-sm text-teal-200/70 mt-1">
-                {company?.name_ar || company?.name_en || (isAr ? 'نظرة عامة على الأعمال' : 'Business overview')}
+                {(company as any)?.name_ar || (company as any)?.name_en || company?.name || (isAr ? 'نظرة عامة على الأعمال' : 'Business overview')}
               </p>
             </div>
           </div>

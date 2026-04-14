@@ -79,10 +79,12 @@ class AgentsService {
     // 🛡️ SECURITY: استدعاء الدالة الآمنة بدلاً من قراءة user_metadata
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
-    let isSuperAdmin = false;
-    if (user) {
-      const { data: superAdminCheck } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
-      isSuperAdmin = superAdminCheck === true;
+    let isSuperAdmin = user?.user_metadata?.is_super_admin === true;
+    if (user && !isSuperAdmin) {
+      try {
+        const { data: superAdminCheck, error: rpcErr } = await supabase.rpc('is_super_admin', { p_user_id: user.id });
+        if (!rpcErr) isSuperAdmin = superAdminCheck === true;
+      } catch { /* RPC unavailable — use metadata */ }
     }
 
     let query = supabase

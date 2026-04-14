@@ -48,6 +48,7 @@ import {
     TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getLocalizedName } from '@/lib/utils/getLocalizedName';
 import { supabase } from '@/lib/supabase';
 import type { SheetMode } from '../types';
 import { formatCurrency, formatNumber, formatDate, getCurrencySymbol } from '../utils/formatters';
@@ -203,7 +204,128 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
     const isRTL = direction === 'rtl';
     const isAr = language === 'ar';
     const isEditable = mode === 'edit' || mode === 'create';
-    const t = (ar: string, en: string) => isAr ? ar : en;
+    // ═══ Multi-language local translator ═══
+    // Supports all 9 languages via dictionary lookup (keyed by English label)
+    const LABEL_TRANSLATIONS: Record<string, Record<string, string>> = {
+        // ── Account Details ──
+        'Details': { ru: 'Подробности', uk: 'Деталі', tr: 'Detaylar', de: 'Details', it: 'Dettagli', ro: 'Detalii', pl: 'Szczegóły' },
+        'Account Name': { ru: 'Название счёта', uk: 'Назва рахунку', tr: 'Hesap Adı', de: 'Kontoname', it: 'Nome conto', ro: 'Numele contului', pl: 'Nazwa konta' },
+        'Account Name (Arabic)': { ru: 'Название счёта (Арабский)', uk: 'Назва рахунку (Арабська)', tr: 'Hesap Adı (Arapça)', de: 'Kontoname (Arabisch)', it: 'Nome conto (Arabo)', ro: 'Numele contului (Arabă)', pl: 'Nazwa konta (Arabski)' },
+        'Account Name (English)': { ru: 'Название счёта (Английский)', uk: 'Назва рахунку (Англійська)', tr: 'Hesap Adı (İngilizce)', de: 'Kontoname (Englisch)', it: 'Nome conto (Inglese)', ro: 'Numele contului (Engleză)', pl: 'Nazwa konta (Angielski)' },
+        'Arabic name': { ru: 'Название на арабском', uk: 'Назва арабською', tr: 'Arapça ad', de: 'Arabischer Name', it: 'Nome arabo', ro: 'Nume în arabă', pl: 'Nazwa arabska' },
+        'Account Code': { ru: 'Код счёта', uk: 'Код рахунку', tr: 'Hesap Kodu', de: 'Kontonummer', it: 'Codice conto', ro: 'Cod cont', pl: 'Kod konta' },
+        'Account Type': { ru: 'Тип счёта', uk: 'Тип рахунку', tr: 'Hesap Türü', de: 'Kontotyp', it: 'Tipo conto', ro: 'Tip cont', pl: 'Typ konta' },
+        'Record Type': { ru: 'Тип записи', uk: 'Тип запису', tr: 'Kayıt Türü', de: 'Datensatztyp', it: 'Tipo record', ro: 'Tip înregistrare', pl: 'Typ rekordu' },
+        'Group Account': { ru: 'Групповой счёт', uk: 'Груповий рахунок', tr: 'Grup Hesabı', de: 'Gruppenkonto', it: 'Conto gruppo', ro: 'Cont grup', pl: 'Konto grupowe' },
+        'Detail Account': { ru: 'Детальный счёт', uk: 'Детальний рахунок', tr: 'Detay Hesabı', de: 'Detailkonto', it: 'Conto dettaglio', ro: 'Cont detaliu', pl: 'Konto szczegółowe' },
+        'Parent Account': { ru: 'Родительский счёт', uk: 'Батьківський рахунок', tr: 'Üst Hesap', de: 'Übergeordnetes Konto', it: 'Conto padre', ro: 'Cont părinte', pl: 'Konto nadrzędne' },
+        'Root Account': { ru: 'Корневой счёт', uk: 'Кореневий рахунок', tr: 'Kök Hesap', de: 'Stammkonto', it: 'Conto radice', ro: 'Cont rădăcină', pl: 'Konto główne' },
+        'Currency': { ru: 'Валюта', uk: 'Валюта', tr: 'Para Birimi', de: 'Währung', it: 'Valuta', ro: 'Monedă', pl: 'Waluta' },
+        'Select': { ru: 'Выбрать', uk: 'Вибрати', tr: 'Seçin', de: 'Auswählen', it: 'Seleziona', ro: 'Selectează', pl: 'Wybierz' },
+        'Select currency': { ru: 'Выберите валюту', uk: 'Виберіть валюту', tr: 'Para birimi seçin', de: 'Währung wählen', it: 'Seleziona valuta', ro: 'Selectează moneda', pl: 'Wybierz walutę' },
+        'Multi-Currency': { ru: 'Мультивалютный', uk: 'Мультивалютний', tr: 'Çoklu Para Birimi', de: 'Mehrere Währungen', it: 'Multi-valuta', ro: 'Multi-monedă', pl: 'Wielowalutowy' },
+        'Status': { ru: 'Статус', uk: 'Статус', tr: 'Durum', de: 'Status', it: 'Stato', ro: 'Stare', pl: 'Status' },
+        '✓ Active': { ru: '✓ Активен', uk: '✓ Активний', tr: '✓ Aktif', de: '✓ Aktiv', it: '✓ Attivo', ro: '✓ Activ', pl: '✓ Aktywny' },
+        '✗ Inactive': { ru: '✗ Неактивен', uk: '✗ Неактивний', tr: '✗ Pasif', de: '✗ Inaktiv', it: '✗ Inattivo', ro: '✗ Inactiv', pl: '✗ Nieaktywny' },
+        'Account Properties': { ru: 'Свойства счёта', uk: 'Властивості рахунку', tr: 'Hesap Özellikleri', de: 'Kontoeigenschaften', it: 'Proprietà conto', ro: 'Proprietăți cont', pl: 'Właściwości konta' },
+        'Bank Account': { ru: 'Банковский счёт', uk: 'Банківський рахунок', tr: 'Banka Hesabı', de: 'Bankkonto', it: 'Conto bancario', ro: 'Cont bancar', pl: 'Konto bankowe' },
+        'Cash Account': { ru: 'Кассовый счёт', uk: 'Касовий рахунок', tr: 'Nakit Hesabı', de: 'Kassenkonto', it: 'Conto cassa', ro: 'Cont numerar', pl: 'Konto kasowe' },
+        'Receivable': { ru: 'Дебиторская', uk: 'Дебіторська', tr: 'Alacak', de: 'Forderung', it: 'Credito', ro: 'De încasat', pl: 'Należność' },
+        'Payable': { ru: 'Кредиторская', uk: 'Кредиторська', tr: 'Borç', de: 'Verbindlichkeit', it: 'Debito', ro: 'De plătit', pl: 'Zobowiązanie' },
+        'Created At': { ru: 'Дата создания', uk: 'Дата створення', tr: 'Oluşturma Tarihi', de: 'Erstellt am', it: 'Data creazione', ro: 'Creat la', pl: 'Data utworzenia' },
+        'Debit': { ru: 'Дебет', uk: 'Дебет', tr: 'Borç', de: 'Soll', it: 'Dare', ro: 'Debit', pl: 'Debet' },
+        'Credit': { ru: 'Кредит', uk: 'Кредит', tr: 'Alacak', de: 'Haben', it: 'Avere', ro: 'Credit', pl: 'Kredyt' },
+        'Loading...': { ru: 'Загрузка...', uk: 'Завантаження...', tr: 'Yükleniyor...', de: 'Laden...', it: 'Caricamento...', ro: 'Se încarcă...', pl: 'Ładowanie...' },
+        'Auto': { ru: 'Авто', uk: 'Авто', tr: 'Otomatik', de: 'Auto', it: 'Auto', ro: 'Auto', pl: 'Auto' },
+        // ── Bank Info ──
+        'Bank Information': { ru: 'Банковская информация', uk: 'Банківська інформація', tr: 'Banka Bilgileri', de: 'Bankinformation', it: 'Informazioni bancarie', ro: 'Informații bancare', pl: 'Informacje bankowe' },
+        'Bank Name': { ru: 'Название банка', uk: 'Назва банку', tr: 'Banka Adı', de: 'Bankname', it: 'Nome banca', ro: 'Numele băncii', pl: 'Nazwa banku' },
+        'Bank name': { ru: 'Название банка', uk: 'Назва банку', tr: 'Banka adı', de: 'Bankname', it: 'Nome banca', ro: 'Numele băncii', pl: 'Nazwa banku' },
+        'Account Number / IBAN': { ru: 'Номер счёта / IBAN', uk: 'Номер рахунку / IBAN', tr: 'Hesap No / IBAN', de: 'Kontonummer / IBAN', it: 'Numero conto / IBAN', ro: 'Număr cont / IBAN', pl: 'Numer konta / IBAN' },
+        'IBAN / Account': { ru: 'IBAN / Счёт', uk: 'IBAN / Рахунок', tr: 'IBAN / Hesap', de: 'IBAN / Konto', it: 'IBAN / Conto', ro: 'IBAN / Cont', pl: 'IBAN / Konto' },
+        'No bank information added yet': { ru: 'Банковские данные не добавлены', uk: 'Банківські дані не додані', tr: 'Henüz banka bilgisi eklenmedi', de: 'Noch keine Bankdaten', it: 'Nessuna informazione bancaria', ro: 'Nicio informație bancară', pl: 'Brak danych bankowych' },
+        // ── Description ──
+        'Description & Notes': { ru: 'Описание и заметки', uk: 'Опис та нотатки', tr: 'Açıklama ve Notlar', de: 'Beschreibung & Notizen', it: 'Descrizione e note', ro: 'Descriere și note', pl: 'Opis i uwagi' },
+        'Description': { ru: 'Описание', uk: 'Опис', tr: 'Açıklama', de: 'Beschreibung', it: 'Descrizione', ro: 'Descriere', pl: 'Opis' },
+        'Account description...': { ru: 'Описание счёта...', uk: 'Опис рахунку...', tr: 'Hesap açıklaması...', de: 'Kontobeschreibung...', it: 'Descrizione conto...', ro: 'Descrierea contului...', pl: 'Opis konta...' },
+        'No description': { ru: 'Нет описания', uk: 'Немає опису', tr: 'Açıklama yok', de: 'Keine Beschreibung', it: 'Nessuna descrizione', ro: 'Fără descriere', pl: 'Brak opisu' },
+        'Notes': { ru: 'Заметки', uk: 'Нотатки', tr: 'Notlar', de: 'Notizen', it: 'Note', ro: 'Note', pl: 'Notatki' },
+        'Additional notes...': { ru: 'Дополнительные заметки...', uk: 'Додаткові нотатки...', tr: 'Ek notlar...', de: 'Zusätzliche Notizen...', it: 'Note aggiuntive...', ro: 'Note suplimentare...', pl: 'Dodatkowe uwagi...' },
+        'No notes': { ru: 'Нет заметок', uk: 'Немає нотаток', tr: 'Not yok', de: 'Keine Notizen', it: 'Nessuna nota', ro: 'Fără note', pl: 'Brak notatek' },
+        // ── Multi-language ──
+        'Names in Other Languages': { ru: 'Названия на других языках', uk: 'Назви іншими мовами', tr: 'Diğer dillerde isimler', de: 'Namen in anderen Sprachen', it: 'Nomi in altre lingue', ro: 'Nume în alte limbi', pl: 'Nazwy w innych językach' },
+        'Add language...': { ru: 'Добавить язык...', uk: 'Додати мову...', tr: 'Dil ekle...', de: 'Sprache hinzufügen...', it: 'Aggiungi lingua...', ro: 'Adaugă limbă...', pl: 'Dodaj język...' },
+        'No translations added yet': { ru: 'Переводы ещё не добавлены', uk: 'Переклади ще не додані', tr: 'Henüz çeviri eklenmedi', de: 'Noch keine Übersetzungen', it: 'Nessuna traduzione', ro: 'Nicio traducere', pl: 'Brak tłumaczeń' },
+        // ── Balance / Summary Cards ──
+        'Current Balance': { ru: 'Текущий баланс', uk: 'Поточний баланс', tr: 'Mevcut Bakiye', de: 'Aktueller Saldo', it: 'Saldo attuale', ro: 'Sold curent', pl: 'Bieżące saldo' },
+        'Account Settled': { ru: 'Счёт закрыт', uk: 'Рахунок закритий', tr: 'Hesap kapatıldı', de: 'Konto ausgeglichen', it: 'Conto saldato', ro: 'Cont soldat', pl: 'Konto rozliczone' },
+        'Opening Balance': { ru: 'Начальный баланс', uk: 'Початковий баланс', tr: 'Açılış Bakiyesi', de: 'Eröffnungssaldo', it: 'Saldo apertura', ro: 'Sold inițial', pl: 'Saldo otwarcia' },
+        'Group': { ru: 'Группа', uk: 'Група', tr: 'Grup', de: 'Gruppe', it: 'Gruppo', ro: 'Grup', pl: 'Grupa' },
+        'Detail': { ru: 'Детальный', uk: 'Детальний', tr: 'Detay', de: 'Detail', it: 'Dettaglio', ro: 'Detaliu', pl: 'Szczegółowy' },
+        'Settled': { ru: 'Закрыт', uk: 'Закритий', tr: 'Kapatıldı', de: 'Ausgeglichen', it: 'Saldato', ro: 'Soldat', pl: 'Rozliczone' },
+        'They owe us': { ru: 'Нам должны', uk: 'Нам винні', tr: 'Bize borçlular', de: 'Sie schulden uns', it: 'Ci devono', ro: 'Ne datorează', pl: 'Są nam winni' },
+        'We owe them': { ru: 'Мы должны', uk: 'Ми винні', tr: 'Biz borçluyuz', de: 'Wir schulden', it: 'Dobbiamo loro', ro: 'Le datorăm', pl: 'Jesteśmy im winni' },
+        'No data': { ru: 'Нет данных', uk: 'Немає даних', tr: 'Veri yok', de: 'Keine Daten', it: 'Nessun dato', ro: 'Fără date', pl: 'Brak danych' },
+        // ── Party Info ──
+        'Basic Information': { ru: 'Основная информация', uk: 'Основна інформація', tr: 'Temel Bilgiler', de: 'Grundinformationen', it: 'Informazioni base', ro: 'Informații de bază', pl: 'Informacje podstawowe' },
+        'Name (Arabic)': { ru: 'Название (Арабский)', uk: 'Назва (Арабська)', tr: 'Ad (Arapça)', de: 'Name (Arabisch)', it: 'Nome (Arabo)', ro: 'Nume (Arabă)', pl: 'Nazwa (Arabski)' },
+        'Name (English)': { ru: 'Название (Английский)', uk: 'Назва (Англійська)', tr: 'Ad (İngilizce)', de: 'Name (Englisch)', it: 'Nome (Inglese)', ro: 'Nume (Engleză)', pl: 'Nazwa (Angielski)' },
+        'Company Name': { ru: 'Название компании', uk: 'Назва компанії', tr: 'Şirket Adı', de: 'Firmenname', it: 'Nome azienda', ro: 'Numele companiei', pl: 'Nazwa firmy' },
+        'Company name if entity is a company': { ru: 'Название компании (если юрлицо)', uk: 'Назва компанії (якщо юрособа)', tr: 'Şirket adı (tüzel kişi ise)', de: 'Firmenname (bei Unternehmen)', it: 'Nome azienda (se entità)', ro: 'Numele companiei (dacă este firmă)', pl: 'Nazwa firmy (jeśli podmiot prawny)' },
+        'Customer': { ru: 'Клиент', uk: 'Клієнт', tr: 'Müşteri', de: 'Kunde', it: 'Cliente', ro: 'Client', pl: 'Klient' },
+        'Supplier': { ru: 'Поставщик', uk: 'Постачальник', tr: 'Tedarikçi', de: 'Lieferant', it: 'Fornitore', ro: 'Furnizor', pl: 'Dostawca' },
+        'Customer Type': { ru: 'Тип клиента', uk: 'Тип клієнта', tr: 'Müşteri Türü', de: 'Kundentyp', it: 'Tipo cliente', ro: 'Tip client', pl: 'Typ klienta' },
+        'Supplier Type': { ru: 'Тип поставщика', uk: 'Тип постачальника', tr: 'Tedarikçi Türü', de: 'Lieferantentyp', it: 'Tipo fornitore', ro: 'Tip furnizor', pl: 'Typ dostawcy' },
+        'Party Type': { ru: 'Тип контрагента', uk: 'Тип контрагента', tr: 'Taraf Türü', de: 'Parteiart', it: 'Tipo parte', ro: 'Tip parte', pl: 'Typ kontrahenta' },
+        'Accounting Type': { ru: 'Тип учёта', uk: 'Тип обліку', tr: 'Muhasebe Türü', de: 'Buchungsart', it: 'Tipo contabile', ro: 'Tip contabil', pl: 'Typ księgowy' },
+        'Receivable (Debit)': { ru: 'Дебиторская (Дебет)', uk: 'Дебіторська (Дебет)', tr: 'Alacak (Borç)', de: 'Forderung (Soll)', it: 'Credito (Dare)', ro: 'De încasat (Debit)', pl: 'Należność (Debet)' },
+        'Payable (Credit)': { ru: 'Кредиторская (Кредит)', uk: 'Кредиторська (Кредит)', tr: 'Borç (Alacak)', de: 'Verbindlichkeit (Haben)', it: 'Debito (Avere)', ro: 'De plătit (Credit)', pl: 'Zobowiązanie (Kredyt)' },
+        'Auto by party type': { ru: 'Авто по типу контрагента', uk: 'Авто за типом контрагента', tr: 'Taraf türüne göre otomatik', de: 'Auto nach Parteityp', it: 'Auto per tipo parte', ro: 'Auto după tip parte', pl: 'Auto wg typu kontrahenta' },
+        'Chart Account Code': { ru: 'Код счёта в плане', uk: 'Код рахунку в плані', tr: 'Hesap Planı Kodu', de: 'Kontenplan-Code', it: 'Codice piano conti', ro: 'Cod plan conturi', pl: 'Kod planu kont' },
+        // ── Contact ──
+        'Contact & Address': { ru: 'Контакты и адрес', uk: 'Контакти та адреса', tr: 'İletişim ve Adres', de: 'Kontakt & Adresse', it: 'Contatto e indirizzo', ro: 'Contact și adresă', pl: 'Kontakt i adres' },
+        'Phone': { ru: 'Телефон', uk: 'Телефон', tr: 'Telefon', de: 'Telefon', it: 'Telefono', ro: 'Telefon', pl: 'Telefon' },
+        'Mobile': { ru: 'Мобильный', uk: 'Мобільний', tr: 'Cep', de: 'Mobil', it: 'Cellulare', ro: 'Mobil', pl: 'Komórkowy' },
+        'Email': { ru: 'Эл. почта', uk: 'Ел. пошта', tr: 'E-posta', de: 'E-Mail', it: 'E-mail', ro: 'E-mail', pl: 'E-mail' },
+        'Telegram': { ru: 'Телеграм', uk: 'Телеграм', tr: 'Telegram', de: 'Telegram', it: 'Telegram', ro: 'Telegram', pl: 'Telegram' },
+        'Country': { ru: 'Страна', uk: 'Країна', tr: 'Ülke', de: 'Land', it: 'Paese', ro: 'Țară', pl: 'Kraj' },
+        'Select country': { ru: 'Выберите страну', uk: 'Виберіть країну', tr: 'Ülke seçin', de: 'Land wählen', it: 'Seleziona paese', ro: 'Selectează țara', pl: 'Wybierz kraj' },
+        'City': { ru: 'Город', uk: 'Місто', tr: 'Şehir', de: 'Stadt', it: 'Città', ro: 'Oraș', pl: 'Miasto' },
+        'Full Address': { ru: 'Полный адрес', uk: 'Повна адреса', tr: 'Tam Adres', de: 'Vollständige Adresse', it: 'Indirizzo completo', ro: 'Adresa completă', pl: 'Pełny adres' },
+        'Detailed address...': { ru: 'Подробный адрес...', uk: 'Детальна адреса...', tr: 'Detaylı adres...', de: 'Detaillierte Adresse...', it: 'Indirizzo dettagliato...', ro: 'Adresa detaliată...', pl: 'Szczegółowy adres...' },
+        'Preferred Language': { ru: 'Предпочтительный язык', uk: 'Бажана мова', tr: 'Tercih Edilen Dil', de: 'Bevorzugte Sprache', it: 'Lingua preferita', ro: 'Limba preferată', pl: 'Preferowany język' },
+        // ── Tax ──
+        'Tax': { ru: 'Налоги', uk: 'Податки', tr: 'Vergi', de: 'Steuer', it: 'Tasse', ro: 'Taxe', pl: 'Podatki' },
+        'Tax ID': { ru: 'ИНН', uk: 'ІПН', tr: 'Vergi No', de: 'Steuer-ID', it: 'Codice fiscale', ro: 'Cod fiscal', pl: 'NIP' },
+        'Tax Number / VAT': { ru: 'ИНН / НДС', uk: 'ІПН / ПДВ', tr: 'Vergi No / KDV', de: 'Steuernr. / USt', it: 'P.IVA', ro: 'Cod fiscal / TVA', pl: 'NIP / VAT' },
+        'Tax System': { ru: 'Налоговая система', uk: 'Податкова система', tr: 'Vergi Sistemi', de: 'Steuersystem', it: 'Sistema fiscale', ro: 'Sistem fiscal', pl: 'System podatkowy' },
+        '🌍 International — taxes paid via container': { ru: '🌍 Международный — налоги через контейнер', uk: '🌍 Міжнародний — податки через контейнер', tr: '🌍 Uluslararası — konteyner üzerinden vergi', de: '🌍 International — Steuern via Container', it: '🌍 Internazionale — tasse via container', ro: '🌍 Internațional — taxe prin container', pl: '🌍 Międzynarodowy — podatki przez kontener' },
+        // ── Financial ──
+        'Financial & Banking': { ru: 'Финансы и банк', uk: 'Фінанси та банк', tr: 'Finans ve Banka', de: 'Finanzen & Bank', it: 'Finanza e banca', ro: 'Finanțe și bancă', pl: 'Finanse i bankowość' },
+        'Credit Limit': { ru: 'Кредитный лимит', uk: 'Кредитний ліміт', tr: 'Kredi Limiti', de: 'Kreditlimit', it: 'Limite credito', ro: 'Limită credit', pl: 'Limit kredytowy' },
+        'Payment Terms (days)': { ru: 'Условия оплаты (дни)', uk: 'Умови оплати (дні)', tr: 'Ödeme Koşulları (gün)', de: 'Zahlungsbedingungen (Tage)', it: 'Termini pagamento (giorni)', ro: 'Condiții plată (zile)', pl: 'Warunki płatności (dni)' },
+        'Discount %': { ru: 'Скидка %', uk: 'Знижка %', tr: 'İskonto %', de: 'Rabatt %', it: 'Sconto %', ro: 'Reducere %', pl: 'Rabat %' },
+        'days': { ru: 'дней', uk: 'днів', tr: 'gün', de: 'Tage', it: 'giorni', ro: 'zile', pl: 'dni' },
+        '— None —': { ru: '— Нет —', uk: '— Немає —', tr: '— Yok —', de: '— Keine —', it: '— Nessuno —', ro: '— Nimic —', pl: '— Brak —' },
+        // ── Sales/Purchase Agent ──
+        'Sales Agent': { ru: 'Торговый представитель', uk: 'Торговий представник', tr: 'Satış Temsilcisi', de: 'Verkaufsagent', it: 'Agente vendite', ro: 'Agent vânzări', pl: 'Agent sprzedaży' },
+        'Purchase Agent': { ru: 'Агент закупок', uk: 'Агент закупівель', tr: 'Satın Alma Temsilcisi', de: 'Einkaufsagent', it: 'Agente acquisti', ro: 'Agent achiziții', pl: 'Agent zakupów' },
+        'Select responsible agent': { ru: 'Выберите ответственного', uk: 'Виберіть відповідального', tr: 'Sorumlu temsilci seçin', de: 'Verantwortlichen wählen', it: 'Seleziona agente', ro: 'Selectează agentul', pl: 'Wybierz odpowiedzialnego' },
+        'Not assigned': { ru: 'Не назначен', uk: 'Не призначено', tr: 'Atanmadı', de: 'Nicht zugewiesen', it: 'Non assegnato', ro: 'Neatribuit', pl: 'Nie przypisano' },
+        'For targets & incentives': { ru: 'Для целей и поощрений', uk: 'Для цілей та заохочень', tr: 'Hedefler ve teşvikler için', de: 'Für Ziele & Anreize', it: 'Per obiettivi e incentivi', ro: 'Pentru obiective', pl: 'Dla celów i premii' },
+        'Save customer data first': { ru: 'Сначала сохраните данные клиента', uk: 'Спочатку збережіть дані клієнта', tr: 'Önce müşteri verilerini kaydedin', de: 'Zuerst Kundendaten speichern', it: 'Prima salva i dati cliente', ro: 'Salvați mai întâi datele clientului', pl: 'Najpierw zapisz dane klienta' },
+        'Save agent data first': { ru: 'Сначала сохраните данные агента', uk: 'Спочатку збережіть дані агента', tr: 'Önce temsilci verilerini kaydedin', de: 'Zuerst Agentendaten speichern', it: 'Prima salva i dati agente', ro: 'Salvați mai întâi datele agentului', pl: 'Najpierw zapisz dane agenta' },
+        'Save partner data first': { ru: 'Сначала сохраните данные партнёра', uk: 'Спочатку збережіть дані партнера', tr: 'Önce ortak verilerini kaydedin', de: 'Zuerst Partnerdaten speichern', it: 'Prima salva i dati partner', ro: 'Salvați mai întâi datele partenerului', pl: 'Najpierw zapisz dane partnera' },
+        // ── Documents ──
+        'Documents & Identity': { ru: 'Документы и удостоверение', uk: 'Документи та посвідчення', tr: 'Belgeler ve Kimlik', de: 'Dokumente & Identität', it: 'Documenti e identità', ro: 'Documente și identitate', pl: 'Dokumenty i tożsamość' },
+    };
+    const t = (ar: string, en: string): string => {
+        if (language === 'ar') return ar;
+        if (language === 'en') return en;
+        const trans = LABEL_TRANSLATIONS[en];
+        if (trans && trans[language]) return trans[language];
+        return en;
+    };
     const { fmtAmount } = useNumberFormat();
 
     // ─── Detect if this is an ACCOUNT from chart_of_accounts (not a party) ───
@@ -502,7 +624,7 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                             {data?.account_code || '—'}
                         </p>
                         <p className="text-[10px] text-gray-400 mt-0.5">
-                            {accountTypeInfo ? (isAr ? accountTypeInfo.name_ar : (accountTypeInfo.name_en || accountTypeInfo.name_ar)) : ''}
+                            {accountTypeInfo ? getLocalizedName(accountTypeInfo, language) : ''}
                         </p>
                     </div>
 
@@ -540,31 +662,42 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                         badgeColor={data?.is_group ? 'purple' : 'blue'}
                     >
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                            <Field label={t('اسم الحساب (العربية)', 'Account Name (Arabic)')} required>
-                                {isEditable ? (
-                                    <Input
-                                        value={data?.name_ar || ''}
-                                        onChange={(e) => handleChange('name_ar', e.target.value)}
-                                        dir="rtl"
-                                        placeholder={t('الاسم بالعربية', 'Arabic name')}
-                                    />
-                                ) : (
-                                    <p className="text-sm font-semibold mt-1">{data?.name_ar || '—'}</p>
-                                )}
-                            </Field>
+                            {/* Primary Name — user's current language */}
+                            {(() => {
+                                const userLang = LANGUAGE_CONFIG.find(l => l.code === language) || LANGUAGE_CONFIG[0];
+                                const nameField = `name_${language}`;
+                                const isRtlLang = language === 'ar';
+                                return (
+                                    <Field label={`${t('اسم الحساب', 'Account Name')} (${userLang.flag} ${userLang.label})`} required>
+                                        {isEditable ? (
+                                            <Input
+                                                value={data?.[nameField] || ''}
+                                                onChange={(e) => handleChange(nameField, e.target.value)}
+                                                dir={isRtlLang ? 'rtl' : 'ltr'}
+                                                placeholder={`${userLang.label}...`}
+                                            />
+                                        ) : (
+                                            <p className="text-sm font-semibold mt-1">{data?.[nameField] || '—'}</p>
+                                        )}
+                                    </Field>
+                                );
+                            })()}
 
-                            <Field label={t('اسم الحساب (الإنجليزية)', 'Account Name (English)')}>
-                                {isEditable ? (
-                                    <Input
-                                        value={data?.name_en || ''}
-                                        onChange={(e) => handleChange('name_en', e.target.value)}
-                                        dir="ltr"
-                                        placeholder="English name"
-                                    />
-                                ) : (
-                                    <p className="text-sm mt-1">{data?.name_en || '—'}</p>
-                                )}
-                            </Field>
+                            {/* English Name — shown when user language is NOT English */}
+                            {language !== 'en' && (
+                                <Field label={`${t('اسم الحساب', 'Account Name')} (🇬🇧 English)`}>
+                                    {isEditable ? (
+                                        <Input
+                                            value={data?.name_en || ''}
+                                            onChange={(e) => handleChange('name_en', e.target.value)}
+                                            dir="ltr"
+                                            placeholder="English name"
+                                        />
+                                    ) : (
+                                        <p className="text-sm mt-1">{data?.name_en || '—'}</p>
+                                    )}
+                                </Field>
+                            )}
 
                             <Field label={t('رمز الحساب', 'Account Code')}>
                                 <p className="text-sm font-mono font-bold text-indigo-600 mt-1" dir="ltr">{data?.account_code || '—'}</p>
@@ -574,7 +707,7 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                                 <div className="flex items-center gap-2 mt-1">
                                     {accountTypeInfo ? (
                                         <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                            {isAr ? accountTypeInfo.name_ar : (accountTypeInfo.name_en || accountTypeInfo.name_ar)}
+                                            {getLocalizedName(accountTypeInfo, language)}
                                         </Badge>
                                     ) : (
                                         <span className="text-sm text-gray-400">—</span>
@@ -611,7 +744,7 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                                                 {parentInfo.account_code}
                                             </span>
                                             <span className="text-sm text-gray-700 dark:text-gray-300">
-                                                {isAr ? parentInfo.name_ar : (parentInfo.name_en || parentInfo.name_ar)}
+                                                {getLocalizedName(parentInfo, language)}
                                             </span>
                                         </>
                                     ) : data?.parent_id ? (
@@ -922,7 +1055,7 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                                 </span>
                                 {accountInfo && (
                                     <span className="text-[11px] text-gray-400">
-                                        {isAr ? accountInfo.name_ar : (accountInfo.name_en || accountInfo.name_ar)}
+                                        {getLocalizedName(accountInfo, language)}
                                     </span>
                                 )}
                             </div>
@@ -957,7 +1090,7 @@ export function PartyOverviewTab({ data, mode, onChange, companyId, docType }: P
                                             {(accountInfo.parent as any).account_code}
                                         </span>
                                         <span className="text-sm text-gray-700 dark:text-gray-300">
-                                            {isAr ? (accountInfo.parent as any).name_ar : ((accountInfo.parent as any).name_en || (accountInfo.parent as any).name_ar)}
+                                            {getLocalizedName(accountInfo.parent as any, language)}
                                         </span>
                                     </>
                                 ) : (
