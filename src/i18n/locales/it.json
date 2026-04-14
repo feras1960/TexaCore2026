@@ -273,7 +273,19 @@
     "detail": "[IT] detail",
     "dueDate": "[IT] dueDate",
     "duplicateRow": "Duplica riga",
-    "grid": {"keyboardShortcuts":"Scorciatoie tastiera","navigation":"Navigazione","nextRow":"Riga successiva (giù)","nextColumn":"Colonna successiva","navigateCells":"Naviga tra celle","copy":"Copia","copyAboveDown":"Copia da sopra + giù","rows":"Righe","insertRow":"Inserisci riga","clearCell":"Pulisci cella","swapDebitCredit":"Scambia dare↔avere"},
+    "grid": {
+      "keyboardShortcuts": "Scorciatoie tastiera",
+      "navigation": "Navigazione",
+      "nextRow": "Riga successiva (giù)",
+      "nextColumn": "Colonna successiva",
+      "navigateCells": "Naviga tra celle",
+      "copy": "Copia",
+      "copyAboveDown": "Copia da sopra + giù",
+      "rows": "Righe",
+      "insertRow": "Inserisci riga",
+      "clearCell": "Pulisci cella",
+      "swapDebitCredit": "Scambia dare↔avere"
+    },
     "editAccount": "[IT] editAccount",
     "editGroup": "[IT] Edit Group",
     "entry": {
@@ -533,7 +545,32 @@
     "transfer": "Trasferimento",
     "treeView": "Vista Albero",
     "trialBalance": "Bilancio di Verifica",
-    "voucherNumber": "[IT] Voucher Number"
+    "voucherNumber": "[IT] Voucher Number",
+    "recordType": "Tipo record",
+    "underGroup": "Sotto gruppo",
+    "hasParent": "Ha genitore",
+    "rootAccount": "Conto radice",
+    "namesInOtherLanguages": "Nomi in altre lingue",
+    "auto": "Auto",
+    "selectParentFirst": "Seleziona prima il gruppo",
+    "inheritedFromGroup": "Ereditato dal gruppo",
+    "selectType": "Seleziona tipo",
+    "typeInheritedInfo": "Tipo ereditato dal gruppo padre",
+    "selectGroup": "Seleziona gruppo",
+    "noParentRoot": "— Nessun genitore (radice)",
+    "selectCurrency": "Seleziona valuta",
+    "noMovements": "Nessun movimento",
+    "noDescription": "Nessuna descrizione",
+    "addLanguage": "Aggiungi lingua...",
+    "noTranslations": "Nessuna traduzione aggiunta",
+    "accountNotes": "Note o descrizione del conto...",
+    "periodOpening": "Apertura periodo",
+    "inflow": "Entrate",
+    "outflow": "Uscite",
+    "settled": "Saldato",
+    "receivable": "💰 Credito",
+    "payable": "📤 Debito",
+    "hasTransactionsWarning": "⚠️ Questo conto ha transazioni — non può essere eliminato."
   },
   "accounts": "[IT] accounts",
   "accountsPayable": "[IT] accountsPayable",
@@ -1012,7 +1049,10 @@
     "voucherNo": "[IT] voucherNo",
     "voucherType": "[IT] voucherType",
     "warning": "Avviso",
-    "yes": "Sì"
+    "yes": "Sì",
+    "hide": "Nascondi",
+    "show": "Mostra",
+    "document": "Documento"
   },
   "company": "[IT] company",
   "componentLab": {
@@ -1806,7 +1846,8 @@
     "ro": "Rumeno",
     "ru": "Russo",
     "tr": "Turco",
-    "uk": "Ucraino"
+    "uk": "Ucraino",
+    "arabic": "Arabo"
   },
   "lastUpdate": "[IT] lastUpdate",
   "ledger": {

@@ -273,7 +273,19 @@
     "detail": "[RO] detail",
     "dueDate": "[RO] dueDate",
     "duplicateRow": "Duplică rând",
-    "grid": {"keyboardShortcuts":"Scurtături tastatură","navigation":"Navigare","nextRow":"Rândul următor (jos)","nextColumn":"Coloana următoare","navigateCells":"Navigare celule","copy":"Copiere","copyAboveDown":"Copiază de sus + jos","rows":"Rânduri","insertRow":"Inserează rând","clearCell":"Golește celulă","swapDebitCredit":"Schimbă debit↔credit"},
+    "grid": {
+      "keyboardShortcuts": "Scurtături tastatură",
+      "navigation": "Navigare",
+      "nextRow": "Rândul următor (jos)",
+      "nextColumn": "Coloana următoare",
+      "navigateCells": "Navigare celule",
+      "copy": "Copiere",
+      "copyAboveDown": "Copiază de sus + jos",
+      "rows": "Rânduri",
+      "insertRow": "Inserează rând",
+      "clearCell": "Golește celulă",
+      "swapDebitCredit": "Schimbă debit↔credit"
+    },
     "editAccount": "[RO] editAccount",
     "editGroup": "[RO] Edit Group",
     "entry": {
@@ -533,7 +545,32 @@
     "transfer": "Transfer",
     "treeView": "Vedere Arbore",
     "trialBalance": "Balanță de Verificare",
-    "voucherNumber": "[RO] Voucher Number"
+    "voucherNumber": "[RO] Voucher Number",
+    "recordType": "Tip înregistrare",
+    "underGroup": "Sub grupul",
+    "hasParent": "Are părinte",
+    "rootAccount": "Cont rădăcină",
+    "namesInOtherLanguages": "Nume în alte limbi",
+    "auto": "Auto",
+    "selectParentFirst": "Selectează grupul mai întâi",
+    "inheritedFromGroup": "Moștenit de la grup",
+    "selectType": "Selectează tipul",
+    "typeInheritedInfo": "Tip moștenit de la grupul părinte",
+    "selectGroup": "Selectează grupul",
+    "noParentRoot": "— Fără părinte (rădăcină)",
+    "selectCurrency": "Selectează moneda",
+    "noMovements": "Fără mișcări",
+    "noDescription": "Fără descriere",
+    "addLanguage": "Adaugă limbă...",
+    "noTranslations": "Nu au fost adăugate traduceri",
+    "accountNotes": "Note sau descrierea contului...",
+    "periodOpening": "Deschidere perioadă",
+    "inflow": "Intrări",
+    "outflow": "Ieșiri",
+    "settled": "Soldat",
+    "receivable": "💰 De încasat",
+    "payable": "📤 De plătit",
+    "hasTransactionsWarning": "⚠️ Acest cont are tranzacții — nu poate fi șters."
   },
   "accounts": "[RO] accounts",
   "accountsPayable": "[RO] accountsPayable",
@@ -1012,7 +1049,10 @@
     "voucherNo": "[RO] voucherNo",
     "voucherType": "[RO] voucherType",
     "warning": "Avertisment",
-    "yes": "Da"
+    "yes": "Da",
+    "hide": "Ascunde",
+    "show": "Arată",
+    "document": "Document"
   },
   "company": "[RO] company",
   "componentLab": {
@@ -1806,7 +1846,8 @@
     "ro": "Română",
     "ru": "Rusă",
     "tr": "Turcă",
-    "uk": "Ucraineană"
+    "uk": "Ucraineană",
+    "arabic": "Arabă"
   },
   "lastUpdate": "[RO] lastUpdate",
   "ledger": {

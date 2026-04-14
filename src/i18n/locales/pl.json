@@ -273,7 +273,19 @@
     "detail": "[PL] detail",
     "dueDate": "[PL] dueDate",
     "duplicateRow": "Duplikuj wiersz",
-    "grid": {"keyboardShortcuts":"Skróty klawiaturowe","navigation":"Nawigacja","nextRow":"Następny wiersz (w dół)","nextColumn":"Następna kolumna","navigateCells":"Nawigacja między komórkami","copy":"Kopiowanie","copyAboveDown":"Kopiuj z góry + w dół","rows":"Wiersze","insertRow":"Wstaw wiersz","clearCell":"Wyczyść komórkę","swapDebitCredit":"Zamień debet↔kredyt"},
+    "grid": {
+      "keyboardShortcuts": "Skróty klawiaturowe",
+      "navigation": "Nawigacja",
+      "nextRow": "Następny wiersz (w dół)",
+      "nextColumn": "Następna kolumna",
+      "navigateCells": "Nawigacja między komórkami",
+      "copy": "Kopiowanie",
+      "copyAboveDown": "Kopiuj z góry + w dół",
+      "rows": "Wiersze",
+      "insertRow": "Wstaw wiersz",
+      "clearCell": "Wyczyść komórkę",
+      "swapDebitCredit": "Zamień debet↔kredyt"
+    },
     "editAccount": "[PL] editAccount",
     "editGroup": "[PL] Edit Group",
     "entry": {
@@ -533,7 +545,32 @@
     "transfer": "Transfer",
     "treeView": "Widok Drzewa",
     "trialBalance": "Bilans Próbny",
-    "voucherNumber": "[PL] Voucher Number"
+    "voucherNumber": "[PL] Voucher Number",
+    "recordType": "Typ rekordu",
+    "underGroup": "W grupie",
+    "hasParent": "Ma rodzica",
+    "rootAccount": "Konto główne",
+    "namesInOtherLanguages": "Nazwy w innych językach",
+    "auto": "Auto",
+    "selectParentFirst": "Najpierw wybierz grupę",
+    "inheritedFromGroup": "Odziedziczony z grupy",
+    "selectType": "Wybierz typ",
+    "typeInheritedInfo": "Typ odziedziczony z grupy nadrzędnej",
+    "selectGroup": "Wybierz grupę",
+    "noParentRoot": "— Bez rodzica (główny)",
+    "selectCurrency": "Wybierz walutę",
+    "noMovements": "Brak ruchów",
+    "noDescription": "Brak opisu",
+    "addLanguage": "Dodaj język...",
+    "noTranslations": "Nie dodano jeszcze tłumaczeń",
+    "accountNotes": "Notatki lub opis konta...",
+    "periodOpening": "Otwarcie okresu",
+    "inflow": "Wpływy",
+    "outflow": "Wydatki",
+    "settled": "Rozliczone",
+    "receivable": "💰 Należność",
+    "payable": "📤 Zobowiązanie",
+    "hasTransactionsWarning": "⚠️ To konto ma transakcje — nie można go usunąć."
   },
   "accounts": "[PL] accounts",
   "accountsPayable": "[PL] accountsPayable",
@@ -1012,7 +1049,10 @@
     "voucherNo": "[PL] voucherNo",
     "voucherType": "[PL] voucherType",
     "warning": "Ostrzeżenie",
-    "yes": "Tak"
+    "yes": "Tak",
+    "hide": "Ukryj",
+    "show": "Pokaż",
+    "document": "Dokument"
   },
   "company": "[PL] company",
   "componentLab": {
@@ -1806,7 +1846,8 @@
     "ro": "Rumuński",
     "ru": "Rosyjski",
     "tr": "Turecki",
-    "uk": "Ukraiński"
+    "uk": "Ukraiński",
+    "arabic": "Arabski"
   },
   "lastUpdate": "[PL] lastUpdate",
   "ledger": {
