@@ -105,7 +105,7 @@ export default function SalesInvoicesList() {
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const invoicesRaw = invoicesQuery.data ?? [];
-    const isLoading = !!tenantId && !!companyId && invoicesQuery.isPending;
+    const isLoading = !!tenantId && !!companyId && invoicesQuery.isLoading;
     const error = invoicesQuery.error;
     const refetch = invoicesQuery.refetch;
 

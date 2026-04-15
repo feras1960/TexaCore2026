@@ -10,7 +10,7 @@
  * - وغيرها...
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
@@ -910,15 +910,23 @@ export function UnifiedAccountingSheet({
                         e.preventDefault();
                     }}
                 >
-                    <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
-                        {/* Accessibility requirements */}
-                        <UiSheetHeader className="sr-only">
-                            <SheetTitle>{t(config.titleKey)}</SheetTitle>
-                            <SheetDescription>
-                                {language === 'ar' ? 'نموذج عرض وتعديل البيانات' : 'Data view and edit form'}
-                            </SheetDescription>
-                        </UiSheetHeader>
+                    {/* ⚡ Accessibility requirements MUST be outside Suspense for Radix UI to detect them synchronously on mount */}
+                    <UiSheetHeader className="sr-only">
+                        <SheetTitle>{t(config.titleKey)}</SheetTitle>
+                        <SheetDescription>
+                            {language === 'ar' ? 'نموذج عرض وتعديل البيانات' : 'Data view and edit form'}
+                        </SheetDescription>
+                    </UiSheetHeader>
 
+                    {/* ⚡ Local Suspense boundary — prevents lazy tab imports from bubbling
+                         up to KeepAliveOutlet's page-level Suspense (which shows PageLoader
+                         and causes the entire page to flash/reload visually) */}
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center h-full w-full">
+                            <Loader2 className="w-6 h-6 animate-spin text-erp-primary" />
+                        </div>
+                    }>
+                    <div className="flex flex-col h-full w-full" dir={isRTL ? 'rtl' : 'ltr'}>
                         {/* Loading Overlay */}
                         {loading && (
                             <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 z-50 flex items-center justify-center">
@@ -1451,6 +1459,7 @@ export function UnifiedAccountingSheet({
                             </div>
                         )}
                     </div>
+                    </Suspense>
                 </SheetContent>
             </Sheet>
 

@@ -582,6 +582,7 @@ export function useInventoryPage() {
         materials: filteredMaterials,
         allMaterials: materials,
         allRolls, // expose for local warehouse stock computation
+        allStock, // ⚡ expose for sync loose stock computation without loading flash
         filterOptions,
         filters,
         setFilters,

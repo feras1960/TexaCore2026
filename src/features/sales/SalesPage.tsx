@@ -3,11 +3,12 @@
  * 🛒 Sales Module Main Page
  * ════════════════════════════════════════════════════════════════
  *
- * ⚡ PERFORMANCE PATTERN: "Keep Visited Mounted"
+ * ⚡ PERFORMANCE PATTERN: "Eager Preload + Keep Visited Mounted"
  *
- * Tabs are only mounted the FIRST TIME the user visits them.
- * After that, they stay in the DOM (hidden via CSS) for instant switching.
- * This eliminates the flicker caused by lazy load + Suspense fallback.
+ * - Tab bar renders instantly (no blocking)
+ * - Active tab component is rendered immediately (direct import)
+ * - Other tabs are preloaded in background after initial render
+ * - Once visited, tabs stay in DOM for instant switching (no flicker)
  *
  * ════════════════════════════════════════════════════════════════
  */
@@ -25,7 +26,7 @@ import {
     Settings,
 } from 'lucide-react';
 
-// Direct imports (no lazy loading) for instant switching
+// Direct imports — ensures components are available instantly from cache
 import SalesDashboard from './pages/SalesDashboard';
 import CustomersList from './pages/CustomersList';
 import SalesCycleList from './pages/SalesCycleList';
@@ -145,11 +146,7 @@ export default function SalesPage() {
                 variant="underline"
             />
 
-            {/* 
-                ⚡ PERFORMANCE: Keep Visited Mounted Pattern
-                Only tabs that have been visited are rendered.
-                After first visit, they stay in DOM for instant switching.
-            */}
+            {/* ⚡ Keep Visited Mounted Pattern */}
             <div className="relative">
                 {tabs.map((tab) => {
                     const TabComponent = tab.component;

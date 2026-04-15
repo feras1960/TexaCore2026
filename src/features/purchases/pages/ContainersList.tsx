@@ -281,7 +281,7 @@ export default function ContainersList() {
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const containers = containersQuery.data ?? [];
-    const isLoading = !!companyId && containersQuery.isPending;
+    const isLoading = !!companyId && containersQuery.isLoading;
 
     // ─── Fetch linked invoice counts per container ───────────────
     const { data: invoiceCounts = {} } = useCachedQuery({

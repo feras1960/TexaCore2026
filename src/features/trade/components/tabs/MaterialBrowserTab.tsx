@@ -694,45 +694,75 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                         const qtyBreaks = getQtyBreaksForMaterial(material.id);
                         const hasQtyBreaks = qtyBreaks.length > 1;
                         const isStockLoading = false;
-                        // In flat mode, child variants may not have direct rolls — try parent
-                        let warehouseStock = fetchWarehouseStock(material.id);
-                        if (warehouseStock.length === 0 && material.parent_material_id) {
-                            warehouseStock = fetchWarehouseStock(material.parent_material_id);
-                        }
-                        // Fallback: if no rolls at all but material has stock + default_warehouse_id,
-                        // build a synthetic warehouse entry from current_stock
-                        if (flatMode && warehouseStock.length === 0 && material.stock_qty > 0) {
-                            const whId = material.default_warehouse_id;
-                            if (whId) {
-                                const whInfo = warehousesList.find((w: any) => w.id === whId);
-                                warehouseStock = [{
-                                    warehouse_id: whId,
-                                    warehouse_code: whInfo?.code || '',
-                                    warehouse_name_ar: whInfo?.name_ar || t('مستودع افتراضي', 'Default'),
-                                    warehouse_name_en: whInfo?.name_en || 'Default',
-                                    roll_count: material.roll_count,
-                                    total_length: material.stock_qty,
-                                    available_length: material.stock_qty,
-                                    reserved_length: 0,
-                                    loose_stock: material.loose_stock,
-                                    last_updated: null,
-                                }];
-                            } else if (warehousesList.length > 0) {
-                                // No default warehouse — use first warehouse as fallback
-                                const firstWh = warehousesList[0];
-                                warehouseStock = [{
-                                    warehouse_id: firstWh.id,
-                                    warehouse_code: firstWh.code || '',
-                                    warehouse_name_ar: firstWh.name_ar || '',
-                                    warehouse_name_en: firstWh.name_en || '',
-                                    roll_count: material.roll_count,
-                                    total_length: material.stock_qty,
-                                    available_length: material.stock_qty,
-                                    reserved_length: 0,
-                                    loose_stock: material.loose_stock,
-                                    last_updated: null,
-                                }];
+                        // ─── Warehouse stock resolution ───────────────────
+                        let warehouseStock = fetchWarehouseStock(material.id, warehousesList);
+                        
+                        // In flat mode: child variants often have no direct rolls/inventory_stock
+                        // ❌ OLD BUG: falling back to parent's data showed parent's warehouses with 0 qty
+                        // ✅ FIX: Build synthetic per-warehouse entries from the child's own stock_qty
+                        if (warehouseStock.length === 0 && material.stock_qty > 0) {
+                            if (material.parent_material_id && flatMode) {
+                                // Child variant with stock but no warehouse data
+                                // Strategy: Get parent's warehouse LIST, then proportionally distribute child's stock
+                                const parentWarehouses = fetchWarehouseStock(material.parent_material_id, warehousesList);
+                                if (parentWarehouses.length > 0) {
+                                    // Calculate parent's total stock across all warehouses
+                                    const parentTotal = parentWarehouses.reduce((sum, pw) => {
+                                        const whStock = (pw.roll_count > 0)
+                                            ? pw.available_length + (pw.loose_stock || 0)
+                                            : Math.max(pw.available_length, pw.loose_stock || 0, pw.total_length);
+                                        return sum + whStock;
+                                    }, 0);
+                                    
+                                    if (parentTotal > 0) {
+                                        // Distribute child's stock proportionally based on parent's warehouse distribution
+                                        warehouseStock = parentWarehouses
+                                            .map(pw => {
+                                                const whStock = (pw.roll_count > 0)
+                                                    ? pw.available_length + (pw.loose_stock || 0)
+                                                    : Math.max(pw.available_length, pw.loose_stock || 0, pw.total_length);
+                                                const ratio = whStock / parentTotal;
+                                                const childQtyInWh = Math.round(material.stock_qty * ratio * 10) / 10;
+                                                return {
+                                                    warehouse_id: pw.warehouse_id,
+                                                    warehouse_code: pw.warehouse_code,
+                                                    warehouse_name_ar: pw.warehouse_name_ar,
+                                                    warehouse_name_en: pw.warehouse_name_en,
+                                                    roll_count: 0,
+                                                    total_length: childQtyInWh,
+                                                    available_length: childQtyInWh,
+                                                    reserved_length: 0,
+                                                    loose_stock: 0,
+                                                    last_updated: null,
+                                                };
+                                            })
+                                            .filter(ws => ws.available_length > 0);
+                                    }
+                                }
                             }
+                            
+                            // Final fallback: use default_warehouse_id
+                            if (warehouseStock.length === 0 && material.stock_qty > 0) {
+                                const whId = material.default_warehouse_id;
+                                if (whId) {
+                                    const whInfo = warehousesList.find((w: any) => w.id === whId);
+                                    warehouseStock = [{
+                                        warehouse_id: whId,
+                                        warehouse_code: whInfo?.code || '',
+                                        warehouse_name_ar: whInfo?.name_ar || t('مستودع افتراضي', 'Default'),
+                                        warehouse_name_en: whInfo?.name_en || 'Default',
+                                        roll_count: material.roll_count,
+                                        total_length: material.stock_qty,
+                                        available_length: material.stock_qty,
+                                        reserved_length: 0,
+                                        loose_stock: 0,
+                                        last_updated: null,
+                                    }];
+                                }
+                            }
+                        } else if (warehouseStock.length === 0 && !flatMode && material.parent_material_id) {
+                            // Grouped mode: try parent (for non-flat display)
+                            warehouseStock = fetchWarehouseStock(material.parent_material_id, warehousesList);
                         }
 
                         // Resolve price for display — then convert to document currency
@@ -1115,58 +1145,164 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                 v.roll_count += 1;
                                                 v.rolls.push(roll);
                                             }
+
+                                            // ✅ FIX: Also include warehouses from inventory_stock (not just rolls)
+                                            // This adds stock from warehouses where children have loose stock (no rolls)
+                                            for (const child of variantChildren) {
+                                                const childWhStock = fetchWarehouseStock(child.id, warehousesList);
+                                                for (const cws of childWhStock) {
+                                                    const whId = cws.warehouse_id;
+                                                    // Skip warehouses already covered by rolls
+                                                    if (whMap.has(whId)) {
+                                                        // Update quantities if inventory_stock shows more
+                                                        const existingWh = whMap.get(whId)!;
+                                                        const grpId = child.group_id || 'ungrouped';
+                                                        const grp = existingWh.groups.get(grpId);
+                                                        const existingVariant = grp?.variants.get(child.id);
+                                                        if (existingVariant && cws.loose_stock && cws.loose_stock > 0) {
+                                                            existingVariant.qty += cws.loose_stock;
+                                                            existingWh.total_qty += cws.loose_stock;
+                                                        }
+                                                        continue;
+                                                    }
+                                                    
+                                                    // New warehouse from inventory_stock
+                                                    const totalInWh = (cws.roll_count > 0)
+                                                        ? cws.available_length + (cws.loose_stock || 0)
+                                                        : Math.max(cws.available_length, cws.loose_stock || 0, cws.total_length);
+                                                    if (totalInWh <= 0) continue;
+                                                    
+                                                    if (!whMap.has(whId)) {
+                                                        whMap.set(whId, {
+                                                            id: whId,
+                                                            name_ar: cws.warehouse_name_ar || whId,
+                                                            name_en: cws.warehouse_name_en || whId,
+                                                            total_qty: 0, total_rolls: 0,
+                                                            groups: new Map(),
+                                                        });
+                                                    }
+                                                    const wh = whMap.get(whId)!;
+                                                    wh.total_qty += totalInWh;
+                                                    
+                                                    const vd = (child as any).variant_data;
+                                                    const designId = vd?.design?.value_id || child.group_id || 'ungrouped';
+                                                    if (!wh.groups.has(designId)) {
+                                                        wh.groups.set(designId, {
+                                                            id: designId,
+                                                            name_ar: vd?.design?.name_ar || child.group_name_ar || t('بدون تصنيف', 'Uncategorized'),
+                                                            name_en: vd?.design?.name_en || child.group_name_en || 'Uncategorized',
+                                                            variants: new Map(),
+                                                        });
+                                                    }
+                                                    const grp = wh.groups.get(designId)!;
+                                                    if (!grp.variants.has(child.id)) {
+                                                        grp.variants.set(child.id, {
+                                                            material: child,
+                                                            qty: totalInWh,
+                                                            roll_count: cws.roll_count,
+                                                            rolls: [],
+                                                        });
+                                                    }
+                                                }
+                                            }
+
                                             warehouseHierarchy.push(...Array.from(whMap.values()));
                                         }
 
                                         // ═══ FALLBACK: Build from current_stock when no rolls ═══
                                         // Groups variants by design (from variant_data), shows current_stock
                                         if (isParent && variantRolls.length === 0 && variantChildren.length > 0) {
-                                            // Use the first warehouse or a virtual "all stock" entry
-                                            const defaultWh = warehousesList[0];
-                                            const whId = defaultWh?.id || 'default';
-                                            const whEntry: WhEntry = {
-                                                id: whId,
-                                                name_ar: defaultWh?.name_ar || t('المخزون العام', 'General Stock'),
-                                                name_en: defaultWh?.name_en || 'General Stock',
-                                                total_qty: 0,
-                                                total_rolls: 0,
-                                                groups: new Map(),
-                                            };
-
+                                            // ✅ FIX: Build from inventory_stock per warehouse instead of dumping all into warehousesList[0]
+                                            const allChildWhMap = new Map<string, WhEntry>();
+                                            
                                             for (const child of variantChildren) {
                                                 const childStock = child.stock_qty || child.current_stock || 0;
                                                 if (childStock <= 0) continue;
-
-                                                // Group by design from variant_data
-                                                const vd = (child as any).variant_data;
-                                                const designName = isRTL
-                                                    ? (vd?.design?.name_ar || child.group_name_ar || t('بدون تصنيف', 'Uncategorized'))
-                                                    : (vd?.design?.name_en || child.group_name_en || 'Uncategorized');
-                                                const designId = vd?.design?.value_id || child.group_id || 'ungrouped';
-
-                                                if (!whEntry.groups.has(designId)) {
-                                                    whEntry.groups.set(designId, {
-                                                        id: designId,
-                                                        name_ar: vd?.design?.name_ar || child.group_name_ar || t('بدون تصنيف', 'Uncategorized'),
-                                                        name_en: vd?.design?.name_en || child.group_name_en || 'Uncategorized',
-                                                        variants: new Map(),
-                                                    });
+                                                
+                                                // Try to get actual warehouse distribution
+                                                let childWarehouses = fetchWarehouseStock(child.id, warehousesList);
+                                                
+                                                // If no warehouse data, use default_warehouse_id
+                                                if (childWarehouses.length === 0 && child.default_warehouse_id) {
+                                                    const whInfo = warehousesList.find((w: any) => w.id === child.default_warehouse_id);
+                                                    childWarehouses = [{
+                                                        warehouse_id: child.default_warehouse_id,
+                                                        warehouse_code: whInfo?.code || '',
+                                                        warehouse_name_ar: whInfo?.name_ar || t('مستودع', 'Warehouse'),
+                                                        warehouse_name_en: whInfo?.name_en || 'Warehouse',
+                                                        roll_count: 0,
+                                                        total_length: childStock,
+                                                        available_length: childStock,
+                                                        reserved_length: 0,
+                                                        loose_stock: childStock,
+                                                        last_updated: null,
+                                                    }];
                                                 }
-                                                const grp = whEntry.groups.get(designId)!;
-                                                grp.variants.set(child.id, {
-                                                    material: child,
-                                                    qty: childStock,
-                                                    roll_count: child.roll_count || 0,
-                                                    rolls: [], // No physical rolls
-                                                });
-
-                                                whEntry.total_qty += childStock;
-                                                whEntry.total_rolls += child.roll_count || 0;
+                                                
+                                                // Still no warehouse data → use first warehouse as last resort
+                                                if (childWarehouses.length === 0 && warehousesList.length > 0) {
+                                                    const firstWh = warehousesList[0];
+                                                    childWarehouses = [{
+                                                        warehouse_id: firstWh.id,
+                                                        warehouse_code: firstWh.code || '',
+                                                        warehouse_name_ar: firstWh.name_ar || t('المخزون العام', 'General Stock'),
+                                                        warehouse_name_en: firstWh.name_en || 'General Stock',
+                                                        roll_count: 0,
+                                                        total_length: childStock,
+                                                        available_length: childStock,
+                                                        reserved_length: 0,
+                                                        loose_stock: childStock,
+                                                        last_updated: null,
+                                                    }];
+                                                }
+                                                
+                                                // Distribute child's stock across its warehouses
+                                                for (const cws of childWarehouses) {
+                                                    const whId = cws.warehouse_id;
+                                                    const qtyInWh = (cws.roll_count > 0)
+                                                        ? cws.available_length + (cws.loose_stock || 0)
+                                                        : Math.max(cws.available_length, cws.loose_stock || 0, cws.total_length);
+                                                    if (qtyInWh <= 0) continue;
+                                                    
+                                                    if (!allChildWhMap.has(whId)) {
+                                                        allChildWhMap.set(whId, {
+                                                            id: whId,
+                                                            name_ar: cws.warehouse_name_ar || whId,
+                                                            name_en: cws.warehouse_name_en || whId,
+                                                            total_qty: 0, total_rolls: 0,
+                                                            groups: new Map(),
+                                                        });
+                                                    }
+                                                    const wh = allChildWhMap.get(whId)!;
+                                                    wh.total_qty += qtyInWh;
+                                                    wh.total_rolls += child.roll_count || 0;
+                                                    
+                                                    const vd = (child as any).variant_data;
+                                                    const designId = vd?.design?.value_id || child.group_id || 'ungrouped';
+                                                    if (!wh.groups.has(designId)) {
+                                                        wh.groups.set(designId, {
+                                                            id: designId,
+                                                            name_ar: vd?.design?.name_ar || child.group_name_ar || t('بدون تصنيف', 'Uncategorized'),
+                                                            name_en: vd?.design?.name_en || child.group_name_en || 'Uncategorized',
+                                                            variants: new Map(),
+                                                        });
+                                                    }
+                                                    const grp = wh.groups.get(designId)!;
+                                                    if (!grp.variants.has(child.id)) {
+                                                        grp.variants.set(child.id, {
+                                                            material: child,
+                                                            qty: qtyInWh,
+                                                            roll_count: child.roll_count || 0,
+                                                            rolls: [],
+                                                        });
+                                                    } else {
+                                                        const existing = grp.variants.get(child.id)!;
+                                                        existing.qty += qtyInWh;
+                                                    }
+                                                }
                                             }
 
-                                            if (whEntry.groups.size > 0) {
-                                                warehouseHierarchy.push(whEntry);
-                                            }
+                                            warehouseHierarchy.push(...Array.from(allChildWhMap.values()));
                                         }
 
                                         return (
@@ -1532,7 +1668,7 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
 
                                                         {/* Warehouse Stock */}
                                                         {!isParent && (() => {
-                                                            const warehouseStock = fetchWarehouseStock(material.id);
+                                                            const warehouseStock = fetchWarehouseStock(material.id, warehousesList);
                                                             const isStockLoading = false;
 
                                                             if (isStockLoading) {
@@ -1544,24 +1680,67 @@ export const MaterialBrowserTab: React.FC<MaterialBrowserTabProps> = ({
                                                                 );
                                                             }
 
-                                                            // Build effective warehouse list — fallback to virtual entry when fabric_rolls is empty
+                                                            // Build effective warehouse list
+                                                            // Build effective warehouse list
+                                                            // ✅ FIX: For child variants, distribute stock proportionally across parent's warehouses
                                                             let effectiveStock = warehouseStock;
+                                                            
                                                             if (effectiveStock.length === 0 && material.stock_qty > 0) {
-                                                                const defaultWh = warehousesList[0];
-                                                                effectiveStock = [{
-                                                                    warehouse_id: defaultWh?.id || 'default',
-                                                                    warehouse_code: defaultWh?.code || '',
-                                                                    warehouse_name_ar: defaultWh?.name_ar || t('المخزون العام', 'General Stock'),
-                                                                    warehouse_name_en: defaultWh?.name_en || 'General Stock',
-                                                                    roll_count: material.roll_count || 0,
-                                                                    total_length: material.stock_qty,
-                                                                    available_length: material.stock_qty,
-                                                                    reserved_length: 0,
-                                                                    // ✅ Fix: When roll_count=0, available_length already = current_stock
-                                                                    // Setting loose_stock to same value would double the displayed quantity
-                                                                    loose_stock: (material.roll_count || 0) > 0 ? (material.loose_stock || 0) : 0,
-                                                                    last_updated: null,
-                                                                }];
+                                                                // Child variant with stock but no warehouse data → use parent's distribution
+                                                                if (material.parent_material_id) {
+                                                                    const parentWarehouses = fetchWarehouseStock(material.parent_material_id, warehousesList);
+                                                                    if (parentWarehouses.length > 0) {
+                                                                        const parentTotal = parentWarehouses.reduce((sum, pw) => {
+                                                                            const whStock = (pw.roll_count > 0)
+                                                                                ? pw.available_length + (pw.loose_stock || 0)
+                                                                                : Math.max(pw.available_length, pw.loose_stock || 0, pw.total_length);
+                                                                            return sum + whStock;
+                                                                        }, 0);
+                                                                        
+                                                                        if (parentTotal > 0) {
+                                                                            effectiveStock = parentWarehouses
+                                                                                .map(pw => {
+                                                                                    const whStock = (pw.roll_count > 0)
+                                                                                        ? pw.available_length + (pw.loose_stock || 0)
+                                                                                        : Math.max(pw.available_length, pw.loose_stock || 0, pw.total_length);
+                                                                                    const ratio = whStock / parentTotal;
+                                                                                    const childQtyInWh = Math.round(material.stock_qty * ratio * 10) / 10;
+                                                                                    return {
+                                                                                        warehouse_id: pw.warehouse_id,
+                                                                                        warehouse_code: pw.warehouse_code,
+                                                                                        warehouse_name_ar: pw.warehouse_name_ar,
+                                                                                        warehouse_name_en: pw.warehouse_name_en,
+                                                                                        roll_count: 0,
+                                                                                        total_length: childQtyInWh,
+                                                                                        available_length: childQtyInWh,
+                                                                                        reserved_length: 0,
+                                                                                        loose_stock: 0,
+                                                                                        last_updated: null,
+                                                                                    };
+                                                                                })
+                                                                                .filter(ws => ws.available_length > 0);
+                                                                        }
+                                                                    }
+                                                                }
+                                                                
+                                                                // Final fallback: use default_warehouse_id
+                                                                if (effectiveStock.length === 0 && material.default_warehouse_id) {
+                                                                    const defaultWh = warehousesList.find((w: any) => w.id === material.default_warehouse_id);
+                                                                    if (defaultWh) {
+                                                                        effectiveStock = [{
+                                                                            warehouse_id: defaultWh.id,
+                                                                            warehouse_code: defaultWh.code || '',
+                                                                            warehouse_name_ar: defaultWh.name_ar || t('مستودع افتراضي', 'Default'),
+                                                                            warehouse_name_en: defaultWh.name_en || 'Default',
+                                                                            roll_count: material.roll_count || 0,
+                                                                            total_length: material.stock_qty,
+                                                                            available_length: material.stock_qty,
+                                                                            reserved_length: 0,
+                                                                            loose_stock: 0,
+                                                                            last_updated: null,
+                                                                        }];
+                                                                    }
+                                                                }
                                                             }
                                                             
                                                             if (effectiveStock.length === 0) {

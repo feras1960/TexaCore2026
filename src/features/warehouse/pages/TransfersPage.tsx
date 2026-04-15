@@ -108,7 +108,7 @@ export default function TransfersPage() {
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const transfers = transfersQuery.data ?? [];
-    const isLoading = !!tenantId && transfersQuery.isPending;
+    const isLoading = !!tenantId && transfersQuery.isLoading;
     const refetch = transfersQuery.refetch;
 
     // ─── Summary Counts ─────────────────────────────────

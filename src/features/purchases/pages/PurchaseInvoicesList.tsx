@@ -218,8 +218,8 @@ export default function PurchaseInvoicesList() {
     // ⚡ CACHE-FIRST: derive loading states gated on auth
     const recentRaw = recentQuery.data ?? [];
     const fullRaw = fullQuery.data ?? [];
-    const isLoading = !!tenantId && !!companyId && recentQuery.isPending;
-    const isBackgroundLoading = fullQuery.isPending && !recentQuery.isPending;
+    const isLoading = !!tenantId && !!companyId && recentQuery.isLoading;
+    const isBackgroundLoading = fullQuery.isLoading && !recentQuery.isLoading;
 
     // Merge Phase 1 + Phase 2 (deduplicate by id)
     const invoicesRaw = useMemo(() => {

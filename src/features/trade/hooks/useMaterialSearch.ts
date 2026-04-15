@@ -190,11 +190,17 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
     }, []);
 
     // ⚡ Client-side search filter — instant, no network delay
+    // ✅ Supports multi-word search: "قماش ابيض" finds "قماش فليس - سادة - أبيض"
     const rawMaterials = useMemo(() => {
         if (!allMaterials || allMaterials.length === 0) return [];
         const searchRaw = (filters.search || '').trim().toLowerCase();
         if (!searchRaw) return allMaterials;
-        const searchNorm = normalizeAr(searchRaw);
+        
+        // Split search into individual words for multi-word matching
+        const searchWords = searchRaw.split(/\s+/).filter(w => w.length > 0);
+        const normalizedWords = searchWords.map(w => normalizeAr(w));
+        
+        if (normalizedWords.length === 0) return allMaterials;
 
         return allMaterials.filter((m: any) => {
             const nameAr = normalizeAr(m.name_ar || '');
@@ -206,9 +212,15 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
             const colorEn = (vd?.color?.name_en || '').toLowerCase();
             const designAr = normalizeAr(vd?.design?.name_ar || '');
             const designEn = (vd?.design?.name_en || '').toLowerCase();
-            return nameAr.includes(searchNorm) || nameEn.includes(searchNorm) || code.includes(searchNorm)
-                || colorAr.includes(searchNorm) || colorEn.includes(searchNorm)
-                || designAr.includes(searchNorm) || designEn.includes(searchNorm);
+            
+            // Build a combined searchable string for this material
+            const combinedAr = `${nameAr} ${colorAr} ${designAr}`;
+            const combinedEn = `${nameEn} ${colorEn} ${designEn} ${code}`;
+            
+            // ALL words must match somewhere in the combined text
+            return normalizedWords.every(word => 
+                combinedAr.includes(word) || combinedEn.includes(word)
+            );
         });
     }, [allMaterials, filters.search, normalizeAr]);
 
@@ -243,6 +255,23 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         gcTime: 30 * 60 * 1000,
     });
 
+    // ⚡ Stock (loose stock per warehouse) — from inventory_stock
+    const { data: cachedStock } = useCachedQuery({
+        queryKey: ['inventory-preload-stock', companyId],
+        queryFn: async () => {
+            if (!companyId) return [];
+            const { data, error } = await supabase
+                .from('inventory_stock')
+                .select('material_id, warehouse_id, quantity_on_hand, average_cost')
+                .eq('company_id', companyId);
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!companyId,
+        staleTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+    });
+
     // ⚡ All materials with full variant detail (for fetchVariantChildren)
     // Uses the same proven SELECT * approach
     const { data: cachedMaterials } = useCachedQuery({
@@ -262,42 +291,98 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         gcTime: 30 * 60 * 1000,
     });
 
-    // ⚡ stockMap — computed from cached rolls (0ms, no network)
+    // ⚡ stockMap — computed from cached rolls + inventory_stock (0ms, no network)
+    // ✅ ROOT FIX: Previously only counted fabric_rolls — materials with loose-only stock showed 0!
     const stockMap = useMemo(() => {
-        if (!cachedRolls || cachedRolls.length === 0) return {} as Record<string, { stock_qty: number; roll_count: number }>;
-        const result: Record<string, { stock_qty: number; roll_count: number }> = {};
-        for (const roll of cachedRolls) {
-            const matId = roll.material_id;
-            if (!matId) continue;
-            if (!result[matId]) {
-                result[matId] = { stock_qty: 0, roll_count: 0 };
-            }
-            result[matId].stock_qty += Number(roll.current_length) || 0;
-            result[matId].roll_count += 1;
-        }
-        return result;
-    }, [cachedRolls]);
+        const result: Record<string, { stock_qty: number; roll_count: number; rolls_length: number; loose_qty: number }> = {};
 
-    // ⚡ warehouseStockMap — computed from cached rolls (0ms, no network)
+        // 1. Aggregate rolls
+        if (cachedRolls && cachedRolls.length > 0) {
+            for (const roll of cachedRolls) {
+                const matId = roll.material_id;
+                if (!matId) continue;
+                if (!result[matId]) {
+                    result[matId] = { stock_qty: 0, roll_count: 0, rolls_length: 0, loose_qty: 0 };
+                }
+                const len = Number(roll.current_length) || 0;
+                result[matId].rolls_length += len;
+                result[matId].roll_count += 1;
+            }
+        }
+
+        // 2. Aggregate loose stock from inventory_stock
+        if (cachedStock && cachedStock.length > 0) {
+            for (const sr of cachedStock) {
+                const matId = sr.material_id;
+                if (!matId) continue;
+                const qty = Number(sr.quantity_on_hand) || 0;
+                if (qty <= 0) continue;
+                if (!result[matId]) {
+                    result[matId] = { stock_qty: 0, roll_count: 0, rolls_length: 0, loose_qty: 0 };
+                }
+                // inventory_stock.quantity_on_hand includes ALL stock (loose + rolls)
+                // loose = total_on_hand - rolls_length (per warehouse, but we aggregate globally)
+                result[matId].loose_qty += qty;
+            }
+        }
+
+        // 3. Compute final stock_qty for each material
+        for (const matId of Object.keys(result)) {
+            const entry = result[matId];
+            // Total = max(sum_of_inventory_stock, sum_of_rolls)
+            // inventory_stock is the source of truth for total quantity
+            // If no inventory_stock entries, fall back to rolls_length
+            if (entry.loose_qty > 0) {
+                entry.stock_qty = entry.loose_qty;
+            } else {
+                entry.stock_qty = entry.rolls_length;
+            }
+        }
+
+        return result;
+    }, [cachedRolls, cachedStock]);
+
+    // ⚡ warehouseStockMap — which materials have stock in the selected warehouse
     const warehouseStockMap = useMemo(() => {
         if (!filters.warehouseId || filters.warehouseId === 'all') return null;
-        if (!cachedRolls || cachedRolls.length === 0) return null;
         const result: Record<string, boolean> = {};
-        for (const roll of cachedRolls) {
-            if (roll.warehouse_id === filters.warehouseId) {
-                result[roll.material_id] = true;
-            }
-        }
-        // Include materials with loose stock in this warehouse
-        if (rawMaterials) {
-            for (const m of rawMaterials as any[]) {
-                if (m.default_warehouse_id === filters.warehouseId && Number(m.current_stock) > 0) {
-                    result[m.id] = true;
+        
+        // 1. Check rolls in this warehouse
+        if (cachedRolls && cachedRolls.length > 0) {
+            for (const roll of cachedRolls) {
+                if (roll.warehouse_id === filters.warehouseId) {
+                    result[roll.material_id] = true;
                 }
             }
         }
+        
+        // 2. Check inventory_stock in this warehouse
+        if (cachedStock && cachedStock.length > 0) {
+            for (const sr of cachedStock) {
+                if (sr.warehouse_id === filters.warehouseId && Number(sr.quantity_on_hand) > 0) {
+                    result[sr.material_id] = true;
+                }
+            }
+        }
+        
+        // 3. Check materials with default_warehouse_id matching + positive current_stock
+        // Use allMaterials (full unfiltered) to catch ALL materials in this warehouse
+        const pool = cachedMaterials || allMaterials || [];
+        for (const m of pool as any[]) {
+            if (m.default_warehouse_id === filters.warehouseId && Number(m.current_stock) > 0) {
+                result[m.id] = true;
+            }
+        }
+        
+        // 4. Include parent materials if ANY of their children have stock in this warehouse
+        for (const m of pool as any[]) {
+            if (m.parent_material_id && result[m.id]) {
+                result[m.parent_material_id] = true;
+            }
+        }
+        
         return result;
-    }, [cachedRolls, filters.warehouseId, rawMaterials]);
+    }, [cachedRolls, cachedStock, filters.warehouseId, allMaterials, cachedMaterials]);
 
     // 🔄 Realtime: auto-update when materials or price lists change
     useRealtimeInvalidation({
@@ -341,12 +426,11 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                     };
                 }
                 const entry = result[m.parent_material_id];
-                // Use current_stock from fabric_materials (always available)
-                const childStock = Number(m.current_stock || 0);
-                // Also check stockMap (fabric_rolls) as additional source
-                const rollStock = stockMap?.[m.id];
-                entry.stock_qty += Math.max(childStock, rollStock?.stock_qty ?? 0);
-                entry.roll_count += rollStock?.roll_count ?? 0;
+                // Use stockMap as primary (combines rolls + inventory_stock)
+                const combinedStock = stockMap?.[m.id];
+                const childStock = combinedStock?.stock_qty ?? Number(m.current_stock || 0);
+                entry.stock_qty += childStock;
+                entry.roll_count += combinedStock?.roll_count ?? 0;
                 // Track price range from children
                 const childPrice = Number(m.selling_price || 0);
                 if (childPrice > 0) {
@@ -465,15 +549,11 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
                 const rawLooseStock = Number(m.loose_stock || 0);
 
                 // For rolls, prefer our fresh stockMap query (more up-to-date)
-                const rollsQty = stock?.stock_qty ?? rawRollsTotalLength;
+                const rollsQty = stock?.rolls_length ?? rawRollsTotalLength;
                 const rollsCount = stock?.roll_count ?? rawRollsCount;
 
-                // Total = max(current_stock, rolls_qty) to handle both data sources
-                // current_stock includes everything (loose + rolled)
-                // If current_stock is 0 but rolls have data, use rolls
-                const totalStockQty = rawCurrentStock > 0
-                    ? Math.max(rawCurrentStock, rollsQty)
-                    : rollsQty;
+                // Total from stockMap (already combines rolls + inventory_stock)
+                const totalStockQty = stock?.stock_qty ?? rawCurrentStock;
 
                 // Loose stock = total - rolled portion
                 const looseStock = Math.max(0, totalStockQty - rollsQty);
@@ -631,41 +711,85 @@ export function useMaterialSearch(filters: MaterialSearchFilters = {}) {
         return Array.from(colorMap.values());
     }, [cachedMaterials, rawMaterials]);
 
-    // ─── ⚡ Per-material warehouse breakdown — from cached rolls ───
-    const fetchWarehouseStock = useCallback((materialId: string): MaterialWarehouseStock[] => {
-        if (!cachedRolls) return [];
-        const materialRolls = cachedRolls.filter((r: any) => r.material_id === materialId);
+    // ─── ⚡ Per-material warehouse breakdown — from cached rolls AND stock ───
+    const fetchWarehouseStock = useCallback((materialId: string, warehousesList?: any[]): MaterialWarehouseStock[] => {
         const whMap = new Map<string, MaterialWarehouseStock>();
-        for (const roll of materialRolls) {
-            const whId = roll.warehouse_id;
-            if (!whId) continue;
-            const existing = whMap.get(whId);
-            const len = Number(roll.current_length) || 0;
-            const avail = Math.max(0, len - (Number(roll.reserved_length) || 0));
-            const reserved = Number(roll.reserved_length) || 0;
-            const whInfo = roll.warehouses || {};
-            if (existing) {
-                existing.roll_count += 1;
-                existing.total_length += len;
-                existing.available_length += avail;
-                existing.reserved_length += reserved;
-            } else {
-                whMap.set(whId, {
-                    warehouse_id: whId,
-                    warehouse_code: (whInfo as any).code || '',
-                    warehouse_name_ar: (whInfo as any).name_ar || '',
-                    warehouse_name_en: (whInfo as any).name_en || '',
-                    roll_count: 1,
-                    total_length: len,
-                    available_length: avail,
-                    reserved_length: reserved,
-                    loose_stock: 0,
-                    last_updated: null,
-                });
+
+        // 1. Rolls
+        if (cachedRolls) {
+            const materialRolls = cachedRolls.filter((r: any) => r.material_id === materialId);
+            for (const roll of materialRolls) {
+                const whId = roll.warehouse_id;
+                if (!whId) continue;
+                const existing = whMap.get(whId);
+                const len = Number(roll.current_length) || 0;
+                const avail = Math.max(0, len - (Number(roll.reserved_length) || 0));
+                const reserved = Number(roll.reserved_length) || 0;
+                const whInfo = roll.warehouses || {};
+                if (existing) {
+                    existing.roll_count += 1;
+                    existing.total_length += len;
+                    existing.available_length += avail;
+                    existing.reserved_length += reserved;
+                } else {
+                    whMap.set(whId, {
+                        warehouse_id: whId,
+                        warehouse_code: (whInfo as any).code || '',
+                        warehouse_name_ar: (whInfo as any).name_ar || '',
+                        warehouse_name_en: (whInfo as any).name_en || '',
+                        roll_count: 1,
+                        total_length: len,
+                        available_length: avail,
+                        reserved_length: reserved,
+                        loose_stock: 0,
+                        last_updated: null,
+                    });
+                }
             }
         }
+
+        // 2. Inventory Stock (quantity_on_hand = total stock in warehouse, including any rolls)
+        // ✅ FIX: quantity_on_hand is the TOTAL stock, not additional to rolls.
+        // If rolls exist: loose = quantity_on_hand - sum(roll_lengths)
+        // If no rolls: available = quantity_on_hand directly
+        if (cachedStock) {
+            const materialStock = cachedStock.filter((s: any) => s.material_id === materialId);
+            for (const sr of materialStock) {
+                const whId = sr.warehouse_id;
+                const qty = Number(sr.quantity_on_hand) || 0;
+                if (qty <= 0) continue;
+                
+                const existing = whMap.get(whId);
+                if (existing) {
+                    // Warehouse already has roll data
+                    // quantity_on_hand should be >= rolls total (it includes them)
+                    // Set available_length to full qty, loose_stock to the excess
+                    const rollTotal = existing.total_length;
+                    existing.loose_stock = Math.max(0, qty - rollTotal);
+                    // Update available_length to reflect the real total minus reserved
+                    existing.available_length = Math.max(existing.available_length, qty - existing.reserved_length);
+                    existing.total_length = Math.max(existing.total_length, qty);
+                } else {
+                    // No rolls in this warehouse — all stock is loose/available
+                    const whInfo = (warehousesList || []).find((w: any) => w.id === whId) || {};
+                    whMap.set(whId, {
+                        warehouse_id: whId,
+                        warehouse_code: whInfo.code || '',
+                        warehouse_name_ar: whInfo.name_ar || '',
+                        warehouse_name_en: whInfo.name_en || '',
+                        roll_count: 0,
+                        total_length: qty,
+                        available_length: qty,
+                        reserved_length: 0,
+                        loose_stock: qty,
+                        last_updated: null,
+                    });
+                }
+            }
+        }
+
         return Array.from(whMap.values());
-    }, [cachedRolls]);
+    }, [cachedRolls, cachedStock]);
 
     // ⚡ Roll details — from cached rolls
     const fetchRollDetails = useCallback((materialId: string, warehouseId?: string): MaterialRollDetail[] => {

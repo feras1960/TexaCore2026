@@ -2445,7 +2445,9 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
 
                     // ═══ SALES SAFETY NET: Even if stage is 'confirmed'/'draft', check for actual inventory_movements ═══
                     // This catches edge cases where delivery happened but stage wasn't updated
-                    if (isSalesTrade && (documentId || data?.id)) {
+                    // ✅ FIX: Skip for draft/quote stages — they can NEVER have movements (instant confirm dialog)
+                    const isDraftStage = ['draft', 'quote', 'quotation', ''].includes(currentStageVal);
+                    if (isSalesTrade && !isDraftStage && (documentId || data?.id)) {
                         const salesDocId = documentId || data?.id;
                         try {
                             const { count: movementCount } = await supabase

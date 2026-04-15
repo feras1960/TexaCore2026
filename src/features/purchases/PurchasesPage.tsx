@@ -3,10 +3,12 @@
  * 🛍️ Purchases Module Main Page
  * ════════════════════════════════════════════════════════════════
  *
- * ⚡ PERFORMANCE PATTERN: "Keep Visited Mounted"
+ * ⚡ PERFORMANCE PATTERN: "Eager Preload + Keep Visited Mounted"
  *
- * Tabs are only mounted the FIRST TIME the user visits them.
- * After that, they stay in the DOM (hidden via CSS) for instant switching.
+ * - Tab bar renders instantly (no blocking)
+ * - Active tab component is rendered immediately (direct import)
+ * - Other tabs are preloaded in background after initial render
+ * - Once visited, tabs stay in DOM for instant switching (no flicker)
  *
  * ════════════════════════════════════════════════════════════════
  */
@@ -24,7 +26,7 @@ import {
     Settings,
 } from 'lucide-react';
 
-// Direct imports (no lazy loading) for instant switching — same as SalesPage
+// Direct imports — ensures components are available immediately from cache
 import PurchasesDashboard from './pages/PurchasesDashboard';
 import SuppliersList from './pages/SuppliersList';
 import PurchaseInvoicesList from './pages/PurchaseInvoicesList';

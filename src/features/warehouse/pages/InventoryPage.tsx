@@ -269,7 +269,7 @@ export default function InventoryPage() {
     }, [sortKey, sortDir]);
 
     const {
-        materials: rawMaterials, allMaterials, allRolls, filterOptions, filters, setFilters,
+        materials: rawMaterials, allMaterials, allRolls, allStock, filterOptions, filters, setFilters,
         summary, loading, error, refetch, hasActiveFilters, resetFilters,
         activeCurrency, convertPrice, baseCurrency,
     } = useInventoryPage();
@@ -336,7 +336,7 @@ export default function InventoryPage() {
         }
     }, [allRolls.length, materials.length]);
 
-    // ⚡ Compute warehouse stock from cached allRolls + inventory_stock for loose items
+    // ⚡ Compute warehouse stock SYNCHRONOUSLY from cached allRolls, then enrich loose stock async
     const fetchWarehouseData = useCallback(async (materialId: string, matOrForce?: InventoryMaterialRow | true) => {
         const isForce = matOrForce === true;
         if (!isForce && whCache[materialId]) return;
@@ -345,7 +345,7 @@ export default function InventoryPage() {
         const mat = isForce ? materials.find(m => m.material_id === materialId) : (matOrForce as InventoryMaterialRow | undefined);
         const looseStock = mat?.loose_stock || 0;
 
-        // Aggregate from cached rolls (already loaded by DataEngine)
+        // ═══ STEP 1: Aggregate from cached rolls SYNCHRONOUSLY (already in memory via DataEngine) ═══
         const materialRolls = allRolls.filter((r: any) => r.material_id === materialId);
 
         const whMap = new Map<string, WarehouseStockRow>();
@@ -381,8 +381,20 @@ export default function InventoryPage() {
 
         let rows = Array.from(whMap.values());
 
-        // ═══ Handle loose stock: query inventory_stock for per-warehouse distribution ═══
-        if (looseStock > 0 || (rows.length === 0 && (mat?.current_stock || 0) > 0)) {
+        // ⚡ STEP 2: Determine if async query is needed
+        const needsLooseQuery = looseStock > 0 || (rows.length === 0 && (mat?.current_stock || 0) > 0);
+
+        // ⚡ STEP 3: Set cache IMMEDIATELY
+        if (rows.length > 0) {
+            // Has rolls → set data instantly (sync, no loading flash)
+            setWhCache(p => ({ ...p, [materialId]: rows }));
+        } else if (needsLooseQuery) {
+            // Loose-only material → show loading skeleton (not "No stock")
+            setWhLoading(prev => new Set(prev).add(materialId));
+        }
+
+        // ═══ STEP 4: Enrich with loose stock ASYNC in background ═══
+        if (needsLooseQuery) {
             try {
                 const { data: stockRows } = await supabase
                     .from('inventory_stock')
@@ -398,7 +410,6 @@ export default function InventoryPage() {
                         const whInfo: any = sr.warehouse || {};
                         const existing = whMap.get(whId);
                         const rollQtyInThisWh = existing?.total_length || 0;
-                        // Loose = inventory_stock qty minus roll qty already tracked
                         const looseForWh = Math.max(0, qty - rollQtyInThisWh);
 
                         if (existing) {
@@ -436,31 +447,129 @@ export default function InventoryPage() {
                         roll_count: 0, total_length: 0, available_length: 0, reserved_length: 0,
                         loose_stock: looseStock, last_updated: null,
                     }];
-                } else {
-                    return; // Warehouses not loaded yet
                 }
             }
+
+            // Clear loading state
+            setWhLoading(prev => { const s = new Set(prev); s.delete(materialId); return s; });
         }
 
         // Don't cache empty result when material has stock
         if (rows.length === 0 && mat && (mat.current_stock || 0) > 0) return;
 
+        // Final update (includes loose stock enrichment)
         setWhCache(p => ({ ...p, [materialId]: rows }));
     }, [whCache, companyId, materials, allRolls, filterOptions.warehouses]);
 
-    // Toggle material expand
+    // Toggle material expand — SYNC computation ensures no empty flash and no skeleton loader
     const toggleExpand = useCallback((id: string, mat: InventoryMaterialRow) => {
-        setExpandedId(prev => prev === id ? null : id);
-        // Fetch warehouse data OUTSIDE of setState (avoid side-effects in updater)
-        if (expandedId !== id) {
-            fetchWarehouseData(id, mat);
+        // Closing
+        if (expandedId === id) {
+            setExpandedId(null);
+            return;
         }
-    }, [expandedId, fetchWarehouseData]);
+
+        // ⚡ Compute warehouse data SYNCHRONOUSLY from allRolls and allStock (in-memory cache)
+        // This MUST happen in the same synchronous event handler as setExpandedId
+        const hasCached = !!whCache[id];
+        
+        if (!hasCached) {
+            const rollsForMat = allRolls.filter((r: any) => r.material_id === id);
+            const stockForMat = allStock.filter((s: any) => s.material_id === id);
+            
+            const whMap = new Map<string, WarehouseStockRow>();
+            
+            // 1. Map rolls to warehouses
+            for (const roll of rollsForMat) {
+                const whId = roll.warehouse_id;
+                if (!whId) continue;
+                const existing = whMap.get(whId);
+                const len = Number(roll.current_length) || 0;
+                const avail = Math.max(0, len - (Number(roll.reserved_length) || 0));
+                const reserved = Number(roll.reserved_length) || 0;
+                const whInfo = roll.warehouses || {};
+                if (existing) {
+                    existing.roll_count += 1;
+                    existing.total_length += len;
+                    existing.available_length += avail;
+                    existing.reserved_length += reserved;
+                } else {
+                    whMap.set(whId, {
+                        warehouse_id: whId,
+                        warehouse_code: whInfo.code || '',
+                        warehouse_name_ar: whInfo.name_ar || '',
+                        warehouse_name_en: whInfo.name_en || '',
+                        roll_count: 1,
+                        total_length: len,
+                        available_length: avail,
+                        reserved_length: reserved,
+                        loose_stock: 0,
+                        last_updated: null,
+                    });
+                }
+            }
+            
+            // 2. Add loose stock to warehouses asynchronously previously, now SYNCHRONOUS
+            if (stockForMat.length > 0) {
+                for (const sr of stockForMat) {
+                    const whId = sr.warehouse_id;
+                    const qty = Number(sr.qty || sr.quantity_on_hand) || 0; // fallback in case of different cache maps
+                    if (qty <= 0) continue;
+                    
+                    const existing = whMap.get(whId);
+                    const rollQtyInThisWh = existing?.total_length || 0;
+                    const looseForWh = Math.max(0, qty - rollQtyInThisWh);
+                    
+                    if (existing) {
+                        existing.loose_stock = looseForWh;
+                    } else if (looseForWh > 0) {
+                        const whInfo = filterOptions.warehouses.find((w: any) => w.id === whId) || {} as any;
+                        whMap.set(whId, {
+                            warehouse_id: whId,
+                            warehouse_code: whInfo.code || '',
+                            warehouse_name_ar: whInfo.name_ar || '',
+                            warehouse_name_en: whInfo.name_en || '',
+                            roll_count: 0,
+                            total_length: 0,
+                            available_length: 0,
+                            reserved_length: 0,
+                            loose_stock: looseForWh,
+                            last_updated: null,
+                        });
+                    }
+                }
+            }
+            
+            // 3. Fallback: If still no warehouses but mat has loose stock, assign it to first warehouse
+            if (whMap.size === 0 && mat.loose_stock > 0) {
+                const firstWh = filterOptions.warehouses[0];
+                if (firstWh) {
+                    whMap.set(firstWh.id, {
+                        warehouse_id: firstWh.id,
+                        warehouse_code: '',
+                        warehouse_name_ar: firstWh.name_ar || '',
+                        warehouse_name_en: firstWh.name_en || '',
+                        roll_count: 0, total_length: 0, available_length: 0, reserved_length: 0,
+                        loose_stock: mat.loose_stock, last_updated: null,
+                    });
+                }
+            }
+
+            const rows = Array.from(whMap.values());
+            if (rows.length > 0) {
+                // ⚡ Set cache in SAME sync batch as setExpandedId → single render
+                setWhCache(p => ({ ...p, [id]: rows }));
+            }
+        }
+
+        setExpandedId(id);
+    }, [expandedId, whCache, allRolls, allStock, filterOptions.warehouses]);
 
     // ⚡ Auto-refetch expanded material when cache is invalidated
     useEffect(() => {
         if (expandedId && !whCache[expandedId] && materials.length > 0 && filterOptions.warehouses.length > 0) {
-            fetchWarehouseData(expandedId, true);
+            const mat = materials.find((m: any) => m.material_id === expandedId);
+            if (mat) toggleExpand(expandedId, mat);
         }
     }, [expandedId, whCache, materials, filterOptions.warehouses]); // eslint-disable-line
 
@@ -604,17 +713,49 @@ export default function InventoryPage() {
     const [matSheetData, setMatSheetData] = useState<any>(null);
 
     const openMaterialSheet = useCallback(async (materialId: string) => {
+        // ⚡ STEP 1: Open sheet INSTANTLY with locally cached data (no delay!)
+        const localMat = materials.find(m => m.material_id === materialId);
+        if (localMat) {
+            setMatSheetData({
+                id: localMat.material_id,
+                name_ar: localMat.material_name_ar,
+                name_en: localMat.material_name_en,
+                name_ru: localMat.material_name_ru,
+                name_uk: localMat.material_name_uk,
+                name_tr: localMat.material_name_tr,
+                code: localMat.material_code,
+                unit: localMat.material_unit,
+                group_id: localMat.group_id,
+                purchase_price: localMat.purchase_price,
+                selling_price: localMat.selling_price,
+                min_stock: localMat.min_stock,
+                season: localMat.season,
+                current_stock: localMat.current_stock,
+                currency: localMat.material_currency,
+                default_warehouse_id: localMat.default_warehouse_id,
+                status: 'active',
+                custom_fields: {
+                    _wholesale_price: localMat.wholesale_price,
+                    _half_wholesale_price: localMat.half_wholesale_price,
+                    _special_price: localMat.special_price,
+                    _cost_price: localMat.cost_price,
+                },
+            });
+            setMatSheetOpen(true);
+        }
+
+        // 🔄 STEP 2: Silently fetch full data from DB to enrich (description, images, etc.)
         try {
             const { data: fullMat, error } = await supabase
                 .from('fabric_materials')
                 .select('*')
                 .eq('id', materialId)
                 .single();
-            if (error || !fullMat) return;
-            setMatSheetData(fullMat);
-            setMatSheetOpen(true);
+            if (!error && fullMat) {
+                setMatSheetData(fullMat);
+            }
         } catch {}
-    }, []);
+    }, [materials]);
 
     const openRollSheet = useCallback(async (roll: { id: string; roll_number: string }) => {
         setRollSheetLoading(true);
@@ -1362,65 +1503,55 @@ export default function InventoryPage() {
                                                 </tr>
 
                                                 {/* ══ INLINE EXPAND ROW — directly below the material row ══ */}
-                                                <AnimatePresence>
-                                                    {isOpen && (
-                                                        <tr
-                                                            ref={handleExpandedRef}
-                                                            key={`expand-${mat.material_id}`}
+                                                {isOpen && (
+                                                    <tr
+                                                        ref={handleExpandedRef}
+                                                        key={`expand-${mat.material_id}`}
+                                                    >
+                                                        {/* Span ALL columns */}
+                                                        <td
+                                                            colSpan={
+                                                                3 + // #, chevron, material (always visible)
+                                                                (col.colors ? 1 : 0) +
+                                                                (col.rolls ? 1 : 0) +
+                                                                (col.available ? 1 : 0) +
+                                                                (col.status ? 1 : 0) +
+                                                                (canSeeCost && col.cost ? 1 : 0) +
+                                                                (canSeePrices && col.sellPrice ? 1 : 0) +
+                                                                (canSeePrices && col.wholesalePrice ? 1 : 0) +
+                                                                (canSeePrices && col.halfWholesalePrice ? 1 : 0) +
+                                                                (canSeePrices && col.specialPrice ? 1 : 0) +
+                                                                (canSeePrices && col.costPrice ? 1 : 0) +
+                                                                (canSeeValue && col.totalValue ? 1 : 0) +
+                                                                (col.container ? 1 : 0) +
+                                                                (canAddToCart ? 1 : 0)
+                                                            }
+                                                            className="p-0"
                                                         >
-                                                            {/* Span ALL columns */}
-                                                            <td
-                                                                colSpan={
-                                                                    3 + // #, chevron, material (always visible)
-                                                                    (col.colors ? 1 : 0) +
-                                                                    (col.rolls ? 1 : 0) +
-                                                                    (col.available ? 1 : 0) +
-                                                                    (col.status ? 1 : 0) +
-                                                                    (canSeeCost && col.cost ? 1 : 0) +
-                                                                    (canSeePrices && col.sellPrice ? 1 : 0) +
-                                                                    (canSeePrices && col.wholesalePrice ? 1 : 0) +
-                                                                    (canSeePrices && col.halfWholesalePrice ? 1 : 0) +
-                                                                    (canSeePrices && col.specialPrice ? 1 : 0) +
-                                                                    (canSeePrices && col.costPrice ? 1 : 0) +
-                                                                    (canSeeValue && col.totalValue ? 1 : 0) +
-                                                                    (col.container ? 1 : 0) +
-                                                                    (canAddToCart ? 1 : 0)
-                                                                }
-                                                                className="p-0"
-                                                            >
-                                                                <motion.div
-                                                                    initial={{ opacity: 0, height: 0 }}
-                                                                    animate={{ opacity: 1, height: 'auto' }}
-                                                                    exit={{ opacity: 0, height: 0 }}
-                                                                    transition={{ duration: 0.25, ease: 'easeInOut' }}
-                                                                    style={{ overflow: 'hidden' }}
-                                                                >
-                                                                    {/* Warehouse Stock Section — nested accordion */}
-                                                                    <div className="bg-slate-50/80 dark:bg-gray-950/50 max-h-[520px] overflow-y-auto border-t border-indigo-200/60 dark:border-indigo-800/40">
-                                                                        <WarehouseStockSection
-                                                                            materialId={mat.material_id}
-                                                                            companyId={companyId || ''}
-                                                                            warehouseRows={whCache[mat.material_id] || []}
-                                                                            isLoading={whLoading.has(mat.material_id)}
-                                                                            rollCache={rollCache}
-                                                                            rollLoading={rollLoading}
-                                                                            onToggleRolls={toggleWarehouseRolls}
-                                                                            expandedWhId={expandedWhId?.startsWith(mat.material_id) ? expandedWhId.split('::')[1] : null}
-                                                                            costDisplay={mat.avg_cost_per_meter > 0 ? mat.avg_cost_per_meter : mat.purchase_price}
-                                                                            isRTL={isRTL}
-                                                                            canSeeCost={canSeeCost}
-                                                                            canSeeValue={canSeeValue}
-                                                                            activeCurrency={activeCurrency}
-                                                                            baseCurrency={mat.material_currency || baseCurrency || 'UAH'}
-                                                                            convertPrice={convertPrice}
-                                                                            onRollClick={openRollSheet}
-                                                                        />
-                                                                    </div>
-                                                                </motion.div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </AnimatePresence>
+                                                            {/* Warehouse Stock Section — nested accordion */}
+                                                            <div className="bg-indigo-50/70 dark:bg-indigo-950/30 max-h-[520px] overflow-y-auto border-t-2 border-indigo-300 dark:border-indigo-700 border-s-4 border-s-indigo-400 dark:border-s-indigo-600">
+                                                                <WarehouseStockSection
+                                                                    materialId={mat.material_id}
+                                                                    companyId={companyId || ''}
+                                                                    warehouseRows={whCache[mat.material_id] || []}
+                                                                    isLoading={whLoading.has(mat.material_id)}
+                                                                    rollCache={rollCache}
+                                                                    rollLoading={rollLoading}
+                                                                    onToggleRolls={toggleWarehouseRolls}
+                                                                    expandedWhId={expandedWhId?.startsWith(mat.material_id) ? expandedWhId.split('::')[1] : null}
+                                                                    costDisplay={mat.avg_cost_per_meter > 0 ? mat.avg_cost_per_meter : mat.purchase_price}
+                                                                    isRTL={isRTL}
+                                                                    canSeeCost={canSeeCost}
+                                                                    canSeeValue={canSeeValue}
+                                                                    activeCurrency={activeCurrency}
+                                                                    baseCurrency={mat.material_currency || baseCurrency || 'UAH'}
+                                                                    convertPrice={convertPrice}
+                                                                    onRollClick={openRollSheet}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </React.Fragment>
                                         );
                                     })}

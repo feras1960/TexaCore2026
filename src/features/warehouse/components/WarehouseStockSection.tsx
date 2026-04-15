@@ -94,7 +94,7 @@ export function WarehouseStockSection({
     );
 
     return (
-        <div className="px-4 py-3 border-t border-indigo-200/60">
+        <div className="px-4 py-3">
             <div className="flex items-center gap-2 mb-2">
                 <Warehouse className="w-4 h-4 text-indigo-500" />
                 <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400">
@@ -103,7 +103,7 @@ export function WarehouseStockSection({
             </div>
             <table className="w-full border-collapse">
                 <thead>
-                    <tr className="bg-white/60 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                    <tr className="bg-indigo-100/80 dark:bg-indigo-900/30 border-b-2 border-indigo-200 dark:border-indigo-700">
                         <th className="w-6 px-2 py-2" />
                         <th className={cn('px-3 py-2 text-[10px] font-bold text-gray-500 uppercase', isRTL ? 'text-right' : 'text-left')}>
                             {isRTL ? 'المستودع' : 'Warehouse'}
@@ -132,8 +132,8 @@ export function WarehouseStockSection({
                             <React.Fragment key={wh.warehouse_id}>
                                 <tr
                                     className={cn(
-                                        'border-b border-gray-100 cursor-pointer transition-colors hover:bg-blue-50/60',
-                                        isOpen && 'bg-blue-50/80',
+                                        'border-b border-indigo-100 dark:border-indigo-800/30 cursor-pointer transition-colors hover:bg-indigo-100/60 dark:hover:bg-indigo-900/20',
+                                        isOpen && 'bg-blue-100/80 dark:bg-blue-900/30',
                                     )}
                                     onClick={() => wh.roll_count > 0 && onToggleRolls(materialId, wh.warehouse_id)}
                                 >

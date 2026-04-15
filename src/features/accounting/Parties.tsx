@@ -169,7 +169,7 @@ export default function Parties() {
   // ─── Fetch Suppliers ─────────────────────────────────────────
   // ⚡ language removed from queryKey — raw data is language-independent
   //    Localized `name` is computed at render time via useMemo below
-  const { data: rawSuppliers = [], isPending: suppPending, refetch: refetchSuppliers } = useCachedQuery({
+  const { data: rawSuppliers = [], isLoading: suppLoading_, refetch: refetchSuppliers } = useCachedQuery({
     queryKey: ['parties_suppliers', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -189,7 +189,7 @@ export default function Parties() {
   });
 
   // ─── Fetch Customers ─────────────────────────────────────────
-  const { data: rawCustomers = [], isPending: custPending, refetch: refetchCustomers } = useCachedQuery({
+  const { data: rawCustomers = [], isLoading: custLoading_, refetch: refetchCustomers } = useCachedQuery({
     queryKey: ['parties_customers', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -258,11 +258,10 @@ export default function Parties() {
   // ─── Current data based on active tab ────────────────────────
   const currentData = activeEntityTab === 'suppliers' ? suppliers : customers;
   const currentBalances = activeEntityTab === 'suppliers' ? supplierBalances : customerBalances;
-  // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (waiting for companyId).
-  // isPending is true when enabled=false (no companyId yet), which causes unwanted skeletons.
-  // Only show loading when we have companyId AND data hasn't arrived from cache/network.
-  const suppLoading = !!companyId && suppPending;
-  const custLoading = !!companyId && custPending;
+  // ⚡ CACHE-FIRST: useCachedQuery.isLoading is false during IndexedDB restoration.
+  // This prevents the "no data" flash when navigating between sections.
+  const suppLoading = !!companyId && suppLoading_;
+  const custLoading = !!companyId && custLoading_;
   const isLoading = activeEntityTab === 'suppliers' ? suppLoading : custLoading;
 
   // ─── Filtered + Sorted Data ──────────────────────────────────

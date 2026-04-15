@@ -5,9 +5,9 @@
  *
  * Strategy:
  * 1. User visits a page → it loads and stays mounted (hidden via CSS)
- * 2. After 3s idle, background prefetch starts loading ALL other pages
- *    one by one (staggered 800ms apart) using requestIdleCallback
- * 3. Result: after ~20s of idle time, ALL pages are pre-loaded
+ * 2. After 1.5s idle, background prefetch starts loading critical pages
+ *    in rapid succession (300ms apart) using requestIdleCallback
+ * 3. Result: within ~5s of login, ALL key pages are pre-loaded
  *    and switching between them is INSTANT (0ms)
  *
  * ════════════════════════════════════════════════════════════════
@@ -15,7 +15,6 @@
 
 import { Suspense, useState, useEffect, useCallback, useRef, ComponentType, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
-import PageLoader from '@/components/common/PageLoader';
 
 // ─── ALL app route → component mappings ─────────────────────────
 const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> = {
@@ -141,17 +140,17 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
       return toMount.length;
     };
 
-    // 🔴 Tier 1: Critical — staggered 1s apart, starting after 8s idle
-    //    (delayed from 3s to avoid competing with DataEngine's initial sync)
-    const t1Count = mountSequential(TIER_1_CRITICAL, 1000, 8000);
-    console.log(`⚡ [KeepAlive] Tier 1: ${t1Count} critical pages queued (staggered, 8s delay)`);
+    // 🔴 Tier 1: Critical — staggered 300ms apart, starting after 1.5s
+    //    Start fast: user often navigates to these within first few seconds
+    const t1Count = mountSequential(TIER_1_CRITICAL, 300, 1500);
+    console.log(`⚡ [KeepAlive] Tier 1: ${t1Count} critical pages queued (staggered, 1.5s delay)`);
 
-    // 🟡 Tier 2: Important — staggered 800ms apart, starting after 18s
-    const t2Count = mountSequential(TIER_2_IMPORTANT, 800, 18000);
+    // 🟡 Tier 2: Important — staggered 500ms apart, starting after 5s
+    const t2Count = mountSequential(TIER_2_IMPORTANT, 500, 5000);
     console.log(`⚡ [KeepAlive] Tier 2: ${t2Count} important pages queued`);
 
-    // 🟢 Tier 3: Secondary — staggered 600ms apart, starting after 28s
-    const t3Count = mountSequential(TIER_3_SECONDARY, 600, 28000);
+    // 🟢 Tier 3: Secondary — staggered 600ms apart, starting after 15s
+    const t3Count = mountSequential(TIER_3_SECONDARY, 600, 15000);
     console.log(`⚡ [KeepAlive] Tier 3: ${t3Count} secondary pages queued`);
 
     return () => timeouts.forEach(clearTimeout);
@@ -204,7 +203,13 @@ export default function KeepAliveOutlet({ fallbackElement }: { fallbackElement?:
               contentVisibility: 'hidden',
             }}
           >
-            <Suspense fallback={isActive ? <PageLoader variant="default" /> : <div />}>
+            <Suspense fallback={isActive ? (
+              <div className="flex items-center justify-center p-12 min-h-[200px]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 border-3 border-gray-200 dark:border-gray-700 border-t-teal-500 rounded-full animate-spin" />
+                </div>
+              </div>
+            ) : <div />}>
               <Component />
             </Suspense>
           </div>

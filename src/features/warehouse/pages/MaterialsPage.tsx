@@ -1222,7 +1222,7 @@ export default function MaterialsPage() {
 
             {/* Unified Material Sheet */}
             <UnifiedAccountingSheet
-                key={selectedMaterial?.id || (selectedParent?.id ? `new-in-${selectedParent.id}` : 'new-material')}
+                documentId={selectedMaterial?.id}
                 isOpen={sheetOpen}
                 onClose={() => setSheetOpen(false)}
                 docType="material"
@@ -1262,7 +1262,7 @@ export default function MaterialsPage() {
 
             {/* Material Group Sheet */}
             <UnifiedAccountingSheet
-                key={selectedGroup?.id || 'new-group'}
+                documentId={selectedGroup?.id}
                 isOpen={groupSheetOpen}
                 onClose={() => setGroupSheetOpen(false)}
                 docType="materialGroup"

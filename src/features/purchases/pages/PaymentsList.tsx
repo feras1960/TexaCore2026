@@ -170,7 +170,7 @@ export default function PaymentsList() {
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const payments = paymentsQuery.data ?? [];
-    const isLoading = !!tenantId && !!companyId && paymentsQuery.isPending;
+    const isLoading = !!tenantId && !!companyId && paymentsQuery.isLoading;
 
     // ─── Counts per tab ──────────────────────────────────────────
     const tabCounts = useMemo(() => {

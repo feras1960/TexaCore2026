@@ -167,7 +167,7 @@ export default function SuppliersList() {
 
     // ⚡ CACHE-FIRST: render instantly from cache
     const rawSuppliers = suppliersQuery.data ?? [];
-    const isLoading = !!companyId && suppliersQuery.isPending;
+    const isLoading = !!companyId && suppliersQuery.isLoading;
 
     // ─── Compute localized names at RENDER time (not query time) ──
     const suppliers = useMemo(() =>

@@ -116,7 +116,7 @@ export default function SalesPaymentsList() {
 
     // ⚡ CACHE-FIRST: Don't show skeletons during auth init
     const paymentsRaw = paymentsQuery.data ?? [];
-    const isLoadingPayments = !!tenantId && !!companyId && paymentsQuery.isPending;
+    const isLoadingPayments = !!tenantId && !!companyId && paymentsQuery.isLoading;
     const errorPayments = paymentsQuery.error;
     const refetch = paymentsQuery.refetch;
 

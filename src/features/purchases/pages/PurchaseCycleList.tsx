@@ -336,7 +336,7 @@ export default function PurchaseCycleList() {
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const documents = purchaseCycleQuery.data ?? [];
-    const isLoading = !!companyId && purchaseCycleQuery.isPending;
+    const isLoading = !!companyId && purchaseCycleQuery.isLoading;
     const error = purchaseCycleQuery.error;
     const refetch = purchaseCycleQuery.refetch;
 
