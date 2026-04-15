@@ -1848,7 +1848,6 @@ export default function ComponentLab() {
               ]}
               selectable={true}
               showRowNumbers={true}
-              onRowClick={(row) => console.log('Row clicked:', row)}
             />
           </div>
         </div>

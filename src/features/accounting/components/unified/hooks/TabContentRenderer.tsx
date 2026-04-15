@@ -421,16 +421,6 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                 if (docType === 'material') return <MaterialAnalyticsTab data={data} />;
                 break;
 
-            // ═══ Roll Tabs ═══
-            case 'roll_overview':
-                return <RollOverviewTab data={data} language={language} />;
-
-            case 'roll_movements':
-                return <RollMovementsTab data={data} language={language} />;
-
-            case 'roll_location':
-                return <RollLocationTab data={data} language={language} />;
-
             // ═══ Recurring Entry Tabs ═══
             case 'schedule':
                 return (
