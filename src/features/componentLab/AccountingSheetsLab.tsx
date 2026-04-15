@@ -1204,7 +1204,6 @@ export default function AccountingSheetsLab() {
                             isRTL={isAr}
                             searchPlaceholder={isAr ? 'ابحث في الحسابات...' : 'Search accounts...'}
                             emptyMessage={isAr ? 'لا توجد بيانات للعرض' : 'No data to display'}
-                            onRowClick={(row) => console.log('Row clicked:', row)}
                             enableSequenceNumber={true}
                             enableMarker={true}
                             enableExcelMode={true}
