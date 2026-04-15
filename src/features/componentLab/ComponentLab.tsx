@@ -1920,9 +1920,6 @@ export default function ComponentLab() {
               showRowNumbers
               showFooterTotals
               variant="ledger"
-              onRefresh={() => console.log('Refresh clicked')}
-              onPrint={() => window.print()}
-              onExport={(format) => console.log('Export:', format)}
               footerLabel="الإجمالي"
               emptyMessage="لا توجد بيانات"
             />
