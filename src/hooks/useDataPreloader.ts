@@ -26,6 +26,7 @@ import { warehouseService } from '@/services/warehouseService';
 import { preloadAccounts } from '@/components/ui/InlineAccountCell';
 import { preloadCurrencies } from '@/features/accounting/hooks/useViewCurrency';
 import { preloadExchangeRates } from '@/hooks/useExchangeRateLookup';
+import { format } from 'date-fns';
 
 // ═══════════════════════════════════════════════
 // Cache Durations (same as useWarehouseQueries)
@@ -218,6 +219,39 @@ export function useDataPreloader() {
                 staleTime: DYNAMIC,
                 gcTime: GC_TIME,
             }),
+
+            // 15. 📦 Pending Receipts — preload for stock movements page
+            queryClient.prefetchQuery({
+                queryKey: ['warehouse', 'pending-receipts', companyId],
+                queryFn: async () => {
+                    try {
+                        return await warehouseService.getPendingReceipts(companyId!);
+                    } catch { return []; }
+                },
+                staleTime: DYNAMIC,
+                gcTime: GC_TIME,
+            }),
+
+            // 16. ✅ Completed Receipts — preload for stock movements page
+            queryClient.prefetchQuery({
+                queryKey: ['warehouse', 'completed-receipts', companyId],
+                queryFn: async () => {
+                    const monthStart = new Date();
+                    monthStart.setDate(1);
+                    monthStart.setHours(0, 0, 0, 0);
+                    const { data } = await supabase
+                        .from('purchase_receipts')
+                        .select('id, receipt_number, status, receipt_date, invoice_id, container_id, order_id, warehouse_id, created_at, updated_at')
+                        .eq('company_id', companyId)
+                        .eq('status', 'completed')
+                        .gte('updated_at', monthStart.toISOString())
+                        .order('updated_at', { ascending: false })
+                        .limit(100);
+                    return data || [];
+                },
+                staleTime: DYNAMIC,
+                gcTime: GC_TIME,
+            }),
         ]);
 
         tier1.then(() => {
@@ -309,11 +343,17 @@ export function useDataPreloader() {
         //    القيود، الفواتير، الكونتينرات، أذون التسليم
         //    كل هذه البيانات ستكون جاهزة للفتح الفوري
         // ═══════════════════════════════════════════════
+        // 🔑 Build default date filters matching JournalEntries.tsx defaults
+        // JournalEntries uses: from=Jan 1 of current year, to=today
+        const defaultDateFrom = format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd');
+        const defaultDateTo = format(new Date(), 'yyyy-MM-dd');
+        const defaultJournalFilters = { dateFrom: defaultDateFrom, dateTo: defaultDateTo };
+
         const tier3Timeout = setTimeout(() => {
             Promise.allSettled([
-                // 1. Journal Entries — MUST match useJournalEntries queryKey
+                // 1a. Journal Entries WITH date filter — matches JournalEntries.tsx default queryKey
                 queryClient.prefetchQuery({
-                    queryKey: ['accounting', 'journal-entries', companyId, undefined],
+                    queryKey: ['accounting', 'journal-entries', companyId, defaultJournalFilters],
                     queryFn: async () => {
                         const { data } = await supabase
                             .from('journal_entries')
@@ -328,6 +368,8 @@ export function useDataPreloader() {
                                 )
                             `)
                             .eq('company_id', companyId)
+                            .gte('entry_date', defaultDateFrom)
+                            .lte('entry_date', defaultDateTo)
                             .order('entry_date', { ascending: false })
                             .limit(500);
                         return data || [];
