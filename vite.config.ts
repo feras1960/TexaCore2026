@@ -1,13 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { VitePWA } from 'vite-plugin-pwa';
-import removeConsole from 'vite-plugin-remove-console';
 import path from 'path';
 
 export default defineConfig({
   plugins: [
     react(),
-    removeConsole(),
+    // removeConsole disabled - causes build errors when console.log is inside arrow functions
     VitePWA({
       registerType: 'autoUpdate',
       // ⚡ Apply update immediately when new SW is available
