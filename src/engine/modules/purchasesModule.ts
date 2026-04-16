@@ -283,7 +283,7 @@ export const purchasesModule: DataModule = {
         // Fetch from purchase_receipts
         const { data: receipts } = await supabase
             .from('purchase_receipts')
-            .select('*, shipment:shipments(container_number)')
+            .select('*')
             .eq('company_id', companyId)
             .gte('receipt_date', fromISO)
             .lte('receipt_date', toISO)

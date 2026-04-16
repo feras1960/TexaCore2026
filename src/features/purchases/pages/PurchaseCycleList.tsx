@@ -276,7 +276,7 @@ export default function PurchaseCycleList() {
             if (effectiveTab === 'all' || effectiveTab === 'receipt') {
                 let rq = supabase
                     .from('purchase_receipts')
-                    .select('*, shipment:shipments(container_number)')
+                    .select('*')
                     .eq('company_id', companyId)
                     .order('receipt_date', { ascending: false });
 
