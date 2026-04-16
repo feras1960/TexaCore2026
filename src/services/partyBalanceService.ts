@@ -74,7 +74,7 @@ export const partyBalanceService = {
     async getAllPartyBalances(
         companyId: string,
         partyType: 'supplier' | 'customer'
-    ): Promise<Map<string, PartyBalance>> {
+    ): Promise<Record<string, PartyBalance>> {
         // ⚡ Try fast RPC first (server-side aggregation)
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_party_balances_bulk', {
             p_company_id: companyId,
@@ -82,16 +82,16 @@ export const partyBalanceService = {
         });
 
         if (!rpcError && rpcData) {
-            const balanceMap = new Map<string, PartyBalance>();
+            const balanceMap: Record<string, PartyBalance> = {};
             for (const row of rpcData) {
-                balanceMap.set(row.party_id, {
+                balanceMap[row.party_id] = {
                     party_id: row.party_id,
                     total_debit: Number(row.total_debit || 0),
                     total_credit: Number(row.total_credit || 0),
                     balance: Number(row.balance || 0),
                     transaction_count: Number(row.transaction_count || 0),
                     last_transaction_date: row.last_transaction_date || undefined,
-                });
+                };
             }
             return balanceMap;
         }
@@ -107,7 +107,7 @@ export const partyBalanceService = {
     async _getAllPartyBalancesFallback(
         companyId: string,
         partyType: 'supplier' | 'customer'
-    ): Promise<Map<string, PartyBalance>> {
+    ): Promise<Record<string, PartyBalance>> {
         const { data, error } = await supabase
             .from('journal_entry_lines')
             .select(`
@@ -126,10 +126,10 @@ export const partyBalanceService = {
 
         if (error) {
             console.error('❌ Error fetching party balances:', error);
-            return new Map();
+            return {};
         }
 
-        const balanceMap = new Map<string, PartyBalance>();
+        const balanceMap: Record<string, PartyBalance> = {};
 
         for (const row of (data || [])) {
             const entry = row.entry as any;
@@ -138,7 +138,7 @@ export const partyBalanceService = {
             const pid = row.party_id;
             if (!pid) continue;
 
-            const existing = balanceMap.get(pid) || {
+            const existing = balanceMap[pid] || {
                 party_id: pid,
                 total_debit: 0,
                 total_credit: 0,
@@ -171,7 +171,7 @@ export const partyBalanceService = {
                 existing.balance = Math.round((existing.total_debit - existing.total_credit) * 100) / 100;
             }
 
-            balanceMap.set(pid, existing);
+            balanceMap[pid] = existing;
         }
 
         return balanceMap;

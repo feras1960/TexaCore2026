@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfDay } from 'date-fns';
+import { startOfMonth, endOfDay, format } from 'date-fns';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
 
 export default function SalesPaymentsList() {
@@ -35,7 +35,7 @@ export default function SalesPaymentsList() {
 
     // Fetch Receipts from journal_entries (entry_type = 'receipt')
     const paymentsQuery = useCachedQuery({
-        queryKey: ['sales_payments_list', companyId, activeTab, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
+        queryKey: ['sales_payments_list', companyId, activeTab, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
             if (!companyId) return [];
 
@@ -50,10 +50,10 @@ export default function SalesPaymentsList() {
                 query = query.eq('status', activeTab);
             }
             if (dateRange?.from) {
-                query = query.gte('entry_date', dateRange.from.toISOString().split('T')[0]);
+                query = query.gte('entry_date', format(dateRange.from, 'yyyy-MM-dd'));
             }
             if (dateRange?.to) {
-                query = query.lte('entry_date', endOfDay(dateRange.to).toISOString().split('T')[0]);
+                query = query.lte('entry_date', format(endOfDay(dateRange.to), 'yyyy-MM-dd'));
             }
 
             const { data: entries, error } = await query;

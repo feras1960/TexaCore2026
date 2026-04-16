@@ -196,6 +196,10 @@ export interface NexaListTableProps<T> {
     /** Number of skeleton rows when loading */
     skeletonRows?: number;
 
+    // ─── Pagination ───
+    /** Number of rows per page (enables client-side pagination) */
+    pageSize?: number;
+
     // ─── Actions Column ───
     /** Render actions for each row (rendered in last column) */
     renderActions?: (row: T) => ReactNode;
@@ -281,6 +285,9 @@ export function NexaListTable<T>({
     // Skeleton
     skeletonRows = 8,
 
+    // Pagination
+    pageSize = 50,
+
     // Actions
     renderActions,
 
@@ -297,6 +304,17 @@ export function NexaListTable<T>({
     const effectiveDirection = directionProp || langDirection;
     const effectiveRTL = isRTLProp !== undefined ? isRTLProp : effectiveDirection === 'rtl';
     const totalCols = (showRowNumbers ? 1 : 0) + columns.length + (renderActions ? 1 : 0);
+
+    // ═══ Pagination State ═══
+    const [currentPage, setCurrentPage] = useState(1);
+    
+    // Reset page when data or search changes
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [data.length, searchTerm]);
+
+    const totalPages = Math.ceil(data.length / pageSize);
+    const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     // ═══ Expandable Row State ═══
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -589,7 +607,8 @@ export function NexaListTable<T>({
                             </tr>
                         ) : (
                             /* Data Rows */
-                            data.map((row, idx) => {
+                            paginatedData.map((row, idx) => {
+                                const absoluteIdx = (currentPage - 1) * pageSize + idx;
                                 const accentClass = getRowAccent ? getRowAccent(row) : 'border-s-gray-200 dark:border-s-gray-700';
                                 const rowKey = getRowKey ? getRowKey(row) : `row-${idx}`;
                                 const isExpanded = expandedRows.has(rowKey);
@@ -645,11 +664,11 @@ export function NexaListTable<T>({
                                                                 ? t('table.removeMarker')
                                                                 : t('table.addMarker')}
                                                         >
-                                                            {idx + 1}
+                                                            {absoluteIdx + 1}
                                                         </button>
                                                     ) : (
                                                         <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px] font-bold text-gray-500 dark:text-gray-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                            {idx + 1}
+                                                            {absoluteIdx + 1}
                                                         </span>
                                                     )}
                                                 </td>
@@ -713,13 +732,38 @@ export function NexaListTable<T>({
             {/* ═══ Footer Summary ═══ */}
             {showFooter && !isLoading && data.length > 0 && (
                 <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 text-xs">
-                    <span className="text-gray-400">
-                        {footerLeftText || (
-                            effectiveRTL
-                                ? `${t('common.showing') || 'عرض'} ${data.length} ${totalCount !== undefined ? `${t('common.of') || 'من'} ${totalCount}` : ''} ${countLabel || t('common.records')}`
-                                : `${t('common.showing') || 'Showing'} ${data.length} ${totalCount !== undefined ? `${t('common.of') || 'of'} ${totalCount}` : ''} ${countLabel || t('common.records')}`
+                    <div className="flex items-center gap-4">
+                        <span className="text-gray-400">
+                            {footerLeftText || (
+                                effectiveRTL
+                                    ? `${t('common.showing') || 'عرض'} ${paginatedData.length} ${totalCount !== undefined || data.length > 0 ? `${t('common.of') || 'من'} ${totalCount || data.length}` : ''} ${countLabel || t('common.records')}`
+                                    : `${t('common.showing') || 'Showing'} ${paginatedData.length} ${totalCount !== undefined || data.length > 0 ? `${t('common.of') || 'of'} ${totalCount || data.length}` : ''} ${countLabel || t('common.records')}`
+                            )}
+                        </span>
+                        
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                >
+                                    {effectiveRTL ? 'السابق' : 'Prev'}
+                                </button>
+                                <span className="text-xs text-gray-500 px-2 font-mono">
+                                    {currentPage} / {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                >
+                                    {effectiveRTL ? 'التالي' : 'Next'}
+                                </button>
+                            </div>
                         )}
-                    </span>
+                    </div>
                     {footerRightContent && (
                         <div>{footerRightContent}</div>
                     )}

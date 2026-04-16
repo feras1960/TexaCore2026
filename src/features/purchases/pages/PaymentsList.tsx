@@ -119,7 +119,7 @@ export default function PaymentsList() {
 
     // ─── Fetch Payments ──────────────────────────────────────────
     const paymentsQuery = useCachedQuery({
-        queryKey: ['payments_list', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
+        queryKey: ['payments_list', companyId, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
             if (!companyId) return [];
 
@@ -135,10 +135,10 @@ export default function PaymentsList() {
                 .order('voucher_date', { ascending: false });
 
             if (dateRange?.from) {
-                q = q.gte('voucher_date', dateRange.from.toISOString().split('T')[0]);
+                q = q.gte('voucher_date', format(dateRange.from, 'yyyy-MM-dd'));
             }
             if (dateRange?.to) {
-                q = q.lte('voucher_date', endOfDay(dateRange.to).toISOString().split('T')[0]);
+                q = q.lte('voucher_date', format(endOfDay(dateRange.to), 'yyyy-MM-dd'));
             }
 
             const { data, error } = await q;

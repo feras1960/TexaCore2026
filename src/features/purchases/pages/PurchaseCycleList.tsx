@@ -209,7 +209,7 @@ export default function PurchaseCycleList() {
 
     // 2. Fetch Documents — Unified: purchase_transactions + receipts + returns
     const purchaseCycleQuery = useCachedQuery({
-        queryKey: ['purchase_cycle_full', companyId, activeTab, viewMode, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
+        queryKey: ['purchase_cycle_full', companyId, activeTab, viewMode, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
             if (!companyId) return [];
 

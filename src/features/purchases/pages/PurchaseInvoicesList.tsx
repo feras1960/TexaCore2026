@@ -19,7 +19,7 @@ import { MaterialReceiptDialog } from '@/features/warehouse/components/MaterialR
 // StatusDropdown removed — stage is now shown as inline badge
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
-import { endOfDay, startOfMonth, formatDistanceToNow } from 'date-fns';
+import { endOfDay, startOfMonth, formatDistanceToNow, format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
@@ -188,7 +188,7 @@ export default function PurchaseInvoicesList() {
 
     // Phase 2 — Full Month (loads in background after Phase 1)
     const fullQuery = useCachedQuery({
-        queryKey: ['purchase_transactions_full', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
+        queryKey: ['purchase_transactions_full', companyId, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
             if (!companyId) return [];
             let query = supabase

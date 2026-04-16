@@ -12,6 +12,8 @@
 import { supabase } from '@/lib/supabase';
 import { accountsService } from '@/services/accountsService';
 import { accountLedgerService } from '@/services/accountLedgerService';
+import { partyBalanceService } from '@/services/partyBalanceService';
+import { startOfMonth, endOfDay, format, startOfYear, subMonths } from 'date-fns';
 import type { DataModule } from '../DataEngine';
 import { CACHE_TIMES } from '../DataEngine';
 
@@ -38,10 +40,15 @@ export const accountingModule: DataModule = {
       gcTime: CACHE_TIMES.GC,
     },
 
-    // ─── 2. Journal Entries (DYNAMIC — last month) ───────────
+    // ─── 2. Journal Entries (DYNAMIC — last month vs page default) ───────────
     {
-      queryKey: ['accounting', 'journal-entries', null, undefined],
+      queryKey: ['accounting', 'journal-entries', null, { 
+        dateFrom: format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'),
+        dateTo: format(new Date(), 'yyyy-MM-dd')
+      }],
       queryFn: async (companyId: string) => {
+        const dFrom = format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd');
+        const dTo = format(new Date(), 'yyyy-MM-dd');
         const { data } = await supabase
           .from('journal_entries')
           .select(`
@@ -55,7 +62,8 @@ export const accountingModule: DataModule = {
             )
           `)
           .eq('company_id', companyId)
-          .gte('entry_date', oneMonthAgo())
+          .gte('entry_date', dFrom)
+          .lte('entry_date', dTo)
           .order('entry_date', { ascending: false })
           .limit(500);
         return data || [];
@@ -231,6 +239,79 @@ export const accountingModule: DataModule = {
         return { costCenters: ccData || [], projects: [] as any[] };
       },
       staleTime: CACHE_TIMES.STATIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 12. Accounting Dashboard (Default current month) ────
+    {
+      queryKey: ['accounting', 'dashboard', null, format(startOfMonth(new Date()), 'yyyy-MM-dd'), format(endOfDay(new Date()), 'yyyy-MM-dd')],
+      queryFn: async (companyId: string) => {
+        const fromDateStr = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+        const toDateStr = format(endOfDay(new Date()), 'yyyy-MM-dd');
+        const yearStart = format(startOfYear(new Date()), 'yyyy-MM-dd');
+        const sixMonthsAgo = format(startOfMonth(subMonths(new Date(), 5)), 'yyyy-MM-dd');
+
+        const [settingsRes, entriesRes, linesRes, accountsRes] = await Promise.all([
+          supabase.from('company_accounting_settings').select('supported_currencies, base_currency').eq('company_id', companyId).single(),
+          supabase.from('journal_entries').select('id, entry_number, description, total_debit, total_credit, status, entry_date').eq('company_id', companyId).gte('entry_date', fromDateStr).lte('entry_date', toDateStr).order('entry_date', { ascending: false }),
+          supabase.from('journal_entry_lines').select('debit, credit, account_id, journal_entries!inner(company_id, entry_date, status)').eq('journal_entries.company_id', companyId).eq('journal_entries.status', 'posted').gte('journal_entries.entry_date', sixMonthsAgo).lte('journal_entries.entry_date', toDateStr),
+          supabase.from('chart_of_accounts').select('id, account_type_id, is_group').eq('company_id', companyId),
+        ]);
+
+        return {
+          currencies: settingsRes.data?.supported_currencies || [],
+          entries: entriesRes.data || [],
+          lines: linesRes.data || [],
+          accounts: accountsRes.data || [],
+          yearStart,
+        };
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 13. VAT Accounts (VATSettlement) ────────────────────
+    {
+      queryKey: ['accounting', 'vat-accounts-v2', null],
+      queryFn: async (companyId: string) => {
+        const [settingsRes, banksRes] = await Promise.all([
+            supabase.from('company_accounting_settings').select('default_tax_input_account_id, default_tax_output_account_id').eq('company_id', companyId).single(),
+            supabase.from('chart_of_accounts').select('id, account_code, name_ar, name_en').eq('company_id', companyId).eq('is_detail', true).or('account_code.like.112%,account_code.like.111%').order('account_code'),
+        ]);
+
+        let inputId = ''; let inputName = ''; let outputId = ''; let outputName = '';
+        const accountIds: string[] = [];
+        if (settingsRes.data?.default_tax_input_account_id) accountIds.push(settingsRes.data.default_tax_input_account_id);
+        if (settingsRes.data?.default_tax_output_account_id) accountIds.push(settingsRes.data.default_tax_output_account_id);
+
+        if (accountIds.length > 0) {
+            const { data: accounts } = await supabase.from('chart_of_accounts').select('id, account_code, name_ar, name_en').in('id', accountIds);
+            accounts?.forEach(acc => {
+                if (acc.id === settingsRes.data?.default_tax_input_account_id) { inputId = acc.id; inputName = `${acc.account_code} — ${acc.name_ar}`; }
+                if (acc.id === settingsRes.data?.default_tax_output_account_id) { outputId = acc.id; outputName = `${acc.account_code} — ${acc.name_ar}`; }
+            });
+        }
+        return { inputId, inputName, outputId, outputName, banks: banksRes.data || [] };
+      },
+      staleTime: CACHE_TIMES.SEMI_STATIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 14. Party Balances (Suppliers & Customers) ──────────
+    {
+      queryKey: ['party_balances_supplier', null],
+      queryFn: async (companyId: string) => {
+        return partyBalanceService.getAllPartyBalances(companyId, 'supplier');
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+    {
+      queryKey: ['party_balances_customer', null],
+      queryFn: async (companyId: string) => {
+        return partyBalanceService.getAllPartyBalances(companyId, 'customer');
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
       gcTime: CACHE_TIMES.GC,
     },
   ],

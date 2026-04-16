@@ -47,7 +47,7 @@ import {
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
 import type { DocType } from '@/components/sheets/configs/sheet.types';
 import { DateRange } from "react-day-picker";
-import { endOfDay, format, formatDistanceToNow } from 'date-fns';
+import { startOfMonth, endOfDay, format, formatDistanceToNow } from 'date-fns';
 import { ar as arLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { validateTradeDocument } from '@/features/trade/utils/validateTradeDocument';
@@ -207,7 +207,7 @@ export default function SalesCycleList() {
 
     // Date Filter State
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: new Date(new Date().getFullYear(), 0, 1), // بداية السنة الحالية
+        from: startOfMonth(new Date()), // بداية الشهر الحالي للتوافق مع المحرك
         to: new Date()
     });
 
@@ -293,7 +293,7 @@ export default function SalesCycleList() {
 
     // 2. Fetch ALL Documents — always fetch everything, filter in frontend
     const salesCycleQuery = useCachedQuery({
-        queryKey: ['sales_cycle_full', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
+        queryKey: ['sales_cycle_full', companyId, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
             if (!companyId) return [];
 

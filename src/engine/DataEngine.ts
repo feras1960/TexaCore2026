@@ -150,15 +150,18 @@ class DataEngine {
     //    React Query's own stale refetch will update in background.
     // ═══════════════════════════════════════════════════════════
     let cachedCount = 0;
-    let missingQueries: { module: DataModule; query: DataModuleQuery }[] = [];
+    let missingQueries: { module: DataModule; query: DataModuleQuery; resolvedKey: unknown[] }[] = [];
 
     for (const module of modulesToLoad) {
       for (const q of module.queries) {
-        const existingData = this.queryClient.getQueryData(q.queryKey);
+        // Replace 'null' in the queryKey with the actual companyId
+        const resolvedKey = q.queryKey.map(k => k === null ? companyId : k);
+
+        const existingData = this.queryClient.getQueryData(resolvedKey);
         if (existingData !== undefined) {
           cachedCount++;
         } else {
-          missingQueries.push({ module, query: q });
+          missingQueries.push({ module, query: q, resolvedKey });
         }
       }
     }
@@ -194,13 +197,13 @@ class DataEngine {
     let loaded = 0;
 
     // Group missing queries by module for sequential module progress
-    const missingByModule = new Map<string, { module: DataModule; queries: DataModuleQuery[] }>();
+    const missingByModule = new Map<string, { module: DataModule; queries: { query: DataModuleQuery; resolvedKey: unknown[] }[] }>();
     for (const mq of missingQueries) {
       const existing = missingByModule.get(mq.module.code);
       if (existing) {
-        existing.queries.push(mq.query);
+        existing.queries.push({ query: mq.query, resolvedKey: mq.resolvedKey });
       } else {
-        missingByModule.set(mq.module.code, { module: mq.module, queries: [mq.query] });
+        missingByModule.set(mq.module.code, { module: mq.module, queries: [{ query: mq.query, resolvedKey: mq.resolvedKey }] });
       }
     }
 
@@ -212,9 +215,9 @@ class DataEngine {
 
       // Run all queries in this module in parallel
       const results = await Promise.allSettled(
-        queries.map(q =>
+        queries.map(({ query: q, resolvedKey }) =>
           this.queryClient!.prefetchQuery({
-            queryKey: q.queryKey,
+            queryKey: resolvedKey,
             queryFn: () => q.queryFn(companyId),
             staleTime: q.staleTime,
             gcTime: q.gcTime,

@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusDropdown } from '@/components/shared/status';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfDay } from 'date-fns';
+import { startOfMonth, endOfDay, format } from 'date-fns';
 import { toast } from 'sonner';
 import { getTablePreferences, debouncedSavePreferences } from '@/services/tablePreferencesService';
 import { useCompanyCurrency } from '@/hooks/useCompanyCurrency';
@@ -76,7 +76,7 @@ export default function SalesInvoicesList() {
 
     // Fetch Invoices — NEW: from sales_transactions
     const invoicesQuery = useCachedQuery({
-        queryKey: ['sales_transactions_list', companyId, dateRange?.from?.toISOString()?.split('T')[0], dateRange?.to?.toISOString()?.split('T')[0]],
+        queryKey: ['sales_transactions_list', companyId, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
             if (!companyId) return [];
 

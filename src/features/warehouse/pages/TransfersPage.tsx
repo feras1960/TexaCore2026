@@ -53,7 +53,7 @@ type DirectionFilter = 'all' | 'outgoing' | 'incoming';
 
 export default function TransfersPage() {
     const { t, language, direction } = useLanguage();
-    const { user, tenantId } = useAuth();
+    const { user, tenantId, companyId } = useAuth();
     const queryClient = useQueryClient();
     const isRTL = direction === 'rtl';
 
@@ -69,7 +69,7 @@ export default function TransfersPage() {
 
     // ─── Fetch Transfers from DB ─────────────────────────
     const transfersQuery = useCachedQuery({
-        queryKey: ['stock_transfers', tenantId, statusFilter, search],
+        queryKey: ['stock_transfers', companyId, statusFilter, search],
         queryFn: async () => {
             let query = supabase
                 .from('stock_transfers')
@@ -101,14 +101,14 @@ export default function TransfersPage() {
             }
             return data || [];
         },
-        enabled: !!tenantId,
+        enabled: !!companyId,
         staleTime: 10000,
         refetchOnWindowFocus: true,
     });
 
     // ⚡ CACHE-FIRST: Don't show skeletons when query is disabled (auth init)
     const transfers = transfersQuery.data ?? [];
-    const isLoading = !!tenantId && transfersQuery.isLoading;
+    const isLoading = !!companyId && transfersQuery.isLoading;
     const refetch = transfersQuery.refetch;
 
     // ─── Summary Counts ─────────────────────────────────

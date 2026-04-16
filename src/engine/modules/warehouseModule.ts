@@ -201,11 +201,11 @@ export const warehouseModule: DataModule = {
       gcTime: CACHE_TIMES.GC,
     },
 
-    // ─── 10. Inventory Movements (last 10) ──────────────────
+    // ─── 10. Stock Movements (last 500) ─────────────────────────
     {
-      queryKey: ['warehouse', 'inventory-movements', null],
+      queryKey: ['warehouse', 'stock-movements', null, { warehouse: undefined, dateFrom: undefined, dateTo: undefined }],
       queryFn: async (companyId: string) => {
-        return warehouseService.getInventoryMovements(companyId, { limit: 10 });
+        return warehouseService.getInventoryMovements(companyId, { limit: 500 }).catch(() => []);
       },
       staleTime: CACHE_TIMES.DYNAMIC,
       gcTime: CACHE_TIMES.GC,
@@ -245,6 +245,52 @@ export const warehouseModule: DataModule = {
           }
         } catch { /* ignore */ }
         return result;
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 8. Stock Transfers ──────────────────────────────────
+    {
+      queryKey: ['stock_transfers', null, 'all', ''],
+      queryFn: async (companyId: string) => {
+        const { data, error } = await supabase
+            .from('stock_transfers')
+            .select(`
+                *,
+                from_warehouse:warehouses!stock_transfers_from_warehouse_id_fkey(id, name_ar, name_en),
+                to_warehouse:warehouses!stock_transfers_to_warehouse_id_fkey(id, name_ar, name_en)
+            `)
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false });
+        if (error) {
+            console.error('[WarehouseModule] fetch stock transfers error:', error);
+            return [];
+        }
+        return data || [];
+      },
+      staleTime: CACHE_TIMES.DYNAMIC,
+      gcTime: CACHE_TIMES.GC,
+    },
+
+    // ─── 14. Completed Receipts (current month) ──────────────────
+    {
+      queryKey: ['warehouse', 'completed-receipts', null],
+      queryFn: async (companyId: string) => {
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        const { data } = await supabase
+            .from('purchase_receipts')
+            .select('id, receipt_number, status, receipt_date, invoice_id, container_id, order_id, warehouse_id, created_at, updated_at')
+            .eq('company_id', companyId)
+            .eq('status', 'completed')
+            .gte('updated_at', monthStart.toISOString())
+            .order('updated_at', { ascending: false })
+            .limit(100);
+
+        return data || [];
       },
       staleTime: CACHE_TIMES.DYNAMIC,
       gcTime: CACHE_TIMES.GC,
