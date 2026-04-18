@@ -92,6 +92,7 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
                 `)
                 .eq('company_id', companyId)
                 .order('entry_date', { ascending: false })
+                .order('created_at', { ascending: false })
                 .limit(500);
 
             // Apply filters
