@@ -243,7 +243,7 @@ export const partyConfig: DocumentConfig = {
     subtitleKey: 'accounting.party.subtitle',
     icon: 'Users',
     iconColor: 'bg-purple-600',
-    defaultTab: 'overview',
+    defaultTab: 'ledger',
     supportsModes: ['view', 'edit', 'create'],
     headerFields: ['name', 'type', 'balance', 'code'],
     tabs: [
