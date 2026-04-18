@@ -11,11 +11,12 @@
  * ✅ يعرض تفاصيل سندات القبض/الصرف مع ربط بالفاتورة
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn, formatNumber } from '@/lib/utils';
 import { Loader2, ExternalLink, CreditCard, ArrowRightLeft, FileText, CheckCircle2, AlertCircle, Clock, Package, Ship, Truck, BookOpen, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import type { ExtendedLedgerEntry } from '../hooks/useLedgerData';
 
 // ═══ Entry Type Config ═══
@@ -45,6 +46,7 @@ interface InvoiceItem {
     unit: string;
     colorName?: string;
     rollsCount?: number;
+    material_id?: string;
 }
 
 // ═══ Payment Detail ═══
@@ -220,6 +222,256 @@ function DeliveryStatusBadge({ status, deliveredAt, deliveryNo, isRTL }: { statu
     );
 }
 
+// ═══════════════════════════════════════════════════════════
+// Cached data structure — all details for one ledger entry
+// ═══════════════════════════════════════════════════════════
+interface PartyDocDetails {
+    invoiceItems: InvoiceItem[];
+    invoiceSummary: InvoiceSummary | null;
+    paymentDetail: PaymentDetail | null;
+    rollMovements: { total: number; movementRef?: string } | null;
+    itemRollsMap: Record<string, { roll_id: string; roll_number: string; length: number; status: string; color_name?: string }[]>;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Fetch function — extracted so it can be used by useCachedQuery
+// ═══════════════════════════════════════════════════════════
+async function fetchPartyDocDetails(entry: ExtendedLedgerEntry, currency: string): Promise<PartyDocDetails> {
+    const refType = entry.referenceType || '';
+    let refId = entry.referenceId;
+    const desc = entry.description || '';
+
+    const isPurchaseHint = refType.includes('purchase')
+        || desc.includes('مشتريات') || desc.includes('PI-') || desc.includes('purchase');
+
+    const safeQuery = async (query: PromiseLike<any>) => {
+        try { return await query; } catch { return { data: null, error: true }; }
+    };
+
+    let invoiceItems: InvoiceItem[] = [];
+    let invoiceSummary: InvoiceSummary | null = null;
+    let paymentDetail: PaymentDetail | null = null;
+    let rollMovements: { total: number; movementRef?: string } | null = null;
+    let itemRollsMap: Record<string, any[]> = {};
+
+    // ═══ If referenceId is missing, try reverse lookup (parallel) ═══
+    if (entry.type === 'invoice' && !refId && entry.entryId) {
+        if (isPurchaseHint) {
+            const [piResult, ptResult] = await Promise.all([
+                safeQuery(supabase.from('purchase_invoices').select('id').eq('journal_entry_id', entry.entryId).maybeSingle()),
+                safeQuery(supabase.from('purchase_transactions').select('id').eq('journal_entry_id', entry.entryId).maybeSingle()),
+            ]);
+            refId = piResult?.data?.id || ptResult?.data?.id || undefined;
+        } else {
+            const stResult = await safeQuery(supabase.from('sales_transactions').select('id').eq('journal_entry_id', entry.entryId).maybeSingle());
+            refId = stResult?.data?.id || undefined;
+        }
+    }
+
+    if (entry.type === 'invoice' && refId) {
+        let items: any[] | null = null;
+        let summaryData: any = null;
+
+        if (isPurchaseHint) {
+            const [itemsResult, summaryResult] = await Promise.all([
+                safeQuery(supabase.from('purchase_invoice_items').select('*').eq('invoice_id', refId)),
+                safeQuery(supabase.from('purchase_invoices').select('*').eq('id', refId).maybeSingle()),
+            ]);
+            items = (itemsResult as any)?.data || null;
+            if (!items || items.length === 0) {
+                try {
+                    const { data: ptItems } = await supabase.from('purchase_transaction_items').select('*').eq('transaction_id', refId);
+                    if (ptItems && ptItems.length > 0) items = ptItems;
+                } catch { /* ignore */ }
+            }
+            const pi = (summaryResult as any)?.data;
+            if (pi) {
+                summaryData = {
+                    invoice_no: pi.invoice_number || pi.invoice_no || '',
+                    total_amount: pi.total_amount || 0,
+                    tax_amount: pi.tax_amount || 0,
+                    discount_amount: pi.discount_amount || 0,
+                    paid_amount: pi.paid_amount || 0,
+                    balance: pi.balance || 0,
+                    currency: pi.currency || currency,
+                    stage: pi.document_stage || pi.status || '',
+                    notes: pi.notes || '',
+                    container_id: pi.container_id || undefined,
+                    journal_entry_id: pi.journal_entry_id || null,
+                    posted_at: pi.posted_at || null,
+                    delivered_at: pi.received_at || pi.delivered_at || null,
+                    delivery_confirmed_at: pi.delivery_confirmed_at || null,
+                    delivery_no: pi.delivery_no || null,
+                };
+            } else {
+                try {
+                    const { data: pt } = await supabase.from('purchase_transactions').select('*').eq('id', refId).maybeSingle();
+                    if (pt) {
+                        summaryData = {
+                            invoice_no: pt.invoice_no || pt.invoice_number || '',
+                            total_amount: pt.total_amount || 0,
+                            tax_amount: pt.tax_amount || 0,
+                            discount_amount: pt.discount_amount || 0,
+                            paid_amount: pt.paid_amount || 0,
+                            balance: pt.balance || 0,
+                            currency: pt.currency || currency,
+                            stage: pt.stage || '',
+                            notes: pt.notes || '',
+                            container_id: pt.container_id || undefined,
+                            journal_entry_id: pt.journal_entry_id || null,
+                            posted_at: pt.posted_at || null,
+                            delivered_at: pt.delivered_at || null,
+                            delivery_confirmed_at: pt.delivery_confirmed_at || null,
+                            delivery_no: pt.delivery_no || null,
+                        };
+                    }
+                } catch { /* ignore */ }
+            }
+            if (summaryData?.container_id) {
+                try {
+                    const { data: ctn } = await supabase.from('containers').select('container_number').eq('id', summaryData.container_id).maybeSingle();
+                    if (ctn) summaryData.container_number = ctn.container_number;
+                } catch { /* ignore */ }
+            }
+        }
+
+        if (!items || items.length === 0) {
+            const [salesItemsResult, salesSummaryResult] = await Promise.all([
+                safeQuery(supabase.from('sales_transaction_items').select('*').eq('transaction_id', refId)),
+                !summaryData
+                    ? safeQuery(supabase.from('sales_transactions').select('*').eq('id', refId).maybeSingle())
+                    : Promise.resolve({ data: null }),
+            ]);
+            const salesItems = (salesItemsResult as any)?.data;
+            if (salesItems && salesItems.length > 0) items = salesItems;
+            const txn = (salesSummaryResult as any)?.data;
+            if (!summaryData && txn) {
+                summaryData = {
+                    invoice_no: txn.invoice_no || '',
+                    total_amount: txn.total_amount || 0,
+                    tax_amount: txn.tax_amount || 0,
+                    discount_amount: txn.discount_amount || 0,
+                    paid_amount: txn.paid_amount || 0,
+                    balance: txn.balance || 0,
+                    currency: txn.currency || currency,
+                    stage: txn.stage || '',
+                    notes: txn.notes || '',
+                    journal_entry_id: txn.journal_entry_id || null,
+                    posted_at: txn.posted_at || null,
+                    delivered_at: txn.delivered_at || txn.delivery_confirmed_at || null,
+                    delivery_confirmed_at: txn.delivery_confirmed_at || null,
+                    delivery_no: txn.delivery_no || null,
+                    warehouse_id: txn.warehouse_id || null,
+                    stock_warehouse_id: txn.stock_warehouse_id || null,
+                };
+            }
+        }
+
+        invoiceItems = (items || []).map((item: any) => ({
+            id: item.id,
+            lineNumber: item.line_number || 0,
+            description: item.description || item.item_description || '',
+            descriptionAr: item.description_ar || item.description || item.item_description || '',
+            itemCode: item.item_code || item.material_code || '',
+            quantity: item.quantity || 0,
+            deliveredQty: item.delivered_qty ?? item.received_qty ?? item.quantity ?? 0,
+            unitPrice: item.unit_price || item.unit_cost || 0,
+            discount: item.discount_amount || item.discount || 0,
+            taxRate: item.tax_rate || 0,
+            taxAmount: item.tax_amount || 0,
+            subtotal: item.subtotal || 0,
+            total: item.total || item.subtotal || 0,
+            unit: item.unit || item.uom || '',
+            colorName: item.color_name || undefined,
+            rollsCount: item.rolls_count || undefined,
+            material_id: item.material_id || undefined,
+        }));
+
+        if (summaryData) {
+            const whId = summaryData.warehouse_id || summaryData.stock_warehouse_id;
+            if (whId) {
+                try {
+                    const { data: wh } = await supabase.from('warehouses').select('id, name_ar, name_en').eq('id', whId).maybeSingle();
+                    if (wh) {
+                        summaryData.warehouse_name_ar = wh.name_ar || null;
+                        summaryData.warehouse_name_en = wh.name_en || null;
+                    }
+                } catch { /* ignore */ }
+            }
+            invoiceSummary = { ...summaryData };
+        }
+
+        if (refId) {
+            try {
+                const { count: movCount } = await supabase.from('inventory_movements').select('id', { count: 'exact', head: true }).eq('reference_id', refId);
+                rollMovements = { total: movCount || 0 };
+            } catch { /* ignore */ }
+        }
+
+        const materialIds = [...new Set((items || []).map((i: any) => i.material_id).filter(Boolean))] as string[];
+        if (materialIds.length > 0 && summaryData) {
+            try {
+                const { data: rollsData } = await supabase.from('fabric_rolls').select('id, roll_number, current_length, status, material_id, color_name').in('material_id', materialIds).in('status', ['sold', 'delivered']);
+                if (rollsData && rollsData.length > 0) {
+                    const rollMap: Record<string, any[]> = {};
+                    for (const r of rollsData) {
+                        if (!rollMap[r.material_id]) rollMap[r.material_id] = [];
+                        rollMap[r.material_id].push({ roll_id: r.id, roll_number: r.roll_number, length: r.current_length || 0, status: r.status, color_name: r.color_name || undefined });
+                    }
+                    itemRollsMap = rollMap;
+                }
+            } catch { /* ignore */ }
+        }
+
+    } else if ((entry.type === 'payment' || entry.type === 'receipt') && refId) {
+        const { data: txn, error: txnErr } = await supabase
+            .from('cash_transactions')
+            .select(`id, transaction_number, amount, currency, payment_method, party_name, description, check_number, check_date, reference_number, contra_account_id, reference_type, reference_id`)
+            .eq('id', refId)
+            .single();
+
+        if (txnErr) throw txnErr;
+
+        let contraName = '';
+        if (txn?.contra_account_id) {
+            const { data: acct } = await supabase.from('chart_of_accounts').select('name_ar, name_en').eq('id', txn.contra_account_id).single();
+            contraName = acct?.name_ar || acct?.name_en || '';
+        }
+
+        let linkedInvoiceNo = '';
+        let linkedInvoiceId = '';
+        const payRefType = txn?.reference_type || '';
+        if (txn?.reference_id) {
+            if (payRefType.includes('purchase')) {
+                const { data: inv } = await supabase.from('purchase_invoices').select('id, invoice_number').eq('id', txn.reference_id).maybeSingle();
+                if (inv) { linkedInvoiceNo = inv.invoice_number || ''; linkedInvoiceId = inv.id || ''; }
+            }
+            if (!linkedInvoiceId && (payRefType.includes('invoice') || payRefType.includes('sales'))) {
+                const { data: inv } = await supabase.from('sales_transactions').select('id, invoice_no').eq('id', txn.reference_id).maybeSingle();
+                if (inv) { linkedInvoiceNo = inv.invoice_no || ''; linkedInvoiceId = inv.id || ''; }
+            }
+        }
+
+        paymentDetail = {
+            id: txn.id,
+            transactionNumber: txn.transaction_number || '',
+            amount: txn.amount || 0,
+            currency: txn.currency || currency,
+            paymentMethod: txn.payment_method || '',
+            partyName: txn.party_name || '',
+            description: txn.description || '',
+            checkNumber: txn.check_number || undefined,
+            checkDate: txn.check_date || undefined,
+            referenceNumber: txn.reference_number || undefined,
+            contraAccountName: contraName || undefined,
+            linkedInvoiceNo: linkedInvoiceNo || undefined,
+            linkedInvoiceId: linkedInvoiceId || undefined,
+        };
+    }
+
+    return { invoiceItems, invoiceSummary, paymentDetail, rollMovements, itemRollsMap };
+}
+
 interface PartyLedgerExpandedRowProps {
     entry: ExtendedLedgerEntry;
     currency: string;
@@ -234,354 +486,26 @@ export function PartyLedgerExpandedRow({
     const { t, language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
 
-    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
-    const [paymentDetail, setPaymentDetail] = useState<PaymentDetail | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary | null>(null);
-    // حركات الرولونات في المستودع
-    const [rollMovements, setRollMovements] = useState<{ total: number; movementRef?: string } | null>(null);
-    // رولونات كل مادة: material_id → Roll[]
-    const [itemRollsMap, setItemRollsMap] = useState<Record<string, { roll_id: string; roll_number: string; length: number; status: string; color_name?: string }[]>>({});
+    // ═══ Cached query — fetches once, then serves from IndexedDB cache ═══
+    const { data: details, isLoading: loading, error: queryError } = useCachedQuery<PartyDocDetails>({
+        queryKey: ['party_doc_details', entry.entryId, entry.referenceId || '', entry.type],
+        queryFn: () => fetchPartyDocDetails(entry, currency),
+        staleTime: 10 * 60 * 1000,  // 10 minutes — data stays fresh
+        gcTime: 24 * 60 * 60 * 1000, // 24 hours — persist in IndexedDB
+    });
+
+    const invoiceItems = details?.invoiceItems || [];
+    const paymentDetail = details?.paymentDetail || null;
+    const invoiceSummary = details?.invoiceSummary || null;
+    const rollMovements = details?.rollMovements || null;
+    const itemRollsMap = details?.itemRollsMap || {};
+    const error = queryError ? (isRTL ? 'خطأ في تحميل التفاصيل' : 'Error loading details') : null;
+
     // السطر المنفتح من بنود الفاتورة
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
     // Entry type info
     const typeConfig = ENTRY_TYPE_CONFIG[entry.type] || ENTRY_TYPE_CONFIG.journal;
-
-    // ═══ Fetch document details on mount ═══
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadDetails = async () => {
-            setLoading(true);
-            setError(null);
-
-            try {
-                const refType = entry.referenceType || '';
-                let refId = entry.referenceId;
-                const desc = entry.description || '';
-
-                // ═══ Detect invoice type ═══
-                const isPurchaseHint = refType.includes('purchase')
-                    || desc.includes('مشتريات') || desc.includes('PI-') || desc.includes('purchase');
-
-                // Helper: safe query wrapper for Promise.all
-                const safeQuery = async (query: PromiseLike<any>) => {
-                    try { return await query; } catch { return { data: null, error: true }; }
-                };
-
-                // ═══ If referenceId is missing, try reverse lookup (parallel) ═══
-                if (entry.type === 'invoice' && !refId && entry.entryId) {
-                    if (isPurchaseHint) {
-                        const [piResult, ptResult] = await Promise.all([
-                            safeQuery(supabase.from('purchase_invoices').select('id').eq('journal_entry_id', entry.entryId).maybeSingle()),
-                            safeQuery(supabase.from('purchase_transactions').select('id').eq('journal_entry_id', entry.entryId).maybeSingle()),
-                        ]);
-                        refId = piResult?.data?.id || ptResult?.data?.id || undefined;
-                    } else {
-                        const stResult = await safeQuery(supabase.from('sales_transactions').select('id').eq('journal_entry_id', entry.entryId).maybeSingle());
-                        refId = stResult?.data?.id || undefined;
-                    }
-                }
-
-                if (entry.type === 'invoice' && refId) {
-                    let items: any[] | null = null;
-                    let summaryData: any = null;
-
-                    if (isPurchaseHint) {
-                        // ═══ PURCHASE INVOICE: Fetch items + summary in parallel ═══
-                        const [itemsResult, summaryResult] = await Promise.all([
-                            safeQuery(supabase.from('purchase_invoice_items').select('*').eq('invoice_id', refId)),
-                            safeQuery(supabase.from('purchase_invoices').select('*').eq('id', refId).maybeSingle()),
-                        ]);
-
-                        items = (itemsResult as any)?.data || null;
-
-                        // Fallback items: legacy purchase_transaction_items
-                        if (!items || items.length === 0) {
-                            try {
-                                const { data: ptItems } = await supabase.from('purchase_transaction_items').select('*').eq('transaction_id', refId);
-                                if (ptItems && ptItems.length > 0) items = ptItems;
-                            } catch { /* ignore */ }
-                        }
-
-                        const pi = (summaryResult as any)?.data;
-                        if (pi) {
-                            summaryData = {
-                                invoice_no: pi.invoice_number || pi.invoice_no || '',
-                                total_amount: pi.total_amount || 0,
-                                tax_amount: pi.tax_amount || 0,
-                                discount_amount: pi.discount_amount || 0,
-                                paid_amount: pi.paid_amount || 0,
-                                balance: pi.balance || 0,
-                                currency: pi.currency || currency,
-                                stage: pi.document_stage || pi.status || '',
-                                notes: pi.notes || '',
-                                container_id: pi.container_id || undefined,
-                                // ترحيل
-                                journal_entry_id: pi.journal_entry_id || null,
-                                posted_at: pi.posted_at || null,
-                                // تسليم/استلام
-                                delivered_at: pi.received_at || pi.delivered_at || null,
-                                delivery_confirmed_at: pi.delivery_confirmed_at || null,
-                                delivery_no: pi.delivery_no || null,
-                            };
-                        } else {
-                            // Legacy fallback summary
-                            try {
-                                const { data: pt } = await supabase.from('purchase_transactions').select('*').eq('id', refId).maybeSingle();
-                                if (pt) {
-                                    summaryData = {
-                                        invoice_no: pt.invoice_no || pt.invoice_number || '',
-                                        total_amount: pt.total_amount || 0,
-                                        tax_amount: pt.tax_amount || 0,
-                                        discount_amount: pt.discount_amount || 0,
-                                        paid_amount: pt.paid_amount || 0,
-                                        balance: pt.balance || 0,
-                                        currency: pt.currency || currency,
-                                        stage: pt.stage || '',
-                                        notes: pt.notes || '',
-                                        container_id: pt.container_id || undefined,
-                                        journal_entry_id: pt.journal_entry_id || null,
-                                        posted_at: pt.posted_at || null,
-                                        delivered_at: pt.delivered_at || null,
-                                        delivery_confirmed_at: pt.delivery_confirmed_at || null,
-                                        delivery_no: pt.delivery_no || null,
-                                    };
-                                }
-                            } catch { /* ignore */ }
-                        }
-
-                        // Fetch container number if linked
-                        if (summaryData?.container_id) {
-                            try {
-                                const { data: ctn } = await supabase.from('containers').select('container_number').eq('id', summaryData.container_id).maybeSingle();
-                                if (ctn) summaryData.container_number = ctn.container_number;
-                            } catch { /* ignore */ }
-                        }
-                    }
-
-                    // If not purchase or no results → try sales (parallel)
-                    if (!items || items.length === 0) {
-                        const [salesItemsResult, salesSummaryResult] = await Promise.all([
-                            safeQuery(supabase.from('sales_transaction_items').select('*').eq('transaction_id', refId)),
-                            !summaryData
-                                ? safeQuery(supabase.from('sales_transactions').select('*').eq('id', refId).maybeSingle())
-                                : Promise.resolve({ data: null }),
-                        ]);
-
-                        const salesItems = (salesItemsResult as any)?.data;
-                        if (salesItems && salesItems.length > 0) items = salesItems;
-
-                        const txn = (salesSummaryResult as any)?.data;
-                        if (!summaryData && txn) {
-                            summaryData = {
-                                invoice_no: txn.invoice_no || '',
-                                total_amount: txn.total_amount || 0,
-                                tax_amount: txn.tax_amount || 0,
-                                discount_amount: txn.discount_amount || 0,
-                                paid_amount: txn.paid_amount || 0,
-                                balance: txn.balance || 0,
-                                currency: txn.currency || currency,
-                                stage: txn.stage || '',
-                                notes: txn.notes || '',
-                                // ترحيل
-                                journal_entry_id: txn.journal_entry_id || null,
-                                posted_at: txn.posted_at || null,
-                                // تسليم
-                                delivered_at: txn.delivered_at || txn.delivery_confirmed_at || null,
-                                delivery_confirmed_at: txn.delivery_confirmed_at || null,
-                                delivery_no: txn.delivery_no || null,
-                                // مستودع
-                                warehouse_id: txn.warehouse_id || null,
-                                stock_warehouse_id: txn.stock_warehouse_id || null,
-                            };
-                        }
-                    }
-
-                    if (!cancelled) {
-                        setInvoiceItems((items || []).map((item: any) => ({
-                            id: item.id,
-                            lineNumber: item.line_number || 0,
-                            description: item.description || item.item_description || '',
-                            descriptionAr: item.description_ar || item.description || item.item_description || '',
-                            itemCode: item.item_code || item.material_code || '',
-                            quantity: item.quantity || 0,
-                            deliveredQty: item.delivered_qty ?? item.received_qty ?? item.quantity ?? 0,
-                            unitPrice: item.unit_price || item.unit_cost || 0,
-                            discount: item.discount_amount || item.discount || 0,
-                            taxRate: item.tax_rate || 0,
-                            taxAmount: item.tax_amount || 0,
-                            subtotal: item.subtotal || 0,
-                            total: item.total || item.subtotal || 0,
-                            unit: item.unit || item.uom || '',
-                            colorName: item.color_name || undefined,
-                            rollsCount: item.rolls_count || undefined,
-                            // نحتفظ material_id للربط بالرولونات
-                            material_id: item.material_id || undefined,
-                        })));
-
-                        // ═══ جلب اسم المستودع ═══
-                        if (summaryData) {
-                            const whId = summaryData.warehouse_id || summaryData.stock_warehouse_id;
-                            if (whId) {
-                                try {
-                                    const { data: wh } = await supabase
-                                        .from('warehouses')
-                                        .select('id, name_ar, name_en')
-                                        .eq('id', whId)
-                                        .maybeSingle();
-                                    if (wh && !cancelled) {
-                                        summaryData.warehouse_name_ar = wh.name_ar || null;
-                                        summaryData.warehouse_name_en = wh.name_en || null;
-                                    }
-                                } catch { /* تجاهل */ }
-                            }
-                            setInvoiceSummary({ ...summaryData });
-                        } else {
-                            setInvoiceSummary(summaryData);
-                        }
-
-                        // ═══ جلب حركات المخزون في المستودع ═══
-                        if (refId) {
-                            try {
-                                // inventory_movements has reference_id but no roll_id column
-                                const { count: movCount } = await supabase
-                                    .from('inventory_movements')
-                                    .select('id', { count: 'exact', head: true })
-                                    .eq('reference_id', refId);
-                                if (!cancelled) setRollMovements({ total: movCount || 0 });
-                            } catch { /* تجاهل */ }
-                        }
-
-                        // ═══ جلب رولونات كل مادة (للسطر المنفتح) ═══
-                        const fetchedItems = (items || []);
-                        const materialIds = [...new Set(
-                            fetchedItems.map((i: any) => i.material_id).filter(Boolean)
-                        )] as string[];
-
-                        if (materialIds.length > 0 && summaryData) {
-                            // جلب الرولونات المبيعة (حالة sold) مرتبطة بالمواد
-                            try {
-                                const { data: rollsData } = await supabase
-                                    .from('fabric_rolls')
-                                    .select('id, roll_number, current_length, status, material_id, color_name')
-                                    .in('material_id', materialIds)
-                                    .in('status', ['sold', 'delivered']);
-
-                                if (rollsData && rollsData.length > 0 && !cancelled) {
-                                    const rollMap: Record<string, any[]> = {};
-                                    for (const r of rollsData) {
-                                        if (!rollMap[r.material_id]) rollMap[r.material_id] = [];
-                                        rollMap[r.material_id].push({
-                                            roll_id: r.id,
-                                            roll_number: r.roll_number,
-                                            length: r.current_length || 0,
-                                            status: r.status,
-                                            color_name: r.color_name || undefined,
-                                        });
-                                    }
-                                    setItemRollsMap(rollMap);
-                                }
-                            } catch { /* تجاهل */ }
-                        }
-                    }
-
-                } else if ((entry.type === 'payment' || entry.type === 'receipt') && refId) {
-                    // ═══ PAYMENT/RECEIPT: Fetch from cash_transactions ═══
-                    const { data: txn, error: txnErr } = await supabase
-                        .from('cash_transactions')
-                        .select(`
-                            id, transaction_number, amount, currency, payment_method,
-                            party_name, description, check_number, check_date,
-                            reference_number, contra_account_id,
-                            reference_type, reference_id
-                        `)
-                        .eq('id', refId)
-                        .single();
-
-                    if (txnErr) throw txnErr;
-
-                    // Get contra account name
-                    let contraName = '';
-                    if (txn?.contra_account_id) {
-                        const { data: acct } = await supabase
-                            .from('chart_of_accounts')
-                            .select('name_ar, name_en')
-                            .eq('id', txn.contra_account_id)
-                            .single();
-                        contraName = isRTL ? (acct?.name_ar || '') : (acct?.name_en || acct?.name_ar || '');
-                    }
-
-                    // Get linked invoice info via reference_id
-                    let linkedInvoiceNo = '';
-                    let linkedInvoiceId = '';
-                    const payRefType = txn?.reference_type || '';
-                    if (txn?.reference_id) {
-                        if (payRefType.includes('purchase')) {
-                            // Try purchase_invoices first
-                            const { data: inv } = await supabase
-                                .from('purchase_invoices')
-                                .select('id, invoice_number')
-                                .eq('id', txn.reference_id)
-                                .maybeSingle();
-                            if (inv) {
-                                linkedInvoiceNo = inv.invoice_number || '';
-                                linkedInvoiceId = inv.id || '';
-                            }
-                        }
-                        if (!linkedInvoiceId && (payRefType.includes('invoice') || payRefType.includes('sales'))) {
-                            // Try sales_transactions
-                            const { data: inv } = await supabase
-                                .from('sales_transactions')
-                                .select('id, invoice_no')
-                                .eq('id', txn.reference_id)
-                                .maybeSingle();
-                            if (inv) {
-                                linkedInvoiceNo = inv.invoice_no || '';
-                                linkedInvoiceId = inv.id || '';
-                            }
-                        }
-                    }
-
-                    if (!cancelled) {
-                        setPaymentDetail({
-                            id: txn.id,
-                            transactionNumber: txn.transaction_number || '',
-                            amount: txn.amount || 0,
-                            currency: txn.currency || currency,
-                            paymentMethod: txn.payment_method || '',
-                            partyName: txn.party_name || '',
-                            description: txn.description || '',
-                            checkNumber: txn.check_number || undefined,
-                            checkDate: txn.check_date || undefined,
-                            referenceNumber: txn.reference_number || undefined,
-                            contraAccountName: contraName || undefined,
-                            linkedInvoiceNo: linkedInvoiceNo || undefined,
-                            linkedInvoiceId: linkedInvoiceId || undefined,
-                        });
-                    }
-
-                } else {
-                    // ═══ JOURNAL ENTRY: Show basic info ═══
-                    if (!cancelled) {
-                        // No extra details to fetch for generic journal entries
-                    }
-                }
-            } catch (err: any) {
-                if (!cancelled) {
-                    console.error('[PartyLedgerExpandedRow] Error:', err);
-                    setError(isRTL ? 'خطأ في تحميل التفاصيل' : 'Error loading details');
-                }
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        };
-
-        loadDetails();
-        return () => { cancelled = true; };
-    }, [entry.entryId, entry.referenceId, entry.type]);
 
     // ═══ Payment Method Labels ═══
     const paymentMethodLabel = (method: string) => {
