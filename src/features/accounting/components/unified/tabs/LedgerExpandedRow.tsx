@@ -40,16 +40,15 @@ export function LedgerExpandedRow({
     const { t, language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
 
-    const preloadedLines = queryClient.getQueryData<EntryDetailLine[]>(['entry_details', String(entry.entryId)]);
-
-    const { data: lines = preloadedLines || [], isLoading: queryIsLoading, error: queryError } = useCachedQuery<EntryDetailLine[]>({
+    const { data: fetchResult = [], isLoading: queryIsLoading, error: queryError } = useCachedQuery<EntryDetailLine[]>({
         queryKey: ['entry_details', String(entry.entryId)],
         queryFn: () => fetchEntryDetails(entry.entryId),
-        initialData: preloadedLines,
-        staleTime: 5 * 60 * 1000, // 5 minutes fresh
+        enabled: !entry.detailLines || entry.detailLines.length === 0,
+        staleTime: Infinity, // 5 minutes fresh
     });
 
-    const loading = !preloadedLines && queryIsLoading;
+    const lines = (entry.detailLines && entry.detailLines.length > 0) ? entry.detailLines : fetchResult;
+    const loading = (!entry.detailLines || entry.detailLines.length === 0) && queryIsLoading;
     const error = queryError ? 'Error loading entry details' : null;
 
     // Entry type info

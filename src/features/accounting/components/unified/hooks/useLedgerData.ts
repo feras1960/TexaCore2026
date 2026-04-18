@@ -27,6 +27,7 @@ export interface CounterAccountInfo {
 // ═══ Extended Ledger Entry with Counter Account ═══
 export interface ExtendedLedgerEntry extends LedgerEntry {
     counterAccount: CounterAccountInfo;
+    detailLines?: EntryDetailLine[];
     // Original values (before currency conversion)
     _originalDebit?: number;
     _originalCredit?: number;
@@ -440,11 +441,12 @@ export async function enrichWithCounterAccounts(
         linesByEntry.get(key)!.push(line);
     });
 
-    // 💡 PRELOAD CACHE: Store full details into React Query for instant expanded row display
-    linesByEntry.forEach((lines, entryId) => {
-        lines.sort((a, b) => (a.line_number || 0) - (b.line_number || 0));
-        
-        const detailLines: EntryDetailLine[] = lines.map((line: any) => ({
+    // Enrich each entry
+    return entries.map(entry => {
+        const journalLines = linesByEntry.get(entry.entryId) || [];
+        journalLines.sort((a, b) => (a.line_number || 0) - (b.line_number || 0));
+
+        const detailLines: EntryDetailLine[] = journalLines.map((line: any) => ({
             id: line.id,
             accountId: line.account_id,
             accountCode: line.chart_of_accounts?.account_code || '',
@@ -455,14 +457,7 @@ export async function enrichWithCounterAccounts(
             description: line.description || '',
             isCurrentAccount: line.account_id === currentAccountId,
         }));
-        
-        // Feed into shared cache (used by LedgerExpandedRow)
-        queryClient.setQueryData(['entry_details', String(entryId)], detailLines);
-    });
 
-    // Enrich each entry
-    return entries.map(entry => {
-        const journalLines = linesByEntry.get(entry.entryId) || [];
         const otherLines = journalLines.filter(l => l.account_id !== currentAccountId);
         const otherLinesCount = otherLines.length;
 
@@ -501,6 +496,7 @@ export async function enrichWithCounterAccounts(
         return {
             ...entry,
             counterAccount,
+            detailLines,
         };
     });
 }
