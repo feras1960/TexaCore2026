@@ -115,7 +115,7 @@ export const fundConfig: DocumentConfig = {
     subtitleKey: 'accounting.fund.subtitle',
     icon: 'Wallet',
     iconColor: 'bg-emerald-600',
-    defaultTab: 'overview',
+    defaultTab: 'ledger',
     supportsModes: ['view', 'edit', 'create'],
     headerFields: ['name', 'type', 'balance', 'currency'],
     tabs: [
