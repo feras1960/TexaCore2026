@@ -137,6 +137,13 @@ export function JournalVoucherTab({
             .order('line_number', { ascending: true })
             .then(async ({ data: rows, error }) => {
                 if (cancelled || error || !rows) return;
+                
+                // ═══ استخراج حساب الصندوق من سطر is_fund_line ═══
+                const fundLine = rows.find((l: any) => l.is_fund_line === true);
+                if (fundLine?.account_id && !fundAccountId) {
+                    setFundAccountId(fundLine.account_id);
+                }
+                
                 const userLines = rows.filter((l: any) => l.is_fund_line !== true);
                 if (userLines.length === 0) return;
 
@@ -252,14 +259,55 @@ export function JournalVoucherTab({
                 });
 
             } else if (isCreate) {
-                setEntryDate(new Date());
-                setReference('');
-                setDescription('');
-                setVoucherNo('');
-                setStatus('draft');
-                setFundAccountId('');
-                // نُهيّئ الصفوف الفارغة مباشرةً بدلاً من ترك الجريد يفعلها (initialEmptyRows تتعارض مع setLines)
-                setLines(Array.from({ length: 8 }, () => createEmptyRow(companyCurrency)));
+                setEntryDate(data?.entry_date ? new Date(data.entry_date) : new Date());
+                setReference(data?.reference || '');
+                setDescription(data?.description || '');
+                setVoucherNo(data?.entry_number || '');
+                setStatus(data?.status || 'draft');
+                setFundAccountId(data?.fund_account_id || '');
+                
+                if (data?.lines && data.lines.length > 0) {
+                    const fundAccId = data.fund_account_id || data.header_account_id || '';
+                    const previewLines = (data.lines || [])
+                    .filter((line: any) => {
+                        if (line.is_fund_line === true) return false;
+                        if (fundAccId && line.account_id === fundAccId) return false;
+                        return true;
+                    })
+                    .map((line: any) => {
+                        const rate = Number(line.exchange_rate) || 1;
+                        const hasFC = rate > 1; // عملة أجنبية
+                        const fcD = Number(line.debit_fc) || 0;
+                        const fcC = Number(line.credit_fc) || 0;
+                        const rawD = Number(line.debit) || 0;
+                        const rawC = Number(line.credit) || 0;
+                        
+                        return {
+                            id: line.id || crypto.randomUUID(),
+                            account_id: line.account_id || '',
+                            account_name: line.account?.name_ar || line.account?.name_en || line.account_name || '',
+                            account_code: line.account?.account_code || line.account?.code || line.account_code || '',
+                            debit:  hasFC ? (fcD > 0 ? fcD : (rawD > 0 ? Math.round(rawD / rate * 100) / 100 : 0)) : rawD,
+                            credit: hasFC ? (fcC > 0 ? fcC : (rawC > 0 ? Math.round(rawC / rate * 100) / 100 : 0)) : rawC,
+                            description: line.description || '',
+                            cost_center_id: line.cost_center_id || '',
+                            cost_center_name: line.cost_center?.name || '',
+                            currency: line.currency || companyCurrency,
+                            exchange_rate: rate,
+                            link_type: line.reference_type || line.link_type || 'none',
+                            invoice_id: line.reference_id || line.invoice_id || '',
+                            invoice_number: '',
+                        };
+                    });
+                    
+                    while (previewLines.length < 8) {
+                        previewLines.push(createEmptyRow(companyCurrency));
+                    }
+                    setLines(previewLines);
+                    setLinesLoading(false);
+                } else {
+                    setLines(Array.from({ length: 8 }, () => createEmptyRow(companyCurrency)));
+                }
             }
             loadedIdRef.current = incomingId;
         }
@@ -1052,12 +1100,17 @@ export function JournalVoucherTab({
             transactionAmount = convertedCredit - convertedDebit;
         }
 
-        const afterBalance = currentBalance + transactionAmount;
+        // ═══ إذا القيد مرحَّل بالفعل، الرصيد الحالي يتضمن هذه الحركة ═══
+        // لا نضيف المبلغ مرة ثانية — نعرض الرصيد كما هو
+        const isPosted = data.status === 'posted' || data.is_posted === true;
+        const effectiveAmount = isPosted ? 0 : transactionAmount;
+
+        const afterBalance = currentBalance + effectiveAmount;
         const willGoNegative = afterBalance < 0 && currentBalance >= 0;
 
         return {
             currentBalance,
-            transactionAmount,
+            transactionAmount: effectiveAmount,
             afterBalance,
             willGoNegative,
             currency: fundBalanceData.currency,
@@ -1066,7 +1119,7 @@ export function JournalVoucherTab({
             isCash: fundBalanceData.isCash,
             isBank: fundBalanceData.isBank,
         };
-    }, [fundBalanceData, lines, docType]);
+    }, [fundBalanceData, lines, docType, data.status, data.is_posted]);
 
 
     return (

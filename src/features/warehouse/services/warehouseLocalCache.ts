@@ -93,49 +93,80 @@ export const warehouseLocalCache = {
      */
     async refreshLooseMaterials(
         companyId: string,
-        warehouseId?: string,
+         warehouseId?: string,
     ): Promise<CachedLooseMaterial[]> {
         try {
-            // 1. Fetch materials
-            const { data: materials, error: matErr } = await supabase
-                .from('fabric_materials')
-                .select('*')
-                .eq('company_id', companyId);
-
-            if (matErr || !materials) return this.getLooseMaterials(companyId, warehouseId).data;
-
-            // 2. Fetch rolls totals
-            const matIds = materials.map(m => m.id);
+            // ⚡ Run ALL queries IN PARALLEL for maximum speed
             let rollsQuery = supabase
                 .from('fabric_rolls')
                 .select('material_id, current_length')
-                .in('material_id', matIds)
+                .eq('company_id', companyId)
                 .in('status', ['available', 'reserved', 'in_stock']);
 
             if (warehouseId) {
                 rollsQuery = rollsQuery.eq('warehouse_id', warehouseId);
             }
 
-            const { data: rolls } = await rollsQuery;
+            const matPromise = supabase
+                .from('fabric_materials')
+                .select('id, name_ar, name_en, current_stock')
+                .eq('company_id', companyId)
+                .then(r => r);
 
-            // 3. Calculate loose stock
+            const rollsPromise = rollsQuery.then(r => r);
+
+            const whStockPromise = warehouseId
+                ? supabase
+                    .from('inventory_stock')
+                    .select('material_id, quantity_on_hand')
+                    .eq('company_id', companyId)
+                    .eq('warehouse_id', warehouseId)
+                    .then(r => r)
+                : Promise.resolve({ data: null, error: null });
+
+            const [matResult, rollsResult, whStockResult] = await Promise.all([
+                matPromise, rollsPromise, whStockPromise,
+            ]);
+
+            if (matResult.error || !matResult.data) return this.getLooseMaterials(companyId, warehouseId).data;
+
+            const materials = matResult.data;
+
+            // Build warehouse-specific stock map
+            const whStockMap: Record<string, number> = {};
+            if (whStockResult?.data) {
+                for (const row of whStockResult.data) {
+                    const mid = row.material_id;
+                    const qty = Number(row.quantity_on_hand) || 0;
+                    whStockMap[mid] = (whStockMap[mid] || 0) + qty;
+                }
+            }
+
+            // Calculate rolls total per material
             const rollsTotals: Record<string, number> = {};
-            for (const r of (rolls || [])) {
+            for (const r of (rollsResult.data || [])) {
                 const mid = (r as any).material_id;
                 rollsTotals[mid] = (rollsTotals[mid] || 0) + (Number((r as any).current_length) || 0);
             }
 
+            // Calculate loose stock per material
             const result: CachedLooseMaterial[] = materials
-                .map(m => ({
-                    id: m.id,
-                    name_ar: m.name_ar || '',
-                    name_en: m.name_en || '',
-                    loose_stock: Math.max(0, (Number(m.current_stock) || 0) - (rollsTotals[m.id] || 0)),
-                    current_stock: Number(m.current_stock) || 0,
-                }))
-                .filter(m => m.loose_stock > 0);
+                .map((m: any) => {
+                    const stock = warehouseId
+                        ? (whStockMap[m.id] ?? 0)
+                        : (Number(m.current_stock) || 0);
+                    const rolledTotal = rollsTotals[m.id] || 0;
+                    const looseStock = Math.max(0, stock - rolledTotal);
+                    return {
+                        id: m.id,
+                        name_ar: m.name_ar || '',
+                        name_en: m.name_en || '',
+                        loose_stock: looseStock,
+                        current_stock: stock,
+                    };
+                })
+                .filter((m: any) => m.loose_stock > 0);
 
-            // 4. Cache it
             this.saveLooseMaterials(companyId, warehouseId, result);
             return result;
         } catch (err: any) {

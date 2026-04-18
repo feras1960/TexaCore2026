@@ -244,6 +244,7 @@ export const journalEntriesService = {
         description: input.description,
         reference_type: input.reference_type || null,
         reference_id: input.reference_id || null,
+        fund_account_id: input.fund_account_id || null,
         total_debit: Math.round(totalDebit * 100) / 100,
         total_credit: Math.round(totalCredit * 100) / 100,
         status: input.status || 'draft',
@@ -295,7 +296,9 @@ export const journalEntriesService = {
         party_id: line.party_id || null,
         currency: line.currency || null,
         exchange_rate: rate,
-        is_fund_line: line.is_fund_line === true,  // ← علامة سطر الصندوق التلقائي
+        is_fund_line: line.is_fund_line === true,
+        reference_type: line.reference_type || line.link_type || null,
+        reference_id: line.reference_id || line.invoice_id || null,
       };
     });
 
@@ -409,6 +412,7 @@ export const journalEntriesService = {
           description: updates.description,
           entry_date: updates.entry_date,
           entry_type: updates.entry_type,
+          ...(updates.fund_account_id !== undefined ? { fund_account_id: updates.fund_account_id } : {}),
           ...(newStatus ? {
             status: newStatus,
             is_posted: isNowPosted,
@@ -450,7 +454,9 @@ export const journalEntriesService = {
           party_id: line.party_id || null,
           currency: line.currency || null,
           exchange_rate: rate,
-          is_fund_line: line.is_fund_line === true,  // ← علامة سطر الصندوق
+          is_fund_line: line.is_fund_line === true,
+          reference_type: line.reference_type || line.link_type || null,
+          reference_id: line.reference_id || line.invoice_id || null,
         };
       });
 

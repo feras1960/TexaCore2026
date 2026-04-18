@@ -241,11 +241,55 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
     const isContainer = data.docType === 'trade_container' || data.subType === 'container' || data.type === 'trade_container';
     // For sales: delivered, posted, in_delivery
     // For purchases: received, partially_received, in_receiving, posted
-    const purchaseReceiptStages = ['received', 'partially_received', 'in_receiving', 'posted'];
-    const salesDeliveryStages = ['delivered', 'posted', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch'];
+    const purchaseReceiptStages = ['received', 'partially_received', 'in_receiving', 'posted', 'partial_paid', 'paid'];
+    const salesDeliveryStages = ['delivered', 'posted', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'partial_paid', 'paid'];
     const isDeliveredStage = tradeMode === 'purchase'
         ? purchaseReceiptStages.includes(data.stage || '')
         : salesDeliveryStages.includes(data.stage || '');
+
+    // ─── Fetch delivered rolls from inventory_movements (CACHED) ───
+    const { data: deliveryRollsByMaterial = {} } = useCachedQuery<Record<string, any[]>>({
+        queryKey: ['delivery_rolls', data.id],
+        queryFn: async () => {
+            const invoiceId = data.id;
+            // 1. Fetch movements linked to this invoice
+            const { data: movements } = await supabase
+                .from('inventory_movements')
+                .select('roll_id, material_id, quantity, movement_type')
+                .eq('reference_id', invoiceId)
+                .in('movement_type', ['sale', 'issue', 'delivery', 'transfer_out']);
+            if (!movements || movements.length === 0) return {};
+
+            // 2. Fetch roll details
+            const rollIds = movements.map(m => m.roll_id).filter(Boolean);
+            if (rollIds.length === 0) return {};
+            const { data: rolls } = await supabase
+                .from('fabric_rolls')
+                .select('id, roll_number, material_id, current_length, color_name, status');
+            // filter in-memory to avoid .in() limit issues
+            const rollMap = new Map((rolls || []).filter(r => rollIds.includes(r.id)).map(r => [r.id, r]));
+
+            // 3. Group by material_id
+            const grouped: Record<string, any[]> = {};
+            for (const mv of movements) {
+                if (!mv.roll_id) continue;
+                const roll = rollMap.get(mv.roll_id);
+                if (!roll) continue;
+                const matId = mv.material_id || roll.material_id;
+                if (!grouped[matId]) grouped[matId] = [];
+                grouped[matId].push({
+                    roll_id: roll.id,
+                    roll_number: roll.roll_number || roll.id.slice(0, 8),
+                    length: mv.quantity || roll.current_length || 0,
+                    status: roll.status || 'sold',
+                    color_name: roll.color_name || '',
+                });
+            }
+            return grouped;
+        },
+        enabled: isDeliveredStage && !!data.id,
+        staleTime: Infinity, // ♾️ rolls NEVER change after delivery — cache forever
+    });
 
     // ─── Fetch real customers from Supabase ───
     const { data: customersList = [] } = useCachedQuery({
@@ -574,6 +618,14 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
 
     // Summary values for collapsed state
     const partyName = data.party_name || data.supplier_name || data.customer_name || '';
+    // Resolve customer name from customersList when party_name/customer_name is empty
+    const resolvedCustomerName = useMemo(() => {
+        if (partyName) return partyName;
+        const pid = data.party_id || data.customer_id || data.supplier_id;
+        if (!pid || !customersList.length) return '';
+        const found = customersList.find((c: any) => c.id === pid);
+        return found?.name || '';
+    }, [partyName, data.party_id, data.customer_id, data.supplier_id, customersList]);
     const docDate = data.doc_date || data.date || '';
     const docCurrency = data.currency || companyCurrency || '';
     const docTotal = Number(data.total_amount || data.grand_total || 0);
@@ -797,18 +849,102 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                 />
             )}
 
-            {/* ═══ Sales Delivery Progress — Real-time ═══ */}
-            {tradeMode === 'sales' && data.id && ['in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivered', 'confirmed'].includes(data.stage || '') && (
+            {/* ═══ Sales Delivery Progress — Real-time (non-delivered) ═══ */}
+            {tradeMode === 'sales' && data.id && ['in_delivery', 'confirmed'].includes(data.stage || '') && (
                 <DeliveryProgressBanner
                     invoiceId={data.id}
                     stage={data.stage || 'confirmed'}
                     initialDraft={data.delivery_draft}
                     items={resolvedItems}
+                    customerName={resolvedCustomerName}
                 />
             )}
 
-            {/* ═══ STATUS BAR — حالات الفاتورة ═══ */}
-            {mode === 'view' && !isTransfer && data.stage && data.stage !== 'draft' && (() => {
+            {/* ═══ UNIFIED DELIVERY STATUS — compact bar for delivered/in_transit sales ═══ */}
+            {tradeMode === 'sales' && isDeliveredStage && (() => {
+                const totalAmt = Number(data.total_amount || data.grand_total || 0);
+                const paidAmt = Number(data.paid_amount || 0);
+                const payStatus = paidAmt >= totalAmt && totalAmt > 0 ? 'paid' : paidAmt > 0 ? 'partial' : 'unpaid';
+                const isPosted = !!(data.journal_entry_id || data.posted_at || data.is_posted || data.stage === 'posted');
+                const warehouseName = resolvedDeliveryWhName;
+                // Calculate rolls from deliveryRollsByMaterial
+                const totalRolls = Object.values(deliveryRollsByMaterial).reduce((s, arr) => s + arr.length, 0);
+                const deliveredMeters = resolvedItems.reduce((s: number, i: any) => s + Number(i.delivered_qty || 0), 0);
+                const expectedMeters = resolvedItems.reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
+
+                const stageConfig: Record<string, { icon: string; label: string; color: string; border: string }> = {
+                    in_transit: { icon: '🚚', label: isRTL ? 'بالطريق للفرع' : 'In Transit', color: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+                    sent_to_branch: { icon: '🚚', label: isRTL ? 'أُرسل للفرع' : 'Sent to Branch', color: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+                    at_branch: { icon: '🏪', label: isRTL ? 'في الفرع' : 'At Branch', color: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+                    delivered: { icon: '✅', label: isRTL ? 'تم التسليم' : 'Delivered', color: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+                    posted: { icon: '✅', label: isRTL ? 'مسلّمة ومرحّلة' : 'Delivered & Posted', color: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+                    in_delivery: { icon: '🚛', label: isRTL ? 'قيد التحميل' : 'Loading', color: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+                    partial_paid: { icon: '⏳', label: isRTL ? 'مسلّمة — مدفوعة جزئياً' : 'Delivered — Partially Paid', color: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+                    paid: { icon: '💰', label: isRTL ? 'مسلّمة ومدفوعة بالكامل' : 'Delivered & Fully Paid', color: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+                };
+                const sc = stageConfig[data.stage] || stageConfig.delivered;
+
+                const payBadge = {
+                    paid: { label: isRTL ? 'مدفوعة ✓' : 'Paid ✓', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+                    partial: { label: isRTL ? 'مدفوعة جزئياً' : 'Partial', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+                    unpaid: { label: isRTL ? 'غير مدفوعة' : 'Unpaid', cls: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' },
+                }[payStatus];
+
+                return (
+                    <div className={cn(
+                        "flex items-center gap-2.5 flex-wrap rounded-lg px-4 py-2.5 border-2 shadow-sm",
+                        sc.border,
+                        "bg-gradient-to-r from-white to-gray-50/80 dark:from-gray-900 dark:to-gray-800/80"
+                    )}>
+                        {/* Stage + Customer */}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-base">{sc.icon}</span>
+                            <span className={cn("text-sm font-bold", sc.color)}>{sc.label}</span>
+                            {resolvedCustomerName && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                    — 👤 {resolvedCustomerName}
+                                </span>
+                            )}
+                        </div>
+
+                        <span className="text-gray-300 dark:text-gray-600">|</span>
+
+                        {/* Rolls + Meters */}
+                        <div className="flex items-center gap-1.5">
+                            <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 gap-0.5">
+                                📦 {totalRolls} {isRTL ? 'رولون' : 'rolls'}
+                            </Badge>
+                            <Badge className="text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 gap-0.5 font-mono">
+                                {deliveredMeters.toFixed(1)}/{expectedMeters.toFixed(1)} {isRTL ? 'م' : 'm'}
+                            </Badge>
+                        </div>
+
+                        <span className="text-gray-300 dark:text-gray-600">|</span>
+
+                        {/* Payment */}
+                        <Badge className={cn('text-[10px] gap-0.5', payBadge.cls)}>
+                            {payBadge.label}
+                        </Badge>
+
+                        {/* Posting */}
+                        {isPosted && (
+                            <Badge className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 gap-0.5">
+                                {isRTL ? 'مرحَّل ✓' : 'Posted ✓'}
+                            </Badge>
+                        )}
+
+                        {/* Warehouse */}
+                        {warehouseName && (
+                            <Badge className="text-[10px] bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 gap-0.5">
+                                🏢 {warehouseName}
+                            </Badge>
+                        )}
+                    </div>
+                );
+            })()}
+
+            {/* ═══ STATUS BAR — حالات الفاتورة (non-sales-delivered only) ═══ */}
+            {mode === 'view' && !isTransfer && data.stage && data.stage !== 'draft' && !(tradeMode === 'sales' && isDeliveredStage) && (() => {
                 const totalAmt = Number(data.total_amount || data.grand_total || 0);
                 const paidAmt = Number(data.paid_amount || 0);
                 const payStatus: 'paid' | 'partial' | 'unpaid' =
@@ -927,15 +1063,15 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                     />
                 ) : (
                     <>
-                        {/* ═══ Original Invoice Section — always on top ═══ */}
-                        {isDeliveredStage ? (
+                        {/* ═══ Original Invoice Section — hidden for sales delivery (shown in DeliveryOutputView) ═══ */}
+                        {isDeliveredStage && tradeMode === 'sales' ? (
+                            null /* Sales delivery: original items shown inside DeliveryOutputView below */
+                        ) : isDeliveredStage ? (
                             <Collapsible defaultOpen={false}>
                                 <CollapsibleTrigger className="flex items-center gap-2 w-full px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800/40 dark:to-gray-800/20 rounded-lg border border-gray-200 dark:border-gray-700 hover:from-gray-100 hover:to-slate-100 dark:hover:from-gray-800/60 dark:hover:to-gray-800/40 transition-colors group">
                                     <StickyNote className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                                     <span className="text-sm font-bold text-gray-600 dark:text-gray-300">
-                                        {tradeMode === 'purchase'
-                                            ? (isRTL ? 'الفاتورة الأصلية — البنود المطلوبة' : 'Original Invoice — Ordered Items')
-                                            : (isRTL ? 'الفاتورة الأصلية — البنود المحجوزة' : 'Original Invoice — Reserved Items')}
+                                        {isRTL ? 'الفاتورة الأصلية — البنود المطلوبة' : 'Original Invoice — Ordered Items'}
                                     </span>
                                     <ChevronDown className="w-4 h-4 text-gray-400 ms-auto transition-transform group-data-[state=closed]:rotate-[-90deg]" />
                                 </CollapsibleTrigger>
@@ -973,7 +1109,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
 
                         {/* ═══ Delivery/Receipt Output Section — appears after delivery/receipt, below original invoice ═══ */}
                         {isDeliveredStage && (
-                            <Collapsible defaultOpen={false}>
+                            <Collapsible defaultOpen={true}>
                                 <CollapsibleTrigger className={cn(
                                     "flex items-center gap-2 w-full px-4 py-3 rounded-lg border transition-colors group",
                                     tradeMode === 'purchase'
@@ -993,7 +1129,7 @@ export const TradeMainTab: React.FC<TradeMainTabProps> = ({
                                         items={(lineItems as any[]).map(item => ({
                                             ...item,
                                             delivered_qty: (item as any).delivered_qty || 0,
-                                            delivery_rolls: (item as any).delivery_rolls || [],
+                                            delivery_rolls: deliveryRollsByMaterial[(item as any).material_id] || (item as any).delivery_rolls || [],
                                         }))}
                                         currency={data.currency || companyCurrency || 'SAR'}
                                         tradeMode={tradeMode as 'sales' | 'purchase'}

@@ -16,6 +16,7 @@ interface DeliveryProgressBannerProps {
     stage: string;
     initialDraft?: any;
     items: any[];  // Invoice line items (for expected quantities)
+    customerName?: string;
 }
 
 export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
@@ -23,6 +24,7 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
     stage,
     initialDraft,
     items,
+    customerName,
 }) => {
     const { isRTL } = useLanguage();
     const [deliveryDraft, setDeliveryDraft] = useState<any>(initialDraft || null);
@@ -96,6 +98,11 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
                             <span className={cn("text-sm font-semibold", config.textColor)}>
                                 {config.label}
                             </span>
+                            {customerName && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                    — 👤 {customerName}
+                                </span>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -118,6 +125,11 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
                             <span className={cn("text-sm font-bold", stageConfig.textColor)}>
                                 {stageConfig.label}
                             </span>
+                            {customerName && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                    — 👤 {customerName}
+                                </span>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                             <Badge className={cn("text-xs", stageConfig.badgeBg)}>
@@ -219,6 +231,11 @@ export const DeliveryProgressBanner: React.FC<DeliveryProgressBannerProps> = ({
                         <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
                             {bannerConfig.label}
                         </span>
+                        {customerName && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                — 👤 {customerName}
+                            </span>
+                        )}
                         <span className="relative flex h-2 w-2">
                             <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", bannerConfig.dot)} />
                             <span className={cn("relative inline-flex rounded-full h-2 w-2", bannerConfig.dot)} />

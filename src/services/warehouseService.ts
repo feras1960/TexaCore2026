@@ -755,6 +755,29 @@ export const warehouseService = {
                 }
             }
 
+            // Fetch true total stock from inventory_stock (active warehouses only!)
+            let overallStockMap = new Map<string, number>();
+            const { data: stockData, error: stockError } = await supabase
+                .from('inventory_stock')
+                .select(`
+                    material_id, 
+                    quantity_on_hand,
+                    warehouses!inner (
+                        is_active
+                    )
+                `)
+                .eq('warehouses.is_active', true)
+                .in('material_id', materialIds);
+
+            if (!stockError && stockData) {
+                stockData.forEach((row: any) => {
+                    const mId = row.material_id;
+                    if (!mId) return;
+                    const qty = Number(row.quantity_on_hand) || 0;
+                    overallStockMap.set(mId, (overallStockMap.get(mId) || 0) + qty);
+                });
+            }
+
             // Merge stats with materials
             // Default stats if none found
             const materialsWithStats = data.map((material: any) => {
@@ -762,14 +785,22 @@ export const warehouseService = {
                 const rolls_count = stat?.rolls_count || 0;
                 const rolls_total_length = stat?.rolls_total_length || 0;
 
+                // Use inventory_stock as truth if we have entries or it's > 0, else fallback to fabric_materials.current_stock
+                const totalStockQty = overallStockMap.has(material.id) ? overallStockMap.get(material.id)! : 0;
+                const finalCurrentStock = (totalStockQty > 0 || overallStockMap.has(material.id))
+                    ? Math.max(totalStockQty, rolls_total_length)
+                    : Math.max(material.current_stock || 0, rolls_total_length);
+
                 return {
                     ...material,
+                    // Output the reconciled actual stock
+                    current_stock: finalCurrentStock,
                     // Map status → is_active for UI compatibility
                     is_active: material.status !== 'inactive',
                     rolls_count,
                     rolls_total_length,
                     // Calculate loose stock (Total - Rolled)
-                    loose_stock: Math.max(0, (material.current_stock || 0) - rolls_total_length)
+                    loose_stock: Math.max(0, finalCurrentStock - rolls_total_length)
                 };
             });
 
@@ -1515,10 +1546,10 @@ export const warehouseService = {
         try {
             const { data: salesInvoices, error: salesError } = await supabase
                 .from('sales_transactions')
-                .select('id, invoice_no, draft_no, doc_date, customer_id, customer_name, total_amount, currency, stage, warehouse_id, delivery_draft, delivery_method, created_at, updated_at')
+                .select('id, invoice_no, draft_no, doc_date, customer_id, customer_name, total_amount, currency, stage, warehouse_id, delivery_draft, delivery_method, receiving_branch_name, created_at, updated_at')
                 .eq('company_id', companyId)
                 .eq('is_active', true)
-                .in('stage', ['confirmed', 'in_delivery'])  // Confirmed + being loaded
+                .in('stage', ['confirmed', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch'])  // Confirmed + being loaded + in transit to branch
                 .order('updated_at', { ascending: false });
 
             if (salesError) {
@@ -1566,7 +1597,11 @@ export const warehouseService = {
                         currency: inv.currency,
                         receipt_id: null,
                         receipt_number: null,
-                        receipt_status: inv.stage === 'in_delivery' ? 'in_progress' : 'none',
+                        receipt_status: inv.stage === 'in_delivery' ? 'in_progress'
+                            : ['in_transit', 'sent_to_branch'].includes(inv.stage) ? 'in_progress'
+                            : inv.stage === 'at_branch' ? 'completed'
+                            : 'none',
+                        receiving_branch_name: inv.receiving_branch_name || '',
                         receipt_date: null,
                         pending_since: inv.updated_at || inv.created_at,
                         receipt_created_at: null,

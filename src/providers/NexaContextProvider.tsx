@@ -61,30 +61,32 @@ export function NexaContextProvider({ children, isAr }: { children: React.ReactN
   const [hasNewInsight, setHasNewInsight] = useState(false);
   const { companyId } = useAuth();
 
-  // 🔥 Cache + Edge Function Warming on app start
+  // ── Feature flag: set to true only when nexa-agent Edge Function is deployed ──
+  const NEXA_EDGE_ENABLED = false;
+
+  // 🔥 Cache Warming on app start (DB only — Edge Function warming skipped if not deployed)
   useEffect(() => {
     if (!companyId) return;
     const cacheKey = `nexa_cache_warmed_${companyId}`;
     if (sessionStorage.getItem(cacheKey)) return; // Already warmed this session
     sessionStorage.setItem(cacheKey, '1');
-    console.log('[NexaPro] 🔥 Warming AI cache + Edge Function...');
 
-    // 1. Warm the DB cache
+    // 1. Warm the DB cache (always runs)
     Promise.resolve(supabase.rpc('refresh_company_insights', { p_company_id: companyId }))
-      .then(() => console.log('[NexaPro] ✅ DB Cache warmed!'))
-      .catch((e: any) => console.log('[NexaPro] Cache warm failed:', e?.message));
+      .catch(() => {/* ignore if RPC not available */});
 
-    // 2. Warm the Edge Function (eliminates cold start)
-    supabase.functions.invoke('nexa-agent', {
-      body: { message: 'ping', language: 'ar', context_type: 'general', complexity: 'flash-lite', company_id: companyId },
-    }).then(() => console.log('[NexaPro] ✅ Edge Function warmed!'))
-      .catch(() => {/* ignore warm-up errors */});
+    // 2. Warm the Edge Function only when deployed
+    if (NEXA_EDGE_ENABLED) {
+      supabase.functions.invoke('nexa-agent', {
+        body: { message: 'ping', language: 'ar', context_type: 'general', complexity: 'flash-lite', company_id: companyId },
+      }).catch(() => {/* ignore warm-up errors */});
+    }
   }, [companyId]);
 
-  // 🔄 Keep-Alive: ping Edge Function every 4 minutes to prevent cold shutdown
+  // 🔄 Keep-Alive: ping Edge Function every 4 minutes (only when deployed)
   useEffect(() => {
-    if (!companyId) return;
-    const KEEP_ALIVE_MS = 4 * 60 * 1000; // 4 minutes
+    if (!companyId || !NEXA_EDGE_ENABLED) return;
+    const KEEP_ALIVE_MS = 4 * 60 * 1000;
     const interval = setInterval(() => {
       supabase.functions.invoke('nexa-agent', {
         body: { message: 'ping', language: 'ar', context_type: 'general', complexity: 'flash-lite', company_id: companyId },

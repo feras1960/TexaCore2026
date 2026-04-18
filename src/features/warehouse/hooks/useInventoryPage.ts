@@ -350,10 +350,22 @@ export function useInventoryPage() {
                 row.avg_cost_per_meter = acc.totalCost / acc.count;
                 row.total_stock_value = acc.totalCost;
             }
+            const stockEntries = stockByMaterial.get(matId);
+            let totalStockQty = 0;
+            if (stockEntries && stockEntries.length > 0) {
+                totalStockQty = stockEntries.reduce((s, e) => s + e.qty, 0);
+            }
+
+            // Reliable source of truth for total stock is inventory_stock or fallback to fabric_materials
+            if (totalStockQty > 0 || (stockEntries && stockEntries.length > 0)) {
+                row.current_stock = Math.max(totalStockQty, row.total_meters);
+            } else {
+                row.current_stock = Math.max(row.current_stock, row.total_meters);
+            }
+            
             row.loose_stock = Math.max(0, row.current_stock - row.total_meters);
 
             // For materials with loose stock but no rolls, use inventory_stock for warehouse_count & value
-            const stockEntries = stockByMaterial.get(matId);
             if (stockEntries && stockEntries.length > 0) {
                 // warehouse_count: combine roll warehouses + stock warehouses
                 const allWhIds = new Set<string>(warehouseTracker.get(matId) || []);

@@ -45,6 +45,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import type { DocType } from '@/components/sheets/configs/sheet.types';
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfDay, format, formatDistanceToNow } from 'date-fns';
@@ -71,6 +72,8 @@ const STAGE_TO_CYCLE: Record<string, CycleType> = {
     posted: 'delivery',         // مرحَّلة = مسلَّمة ومرحَّلة
     in_delivery: 'delivery',    // قيد التسليم
     in_transit: 'delivery',      // بالطريق للفرع
+    sent_to_branch: 'delivery', // أُرسلت للفرع
+    at_branch: 'delivery',      // بالفرع
     in_receiving: 'confirmed',
     delivery: 'delivery',
     delivered: 'delivery',      // تم التسليم
@@ -99,6 +102,8 @@ const STAGE_STYLES: Record<string, {
     posted: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500', labelAr: 'مسلّمة ومرحّلة', labelEn: 'Delivered & Posted' },
     in_delivery: { bg: 'bg-sky-50 dark:bg-sky-950/30', text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500', labelAr: 'قيد التسليم', labelEn: 'In Delivery' },
     in_transit: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500', labelAr: 'بالطريق للفرع', labelEn: 'In Transit' },
+    sent_to_branch: { bg: 'bg-violet-50 dark:bg-violet-950/30', text: 'text-violet-700 dark:text-violet-400', dot: 'bg-violet-500', labelAr: 'أُرسلت للفرع', labelEn: 'Sent to Branch' },
+    at_branch: { bg: 'bg-purple-50 dark:bg-purple-950/30', text: 'text-purple-700 dark:text-purple-400', dot: 'bg-purple-500', labelAr: 'بالفرع', labelEn: 'At Branch' },
     in_receiving: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', dot: 'bg-cyan-500', labelAr: 'قيد الاستلام', labelEn: 'In Receiving' },
     delivery: { bg: 'bg-orange-50 dark:bg-orange-950/30', text: 'text-orange-700 dark:text-orange-400', dot: 'bg-orange-500', labelAr: 'تسليم', labelEn: 'Delivery' },
     delivered: { bg: 'bg-teal-50 dark:bg-teal-950/30', text: 'text-teal-700 dark:text-teal-400', dot: 'bg-teal-500', labelAr: 'تم التسليم', labelEn: 'Delivered' },
@@ -125,6 +130,8 @@ const STAGE_ACCENT: Record<string, string> = {
     posted: 'border-s-emerald-400',
     in_delivery: 'border-s-sky-400',
     in_transit: 'border-s-indigo-400',
+    sent_to_branch: 'border-s-violet-400',
+    at_branch: 'border-s-purple-400',
     in_receiving: 'border-s-cyan-400',
     delivery: 'border-s-orange-400',
     delivered: 'border-s-teal-400',
@@ -191,6 +198,19 @@ export default function SalesCycleList() {
     const [selectedDoc, setSelectedDoc] = useState<SalesDocument | null>(null);
     const [docMode, setDocMode] = useState<'view' | 'create' | 'edit'>('view');
     const [newDocType, setNewDocType] = useState<CycleType>('order');
+
+    // ─── External Doc (Receipt/Payment) Overlay ───
+    const [externalDoc, setExternalDoc] = useState<any>(null);
+
+    useEffect(() => {
+        const handleOpenExternalDoc = (e: any) => {
+            if (e.detail) {
+                setExternalDoc({ ...e.detail });
+            }
+        };
+        window.addEventListener('open-external-document', handleOpenExternalDoc);
+        return () => window.removeEventListener('open-external-document', handleOpenExternalDoc);
+    }, []);
 
     // Currency selection with persistence
     const [selectedCurrency, setSelectedCurrency] = useState<string>(() => {
@@ -379,7 +399,7 @@ export default function SalesCycleList() {
         reservation: ['reservation'],
         order: ['order'],
         confirmed: ['confirmed', 'in_receiving', 'partially_received', 'fully_received'],
-        delivery: ['in_delivery', 'in_transit', 'delivery', 'delivered', 'posted', 'completed'],
+        delivery: ['in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivery', 'delivered', 'posted', 'completed'],
         invoice: ['invoice', 'invoiced', 'paid', 'partial_paid', 'partially_paid', 'closed'],
         return: ['return', 'cancelled'],
     }), []);
@@ -547,7 +567,7 @@ export default function SalesCycleList() {
             }
 
             toast.success(t('salesCycle.documentSaved'));
-            queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+            await queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
             setIsSheetOpen(false);
             setSelectedDoc(null);
         } catch (err: any) {
@@ -596,7 +616,7 @@ export default function SalesCycleList() {
             }
 
             toast.success(t('salesCycle.documentCreated'));
-            queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+            await queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
             setIsSheetOpen(false);
             setSelectedDoc(null);
         } catch (err: any) {
@@ -1000,14 +1020,34 @@ export default function SalesCycleList() {
                                     header: isRTL ? 'الحالة' : 'Status',
                                     cell: (row) => {
                                         const style = STAGE_STYLES[row.stage] || STAGE_STYLES[row.status] || STAGE_STYLES.draft;
+                                        const raw = row._rawData || {};
+                                        const showBranchInfo = ['in_transit', 'at_branch', 'sent_to_branch'].includes(row.stage);
+                                        const branchName = raw.receiving_branch_name || '';
+                                        const customerName = (row as any).customer_name_display || row.customer_name || raw.customer_name || '';
                                         return (
-                                            <span className={cn(
-                                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap",
-                                                style.bg, style.text
-                                            )}>
-                                                <span className={cn("w-1.5 h-1.5 rounded-full", style.dot)} />
-                                                {isRTL ? style.labelAr : style.labelEn}
-                                            </span>
+                                            <div className="flex flex-col items-center gap-0.5">
+                                                <span className={cn(
+                                                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap",
+                                                    style.bg, style.text
+                                                )}>
+                                                    <span className={cn("w-1.5 h-1.5 rounded-full", style.dot)} />
+                                                    {isRTL ? style.labelAr : style.labelEn}
+                                                </span>
+                                                {showBranchInfo && (branchName || customerName) && (
+                                                    <div className="flex flex-col items-center gap-0 mt-0.5">
+                                                        {branchName && (
+                                                            <span className="text-[9px] text-indigo-500 font-medium truncate max-w-[120px]">
+                                                                🏢 {branchName}
+                                                            </span>
+                                                        )}
+                                                        {customerName && (
+                                                            <span className="text-[9px] text-gray-400 font-medium truncate max-w-[120px]">
+                                                                👤 {customerName}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         );
                                     },
                                 },
@@ -1207,15 +1247,53 @@ export default function SalesCycleList() {
                                     toast.error(isRTL ? `خطأ في التحويل: ${result.error}` : `Stage error: ${result.error}`);
                                     return;
                                 }
-                                toast.success(isRTL ? `تم التحويل إلى ${targetStage} ✅` : `Advanced to ${targetStage} ✅`);
-                                queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+
+                                // ⚡ تسليم + ترحيل فوري: عند تأكيد التسليم للعميل → ننشئ القيد المحاسبي تلقائياً
+                                if (targetStage === 'delivered') {
+                                    toast.success(isRTL ? 'تم تأكيد التسليم ✅ جارٍ الترحيل المحاسبي...' : 'Delivery confirmed ✅ Posting to accounting...');
+                                    const postResult = await postSalesInvoice(selectedDoc.id);
+                                    if (postResult.success) {
+                                        toast.success(isRTL ? '✅ تم الترحيل المحاسبي وإنشاء القيد بنجاح' : '✅ Journal entry created and posted');
+                                    } else {
+                                        toast.error(isRTL ? `⚠️ تم التسليم لكن فشل الترحيل: ${postResult.error}` : `⚠️ Delivered but posting failed: ${postResult.error}`);
+                                    }
+                                } else {
+                                    toast.success(isRTL ? `تم التحويل إلى ${targetStage} ✅` : `Advanced to ${targetStage} ✅`);
+                                }
+
+                                // ⚡ Close sheet immediately for instant UX
                                 setIsSheetOpen(false);
                                 setSelectedDoc(null);
+                                // ⚡ Invalidate + refetch in parallel (background — non-blocking)
+                                Promise.all([
+                                    queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] }),
+                                    queryClient.invalidateQueries({ queryKey: ['delivery_rolls'] }),
+                                    queryClient.invalidateQueries({ queryKey: ['party_balances'] }),
+                                ]).then(() =>
+                                    queryClient.refetchQueries({ queryKey: ['sales_cycle_full'], type: 'active' })
+                                );
                             } catch (err: any) {
                                 toast.error(isRTL ? `خطأ: ${err.message}` : `Error: ${err.message}`);
                             }
                         } : undefined}
                         onRefresh={() => queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] })}
+                    />
+                )}
+
+                {/* Independent Overlay for Receipts/Payments triggered from inside the Main Sheet */}
+                {externalDoc && (
+                    <UnifiedAccountingSheet
+                        isOpen={true}
+                        onClose={() => setExternalDoc(null)}
+                        docType={externalDoc.type}
+                        mode="create"
+                        data={externalDoc.data}
+                        companyId={companyId || undefined}
+                        tradeMode={externalDoc.type === 'receipt' ? 'sales' : 'purchase'}
+                        onRefresh={() => {
+                            queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+                            queryClient.invalidateQueries({ queryKey: ['party_balances'] });
+                        }}
                     />
                 )}
             </div>

@@ -13,6 +13,7 @@ import { accountLedgerService, LedgerEntry, AccountStats, LedgerFilters } from '
 import { supabase } from '@/lib/supabase';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { CACHE_TIMES } from '@/engine/DataEngine';
+import { queryClient } from '@/app/providers';
 
 // ═══ Counter Account Info ═══
 export interface CounterAccountInfo {
@@ -409,8 +410,13 @@ export async function enrichWithCounterAccounts(
             .select(`
                 id,
                 entry_id,
+                line_number,
                 account_id,
+                debit,
+                credit,
+                description,
                 chart_of_accounts (
+                    id,
                     account_code,
                     name_ar,
                     name_en
@@ -432,6 +438,26 @@ export async function enrichWithCounterAccounts(
         const key = line.entry_id;
         if (!linesByEntry.has(key)) linesByEntry.set(key, []);
         linesByEntry.get(key)!.push(line);
+    });
+
+    // 💡 PRELOAD CACHE: Store full details into React Query for instant expanded row display
+    linesByEntry.forEach((lines, entryId) => {
+        lines.sort((a, b) => (a.line_number || 0) - (b.line_number || 0));
+        
+        const detailLines: EntryDetailLine[] = lines.map((line: any) => ({
+            id: line.id,
+            accountId: line.account_id,
+            accountCode: line.chart_of_accounts?.account_code || '',
+            accountNameAr: line.chart_of_accounts?.name_ar || '',
+            accountNameEn: line.chart_of_accounts?.name_en || '',
+            debit: line.debit || 0,
+            credit: line.credit || 0,
+            description: line.description || '',
+            isCurrentAccount: line.account_id === currentAccountId,
+        }));
+        
+        // Feed into shared cache (used by LedgerExpandedRow)
+        queryClient.setQueryData(['entry_details', String(entryId)], detailLines);
     });
 
     // Enrich each entry

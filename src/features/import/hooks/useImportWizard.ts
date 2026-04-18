@@ -32,6 +32,14 @@ export type WizardStep =
 
 export type WarehouseBreakdown = Record<string, { warehouse_code: string; warehouse_id?: string; warehouse_name?: string; qty: number; unit_cost: number }[]>;
 export interface WarehouseInfo { id: string; code: string; name_ar: string; name_en?: string; name_ru?: string; name_uk?: string; name_tr?: string }
+export interface BranchInfo { id: string; code: string; name_ar: string; name_en?: string }
+export interface WarehouseResolution {
+  action: 'create' | 'map';
+  target?: string;          // warehouse_id to map to (when action='map')
+  name_ar?: string;         // overridden display name
+  branch_id?: string;       // branch to assign when creating
+  warehouse_type?: string;  // 'regular' | 'offline_market' | 'van'
+}
 
 export interface WizardState {
   currentStep: WizardStep;
@@ -49,6 +57,12 @@ export interface WizardState {
   // Multi-warehouse support
   warehouseBreakdown: WarehouseBreakdown;
   warehouseList: WarehouseInfo[];
+  /** Names/codes found in file that have no match in system warehouses */
+  missingWarehouses: string[];
+  /** User decision for each missing warehouse: create new or map to existing */
+  warehouseResolutions: Record<string, WarehouseResolution>;
+  /** Branches available in system for warehouse creation */
+  branchList: BranchInfo[];
 }
 
 const initialOptions: ImportOptions = {
@@ -73,6 +87,9 @@ const initialState: WizardState = {
   progress: 0,
   warehouseBreakdown: {},
   warehouseList: [],
+  missingWarehouses: [],
+  warehouseResolutions: {},
+  branchList: [],
 };
 
 export function useImportWizard(tenantId: string, companyId: string, defaultEntityType?: string) {
@@ -450,6 +467,9 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
           codeGroups.get(code)!.push(row);
         }
 
+        // ═══ TASK 1: Track unresolved warehouse names ═══
+        const missingWarehouseNames = new Set<string>();
+
         for (const [code, rows] of codeGroups.entries()) {
           const entries: WarehouseBreakdown[string] = [];
           for (const r of rows) {
@@ -458,6 +478,10 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
             const qty = Number(d.opening_qty) || 0;
             const cost = Number(d.cost_price || d.purchase_price || 0);
             const resolved = resolveWarehouse(whInput);
+            // Track unresolved warehouse names (non-empty input with no match)
+            if (whInput && !resolved) {
+              missingWarehouseNames.add(whInput);
+            }
             entries.push({
               warehouse_code: resolved?.code || whInput || 'DEFAULT',
               warehouse_id: resolved?.id,
@@ -471,7 +495,44 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
           }
         }
 
+        // ═══ TASK 5: Block if opening balances but NO warehouse data at all ═══
+        const hasOpeningBalances = importRows.some(r =>
+          r.status === 'valid' && Number(r.mapped_data?.opening_qty || 0) > 0
+        );
+        if (hasOpeningBalances && warehouseList.length === 0 && missingWarehouseNames.size === 0) {
+          updateState({
+            importJob: { ...updatedJob, total_rows: importRows.length, valid_rows: importRows.filter(r => r.status === 'valid').length, invalid_rows: importRows.filter(r => r.status === 'invalid').length },
+            importRows,
+            options: { ...state.options, column_mappings: columnMap },
+            isLoading: false,
+            progress: 100,
+            currentStep: 'validation',
+            warehouseBreakdown: {},
+            warehouseList: [],
+            missingWarehouses: [],
+            warehouseResolutions: {},
+            branchList: [],
+            error: 'يوجد مواد ذات أرصدة افتتاحية ولكن لا توجد مستودعات في النظام. يرجى إنشاء مستودع واحد على الأقل من إعدادات المستودعات قبل الاستيراد.',
+          });
+          return;
+        }
+
+        // ═══ Fetch branches for warehouse creation dialog ═══
+        let branchList: BranchInfo[] = [];
+        if (missingWarehouseNames.size > 0) {
+          const { data: brData } = await supabase
+            .from('branches')
+            .select('id, code, name_ar, name_en')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+            .order('name_ar');
+          branchList = (brData || []) as BranchInfo[];
+        }
+
         console.log(`📦 Warehouse breakdown: ${Object.keys(warehouseBreakdown).length} materials across ${warehouseList.length} warehouses`);
+        if (missingWarehouseNames.size > 0) {
+          console.warn(`⚠️ Missing warehouses: ${[...missingWarehouseNames].join(', ')}`);
+        }
 
         // 4. DEDUP: Merge rows with same material code into one row (total qty)
         const codeGroupsDedup = new Map<string, ImportRow[]>();
@@ -513,12 +574,27 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         updatedJob.total_rows = importRows.length;
         updatedJob.valid_rows = finalValid;
         updatedJob.invalid_rows = finalInvalid;
+
+        // ⚠️ Products-specific atomic update (includes warehouse conflict data)
+        updateState({
+          importJob: updatedJob,
+          importRows,
+          options: { ...state.options, column_mappings: columnMap },
+          isLoading: false,
+          progress: 100,
+          currentStep: 'validation',
+          warehouseBreakdown,
+          warehouseList,
+          missingWarehouses: [...missingWarehouseNames],
+          warehouseResolutions: Object.fromEntries(
+            [...missingWarehouseNames].map(name => [name, { action: 'create' as const, name_ar: name, warehouse_type: 'regular' }])
+          ),
+          branchList,
+        });
+        return; // ← Don't fall through to the general updateState
       }
 
-      // ⚠️ CRITICAL: Must set data AND step in ONE atomic update
-      // If we call updateState() then nextStep() separately, React may
-      // render ValidationStep BEFORE importJob/importRows are committed,
-      // causing it to show null.
+      // ⚠️ CRITICAL: Must set data AND step in ONE atomic update (NON-products path)
       updateState({
         importJob: updatedJob,
         importRows,
@@ -528,6 +604,9 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
         currentStep: 'validation',
         warehouseBreakdown,
         warehouseList,
+        missingWarehouses: [],
+        warehouseResolutions: {},
+        branchList: [],
       });
     } catch (error: any) {
       console.error('Validation error:', error);
@@ -552,6 +631,131 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
     // تنفيذ الاستيراد مباشرة في Supabase
     await executeLocalImport(overrideCurrency);
   }, [state.entityDefinition, state.options, updateState]);
+
+  // ─── تحديث قرار مستودع مفقود (للواجهة) ───────────────────────────
+  const updateWarehouseResolution = useCallback((warehouseName: string, resolution: Partial<WarehouseResolution>) => {
+    updateState({
+      warehouseResolutions: {
+        ...state.warehouseResolutions,
+        [warehouseName]: { ...state.warehouseResolutions[warehouseName], ...resolution },
+      }
+    });
+  }, [state.warehouseResolutions, updateState]);
+
+  // ─── المهمة 4: حل تعارضات المستودعات (إنشاء أو ربط) ─────────────
+  const resolveWarehouseConflicts = useCallback(async () => {
+    const missing = state.missingWarehouses;
+    const resolutions = state.warehouseResolutions;
+    if (missing.length === 0) return;
+
+    updateState({ isLoading: true, error: null });
+
+    try {
+      const newWarehouseByName: Record<string, string> = {}; // name → warehouse_id
+
+      // Helper: generate a short code from name
+      const generateCode = (name: string, idx: number): string => {
+        const prefix = name
+          .replace(/[\u0600-\u06FF]/g, '') // strip Arabic
+          .trim()
+          .substring(0, 4)
+          .toUpperCase()
+          .replace(/\s+/g, '_') || 'WH';
+        return `${prefix || 'WH'}-${String(idx + 1).padStart(3, '0')}`;
+      };
+
+      let idx = 0;
+      for (const name of missing) {
+        const res = resolutions[name];
+        if (!res) continue;
+
+        if (res.action === 'create') {
+          // Check for unique code — fetch existing codes first
+          const { data: existing } = await supabase
+            .from('warehouses')
+            .select('code')
+            .eq('company_id', companyId);
+          const usedCodes = new Set((existing || []).map((w: any) => w.code));
+          let code = generateCode(res.name_ar || name, idx);
+          // Make unique if needed
+          let suffix = idx + 1;
+          while (usedCodes.has(code)) { code = `WH-${String(++suffix).padStart(3, '0')}`; }
+
+          const { data: created, error: createErr } = await supabase
+            .from('warehouses')
+            .insert({
+              tenant_id: tenantId,
+              company_id: companyId,
+              branch_id: res.branch_id || null,
+              code,
+              name: res.name_ar || name,
+              name_ar: res.name_ar || name,
+              name_en: res.name_ar || name,
+              warehouse_type: res.warehouse_type || 'regular',
+              is_active: true,
+            })
+            .select('id, code, name_ar')
+            .single();
+
+          if (createErr) throw new Error(`فشل إنشاء مستودع "${name}": ${createErr.message}`);
+          if (created) {
+            newWarehouseByName[name] = created.id;
+            console.log(`✅ Created warehouse: ${code} — ${created.name_ar} (${created.id})`);
+          }
+
+        } else if (res.action === 'map' && res.target) {
+          newWarehouseByName[name] = res.target;
+          console.log(`🔗 Mapped warehouse "${name}" → ${res.target}`);
+        }
+
+        idx++;
+      }
+
+      // Re-fetch updated warehouse list
+      const { data: whData } = await supabase
+        .from('warehouses')
+        .select('id, code, name_ar, name_en, name_ru, name_uk, name_tr')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .order('code');
+      const newWarehouseList = (whData || []) as WarehouseInfo[];
+      const whById = new Map(newWarehouseList.map(w => [w.id, w]));
+
+      // Patch warehouseBreakdown with real IDs
+      const updatedBreakdown = { ...state.warehouseBreakdown };
+      for (const [matCode, entries] of Object.entries(updatedBreakdown)) {
+        updatedBreakdown[matCode] = entries.map(entry => {
+          const whName = entry.warehouse_name || '';
+          const newId = newWarehouseByName[whName] || newWarehouseByName[entry.warehouse_code];
+          if (newId) {
+            const whInfo = whById.get(newId);
+            return {
+              ...entry,
+              warehouse_id: newId,
+              warehouse_code: whInfo?.code || entry.warehouse_code,
+              warehouse_name: whInfo?.name_ar || entry.warehouse_name,
+            };
+          }
+          return entry;
+        });
+      }
+
+      updateState({
+        isLoading: false,
+        missingWarehouses: [],       // Resolved!
+        warehouseResolutions: {},
+        warehouseList: newWarehouseList,
+        warehouseBreakdown: updatedBreakdown,
+        error: null,
+      });
+
+      console.log(`🎉 All warehouse conflicts resolved. ${Object.keys(newWarehouseByName).length} created/mapped.`);
+
+    } catch (err: any) {
+      console.error('resolveWarehouseConflicts error:', err);
+      updateState({ isLoading: false, error: err.message });
+    }
+  }, [state.missingWarehouses, state.warehouseResolutions, state.warehouseBreakdown, companyId, tenantId, updateState]);
 
   // ═══════════════════════════════════════════════════════════════════
   // 🔄 ROLLBACK: Clean up all data inserted during a failed import
@@ -1340,7 +1544,10 @@ export function useImportWizard(tenantId: string, companyId: string, defaultEnti
     updateImportRows,
     validateData,
     executeImport,
-    updateOptions
+    updateOptions,
+    // Warehouse conflict resolution (Task 4)
+    updateWarehouseResolution,
+    resolveWarehouseConflicts,
   };
 }
 

@@ -412,6 +412,27 @@ export default function AccountingSettings() {
           if (payAcc) { (updated as any).default_payable_account_id = payAcc.id; changed = true; }
         }
 
+        // ═══ Auto-persist: save newly discovered accounts to DB ═══
+        if (changed && companyId) {
+          const autoSaveFields: Record<string, any> = {};
+          for (const [key, value] of Object.entries(updated)) {
+            if (key.endsWith('_account_id') && value && !(settingsRes.data as any)?.[key]) {
+              autoSaveFields[key] = value;
+            }
+          }
+          if (Object.keys(autoSaveFields).length > 0) {
+            console.log('[AccountingSettings] 🔄 Auto-persisting discovered accounts:', Object.keys(autoSaveFields));
+            supabase
+              .from('company_accounting_settings')
+              .update(autoSaveFields)
+              .eq('company_id', companyId)
+              .then(({ error }) => {
+                if (error) console.warn('[AccountingSettings] Auto-persist failed:', error.message);
+                else console.log('[AccountingSettings] ✅ Auto-persisted', Object.keys(autoSaveFields).length, 'accounts to DB');
+              });
+          }
+        }
+
         return changed ? updated : prev;
       });
     }

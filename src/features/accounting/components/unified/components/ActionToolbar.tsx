@@ -827,6 +827,7 @@ export function EnhancedActionToolbar({
             <PrintExportDropdown
                 docType={docType}
                 docId={docId}
+                docData={data}
                 disabled={disabled || loading}
                 onAction={onAction}
                 language={language}
@@ -1153,6 +1154,7 @@ const DOC_TYPE_MAP: Record<string, string> = {
 function PrintExportDropdown({
     docType,
     docId,
+    docData,
     disabled,
     onAction,
     language,
@@ -1162,6 +1164,7 @@ function PrintExportDropdown({
 }: {
     docType: string;
     docId: string;
+    docData?: any;
     disabled: boolean;
     onAction: (actionId: string) => void;
     language: string;
@@ -1187,7 +1190,7 @@ function PrintExportDropdown({
         printData,
         print: printFn,
         preview: previewFn,
-    } = usePrintData({ docType: printDocType, docId, displayCurrency, getConvertRate: displayCurrency ? getRate : undefined });
+    } = usePrintData({ docType: printDocType, docId, docData, displayCurrency, getConvertRate: displayCurrency ? getRate : undefined });
 
     const [printing, setPrinting] = React.useState(false);
     const [dialogOpen, setDialogOpen] = React.useState(false);

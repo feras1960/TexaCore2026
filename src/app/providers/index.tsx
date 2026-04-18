@@ -26,7 +26,7 @@ import { createDexiePersister } from '@/lib/queryPersistence';
 //   Individual hooks can override staleTime for dynamic data (2 min)
 //
 // ═══════════════════════════════════════════════════════════════
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,            // 5 minutes - data is "fresh"

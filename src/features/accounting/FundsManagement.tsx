@@ -11,9 +11,12 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, getCurrencySymbol, CURRENCY_META } from '@/hooks/useCompanyCurrency';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useFunds } from './hooks/useAccountingQueries';
 import { supabase } from '@/lib/supabase';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -66,7 +69,16 @@ export default function FundsManagement() {
   }, [baseCurrency, displayCurrency]);
 
   // ─── Data ───────────────────────────────────────────────────
+  const queryClient = useQueryClient();
   const { funds: rawFunds, loading: isLoading, refetch: refetchFunds, invalidate: invalidateFunds } = useFunds();
+
+  // 🔄 Realtime: auto-update fund balances + ledgers when journal entries change
+  useRealtimeInvalidation({
+    table: 'journal_entries',
+    companyId,
+    filter: companyId ? `company_id=eq.${companyId}` : undefined,
+    queryKeys: [['fund_balances_v2'], ['account_ledger']],
+  });
 
   // ─── State ──────────────────────────────────────────────────
   const [activeTypeTab, setActiveTypeTab] = useState<'all' | 'cash' | 'bank'>('all');
@@ -80,16 +92,14 @@ export default function FundsManagement() {
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [quickDocType, setQuickDocType] = useState<string | null>(null);
 
-  // ─── RPC Balances ───────────────────────────────────────────
-  const [fundBalances, setFundBalances] = useState<Map<string, FundBalance>>(new Map());
+  // ─── RPC Balances — CACHED in IndexedDB for instant display ───
+  const fundIdsKey = rawFunds.map((f: any) => f.id).join(',');
+  const { data: fundBalances = {} as Record<string, FundBalance> } = useCachedQuery<Record<string, FundBalance>>({
+    queryKey: ['fund_balances_v2', companyId, fundIdsKey],
+    queryFn: async () => {
+      if (!rawFunds.length || !companyId) return {};
 
-  useEffect(() => {
-    if (!rawFunds.length || !companyId) return;
-
-    const fetchAllBalances = async () => {
-      const balanceMap = new Map<string, FundBalance>();
-
-      // Fetch balance for each fund via RPC
+      const balanceMap: Record<string, FundBalance> = {};
       const promises = rawFunds.map(async (fund: any) => {
         try {
           const { data, error } = await supabase.rpc('get_account_balance_fc', {
@@ -97,27 +107,69 @@ export default function FundsManagement() {
             p_company_id: companyId,
           });
           if (!error && data && data.length > 0) {
-            balanceMap.set(fund.id, {
+            balanceMap[fund.id] = {
               total_debit: Number(data[0].total_debit) || 0,
               total_credit: Number(data[0].total_credit) || 0,
               balance: Number(data[0].balance) || 0,
               currency: data[0].currency || fund.currency || baseCurrency || 'USD',
               transaction_count: Number(data[0].transaction_count) || 0,
               last_activity: data[0].last_activity || null,
-            });
+            };
           }
         } catch (err) {
           console.warn(`[Funds] Balance fetch failed for ${fund.id}:`, err);
         }
       });
-
       await Promise.all(promises);
-      setFundBalances(balanceMap);
+      return balanceMap;
+    },
+    enabled: !!companyId && rawFunds.length > 0,
+    staleTime: 2 * 60 * 1000,  // 2 min — dynamic balance data
+    gcTime: 30 * 60 * 1000,     // 30 min
+  });
+
+  // ─── Prefetch Ledger Data for all funds (background) ───
+  // Ensures "كشف الحساب" tab loads instantly when opening any fund
+  useEffect(() => {
+    if (!rawFunds.length || !companyId || !queryClient) return;
+
+    const prefetchLedgers = async () => {
+      const { accountLedgerService } = await import('@/services/accountLedgerService');
+      const { enrichWithCounterAccounts } = await import('./components/unified/hooks/useLedgerData');
+
+      for (const fund of rawFunds) {
+        // Match the exact queryKey used by useLedgerData (default filters)
+        const ledgerKey = ['account_ledger', fund.id, companyId, '', '', 'posted', '', ''];
+
+        // Only prefetch if not already in cache
+        const existing = queryClient.getQueryData(ledgerKey);
+        if (existing) continue;
+
+        try {
+          await queryClient.prefetchQuery({
+            queryKey: ledgerKey,
+            queryFn: async () => {
+              const result = await accountLedgerService.getLedger({
+                accountId: fund.id,
+                companyId,
+                status: 'posted',
+              });
+              const enrichedEntries = await enrichWithCounterAccounts(result.entries, fund.id);
+              return { entries: enrichedEntries, stats: result.stats };
+            },
+            staleTime: 5 * 60 * 1000,
+            gcTime: 24 * 60 * 60 * 1000,
+          });
+        } catch (err) {
+          // Silent fail — not critical, will load on demand
+        }
+      }
     };
 
-    fetchAllBalances();
-  }, [rawFunds, companyId, baseCurrency]);
-
+    // Run in background after a short delay to not block UI
+    const timer = setTimeout(prefetchLedgers, 500);
+    return () => clearTimeout(timer);
+  }, [rawFunds, companyId, queryClient]);
   // ─── Currency conversion ───────────────────────────────────
   const actualDisplayCurrency = displayCurrency === 'auto' ? (baseCurrency || 'all') : displayCurrency;
   const isConverting = actualDisplayCurrency !== 'all';
@@ -141,7 +193,7 @@ export default function FundsManagement() {
       if (isBank) bankCount++;
 
       if (showTotals) {
-        const bal = fundBalances.get(fund.id);
+        const bal = fundBalances[fund.id];
         const fundCur = bal?.currency || fund.currency || baseCurrency || 'USD';
         const rawBalance = bal ? bal.balance : 0;
         const displayBalance = convertBalance(rawBalance, fundCur);
@@ -189,8 +241,8 @@ export default function FundsManagement() {
       data.sort((a: any, b: any) => {
         let va: any, vb: any;
         if (sortField === 'balance') {
-          va = fundBalances.get(a.id)?.balance || 0;
-          vb = fundBalances.get(b.id)?.balance || 0;
+          va = fundBalances[a.id]?.balance || 0;
+          vb = fundBalances[b.id]?.balance || 0;
         } else if (sortField === 'code') {
           va = a.account_code || '';
           vb = b.account_code || '';
@@ -261,11 +313,12 @@ export default function FundsManagement() {
   const handleRefresh = useCallback(() => {
     invalidateFunds();
     refetchFunds();
-  }, [invalidateFunds, refetchFunds]);
+    queryClient.invalidateQueries({ queryKey: ['fund_balances_v2'] });
+  }, [invalidateFunds, refetchFunds, queryClient]);
 
   // ─── Row accent ─────────────────────────────────────────────
   const getRowAccent = useCallback((fund: any) => {
-    const bal = fundBalances.get(fund.id);
+    const bal = fundBalances[fund.id];
     if (bal && bal.balance > 0) return 'border-s-green-400';
     if (bal && bal.balance < 0) return 'border-s-red-400';
     return fund.is_bank_account ? 'border-s-blue-400' : 'border-s-emerald-400';
@@ -342,7 +395,7 @@ export default function FundsManagement() {
       width: '90px',
       align: 'center',
       cell: (fund: any) => {
-        const bal = fundBalances.get(fund.id);
+        const bal = fundBalances[fund.id];
         const cur = bal?.currency || fund.currency || baseCurrency || 'USD';
         const meta = CURRENCY_META[cur];
         return (
@@ -360,7 +413,7 @@ export default function FundsManagement() {
       sortKey: 'balance',
       width: '170px',
       cell: (fund: any) => {
-        const bal = fundBalances.get(fund.id);
+        const bal = fundBalances[fund.id];
         const rawBalance = bal ? bal.balance : 0;
         const fundCur = bal?.currency || fund.currency || baseCurrency || 'USD';
         const displayBalance = convertBalance(rawBalance, fundCur);
@@ -390,7 +443,7 @@ export default function FundsManagement() {
       width: '110px',
       align: 'center',
       cell: (fund: any) => {
-        const bal = fundBalances.get(fund.id);
+        const bal = fundBalances[fund.id];
         const date = bal?.last_activity;
         return date ? (
           <span className="text-xs text-gray-500 font-mono">{date}</span>
@@ -622,12 +675,12 @@ export default function FundsManagement() {
         data={selectedFund ? {
           ...selectedFund,
           name: getFundName(selectedFund),
-          current_balance: fundBalances.get(selectedFund.id)?.balance || 0,
-          total_debit: fundBalances.get(selectedFund.id)?.total_debit || 0,
-          total_credit: fundBalances.get(selectedFund.id)?.total_credit || 0,
-          transaction_count: fundBalances.get(selectedFund.id)?.transaction_count || 0,
-          last_activity: fundBalances.get(selectedFund.id)?.last_activity || null,
-          currency: fundBalances.get(selectedFund.id)?.currency || selectedFund.currency || baseCurrency,
+          current_balance: fundBalances[selectedFund.id]?.balance || 0,
+          total_debit: fundBalances[selectedFund.id]?.total_debit || 0,
+          total_credit: fundBalances[selectedFund.id]?.total_credit || 0,
+          transaction_count: fundBalances[selectedFund.id]?.transaction_count || 0,
+          last_activity: fundBalances[selectedFund.id]?.last_activity || null,
+          currency: fundBalances[selectedFund.id]?.currency || selectedFund.currency || baseCurrency,
           is_active: true,
         } : null}
         companyId={companyId || undefined}

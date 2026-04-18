@@ -11,7 +11,7 @@
  * ✅ شريط ملخص علوي + footer ثابت
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, Suspense } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
@@ -32,6 +32,11 @@ import {
     LayoutList,
 } from 'lucide-react';
 import type { MarkerColorId } from '@/components/shared/ColorMarkerPalette';
+
+// Lazy load UnifiedAccountingSheet to avoid circular dependency
+const UnifiedAccountingSheet = React.lazy(() => 
+    import('../UnifiedAccountingSheet').then(m => ({ default: m.UnifiedAccountingSheet }))
+);
 
 // ═══ Entry Type Icons ═══
 const ENTRY_TYPE_ICONS: Record<string, string> = {
@@ -144,6 +149,10 @@ export function LedgerTab({
     // Local currency state — starts empty, will be set to account's currency on mount
     const [localCurrency, setLocalCurrency] = useState<string>('');
     const [accountCurrency, setAccountCurrency] = useState<string>('');
+
+    // Counter Account Navigation State
+    const [counterAccountIdToView, setCounterAccountIdToView] = useState<string | null>(null);
+    const [isCounterSheetOpen, setIsCounterSheetOpen] = useState(false);
 
     // 🆕 Auto-set to account's own currency from chart_of_accounts
     useEffect(() => {
@@ -394,7 +403,7 @@ export function LedgerTab({
     const counterAccountCol: NexaListColumn<ExtendedLedgerEntry> = {
         id: 'counterAccount',
         header: lt('الحساب المقابل', 'Counter Acct'),
-        width: 'w-[100px]',
+        width: 'w-[220px]',
         cell: (row) => {
             const ca = row.counterAccount;
             if (!ca || ca.otherLinesCount === 0) {
@@ -402,11 +411,20 @@ export function LedgerTab({
             }
             if (ca.otherLinesCount === 1) {
                 return (
-                    <div className="flex items-center gap-1">
-                        <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">
+                    <div 
+                        className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 p-1 -m-1 rounded transition-colors"
+                        onClick={() => {
+                            if (ca.accountId) {
+                                setCounterAccountIdToView(ca.accountId);
+                                setIsCounterSheetOpen(true);
+                            }
+                        }}
+                        title={language === 'ar' ? ca.accountNameAr || '' : (ca[`accountName_${language}`] || ca.accountNameEn || ca.accountNameAr || '')}
+                    >
+                        <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded shrink-0">
                             {ca.accountCode}
                         </span>
-                        <span className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-[80px]">
+                        <span className="text-xs text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[170px]">
                             {language === 'ar' ? ca.accountNameAr : (ca[`accountName_${language}`] || ca.accountNameEn || ca.accountNameAr)}
                         </span>
                     </div>
@@ -829,6 +847,24 @@ export function LedgerTab({
                 getRowMarker={getRowMarker}
                 className="min-h-[400px]"
             />
+
+            {/* Counter Account Details Sheet */}
+            {isCounterSheetOpen && counterAccountIdToView && (
+                <Suspense fallback={null}>
+                    <UnifiedAccountingSheet
+                        isOpen={isCounterSheetOpen}
+                        onClose={() => {
+                            setIsCounterSheetOpen(false);
+                            setCounterAccountIdToView(null);
+                        }}
+                        docType="account"
+                        mode="view"
+                        documentId={counterAccountIdToView}
+                        companyId={companyId}
+                        enableEditFlow={false}
+                    />
+                </Suspense>
+            )}
         </div>
     );
 

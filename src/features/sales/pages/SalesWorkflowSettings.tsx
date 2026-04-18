@@ -307,8 +307,8 @@ export function WorkflowSettings({ config }: WorkflowSettingsProps) {
             const defaults = config.defaultStatuses[activeDocType];
             if (!defaults) return;
 
-            // Create status group first
-            const group = await statusService.createStatusGroup({
+            // Create or reuse status group (upsert avoids 409 on re-init)
+            const group = await statusService.upsertStatusGroup({
                 doc_type: activeDocType,
                 code: activeDocType,
                 name_ar: config.docTypes.find(d => d.id === activeDocType)?.labelAr || activeDocType,

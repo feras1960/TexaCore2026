@@ -726,7 +726,6 @@ export function SalesDeliveryDialog({
                     const avgCostPerMeter = matCost && matCost.totalLength > 0 ? matCost.totalCost / matCost.totalLength : 0;
                     const updatePayload: any = {
                         delivered_qty: newDelivered,
-                        quantity: newDelivered,
                         updated_at: now,
                     };
                     if (avgCostPerMeter > 0) {
@@ -977,6 +976,23 @@ export function SalesDeliveryDialog({
 
             const rollIds = [...new Set((movements || []).map(m => m.roll_id).filter(Boolean))];
 
+            // 1b. Fetch actual roll data (lengths + material_id)
+            let rollDataMap: Record<string, { length: number; material_id: string | null }> = {};
+            if (rollIds.length > 0) {
+                const { data: rollsData } = await supabase
+                    .from('fabric_rolls')
+                    .select('id, current_length, net_length, material_id')
+                    .in('id', rollIds);
+                if (rollsData) {
+                    rollsData.forEach((r: any) => {
+                        rollDataMap[r.id] = {
+                            length: Number(r.net_length || r.current_length || 0),
+                            material_id: r.material_id,
+                        };
+                    });
+                }
+            }
+
             // 2. Update rolls: in_transit → at_branch, assign to receiving branch warehouse
             if (rollIds.length > 0) {
                 const { error: rollErr } = await supabase
@@ -998,9 +1014,10 @@ export function SalesDeliveryDialog({
                 movement_number: `${movNumber}-${idx + 1}`,
                 movement_date: now.slice(0, 10),
                 movement_type: 'transfer_in',
+                material_id: rollDataMap[rollId]?.material_id || null,
                 roll_id: rollId,
                 to_warehouse_id: selectedWarehouseId,
-                quantity: 0, // Will be filled from roll data
+                quantity: rollDataMap[rollId]?.length || 0,
                 reference_type: 'sale_invoice',
                 reference_id: invoiceId,
                 reference_number: invoiceData?.invoice_no || '',
@@ -1048,6 +1065,23 @@ export function SalesDeliveryDialog({
 
             const rollIds = [...new Set((movements || []).map(m => m.roll_id).filter(Boolean))];
 
+            // 1b. Fetch actual roll data (lengths + material_id) before updating status
+            let rollDataMap: Record<string, { length: number; material_id: string | null }> = {};
+            if (rollIds.length > 0) {
+                const { data: rollsData } = await supabase
+                    .from('fabric_rolls')
+                    .select('id, current_length, net_length, material_id')
+                    .in('id', rollIds);
+                if (rollsData) {
+                    rollsData.forEach((r: any) => {
+                        rollDataMap[r.id] = {
+                            length: Number(r.net_length || r.current_length || 0),
+                            material_id: r.material_id,
+                        };
+                    });
+                }
+            }
+
             // 2. Update rolls: at_branch → sold
             if (rollIds.length > 0) {
                 await supabase
@@ -1064,9 +1098,10 @@ export function SalesDeliveryDialog({
                 movement_number: `${movNumber}-${idx + 1}`,
                 movement_date: now.slice(0, 10),
                 movement_type: 'sale',
+                material_id: rollDataMap[rollId]?.material_id || null,
                 roll_id: rollId,
                 from_warehouse_id: selectedWarehouseId,
-                quantity: 0,
+                quantity: rollDataMap[rollId]?.length || 0,
                 reference_type: 'sale_invoice',
                 reference_id: invoiceId,
                 reference_number: invoiceData?.invoice_no || '',

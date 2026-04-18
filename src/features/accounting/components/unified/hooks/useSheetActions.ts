@@ -1998,10 +1998,77 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                             : `❌ Failed to unpost old entry: ${unpostErr.message}`);
                                         break;
                                     }
+                                    
+                                    // 🔄 مسار جديد: مزامنة دفعات الفواتير المرتبطة بهذا القيد بعد إلغاء الترحيل
+                                    try {
+                                        const { data: lines } = await supabase
+                                            .from('journal_entry_lines')
+                                            .select('reference_id, reference_type')
+                                            .eq('entry_id', docId)
+                                            .eq('reference_type', 'invoice');
+                                            
+                                        if (lines && lines.length > 0) {
+                                            const invoiceIds = [...new Set(lines.map(l => l.reference_id).filter(Boolean))];
+                                            for (const invId of invoiceIds) {
+                                                if (!invId) continue;
+                                                
+                                                // Check Sales loop first
+                                                let invTable = 'sales_transactions';
+                                                let { data: inv } = await supabase
+                                                    .from('sales_transactions')
+                                                    .select('id, total_amount, stage')
+                                                    .eq('id', invId)
+                                                    .single();
+                                                    
+                                                // Fallback to Purchase
+                                                if (!inv) {
+                                                    invTable = 'purchase_transactions';
+                                                    const { data: pInv } = await supabase
+                                                        .from('purchase_transactions')
+                                                        .select('id, total_amount, stage')
+                                                        .eq('id', invId)
+                                                        .single();
+                                                    inv = pInv;
+                                                }
+                                                    
+                                                if (inv) {
+                                                    const { data: payLines } = await supabase
+                                                        .from('journal_entry_lines')
+                                                        .select('credit, debit, journal_entries!inner(status)')
+                                                        .eq('reference_id', invId)
+                                                        .eq('reference_type', 'invoice')
+                                                        .eq('journal_entries.status', 'posted');
+                                                        
+                                                    let totalPaid = 0;
+                                                    if (payLines) {
+                                                        for (const pl of payLines) {
+                                                            const pAmt = Number(pl.credit) > 0 ? Number(pl.credit) : Number(pl.debit);
+                                                            totalPaid += pAmt;
+                                                        }
+                                                    }
+                                                    
+                                                    let newStage = inv.stage;
+                                                    if (['invoice', 'posted', 'partial_paid', 'paid'].includes(inv.stage)) {
+                                                        if (totalPaid >= Number(inv.total_amount)) newStage = 'paid';
+                                                        else if (totalPaid > 0) newStage = 'partial_paid';
+                                                        else newStage = 'posted';
+                                                    }
+                                                    
+                                                    await supabase.from(invTable).update({
+                                                        paid_amount: totalPaid,
+                                                        stage: newStage
+                                                    }).eq('id', invId);
+                                                }
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.error('[Register] Failed to sync linked invoice payments on unpost', e);
+                                    }
+
                                     console.log('[Register] ✅ Unpost successful — proceeding to re-post');
                                 }
 
-                                // ✅ المسار الصحيح: RPC يُحدِّث journal_entries + chart_of_accounts
+                                // نجاح ✅ المسار الصحيح: RPC يُحدِّث journal_entries + chart_of_accounts
                                 const { error: rpcErr } = await supabase.rpc('post_journal_entry', {
                                     p_entry_id: docId,
                                     p_user_id: userId,
@@ -2024,6 +2091,72 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                             : `❌ Post failed: ${errDetail}`);
                                     }
                                     break; // لا تُكمِل — الرصيد لم يُحدَّث
+                                }
+
+                                // ✅ مسار جديد: مزامنة دفعات الفواتير المرتبطة بهذا القيد
+                                try {
+                                    const { data: lines } = await supabase
+                                        .from('journal_entry_lines')
+                                        .select('reference_id, reference_type')
+                                        .eq('entry_id', docId)
+                                        .eq('reference_type', 'invoice');
+                                        
+                                    if (lines && lines.length > 0) {
+                                        const invoiceIds = [...new Set(lines.map(l => l.reference_id).filter(Boolean))];
+                                        for (const invId of invoiceIds) {
+                                            if (!invId) continue;
+                                            
+                                            // Check Sales loop first
+                                            let invTable = 'sales_transactions';
+                                            let { data: inv } = await supabase
+                                                .from('sales_transactions')
+                                                .select('id, total_amount, stage')
+                                                .eq('id', invId)
+                                                .single();
+                                                
+                                            // Fallback to Purchase
+                                            if (!inv) {
+                                                invTable = 'purchase_transactions';
+                                                const { data: pInv } = await supabase
+                                                    .from('purchase_transactions')
+                                                    .select('id, total_amount, stage')
+                                                    .eq('id', invId)
+                                                    .single();
+                                                inv = pInv;
+                                            }
+                                                
+                                            if (inv) {
+                                                const { data: payLines } = await supabase
+                                                    .from('journal_entry_lines')
+                                                    .select('credit, debit, journal_entries!inner(status)')
+                                                    .eq('reference_id', invId)
+                                                    .eq('reference_type', 'invoice')
+                                                    .eq('journal_entries.status', 'posted');
+                                                    
+                                                let totalPaid = 0;
+                                                if (payLines) {
+                                                    for (const pl of payLines) {
+                                                        const pAmt = Number(pl.credit) > 0 ? Number(pl.credit) : Number(pl.debit);
+                                                        totalPaid += pAmt;
+                                                    }
+                                                }
+                                                
+                                                let newStage = inv.stage;
+                                                if (['invoice', 'posted', 'partial_paid', 'paid'].includes(inv.stage)) {
+                                                    if (totalPaid >= Number(inv.total_amount)) newStage = 'paid';
+                                                    else if (totalPaid > 0) newStage = 'partial_paid';
+                                                    else newStage = 'posted';
+                                                }
+                                                
+                                                await supabase.from(invTable).update({
+                                                    paid_amount: totalPaid,
+                                                    stage: newStage
+                                                }).eq('id', invId);
+                                            }
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('[Register] Failed to sync linked invoice payments', e);
                                 }
 
                                 // نجاح ✅
@@ -2055,6 +2188,12 @@ export function useSheetActionHandler(params: UseSheetActionsParams) {
                                 queryClient.invalidateQueries({ queryKey: ['chart_of_accounts'] });
                                 queryClient.invalidateQueries({ queryKey: ['party_balances_supplier'] });
                                 queryClient.invalidateQueries({ queryKey: ['party_balances_customer'] });
+                                queryClient.invalidateQueries({ queryKey: ['sales_transactions'] });
+                                queryClient.invalidateQueries({ queryKey: ['sales_invoices'] });
+                                queryClient.invalidateQueries({ queryKey: ['sales_cycle_full'] });
+                                queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+                                queryClient.invalidateQueries({ queryKey: ['fund_balances_v2'] });
+                                queryClient.invalidateQueries({ queryKey: ['fund_balance'] });
                                 // ♻️ تحديث كاش الحسابات العام لعرض الأرصدة الصحيحة في الـ Grid
                                 invalidateAccountsCache();
                                 toast.success(language === 'ar' ? '✅ تم التسجيل والترحيل بنجاح' : '✅ Registered and posted successfully');

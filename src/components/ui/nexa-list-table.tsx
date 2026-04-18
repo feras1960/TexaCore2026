@@ -47,6 +47,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -588,21 +589,22 @@ export function NexaListTable<T>({
                         ) : data.length === 0 ? (
                             /* Empty State */
                             <tr>
-                                <td colSpan={totalCols} className="text-center py-16">
-                                    <div className="flex flex-col items-center gap-2">
-                                        {emptyIcon || <FileText className="w-10 h-10 text-gray-200 dark:text-gray-700" />}
-                                        <p className="text-sm text-gray-400 font-medium">
-                                            {emptyMessage || t('common.noData')}
-                                        </p>
-                                        {showClearSearchInEmpty && searchTerm && onSearchChange && (
-                                            <button
-                                                onClick={() => onSearchChange('')}
-                                                className="text-xs text-indigo-500 hover:underline"
-                                            >
-                                                {clearSearchLabel || t('common.clear')}
-                                            </button>
-                                        )}
-                                    </div>
+                                <td colSpan={totalCols} className="py-2">
+                                    <EmptyState 
+                                        icon={emptyIcon}
+                                        title={emptyMessage || t('common.noData')}
+                                        description={showClearSearchInEmpty && searchTerm && onSearchChange ? (language === 'ar' ? 'يمكنك تفريغ حقل البحث للمحاولة مرة أخرى' : 'Try clearing your search terms') : undefined}
+                                        action={
+                                            showClearSearchInEmpty && searchTerm && onSearchChange ? (
+                                                <button
+                                                    onClick={() => onSearchChange('')}
+                                                    className="px-4 py-2 text-xs font-semibold text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg shadow-sm transition-all"
+                                                >
+                                                    {clearSearchLabel || t('common.clear')}
+                                                </button>
+                                            ) : undefined
+                                        }
+                                    />
                                 </td>
                             </tr>
                         ) : (
@@ -626,14 +628,15 @@ export function NexaListTable<T>({
                                                 onRowClick?.(row);
                                             }}
                                             className={cn(
-                                                "group transition-all duration-150 border-s-[3px]",
+                                                "group transition-all duration-300 border-s-[3px]",
                                                 accentClass,
                                                 !markerColor && (idx % 2 === 0
                                                     ? 'bg-white dark:bg-gray-900'
                                                     : 'bg-gray-50/40 dark:bg-gray-850/40'),
                                                 (onRowClick || renderExpandedRow) && 'cursor-pointer',
-                                                isExpanded && 'bg-indigo-50/80 dark:bg-indigo-950/30',
-                                                !isExpanded && 'hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20 hover:shadow-[inset_0_0_0_1px_rgba(99,102,241,0.1)]'
+                                                isExpanded && 'bg-indigo-50/80 dark:bg-indigo-950/30 shadow-sm relative z-10',
+                                                !isExpanded && (onRowClick || renderExpandedRow) ? 'hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20 hover:-translate-y-[1px] hover:shadow-md hover:z-20 relative' : '',
+                                                !isExpanded && !(onRowClick || renderExpandedRow) ? 'hover:bg-gray-50 dark:hover:bg-gray-800' : ''
                                             )}
                                             style={markerColor ? {
                                                 backgroundColor: markerBg,

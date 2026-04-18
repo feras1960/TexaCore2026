@@ -1082,6 +1082,12 @@ export function PreviewStep({
                                   <div className="flex items-center gap-1">
                                     <Warehouse className="h-3 w-3" />
                                     <span className="text-xs">{effectiveName}</span>
+                                    {/* TASK 6: "New" badge for freshly created warehouses */}
+                                    {effectiveInfo && !warehouseList.some(w => w.code === wh.code) && (
+                                      <Badge className="text-[9px] px-1 py-0 bg-emerald-600 text-white">
+                                        {language === 'ar' ? 'جديد' : 'New'}
+                                      </Badge>
+                                    )}
                                   </div>
                                   <span className="text-[10px] text-muted-foreground font-mono">{effectiveCode}</span>
                                 </div>

@@ -79,14 +79,25 @@ export async function runIntegrityCheck(dbName?: string): Promise<IntegrityRepor
               report.corruptedKeys.push(`${table.name}:${key}`);
             }
           } else if ('value' in record && 'key' in record) {
-            // Legacy records without integrity wrapper — check if parseable
-            try {
-              if (typeof record.value === 'string') {
-                JSON.parse(record.value);
-              }
+            // ═══ QueryPersistence entries (compressed/encrypted) ═══
+            // These have: key, value, hash, compressed, encrypted, updatedAt
+            // The value is NOT raw JSON — it may be LZ-compressed and/or AES-encrypted.
+            // We MUST NOT try JSON.parse on them. If they have a hash, trust the
+            // queryPersistence pipeline to verify on restore.
+            if ('compressed' in record || 'encrypted' in record) {
+              // QueryPersistence managed entry — skip JSON.parse validation
+              // The hash is verified at restore time by queryPersistence.restoreClient()
               report.validKeys++;
-            } catch {
-              report.corruptedKeys.push(`${table.name}:${record.key}`);
+            } else {
+              // Legacy records without integrity wrapper — check if parseable
+              try {
+                if (typeof record.value === 'string') {
+                  JSON.parse(record.value);
+                }
+                report.validKeys++;
+              } catch {
+                report.corruptedKeys.push(`${table.name}:${record.key}`);
+              }
             }
           } else {
             // Other records — assume valid

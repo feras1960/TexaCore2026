@@ -972,8 +972,8 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    {/* Color */}
-                                    {looseColorOptions.length > 0 ? (
+                                    {/* Color — only show when material has actual variants/colors */}
+                                    {looseColorOptions.length > 0 && (
                                         <div className="min-w-[120px] space-y-1">
                                             <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
                                             <Select value={looseColorName} onValueChange={(v) => {
@@ -993,17 +993,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                    ) : looseMatId ? (
-                                        <div className="min-w-[120px] space-y-1">
-                                            <Label className="text-[10px] text-amber-600">{tl('اللون', 'Color')}</Label>
-                                            <Input
-                                                value={looseColorName}
-                                                onChange={(e) => setLooseColorName(e.target.value)}
-                                                placeholder={tl('اسم اللون...', 'Color name...')}
-                                                className="h-9 text-xs bg-white dark:bg-slate-800"
-                                            />
-                                        </div>
-                                    ) : null}
+                                    )}
                                     {/* Length */}
                                     <div className="w-[100px] space-y-1">
                                         <Label className="text-[10px] text-amber-600">{tl('الطول (م)', 'Length (m)')}</Label>

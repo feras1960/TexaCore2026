@@ -151,6 +151,7 @@ export function UnifiedAccountingSheet({
     const [mode, setMode] = useState<SheetMode>(initialMode);
     const [data, setData] = useState<any>(initialData);
     const [loading, setLoading] = useState(false);
+    const [stageAdvancing, setStageAdvancing] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState(() => {
         // في وضع الإنشاء/التعديل — اختر أول تبويب يدعم هذا الوضع
         if (initialMode === 'create' || initialMode === 'edit') {
@@ -936,7 +937,7 @@ export function UnifiedAccountingSheet({
 
                         {/* Combined Header + Action Toolbar — Compact (FIRST) */}
                         {customHeader || (
-                            <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b">
+                            <div className="sticky top-0 z-50 px-3 py-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b shadow-sm transition-all duration-300">
                                 {/* Single Row: Icon, Title, Code, Status, Actions, Close */}
                                 <div className="flex items-center justify-between gap-3">
                                     {/* Left: Icon + Title + Code + Status */}
@@ -982,12 +983,13 @@ export function UnifiedAccountingSheet({
                                                                     ar: isTransfer ? 'مناقلة مرحّلة' : isSales ? 'فاتورة مبيعات مرحّلة' : 'فاتورة مشتريات مرحّلة',
                                                                     en: isTransfer ? 'Posted Transfer' : isSales ? 'Posted Sales Invoice' : 'Posted Purchase Invoice'
                                                                 },
-                                                                in_delivery: { ar: 'فاتورة مبيعات — قيد التسليم', en: 'Sales Invoice — In Delivery' },
-                                                                in_transit: { ar: 'فاتورة مبيعات — بالطريق للفرع', en: 'Sales Invoice — In Transit' },
-                                                                sent_to_branch: { ar: 'فاتورة مبيعات — أُرسلت للفرع', en: 'Sales Invoice — Sent to Branch' },
-                                                                delivered: { ar: 'فاتورة مبيعات — تم التسليم', en: 'Sales Invoice — Delivered' },
-                                                                in_receiving: { ar: 'فاتورة مشتريات — قيد الاستلام', en: 'Purchase Invoice — In Receiving' },
-                                                                partially_received: { ar: 'فاتورة مشتريات — مستلم جزئياً', en: 'Purchase Invoice — Partially Received' },
+                                                                in_delivery: { ar: isSales ? 'فاتورة مبيعات' : 'فاتورة', en: isSales ? 'Sales Invoice' : 'Invoice' },
+                                                                in_transit: { ar: isTransfer ? 'مناقلة مخزنية' : isSales ? 'فاتورة مبيعات' : 'فاتورة مشتريات', en: isTransfer ? 'Transfer' : isSales ? 'Sales Invoice' : 'Purchase Invoice' },
+                                                                sent_to_branch: { ar: isSales ? 'فاتورة مبيعات' : 'فاتورة', en: isSales ? 'Sales Invoice' : 'Invoice' },
+                                                                at_branch: { ar: isSales ? 'فاتورة مبيعات — بالفرع' : 'فاتورة', en: isSales ? 'Sales Invoice — At Branch' : 'Invoice' },
+                                                                delivered: { ar: isSales ? 'فاتورة مبيعات' : 'فاتورة', en: isSales ? 'Sales Invoice' : 'Invoice' },
+                                                                in_receiving: { ar: isTradeDocType && !isSales && !isTransfer ? 'فاتورة مشتريات' : 'فاتورة', en: 'Purchase Invoice' },
+                                                                partially_received: { ar: 'فاتورة مشتريات', en: 'Purchase Invoice' },
                                                                 received: { ar: isSales ? 'تم التسليم' : 'تم الاستلام', en: isSales ? 'Delivered' : 'Received' },
                                                                 fully_received: { ar: 'تم الاستلام بالكامل', en: 'Fully Received' },
                                                                 completed: {
@@ -1041,6 +1043,7 @@ export function UnifiedAccountingSheet({
                                                         in_delivery: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
                                                         in_transit: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
                                                         sent_to_branch: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                        at_branch: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
                                                         delivered: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
                                                         received: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
                                                         fully_received: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
@@ -1061,6 +1064,7 @@ export function UnifiedAccountingSheet({
                                                         in_delivery: { ar: 'قيد التسليم', en: 'In Delivery' },
                                                         in_transit: { ar: 'بالطريق للفرع', en: 'In Transit' },
                                                         sent_to_branch: { ar: 'أُرسلت للفرع', en: 'Sent to Branch' },
+                                                        at_branch: { ar: 'بالفرع', en: 'At Branch' },
                                                         delivered: { ar: 'تم التسليم', en: 'Delivered' },
                                                         received: { ar: 'مستلم', en: 'Received' },
                                                         fully_received: { ar: 'مستلم بالكامل', en: 'Fully Received' },
@@ -1122,22 +1126,77 @@ export function UnifiedAccountingSheet({
 
                                                 {/* Balance / Grand Total inline with code */}
                                                 {data && (() => {
-                                                    // For trade docs: use pre-calculated grand_total (tax-inclusive)
                                                     let displayAmount: number | undefined;
+                                                    let originalAmount: number | undefined;
+
                                                     if (isTradeDocType) {
-                                                        displayAmount = Number(data?.grand_total || data?.total_amount || data?.subtotal || 0) || undefined;
+                                                        // ⚡ Prioritize total_amount since it's the one updated during delivery
+                                                        displayAmount = Number(data?.total_amount || data?.grand_total || data?.subtotal || 0) || undefined;
+                                                        
+                                                        // Calculate original booked amount based on original quantities
+                                                        // If data.items is not hydrated, try parsing data.notes (from cart)
+                                                        let originalItems = data?.items;
+                                                        if (!originalItems && data?.notes) {
+                                                            try {
+                                                                const parsed = typeof data.notes === 'string' ? JSON.parse(data.notes) : data.notes;
+                                                                if (parsed?._source === 'cart' && Array.isArray(parsed.items)) {
+                                                                    originalItems = parsed.items;
+                                                                }
+                                                            } catch { /* ignore */ }
+                                                        }
+
+                                                        if (originalItems && Array.isArray(originalItems)) {
+                                                            let subtotal = 0, discount = 0, tax = 0;
+                                                            originalItems.forEach((item: any) => {
+                                                                const qty = Number(item.quantity) || 0;
+                                                                // Use original price before any delivery overrides if available
+                                                                const price = Number(item.unit_price) || 0;
+                                                                const lineTotal = qty * price;
+                                                                const lineDiscount = lineTotal * (Number(item.discount_percent) || 0) / 100;
+                                                                const lineTax = (lineTotal - lineDiscount) * (Number(item.tax_rate) || 0) / 100;
+                                                                subtotal += lineTotal;
+                                                                discount += lineDiscount;
+                                                                tax += lineTax;
+                                                            });
+                                                            const computedOriginal = subtotal - discount + tax;
+                                                            // Only show if there's a meaningful difference (e.g., > 0.01)
+                                                            if (displayAmount !== undefined && Math.abs(computedOriginal - displayAmount) > 0.01) {
+                                                                originalAmount = computedOriginal;
+                                                            }
+                                                        }
                                                     } else {
                                                         displayAmount = data?.current_balance ?? data?.balance;
                                                     }
+                                                    
                                                     if (displayAmount === undefined || displayAmount === null) return null;
+
                                                     return (
-                                                        <span className="text-sm font-bold font-mono text-erp-primary">
-                                                            {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                                                .format(displayAmount)}
-                                                            <span className="text-xs ms-1 text-gray-500 font-normal">
-                                                                {data.currency ? t(`currencies.${data.currency.toUpperCase()}`) : ''}
+                                                        <div className="flex items-center gap-1.5 flex-wrap ms-1">
+                                                            {originalAmount !== undefined && (
+                                                                <span className="text-sm font-medium font-mono text-gray-400 dark:text-gray-500 line-through decoration-gray-300 dark:decoration-gray-600" title="المبلغ الأصلي المحجوز">
+                                                                    {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(originalAmount)}
+                                                                </span>
+                                                            )}
+                                                            <span className={cn(
+                                                                "flex items-baseline gap-1 px-1.5 py-0.5 rounded-md",
+                                                                originalAmount !== undefined 
+                                                                    ? "bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/30" 
+                                                                    : ""
+                                                            )}>
+                                                                <span className={cn(
+                                                                    "text-sm font-bold font-mono",
+                                                                    originalAmount !== undefined ? "text-green-700 dark:text-green-400" : "text-erp-primary"
+                                                                )}>
+                                                                    {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(displayAmount)}
+                                                                </span>
+                                                                <span className={cn(
+                                                                    "text-[10px] font-medium uppercase tracking-wider",
+                                                                    originalAmount !== undefined ? "text-green-600/70 dark:text-green-500/70" : "text-gray-500"
+                                                                )}>
+                                                                    {data.currency ? t(`currencies.${data.currency.toUpperCase()}`) : ''}
+                                                                </span>
                                                             </span>
-                                                        </span>
+                                                        </div>
                                                     );
                                                 })()}
 
@@ -1436,11 +1495,78 @@ export function UnifiedAccountingSheet({
                                         )}
                                     </span>
                                     {/* Action buttons */}
-                                    {currentStageActions.map((action) => (
+                                    {currentStageActions.map((action) => {
+                                        const isThisAdvancing = stageAdvancing === action.targetStage;
+                                        const isAnyAdvancing = stageAdvancing !== null;
+                                        return (
                                         <button
                                             key={action.id}
-                                            onClick={() => onStageAdvance(action.targetStage)}
-                                            disabled={loading}
+                                            onClick={async () => {
+                                                if (isAnyAdvancing || loading) return;
+
+                                                if (action.id === 'collect') {
+                                                    setStageAdvancing(action.targetStage || 'collect');
+                                                    try {
+                                                        const amountToCollect = (data.total_amount || 0) - (data.paid_amount || 0);
+                                                        const isPurchase = docType.includes('purchase') || tradeMode === 'purchase';
+                                                        const party_id = data.party_id || data.supplier_id || data.customer_id;
+                                                        let finalAccountId = party_id || '';
+                                                        let partyName = data.party_name || data.supplier_name || data.customer_name || '';
+
+                                                        if (party_id && companyId) {
+                                                            const { data: acct } = await supabase
+                                                                .from('chart_of_accounts')
+                                                                .select('id, name_ar, name_en')
+                                                                .eq('party_id', party_id)
+                                                                .eq('company_id', companyId)
+                                                                .maybeSingle();
+
+                                                            if (acct) {
+                                                                finalAccountId = acct.id;
+                                                                partyName = acct.name_ar || acct.name_en || partyName;
+                                                            }
+                                                        }
+                                                        
+                                                        const externalDocPayload = {
+                                                            type: isPurchase ? 'payment' : 'receipt',
+                                                            data: {
+                                                                entry_type: isPurchase ? 'payment' : 'receipt',
+                                                                status: 'draft',
+                                                                description: `${isPurchase ? 'دفعة لفاتورة' : 'دفعة من فاتورة'} ${data.invoice_no || data.order_number || data.id}`,
+                                                                entry_date: new Date().toISOString().split('T')[0],
+                                                                lines: [
+                                                                    {
+                                                                        id: Date.now().toString(),
+                                                                        description: `${isPurchase ? 'دفع للمورد' : 'قبض من العميل'}: ${data.party_name || data.supplier_name || data.customer_name || ''}`,
+                                                                        account_id: finalAccountId,
+                                                                        account_name: partyName,
+                                                                        reference_type: 'invoice',
+                                                                        reference_id: data.id,
+                                                                        invoice_id: data.id,
+                                                                        link_type: 'invoice',
+                                                                        debit: isPurchase ? amountToCollect : 0,
+                                                                        credit: isPurchase ? 0 : amountToCollect,
+                                                                        currency: data.currency,
+                                                                    }
+                                                                ]
+                                                            }
+                                                        };
+
+                                                        window.dispatchEvent(new CustomEvent('open-external-document', { detail: externalDocPayload }));
+                                                    } finally {
+                                                        setStageAdvancing(null);
+                                                    }
+                                                    return;
+                                                }
+
+                                                setStageAdvancing(action.targetStage);
+                                                try {
+                                                    await onStageAdvance(action.targetStage);
+                                                } finally {
+                                                    setStageAdvancing(null);
+                                                }
+                                            }}
+                                            disabled={loading || isAnyAdvancing}
                                             className={cn(
                                                 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                                                 action.variant === 'success' && 'bg-emerald-600 hover:bg-emerald-700 text-white',
@@ -1448,13 +1574,18 @@ export function UnifiedAccountingSheet({
                                                 action.variant === 'warning' && 'bg-amber-500 hover:bg-amber-600 text-white',
                                                 action.variant === 'outline' && 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300',
                                                 action.variant === 'default' && 'bg-blue-600 hover:bg-blue-700 text-white',
-                                                loading && 'opacity-50 cursor-not-allowed',
+                                                (loading || isAnyAdvancing) && 'opacity-50 cursor-not-allowed',
                                             )}
                                         >
-                                            <span>{action.icon}</span>
+                                            {isThisAdvancing ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <span>{action.icon}</span>
+                                            )}
                                             <span>{language === 'ar' ? action.labelAr : action.labelEn}</span>
                                         </button>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

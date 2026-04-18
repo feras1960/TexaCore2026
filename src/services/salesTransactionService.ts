@@ -446,6 +446,19 @@ export const salesTransactionService = {
             this._sendSalesStageNotification(input).catch(() => { });
         }
 
+        // 📦 Stock Reservation: حجز/إلغاء حجز المخزون
+        if (input.new_stage === 'confirmed') {
+            // Reserve stock on confirmation (background — non-blocking)
+            this._updateStockReservation(input.transaction_id, 'reserve').catch(err =>
+                console.warn('[StockReserve] ⚠️ Reserve failed:', err.message)
+            );
+        } else if (input.new_stage === 'delivered' || input.new_stage === 'cancelled') {
+            // Release reservation on delivery or cancellation (background)
+            this._updateStockReservation(input.transaction_id, 'release').catch(err =>
+                console.warn('[StockReserve] ⚠️ Release failed:', err.message)
+            );
+        }
+
         return data as StageTransitionResult;
     },
 
@@ -832,6 +845,101 @@ export const salesTransactionService = {
         } catch (err) {
             console.warn('[SalesService] Telegram notification failed (non-blocking):', err);
         }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📦 Stock Reservation — حجز خفيف للمخزون
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * تحديث reserved_quantity في inventory_stock
+     * - 'reserve': يزيد الكمية المحجوزة عند التأكيد
+     * - 'release': يُنقص الكمية المحجوزة عند التسليم/الإلغاء
+     */
+    async _updateStockReservation(
+        transactionId: string,
+        action: 'reserve' | 'release',
+    ): Promise<void> {
+        // 1. Fetch transaction + items in parallel
+        const [txResult, itemsResult] = await Promise.all([
+            supabase
+                .from('sales_transactions')
+                .select('id, warehouse_id, company_id, tenant_id')
+                .eq('id', transactionId)
+                .maybeSingle(),
+            supabase
+                .from('sales_transaction_items')
+                .select('material_id, quantity')
+                .eq('transaction_id', transactionId),
+        ]);
+
+        if (txResult.error || !txResult.data) {
+            console.warn('[StockReserve] Transaction not found:', transactionId);
+            return;
+        }
+        if (itemsResult.error || !itemsResult.data || itemsResult.data.length === 0) {
+            console.warn('[StockReserve] No items found for:', transactionId);
+            return;
+        }
+
+        const tx = txResult.data;
+        const warehouseId = tx.warehouse_id;
+        if (!warehouseId) {
+            console.warn('[StockReserve] No warehouse_id on transaction');
+            return;
+        }
+
+        // 2. Group items by material_id (in case duplicates)
+        const materialQtys: Record<string, number> = {};
+        for (const item of itemsResult.data) {
+            if (item.material_id) {
+                materialQtys[item.material_id] = (materialQtys[item.material_id] || 0) + (Number(item.quantity) || 0);
+            }
+        }
+
+        // 3. Update inventory_stock.reserved_quantity for each material
+        const updates = Object.entries(materialQtys).map(async ([materialId, qty]) => {
+            // Get current reserved_quantity
+            const { data: stockRow } = await supabase
+                .from('inventory_stock')
+                .select('id, reserved_quantity')
+                .eq('material_id', materialId)
+                .eq('warehouse_id', warehouseId)
+                .maybeSingle();
+
+            if (stockRow) {
+                const currentReserved = Number(stockRow.reserved_quantity) || 0;
+                const newReserved = action === 'reserve'
+                    ? currentReserved + qty
+                    : Math.max(0, currentReserved - qty);
+
+                await supabase
+                    .from('inventory_stock')
+                    .update({
+                        reserved_quantity: newReserved,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', stockRow.id);
+
+                console.log(`[StockReserve] ${action === 'reserve' ? '🔒' : '🔓'} ${materialId.substring(0, 8)} | ${action} ${qty} → reserved: ${newReserved}`);
+            } else if (action === 'reserve') {
+                // No inventory_stock row yet — create one
+                await supabase
+                    .from('inventory_stock')
+                    .insert({
+                        tenant_id: tx.tenant_id,
+                        company_id: tx.company_id,
+                        material_id: materialId,
+                        warehouse_id: warehouseId,
+                        quantity_on_hand: 0,
+                        reserved_quantity: qty,
+                    });
+                console.log(`[StockReserve] 🔒 ${materialId.substring(0, 8)} | NEW reserve ${qty}`);
+            }
+        });
+
+        await Promise.all(updates);
+        console.log(`[StockReserve] ✅ ${action} completed for ${Object.keys(materialQtys).length} materials`);
     },
 
 };

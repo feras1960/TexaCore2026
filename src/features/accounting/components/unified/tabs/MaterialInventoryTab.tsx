@@ -191,8 +191,47 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
             }
 
             if (rollWarehouseMap.size > 0) {
-                // Has rolls — use roll-based aggregation
+                // Has rolls — start with roll-based aggregation
                 rows = Array.from(rollWarehouseMap.values());
+
+                // ✅ ALSO merge in loose stock from inventory_stock (cachedStock or fresh fetch)
+                const stockSource = cachedStock?.filter((s: any) => s.material_id === materialId) || [];
+                // If no cache, fetch inventory_stock directly
+                let invStockRows = stockSource;
+                if (invStockRows.length === 0) {
+                    const { data: freshStock } = await supabase
+                        .from('inventory_stock')
+                        .select('warehouse_id, quantity_on_hand, updated_at')
+                        .eq('material_id', materialId)
+                        .eq('company_id', companyId!);
+                    invStockRows = freshStock || [];
+                }
+
+                for (const s of invStockRows) {
+                    const totalOnHand = Number(s.quantity_on_hand) || 0;
+                    const existing = rows.find(r => r.warehouse_id === s.warehouse_id);
+                    if (existing) {
+                        // Loose = total on hand − what's already in rolls
+                        existing.loose_stock = Math.max(0, totalOnHand - existing.total_length);
+                    } else if (totalOnHand > 0) {
+                        // Warehouse has stock but no rolls — add as loose-only row
+                        const wh = whLookup.get(s.warehouse_id);
+                        if (wh) {
+                            rows.push({
+                                warehouse_id: s.warehouse_id,
+                                warehouse_code: wh.code || '',
+                                warehouse_name_ar: wh.name_ar || '',
+                                warehouse_name_en: wh.name_en || '',
+                                roll_count: 0,
+                                total_length: 0,
+                                available_length: 0,
+                                reserved_length: 0,
+                                loose_stock: totalOnHand,
+                                last_updated: s.updated_at || null,
+                            });
+                        }
+                    }
+                }
             } else if (cachedStock && cachedStock.length > 0) {
                 // No rolls — check preloaded inventory_stock for per-warehouse breakdown
                 const materialStock = cachedStock.filter((s: any) => s.material_id === materialId);
@@ -266,6 +305,7 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
         queryClient.removeQueries({ queryKey: ['inventory-preload-stock', companyId] });
         queryClient.removeQueries({ queryKey: ['inventory-preload-rolls', companyId] });
         queryClient.removeQueries({ queryKey: ['material-inventory', companyId, data?.id] });
+        queryClient.invalidateQueries({ queryKey: ['material-inventory', companyId, data?.id] });
         // Re-run the query (will hit API since caches are cleared)
         inventoryQuery.refetch();
     };
@@ -496,9 +536,8 @@ export function MaterialInventoryTab({ data, onClose, onOpenRoll }: MaterialInve
                 {/* ═══════════ Stock Summary ═══════════ */}
                 {!loading && (data?.current_stock > 0 || data?.loose_stock > 0 || totals.total > 0 || totals.loose > 0) && (() => {
                     // Use warehouse-level aggregated loose + rolled for the most accurate picture
-                    // IMPORTANT: Use || not ?? — 0 must fall through
-                    const effectiveLoose = Math.max(totals.loose, Number(data?.bulk_stock || data?.loose_stock || 0), Math.max(0, (data?.current_stock || 0) - totals.total));
-                    const effectiveTotal = Math.max(data?.current_stock || 0, totals.total + effectiveLoose);
+                    const effectiveLoose = totals.loose;
+                    const effectiveTotal = totals.total + totals.loose;
                     return (
                         <div className="grid grid-cols-3 gap-3">
                             <div className="flex flex-col items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">

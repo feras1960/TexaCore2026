@@ -163,39 +163,38 @@ class SalesDeliveryService {
                 return { success: false, error: `فشل تحديث الفاتورة: ${updateError.message}` };
             }
 
-            // ─── 4. إنشاء stock_movement (OUT) ───
+            // ─── 4. تسجيل حركة المخزون ───
+            // ملاحظة: جدول stock_movements غير موجود — حركات المخزون تُسجَّل
+            // على مستوى الرولونات في inventory_movements (الخطوة 4b أدناه)
+            // وحجز الكمية بالأمتار يُدار عبر inventory_stock.reserved_quantity
             let stockMovementId: string | undefined;
             try {
                 const warehouseId = input.warehouse_id || transaction.warehouse_id;
                 if (warehouseId) {
-                    const movementPayload = {
-                        company_id: input.company_id,
-                        tenant_id: transaction.tenant_id,
-                        warehouse_id: warehouseId,
-                        movement_type: 'OUT',
-                        source_type: 'sales_delivery',
-                        source_id: input.transaction_id,
-                        source_ref: transaction.invoice_no || transaction.order_no || transaction.draft_no,
-                        notes: `إخراج بضاعة — فاتورة مبيعات ${transaction.invoice_no || transaction.draft_no}`,
-                        status: 'completed',
-                        created_by: input.user_id,
-                    };
-
-                    const { data: movement, error: movError } = await supabase
-                        .from('stock_movements')
-                        .insert(movementPayload)
-                        .select('id')
-                        .single();
-
-                    if (movError) {
-                        console.warn('⚠️ Stock movement creation failed:', movError.message);
-                    } else {
-                        stockMovementId = movement?.id;
-                        console.log('✅ Stock movement created:', stockMovementId);
+                    // تحديث inventory_stock — خصم فعلي بالأمتار
+                    const totalMeters = (input.items || []).reduce((sum: number, item: DeliveryItem) => sum + (item.qty || 0), 0);
+                    if (totalMeters > 0) {
+                        // جلب بيانات الأصناف وتحديث المخزون
+                        for (const item of (input.items || [])) {
+                            if (item.material_id && item.qty > 0) {
+                                // إنقاص الكمية الفعلية + إنقاص الكمية المحجوزة
+                                const { error: stockErr } = await supabase.rpc('deduct_inventory_stock', {
+                                    p_material_id: item.material_id,
+                                    p_warehouse_id: warehouseId,
+                                    p_company_id: input.company_id,
+                                    p_quantity: item.qty,
+                                });
+                                if (stockErr) {
+                                    console.warn(`⚠️ inventory_stock deduction failed for material ${item.material_id}:`, stockErr.message);
+                                } else {
+                                    console.log(`✅ inventory_stock: deducted ${item.qty}m for material ${item.material_id}`);
+                                }
+                            }
+                        }
                     }
                 }
             } catch (stockErr) {
-                console.warn('⚠️ Stock movement error (non-blocking):', stockErr);
+                console.warn('⚠️ Stock deduction error (non-blocking):', stockErr);
             }
 
             // ─── 4b. حفظ الرولونات في inventory_movements (ليربطها TradeService بالفاتورة) ───

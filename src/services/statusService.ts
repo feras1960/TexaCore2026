@@ -124,6 +124,31 @@ class StatusService {
     return data;
   }
 
+  /**
+   * Upsert: إنشاء أو إرجاع المجموعة الموجودة (يمنع خطأ 409 عند التهيئة المتكررة)
+   */
+  async upsertStatusGroup(group: Partial<StatusGroup>): Promise<StatusGroup> {
+    // Try insert first
+    const { data, error } = await supabase
+      .from('status_groups')
+      .upsert(group, { onConflict: 'tenant_id,doc_type,code' })
+      .select()
+      .single();
+
+    if (!error && data) return data;
+
+    // Fallback: if upsert fails, try to find existing
+    const existing = await supabase
+      .from('status_groups')
+      .select('*')
+      .eq('doc_type', group.doc_type!)
+      .eq('code', group.code!)
+      .maybeSingle();
+
+    if (existing.data) return existing.data;
+    throw error || new Error('Failed to create or find status group');
+  }
+
   async updateStatusGroup(id: string, updates: Partial<StatusGroup>): Promise<StatusGroup> {
     const { data, error } = await supabase
       .from('status_groups')

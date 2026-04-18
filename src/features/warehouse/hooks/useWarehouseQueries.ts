@@ -139,6 +139,16 @@ export function useMaterials(options?: UseMaterialsOptions) {
         ],
     });
 
+    // 🔄 Realtime: auto-update when actual stocks change in inventory_stock
+    useRealtimeInvalidation({
+        table: 'inventory_stock',
+        companyId,
+        queryKeys: [
+            ['warehouse', 'materials'],
+            ['warehouse', 'dashboard-stats', companyId],
+        ],
+    });
+
     const invalidate = () => {
         queryClient.invalidateQueries({ queryKey: ['warehouse', 'materials'] });
         queryClient.invalidateQueries({ queryKey: ['warehouse', 'dashboard-stats', companyId] });

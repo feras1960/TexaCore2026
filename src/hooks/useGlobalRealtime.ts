@@ -66,6 +66,7 @@ const REALTIME_SUBSCRIPTIONS = [
             ['sales_cycle_full'],
             ['sales_transactions_list'],
             ['customers_sales_stats'],
+            ['warehouse', 'pending-receipts'],  // ← أذون التسليم تتحدث فورياً عند تأكيد فاتورة مبيعات
         ],
     },
     {
@@ -90,6 +91,7 @@ const REALTIME_SUBSCRIPTIONS = [
             ['purchase_transactions_full'],
             ['purchase_cycle_full'],
             ['suppliers_purchase_stats'],
+            ['warehouse', 'pending-receipts'],  // ← أذون الاستلام تتحدث فورياً عند تأكيد فاتورة مشتريات
         ],
     },
     {

@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useJournalEntries } from './hooks/useAccountingQueries';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -45,6 +46,7 @@ export default function JournalEntries() {
   const { t, language, direction } = useLanguage();
   const { companyId } = useCompany();
   const { user, isSuperAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const isRTL = direction === 'rtl';
 
   // ─── System entries toggle (super_admin only) ───
@@ -248,6 +250,129 @@ export default function JournalEntries() {
     return { totalDebit, totalCredit, count: filteredData.length, postedCount, draftCount };
   }, [filteredData]);
 
+  // ─── Background Prefetch for Instant Details ───
+  // يخزن المستندات في الكاش لفتحها فوراً بدون انتظار عند الضغط على القيد
+  const sourceDocsCache = useRef<Record<string, { type: string, data?: any, stage?: string, id?: string }>>({});
+
+  useEffect(() => {
+    if (loading || filteredData.length === 0) return;
+
+    const prefetchSourceDocs = async () => {
+      const pendingSales: string[] = [];
+      const pendingPurchases: string[] = [];
+      const pendingContainers: { jeId: string, containerId: string }[] = [];
+      const pendingRemittances: { jeId: string, remitId: string }[] = [];
+
+      filteredData.forEach(entry => {
+        if (sourceDocsCache.current[entry.id]) return;
+        
+        const type = entry.type || '';
+        const refType = entry.referenceType || '';
+        
+        if (type === 'sales' || refType === 'sales_invoice') pendingSales.push(entry.id);
+        else if (type === 'purchase_invoice' || type === 'purchase' || refType === 'purchase_invoice') pendingPurchases.push(entry.id);
+        else if (type === 'container_expense' || refType === 'container_expense') pendingContainers.push({ jeId: entry.id, containerId: entry.referenceId });
+        else if (type === 'remittance' || refType === 'remittance') pendingRemittances.push({ jeId: entry.id, remitId: entry.referenceId });
+      });
+
+      // ═══ Sales: Check react-query cache first, then fetch remaining ═══
+      if (pendingSales.length > 0) {
+        const remainingSales: string[] = [];
+        try {
+          const queries = queryClient.getQueriesData({ queryKey: ['sales_cycle_full'] });
+          for (const [_, cachedData] of queries) {
+            if (Array.isArray(cachedData)) {
+              for (const jeId of pendingSales) {
+                if (sourceDocsCache.current[jeId]) continue;
+                const match = cachedData.find((d: any) => d._rawData?.journal_entry_id === jeId);
+                if (match?._rawData) {
+                  sourceDocsCache.current[jeId] = { type: 'sales', data: match._rawData, stage: match._rawData.stage };
+                } else {
+                  remainingSales.push(jeId);
+                }
+              }
+            }
+          }
+        } catch { remainingSales.push(...pendingSales.filter(id => !sourceDocsCache.current[id])); }
+
+        if (remainingSales.length > 0) {
+          const { data } = await supabase.from('sales_transactions').select('*, items:sales_transaction_items(*)').in('journal_entry_id', remainingSales);
+          data?.forEach(d => { sourceDocsCache.current[d.journal_entry_id] = { type: 'sales', data: d, stage: d.stage }; });
+        }
+      }
+
+      // ═══ Purchases: Check react-query cache first, then fetch remaining ═══
+      if (pendingPurchases.length > 0) {
+        const remainingPurchases: string[] = [];
+        try {
+          const queries = queryClient.getQueriesData({ queryKey: ['purchase_cycle_full'] });
+          for (const [_, cachedData] of queries) {
+            if (Array.isArray(cachedData)) {
+              for (const jeId of pendingPurchases) {
+                if (sourceDocsCache.current[jeId]) continue;
+                const match = cachedData.find((d: any) => d._rawData?.journal_entry_id === jeId);
+                if (match?._rawData) {
+                  sourceDocsCache.current[jeId] = { type: 'purchase', data: match._rawData, stage: match._rawData.stage };
+                } else {
+                  remainingPurchases.push(jeId);
+                }
+              }
+            }
+          }
+        } catch { remainingPurchases.push(...pendingPurchases.filter(id => !sourceDocsCache.current[id])); }
+
+        if (remainingPurchases.length > 0) {
+          const { data } = await supabase.from('purchase_transactions').select('*, items:purchase_transaction_items(*)').in('journal_entry_id', remainingPurchases);
+          data?.forEach(d => { sourceDocsCache.current[d.journal_entry_id] = { type: 'purchase', data: d, stage: d.stage }; });
+        }
+      }
+
+      if (pendingContainers.length > 0) {
+        const directIds = pendingContainers.map(c => c.containerId).filter(Boolean);
+        if (directIds.length > 0) {
+          const { data } = await supabase.from('containers').select('*').in('id', directIds);
+          data?.forEach(d => {
+            const match = pendingContainers.find(c => c.containerId === d.id);
+            if (match) sourceDocsCache.current[match.jeId] = { type: 'container', data: { ...d, party_id: d.supplier_id } };
+          });
+        }
+        const jeIds = pendingContainers.filter(c => !c.containerId).map(c => c.jeId);
+        if (jeIds.length > 0) {
+          const { data: expenses } = await supabase.from('container_expenses').select('journal_entry_id, container_id').in('journal_entry_id', jeIds);
+          const cIds = expenses?.map(e => e.container_id).filter(Boolean) || [];
+          if (cIds.length > 0) {
+             const { data: ctns } = await supabase.from('containers').select('*').in('id', cIds);
+             expenses?.forEach(exp => {
+                const ctn = ctns?.find(c => c.id === exp.container_id);
+                if (ctn) sourceDocsCache.current[exp.journal_entry_id] = { type: 'container', data: { ...ctn, party_id: ctn.supplier_id } };
+             });
+          }
+        }
+      }
+
+      if (pendingRemittances.length > 0) {
+         const rIds = pendingRemittances.map(r => r.remitId).filter(Boolean);
+         if (rIds.length > 0) {
+            const { data } = await supabase.from('remittances').select('id').in('id', rIds);
+            data?.forEach(d => {
+               const match = pendingRemittances.find(c => c.remitId === d.id);
+               if (match) sourceDocsCache.current[match.jeId] = { type: 'remittance', id: d.id };
+            });
+         }
+         const jeIds = pendingRemittances.filter(r => !r.remitId).map(r => r.jeId);
+         if (jeIds.length > 0) {
+            const { data } = await supabase.from('remittances').select('id, journal_entry_id, execution_journal_id').or(`journal_entry_id.in.(${jeIds.join(',')}),execution_journal_id.in.(${jeIds.join(',')})`);
+            data?.forEach(r => {
+               if (r.journal_entry_id) sourceDocsCache.current[r.journal_entry_id] = { type: 'remittance', id: r.id };
+               if (r.execution_journal_id) sourceDocsCache.current[r.execution_journal_id] = { type: 'remittance', id: r.id };
+            });
+         }
+      }
+    };
+    
+    prefetchSourceDocs();
+  }, [filteredData, loading]);
+
   // ─── Helpers ───
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
@@ -283,6 +408,40 @@ export default function JournalEntries() {
     const refId = entry.referenceId; // reference_id field
     const entryId = entry.id;
 
+    // ═══ 0. BACKGROUND CACHE CHECK (Instant 0ms Loading) ═══
+    const cached = sourceDocsCache.current[entryId];
+    if (cached) {
+      if (cached.type === 'remittance' && cached.id) {
+        setRemittanceSheetId(cached.id);
+        setRemittanceSheetOpen(true);
+        return;
+      }
+      if (cached.type === 'container' && cached.data) {
+        setTradeSheetMode('purchase');
+        setTradeSheetData(cached.data);
+        setTradeSheetStage(undefined);
+        setContainerSheetType('container');
+        setTradeSheetOpen(true);
+        return;
+      }
+      if (cached.type === 'purchase' && cached.data) {
+        setTradeSheetMode('purchase');
+        setTradeSheetData(cached.data);
+        setTradeSheetStage(cached.stage);
+        setContainerSheetType('invoice');
+        setTradeSheetOpen(true);
+        return;
+      }
+      if (cached.type === 'sales' && cached.data) {
+        setTradeSheetMode('sales');
+        setTradeSheetData(cached.data);
+        setTradeSheetStage(cached.stage);
+        setContainerSheetType('invoice');
+        setTradeSheetOpen(true);
+        return;
+      }
+    }
+
     // ═══ 0a. Remittance entries → open RemittanceDetailSheet ═══
     if (refType === 'remittance' || entryType === 'remittance') {
       // Find the remittance ID from reference_id
@@ -311,7 +470,9 @@ export default function JournalEntries() {
       'container_expense', 'container', 'container_tax', 'container_close',
       'purchase_invoice', 'sales_invoice', 'goods_receipt', 'sales_cogs',
     ]);
-    if (!SOURCE_DOC_REF_TYPES.has(refType || '') && !SOURCE_DOC_REF_TYPES.has(entryType || '')) {
+    const ACCOUNTING_ENTRY_TYPES = new Set(['cash', 'receipt', 'payment']);
+
+    if (ACCOUNTING_ENTRY_TYPES.has(entryType || '') || (!SOURCE_DOC_REF_TYPES.has(refType || '') && !SOURCE_DOC_REF_TYPES.has(entryType || ''))) {
       // ✅ cash/receipt/payment → افتح بواجهتها الأصلية (يومية الصندوق / سند القبض / سند الصرف)
       const cashDocTypes: Record<string, AccountingDocType> = {
         cash: 'cash',
@@ -376,11 +537,32 @@ export default function JournalEntries() {
 
     // ═══ 2. Purchase invoice → open Purchase sheet ═══
     if (entryType === 'purchase_invoice' || entryType === 'purchase') {
-      const { data: doc, error } = await supabase
-        .from('purchase_transactions')
-        .select('*')
-        .eq('journal_entry_id', entryId)
-        .maybeSingle();
+      let docCache = null;
+      try {
+        const queries = queryClient.getQueriesData({ queryKey: ['purchase_cycle_full'] });
+        for (const [_, cachedData] of queries) {
+          if (Array.isArray(cachedData)) {
+            const match = cachedData.find((d: any) => d._rawData?.journal_entry_id === entryId || d.id === refId);
+            if (match) { docCache = match._rawData; break; }
+          }
+        }
+      } catch (e) { }
+
+      if (docCache) {
+        setTradeSheetMode('purchase');
+        setTradeSheetData(docCache);
+        setTradeSheetStage(docCache.stage);
+        setContainerSheetType('invoice');
+        setTradeSheetOpen(true);
+        return;
+      }
+
+      // fallback
+      let query = supabase.from('purchase_transactions').select('*, items:purchase_transaction_items(*)');
+      if (refId) query = query.eq('id', refId);
+      else query = query.eq('journal_entry_id', entryId);
+
+      const { data: doc, error } = await query.maybeSingle();
 
       if (doc && !error) {
         setTradeSheetMode('purchase');
@@ -396,12 +578,32 @@ export default function JournalEntries() {
     // ═══ 3. Sales invoice → open Sales sheet ═══
     // Sales entries: entry_type='sales' OR reference_type='sales_invoice'
     if (entryType === 'sales' || refType === 'sales_invoice') {
-      // search by journal_entry_id
-      const { data: doc, error } = await supabase
-        .from('sales_transactions')
-        .select('*')
-        .eq('journal_entry_id', entryId)
-        .maybeSingle();
+      let docCache = null;
+      try {
+        const queries = queryClient.getQueriesData({ queryKey: ['sales_cycle_full'] });
+        for (const [_, cachedData] of queries) {
+          if (Array.isArray(cachedData)) {
+            const match = cachedData.find((d: any) => d._rawData?.journal_entry_id === entryId || d.id === refId);
+            if (match) { docCache = match._rawData; break; }
+          }
+        }
+      } catch (e) { }
+
+      if (docCache) {
+        setTradeSheetMode('sales');
+        setTradeSheetData(docCache);
+        setTradeSheetStage(docCache.stage);
+        setContainerSheetType('invoice');
+        setTradeSheetOpen(true);
+        return;
+      }
+
+      // Fallback
+      let query = supabase.from('sales_transactions').select('*, items:sales_transaction_items(*)');
+      if (refId) query = query.eq('id', refId);
+      else query = query.eq('journal_entry_id', entryId);
+
+      const { data: doc, error } = await query.maybeSingle();
 
       if (doc && !error) {
         setTradeSheetMode('sales');
@@ -410,23 +612,6 @@ export default function JournalEntries() {
         setContainerSheetType('invoice');
         setTradeSheetOpen(true);
         return;
-      }
-      // Also try searching by reference_id (RPC stores invoice_id as reference_id)
-      if (refId) {
-        const { data: doc2, error: err2 } = await supabase
-          .from('sales_transactions')
-          .select('*')
-          .eq('id', refId)
-          .maybeSingle();
-
-        if (doc2 && !err2) {
-          setTradeSheetMode('sales');
-          setTradeSheetData(doc2);
-          setTradeSheetStage(doc2.stage);
-          setContainerSheetType('invoice');
-          setTradeSheetOpen(true);
-          return;
-        }
       }
       console.warn('Source sales doc not found for JE:', entryId);
     }

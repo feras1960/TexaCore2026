@@ -187,7 +187,7 @@ export const accountingModule: DataModule = {
         // budget_alerts may not exist yet — handle gracefully
         let alerts: any[] = [];
         try {
-          const { data, error } = await supabase.from('budget_alerts').select('*').eq('company_id', companyId).eq('is_read', false);
+          const { data, error } = await supabase.from('budget_alerts').select('*').eq('is_active', true);
           if (!error) alerts = data || [];
         } catch { /* table doesn't exist */ }
         return { budgets: budgetsRes.data || [], alerts };

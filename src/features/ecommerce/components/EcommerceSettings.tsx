@@ -24,10 +24,15 @@ export default function EcommerceSettings() {
         const fetch = async () => {
             setLoading(true);
             try {
-                const { data } = await supabase.from('ecommerce_store_config').select('*').limit(1).maybeSingle();
-                setConfig(data);
-            } catch (e) {
-                console.warn('ecommerce_store_config not available');
+                const { data, error } = await supabase.from('ecommerce_store_config').select('*').limit(1).maybeSingle();
+                if (error && (error.code === '42P01' || error.message?.includes('does not exist'))) {
+                    // Table doesn't exist yet — silently ignore
+                    setConfig(null);
+                } else {
+                    setConfig(data);
+                }
+            } catch {
+                // Table not available — expected during initial setup
             }
             setLoading(false);
         };

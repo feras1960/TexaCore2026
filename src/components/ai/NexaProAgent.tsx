@@ -112,6 +112,26 @@ function NexaProPortalWrapper({ isAr, isOpen, hasNewInsight, toggleCopilot, clos
 }) {
     const [isDocked, setIsDocked] = useState(false);
 
+    // Auto-detect if any Sheet/Dialog is open
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
+    useEffect(() => {
+        const check = () => {
+            const hasDialog = document.querySelectorAll('[role="dialog"]').length > 0;
+            // Also check for the specific data-state="open" on portals
+            const hasOpenSheet = document.querySelectorAll('[data-state="open"]').length > 0;
+            setIsSheetOpen(hasDialog || hasOpenSheet);
+        };
+        check();
+        const observer = new MutationObserver(check);
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state'] });
+        return () => observer.disconnect();
+    }, []);
+
+    // If a sheet is open, move agent to the opposite safe side (right in AR, left in EN)
+    const positionClass = isSheetOpen 
+        ? (isAr ? 'right-6' : 'left-6 flex-row-reverse') 
+        : (isAr ? 'left-6 flex-row-reverse' : 'right-6');
+
     return (
         <div id="nexa-copilot-root">
             {/* Floating Bubble or Docked Tab */}
@@ -130,7 +150,7 @@ function NexaProPortalWrapper({ isAr, isOpen, hasNewInsight, toggleCopilot, clos
                     </button>
                 ) : (
                     /* 🔵 Normal floating bubble */
-                    <div className={`fixed bottom-24 z-[9999] flex items-center gap-1.5 ${isAr ? 'left-6 flex-row-reverse' : 'right-6'}`}>
+                    <div className={cn("fixed bottom-24 z-[9999] flex items-center gap-1.5 transition-all duration-500 ease-out", positionClass)}>
                         {/* Dock/minimize button */}
                         <button
                             onClick={() => setIsDocked(true)}

@@ -74,41 +74,64 @@ export const autoRollService = {
      */
     async getLooseStock(materialId: string, warehouseId?: string): Promise<LooseStockInfo | null> {
         try {
-            // 1. جلب المادة من fabric_materials (SELECT * لأن current_stock قد يكون computed)
-            const { data: material, error: matErr } = await supabase
-                .from('fabric_materials')
-                .select('*')
-                .eq('id', materialId)
-                .maybeSingle();
-
-            if (matErr || !material) {
-                console.error('[AutoRoll] Material not found:', materialId);
-                return null;
-            }
-
-            // 2. حساب مجموع أطوال الرولونات الموجودة
-            let query = supabase
+            // Build rolls query
+            let rollsQuery = supabase
                 .from('fabric_rolls')
                 .select('current_length')
                 .eq('material_id', materialId)
                 .in('status', ['available', 'reserved', 'in_stock']);
 
             if (warehouseId) {
-                query = query.eq('warehouse_id', warehouseId);
+                rollsQuery = rollsQuery.eq('warehouse_id', warehouseId);
             }
 
-            const { data: rolls, error: rollsErr } = await query;
+            // Run all queries IN PARALLEL
+            const matPromise = supabase
+                .from('fabric_materials')
+                .select('id, current_stock, company_id')
+                .eq('id', materialId)
+                .maybeSingle()
+                .then(r => r);
 
-            if (rollsErr) {
-                console.error('[AutoRoll] Error fetching rolls:', rollsErr.message);
+            const rollsPromise = rollsQuery.then(r => r);
+
+            const whStockPromise = warehouseId
+                ? supabase
+                    .from('inventory_stock')
+                    .select('quantity_on_hand, current_quantity')
+                    .eq('material_id', materialId)
+                    .eq('warehouse_id', warehouseId)
+                    .then(r => r)
+                : Promise.resolve({ data: null, error: null });
+
+            const [matResult, rollsResult, whStockResult] = await Promise.all([
+                matPromise, rollsPromise, whStockPromise,
+            ]);
+
+            if (matResult.error || !matResult.data) {
+                console.error('[AutoRoll] Material not found:', materialId);
                 return null;
             }
 
-            const rolls_total_length = (rolls || []).reduce(
-                (sum, r: any) => sum + (Number(r.current_length) || 0), 0
+            if (rollsResult.error) {
+                console.error('[AutoRoll] Error fetching rolls:', rollsResult.error.message);
+                return null;
+            }
+
+            const rolls_total_length = (rollsResult.data || []).reduce(
+                (sum: number, r: any) => sum + (Number(r.current_length) || 0), 0
             );
 
-            const current_stock = Number(material.current_stock) || 0;
+            // Use warehouse-specific stock if available, otherwise global
+            let current_stock: number;
+            if (warehouseId && whStockResult?.data && whStockResult.data.length > 0) {
+                current_stock = whStockResult.data.reduce(
+                    (sum: number, r: any) => sum + (Number(r.quantity_on_hand) || Number(r.current_quantity) || 0), 0
+                );
+            } else {
+                current_stock = Number(matResult.data.current_stock) || 0;
+            }
+
             const loose_stock = Math.max(0, current_stock - rolls_total_length);
 
             return {
@@ -198,8 +221,16 @@ export const autoRollService = {
         remainingLooseStock?: number;
     }> {
         try {
-            // ── 1. تحقق من المخزون السائب ───
-            const looseInfo = await this.getLooseStock(input.materialId, input.warehouseId);
+            // ── 1. Run loose stock check + roll number generation IN PARALLEL ───
+            // These are independent — no need to wait for one before the other
+            const [looseInfo, rollNumResult] = await Promise.all([
+                this.getLooseStock(input.materialId, input.warehouseId),
+                rollNumberService.generate({
+                    companyId: input.companyId,
+                    colorName: input.colorName,
+                }).catch(() => null), // Fallback to JIT on error
+            ]);
+
             if (!looseInfo) {
                 return { roll: null, error: 'material_not_found' };
             }
@@ -216,26 +247,22 @@ export const autoRollService = {
                 };
             }
 
-            // ── 2. إنشاء الرول ───
-            // Try smart roll code first, fallback to JIT
+            // ── 2. Determine roll number ───
             let rollNumber: string;
             let rollCode: string | undefined;
-            try {
-                const smart = await rollNumberService.generate({
-                    companyId: input.companyId,
-                    colorName: input.colorName,
-                });
-                rollNumber = smart.roll_number;
-                rollCode = smart.roll_code;
-            } catch {
-                // Offline or error → use JIT number + pure rollCode
+            if (rollNumResult) {
+                rollNumber = rollNumResult.roll_number;
+                rollCode = rollNumResult.roll_code;
+            } else {
                 rollNumber = generateJITRollNumber();
                 rollCode = buildRollCode({ colorName: input.colorName });
             }
+
             const purposeLabel = input.purpose === 'sales_delivery'
                 ? 'JIT Sales Delivery'
                 : 'JIT Transfer';
 
+            // ── 3. Insert roll (single DB call) ───
             const { data, error } = await supabase
                 .from('fabric_rolls')
                 .insert({
@@ -251,11 +278,10 @@ export const autoRollService = {
                     reserved_length: 0,
                     color_id: input.colorId || null,
                     color_name: input.colorName || null,
-                    status: 'reserved',  // 🔑 reserved until delivery is confirmed — doesn't show in general inventory
+                    status: 'reserved',  // 🔑 reserved until delivery is confirmed
                     cost_per_meter: 0,
                     cost_status: 'pending',
                     notes: `${purposeLabel} | Ref: ${input.referenceNumber || 'N/A'}`,
-                    // 🔑 مصدر الرولون
                     source_type: input.purpose === 'sales_delivery' ? 'auto_sales_delivery' : 'auto_transfer',
                     source_document_number: input.referenceNumber || null,
                 })
@@ -268,7 +294,7 @@ export const autoRollService = {
             }
 
             const newLooseStock = looseInfo.loose_stock - input.rollLength;
-            console.log(`[AutoRoll] ✅ Created ${rollNumber} (${input.rollLength}m) — remaining loose: ${newLooseStock.toFixed(1)}m`);
+            console.log(`[AutoRoll] ✅ Created ${data.roll_number} (${input.rollLength}m) — remaining loose: ${newLooseStock.toFixed(1)}m`);
 
             return {
                 roll: {

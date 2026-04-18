@@ -301,9 +301,11 @@ const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
     ],
     sent_to_branch: [
         { id: 'confirm_delivery', labelAr: 'تأكيد التسليم للعميل', labelEn: 'Confirm Customer Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
+        { id: 'post', labelAr: 'ترحيل محاسبي', labelEn: 'Post to Accounting', icon: '📮', targetStage: 'posted', variant: 'outline', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء القيد المحاسبي بالكميات المُخرجة', confirmMessageEn: 'Journal entry will be created with dispatched quantities' },
     ],
     in_delivery: [
         { id: 'confirm_delivery', labelAr: 'تأكيد التسليم', labelEn: 'Confirm Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
+        { id: 'post', labelAr: 'ترحيل محاسبي', labelEn: 'Post to Accounting', icon: '📮', targetStage: 'posted', variant: 'outline', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء القيد المحاسبي بالكميات المُخرجة', confirmMessageEn: 'Journal entry will be created with dispatched quantities' },
     ],
     // ── مراحل التسليم عبر الفرع ──
     in_transit: [
@@ -314,7 +316,9 @@ const SALES_STAGE_ACTIONS: Record<string, StageActionConfig[]> = {
         { id: 'confirm_customer_delivery', labelAr: 'تأكيد التسليم للعميل', labelEn: 'Confirm Customer Delivery', icon: '✅', targetStage: 'delivered', variant: 'success', requiresConfirm: true, confirmMessageAr: 'هل تم تسليم البضاعة للعميل؟', confirmMessageEn: 'Has goods been delivered to the customer?' },
         { id: 'return_to_warehouse', labelAr: 'إرجاع للمستودع', labelEn: 'Return to Warehouse', icon: '🔙', targetStage: 'confirmed', variant: 'destructive', requiresReason: true },
     ],
-    delivered: [],
+    delivered: [
+        { id: 'post', labelAr: 'ترحيل محاسبي', labelEn: 'Post to Accounting', icon: '📮', targetStage: 'posted', variant: 'success', requiresConfirm: true, confirmMessageAr: 'سيتم إنشاء القيد المحاسبي وترحيل الفاتورة بالكميات المسلّمة', confirmMessageEn: 'Journal entry will be posted with delivered quantities' },
+    ],
     posted: [
         { id: 'collect', labelAr: 'تحصيل دفعة', labelEn: 'Collect Payment', icon: '💰', targetStage: 'partial_paid', variant: 'default', requiresNotes: true },
     ],

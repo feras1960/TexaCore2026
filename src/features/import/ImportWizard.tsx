@@ -68,7 +68,9 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
     updateImportRows,
     validateData,
     executeImport,
-    updateOptions
+    updateOptions,
+    updateWarehouseResolution,
+    resolveWarehouseConflicts,
   } = useImportWizard(tenantId, companyId || '', defaultEntityType);
 
   const currentStepIndex = STEPS.findIndex(s => s.id === state.currentStep);
@@ -136,6 +138,12 @@ export function ImportWizard({ onClose, onComplete, defaultEntityType }: ImportW
             onUpdateOptions={updateOptions}
             onContinue={nextStep}
             isLoading={state.isLoading}
+            missingWarehouses={state.missingWarehouses}
+            warehouseResolutions={state.warehouseResolutions}
+            warehouseList={state.warehouseList}
+            branchList={state.branchList}
+            onUpdateWarehouseResolution={updateWarehouseResolution}
+            onResolveWarehouses={resolveWarehouseConflicts}
           />
         );
 

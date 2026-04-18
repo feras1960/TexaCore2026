@@ -146,8 +146,8 @@ function computeJournalLines(
     // 
     // المسار:
     // 1️⃣ إذا taxAmount > 0 (مُجمع من الأصناف) → استخدمه مباشرة (ضريبة مادة)
-    // 2️⃣ إذا taxAmount = 0 و taxEnabled و taxRate > 0 → احسب من نسبة الشركة
-    // 3️⃣ كلاهما 0 أو الضريبة معطلة → لا ضريبة، لا سطر ضريبة بالقيد
+    // 2️⃣ إذا taxAmount = 0 → لا ضريبة (القيد يتبع الفاتورة بالضبط)
+    //    ◆ ملاحظة: لا fallback لإعدادات الشركة — القيد يعكس ما في الفاتورة فقط
     const netAmount = totalAmount;
     // 🌍 International purchases: tax = 0 on invoice (paid later at customs/container)
     const isInternationalPurchase = transactionType === 'purchase' && receiptMode === 'international';
@@ -155,7 +155,7 @@ function computeJournalLines(
         ? 0  // ← دولي: لا ضريبة على الفاتورة — تُدفع وتُوزع عبر الكونتينر
         : taxAmount > 0
             ? taxAmount  // ← ضريبة محسوبة من الأصناف (material-level)
-            : (taxEnabled && taxRate > 0 && netAmount > 0) ? computeTaxAmount(netAmount, taxRate) : 0;
+            : 0;  // ← لا ضريبة — القيد يتبع الفاتورة
     const gross = netAmount + computedTax;
     // هل يجب إظهار سطر الضريبة؟ فقط إذا computedTax > 0
     const showTaxLine = computedTax > 0;
@@ -583,7 +583,7 @@ function computeJournalLines(
 }
 
 // All stages can show journal entries — we show projected entries for early stages
-const JOURNAL_STAGES = ['draft', 'confirmed', 'in_delivery', 'delivered', 'received', 'quotation', 'order', 'approved', 'invoice', 'posted', 'paid', 'receipt'];
+const JOURNAL_STAGES = ['draft', 'confirmed', 'in_delivery', 'in_transit', 'sent_to_branch', 'at_branch', 'delivered', 'received', 'quotation', 'order', 'approved', 'invoice', 'posted', 'paid', 'receipt'];
 
 // ─── Component ──────────────────────────────────────────────────────────
 
@@ -806,11 +806,13 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    {/* Tax Rate Badge */}
-                    <Badge variant="outline" className="text-[10px] gap-1">
-                        <Percent className="w-3 h-3" />
-                        {taxRate}%
-                    </Badge>
+                    {/* Tax Rate Badge — only show when tax exists in the document */}
+                    {totalDebit > 0 && lines.some(l => l.isTax) && (
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                            <Percent className="w-3 h-3" />
+                            {lines.find(l => l.isTax)?.taxRate || taxRate}%
+                        </Badge>
+                    )}
                     <Badge variant="outline" className="text-[10px] gap-1">
                         <Eye className="w-3 h-3" />
                         {isRTL ? 'قراءة فقط' : 'Read-only'}
@@ -966,15 +968,24 @@ export const StageJournalPreview: React.FC<StageJournalPreviewProps> = ({
                 </table>
             </div>
 
-            {/* Tax Source Info */}
+            {/* Tax Source Info — only show when relevant */}
             {taxDefaults && (
                 <div className="px-3 pb-2">
                     <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                         <Info className="w-3 h-3" />
                         <span>
-                            {isRTL
-                                ? `الضريبة: ${taxDefaults.nameAr} (${taxRate}%) — من الإعدادات`
-                                : `Tax: ${taxDefaults.nameEn} (${taxRate}%) — from settings`}
+                            {lines.some(l => l.isTax)
+                                ? (isRTL
+                                    ? `الضريبة: ${taxDefaults.nameAr} (${lines.find(l => l.isTax)?.taxRate || taxRate}%) — من الأصناف`
+                                    : `Tax: ${taxDefaults.nameEn} (${lines.find(l => l.isTax)?.taxRate || taxRate}%) — from items`)
+                                : taxEnabled && taxRate > 0
+                                    ? (isRTL
+                                        ? `الضريبة مُفعّلة (${taxRate}%) — لم تُطبّق على هذا المستند`
+                                        : `Tax enabled (${taxRate}%) — not applied to this document`)
+                                    : (isRTL
+                                        ? 'الضريبة غير مُفعّلة — لا ضريبة على المستند'
+                                        : 'Tax disabled — no tax on this document')
+                            }
                         </span>
                     </div>
                 </div>

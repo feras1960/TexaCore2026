@@ -856,7 +856,7 @@ export const TradeService = {
                 const { data: deliveryNotes } = await supabase
                     .from('delivery_notes')
                     .select('id, warehouse_id')
-                    .eq('source_order_id', docId);
+                    .eq('sales_order_id', docId);
 
                 if (deliveryNotes && deliveryNotes.length > 0) {
                     // Warehouse name

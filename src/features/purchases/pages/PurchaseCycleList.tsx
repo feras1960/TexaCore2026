@@ -45,6 +45,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UnifiedTradeSheet } from '@/features/trade/components/UnifiedTradeSheet';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified/UnifiedAccountingSheet';
 import { ContainerStatusBadge } from '@/features/trade/components/ContainerStatusStepper';
 import type { DocType } from '@/components/sheets/configs/sheet.types';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -127,6 +128,19 @@ export default function PurchaseCycleList() {
     const [isUnifiedSheetOpen, setIsUnifiedSheetOpen] = useState(false);
     const [unifiedTransactionId, setUnifiedTransactionId] = useState<string | null>(null);
     const [unifiedMode, setUnifiedMode] = useState<'create' | 'view' | 'edit'>('view');
+
+    // ─── External Doc (Receipt/Payment) Overlay ───
+    const [externalDoc, setExternalDoc] = useState<any>(null);
+
+    useEffect(() => {
+        const handleOpenExternalDoc = (e: any) => {
+            if (e.detail) {
+                setExternalDoc({ ...e.detail });
+            }
+        };
+        window.addEventListener('open-external-document', handleOpenExternalDoc);
+        return () => window.removeEventListener('open-external-document', handleOpenExternalDoc);
+    }, []);
 
     // ─── NexaListTable state ───
     const [searchTerm, setSearchTerm] = useState('');
@@ -1227,6 +1241,23 @@ export default function PurchaseCycleList() {
                     currentStage={selectedDoc?.stage || (docMode === 'create' ? newDocType : undefined)}
                     onStageAdvance={advanceStage}
                     onRefresh={refetch}
+                />
+            )}
+
+            {/* Independent Overlay for Receipts/Payments triggered from inside the Main Sheet */}
+            {externalDoc && (
+                <UnifiedAccountingSheet
+                    isOpen={true}
+                    onClose={() => setExternalDoc(null)}
+                    docType={externalDoc.type}
+                    mode="create"
+                    data={externalDoc.data}
+                    companyId={companyId || undefined}
+                    tradeMode={externalDoc.type === 'receipt' ? 'sales' : 'purchase'}
+                    onRefresh={() => {
+                        queryClient.invalidateQueries({ queryKey: ['purchase_cycle_full'] });
+                        queryClient.invalidateQueries({ queryKey: ['party_balances'] });
+                    }}
                 />
             )}
         </div>

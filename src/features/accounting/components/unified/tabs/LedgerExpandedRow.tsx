@@ -10,6 +10,8 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { cn, formatNumber } from '@/lib/utils';
 import { Loader2, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { queryClient } from '@/app/providers';
 import type { ExtendedLedgerEntry, EntryDetailLine } from '../hooks/useLedgerData';
 
 // ═══ Entry Type Icons ═══
@@ -38,34 +40,17 @@ export function LedgerExpandedRow({
     const { t, language, direction } = useLanguage();
     const isRTL = direction === 'rtl';
 
-    const [lines, setLines] = useState<EntryDetailLine[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const preloadedLines = queryClient.getQueryData<EntryDetailLine[]>(['entry_details', String(entry.entryId)]);
 
-    // Fetch details on mount (lazy loading)
-    useEffect(() => {
-        let cancelled = false;
+    const { data: lines = preloadedLines || [], isLoading: queryIsLoading, error: queryError } = useCachedQuery<EntryDetailLine[]>({
+        queryKey: ['entry_details', String(entry.entryId)],
+        queryFn: () => fetchEntryDetails(entry.entryId),
+        initialData: preloadedLines,
+        staleTime: 5 * 60 * 1000, // 5 minutes fresh
+    });
 
-        const load = async () => {
-            setLoading(true);
-            try {
-                const details = await fetchEntryDetails(entry.entryId);
-                if (!cancelled) {
-                    setLines(details);
-                    setError(null);
-                }
-            } catch (err) {
-                if (!cancelled) {
-                    setError('Error loading entry details');
-                }
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        };
-
-        load();
-        return () => { cancelled = true; };
-    }, [entry.entryId, fetchEntryDetails]);
+    const loading = !preloadedLines && queryIsLoading;
+    const error = queryError ? 'Error loading entry details' : null;
 
     // Entry type info
     const typeInfo = ENTRY_TYPE_ICONS[entry.type] || ENTRY_TYPE_ICONS.journal;
