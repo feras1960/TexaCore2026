@@ -236,7 +236,7 @@ interface PartyDocDetails {
 // ═══════════════════════════════════════════════════════════
 // Fetch function — extracted so it can be used by useCachedQuery
 // ═══════════════════════════════════════════════════════════
-async function fetchPartyDocDetails(entry: ExtendedLedgerEntry, currency: string): Promise<PartyDocDetails> {
+export async function fetchPartyDocDetails(entry: ExtendedLedgerEntry, currency: string): Promise<PartyDocDetails> {
     const refType = entry.referenceType || '';
     let refId = entry.referenceId;
     const desc = entry.description || '';

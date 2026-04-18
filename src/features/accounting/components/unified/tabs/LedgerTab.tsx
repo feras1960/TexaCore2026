@@ -17,9 +17,11 @@ import { useAccountingSettings } from '@/hooks/useAccountingSettings';
 import { useViewCurrency } from '@/features/accounting/hooks/useViewCurrency';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
 import { LedgerExpandedRow } from './LedgerExpandedRow';
+import { fetchPartyDocDetails } from './PartyLedgerExpandedRow';
 import { useLedgerData, type ExtendedLedgerEntry } from '../hooks/useLedgerData';
 import { cn, formatNumber } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     Calendar,
     CalendarDays,
@@ -145,6 +147,7 @@ export function LedgerTab({
     };
     const { supportedCurrencies, baseCurrency: settingsBaseCurrency } = useAccountingSettings();
     const { getRate } = useViewCurrency();
+    const queryClient = useQueryClient();
 
     // Local currency state — starts empty, will be set to account's currency on mount
     const [localCurrency, setLocalCurrency] = useState<string>('');
@@ -208,6 +211,31 @@ export function LedgerTab({
         baseCurrency: effectiveBaseCurrency,
         lookupCurrentRate: effectiveTargetCurrency ? lookupCurrentRate : undefined,
     });
+
+    // ═══ Prefetch Party Details (Instant Cache) ═══
+    // Pre-fetch the details for ledger row expansion to eliminate the loading delay.
+    // We only prefetch the most recent N rows or the current visible ones.
+    const activeCurrencyStr = localCurrency || accountCurrency || effectiveBaseCurrency || '';
+    useEffect(() => {
+        if (!partyMode || entries.length === 0) return;
+
+        // Give the UI a moment to breathe before hitting the network for details,
+        // so we don't slow down the initial render of the ledger itself.
+        const timerId = setTimeout(() => {
+            // Take the first 50 entries to avoid overwhelming the network
+            const entriesToPrefetch = entries.slice(0, 50);
+            
+            entriesToPrefetch.forEach(entry => {
+                queryClient.prefetchQuery({
+                    queryKey: ['party_doc_details', entry.entryId, entry.referenceId || '', entry.type],
+                    queryFn: () => fetchPartyDocDetails(entry, activeCurrencyStr),
+                    staleTime: 10 * 60 * 1000,
+                });
+            });
+        }, 800);
+
+        return () => clearTimeout(timerId);
+    }, [partyMode, entries, activeCurrencyStr, queryClient]);
 
     // ═══ Local State ═══
     const [activePreset, setActivePreset] = useState<DatePreset>('all');
