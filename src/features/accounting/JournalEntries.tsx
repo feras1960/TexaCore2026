@@ -238,8 +238,31 @@ export default function JournalEntries() {
       );
     }
 
+    // Apply Client-Side Sort
+    data = [...data].sort((a: any, b: any) => {
+      // 1. If user clicked a column header to sort
+      if (sortField) {
+        let valA = a[sortField];
+        let valB = b[sortField];
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+      }
+
+      // 2. Default Fallback Sort: Date DESC, then created_at DESC
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      if (dateA !== dateB) return dateB.localeCompare(dateA); // Date DESC
+      
+      const timeA = a._raw?.created_at || '';
+      const timeB = b._raw?.created_at || '';
+      return timeB.localeCompare(timeA); // Created At DESC
+    });
+
     return data;
-  }, [allEntries, activeTab, searchTerm, showSystemEntries]);
+  }, [allEntries, activeTab, searchTerm, showSystemEntries, sortField, sortAsc]);
 
   // ─── Totals (from filteredData — what's currently shown) ───
   const totals = useMemo(() => {
