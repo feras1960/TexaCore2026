@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { UnifiedAccountingSheet } from '@/features/accounting/components/unified';
 import {
     Select,
     SelectContent,
@@ -320,6 +321,11 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     const [availableRolls, setAvailableRolls] = useState<Record<string, FabricRoll[]>>({});
     const [selectedRolls, setSelectedRolls] = useState<FabricRoll[]>(data?.selected_rolls || []);
+
+    // ═══ STANDALONE ROLL SHEET STATE ═══
+    const [rollSheetOpen, setRollSheetOpen] = useState(false);
+    const [rollSheetData, setRollSheetData] = useState<any>(null);
+    const [rollSheetLoading, setRollSheetLoading] = useState(false);
     const [loadingRolls, setLoadingRolls] = useState<Record<string, boolean>>({});
     const [scanInput, setScanInput] = useState('');
     const [scanLoading, setScanLoading] = useState(false);
@@ -1167,11 +1173,13 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                                 return (
                                                     <div
                                                         key={roll.id}
-                                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-colors group ${
+                                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-all group cursor-pointer hover:shadow-md hover:scale-[1.03] active:scale-95 ${
                                                             isJIT
                                                                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
                                                                 : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
                                                         }`}
+                                                        onClick={() => handleOpenRoll(roll.id)}
+                                                        title={tl('اضغط لعرض تفاصيل الرولون', 'Click to view roll details')}
                                                     >
                                                         {isJIT && (
                                                             <span className="text-[8px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1 rounded">JIT</span>
@@ -1270,6 +1278,19 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                 defaultPrint={true}
                 context="delivery"
             />
+            {/* Overlay Sheet for standalone roll details */}
+            {rollSheetData && (
+                <UnifiedAccountingSheet
+                    key={rollSheetData.id}
+                    isOpen={rollSheetOpen}
+                    onClose={() => { setRollSheetOpen(false); setRollSheetData(null); }}
+                    docType="roll"
+                    mode="view"
+                    data={rollSheetData}
+                    documentId={rollSheetData.id}
+                    companyId={companyId}
+                />
+            )}
         </div>
     );
 }

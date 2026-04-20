@@ -386,12 +386,28 @@ export function UnifiedAccountingSheet({
                     }
                 }
 
+                // ═══ For sales_delivery: Parent is the single source of truth ═══
+                // The SalesDeliveryDialog manages selected_rolls, source_items, view_mode.
+                // These MUST always come from initialData (parent), never from prev (stale local).
+                const deliveryOverrides: Record<string, any> = {};
+                if (initialData?.docType === 'sales_delivery' || (initialData as any)?.selected_rolls !== undefined) {
+                    if (initialData.selected_rolls) deliveryOverrides.selected_rolls = initialData.selected_rolls;
+                    if (initialData.source_items) deliveryOverrides.source_items = initialData.source_items;
+                    if (initialData.view_mode !== undefined) deliveryOverrides.view_mode = initialData.view_mode;
+                    if (initialData.rolls_count !== undefined) deliveryOverrides.rolls_count = initialData.rolls_count;
+                    if (initialData.total_length !== undefined) deliveryOverrides.total_length = initialData.total_length;
+                    if (initialData.onDeliveryDataChange) deliveryOverrides.onDeliveryDataChange = initialData.onDeliveryDataChange;
+                    // Also update items from parent for delivery (source items may have changed)
+                    if (initialData.items?.length > 0) deliveryOverrides.items = initialData.items;
+                }
+
                 return {
                     ...initialData,
-                    ...(mergedItems ? { items: mergedItems } : {}),
+                    ...(mergedItems && !deliveryOverrides.items ? { items: mergedItems } : {}),
                     ...preserveFinancials,
                     ...preservePartyFields,
                     ...preservePostingState,
+                    ...deliveryOverrides,
                 };
             });
         }
@@ -1342,8 +1358,8 @@ export function UnifiedAccountingSheet({
                             </div>
                         )}
 
-                        {/* Main Document Tabs — hidden for single-doc use cases like SalesDelivery */}
-                        {!hideMainDocTabs && (
+                        {/* Main Document Tabs — hidden dynamically but forced if multiple docs are open */}
+                        {(!hideMainDocTabs || openDocs.length > 1) && (
                         <MainDocumentTabs
                             documents={(openDocs.length > 0 ? openDocs : [{
                                 id: documentId || data?.id || 'primary',

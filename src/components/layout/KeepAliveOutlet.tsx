@@ -19,7 +19,8 @@ import { useLocation } from 'react-router-dom';
 // ─── ALL app route → component mappings ─────────────────────────
 const ROUTE_MAP: Record<string, () => Promise<{ default: ComponentType<any> }>> = {
   // Core modules (prefetch first — most used)
-  '/': () => import('@/features/dashboard/Dashboard'),
+  '/': () => import('@/app/(dashboard)/new-dashboard/page'),
+  '/old-dashboard': () => import('@/features/dashboard/Dashboard'),
   '/accounting': () => import('@/features/accounting/Accounting'),
   '/sales': () => import('@/features/sales/SalesPage'),
   '/purchases': () => import('@/features/purchases/PurchasesPage'),

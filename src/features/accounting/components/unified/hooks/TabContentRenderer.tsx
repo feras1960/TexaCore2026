@@ -186,6 +186,63 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
     }, [data, mode, docType, tradeMode, loading, companyId, documentId, currentStage, options, useArabicNumerals, onChange, openDocs, obDialogState]);
 
     function renderTabContentInner(tabId: string): React.ReactNode {
+        // ── Shared MDI handler: open a roll as a new document tab ──
+        const handleSharedRollOpen = async (rollIdOrObj: any, customMaterialName?: string) => {
+            const rollId = typeof rollIdOrObj === 'string' ? rollIdOrObj : rollIdOrObj?.id;
+            if (!rollId) return;
+
+            // If already open, just activate
+            const existingDoc = openDocs.find(d => d.id === rollId);
+            if (existingDoc) {
+                setActiveDocId(rollId);
+                return;
+            }
+
+            // Fetch full roll details with warehouse/color joins
+            const { data: fullRoll, error } = await supabase
+                .from('fabric_rolls')
+                .select(`
+                    *,
+                    warehouse:warehouses!left(id, name_ar, name_en, code),
+                    color:fabric_colors!left(id, name_ar, name_en, hex_code)
+                `)
+                .eq('id', rollId)
+                .single();
+
+            if (error || !fullRoll) {
+                console.warn('[Roll MDI] fetch error:', error?.message);
+                return;
+            }
+
+            const rollData = {
+                ...fullRoll,
+                warehouse_name_ar: fullRoll.warehouse?.name_ar,
+                warehouse_name_en: fullRoll.warehouse?.name_en,
+                material_name_ar: customMaterialName || data?.name_ar || data?.name,
+            };
+
+            // Save current tab in active doc, then push roll as new MDI doc
+            setOpenDocs(prev => {
+                const savedTab = activeTabRef.current;
+                const updated = prev.map(d =>
+                    d.id === (documentId || data?.id)
+                        ? { ...d, lastActiveTab: savedTab || d.lastActiveTab }
+                        : d
+                );
+                return [...updated, {
+                    id: rollId,
+                    type: 'roll' as any,
+                    title: `🧻 ${fullRoll.roll_number}`,
+                    titleAr: `رولون ${fullRoll.roll_number}`,
+                    code: fullRoll.roll_number,
+                    data: rollData,
+                    isClosable: true,
+                    lastActiveTab: 'roll_overview',
+                }];
+            });
+            setActiveDocId(rollId);
+        };
+
         switch (tabId) {
             // ═══ Accounting Entry Tabs ═══
             case 'entry':
@@ -253,65 +310,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
 
             case 'inventory':
                 if (docType === 'material') {
-                    // ── MDI handler: open a roll as a new document tab ──
-                    const handleRollOpen = async (roll: any) => {
-                        const rollId = roll.id;
-                        if (!rollId) return;
-
-                        // If already open, just activate
-                        const existingDoc = openDocs.find(d => d.id === rollId);
-                        if (existingDoc) {
-                            setActiveDocId(rollId);
-                            return;
-                        }
-
-                        // Fetch full roll details with warehouse/color joins
-                        const { data: fullRoll, error } = await supabase
-                            .from('fabric_rolls')
-                            .select(`
-                                *,
-                                warehouse:warehouses!left(id, name_ar, name_en, code),
-                                color:fabric_colors!left(id, name_ar, name_en, hex_code)
-                            `)
-                            .eq('id', rollId)
-                            .single();
-
-                        if (error || !fullRoll) {
-                            console.warn('[Roll MDI] fetch error:', error?.message);
-                            return;
-                        }
-
-                        const rollData = {
-                            ...fullRoll,
-                            warehouse_name_ar: fullRoll.warehouse?.name_ar,
-                            warehouse_name_en: fullRoll.warehouse?.name_en,
-                            material_name_ar: data?.name_ar || data?.name,
-                        };
-
-                        // Save current tab in active doc, then push roll as new MDI doc
-                        setOpenDocs(prev => {
-                            const savedTab = activeTabRef.current;
-                            const updated = prev.map(d =>
-                                d.id === (documentId || data?.id)
-                                    ? { ...d, lastActiveTab: savedTab || d.lastActiveTab }
-                                    : d
-                            );
-                            return [...updated, {
-                                id: rollId,
-                                type: 'roll' as any,
-                                title: `🧻 ${fullRoll.roll_number}`,
-                                titleAr: `رولون ${fullRoll.roll_number}`,
-                                code: fullRoll.roll_number,
-                                data: rollData,
-                                isClosable: true,
-                                lastActiveTab: 'roll_overview',
-                            }];
-                        });
-                        // NOTE: No setData — each doc's data lives in openDocs[].data
-                        setActiveDocId(rollId);
-                    };
-
-                    return <MaterialInventoryTab data={data} onClose={onClose} onOpenRoll={handleRollOpen} />;
+                    return <MaterialInventoryTab data={data} onClose={onClose} onOpenRoll={handleSharedRollOpen} />;
                 }
                 break;
 
@@ -940,6 +939,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                     <SalesDeliveryItemsTab
                         data={data}
                         mode={mode}
+                        onOpenRoll={handleSharedRollOpen}
                         onChange={(updates: any) => {
                             onChange(updates);
                             // 🔑 Propagate roll changes up to SalesDeliveryDialog header

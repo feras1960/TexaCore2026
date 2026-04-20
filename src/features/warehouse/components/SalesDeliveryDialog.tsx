@@ -151,19 +151,18 @@ export function SalesDeliveryDialog({
 
         let cachedInvoice: any = null;
         let cachedItems: any[] = [];
+        let cachedRolls: any[] = [];
         let fullyLoadedFromCache = false;
 
         // A. 🔥 React Query cache — Realtime-fresh data (BEST SOURCE)
         const rqInvoice = findInvoiceInCache();
         if (rqInvoice) {
             cachedInvoice = rqInvoice;
-            setInvoiceData(rqInvoice);
-            if (rqInvoice.warehouse_id) setSelectedWarehouseId(rqInvoice.warehouse_id);
             console.log(`[Delivery] ⚡ Invoice from React Query cache`);
 
             // items are nested in sales_cycle_full query
             if (rqInvoice.items && Array.isArray(rqInvoice.items) && rqInvoice.items.length > 0) {
-                const mappedItems = rqInvoice.items.map((item: any) => ({
+                cachedItems = rqInvoice.items.map((item: any) => ({
                     id: item.id,
                     material_id: item.material_id,
                     material_name_ar: item.description_ar || item.description || '',
@@ -175,10 +174,7 @@ export function SalesDeliveryDialog({
                     total: item.total || 0,
                     description: item.description,
                 }));
-                cachedItems = mappedItems;
-                setSourceItems(mappedItems);
-                fullyLoadedFromCache = true;
-                console.log(`[Delivery] ⚡ ${mappedItems.length} items from React Query cache`);
+                console.log(`[Delivery] ⚡ ${cachedItems.length} items from React Query cache`);
             }
         }
 
@@ -190,8 +186,6 @@ export function SalesDeliveryDialog({
                     const parsed = JSON.parse(lsInv);
                     if (parsed?.id && parsed?.stage) {
                         cachedInvoice = parsed;
-                        setInvoiceData(parsed);
-                        if (parsed.warehouse_id) setSelectedWarehouseId(parsed.warehouse_id);
                         console.log(`[Delivery] ⚡ Invoice from localStorage cache (stage=${parsed.stage})`);
                     }
                 }
@@ -202,13 +196,11 @@ export function SalesDeliveryDialog({
         if (!cachedInvoice) {
             const localInv = salesInvoice;
             if (localInv) {
-                cachedInvoice = localInv;
-                setInvoiceData((prev: any) => prev?.id === localInv.id ? prev : { ...localInv, id: invoiceId });
-                if (localInv.warehouse_id) setSelectedWarehouseId(localInv.warehouse_id);
+                cachedInvoice = { ...localInv, id: invoiceId };
             }
         }
 
-        // C. localStorage items cache (if not from RQ)
+        // D. localStorage items cache (if not from RQ)
         if (cachedItems.length === 0) {
             try {
                 const lsItems = localStorage.getItem(itemsCacheKey);
@@ -216,8 +208,6 @@ export function SalesDeliveryDialog({
                     const parsed = JSON.parse(lsItems);
                     if (parsed?.length > 0) {
                         cachedItems = parsed;
-                        setSourceItems(parsed);
-                        fullyLoadedFromCache = !!cachedInvoice;
                         console.log(`[Delivery] ⚡ ${parsed.length} items from localStorage`);
                     }
                 }
@@ -225,20 +215,13 @@ export function SalesDeliveryDialog({
         }
 
         // E. Delivered rolls from localStorage cache
-        if (selectedRolls.length === 0 && !draftRestoredRef.current) {
+        if (!draftRestoredRef.current) {
             try {
                 const lsRolls = localStorage.getItem(rollsCacheKey);
                 if (lsRolls) {
                     const parsed = JSON.parse(lsRolls);
                     if (parsed?.length > 0) {
-                        setSelectedRolls(parsed);
-                        setDraftRestored(true);
-                        draftRestoredRef.current = true;
-                        // If invoice is in a delivered stage, set isDelivered
-                        const stage = cachedInvoice?.stage;
-                        if (stage && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(stage)) {
-                            setIsDelivered(true);
-                        }
+                        cachedRolls = parsed;
                         console.log(`[Delivery] ⚡ ${parsed.length} rolls from localStorage cache`);
                     }
                 }
@@ -246,33 +229,52 @@ export function SalesDeliveryDialog({
         }
 
         // F. Draft rolls from localStorage
-        if (selectedRolls.length === 0 && !draftRestoredRef.current) {
+        if (cachedRolls.length === 0 && !draftRestoredRef.current) {
             try {
                 const localDraft = localStorage.getItem(draftKey);
                 if (localDraft) {
                     const parsed = JSON.parse(localDraft);
                     if (parsed?.rolls?.length > 0) {
-                        setSelectedRolls(parsed.rolls);
-                        setDraftRestored(true);
-                        draftRestoredRef.current = true;
-                        console.log(`[Draft] ⚡ ${parsed.rolls.length} rolls from localStorage`);
+                        cachedRolls = parsed.rolls;
+                        console.log(`[Draft] ⚡ ${cachedRolls.length} rolls from localStorage`);
                     }
                 }
             } catch { /* ignore */ }
         }
 
+        // ═══ BATCH SET — apply ALL cache data in ONE render ═══
+        const hasLocalData = !!(cachedInvoice?.stage && cachedItems.length > 0);
+        fullyLoadedFromCache = hasLocalData && cachedRolls.length > 0;
+
+        if (cachedInvoice) {
+            setInvoiceData(cachedInvoice);
+            if (cachedInvoice.warehouse_id) setSelectedWarehouseId(cachedInvoice.warehouse_id);
+        }
+        if (cachedItems.length > 0) setSourceItems(cachedItems);
+        if (cachedRolls.length > 0) {
+            setSelectedRolls(cachedRolls);
+            setDraftRestored(true);
+            draftRestoredRef.current = true;
+            const stage = cachedInvoice?.stage;
+            if (stage && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(stage)) {
+                setIsDelivered(true);
+            }
+        }
+
+        if (fullyLoadedFromCache) {
+            console.log(`[Delivery] ✅ Fully loaded from cache — skipping Supabase`);
+            // Still refresh in background but don't block UI
+        }
+
         // ══════════════════════════════════════════════════════════════
-        // PHASE 2: BACKGROUND — Supabase sync (only if cache miss)
+        // PHASE 2: ATOMIC FETCH — one function, batch state at end
         // ══════════════════════════════════════════════════════════════
 
-        // Only show loading spinner if we have NO local data at all
-        const hasLocalData = !!(cachedInvoice || cachedItems.length > 0);
         if (!hasLocalData) setLoading(true);
 
-        const fetchData = async () => {
-            setIsDelivered(false);
+        const fetchAllData = async () => {
             try {
-                // ══ STEP 1: PARALLEL — Fetch invoice + items + movements ALL at once ══
+                // ══ STEP 1: PARALLEL — Fetch ALL data at once ══
                 const [invRes, itemsRes, mvByIdRes, mvByNumRes] = await Promise.all([
                     supabase
                         .from('sales_transactions')
@@ -283,16 +285,14 @@ export function SalesDeliveryDialog({
                         .from('sales_transaction_items')
                         .select('*')
                         .eq('transaction_id', invoiceId),
-                    // movements by reference_id (always needed for delivered/in_transit)
                     supabase
                         .from('inventory_movements')
-                        .select('roll_id, quantity, material_id, movement_type')
+                        .select('roll_id, quantity, material_id, movement_type, notes')
                         .eq('reference_id', invoiceId),
-                    // movements by reference_number (fallback)
                     salesInvoice?.invoice_no
                         ? supabase
                             .from('inventory_movements')
-                            .select('roll_id, quantity, material_id, movement_type')
+                            .select('roll_id, quantity, material_id, movement_type, notes')
                             .eq('reference_number', salesInvoice.invoice_no)
                         : Promise.resolve({ data: [] as any[], error: null }),
                 ]);
@@ -300,26 +300,19 @@ export function SalesDeliveryDialog({
                 const inv = invRes.data;
                 const items = itemsRes.data;
 
-                if (inv) {
-                    setInvoiceData(inv);
-                    if (inv.warehouse_id) setSelectedWarehouseId(inv.warehouse_id);
-                    try { localStorage.setItem(invoiceCacheKey, JSON.stringify(inv)); } catch { }
-                }
-
-                // ══ STEP 2: PARALLEL — Material names + Roll data ══
-                // Prepare material IDs from items
-                const materialIds = items?.length
-                    ? [...new Set(items.map((i: any) => i.material_id).filter(Boolean))]
-                    : [];
-
-                // Prepare roll IDs from movements
+                // ══ STEP 2: Process movements → get roll IDs ══
                 let movements = (mvByIdRes.data?.length ? mvByIdRes.data : mvByNumRes.data) || [];
                 const saleMovements = movements.filter((m: any) =>
                     ['sale', 'issue', 'delivery', 'transfer_out'].includes(m.movement_type) || !m.movement_type
                 );
                 const rollIds = saleMovements.map((m: any) => m.roll_id).filter(Boolean);
 
-                // Fire materials + rolls in PARALLEL
+                // Prepare material IDs from items
+                const materialIds = items?.length
+                    ? [...new Set(items.map((i: any) => i.material_id).filter(Boolean))]
+                    : [];
+
+                // ══ STEP 3: PARALLEL — Materials + Rolls ══
                 const [matsRes, rollsRes] = await Promise.all([
                     materialIds.length > 0
                         ? supabase.from('fabric_materials').select('id, name_ar, name_en').in('id', materialIds)
@@ -329,15 +322,17 @@ export function SalesDeliveryDialog({
                         : Promise.resolve({ data: [] as any[], error: null }),
                 ]);
 
-                // Process materials
+                // ══ STEP 4: Process all results ══
+                // Materials map
                 const materialsMap: Record<string, { name_ar: string; name_en: string }> = {};
                 matsRes.data?.forEach((m: any) => {
                     materialsMap[m.id] = { name_ar: m.name_ar || '', name_en: m.name_en || '' };
                 });
 
-                // Process items with material names
+                // Map items
+                let finalItems: any[] = [];
                 if (items && items.length > 0) {
-                    const mappedItems = items.map((item: any) => {
+                    finalItems = items.map((item: any) => {
                         const mat: any = materialsMap[item.material_id] || {};
                         return {
                             id: item.id,
@@ -352,154 +347,83 @@ export function SalesDeliveryDialog({
                             description: item.description,
                         };
                     });
-                    setSourceItems(mappedItems);
-                    try { localStorage.setItem(itemsCacheKey, JSON.stringify(mappedItems)); } catch { }
-                } else if (items) {
-                    setSourceItems([]);
                 }
 
-                // ══ STEP 3: Process rolls (already fetched in parallel) ══
+                // Map rolls
+                let finalRolls: any[] = [];
                 const isCompletedDelivery = inv && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(inv.stage);
                 const isInDelivery = inv && inv.stage === 'in_delivery';
 
                 if ((isCompletedDelivery || isInDelivery) && rollsRes.data && rollsRes.data.length > 0) {
-                    const mapped = rollsRes.data.map((r: any) => {
+                    finalRolls = rollsRes.data.map((r: any) => {
                         const mv = saleMovements.find((m: any) => m.roll_id === r.id);
                         return { ...r, net_length: mv?.quantity || r.current_length || 0, color_name: r.color_name || '', _delivered: true };
                     });
-                    setSelectedRolls(mapped);
-                    setDraftRestored(true);
-                    draftRestoredRef.current = true;
-                    setIsDelivered(['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(inv.stage));
-                    // 💾 Cache rolls for instant reload after refresh
-                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(mapped)); } catch { }
-                    return;
-                }
+                } else if (isCompletedDelivery && rollIds.length === 0) {
+                    // ── Fallback: No roll_ids in movements — try sold rolls for these materials ──
+                    if (materialIds.length > 0) {
+                        const { data: soldRolls } = await supabase
+                            .from('fabric_rolls')
+                            .select('id, roll_number, material_id, current_length, color_id, color_name, status, warehouse_id')
+                            .in('material_id', materialIds)
+                            .eq('status', 'sold');
 
-                if (isCompletedDelivery) { setIsDelivered(true); return; }
-
-                // ═══ 4. RESTORE DRAFT (Supabase fallback) ═══
-                if (!draftRestoredRef.current) {
-                    if (inv?.delivery_draft?.rolls?.length > 0) {
-                        setSelectedRolls(inv.delivery_draft.rolls);
-                        setDraftRestored(true);
-                        draftRestoredRef.current = true;
+                        if (soldRolls && soldRolls.length > 0) {
+                            finalRolls = soldRolls.map((r: any) => ({
+                                ...r,
+                                net_length: r.current_length || 0,
+                                _viewOnly: true,
+                                _delivered: true,
+                                color_name: r.color_name || '',
+                            }));
+                            console.log(`[Delivery] ✅ ${finalRolls.length} rolls from sold-status fallback`);
+                        }
                     }
                 }
+
+                // ── Draft fallback if no delivered rolls ──
+                if (finalRolls.length === 0 && !draftRestoredRef.current && inv?.delivery_draft?.rolls?.length > 0) {
+                    finalRolls = inv.delivery_draft.rolls;
+                }
+
+                // ══════════════════════════════════════════════════════════════
+                // STEP 5: 🔥 ATOMIC BATCH — Set ALL state at once
+                // ══════════════════════════════════════════════════════════════
+                console.log(`[Delivery] ✅ Atomic load: invoice=${!!inv} items=${finalItems.length} rolls=${finalRolls.length} stage=${inv?.stage}`);
+
+                if (inv) {
+                    setInvoiceData(inv);
+                    if (inv.warehouse_id) setSelectedWarehouseId(inv.warehouse_id);
+                    try { localStorage.setItem(invoiceCacheKey, JSON.stringify(inv)); } catch { }
+                }
+
+                if (finalItems.length > 0) {
+                    setSourceItems(finalItems);
+                    try { localStorage.setItem(itemsCacheKey, JSON.stringify(finalItems)); } catch { }
+                }
+
+                if (finalRolls.length > 0) {
+                    setSelectedRolls(finalRolls);
+                    setDraftRestored(true);
+                    draftRestoredRef.current = true;
+                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(finalRolls)); } catch { }
+                }
+
+                if (isCompletedDelivery) {
+                    setIsDelivered(true);
+                } else if (!draftRestoredRef.current) {
+                    setIsDelivered(false);
+                }
+
             } catch (err) {
-                console.error('SalesDeliveryDialog fetchData:', err);
+                console.error('SalesDeliveryDialog fetchAllData:', err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
+        fetchAllData();
     }, [invoiceId, isOpen]);
-
-    // ═══ VIEW MODE / COMPLETED: جلب الرولونات المسلّمة ═══
-    useEffect(() => {
-        // يعمل عند: isDelivered (مكتشف تلقائياً) أو viewMode prop صريح
-        const shouldFetch = (isDelivered || viewMode) && invoiceId && isOpen;
-        if (!shouldFetch) return;
-        if (selectedRolls.length > 0 && draftRestored) return; // مُسبق التحميل في fetchData
-
-        const fetchDeliveredRolls = async () => {
-            console.log('[SalesDelivery] 📦 fetchDeliveredRolls — invoiceId:', invoiceId);
-
-            // ── مرحلة 1: جلب الحركات مع roll_id أو بدونه ──
-            const { data: movements, error: mvErr } = await supabase
-                .from('inventory_movements')
-                .select('roll_id, quantity, material_id, notes')
-                .eq('reference_id', invoiceId)
-                .in('movement_type', ['sale', 'issue']);
-
-            if (mvErr) console.warn('[SalesDelivery] movements error:', mvErr.message);
-            console.log('[SalesDelivery] movements found:', movements?.length ?? 0);
-
-            // ── مرحلة 2: محاولة بـ reference_number إذا فشل reference_id ──
-            let allMovements = movements || [];
-            if (allMovements.length === 0) {
-                const { data: mvByRef } = await supabase
-                    .from('inventory_movements')
-                    .select('roll_id, quantity, material_id, notes')
-                    .eq('reference_number', invoiceData?.invoice_no || '')
-                    .in('movement_type', ['sale', 'issue']);
-                allMovements = mvByRef || [];
-                console.log('[SalesDelivery] byRef found:', allMovements.length);
-            }
-
-            // ── مرحلة 3: جلب الرولونات المباشرة (لو roll_id موجود) ──
-            const rollIds = allMovements.map((m: any) => m.roll_id).filter(Boolean);
-            console.log('[SalesDelivery] roll_ids with value:', rollIds.length, '/ total:', allMovements.length);
-
-            if (rollIds.length > 0) {
-                const { data: rolls } = await supabase
-                    .from('fabric_rolls')
-                    .select('id, roll_number, material_id, current_length, color_id, color_name, status')
-                    .in('id', rollIds);
-
-                if (rolls && rolls.length > 0) {
-                    const mappedRolls = rolls.map((r: any) => {
-                        const mv = allMovements.find((m: any) => m.roll_id === r.id);
-                        return {
-                            ...r,
-                            net_length: mv?.quantity || r.current_length || 0,
-                            _viewOnly: true,
-                            color_name: r.color_name || '',
-                            _delivered: true,
-                        };
-                    });
-                    console.log('[SalesDelivery] ✅ loaded from inventory_movements:', mappedRolls.length);
-                    setSelectedRolls(mappedRolls);
-                    setIsDelivered(true);
-                    setDraftRestored(true);
-                    draftRestoredRef.current = true;
-                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(mappedRolls)); } catch { }
-                    return;
-                }
-            }
-
-            // ── مرحلة 4: Fallback — لا roll_ids (تسليم قديم بالإجمالي)
-            // نعرض الرولونات المباعة من fabric_rolls للمواد في الفاتورة
-            console.log('[SalesDelivery] ⚠️ No roll_ids in movements — trying fabric_rolls[status=sold] for invoice materials');
-            const materialIds = sourceItems.map((i: any) => i.material_id).filter(Boolean);
-            if (materialIds.length > 0) {
-                const { data: soldRolls } = await supabase
-                    .from('fabric_rolls')
-                    .select('id, roll_number, material_id, current_length, color_id, color_name, status, warehouse_id')
-                    .in('material_id', materialIds)
-                    .eq('status', 'sold');
-
-                if (soldRolls && soldRolls.length > 0) {
-                    // ربط الكمية من الحركة الإجمالية للمادة
-                    const movByMat: Record<string, number> = {};
-                    allMovements.forEach((m: any) => {
-                        if (m.material_id) movByMat[m.material_id] = (movByMat[m.material_id] || 0) + (m.quantity || 0);
-                    });
-
-                    const mapped = soldRolls.map((r: any) => ({
-                        ...r,
-                        net_length: r.current_length || 0,
-                        _viewOnly: true,
-                        _delivered: true,
-                        color_name: r.color_name || '',
-                    }));
-                    console.log('[SalesDelivery] ✅ loaded from sold rolls:', mapped.length);
-                    setSelectedRolls(mapped);
-                    setIsDelivered(true);
-                    setDraftRestored(true);
-                    draftRestoredRef.current = true;
-                    try { localStorage.setItem(rollsCacheKey, JSON.stringify(mapped)); } catch { }
-                    return;
-                }
-            }
-
-            // لا يوجد شيء — نضبط isDelivered فقط
-            console.log('[SalesDelivery] ⚠️ No rolls found — marking as delivered with no roll details');
-            setIsDelivered(true);
-        };
-        fetchDeliveredRolls();
-    }, [viewMode, isDelivered, invoiceId, isOpen]);
 
     // ═══ Stable callback ref for delivery data changes ═══
     const onDeliveryDataChangeRef = React.useRef<(updates: any) => void>(() => { });
