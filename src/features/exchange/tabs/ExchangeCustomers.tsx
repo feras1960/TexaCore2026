@@ -13,7 +13,8 @@ import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { ensureMap } from '@/lib/utils';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -110,7 +111,7 @@ export default function ExchangeCustomers() {
   });
 
   // ─── Fetch Customers ─────────────────────────────────────────
-  const { data: customers = [], isLoading } = useQuery({
+  const { data: customers = [], isLoading } = useCachedQuery({
     queryKey: ['exchange_customers', companyId, language],
     queryFn: async () => {
       if (!companyId) return [];
@@ -131,7 +132,7 @@ export default function ExchangeCustomers() {
   });
 
   // ─── Fetch Branches (for branch column) ───────────────────────
-  const { data: rawBranchesMap } = useQuery({
+  const { data: rawBranchesMap } = useCachedQuery({
     queryKey: ['branches_map', companyId],
     queryFn: async () => {
       if (!companyId) return new Map<string, string>();
@@ -149,7 +150,7 @@ export default function ExchangeCustomers() {
   const branchesMap = useMemo(() => ensureMap<string, string>(rawBranchesMap), [rawBranchesMap]);
 
   // ─── Fetch Balances ──────────────────────────────────────────
-  const { data: rawBalances } = useQuery({
+  const { data: rawBalances } = useCachedQuery({
     queryKey: ['exchange_customer_balances', companyId],
     queryFn: async () => {
       if (!companyId) return new Map<string, PartyBalance>();

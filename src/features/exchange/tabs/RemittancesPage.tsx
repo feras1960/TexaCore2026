@@ -9,7 +9,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -95,7 +96,7 @@ export default function RemittancesPage() {
     queryKeys: [['exchange_remittances']],
   });
 
-  const { data: remittances = [], isLoading } = useQuery({
+  const { data: remittances = [], isLoading } = useCachedQuery({
     queryKey: ['exchange_remittances', companyId],
     queryFn: async () => {
       if (!companyId) return [];

@@ -36,6 +36,8 @@ const statusConfig: Record<string, { label: string; labelAr: string; color: stri
     partial: { label: 'Partially Used', labelAr: 'مستخدم جزئياً', color: 'text-blue-700', bg: 'bg-blue-100 dark:bg-blue-900/30', icon: TrendingDown },
     consumed: { label: 'Consumed', labelAr: 'منتهي', color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-gray-800', icon: Package },
     sold: { label: 'Sold', labelAr: 'مباع', color: 'text-purple-700', bg: 'bg-purple-100 dark:bg-purple-900/30', icon: DollarSign },
+    delivered: { label: 'Delivered', labelAr: 'مُسلَّم', color: 'text-green-700', bg: 'bg-green-100 dark:bg-green-900/30', icon: CheckCircle },
+    in_transit: { label: 'In Transit', labelAr: 'بالطريق', color: 'text-indigo-700', bg: 'bg-indigo-100 dark:bg-indigo-900/30', icon: Ship },
 };
 
 function InfoRow({ icon: Icon, label, value, mono = false, className = '' }: {
@@ -99,11 +101,23 @@ export function RollOverviewTab({ data, language: langProp }: RollOverviewTabPro
     const isAr = lang === 'ar';
 
     const roll = data || {};
-    const status = statusConfig[roll.status] || statusConfig['available'];
+    // Resolve effective status (delivered rolls opened from delivery context)
+    const effectiveStatus = roll._delivered ? 'delivered' : roll.status;
+    const status = statusConfig[effectiveStatus] || statusConfig['available'];
     const StatusIcon = status.icon;
 
-    const warehouseName = roll.warehouse_name_ar || roll.warehouse?.name_ar || roll.warehouse?.name_en || '—';
-    const materialName = roll.material_name_ar || roll.material?.name_ar || roll.material?.name_en || '—';
+    // Resolve names from multiple possible data shapes (enriched, join objects, or direct fields)
+    const warehouseName = roll.warehouse_name
+        || roll.warehouse_name_ar
+        || roll.warehouses?.name_ar || roll.warehouses?.name_en
+        || roll.warehouse?.name_ar || roll.warehouse?.name_en
+        || '—';
+    const materialName = roll.material_name
+        || roll.material_name_ar
+        || roll.fabric_materials?.name_ar || roll.fabric_materials?.name_en
+        || roll.material?.name_ar || roll.material?.name_en
+        || '—';
+    const materialCode = roll.material_code || roll.fabric_materials?.code || roll.material?.code || '';
 
     const costPerMeter = Number(roll.cost_per_meter) || 0;
     const totalCost = Number(roll.total_cost) || 0;
@@ -177,6 +191,7 @@ export function RollOverviewTab({ data, language: langProp }: RollOverviewTabPro
                     <div className="space-y-0 divide-y divide-gray-100 dark:divide-gray-800">
                         <InfoRow icon={Hash} label={isAr ? 'رقم الرولون' : 'Roll Number'} value={roll.roll_number} mono />
                         <InfoRow icon={Package} label={isAr ? 'المادة' : 'Material'} value={materialName} />
+                        {materialCode && <InfoRow icon={Barcode} label={isAr ? 'كود المادة' : 'Material Code'} value={materialCode} mono />}
                         <InfoRow icon={Warehouse} label={isAr ? 'المستودع' : 'Warehouse'} value={warehouseName} />
                         <InfoRow icon={MapPin} label={isAr ? 'الموقع/الرف' : 'Bin Location'} value={roll.bin_location_code || roll.bin_location?.code} mono />
                         <InfoRow icon={Ruler} label={isAr ? 'العرض' : 'Width'} value={roll.width ? `${roll.width} م` : null} />

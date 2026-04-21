@@ -9,7 +9,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { branchesService, type Branch } from '@/services/branchesService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ export default function ExchangeBranches() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
 
   // ─── Fetch branches ─────────────────────────────────────────
-  const { data: branches = [], isLoading } = useQuery({
+  const { data: branches = [], isLoading } = useCachedQuery({
     queryKey: ['exchange_branches', companyId],
     queryFn: async () => {
       if (!companyId) return [];

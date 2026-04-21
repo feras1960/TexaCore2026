@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { startOfMonth, format, parseISO, isSameDay } from 'date-fns';
 
@@ -13,7 +13,7 @@ export const useSalesReports = () => {
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Fetch Logic
-    const { data, refetch, isFetching } = useQuery({
+    const { data, refetch, isFetching } = useCachedQuery({
         queryKey: ['sales_reports_real', dateRange],
         queryFn: async () => {
             setIsGenerating(true);

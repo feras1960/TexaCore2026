@@ -11,7 +11,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useStockMovements, useWarehouses } from '../hooks/useWarehouseQueries';
@@ -80,8 +80,8 @@ export default function StockMovementsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortField, setSortField] = useState<string>('date');
     const [sortAsc, setSortAsc] = useState<boolean>(false);
-    // 📅 فلتر التاريخ — يستخدم DateRangePicker المشترك
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    // 📅 فلتر التاريخ — null/undefined by default to ALWAYS MATCH Preloader Cache
+    const [dateRange, setDateRange] = useState<DateRange | undefined>();
     // 🏗️ فلتر المستودع (all = كل المستودعات)
     const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
 
@@ -125,102 +125,8 @@ export default function StockMovementsPage() {
     } = useStockMovements(stableFilters);
     const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
-    // 🔑 إثراء أسماء الجهات عبر reference_number
-    const [partyNames, setPartyNames] = useState<Record<string, string>>({});
-
-    // Use a stable fingerprint of movements to avoid re-running on every render
-    const movementsFingerprint = useMemo(() => {
-        if (!movements || movements.length === 0) return '';
-        return `${movements.length}-${movements[0]?.id || ''}-${movements[movements.length - 1]?.id || ''}`;
-    }, [movements]);
-
-    useEffect(() => {
-        if (!movements || movements.length === 0 || !companyId) return;
-
-        const fetchPartyNames = async () => {
-            const result: Record<string, string> = {};
-
-            // ── مبيعات ──
-            const saleNums = [...new Set(
-                movements
-                    .filter((m: any) => ['sale', 'sale_invoice', 'issue', 'delivery'].includes(m.movement_type))
-                    .map((m: any) => m.reference_number)
-                    .filter(Boolean)
-            )] as string[];
-
-            if (saleNums.length > 0) {
-                const { data: s1 } = await supabase
-                    .from('sales_transactions')
-                    .select('invoice_no, customer_name')
-                    .eq('company_id', companyId)
-                    .in('invoice_no', saleNums);
-                s1?.forEach((s: any) => { if (s.invoice_no && s.customer_name) result[s.invoice_no] = s.customer_name; });
-
-                const missing = saleNums.filter(n => !result[n]);
-                if (missing.length > 0) {
-                    const { data: s2 } = await supabase
-                        .from('sales_transactions')
-                        .select('draft_no, customer_name')
-                        .eq('company_id', companyId)
-                        .in('draft_no', missing);
-                    s2?.forEach((s: any) => { if (s.draft_no && s.customer_name) result[s.draft_no] = s.customer_name; });
-                }
-            }
-
-            // ── كونتينر ──
-            const contNums = [...new Set(
-                movements
-                    .filter((m: any) => ['container_receipt', 'container'].includes(m.movement_type))
-                    .map((m: any) => m.reference_number)
-                    .filter(Boolean)
-            )] as string[];
-
-            if (contNums.length > 0) {
-                const { data: conts } = await supabase
-                    .from('containers')
-                    .select('container_number, supplier_id')
-                    .eq('company_id', companyId)
-                    .in('container_number', contNums);
-                if (conts && conts.length > 0) {
-                    const supIds = [...new Set(conts.map((c: any) => c.supplier_id).filter(Boolean))] as string[];
-                    if (supIds.length > 0) {
-                        const { data: parties } = await supabase
-                            .from('parties').select('id, name_ar, name_en').in('id', supIds);
-                        const pm: Record<string, string> = {};
-                        parties?.forEach((p: any) => { pm[p.id] = p.name_ar || p.name_en || ''; });
-                        conts.forEach((c: any) => {
-                            if (c.container_number && pm[c.supplier_id]) result[c.container_number] = pm[c.supplier_id];
-                        });
-                    }
-                }
-            }
-
-            // ── مشتريات ──
-            const purNums = [...new Set(
-                movements
-                    .filter((m: any) => ['receipt', 'purchase', 'goods_receipt'].includes(m.movement_type))
-                    .map((m: any) => m.reference_number)
-                    .filter(Boolean)
-            )] as string[];
-
-            if (purNums.length > 0) {
-                const { data: pi } = await supabase
-                    .from('purchase_invoices').select('invoice_number, supplier_name')
-                    .eq('company_id', companyId).in('invoice_number', purNums);
-                pi?.forEach((r: any) => { if (r.invoice_number && r.supplier_name) result[r.invoice_number] = r.supplier_name; });
-
-                const { data: pt } = await supabase
-                    .from('purchase_transactions').select('invoice_no, supplier_name')
-                    .eq('company_id', companyId).in('invoice_no', purNums);
-                pt?.forEach((r: any) => { if (r.invoice_no && r.supplier_name && !result[r.invoice_no]) result[r.invoice_no] = r.supplier_name; });
-            }
-
-            setPartyNames(prev => ({ ...prev, ...result }));
-        };
-
-        fetchPartyNames();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [movementsFingerprint, companyId]);
+    // 🔑 أسماء الجهات الآن تأتي مثراة مباشرة من warehouseService.getInventoryMovements
+    // لا حاجة لجلبها مرة ثانية هنا — party_name موجود على كل حركة
 
 
     const handleManualRefresh = useCallback(() => {
@@ -459,6 +365,7 @@ export default function StockMovementsPage() {
                         source_id: saleId,
                         invoice_no: m.reference_number || undefined,
                         customer_name: m.party_name || undefined,
+                        from_warehouse_name: m.from_warehouse_name || m.warehouse_name || undefined,
                     },
                 });
                 return;
@@ -604,7 +511,7 @@ export default function StockMovementsPage() {
             id: 'flow',
             header: getLocalizedLabel('sm_flow', language),
             cell: (m: any) => {
-                const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
+                const resolvedPartyName = m.party_name || '';
                 const isSales = salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice';
                 const isContainer = containerTypes.includes(m.movement_type);
                 const isPurchase = purchasesTypes.includes(m.movement_type);
@@ -617,31 +524,47 @@ export default function StockMovementsPage() {
                     fromNode = (
                         <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
                             <Warehouse className="h-3 w-3 flex-shrink-0 text-blue-400" />
-                            <span className="truncate max-w-[110px]" title={wName}>{wName}</span>
+                            <span className="truncate max-w-[130px]" title={wName}>{wName}</span>
                         </div>
                     );
                 } else if (isContainer) {
-                    const src = resolvedPartyName || m.reference_number || '—';
+                    const containerNo = m.reference_number || '—';
+                    const supplier = resolvedPartyName && resolvedPartyName !== containerNo ? resolvedPartyName : '';
                     fromNode = (
-                        <div className="flex items-center gap-1 text-cyan-700 dark:text-cyan-400">
-                            <Package className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[110px] text-[11px]" title={src}>{src}</span>
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1 text-cyan-700 dark:text-cyan-400 font-medium">
+                                <Package className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[130px] text-[11px]" title={containerNo}>{containerNo}</span>
+                            </div>
+                            {supplier && (
+                                <span className="text-[9px] text-muted-foreground ms-4 truncate max-w-[130px]" title={supplier}>
+                                    {supplier}
+                                </span>
+                            )}
                         </div>
                     );
                 } else if (isPurchase) {
                     const supplier = resolvedPartyName || '—';
+                    const invNo = m.reference_number || '';
                     fromNode = (
-                        <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-                            <Building2 className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[110px]" title={supplier}>{supplier}</span>
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium">
+                                <Building2 className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[130px]" title={supplier}>{supplier}</span>
+                            </div>
+                            {invNo && (
+                                <span className="text-[9px] text-muted-foreground font-mono ms-4 truncate max-w-[130px]">
+                                    {invNo}
+                                </span>
+                            )}
                         </div>
                     );
                 } else if (isTransfer) {
                     const wName = m.from_warehouse_name || '—';
                     fromNode = (
-                        <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                        <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-medium">
                             <Warehouse className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[110px]" title={wName}>{wName}</span>
+                            <span className="truncate max-w-[130px]" title={wName}>{wName}</span>
                         </div>
                     );
                 } else if (m.reference_type === 'opening_balance') {
@@ -657,10 +580,18 @@ export default function StockMovementsPage() {
                 let toNode: React.ReactNode = null;
                 if (isSales) {
                     const customer = resolvedPartyName || '—';
+                    const refNo = m.reference_number || '';
                     toNode = (
-                        <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                            <User className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate max-w-[110px] font-semibold" title={customer}>{customer}</span>
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                                <User className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[130px] font-semibold" title={customer}>{customer}</span>
+                            </div>
+                            {refNo && (
+                                <span className="text-[10px] text-muted-foreground font-mono ms-4 truncate max-w-[130px]">
+                                    {refNo}
+                                </span>
+                            )}
                         </div>
                     );
                 } else if (m.reference_type === 'opening_balance') {
@@ -687,7 +618,7 @@ export default function StockMovementsPage() {
                     toNode = (
                         <div className="flex items-center gap-1 text-gray-700 dark:text-gray-300 font-medium">
                             <Warehouse className="h-3 w-3 flex-shrink-0 text-emerald-500" />
-                            <span className="truncate max-w-[110px]" title={dest}>{dest}</span>
+                            <span className="truncate max-w-[130px]" title={dest}>{dest}</span>
                         </div>
                     );
                 }
@@ -756,7 +687,7 @@ export default function StockMovementsPage() {
             sortable: true,
             sortKey: 'reference',
             cell: (m: any) => {
-                const resolvedPartyName = partyNames[m.reference_number] || m.party_name || '';
+                const resolvedPartyName = m.party_name || '';
                 const isSales = salesTypes.includes(m.movement_type) || m.reference_type === 'sale_invoice';
                 const isPurchase = purchasesTypes.includes(m.movement_type);
                 const isContainer = containerTypes.includes(m.movement_type);
@@ -824,7 +755,7 @@ export default function StockMovementsPage() {
                 );
             }
         },
-    ], [language, t, salesTypes, containerTypes, purchasesTypes, transferTypes, partyNames]);
+    ], [language, t, salesTypes, containerTypes, purchasesTypes, transferTypes]);
 
     return (
         <div className="flex flex-col space-y-3" dir={direction}>

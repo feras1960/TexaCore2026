@@ -119,7 +119,7 @@ export function useJournalEntries(filters?: JournalEntriesFilters) {
 
             if (error) {
                 console.error('Error fetching journal entries:', error);
-                return [];
+                throw error;
             }
 
             return data || [];
@@ -193,7 +193,7 @@ export function useFunds() {
 
             if (error) {
                 console.error('Error fetching funds:', error);
-                return [];
+                throw error;
             }
             return data || [];
         },

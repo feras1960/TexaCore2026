@@ -742,6 +742,7 @@ export function useTabContentRenderer(props: TabContentRendererProps) {
                         tradeMode={tradeMode}
                         mode={mode}
                         onChange={onChange}
+                        data={data}
                     />
                 );
             }

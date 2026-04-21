@@ -123,9 +123,29 @@ export function SalesDeliveryDialog({
     const itemsCacheKey = `delivery_items_${invoiceId}`;
     const rollsCacheKey = `delivery_rolls_${invoiceId}`;
 
+    // ── Helper: Map raw items to UnifiedAccountingSheet format ──
+    const mapItemsForSheet = useCallback((items: any[]) => {
+        return items.map((i: any) => ({
+            item_id: i.material_id || i.id,
+            material_id: i.material_id,
+            item_name: i.description || i.description_ar || '',
+            quantity: Number(i.quantity) || 0,
+            unit_price: Number(i.unit_price) || 0,
+            subtotal: Number(i.subtotal) || (Number(i.quantity) * Number(i.unit_price)) || 0,
+            total: Number(i.total) || Number(i.subtotal) || 0,
+            tax_amount: Number(i.tax_amount) || 0,
+            tax_rate: Number(i.tax_rate) || 0,
+            discount_amount: Number(i.discount_amount) || 0,
+            color_id: i.color_id,
+            color_name: i.color_name,
+            delivered_qty: Number(i.delivered_qty) || 0,
+            received_qty: Number(i.received_qty) || 0,
+        }));
+    }, []);
+
     // ── Helper: Search React Query cache for this invoice ──
     const findInvoiceInCache = useCallback(() => {
-        // Search all sales_cycle_full query data
+        // Search all sales_cycle_full query data (fuzzy match — all date ranges)
         const allQueries = queryClient.getQueriesData<any[]>({ queryKey: ['sales_cycle_full'] });
         for (const [, data] of allQueries) {
             if (!data || !Array.isArray(data)) continue;
@@ -141,6 +161,56 @@ export function SalesDeliveryDialog({
         }
         return null;
     }, [queryClient, invoiceId]);
+
+    // ── Helper: Open invoice with FULL data (cache-first, then DB fallback) ──
+    const openInvoiceWithFullData = useCallback(async () => {
+        if (!onOpenInvoice || !invoiceId) return;
+
+        // 1️⃣ Try cache first
+        const cached = findInvoiceInCache();
+        if (cached?.items?.length) {
+            console.log('[DeliveryDialog] ✅ Invoice found in cache with items');
+            onOpenInvoice({ ...cached, items: mapItemsForSheet(cached.items) });
+            return;
+        }
+
+        // 2️⃣ Cache miss — fetch from DB with items
+        console.log('[DeliveryDialog] 📡 Cache miss — fetching invoice from DB...');
+        const { data: freshInvoice, error } = await supabase
+            .from('sales_transactions')
+            .select('*, items:sales_transaction_items(*)')
+            .eq('id', invoiceId)
+            .single();
+
+        if (error || !freshInvoice) {
+            console.warn('[DeliveryDialog] ❌ Failed to fetch invoice:', error?.message);
+            // Last resort — open with whatever we have
+            onOpenInvoice(invoiceData || cached || {});
+            return;
+        }
+
+        // 3️⃣ Inject into sales_cycle_full cache for future use
+        const allQueries = queryClient.getQueriesData<any[]>({ queryKey: ['sales_cycle_full'] });
+        if (allQueries.length > 0) {
+            // Add to the first available cache entry
+            const [firstKey, firstData] = allQueries[0];
+            if (firstData && Array.isArray(firstData)) {
+                const existsIdx = firstData.findIndex((tx: any) => tx.id === invoiceId);
+                if (existsIdx >= 0) {
+                    // Replace existing entry with fresh data
+                    firstData[existsIdx] = freshInvoice;
+                } else {
+                    // Add new entry
+                    firstData.unshift(freshInvoice);
+                }
+                queryClient.setQueryData(firstKey, [...firstData]);
+                console.log('[DeliveryDialog] 💾 Injected invoice into sales_cycle_full cache');
+            }
+        }
+
+        // 4️⃣ Open with fresh data + mapped items
+        onOpenInvoice({ ...freshInvoice, items: mapItemsForSheet(freshInvoice.items || []) });
+    }, [findInvoiceInCache, mapItemsForSheet, onOpenInvoice, invoiceId, invoiceData, queryClient]);
 
     useEffect(() => {
         if (!invoiceId || !isOpen) return;
@@ -192,11 +262,21 @@ export function SalesDeliveryDialog({
             } catch { /* ignore */ }
         }
 
-        // C. salesInvoice prop fallback (minimal data from StockMovementsPage)
-        if (!cachedInvoice) {
-            const localInv = salesInvoice;
-            if (localInv) {
-                cachedInvoice = { ...localInv, id: invoiceId };
+        // C. salesInvoice prop — ALWAYS merge (has invoice_no, customer_name from StockMovementsPage)
+        if (salesInvoice) {
+            if (!cachedInvoice) {
+                cachedInvoice = { ...salesInvoice, id: invoiceId };
+            } else {
+                // 🔑 Merge prop data: prop fields fill gaps in cached data
+                if (salesInvoice.invoice_no && !cachedInvoice.invoice_no) {
+                    cachedInvoice.invoice_no = salesInvoice.invoice_no;
+                }
+                if (salesInvoice.customer_name && !cachedInvoice.customer_name) {
+                    cachedInvoice.customer_name = salesInvoice.customer_name;
+                }
+                if (salesInvoice.from_warehouse_name && !cachedInvoice.from_warehouse_name) {
+                    cachedInvoice.from_warehouse_name = salesInvoice.from_warehouse_name;
+                }
             }
         }
 
@@ -262,8 +342,8 @@ export function SalesDeliveryDialog({
         }
 
         if (fullyLoadedFromCache) {
-            console.log(`[Delivery] ✅ Fully loaded from cache — skipping Supabase`);
-            // Still refresh in background but don't block UI
+            console.log(`[Delivery] ✅ Fully loaded from cache — skipping Phase 2`);
+            return; // 🚀 لا حاجة لجلب من الشبكة — كل البيانات موجودة في الكاش
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -1229,17 +1309,31 @@ export function SalesDeliveryDialog({
 
                     <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
 
-                    {/* Invoice + Customer — compact inline */}
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    {/* Invoice + Customer + Branch — compact inline */}
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                        {/* Branch Node */}
+                        {invoiceData?.from_warehouse_name && (
+                            <>
+                                <Warehouse className="w-3.5 h-3.5 shrink-0 text-indigo-500" />
+                                <span className="text-xs font-bold text-indigo-600 truncate max-w-[140px]" title={invoiceData.from_warehouse_name}>
+                                    {invoiceData.from_warehouse_name}
+                                </span>
+                                <span className="text-gray-300 mx-1">|</span>
+                            </>
+                        )}
+                        
+                        {/* Invoice Node */}
                         <FileText className="w-3.5 h-3.5 shrink-0 text-rose-500" />
                         <span className="text-xs font-mono font-bold text-rose-600">
                             {invoiceData?.invoice_no || invoiceData?.draft_no || invoiceId?.substring(0, 8)}
                         </span>
+                        
+                        {/* Customer Node */}
                         {invoiceData?.customer_name && (
                             onOpenInvoice ? (
                                 <button
                                     type="button"
-                                    onClick={() => onOpenInvoice(invoiceData)}
+                                    onClick={() => openInvoiceWithFullData()}
                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate transition-colors font-medium max-w-[180px]"
                                     title={tl('فتح الفاتورة المالية', 'Open Financial Invoice')}
                                 >
@@ -1303,7 +1397,7 @@ export function SalesDeliveryDialog({
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => onOpenInvoice(invoiceData)}
+                                        onClick={() => openInvoiceWithFullData()}
                                         className="gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-[11px] h-7 px-2"
                                     >
                                         <FileText className="w-3 h-3" />

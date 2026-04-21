@@ -203,7 +203,7 @@ export const warehouseModule: DataModule = {
 
     // ─── 10. Stock Movements (last 500) ─────────────────────────
     {
-      queryKey: ['warehouse', 'stock-movements', null, { warehouse: undefined, dateFrom: undefined, dateTo: undefined }],
+      queryKey: ['warehouse', 'stock-movements', null, { warehouse: undefined, movementType: undefined, dateFrom: undefined, dateTo: undefined }],
       queryFn: async (companyId: string) => {
         return warehouseService.getInventoryMovements(companyId, { limit: 500 }).catch(() => []);
       },

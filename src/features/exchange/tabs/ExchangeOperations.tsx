@@ -9,7 +9,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -63,7 +63,7 @@ export default function ExchangeOperations() {
     queryKeys: [['exchange_transactions']],
   });
 
-  const { data: transactions = [], isLoading } = useQuery({
+  const { data: transactions = [], isLoading } = useCachedQuery({
     queryKey: ['exchange_transactions', companyId],
     queryFn: async () => {
       if (!companyId) return [];

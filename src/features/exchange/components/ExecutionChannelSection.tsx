@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -194,7 +194,7 @@ export default function ExecutionChannelSection({
   const { companyId } = useCompany();
 
   // ─── Fetch Agents + Partners (unified) ──────────────────────
-  const { data: executors = [] } = useQuery<ExecutorOption[]>({
+  const { data: executors = [] } = useCachedQuery<ExecutorOption[]>({
     queryKey: ['exchange_executors', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -390,7 +390,7 @@ export default function ExecutionChannelSection({
 
 // ─── Branch Selector ──────────────────────────────────────────
 function BranchSelector({ companyId, isAr, disabled }: { companyId?: string; isAr: boolean; disabled: boolean }) {
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useCachedQuery({
     queryKey: ['branches', companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -443,7 +443,7 @@ function BranchSelector({ companyId, isAr, disabled }: { companyId?: string; isA
 
 // ─── Fund Selector (Bank / Wallet) ────────────────────────────
 function FundSelector({ companyId, fundType, isAr, disabled }: { companyId?: string; fundType: 'bank' | 'wallet'; isAr: boolean; disabled: boolean }) {
-  const { data: funds = [] } = useQuery({
+  const { data: funds = [] } = useCachedQuery({
     queryKey: ['funds', companyId, fundType],
     queryFn: async () => {
       if (!companyId) return [];

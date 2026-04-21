@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { autoRollService } from '@/features/warehouse/services/autoRollService';
@@ -313,6 +314,7 @@ interface FabricRoll {
 export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryItemsTabProps) {
     const { language, isRTL } = useLanguage();
     const { companyId, tenantId } = useAuth();
+    const queryClient = useQueryClient();
     const tl = (ar: string, en: string) => language === 'ar' ? ar : en;
 
     const isViewMode = !!(data?.view_mode);
@@ -361,6 +363,50 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
             return next;
         });
     }, []);
+
+    // ═══ Open Roll Detail Sheet — CACHE-FIRST (instant!) ═══
+    const handleOpenRoll = useCallback((rollIdOrObj: string | any) => {
+        // 1. If a full roll object was passed, use it directly
+        const rollObj = typeof rollIdOrObj === 'object' ? rollIdOrObj : null;
+        const rollId = rollObj?.id || rollIdOrObj;
+        if (!rollId) return;
+
+        // 2. Try local selectedRolls first
+        let found = rollObj || selectedRolls.find(r => r.id === rollId);
+
+        // 3. Try inventory-preload-rolls cache (DataEngine preloaded)
+        if (!found) {
+            const cachedRolls: any[] | undefined = queryClient.getQueryData(['inventory-preload-rolls', companyId]);
+            if (cachedRolls) {
+                found = cachedRolls.find((r: any) => r.id === rollId);
+            }
+        }
+
+        if (found) {
+            // Instant open — no network!
+            setRollSheetData(found);
+            setRollSheetOpen(true);
+            return;
+        }
+
+        // 4. Last resort: DB fetch (should rarely happen)
+        setRollSheetLoading(true);
+        supabase
+            .from('fabric_rolls')
+            .select('*')
+            .eq('id', rollId)
+            .maybeSingle()
+            .then(({ data: rollData, error }) => {
+                if (error || !rollData) {
+                    toast.error(tl('لم يتم العثور على الرولون', 'Roll not found'));
+                    return;
+                }
+                setRollSheetData(rollData);
+                setRollSheetOpen(true);
+            })
+            .catch(() => toast.error(tl('خطأ في تحميل بيانات الرولون', 'Error loading roll data')))
+            .finally(() => setRollSheetLoading(false));
+    }, [selectedRolls, queryClient, companyId, tl]);
 
     // Source document items (declared early — used by useEffects below)
     const sourceItems: InvoiceItem[] = useMemo(() => {
@@ -1178,7 +1224,7 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                                                                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
                                                                 : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
                                                         }`}
-                                                        onClick={() => handleOpenRoll(roll.id)}
+                                                        onClick={() => handleOpenRoll(roll)}
                                                         title={tl('اضغط لعرض تفاصيل الرولون', 'Click to view roll details')}
                                                     >
                                                         {isJIT && (
@@ -1278,19 +1324,41 @@ export function SalesDeliveryItemsTab({ data, mode, onChange }: SalesDeliveryIte
                 defaultPrint={true}
                 context="delivery"
             />
-            {/* Overlay Sheet for standalone roll details */}
-            {rollSheetData && (
-                <UnifiedAccountingSheet
-                    key={rollSheetData.id}
-                    isOpen={rollSheetOpen}
-                    onClose={() => { setRollSheetOpen(false); setRollSheetData(null); }}
-                    docType="roll"
-                    mode="view"
-                    data={rollSheetData}
-                    documentId={rollSheetData.id}
-                    companyId={companyId}
-                />
-            )}
+            {/* ═══ Roll Detail Sheet (standard UnifiedAccountingSheet) ═══ */}
+            {rollSheetOpen && rollSheetData && (() => {
+                // Enrich roll data with material/color + delivery context for full timeline
+                const srcItem = sourceItems.find((si: any) => si.material_id === rollSheetData.material_id);
+                const enrichedData = {
+                    ...rollSheetData,
+                    // Material info
+                    material_name: rollSheetData.material_name || (srcItem as any)?.material_name || (srcItem as any)?.name_ar || '',
+                    color_name: rollSheetData.color_name || (srcItem as any)?.color_name || '',
+                    material_code: rollSheetData.material_code || (srcItem as any)?.code || '',
+                    // Delivery context — cached with roll for timeline
+                    _delivered: rollSheetData._delivered || true,
+                    _invoice_no: data?.invoice_no || data?.draft_no || '',
+                    _customer_name: data?.customer_name || '',
+                    _customer_id: data?.customer_id || '',
+                    _delivery_date: data?.delivery_date || data?.doc_date || data?.created_at || '',
+                    _delivery_method: data?.delivery_method || '',
+                    _branch_name: data?.receiving_branch_name || data?.branch_name || '',
+                    _warehouse_name: data?.warehouse_name || '',
+                    _sale_date: data?.doc_date || data?.invoice_date || data?.created_at || '',
+                    _sales_transaction_id: data?.id || '',
+                };
+                return (
+                    <UnifiedAccountingSheet
+                        key={enrichedData.id}
+                        isOpen={rollSheetOpen}
+                        onClose={() => { setRollSheetOpen(false); setRollSheetData(null); }}
+                        docType="roll"
+                        mode="view"
+                        data={enrichedData}
+                        documentId={enrichedData.id}
+                        companyId={companyId}
+                    />
+                );
+            })()}
         </div>
     );
 }

@@ -25,6 +25,7 @@ import { accountsService } from '@/services/accountsService';
 import { warehouseService } from '@/services/warehouseService';
 import { preloadAccounts } from '@/components/ui/InlineAccountCell';
 import { preloadCurrencies } from '@/features/accounting/hooks/useViewCurrency';
+import { partyBalanceService } from '@/services/partyBalanceService';
 import { preloadExchangeRates } from '@/hooks/useExchangeRateLookup';
 import { format } from 'date-fns';
 
@@ -212,9 +213,7 @@ export function useDataPreloader() {
             queryClient.prefetchQuery({
                 queryKey: ['warehouse', 'stock-movements', companyId, { dateFrom: undefined, dateTo: undefined, warehouse: undefined }],
                 queryFn: async () => {
-                    try {
-                        return await warehouseService.getInventoryMovements(companyId!, { limit: 500 });
-                    } catch { return []; }
+                    return await warehouseService.getInventoryMovements(companyId!, { limit: 500 });
                 },
                 staleTime: DYNAMIC,
                 gcTime: GC_TIME,
@@ -224,9 +223,7 @@ export function useDataPreloader() {
             queryClient.prefetchQuery({
                 queryKey: ['warehouse', 'pending-receipts', companyId],
                 queryFn: async () => {
-                    try {
-                        return await warehouseService.getPendingReceipts(companyId!);
-                    } catch { return []; }
+                    return await warehouseService.getPendingReceipts(companyId!);
                 },
                 staleTime: DYNAMIC,
                 gcTime: GC_TIME,
@@ -239,7 +236,7 @@ export function useDataPreloader() {
                     const monthStart = new Date();
                     monthStart.setDate(1);
                     monthStart.setHours(0, 0, 0, 0);
-                    const { data } = await supabase
+                    const { data, error } = await supabase
                         .from('purchase_receipts')
                         .select('id, receipt_number, status, receipt_date, invoice_id, container_id, order_id, warehouse_id, created_at, updated_at')
                         .eq('company_id', companyId)
@@ -247,6 +244,7 @@ export function useDataPreloader() {
                         .gte('updated_at', monthStart.toISOString())
                         .order('updated_at', { ascending: false })
                         .limit(100);
+                    if (error) throw error;
                     return data || [];
                 },
                 staleTime: DYNAMIC,
@@ -267,10 +265,7 @@ export function useDataPreloader() {
                 // Dashboard stats
                 queryClient.prefetchQuery({
                     queryKey: ['warehouse', 'dashboard-stats', companyId],
-                    queryFn: () => warehouseService.getDashboardStats(companyId!).catch(() => ({
-                        totalWarehouses: 0, totalMaterials: 0, totalRolls: 0,
-                        activeReservations: 0, pendingDeliveries: 0, lowStockItems: 0,
-                    })),
+                    queryFn: () => warehouseService.getDashboardStats(companyId!),
                     staleTime: DYNAMIC,
                     gcTime: GC_TIME,
                 }),
@@ -332,6 +327,71 @@ export function useDataPreloader() {
                 }),
 
                 // 🏭 Inventory preloads moved to Tier 1 for instant access
+
+                // ═══ 🔴 Party Balances — CRITICAL for CustomersList + SuppliersList ═══
+                // ⚡ Single RPC per party type, then copy to all matching cache keys
+                // This avoids 4 redundant RPC calls (was 4, now 2)
+
+                // أرصدة العملاء — RPC واحد ثم نسخ لكل المفاتيح
+                (async () => {
+                    try {
+                        const customerBalances = await partyBalanceService.getAllPartyBalances(companyId!, 'customer');
+                        // Populate both cache keys with same data
+                        queryClient.setQueryData(['customer_balances_subledger', companyId], customerBalances);
+                        queryClient.setQueryData(['party_balances_customer', companyId], customerBalances);
+                    } catch (e) {
+                        console.warn('⚠️ [Preloader] Customer balances failed:', e);
+                    }
+                })(),
+
+                // أرصدة الموردين — RPC واحد ثم نسخ لكل المفاتيح
+                (async () => {
+                    try {
+                        const supplierBalances = await partyBalanceService.getAllPartyBalances(companyId!, 'supplier');
+                        // Populate both cache keys with same data
+                        queryClient.setQueryData(['party_balances_supplier_purchases', companyId], supplierBalances);
+                        queryClient.setQueryData(['party_balances_supplier', companyId], supplierBalances);
+                    } catch (e) {
+                        console.warn('⚠️ [Preloader] Supplier balances failed:', e);
+                    }
+                })(),
+
+                // ═══ 🟡 Name Maps — used by Sales & Purchases cycle pages ═══
+
+                // خريطة العملاء (id → name) — matches SalesInvoicesList, SalesCycleList, SalesPaymentsList
+                queryClient.prefetchQuery({
+                    queryKey: ['customers_map', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('customers')
+                            .select('id, name_ar, name_en')
+                            .eq('company_id', companyId);
+                        return (data || []).reduce((acc: Record<string, string>, c: any) => {
+                            acc[c.id] = language === 'ar' ? (c.name_ar || c.name_en) : (c.name_en || c.name_ar);
+                            return acc;
+                        }, {});
+                    },
+                    staleTime: 5 * 60 * 1000,
+                    gcTime: GC_TIME,
+                }),
+
+                // خريطة الموردين (id → name) — matches PurchaseCycleList, PurchaseInvoicesList
+                queryClient.prefetchQuery({
+                    queryKey: ['suppliers_map', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('suppliers')
+                            .select('id, name_ar, name_en')
+                            .eq('company_id', companyId);
+                        return (data || []).reduce((acc: Record<string, string>, s: any) => {
+                            acc[s.id] = language === 'ar' ? (s.name_ar || s.name_en) : (s.name_en || s.name_ar);
+                            return acc;
+                        }, {});
+                    },
+                    staleTime: 5 * 60 * 1000,
+                    gcTime: GC_TIME,
+                }),
+
             ]).then(() => {
                 const t2 = performance.now();
                 console.log(`⚡ [DataPreloader] Tier 2 complete in ${Math.round(t2 - t0)}ms`);
@@ -378,21 +438,39 @@ export function useDataPreloader() {
                     gcTime: GC_TIME,
                 }),
 
-                // 2. Sales Transactions — فواتير المبيعات
+                // 2. Sales Cycle Full — فواتير المبيعات مع البنود (MUST match SalesCycleList queryKey)
+                // 🔑 SalesDeliveryDialog.findInvoiceInCache() يبحث في هذا الكاش
                 queryClient.prefetchQuery({
-                    queryKey: ['sales-transactions-preload', companyId],
+                    queryKey: ['sales_cycle_full', companyId,
+                        format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'),
+                        format(new Date(), 'yyyy-MM-dd')],
                     queryFn: async () => {
+                        const fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
                         const { data } = await supabase
                             .from('sales_transactions')
-                            .select(`
-                                id, invoice_number, transaction_date, status,
-                                total_amount, currency, customer_id, warehouse_id,
-                                discount_amount, tax_amount, net_amount,
-                                payment_status, notes
-                            `)
+                            .select('*, items:sales_transaction_items(*)')
                             .eq('company_id', companyId)
-                            .order('transaction_date', { ascending: false })
-                            .limit(500);
+                            .eq('is_active', true)
+                            .gte('doc_date', fromDate.toISOString().split('T')[0])
+                            .order('created_at', { ascending: false });
+                        return data || [];
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 2b. Purchase Cycle Full — دورة المشتريات (MUST match PurchaseCycleList queryKey)
+                queryClient.prefetchQuery({
+                    queryKey: ['purchase_cycle_full', companyId, 'all', 'list',
+                        format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'),
+                        format(new Date(), 'yyyy-MM-dd')],
+                    queryFn: async () => {
+                        const fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                        const { data } = await supabase
+                            .from('purchase_transactions')
+                            .select('*')
+                            .eq('company_id', companyId)
+                            .order('doc_date', { ascending: false });
                         return data || [];
                     },
                     staleTime: DYNAMIC,
@@ -556,6 +634,90 @@ export function useDataPreloader() {
                         return data || [];
                     },
                     staleTime: SEMI_STATIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // ═══ 🟢 Full Entity Lists — for instant page load ═══
+
+                // قائمة العملاء الكاملة — matches CustomersList.tsx queryKey
+                queryClient.prefetchQuery({
+                    queryKey: ['customers_list', companyId],
+                    queryFn: async () => {
+                        const { data, error } = await supabase
+                            .from('customers')
+                            .select('*')
+                            .eq('company_id', companyId)
+                            .order('created_at', { ascending: false });
+                        if (error) throw error;
+                        return data || [];
+                    },
+                    staleTime: 30_000,
+                    gcTime: GC_TIME,
+                }),
+
+                // قائمة الموردين الكاملة — matches SuppliersList.tsx queryKey
+                queryClient.prefetchQuery({
+                    queryKey: ['suppliers_list', companyId],
+                    queryFn: async () => {
+                        const { data, error } = await supabase
+                            .from('suppliers')
+                            .select('*')
+                            .eq('company_id', companyId)
+                            .order('created_at', { ascending: false });
+                        if (error) throw error;
+                        return data || [];
+                    },
+                    staleTime: 30_000,
+                    gcTime: GC_TIME,
+                }),
+
+                // إحصائيات مبيعات العملاء — matches CustomersList.tsx queryKey
+                queryClient.prefetchQuery({
+                    queryKey: ['customers_sales_stats', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('sales_transactions')
+                            .select('customer_id, total_amount, stage')
+                            .eq('company_id', companyId);
+                        const stats: Record<string, { invoiceCount: number; totalAmount: number; unpaid: number }> = {};
+                        const COUNTABLE_STAGES = ['posted', 'delivered', 'paid', 'partially_paid', 'completed'];
+                        (data || []).forEach((tx: any) => {
+                            if (!tx.customer_id || !COUNTABLE_STAGES.includes(tx.stage)) return;
+                            if (!stats[tx.customer_id]) stats[tx.customer_id] = { invoiceCount: 0, totalAmount: 0, unpaid: 0 };
+                            stats[tx.customer_id].invoiceCount++;
+                            stats[tx.customer_id].totalAmount += Number(tx.total_amount || 0);
+                            if (!['paid', 'completed'].includes(tx.stage)) {
+                                stats[tx.customer_id].unpaid += Number(tx.total_amount || 0);
+                            }
+                        });
+                        return stats;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // إحصائيات مشتريات الموردين — matches SuppliersList.tsx queryKey
+                queryClient.prefetchQuery({
+                    queryKey: ['suppliers_purchase_stats', companyId],
+                    queryFn: async () => {
+                        const { data } = await supabase
+                            .from('purchase_transactions')
+                            .select('supplier_id, total_amount, stage')
+                            .eq('company_id', companyId);
+                        const stats: Record<string, { invoiceCount: number; totalAmount: number; unpaid: number }> = {};
+                        const COUNTABLE_STAGES = ['posted', 'received', 'paid', 'partially_paid', 'completed'];
+                        (data || []).forEach((tx: any) => {
+                            if (!tx.supplier_id || !COUNTABLE_STAGES.includes(tx.stage)) return;
+                            if (!stats[tx.supplier_id]) stats[tx.supplier_id] = { invoiceCount: 0, totalAmount: 0, unpaid: 0 };
+                            stats[tx.supplier_id].invoiceCount++;
+                            stats[tx.supplier_id].totalAmount += Number(tx.total_amount || 0);
+                            if (!['paid', 'completed'].includes(tx.stage)) {
+                                stats[tx.supplier_id].unpaid += Number(tx.total_amount || 0);
+                            }
+                        });
+                        return stats;
+                    },
+                    staleTime: DYNAMIC,
                     gcTime: GC_TIME,
                 }),
 

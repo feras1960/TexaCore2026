@@ -290,12 +290,10 @@ export default function SalesCycleList() {
         queryKey: ['customers_map', companyId],
         queryFn: async () => {
             if (!companyId) return {};
-            // ⚡ Use tenantId from useAuth() — no network call needed
-            if (!tenantId) return {};
             const { data, error } = await supabase
                 .from('customers')
                 .select('id, name_ar, name_en')
-                .eq('tenant_id', tenantId);
+                .eq('company_id', companyId);
 
             if (error) {
                 console.warn('Customers fetch failed', error);
@@ -311,7 +309,47 @@ export default function SalesCycleList() {
         staleTime: 60000
     });
 
-    // 2. Fetch ALL Documents — always fetch everything, filter in frontend
+    // ═══ Transform raw sales_transactions → SalesDocument ═══
+    // Separated from queryFn so DataEngine's prefetched data can be used directly.
+    // DataEngine stores raw data with same key → `select` transforms for display.
+    const transformToSalesDocuments = useCallback((rawData: any[]): SalesDocument[] => {
+        if (!rawData || !Array.isArray(rawData)) return [];
+        return rawData.map((item: any): SalesDocument => {
+            const stage = item.stage || 'draft';
+            const type = STAGE_TO_CYCLE[stage] || 'draft';
+
+            const docNum = item.invoice_no || item.delivery_no || item.order_no
+                || item.reservation_no || item.quotation_no || item.draft_no
+                || item.id?.substring(0, 8);
+
+            const docDate = item.invoice_date || item.delivery_date || item.order_date
+                || item.reservation_date || item.quotation_date || item.doc_date
+                || item.created_at;
+
+            const exchangeRate = Number(item.exchange_rate || 1);
+
+            return {
+                id: item.id,
+                document_number: docNum,
+                date: docDate,
+                type,
+                status: stage,
+                stage,
+                total_amount: Number(item.total_amount || 0),
+                customer_id: item.customer_id,
+                customer_name: item.customer_name,
+                currency: item.currency || baseCurrency,
+                created_at: item.created_at,
+                delivered_at: item.delivered_at || item.delivery_confirmed_at || null,
+                posted_at: item.posted_at || null,
+                delivery_confirmed_at: item.delivery_confirmed_at || null,
+                original_table: 'sales_transactions',
+                _rawData: { ...item, exchange_rate: exchangeRate },
+            };
+        });
+    }, [baseCurrency]);
+
+    // 2. Fetch ALL Documents — queryFn returns RAW data (same format as DataEngine)
     const salesCycleQuery = useCachedQuery({
         queryKey: ['sales_cycle_full', companyId, dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined, dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined],
         queryFn: async () => {
@@ -327,7 +365,6 @@ export default function SalesCycleList() {
                 .eq('is_active', true)
                 .order('created_at', { ascending: false });
 
-            // Only filter by date — tabs and currency are filtered client-side
             if (fromISO) q = q.gte('doc_date', fromISO);
             if (toISO) q = q.lte('doc_date', toISO);
 
@@ -338,42 +375,10 @@ export default function SalesCycleList() {
                 return [];
             }
 
-            return (data || []).map((item: any): SalesDocument => {
-                const stage = item.stage || 'draft';
-                const type = STAGE_TO_CYCLE[stage] || 'draft';
-
-                // Pick the best document number for current stage
-                const docNum = item.invoice_no || item.delivery_no || item.order_no
-                    || item.reservation_no || item.quotation_no || item.draft_no
-                    || item.id?.substring(0, 8);
-
-                // Pick the best date for current stage
-                const docDate = item.invoice_date || item.delivery_date || item.order_date
-                    || item.reservation_date || item.quotation_date || item.doc_date
-                    || item.created_at;
-
-                const exchangeRate = Number(item.exchange_rate || 1);
-
-                return {
-                    id: item.id,
-                    document_number: docNum,
-                    date: docDate,
-                    type,
-                    status: stage,
-                    stage,
-                    total_amount: Number(item.total_amount || 0),
-                    customer_id: item.customer_id,
-                    customer_name: item.customer_name,
-                    currency: item.currency || baseCurrency,
-                    created_at: item.created_at,
-                    delivered_at: item.delivered_at || item.delivery_confirmed_at || null,
-                    posted_at: item.posted_at || null,
-                    delivery_confirmed_at: item.delivery_confirmed_at || null,
-                    original_table: 'sales_transactions',
-                    _rawData: { ...item, exchange_rate: exchangeRate },
-                };
-            });
+            return data || [];  // ← raw data — same as DataEngine
         },
+        // Transform raw → SalesDocument (runs on cached data too!)
+        select: transformToSalesDocuments,
         enabled: !!companyId,
         staleTime: 2 * 60 * 1000,   // 2 minutes — Realtime handles live updates
     });
@@ -1024,14 +1029,39 @@ export default function SalesCycleList() {
                                         const showBranchInfo = ['in_transit', 'at_branch', 'sent_to_branch'].includes(row.stage);
                                         const branchName = raw.receiving_branch_name || '';
                                         const customerName = (row as any).customer_name_display || row.customer_name || raw.customer_name || '';
+
+                                        // ═══ Build rich compound status label ═══
+                                        const isDelivered = !!raw.delivery_confirmed_at || ['posted', 'paid', 'partial_paid', 'partially_paid', 'completed', 'closed'].includes(row.stage);
+                                        const isPosted = !!raw.is_posted || ['posted'].includes(row.stage);
+                                        const isPaid = ['paid', 'completed', 'closed'].includes(row.stage);
+                                        const isPartialPaid = ['partial_paid', 'partially_paid'].includes(row.stage);
+
+                                        // Build descriptive label
+                                        let richLabelAr = style.labelAr;
+                                        let richLabelEn = style.labelEn;
+
+                                        if (isPaid) {
+                                            richLabelAr = isDelivered ? 'مسلمة ومدفوعة بالكامل' : 'مدفوعة بالكامل';
+                                            richLabelEn = isDelivered ? 'Delivered & Fully Paid' : 'Fully Paid';
+                                        } else if (isPartialPaid) {
+                                            richLabelAr = isDelivered ? 'مسلمة ومدفوعة جزئياً' : 'مدفوعة جزئياً';
+                                            richLabelEn = isDelivered ? 'Delivered & Partially Paid' : 'Partially Paid';
+                                        } else if (isPosted && isDelivered) {
+                                            richLabelAr = 'مسلمة ومرحّلة';
+                                            richLabelEn = 'Delivered & Posted';
+                                        } else if (isDelivered && !isPosted) {
+                                            richLabelAr = 'مسلمة';
+                                            richLabelEn = 'Delivered';
+                                        }
+
                                         return (
                                             <div className="flex flex-col items-center gap-0.5">
                                                 <span className={cn(
-                                                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap",
+                                                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold",
                                                     style.bg, style.text
                                                 )}>
-                                                    <span className={cn("w-1.5 h-1.5 rounded-full", style.dot)} />
-                                                    {isRTL ? style.labelAr : style.labelEn}
+                                                    <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", style.dot)} />
+                                                    <span className="text-center leading-tight">{isRTL ? richLabelAr : richLabelEn}</span>
                                                 </span>
                                                 {showBranchInfo && (branchName || customerName) && (
                                                     <div className="flex flex-col items-center gap-0 mt-0.5">

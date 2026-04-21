@@ -17,7 +17,7 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.materials',
         icon: 'Search',
         component: 'MaterialBrowserTab',
-        showInModes: ['view', 'create', 'edit'],
+        showInModes: ['create', 'edit'],
     },
     attachments: {
         id: 'attachments',
@@ -58,7 +58,7 @@ const TAB: Record<string, TabConfig> = {
         labelKey: 'trade.tabs.materials',
         icon: 'Search',
         component: 'PurchaseMaterialBrowserTab',
-        showInModes: ['view', 'create', 'edit'],
+        showInModes: ['create', 'edit'],
     },
     supplierInfo: {
         id: 'supplier_info',
@@ -149,13 +149,13 @@ const STAGE_TAB: Record<string, TabConfig> = {
         ...TAB.materialBrowser,
         visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation'],
-        showInModes: ['view', 'create', 'edit'],
+        showInModes: ['create', 'edit'],
     },
     purchaseMaterialBrowserStaged: {
         ...TAB.purchaseMaterialBrowser,
         visibleInStages: ['draft', 'quotation', 'order', 'approved', 'confirmed', 'in_delivery', 'delivered', 'partially_received', 'received', 'receipt', 'invoice', 'posted', 'partial_paid', 'paid'],
         editableInStages: ['draft', 'quotation'],
-        showInModes: ['view', 'create', 'edit'],
+        showInModes: ['create', 'edit'],
     },
     // ── مورد (stage-aware) ──
     supplierInfoStaged: {

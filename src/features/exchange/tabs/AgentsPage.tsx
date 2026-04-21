@@ -9,7 +9,8 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { agentService, type ExchangeAgent } from '../services/agentService';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -74,7 +75,7 @@ export default function AgentsPage() {
   });
 
   // ─── Fetch ────────────────────────────────────────────────
-  const { data: agents = [], isLoading } = useQuery({
+  const { data: agents = [], isLoading } = useCachedQuery({
     queryKey: ['exchange_agents', companyId, language],
     queryFn: async () => {
       if (!companyId) return [];

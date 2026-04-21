@@ -9,7 +9,8 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { partnerService, type ExchangePartner } from '../services/partnerService';
 import { NexaListTable, type NexaListColumn } from '@/components/ui/nexa-list-table';
@@ -75,7 +76,7 @@ export default function PartnersPage() {
   });
 
   // ─── Fetch ────────────────────────────────────────────────
-  const { data: partners = [], isLoading } = useQuery({
+  const { data: partners = [], isLoading } = useCachedQuery({
     queryKey: ['exchange_partners', companyId, language],
     queryFn: async () => {
       if (!companyId) return [];

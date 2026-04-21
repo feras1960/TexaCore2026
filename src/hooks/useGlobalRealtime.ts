@@ -23,7 +23,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 // ─── Table → Query Keys mapping ──────────────────────────────
 // ⚠️ IMPORTANT: queryKeys here MUST match the keys used by pages
 //    and DataEngine modules. When adding new modules, update this list.
-const REALTIME_SUBSCRIPTIONS = [
+export const REALTIME_SUBSCRIPTIONS = [
     // ═══ ACCOUNTING ═══
     {
         table: 'chart_of_accounts',

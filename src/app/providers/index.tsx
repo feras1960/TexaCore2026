@@ -6,7 +6,29 @@ import { LanguageProvider } from './LanguageProvider';
 import { ThemeProvider } from './ThemeProvider';
 import { InterfaceModeProvider } from './InterfaceModeProvider';
 import { Toaster } from '@/components/ui/toaster';
+import { REALTIME_SUBSCRIPTIONS } from '@/hooks/useGlobalRealtime';
 import { createDexiePersister } from '@/lib/queryPersistence';
+
+// ═══════════════════════════════════════════════════════════════
+// 🔄 Auto-build skip list from REALTIME_SUBSCRIPTIONS
+// Queries managed by realtime should NOT get their timestamps
+// refreshed on cold start — they must refetch to detect changes
+// that happened while the app was closed.
+// ═══════════════════════════════════════════════════════════════
+const REALTIME_SKIP_KEYS: Set<string> = new Set([
+  // Always skip these (not in REALTIME_SUBSCRIPTIONS but need fresh data)
+  'materials-full-detail',
+  'party_balances_supplier',
+  'party_balances_customer',
+  'party_balances_supplier_purchases',
+  'customer_balances_subledger',
+  'material-movements',
+  'material-inventory',
+  // Auto-extracted from REALTIME_SUBSCRIPTIONS
+  ...REALTIME_SUBSCRIPTIONS.flatMap(sub =>
+    sub.queryKeys.map(qk => qk[0])
+  ),
+]);
 
 // ═══════════════════════════════════════════════════════════════
 // 💾 React Query — Unified Cache Configuration
@@ -77,43 +99,18 @@ function handlePersistSuccess() {
     // 🔑 Show cached data instantly AND treat as fresh
     const freshTimestamp = Date.now();
 
-    // ⚡ Queries with realtime subscriptions should NOT have their timestamps refreshed.
-    // These queries auto-sync via WebSocket, so they need to refetch on cold start
-    // to detect changes that happened while the app was closed.
-    const skipTimestampRefresh = new Set([
-      'materials-full-detail',  // must always re-fetch to include parent_material_id
-      'parties_suppliers',      // realtime-managed — must refetch on cold start
-      'parties_customers',      // realtime-managed — must refetch on cold start
-      'party_balances_supplier',
-      'party_balances_customer',           // Parties page — must refetch on cold start
-      'party_balances_supplier_purchases', // SuppliersList page — must refetch on cold start
-      'customer_balances_subledger',       // CustomersList page — must refetch on cold start
-      'material-movements',     // realtime-managed — must refetch for accurate movement log
-      'material-inventory',     // realtime-managed — must refetch for warehouse distribution
-    ]);
-
-    // 🔄 Warehouse queries: Don't refresh timestamps — let them refetch for fresh data.
-    // These have realtime subscriptions (fabric_materials, fabric_rolls, etc.)
-    const isWarehouseRealtimeQuery = (key: any[]) => {
-      if (key[0] !== 'warehouse') return false;
-      const realtimeEntities = ['materials', 'dashboard-stats', 'low-stock', 'inventory-movements'];
-      return realtimeEntities.some(e => key[1] === e);
-    };
-
-    // 🔄 Inventory preload caches — must refetch on cold start
-    const isInventoryPreload = (key: any[]) => {
-      return typeof key[0] === 'string' && (key[0] as string).startsWith('inventory-preload');
-    };
+    // ⚡ REALTIME_SKIP_KEYS (auto-built from REALTIME_SUBSCRIPTIONS at module level)
+    // Queries managed by realtime should refetch on cold start to detect
+    // changes that happened while the app was closed.
 
     successQueries.forEach((query) => {
-      const key0 = query.queryKey[0];
-      if (skipTimestampRefresh.has(key0 as string)) return;
+      const key0 = query.queryKey[0] as string;
 
-      // 🔄 Warehouse realtime queries: skip timestamp refresh → will refetch on mount
-      if (isWarehouseRealtimeQuery(query.queryKey as any[])) return;
+      // Skip realtime-managed queries — they must refetch on cold start
+      if (REALTIME_SKIP_KEYS.has(key0)) return;
 
-      // 🔄 Inventory preload: skip timestamp refresh → will refetch from Supabase
-      if (isInventoryPreload(query.queryKey as any[])) return;
+      // Skip inventory preload caches — must refetch for fresh stock data
+      if (typeof key0 === 'string' && key0.startsWith('inventory-preload')) return;
 
       // 🔄 sales_cycle_full: previously removed stale caches without items join.
       // Now the query always includes items join, so we keep the cache as-is.

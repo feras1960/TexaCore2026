@@ -100,8 +100,8 @@ const EVENT_CONFIG: Record<string, {
         color: 'text-green-600',
         bgColor: 'bg-green-50 dark:bg-green-950/30',
         borderColor: 'border-green-200 dark:border-green-800',
-        label_ar: 'مدفوع',
-        label_en: 'Paid',
+        label_ar: 'مدفوع بالكامل',
+        label_en: 'Paid in Full',
     },
     partially_paid: {
         icon: CreditCard,
@@ -116,16 +116,24 @@ const EVENT_CONFIG: Record<string, {
         color: 'text-indigo-600',
         bgColor: 'bg-indigo-50 dark:bg-indigo-950/30',
         borderColor: 'border-indigo-200 dark:border-indigo-800',
-        label_ar: 'مُستلم',
-        label_en: 'Received',
+        label_ar: 'مُستلم بالكامل',
+        label_en: 'Fully Received',
+    },
+    partially_received: {
+        icon: Package,
+        color: 'text-teal-600',
+        bgColor: 'bg-teal-50 dark:bg-teal-950/30',
+        borderColor: 'border-teal-200 dark:border-teal-800',
+        label_ar: 'استلام جزئي',
+        label_en: 'Partially Received',
     },
     delivered: {
         icon: Truck,
         color: 'text-cyan-600',
         bgColor: 'bg-cyan-50 dark:bg-cyan-950/30',
         borderColor: 'border-cyan-200 dark:border-cyan-800',
-        label_ar: 'مُسلّم',
-        label_en: 'Delivered',
+        label_ar: 'تم التسليم للعميل',
+        label_en: 'Delivered to Customer',
     },
     cancelled: {
         icon: XCircle,
@@ -150,6 +158,87 @@ const EVENT_CONFIG: Record<string, {
         borderColor: 'border-pink-200 dark:border-pink-800',
         label_ar: 'تذكير',
         label_en: 'Reminder Sent',
+    },
+    // ── مراحل دورة حياة الفاتورة الكاملة ──
+    quotation: {
+        icon: FileCheck,
+        color: 'text-indigo-600',
+        bgColor: 'bg-indigo-50 dark:bg-indigo-950/30',
+        borderColor: 'border-indigo-200 dark:border-indigo-800',
+        label_ar: 'عرض سعر',
+        label_en: 'Quotation Issued',
+    },
+    order: {
+        icon: CheckCircle2,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+        borderColor: 'border-blue-200 dark:border-blue-800',
+        label_ar: 'أمر بيع',
+        label_en: 'Order Placed',
+    },
+    reserved: {
+        icon: Package,
+        color: 'text-cyan-600',
+        bgColor: 'bg-cyan-50 dark:bg-cyan-950/30',
+        borderColor: 'border-cyan-200 dark:border-cyan-800',
+        label_ar: 'حجز بضاعة',
+        label_en: 'Stock Reserved',
+    },
+    approved: {
+        icon: CheckCircle2,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50 dark:bg-green-950/30',
+        borderColor: 'border-green-200 dark:border-green-800',
+        label_ar: 'تم الاعتماد',
+        label_en: 'Approved',
+    },
+    loading: {
+        icon: Package,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+        borderColor: 'border-amber-200 dark:border-amber-800',
+        label_ar: 'بدء التجميع والتحميل',
+        label_en: 'Loading Started',
+    },
+    dispatched: {
+        icon: Truck,
+        color: 'text-orange-600',
+        bgColor: 'bg-orange-50 dark:bg-orange-950/30',
+        borderColor: 'border-orange-200 dark:border-orange-800',
+        label_ar: 'تم الإخراج من المستودع',
+        label_en: 'Dispatched from Warehouse',
+    },
+    in_transit: {
+        icon: Truck,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+        borderColor: 'border-blue-200 dark:border-blue-800',
+        label_ar: 'في الطريق للفرع',
+        label_en: 'In Transit to Branch',
+    },
+    at_branch: {
+        icon: CheckCircle2,
+        color: 'text-teal-600',
+        bgColor: 'bg-teal-50 dark:bg-teal-950/30',
+        borderColor: 'border-teal-200 dark:border-teal-800',
+        label_ar: 'وصل الفرع',
+        label_en: 'Arrived at Branch',
+    },
+    reopened: {
+        icon: RotateCcw,
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-50 dark:bg-gray-900/30',
+        borderColor: 'border-gray-200 dark:border-gray-700',
+        label_ar: 'إعادة فتح',
+        label_en: 'Reopened',
+    },
+    stage_changed: {
+        icon: ArrowUpCircle,
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50 dark:bg-purple-950/30',
+        borderColor: 'border-purple-200 dark:border-purple-800',
+        label_ar: 'تغيير مرحلة',
+        label_en: 'Stage Changed',
     },
 };
 
@@ -401,6 +490,116 @@ export function ActivityTimeline({
                                         <span className="text-muted-foreground/40">•</span>
                                         <span>{time}</span>
                                     </div>
+
+                                    {/* ═══ تفاصيل دورة الحياة المعززة ═══ */}
+                                    {event.details && (() => {
+                                        const d = event.details!;
+                                        const enrichedDetails: React.ReactNode[] = [];
+
+                                        // الفرع
+                                        if (d.branch_name || d.branch) {
+                                            enrichedDetails.push(
+                                                <span key="branch" className="inline-flex items-center gap-1 text-[10px] text-teal-600 dark:text-teal-400">
+                                                    🏪 {d.branch_name || d.branch}
+                                                </span>
+                                            );
+                                        }
+
+                                        // المستودع
+                                        if (d.warehouse_name || d.warehouse) {
+                                            enrichedDetails.push(
+                                                <span key="warehouse" className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400">
+                                                    🏭 {d.warehouse_name || d.warehouse}
+                                                </span>
+                                            );
+                                        }
+
+                                        // العميل / المورد
+                                        if (d.party_name || d.customer_name || d.supplier_name) {
+                                            enrichedDetails.push(
+                                                <span key="party" className="inline-flex items-center gap-1 text-[10px] text-gray-600 dark:text-gray-400">
+                                                    🏢 {d.party_name || d.customer_name || d.supplier_name}
+                                                </span>
+                                            );
+                                        }
+
+                                        // عدد الأصناف
+                                        if (d.items_count && d.items_count > 0) {
+                                            enrichedDetails.push(
+                                                <span key="items" className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                                                    📦 {d.items_count} {isAr ? 'بند' : 'items'}
+                                                </span>
+                                            );
+                                        }
+
+                                        // المبلغ
+                                        if (d.amount || d.total_amount) {
+                                            const amt = d.amount || d.total_amount;
+                                            enrichedDetails.push(
+                                                <span key="amount" className="inline-flex items-center gap-1 text-[10px] font-mono text-gray-600 dark:text-gray-400">
+                                                    💰 {Number(amt).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                    {d.currency ? ` ${d.currency}` : ''}
+                                                </span>
+                                            );
+                                        }
+
+                                        // تغيير المرحلة
+                                        if (d.stage_from && d.stage_to) {
+                                            const stageLabels: Record<string, { ar: string; en: string }> = {
+                                                draft: { ar: 'مسودة', en: 'Draft' },
+                                                quotation: { ar: 'عرض سعر', en: 'Quotation' },
+                                                order: { ar: 'أمر', en: 'Order' },
+                                                confirmed: { ar: 'مؤكد', en: 'Confirmed' },
+                                                approved: { ar: 'معتمد', en: 'Approved' },
+                                                loading: { ar: 'تحميل', en: 'Loading' },
+                                                dispatched: { ar: 'أُرسل', en: 'Dispatched' },
+                                                in_transit: { ar: 'في الطريق', en: 'In Transit' },
+                                                at_branch: { ar: 'في الفرع', en: 'At Branch' },
+                                                posted: { ar: 'مرحّل', en: 'Posted' },
+                                                received: { ar: 'مستلم', en: 'Received' },
+                                                in_delivery: { ar: 'قيد التسليم', en: 'In Delivery' },
+                                                delivered: { ar: 'مسلّم', en: 'Delivered' },
+                                                cancelled: { ar: 'ملغي', en: 'Cancelled' },
+                                                paid: { ar: 'مدفوع', en: 'Paid' },
+                                            };
+                                            const from = stageLabels[d.stage_from] || { ar: d.stage_from, en: d.stage_from };
+                                            const to = stageLabels[d.stage_to] || { ar: d.stage_to, en: d.stage_to };
+                                            enrichedDetails.push(
+                                                <span key="stage" className="inline-flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400">
+                                                    {isAr ? from.ar : from.en}
+                                                    <span className="text-muted-foreground/50">→</span>
+                                                    {isAr ? to.ar : to.en}
+                                                </span>
+                                            );
+                                        }
+
+                                        // رقم الفاتورة
+                                        if (d.invoice_number || d.document_number) {
+                                            enrichedDetails.push(
+                                                <span key="docnum" className="inline-flex items-center gap-1 text-[10px] font-mono text-indigo-600 dark:text-indigo-400">
+                                                    📄 {d.invoice_number || d.document_number}
+                                                </span>
+                                            );
+                                        }
+
+                                        // ملاحظة مرفقة
+                                        if (d.note) {
+                                            enrichedDetails.push(
+                                                <span key="note" className="block w-full text-[10px] text-muted-foreground/70 italic mt-0.5">
+                                                    "{d.note}"
+                                                </span>
+                                            );
+                                        }
+
+                                        if (enrichedDetails.length > 0) {
+                                            return (
+                                                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-1">
+                                                    {enrichedDetails}
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
 
                                     {/* تفاصيل التغييرات */}
                                     {event.details && renderChangeDetails(event.details, isAr)}

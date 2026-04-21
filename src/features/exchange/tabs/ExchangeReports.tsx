@@ -13,7 +13,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useCompany } from '@/hooks/useCompany';
-import { useQuery } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { remittanceReportsService, type RemittanceSummary, type FxProfitReport } from '../services/remittanceReportsService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,7 +59,7 @@ export default function ExchangeReports() {
   };
 
   // ─── Fetch Summary ──────────────────────────────────────────
-  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
+  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useCachedQuery({
     queryKey: ['exchange_report_summary', companyId, startDate, endDate],
     queryFn: () => remittanceReportsService.getSummary({ companyId: companyId!, startDate, endDate }),
     enabled: !!companyId,
@@ -67,7 +67,7 @@ export default function ExchangeReports() {
   });
 
   // ─── Fetch FX Report ────────────────────────────────────────
-  const { data: fxReport, isLoading: loadingFx } = useQuery({
+  const { data: fxReport, isLoading: loadingFx } = useCachedQuery({
     queryKey: ['exchange_report_fx', companyId, startDate, endDate],
     queryFn: () => remittanceReportsService.getFxReport({ companyId: companyId!, startDate, endDate }),
     enabled: !!companyId,

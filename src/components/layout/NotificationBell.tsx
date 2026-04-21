@@ -15,7 +15,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { notificationService, Notification } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -255,7 +256,7 @@ export function NotificationBell() {
     const [hasNewPulse, setHasNewPulse] = useState(false);
 
     // ─── Fetch notifications ───
-    const { data: notifications = [], isLoading } = useQuery({
+    const { data: notifications = [], isLoading } = useCachedQuery({
         queryKey: ['notifications', user?.id],
         queryFn: () => notificationService.getAll({ limit: 30 }),
         enabled: !!user?.id,

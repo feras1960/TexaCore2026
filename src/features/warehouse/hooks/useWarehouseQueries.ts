@@ -31,6 +31,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 
+import { useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { warehouseService } from '@/services/warehouseService';
@@ -210,14 +211,14 @@ export function useWarehouseDashboard() {
     // Stats query
     const statsQuery = useCachedQuery({
         queryKey: ['warehouse', 'dashboard-stats', companyId],
-        queryFn: () => warehouseService.getDashboardStats(companyId!).catch(() => ({
-            totalWarehouses: 0,
-            totalMaterials: 0,
-            totalRolls: 0,
-            activeReservations: 0,
-            pendingDeliveries: 0,
-            lowStockItems: 0,
-        })),
+        queryFn: async () => {
+            try {
+                return await warehouseService.getDashboardStats(companyId!);
+            } catch (err: any) {
+                if (err?.name === 'AbortError') throw err;
+                throw err;
+            }
+        },
         enabled: !!companyId,
         staleTime: LIVE,
         gcTime: GC_TIME,
@@ -226,7 +227,14 @@ export function useWarehouseDashboard() {
     // Low stock items
     const lowStockQuery = useCachedQuery({
         queryKey: ['warehouse', 'low-stock', companyId],
-        queryFn: () => warehouseService.getLowStockItems(companyId!, 5).catch(() => []),
+        queryFn: async () => {
+            try {
+                return await warehouseService.getLowStockItems(companyId!, 5);
+            } catch (err: any) {
+                if (err?.name === 'AbortError') throw err;
+                throw err;
+            }
+        },
         enabled: !!companyId,
         staleTime: DYNAMIC,
         gcTime: GC_TIME,
@@ -235,7 +243,14 @@ export function useWarehouseDashboard() {
     // Warehouse capacity
     const capacityQuery = useCachedQuery({
         queryKey: ['warehouse', 'capacity', companyId],
-        queryFn: () => warehouseService.getWarehouseCapacity(companyId!).catch(() => []),
+        queryFn: async () => {
+            try {
+                return await warehouseService.getWarehouseCapacity(companyId!);
+            } catch (err: any) {
+                if (err?.name === 'AbortError') throw err;
+                throw err;
+            }
+        },
         enabled: !!companyId,
         staleTime: DYNAMIC,
         gcTime: GC_TIME,
@@ -244,7 +259,14 @@ export function useWarehouseDashboard() {
     // Recent activity
     const activityQuery = useCachedQuery({
         queryKey: ['warehouse', 'recent-activity', companyId],
-        queryFn: () => warehouseService.getInventoryMovements(companyId!, { limit: 5 }).catch(() => []),
+        queryFn: async () => {
+            try {
+                return await warehouseService.getInventoryMovements(companyId!, { limit: 5 });
+            } catch (err: any) {
+                if (err?.name === 'AbortError') throw err;
+                throw err;
+            }
+        },
         enabled: !!companyId,
         staleTime: DYNAMIC,
         gcTime: GC_TIME,
@@ -364,20 +386,29 @@ export function useStockMovements(filters?: MovementFilters) {
         String(err?.message || '').toLowerCase().includes('aborted') ||
         String(err?.message || '').toLowerCase().includes('signal');
 
+    // ─── Normalize filters to match DataEngine's preload key shape ───
+    const normalizedFilters = useMemo(() => ({
+        warehouse: (filters?.warehouse && filters.warehouse !== 'all') ? filters.warehouse : undefined,
+        movementType: (filters?.movementType && filters.movementType !== 'all') ? filters.movementType : undefined,
+        dateFrom: filters?.dateFrom ?? undefined,
+        dateTo: filters?.dateTo ?? undefined,
+    }), [filters?.warehouse, filters?.movementType, filters?.dateFrom, filters?.dateTo]);
+
     const movementsQuery = useCachedQuery({
-        queryKey: ['warehouse', 'stock-movements', companyId, filters],
+        queryKey: ['warehouse', 'stock-movements', companyId, normalizedFilters],
         queryFn: async () => {
             try {
                 return await warehouseService.getInventoryMovements(companyId!, {
-                    warehouseId: filters?.warehouse !== 'all' ? filters?.warehouse : undefined,
-                    movementType: filters?.movementType !== 'all' ? filters?.movementType : undefined,
-                    dateFrom: filters?.dateFrom || undefined,
-                    dateTo: filters?.dateTo || undefined,
+                    warehouseId: normalizedFilters.warehouse !== 'all' ? normalizedFilters.warehouse : undefined,
+                    movementType: normalizedFilters.movementType !== 'all' ? normalizedFilters.movementType : undefined,
+                    dateFrom: normalizedFilters.dateFrom || undefined,
+                    dateTo: normalizedFilters.dateTo || undefined,
                     limit: 500,
                 });
             } catch (err: any) {
-                if (isAbort(err)) return []; // ← silently swallow, not rethrow
-                return [];
+                if (isAbort(err)) throw err; // Let React Query handle aborts normally
+                console.error('[stockMovements] error:', err);
+                throw err;
             }
         },
         enabled: !!companyId,
@@ -392,8 +423,9 @@ export function useStockMovements(filters?: MovementFilters) {
             try {
                 return await warehouseService.getPendingReceipts(companyId!);
             } catch (err: any) {
-                if (isAbort(err)) return []; // ← silently swallow, not rethrow
-                return [];
+                if (isAbort(err)) throw err;
+                console.error('[pendingReceipts] error:', err);
+                throw err;
             }
         },
         enabled: !!companyId,
@@ -423,12 +455,13 @@ export function useStockMovements(filters?: MovementFilters) {
 
                 if (error) {
                     console.warn('[completedReceipts] error:', error.message);
-                    return [];
+                    throw error;
                 }
                 return data || [];
             } catch (err: any) {
-                if (isAbort(err)) return []; // ← silently swallow, not rethrow
-                return [];
+                if (isAbort(err)) throw err;
+                console.error('[completedReceipts] check error:', err);
+                throw err;
             }
         },
         enabled: !!companyId,

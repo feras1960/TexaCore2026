@@ -33,7 +33,8 @@ import {
     Box,
     DollarSign
 } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
 import { useCompany } from '@/hooks/useCompany';
 import { toast } from 'sonner';
@@ -75,7 +76,7 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
     // Fetch Suppliers
-    const { data: suppliers = [] } = useQuery({
+    const { data: suppliers = [] } = useCachedQuery({
         queryKey: ['suppliers_list', companyId],
         queryFn: async () => {
             const { data } = await supabase.from('suppliers').select('id, name_ar, name_en').eq('company_id', companyId);
@@ -86,7 +87,7 @@ export function AddContainerSheet({ open, onOpenChange, onSuccess }: AddContaine
     });
 
     // Fetch Available Invoices for Selected Supplier
-    const { data: availableInvoices = [], isLoading: isLoadingInvoices } = useQuery({
+    const { data: availableInvoices = [], isLoading: isLoadingInvoices } = useCachedQuery({
         queryKey: ['available_invoices_for_container', formData.supplierId],
         queryFn: async () => {
             if (!formData.supplierId) return [];

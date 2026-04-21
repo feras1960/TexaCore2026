@@ -109,6 +109,8 @@ interface ActivityTabV2Props {
     tenantId?: string;
     /** callback عند تغيير البيانات */
     onChange?: (updates: any) => void;
+    /** البيانات المسبقة التخزين (الكاش المحلي) لتسريع العرض */
+    data?: any;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -123,6 +125,7 @@ export function ActivityTabV2({
     mode = 'view',
     tenantId: propTenantId,
     onChange,
+    data,
 }: ActivityTabV2Props) {
     const { direction, language } = useLanguage();
     const isRTL = direction === 'rtl';
@@ -448,6 +451,7 @@ export function ActivityTabV2({
                                 documentType={lifecycleDocType}
                                 documentId={documentId!}
                                 maxHeight="calc(100vh - 300px)"
+                                preloadedLog={data?.activity_log}
                             />
                         </div>
                     </ScrollArea>

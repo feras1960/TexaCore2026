@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
@@ -94,7 +95,7 @@ export function StatusDropdown({
     } | null>(null);
 
     // ═══ Fetch all statuses for this doc type ═══
-    const { data: allStatuses = [] } = useQuery({
+    const { data: allStatuses = [] } = useCachedQuery({
         queryKey: ['dynamic_statuses', docType],
         queryFn: () => statusService.getStatuses(docType, tenantId),
         staleTime: 5 * 60 * 1000, // 5 minutes cache
@@ -104,7 +105,7 @@ export function StatusDropdown({
     const currentStatus = allStatuses.find(s => s.code === currentStatusCode);
 
     // ═══ Fetch allowed transitions from current status ═══
-    const { data: allowedTransitions = [], isLoading: loadingTransitions } = useQuery({
+    const { data: allowedTransitions = [], isLoading: loadingTransitions } = useCachedQuery({
         queryKey: ['status_transitions', docType, currentStatus?.id, user?.role],
         queryFn: async () => {
             if (!currentStatus?.id) return [];

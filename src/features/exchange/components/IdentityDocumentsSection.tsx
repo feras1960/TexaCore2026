@@ -8,7 +8,8 @@
  */
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
 import {
   entityDocumentService,
   DOCUMENT_TYPE_LABELS,
@@ -726,7 +727,7 @@ export function IdentityDocumentsSection({
   // ─── Query ────────────────────────────────────────────────────
   const queryKey = ['entity_documents', entityType, entityId];
 
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading } = useCachedQuery({
     queryKey,
     queryFn: () => entityDocumentService.getByEntity(entityType, entityId),
     enabled: !!entityId,

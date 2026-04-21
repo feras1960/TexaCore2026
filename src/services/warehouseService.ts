@@ -1135,13 +1135,45 @@ export const warehouseService = {
                 .filter(Boolean)
         )] as string[];
 
+        // salesPartyMap: reference_id → customer name
+        // salesMetaMap: reference_id → { delivery_method, receiving_branch_name, warehouse_name }
         const salesPartyMap: Record<string, string> = {};
+        const salesMetaMap: Record<string, { delivery_method?: string; receiving_branch_name?: string }> = {};
         if (saleRefIds.length > 0) {
             const { data: stx } = await supabase
                 .from('sales_transactions')
-                .select('id, customer_name')
+                .select('id, customer_name, customer_id, delivery_method, receiving_branch_name')
                 .in('id', saleRefIds);
-            if (stx) stx.forEach((s: any) => { salesPartyMap[s.id] = s.customer_name || ''; });
+            
+            if (stx && stx.length > 0) {
+                // Collect customer_ids that need name resolution (where customer_name is empty)
+                const needNameIds = [...new Set(
+                    stx.filter((s: any) => !s.customer_name && s.customer_id)
+                       .map((s: any) => s.customer_id)
+                )] as string[];
+                
+                // Batch lookup: customer_id → customers.name_ar/name_en
+                const customerNameMap: Record<string, string> = {};
+                if (needNameIds.length > 0) {
+                    const { data: custs } = await supabase
+                        .from('customers')
+                        .select('id, name_ar, name_en, company_name')
+                        .in('id', needNameIds);
+                    custs?.forEach((c: any) => {
+                        customerNameMap[c.id] = c.name_ar || c.name_en || c.company_name || '';
+                    });
+                }
+                
+                stx.forEach((s: any) => {
+                    // Resolve customer name: direct field → customers table fallback
+                    salesPartyMap[s.id] = s.customer_name || customerNameMap[s.customer_id] || '';
+                    // Store delivery metadata
+                    salesMetaMap[s.id] = {
+                        delivery_method: s.delivery_method || undefined,
+                        receiving_branch_name: s.receiving_branch_name || undefined,
+                    };
+                });
+            }
         }
 
         // ── ب) شراء/كونتينر: UUID → purchase_receipts ──
@@ -1194,18 +1226,28 @@ export const warehouseService = {
         }
 
         // ─── إثراء بعدد رولونات إذن الاستلام (من fabric_rolls) ───────
+        // ⚡ FIX: Batched parallel queries instead of sequential N+1 loop
+        //    Before: 1 query per reference_id (50 movements = 50 sequential queries)
+        //    After:  parallel batches of 10 (50 movements = 5 parallel batches)
         const receiptRefIds = [...new Set(allData.map((m: any) => m.reference_id).filter(Boolean))] as string[];
         const receiptRollsMap: Record<string, number> = {};
         if (receiptRefIds.length > 0) {
-            // Fetch receipt IDs → actual roll count from fabric_rolls via notes 'GRN: {receiptId}'
-            for (const refId of receiptRefIds) {
-                const { count } = await supabase
-                    .from('fabric_rolls')
-                    .select('id', { count: 'exact', head: true })
-                    .ilike('notes', `%${refId}%`);
-                if (count && count > 0) {
-                    receiptRollsMap[refId] = count;
-                }
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < receiptRefIds.length; i += BATCH_SIZE) {
+                const batch = receiptRefIds.slice(i, i + BATCH_SIZE);
+                const results = await Promise.all(
+                    batch.map(refId =>
+                        supabase
+                            .from('fabric_rolls')
+                            .select('id', { count: 'exact', head: true })
+                            .ilike('notes', `%${refId}%`)
+                    )
+                );
+                results.forEach((result, idx) => {
+                    if (result.count && result.count > 0) {
+                        receiptRollsMap[batch[idx]] = result.count;
+                    }
+                });
             }
         }
 
@@ -1220,6 +1262,9 @@ export const warehouseService = {
             material_code: materialsMap[m.material_id || m.product_id]?.code || null,
             // 🔑 اسم الجهة: عميل للمبيعات، مورّد للمشتريات
             party_name: salesPartyMap[m.reference_id] || purPartyMap[m.reference_id] || '',
+            // 🔑 بيانات إضافية للمبيعات (طريقة التسليم، اسم فرع الاستلام)
+            delivery_method: salesMetaMap[m.reference_id]?.delivery_method || null,
+            receiving_branch_name: salesMetaMap[m.reference_id]?.receiving_branch_name || null,
             // 🔑 عدد رولونات إذن الاستلام
             receipt_rolls_count: receiptRollsMap[m.reference_id] || 0,
         }));

@@ -24,10 +24,22 @@ export type ActivityEventType =
     | 'paid'
     | 'partially_paid'
     | 'received'
+    | 'partially_received'
     | 'delivered'
     | 'cancelled'
     | 'unposted'
-    | 'reminder_sent';
+    | 'reminder_sent'
+    // ── دورة حياة المبيعات الكاملة ──
+    | 'quotation'
+    | 'order'
+    | 'reserved'
+    | 'approved'
+    | 'loading'
+    | 'dispatched'
+    | 'in_transit'
+    | 'at_branch'
+    | 'reopened'
+    | 'stage_changed';
 
 export type DocumentTable = 'purchase_transactions' | 'sales_transactions' | 'journal_entries' | 'containers';
 
@@ -66,10 +78,22 @@ export const ACTIVITY_EVENT_CONFIG: Record<ActivityEventType, {
     paid: { icon: '💰', color: 'green', labelAr: 'تم الدفع', labelEn: 'Paid' },
     partially_paid: { icon: '💳', color: 'yellow', labelAr: 'دفع جزئي', labelEn: 'Partially Paid' },
     received: { icon: '📥', color: 'sky', labelAr: 'تم الاستلام', labelEn: 'Received' },
-    delivered: { icon: '📤', color: 'sky', labelAr: 'تم التسليم', labelEn: 'Delivered' },
+    partially_received: { icon: '📥', color: 'teal', labelAr: 'استلام جزئي', labelEn: 'Partially Received' },
+    delivered: { icon: '📤', color: 'sky', labelAr: 'تم التسليم للعميل', labelEn: 'Delivered to Customer' },
     cancelled: { icon: '🚫', color: 'red', labelAr: 'تم الإلغاء', labelEn: 'Cancelled' },
     unposted: { icon: '↩️', color: 'orange', labelAr: 'إلغاء الترحيل', labelEn: 'Unposted' },
     reminder_sent: { icon: '🔔', color: 'yellow', labelAr: 'تذكير بالدفع', labelEn: 'Reminder Sent' },
+    // ── دورة حياة المبيعات الكاملة ──
+    quotation: { icon: '📋', color: 'indigo', labelAr: 'عرض سعر', labelEn: 'Quotation Issued' },
+    order: { icon: '🛒', color: 'blue', labelAr: 'أمر بيع', labelEn: 'Order Placed' },
+    reserved: { icon: '🔒', color: 'cyan', labelAr: 'حجز بضاعة', labelEn: 'Stock Reserved' },
+    approved: { icon: '✅', color: 'green', labelAr: 'تم الاعتماد', labelEn: 'Approved' },
+    loading: { icon: '📦', color: 'amber', labelAr: 'بدء التجميع والتحميل', labelEn: 'Loading Started' },
+    dispatched: { icon: '🚚', color: 'orange', labelAr: 'تم الإخراج من المستودع', labelEn: 'Dispatched from Warehouse' },
+    in_transit: { icon: '🚛', color: 'blue', labelAr: 'في الطريق للفرع', labelEn: 'In Transit to Branch' },
+    at_branch: { icon: '🏪', color: 'teal', labelAr: 'وصل الفرع', labelEn: 'Arrived at Branch' },
+    reopened: { icon: '🔄', color: 'gray', labelAr: 'إعادة فتح', labelEn: 'Reopened' },
+    stage_changed: { icon: '🔀', color: 'purple', labelAr: 'تغيير مرحلة', labelEn: 'Stage Changed' },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -249,6 +273,91 @@ export const activityLogService = {
             case 'purchase': return 'purchase_transactions';
             case 'sales': return 'sales_transactions';
             case 'journal': return 'journal_entries';
+        }
+    },
+
+    /**
+     * 🔄 تسجيل حدث دورة حياة معزز
+     * يستخرج تلقائياً: الفرع، المستودع، العميل/المورد، عدد البنود، المبلغ
+     * من بيانات المستند نفسه — لا يحتاج المُستدعي لتوفير هذه البيانات يدوياً
+     */
+    async logLifecycleEvent(input: LogEventInput & {
+        /** بيانات المستند الحالية (لاستخراج الفرع والمستودع والعميل) */
+        documentData?: Record<string, any> | null;
+        /** المرحلة السابقة (للمقارنة) */
+        stageFrom?: string;
+        /** المرحلة الجديدة */
+        stageTo?: string;
+    }): Promise<void> {
+        const { documentData, stageFrom, stageTo, ...baseInput } = input;
+        const enrichedDetails: Record<string, any> = { ...baseInput.details };
+
+        // ═══ استخراج البيانات التلقائي من المستند ═══
+        if (documentData) {
+            // الفرع
+            if (documentData.branch_name || documentData.branch_name_ar) {
+                enrichedDetails.branch_name = documentData.branch_name || documentData.branch_name_ar;
+            }
+
+            // المستودع
+            if (documentData.warehouse_name || documentData.warehouse_name_ar) {
+                enrichedDetails.warehouse_name = documentData.warehouse_name || documentData.warehouse_name_ar;
+            }
+
+            // العميل/المورد
+            if (documentData.party_name || documentData.customer_name || documentData.supplier_name) {
+                enrichedDetails.party_name = documentData.party_name || documentData.customer_name || documentData.supplier_name;
+            }
+
+            // عدد البنود
+            const items = documentData.items || documentData.line_items;
+            if (Array.isArray(items)) {
+                enrichedDetails.items_count = items.length;
+            }
+
+            // المبلغ الإجمالي
+            if (documentData.total_amount || documentData.grand_total || documentData.total) {
+                enrichedDetails.total_amount = documentData.total_amount || documentData.grand_total || documentData.total;
+            }
+
+            // العملة
+            if (documentData.currency) {
+                enrichedDetails.currency = documentData.currency;
+            }
+
+            // رقم الفاتورة
+            if (documentData.invoice_no || documentData.order_number || documentData.document_number) {
+                enrichedDetails.document_number = documentData.invoice_no || documentData.order_number || documentData.document_number;
+            }
+        }
+
+        // تسجيل تغيير المرحلة
+        if (stageFrom && stageTo) {
+            enrichedDetails.stage_from = stageFrom;
+            enrichedDetails.stage_to = stageTo;
+        }
+
+        await this.logEvent({
+            ...baseInput,
+            details: Object.keys(enrichedDetails).length > 0 ? enrichedDetails : null,
+        });
+    },
+
+    /**
+     * 🧑‍💻 الحصول على سياق المستخدم الحالي من الجلسة
+     * مفيد لاستدعاء logEvent/logLifecycleEvent بدون تمرير userId/userName يدوياً
+     */
+    async getCurrentUserContext(): Promise<{ userId: string; userName: string } | null> {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
+            if (!user) return null;
+            return {
+                userId: user.id,
+                userName: user.user_metadata?.full_name || user.email || 'System',
+            };
+        } catch {
+            return null;
         }
     },
 };

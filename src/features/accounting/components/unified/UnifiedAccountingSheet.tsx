@@ -963,7 +963,8 @@ export function UnifiedAccountingSheet({
                                             <span className="text-base">
                                                 {data?.type === 'cash' ? '💵' : data?.type === 'bank' ? '🏦' :
                                                     docType === 'account' ? '📋' : docType === 'journal' ? '📝' :
-                                                        docType === 'receipt' ? '🧾' : docType === 'payment' ? '💳' : '📄'}
+                                                        docType === 'receipt' ? '🧾' : docType === 'payment' ? '💳' :
+                                                            docType === 'roll' ? '🧵' : '📄'}
                                             </span>
                                         </div>
 
@@ -1042,6 +1043,14 @@ export function UnifiedAccountingSheet({
                                                                 const docTitle = accountingTitles[docType];
                                                                 if (docTitle) return language === 'ar' ? docTitle.ar : docTitle.en;
                                                             }
+                                                            // Roll document — show roll_number + material + color
+                                                            if (docType === 'roll') {
+                                                                const rollNum = data?.roll_number || '';
+                                                                const matName = data?.material_name || data?.fabric_materials?.name_ar || '';
+                                                                const colorName = data?.color_name || '';
+                                                                const parts = [language === 'ar' ? 'رولون' : 'Roll', rollNum, matName, colorName].filter(Boolean);
+                                                                return parts.join(' — ') || (language === 'ar' ? 'تفاصيل الرولون' : 'Roll Details');
+                                                            }
                                                             return getLocalizedName(data, language) || t(config.titleKey);
                                                         })()
 
@@ -1103,6 +1112,35 @@ export function UnifiedAccountingSheet({
                                                             {language === 'ar' ? label.ar : label.en}
                                                         </span>
                                                     );
+                                                })(                                                ) : docType === 'roll' && data?.status ? (() => {
+                                                    const rollStatus = data._delivered ? 'delivered' : data.status;
+                                                    const rollStatusLabels: Record<string, { ar: string; en: string }> = {
+                                                        available: { ar: 'متاح', en: 'Available' },
+                                                        reserved: { ar: 'محجوز', en: 'Reserved' },
+                                                        partial: { ar: 'جزئي', en: 'Partial' },
+                                                        sold: { ar: 'مُباع', en: 'Sold' },
+                                                        delivered: { ar: 'مُسلَّم', en: 'Delivered' },
+                                                        in_transit: { ar: 'بالطريق', en: 'In Transit' },
+                                                        damaged: { ar: 'تالف', en: 'Damaged' },
+                                                    };
+                                                    const rollStatusStyles: Record<string, string> = {
+                                                        available: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                                                        reserved: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                                                        partial: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                                                        sold: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                                                        delivered: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                                                        in_transit: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                        damaged: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+                                                    };
+                                                    const lbl = rollStatusLabels[rollStatus] || { ar: rollStatus, en: rollStatus };
+                                                    return (
+                                                        <span className={cn(
+                                                            "px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 border",
+                                                            rollStatusStyles[rollStatus] || 'bg-gray-100 text-gray-600'
+                                                        )}>
+                                                            {language === 'ar' ? lbl.ar : lbl.en}
+                                                        </span>
+                                                    );
                                                 })() : data?.status ? (
                                                     <span className={cn(
                                                         "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
@@ -1133,6 +1171,10 @@ export function UnifiedAccountingSheet({
                                                 {(data?.invoice_no || data?.invoice_number || data?.order_number || data?.transfer_number) ? (
                                                     <span className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
                                                         {data.invoice_no || data.invoice_number || data.order_number || data.transfer_number}
+                                                    </span>
+                                                ) : data?.roll_number ? (
+                                                    <span className="text-sm font-bold font-mono text-amber-600 dark:text-amber-400">
+                                                        🧵 {data.roll_number}
                                                     </span>
                                                 ) : (data?.code || data?.entry_number) ? (
                                                     <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
