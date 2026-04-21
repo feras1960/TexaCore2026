@@ -366,6 +366,7 @@ export default function StockMovementsPage() {
                         invoice_no: m.reference_number || undefined,
                         customer_name: m.party_name || undefined,
                         from_warehouse_name: m.from_warehouse_name || m.warehouse_name || undefined,
+                        warehouse_id: m.from_warehouse_id || m.to_warehouse_id || m.warehouse_id || undefined,
                     },
                 });
                 return;
