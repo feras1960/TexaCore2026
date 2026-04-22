@@ -510,11 +510,11 @@ export const warehouseService = {
             lowStockCount
         ] = await Promise.all([
             safeCount('warehouses', { company_id: companyId, is_active: true }),
-            Promise.resolve(0), // safeCount('materials', { company_id: companyId }),
-            safeCount('fabric_rolls', { company_id: companyId }), // fabric_rolls exists in DB but might be empty
-            Promise.resolve(0), // safeCount('roll_reservations', { company_id: companyId, status: 'active' }),
+            safeCount('fabric_materials', { company_id: companyId }),
+            safeCount('fabric_rolls', { company_id: companyId }),
+            safeCount('roll_reservations', { company_id: companyId, status: 'active' }),
             safeCount('delivery_notes', { company_id: companyId }),
-            Promise.resolve(0), // safeCount('fabric_rolls', { company_id: companyId })
+            safeCount('fabric_rolls', { company_id: companyId }), // low stock calculated below
         ]);
 
         return {
