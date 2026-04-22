@@ -90,6 +90,13 @@ export default function SalesDashboard() {
     try { localStorage.setItem('sales_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch {}
   }, [dateRange]);
 
+  // Auto-select single currency
+  useEffect(() => {
+    if (availableCurrencies.length === 1 && selectedCurrency === 'all') {
+      setSelectedCurrency(availableCurrencies[0]);
+    }
+  }, [availableCurrencies, selectedCurrency]);
+
   const fromStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const toStr = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
@@ -308,29 +315,35 @@ export default function SalesDashboard() {
     isFetching: loading,
     actions: (
       <>
-        <DateRangePicker
-          date={dateRange} setDate={setDateRange} align="end"
-          className="w-full lg:w-auto [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15"
-        />
-        <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-          <SelectTrigger className="w-full lg:w-[175px] bg-white/10 backdrop-blur-sm h-10 text-sm border-stone-700 text-white hover:bg-white/15 transition-colors">
-            <Coins className="w-4 h-4 me-2 text-emerald-400" />
-            <SelectValue placeholder={t('salesDashboard.allCurrencies')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">
-              🌍 {t('salesDashboard.allConverted')}
-            </SelectItem>
-            {availableCurrencies.map((c: string) => {
-              const m = CURRENCY_META[c];
-              return (
-                <SelectItem key={c} value={c}>
-                  {m?.flag || '🏳️'} {language === 'ar' ? m?.nameAr : m?.nameEn} ({c})
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'الفترة' : 'Period'}</label>
+          <DateRangePicker
+            date={dateRange} setDate={setDateRange} align="end"
+            className="w-full [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15 [&_button]:h-9 [&_button]:text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'العملة' : 'Currency'}</label>
+          <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+            <SelectTrigger className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border-stone-700 text-white hover:bg-white/15 transition-colors">
+              <Coins className="w-3.5 h-3.5 me-1.5 text-emerald-400" />
+              <SelectValue placeholder={t('salesDashboard.allCurrencies')} />
+            </SelectTrigger>
+            <SelectContent>
+              {availableCurrencies.length > 1 && (
+                <SelectItem value="all">🌍 {t('salesDashboard.allConverted')}</SelectItem>
+              )}
+              {availableCurrencies.map((c: string) => {
+                const m = CURRENCY_META[c];
+                return (
+                  <SelectItem key={c} value={c}>
+                    {m?.flag || '🏳️'} {language === 'ar' ? m?.nameAr : m?.nameEn} ({c})
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
       </>
     ),
   };

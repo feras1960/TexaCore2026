@@ -238,12 +238,18 @@ export default function AccountingDashboard() {
     isFetching: isLoading,
     actions: (
       <>
-        <DateRangePicker
-          date={dateRange} setDate={setDateRange} align="end"
-          className="w-full lg:w-auto [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15"
-        />
-        <div className="[&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15">
-          <QuickActionsBar />
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'الفترة' : 'Period'}</label>
+          <DateRangePicker
+            date={dateRange} setDate={setDateRange} align="end"
+            className="w-full [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15 [&_button]:h-9 [&_button]:text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'إجراءات سريعة' : 'Quick Actions'}</label>
+          <div className="[&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15 [&_button]:h-9 [&_button]:text-xs">
+            <QuickActionsBar />
+          </div>
         </div>
       </>
     ),

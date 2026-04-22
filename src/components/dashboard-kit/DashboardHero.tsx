@@ -119,7 +119,7 @@ export function DashboardHero({ config, loading }: { config?: HeroConfig; loadin
 
         {/* Actions (DatePicker, QuickActions, etc.) */}
         {actions && (
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto shrink-0">
+          <div className="flex flex-col items-stretch gap-2 w-full lg:w-auto shrink-0 min-w-[200px]">
             {actions}
           </div>
         )}
