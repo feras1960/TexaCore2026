@@ -171,24 +171,46 @@ export default function WarehouseDashboard() {
 
   // ─── Recent Activity → ListItem[] ────────────────────
   const MOVEMENT_LABELS: Record<string, { ar: string; en: string; icon: typeof ArrowRightLeft; cls: string }> = {
-    transfer_out: { ar: 'إخراج / تحويل', en: 'Transfer Out', icon: Truck, cls: 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400' },
-    transfer_in: { ar: 'إدخال / استلام', en: 'Transfer In', icon: Package, cls: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' },
+    transfer_out: { ar: 'إخراج', en: 'Out', icon: Truck, cls: 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400' },
+    transfer_in: { ar: 'إدخال', en: 'In', icon: Package, cls: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' },
     sale: { ar: 'بيع', en: 'Sale', icon: ArrowRightLeft, cls: 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' },
     purchase: { ar: 'شراء', en: 'Purchase', icon: Boxes, cls: 'bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400' },
     cut: { ar: 'قص', en: 'Cut', icon: Activity, cls: 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400' },
-    adjustment: { ar: 'تعديل جرد', en: 'Adjustment', icon: Clock, cls: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
+    adjustment: { ar: 'تعديل', en: 'Adj', icon: Clock, cls: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
     return: { ar: 'إرجاع', en: 'Return', icon: ArrowRightLeft, cls: 'bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400' },
+    container_receipt: { ar: 'استلام كونتينر', en: 'Container', icon: Boxes, cls: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400' },
+    goods_receipt: { ar: 'إذن استلام', en: 'Receipt', icon: Package, cls: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' },
   };
 
   const activityListItems: ListItem[] = recentActivity.map((act: any) => {
-    const meta = MOVEMENT_LABELS[act.movement_type] || { ar: act.movement_type, en: act.movement_type, icon: ArrowRightLeft, cls: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400' };
-    const dateStr = new Date(act.movement_date).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const meta = MOVEMENT_LABELS[act.movement_type] || MOVEMENT_LABELS[act.reference_type] || { ar: act.movement_type, en: act.movement_type, icon: ArrowRightLeft, cls: 'bg-stone-100 text-stone-500' };
+    const dateStr = new Date(act.movement_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Build descriptive title: material name or roll number
+    const materialName = act.material_name_ar || act.material_name_en || '';
+    const rollNum = act.roll_number || act.roll?.roll_number || '';
+    const title = materialName || rollNum || (isAr ? 'حركة مخزون' : 'Stock movement');
+
+    // Build subtitle: party + direction
+    const partyName = act.party_name || '';
+    const fromWh = act.from_warehouse_name || act.from_warehouse?.name_ar || '';
+    const toWh = act.to_warehouse_name || act.to_warehouse?.name_ar || '';
+    let direction = '';
+    if (fromWh && toWh) direction = `${fromWh} → ${toWh}`;
+    else if (fromWh) direction = `${isAr ? 'من' : 'from'} ${fromWh}`;
+    else if (toWh) direction = `${isAr ? 'إلى' : 'to'} ${toWh}`;
+
+    const subtitle = [partyName, direction].filter(Boolean).join(' • ') || act.reference_number || '';
+
+    // Quantity display
+    const qty = act.quantity ? `${Number(act.quantity).toFixed(1)}m` : '';
+
     return {
       id: act.id,
-      title: act.roll?.roll_number || '-',
-      subtitle: isAr ? meta.ar : meta.en,
+      title,
+      subtitle,
       value: dateStr,
-      valueSub: act.warehouse?.[isAr ? 'name_ar' : 'name_en'] || '',
+      valueSub: qty,
       icon: meta.icon,
       iconClassName: meta.cls,
       tags: [{ label: isAr ? meta.ar : meta.en, className: meta.cls }],
