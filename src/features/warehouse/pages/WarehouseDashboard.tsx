@@ -170,14 +170,30 @@ export default function WarehouseDashboard() {
   }));
 
   // ─── Recent Activity → ListItem[] ────────────────────
-  const activityListItems: ListItem[] = recentActivity.map((act: any) => ({
-    id: act.id,
-    title: `${act.movement_type} - ${act.roll?.roll_number || '-'}`,
-    subtitle: act.warehouse?.name_ar,
-    value: new Date(act.movement_date).toLocaleDateString(isAr ? 'ar-SA' : 'en-US'),
-    icon: ArrowRightLeft,
-    iconClassName: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
-  }));
+  const MOVEMENT_LABELS: Record<string, { ar: string; en: string; icon: typeof ArrowRightLeft; cls: string }> = {
+    transfer_out: { ar: 'إخراج / تحويل', en: 'Transfer Out', icon: Truck, cls: 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400' },
+    transfer_in: { ar: 'إدخال / استلام', en: 'Transfer In', icon: Package, cls: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' },
+    sale: { ar: 'بيع', en: 'Sale', icon: ArrowRightLeft, cls: 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' },
+    purchase: { ar: 'شراء', en: 'Purchase', icon: Boxes, cls: 'bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400' },
+    cut: { ar: 'قص', en: 'Cut', icon: Activity, cls: 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400' },
+    adjustment: { ar: 'تعديل جرد', en: 'Adjustment', icon: Clock, cls: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
+    return: { ar: 'إرجاع', en: 'Return', icon: ArrowRightLeft, cls: 'bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400' },
+  };
+
+  const activityListItems: ListItem[] = recentActivity.map((act: any) => {
+    const meta = MOVEMENT_LABELS[act.movement_type] || { ar: act.movement_type, en: act.movement_type, icon: ArrowRightLeft, cls: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400' };
+    const dateStr = new Date(act.movement_date).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    return {
+      id: act.id,
+      title: act.roll?.roll_number || '-',
+      subtitle: isAr ? meta.ar : meta.en,
+      value: dateStr,
+      valueSub: act.warehouse?.[isAr ? 'name_ar' : 'name_en'] || '',
+      icon: meta.icon,
+      iconClassName: meta.cls,
+      tags: [{ label: isAr ? meta.ar : meta.en, className: meta.cls }],
+    };
+  });
 
   // ─── Error State ──────────────────────────────────────
   if (error) {
