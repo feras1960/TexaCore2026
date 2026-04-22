@@ -431,10 +431,11 @@ export function SalesDeliveryDialog({
 
                 // Map rolls
                 let finalRolls: any[] = [];
-                const isCompletedDelivery = inv && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned'].includes(inv.stage);
+                const isCompletedDelivery = inv && ['delivered', 'posted', 'in_transit', 'at_branch', 'returned', 'paid'].includes(inv.stage);
                 const isInDelivery = inv && inv.stage === 'in_delivery';
+                const hasDeliveredRolls = rollIds.length > 0;
 
-                if ((isCompletedDelivery || isInDelivery) && rollsRes.data && rollsRes.data.length > 0) {
+                if ((hasDeliveredRolls || isCompletedDelivery || isInDelivery) && rollsRes.data && rollsRes.data.length > 0) {
                     finalRolls = rollsRes.data.map((r: any) => {
                         const mv = saleMovements.find((m: any) => m.roll_id === r.id);
                         return { ...r, net_length: mv?.quantity || r.current_length || 0, color_name: r.color_name || '', _delivered: true };
