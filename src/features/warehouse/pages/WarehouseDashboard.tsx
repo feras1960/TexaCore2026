@@ -180,6 +180,7 @@ export default function WarehouseDashboard() {
     return: { ar: 'إرجاع', en: 'Return', icon: ArrowRightLeft, iconCls: 'bg-teal-100 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400', tagCls: 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400' },
     container_receipt: { ar: 'كونتينر', en: 'Container', icon: Boxes, iconCls: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400', tagCls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400' },
     goods_receipt: { ar: 'إذن استلام', en: 'Receipt', icon: Package, iconCls: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400', tagCls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' },
+    receipt: { ar: 'استلام بضاعة', en: 'Goods Receipt', icon: Package, iconCls: 'bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-400', tagCls: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400' },
   };
 
   // Group by reference_number (invoice) to show 1 entry per document
@@ -210,20 +211,21 @@ export default function WarehouseDashboard() {
     return Object.values(groups);
   })();
 
-  const activityListItems: ListItem[] = groupedActivity.map((g) => {
+  const activityListItems: ListItem[] = groupedActivity.slice(0, 5).map((g) => {
     const meta = MOVEMENT_LABELS[g.type] || { ar: g.type, en: g.type, icon: ArrowRightLeft, iconCls: 'bg-stone-100 text-stone-500', tagCls: 'bg-stone-200 text-stone-600' };
     const dateStr = new Date(g.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 
     // Title: party name or reference number
     const title = g.party || g.refNum || (isAr ? 'حركة مخزون' : 'Movement');
 
-    // Subtitle: direction (from → to) + rolls count
+    // Subtitle: ref number + direction + rolls count
     let direction = '';
     if (g.fromWh && g.toWh) direction = `${g.fromWh} → ${g.toWh}`;
     else if (g.fromWh) direction = g.fromWh;
     else if (g.toWh) direction = g.toWh;
-    const rollsInfo = g.rollCount > 1 ? `${g.rollCount} ${isAr ? 'رولون' : 'rolls'}` : '';
-    const subtitle = [direction, rollsInfo].filter(Boolean).join(' · ');
+    const rollsInfo = g.rollCount > 1 ? `${g.rollCount} ${isAr ? 'رولون' : 'rolls'}` : `1 ${isAr ? 'رولون' : 'roll'}`;
+    const refInfo = g.refNum && g.party ? g.refNum : ''; // show ref if party name exists
+    const subtitle = [refInfo, direction, rollsInfo].filter(Boolean).join(' · ');
 
     return {
       id: g.firstId,

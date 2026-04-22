@@ -256,12 +256,12 @@ export function useWarehouseDashboard(warehouseId?: string) {
         gcTime: GC_TIME,
     });
 
-    // Recent activity
+    // Recent activity — fetch enough to group by invoice (not per-roll)
     const activityQuery = useCachedQuery({
         queryKey: ['warehouse', 'recent-activity', companyId],
         queryFn: async () => {
             try {
-                return await warehouseService.getInventoryMovements(companyId!, { limit: 5 });
+                return await warehouseService.getInventoryMovements(companyId!, { limit: 100 });
             } catch (err: any) {
                 if (err?.name === 'AbortError') throw err;
                 throw err;
