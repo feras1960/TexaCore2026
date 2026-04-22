@@ -468,7 +468,7 @@ export const warehouseService = {
     /**
      * Get dashboard statistics
      */
-    async getDashboardStats(companyId: string): Promise<{
+    async getDashboardStats(companyId: string, warehouseId?: string): Promise<{
         totalWarehouses: number;
         totalMaterials: number;
         totalRolls: number;
@@ -477,15 +477,14 @@ export const warehouseService = {
         lowStockItems: number;
     }> {
         // Helper function for safe count queries
-        const safeCount = async (table: string, filters: Record<string, any> = {}): Promise<number> => {
+        const safeCount = async (table: string, filters: Record<string, any> = {}, inFilters: Record<string, any[]> = {}): Promise<number> => {
             try {
                 let query = supabase.from(table).select('*', { count: 'exact', head: true });
                 Object.entries(filters).forEach(([key, value]) => {
-                    if (Array.isArray(value)) {
-                        query = query.in(key, value);
-                    } else {
-                        query = query.eq(key, value);
-                    }
+                    query = query.eq(key, value);
+                });
+                Object.entries(inFilters).forEach(([key, values]) => {
+                    query = query.in(key, values);
                 });
                 const { count, error } = await query;
                 if (error) {
@@ -499,8 +498,16 @@ export const warehouseService = {
             }
         };
 
-        // Execute all counts in parallel with error handling
-        // NOTE: Temporarily disabling counts for missing tables to prevent console errors
+        // Base roll filters: only count rolls that are physically in stock
+        const rollBaseFilters: Record<string, any> = {
+            company_id: companyId,
+            status: 'in_stock',
+        };
+        if (warehouseId) rollBaseFilters.warehouse_id = warehouseId;
+
+        const materialFilters: Record<string, any> = { company_id: companyId };
+
+        // Execute all counts in parallel
         const [
             warehousesCount,
             materialsCount,
@@ -510,11 +517,23 @@ export const warehouseService = {
             lowStockCount
         ] = await Promise.all([
             safeCount('warehouses', { company_id: companyId, is_active: true }),
-            safeCount('fabric_materials', { company_id: companyId }),
-            safeCount('fabric_rolls', { company_id: companyId }),
+            safeCount('fabric_materials', materialFilters),
+            safeCount('fabric_rolls', rollBaseFilters),
             safeCount('roll_reservations', { company_id: companyId, status: 'active' }),
             safeCount('delivery_notes', { company_id: companyId }),
-            safeCount('fabric_rolls', { company_id: companyId }), // low stock calculated below
+            // Low stock: rolls in stock with current_length < minimum_length threshold (e.g. < 10m)
+            (async () => {
+                try {
+                    let q = supabase.from('fabric_rolls')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('company_id', companyId)
+                        .eq('status', 'in_stock')
+                        .lt('current_length', 10);
+                    if (warehouseId) q = q.eq('warehouse_id', warehouseId);
+                    const { count } = await q;
+                    return count || 0;
+                } catch { return 0; }
+            })(),
         ]);
 
         return {
@@ -523,7 +542,7 @@ export const warehouseService = {
             totalRolls: rollsCount,
             activeReservations: reservationsCount,
             pendingDeliveries: deliveriesCount,
-            lowStockItems: 0, // Will be calculated properly when schema is complete
+            lowStockItems: lowStockCount,
         };
     },
 

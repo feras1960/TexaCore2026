@@ -14,6 +14,8 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useWarehouseDashboard } from '../hooks/useWarehouseQueries';
+import { useCachedQuery } from '@/hooks/useCachedQuery';
+import { supabase } from '@/lib/supabase';
 import {
   DashboardHero,
   KpiGrid,
@@ -24,6 +26,7 @@ import {
   type ListItem,
   type HeroConfig,
 } from '@/components/dashboard-kit';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import {
   Warehouse, Package, Boxes, AlertTriangle,
@@ -35,10 +38,31 @@ export default function WarehouseDashboard() {
   const isAr = language === 'ar';
   const { companyId } = useAuth();
 
+  // ─── Warehouse filter ──────────────────────────────────
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
+
+  const { data: warehouses = [] } = useCachedQuery({
+    queryKey: ['warehouse', 'list', companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('warehouses')
+        .select('id, name_ar, name_en')
+        .eq('company_id', companyId!)
+        .eq('is_active', true)
+        .order('name_ar');
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+  });
+
+  const warehouseId = selectedWarehouse === 'all' ? undefined : selectedWarehouse;
+
   const {
     stats, lowStockItems, warehouseCapacity, recentActivity,
     loading, error, refetch: refetchDashboard,
-  } = useWarehouseDashboard();
+  } = useWarehouseDashboard(warehouseId);
 
   // ─── Last sync tracking ───────────────────────────────
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -46,13 +70,17 @@ export default function WarehouseDashboard() {
     if (!loading && stats) setLastSync(new Date());
   }, [stats, loading]);
 
+  const selectedWarehouseName = selectedWarehouse === 'all'
+    ? (isAr ? 'كل المستودعات' : 'All Warehouses')
+    : (warehouses.find((w: any) => w.id === selectedWarehouse)?.[isAr ? 'name_ar' : 'name_en'] || '');
+
   // ─── Hero Config ──────────────────────────────────────
   const heroConfig: HeroConfig | undefined = stats ? {
     label: isAr ? 'إجمالي المواد' : 'Total Materials',
     value: stats.totalMaterials,
     valueSuffix: isAr ? 'مادة' : 'materials',
     badges: [
-      { label: `${stats.totalRolls} ${isAr ? 'رولة' : 'rolls'}`, tone: 'info' as const },
+      { label: `${stats.totalRolls} ${isAr ? 'رولة في المخزون' : 'rolls in stock'}`, tone: 'info' as const },
       { label: `${stats.totalWarehouses} ${isAr ? 'مستودع' : 'warehouses'}`, tone: 'success' as const },
       ...(stats.lowStockItems > 0 ? [{ label: `${stats.lowStockItems} ${isAr ? 'منخفض' : 'low'}`, tone: 'warning' as const }] : []),
     ],
@@ -61,6 +89,25 @@ export default function WarehouseDashboard() {
     secondarySubLabel: isAr ? 'آخر 5 حركات' : 'Last 5 movements',
     lastSync,
     isFetching: loading,
+    actions: (
+      <div>
+        <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'المستودع' : 'Warehouse'}</label>
+        <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+          <SelectTrigger className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border-stone-700 text-white hover:bg-white/15 transition-colors">
+            <Warehouse className="w-3.5 h-3.5 me-1.5 text-teal-400" />
+            <SelectValue placeholder={isAr ? 'كل المستودعات' : 'All Warehouses'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">🏭 {isAr ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
+            {warehouses.map((w: any) => (
+              <SelectItem key={w.id} value={w.id}>
+                📦 {isAr ? w.name_ar : w.name_en}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    ),
   } : undefined;
 
   // ─── KPI Items ────────────────────────────────────────
@@ -152,7 +199,7 @@ export default function WarehouseDashboard() {
       <DashboardHero config={heroConfig} loading={loading && !stats} />
 
       {/* ── KPI Grid (4 cols × 2 rows) ───────────────── */}
-      <KpiGrid kpis={kpis} loading={loading && !stats} columns={4} />
+      <KpiGrid kpis={kpis} loading={loading && !stats} cols={4} />
 
       {/* ── Content Grid: 3 columns ──────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -204,16 +204,16 @@ export function useMaterialGroups() {
 // ═══════════════════════════════════════════════
 // 4. Dashboard Stats
 // ═══════════════════════════════════════════════
-export function useWarehouseDashboard() {
+export function useWarehouseDashboard(warehouseId?: string) {
     const { companyId } = useAuth();
     const queryClient = useQueryClient();
 
     // Stats query
     const statsQuery = useCachedQuery({
-        queryKey: ['warehouse', 'dashboard-stats', companyId],
+        queryKey: ['warehouse', 'dashboard-stats', companyId, warehouseId || 'all'],
         queryFn: async () => {
             try {
-                return await warehouseService.getDashboardStats(companyId!);
+                return await warehouseService.getDashboardStats(companyId!, warehouseId);
             } catch (err: any) {
                 if (err?.name === 'AbortError') throw err;
                 throw err;
