@@ -74,6 +74,34 @@ export default function WarehouseDashboard() {
     ? (isAr ? 'كل المستودعات' : 'All Warehouses')
     : (warehouses.find((w: any) => w.id === selectedWarehouse)?.[isAr ? 'name_ar' : 'name_en'] || '');
 
+  // ─── Group movements by invoice (needed for hero + KPI + list) ───
+  const groupedActivity = (() => {
+    const groups: Record<string, {
+      refNum: string; type: string; date: string; party: string;
+      fromWh: string; toWh: string; totalQty: number; rollCount: number;
+      firstId: string;
+    }> = {};
+    recentActivity.forEach((act: any) => {
+      const key = act.reference_number || act.id;
+      if (!groups[key]) {
+        groups[key] = {
+          refNum: act.reference_number || '',
+          type: act.movement_type,
+          date: act.movement_date,
+          party: act.party_name || '',
+          fromWh: act.from_warehouse_name || act.from_warehouse?.name_ar || '',
+          toWh: act.to_warehouse_name || act.to_warehouse?.name_ar || '',
+          totalQty: 0,
+          rollCount: 0,
+          firstId: act.id,
+        };
+      }
+      groups[key].totalQty += Number(act.quantity || 0);
+      groups[key].rollCount += 1;
+    });
+    return Object.values(groups);
+  })();
+
   // ─── Hero Config ──────────────────────────────────────
   const heroConfig: HeroConfig | undefined = stats ? {
     label: isAr ? 'إجمالي المواد' : 'Total Materials',
@@ -85,8 +113,8 @@ export default function WarehouseDashboard() {
       ...(stats.lowStockItems > 0 ? [{ label: `${stats.lowStockItems} ${isAr ? 'منخفض' : 'low'}`, tone: 'warning' as const }] : []),
     ],
     secondaryLabel: isAr ? 'الحركات الأخيرة' : 'Recent Movements',
-    secondaryValue: recentActivity.length,
-    secondarySubLabel: isAr ? 'آخر 5 حركات' : 'Last 5 movements',
+    secondaryValue: groupedActivity.length,
+    secondarySubLabel: isAr ? `${recentActivity.length} حركة رولون` : `${recentActivity.length} roll movements`,
     lastSync,
     isFetching: loading,
     actions: (
@@ -146,7 +174,7 @@ export default function WarehouseDashboard() {
     },
     {
       id: 'activity', label: isAr ? 'حركات أخيرة' : 'Recent Activity',
-      value: recentActivity.length, icon: Activity, color: '#64748b',
+      value: groupedActivity.length, icon: Activity, color: '#64748b',
     },
   ] : undefined;
 
@@ -183,33 +211,6 @@ export default function WarehouseDashboard() {
     receipt: { ar: 'استلام بضاعة', en: 'Goods Receipt', icon: Package, iconCls: 'bg-green-100 text-green-600 dark:bg-green-950/40 dark:text-green-400', tagCls: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400' },
   };
 
-  // Group by reference_number (invoice) to show 1 entry per document
-  const groupedActivity = (() => {
-    const groups: Record<string, {
-      refNum: string; type: string; date: string; party: string;
-      fromWh: string; toWh: string; totalQty: number; rollCount: number;
-      firstId: string;
-    }> = {};
-    recentActivity.forEach((act: any) => {
-      const key = act.reference_number || act.id; // fallback to id if no ref
-      if (!groups[key]) {
-        groups[key] = {
-          refNum: act.reference_number || '',
-          type: act.movement_type,
-          date: act.movement_date,
-          party: act.party_name || '',
-          fromWh: act.from_warehouse_name || act.from_warehouse?.name_ar || '',
-          toWh: act.to_warehouse_name || act.to_warehouse?.name_ar || '',
-          totalQty: 0,
-          rollCount: 0,
-          firstId: act.id,
-        };
-      }
-      groups[key].totalQty += Number(act.quantity || 0);
-      groups[key].rollCount += 1;
-    });
-    return Object.values(groups);
-  })();
 
   const activityListItems: ListItem[] = groupedActivity.slice(0, 5).map((g) => {
     const meta = MOVEMENT_LABELS[g.type] || { ar: g.type, en: g.type, icon: ArrowRightLeft, iconCls: 'bg-stone-100 text-stone-500', tagCls: 'bg-stone-200 text-stone-600' };
