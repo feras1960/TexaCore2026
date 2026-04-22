@@ -10,12 +10,14 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useWarehouseDashboard } from '../hooks/useWarehouseQueries';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { supabase } from '@/lib/supabase';
+import { startOfMonth } from 'date-fns';
+import { type DateRange } from 'react-day-picker';
 import {
   DashboardHero,
   KpiGrid,
@@ -26,6 +28,7 @@ import {
   type ListItem,
   type HeroConfig,
 } from '@/components/dashboard-kit';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -42,11 +45,28 @@ export default function WarehouseDashboard() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
 
   // ─── Date range filter (default: start of month → today) ──
-  const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-  const [dateFrom, setDateFrom] = useState(fmt(monthStart));
-  const [dateTo, setDateTo] = useState(fmt(today));
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    try {
+      const saved = localStorage.getItem('warehouse_dashboard_daterange');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          from: parsed.from ? new Date(parsed.from) : startOfMonth(new Date()),
+          to: parsed.to ? new Date(parsed.to) : new Date(),
+        };
+      }
+    } catch { }
+    return { from: startOfMonth(new Date()), to: new Date() };
+  });
+
+  // Persist date preference
+  useEffect(() => {
+    try { localStorage.setItem('warehouse_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch { }
+  }, [dateRange]);
+
+  // Derived ISO strings for query
+  const dateFrom = dateRange?.from?.toISOString()?.slice(0, 10) || '';
+  const dateTo = dateRange?.to?.toISOString()?.slice(0, 10) || '';
 
   const { data: warehouses = [] } = useCachedQuery({
     queryKey: ['warehouse', 'list', companyId],
@@ -125,7 +145,7 @@ export default function WarehouseDashboard() {
     ],
     secondaryLabel: isAr ? 'حركات الفترة' : 'Period Movements',
     secondaryValue: `${groupedActivity.length} ${isAr ? 'حركة' : 'mov'}`,
-    secondarySubLabel: `${totalRollsMoved} ${isAr ? 'رولون' : 'rolls'} · ${totalMovedMeters.toLocaleString()}m`,
+    secondarySubLabel: `${totalMovedMeters >= 1000 ? (totalMovedMeters / 1000).toFixed(1) + 'K' : totalMovedMeters.toFixed(1)}m`,
     lastSync,
     isFetching: loading,
     actions: (
@@ -147,25 +167,9 @@ export default function WarehouseDashboard() {
             </SelectContent>
           </Select>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'من' : 'From'}</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border border-stone-700 text-white rounded-md px-2 hover:bg-white/15 transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'إلى' : 'To'}</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border border-stone-700 text-white rounded-md px-2 hover:bg-white/15 transition-colors"
-            />
-          </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'الفترة' : 'Period'}</label>
+          <DateRangePicker date={dateRange} setDate={setDateRange} align="end" className="w-full [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15 [&_button]:h-9 [&_button]:text-xs" />
         </div>
       </div>
     ),
