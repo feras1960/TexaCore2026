@@ -71,9 +71,13 @@ export function ListPanel({
                 </div>
               )}
               <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{item.title}</p>
+                {item.subtitle && (
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate mt-0.5">{item.subtitle}</p>
+                )}
                 {/* Tags row */}
                 {item.tags && item.tags.length > 0 && (
-                  <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="flex items-center gap-1.5 mt-1">
                     {item.tags.map((tag, ti) => (
                       <span key={ti} className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', tag.className)}>
                         {tag.label}
@@ -81,10 +85,6 @@ export function ListPanel({
                     ))}
                   </div>
                 )}
-                {item.subtitle && (
-                  <p className="font-mono text-[10px] text-stone-400">{item.subtitle}</p>
-                )}
-                <p className="text-sm text-stone-800 dark:text-stone-200 truncate">{item.title}</p>
               </div>
             </div>
 

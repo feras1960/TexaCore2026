@@ -169,51 +169,71 @@ export default function WarehouseDashboard() {
     }],
   }));
 
-  // ─── Recent Activity → ListItem[] ────────────────────
-  const MOVEMENT_LABELS: Record<string, { ar: string; en: string; icon: typeof ArrowRightLeft; cls: string }> = {
-    transfer_out: { ar: 'إخراج', en: 'Out', icon: Truck, cls: 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400' },
-    transfer_in: { ar: 'إدخال', en: 'In', icon: Package, cls: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' },
-    sale: { ar: 'بيع', en: 'Sale', icon: ArrowRightLeft, cls: 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' },
-    purchase: { ar: 'شراء', en: 'Purchase', icon: Boxes, cls: 'bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400' },
-    cut: { ar: 'قص', en: 'Cut', icon: Activity, cls: 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400' },
-    adjustment: { ar: 'تعديل', en: 'Adj', icon: Clock, cls: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
-    return: { ar: 'إرجاع', en: 'Return', icon: ArrowRightLeft, cls: 'bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400' },
-    container_receipt: { ar: 'استلام كونتينر', en: 'Container', icon: Boxes, cls: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400' },
-    goods_receipt: { ar: 'إذن استلام', en: 'Receipt', icon: Package, cls: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' },
+  // ─── Recent Activity → Group by invoice/reference ─────
+  const MOVEMENT_LABELS: Record<string, { ar: string; en: string; icon: typeof ArrowRightLeft; iconCls: string; tagCls: string }> = {
+    transfer_out: { ar: 'إخراج', en: 'Transfer Out', icon: Truck, iconCls: 'bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400', tagCls: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400' },
+    transfer_in: { ar: 'استلام', en: 'Transfer In', icon: Package, iconCls: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400', tagCls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' },
+    sale: { ar: 'بيع', en: 'Sale', icon: ArrowRightLeft, iconCls: 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400', tagCls: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
+    purchase: { ar: 'شراء', en: 'Purchase', icon: Boxes, iconCls: 'bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400', tagCls: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
+    cut: { ar: 'قص', en: 'Cut', icon: Activity, iconCls: 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400', tagCls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
+    adjustment: { ar: 'تعديل جرد', en: 'Adjustment', icon: Clock, iconCls: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400', tagCls: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
+    return: { ar: 'إرجاع', en: 'Return', icon: ArrowRightLeft, iconCls: 'bg-teal-100 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400', tagCls: 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400' },
+    container_receipt: { ar: 'كونتينر', en: 'Container', icon: Boxes, iconCls: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400', tagCls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400' },
+    goods_receipt: { ar: 'إذن استلام', en: 'Receipt', icon: Package, iconCls: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400', tagCls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' },
   };
 
-  const activityListItems: ListItem[] = recentActivity.map((act: any) => {
-    const meta = MOVEMENT_LABELS[act.movement_type] || MOVEMENT_LABELS[act.reference_type] || { ar: act.movement_type, en: act.movement_type, icon: ArrowRightLeft, cls: 'bg-stone-100 text-stone-500' };
-    const dateStr = new Date(act.movement_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  // Group by reference_number (invoice) to show 1 entry per document
+  const groupedActivity = (() => {
+    const groups: Record<string, {
+      refNum: string; type: string; date: string; party: string;
+      fromWh: string; toWh: string; totalQty: number; rollCount: number;
+      firstId: string;
+    }> = {};
+    recentActivity.forEach((act: any) => {
+      const key = act.reference_number || act.id; // fallback to id if no ref
+      if (!groups[key]) {
+        groups[key] = {
+          refNum: act.reference_number || '',
+          type: act.movement_type,
+          date: act.movement_date,
+          party: act.party_name || '',
+          fromWh: act.from_warehouse_name || act.from_warehouse?.name_ar || '',
+          toWh: act.to_warehouse_name || act.to_warehouse?.name_ar || '',
+          totalQty: 0,
+          rollCount: 0,
+          firstId: act.id,
+        };
+      }
+      groups[key].totalQty += Number(act.quantity || 0);
+      groups[key].rollCount += 1;
+    });
+    return Object.values(groups);
+  })();
 
-    // Build descriptive title: material name or roll number
-    const materialName = act.material_name_ar || act.material_name_en || '';
-    const rollNum = act.roll_number || act.roll?.roll_number || '';
-    const title = materialName || rollNum || (isAr ? 'حركة مخزون' : 'Stock movement');
+  const activityListItems: ListItem[] = groupedActivity.map((g) => {
+    const meta = MOVEMENT_LABELS[g.type] || { ar: g.type, en: g.type, icon: ArrowRightLeft, iconCls: 'bg-stone-100 text-stone-500', tagCls: 'bg-stone-200 text-stone-600' };
+    const dateStr = new Date(g.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 
-    // Build subtitle: party + direction
-    const partyName = act.party_name || '';
-    const fromWh = act.from_warehouse_name || act.from_warehouse?.name_ar || '';
-    const toWh = act.to_warehouse_name || act.to_warehouse?.name_ar || '';
+    // Title: party name or reference number
+    const title = g.party || g.refNum || (isAr ? 'حركة مخزون' : 'Movement');
+
+    // Subtitle: direction (from → to) + rolls count
     let direction = '';
-    if (fromWh && toWh) direction = `${fromWh} → ${toWh}`;
-    else if (fromWh) direction = `${isAr ? 'من' : 'from'} ${fromWh}`;
-    else if (toWh) direction = `${isAr ? 'إلى' : 'to'} ${toWh}`;
-
-    const subtitle = [partyName, direction].filter(Boolean).join(' • ') || act.reference_number || '';
-
-    // Quantity display
-    const qty = act.quantity ? `${Number(act.quantity).toFixed(1)}m` : '';
+    if (g.fromWh && g.toWh) direction = `${g.fromWh} → ${g.toWh}`;
+    else if (g.fromWh) direction = g.fromWh;
+    else if (g.toWh) direction = g.toWh;
+    const rollsInfo = g.rollCount > 1 ? `${g.rollCount} ${isAr ? 'رولون' : 'rolls'}` : '';
+    const subtitle = [direction, rollsInfo].filter(Boolean).join(' · ');
 
     return {
-      id: act.id,
+      id: g.firstId,
       title,
-      subtitle,
-      value: dateStr,
-      valueSub: qty,
+      subtitle: subtitle || g.refNum,
+      value: `${g.totalQty.toFixed(1)}m`,
+      valueSub: dateStr,
       icon: meta.icon,
-      iconClassName: meta.cls,
-      tags: [{ label: isAr ? meta.ar : meta.en, className: meta.cls }],
+      iconClassName: meta.iconCls,
+      tags: [{ label: isAr ? meta.ar : meta.en, className: meta.tagCls }],
     };
   });
 
