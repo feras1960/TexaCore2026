@@ -90,12 +90,6 @@ export default function SalesDashboard() {
     try { localStorage.setItem('sales_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch {}
   }, [dateRange]);
 
-  // Auto-select single currency
-  useEffect(() => {
-    if (availableCurrencies.length === 1 && selectedCurrency === 'all') {
-      setSelectedCurrency(availableCurrencies[0]);
-    }
-  }, [availableCurrencies, selectedCurrency]);
 
   const fromStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(startOfMonth(new Date()), 'yyyy-MM-dd');
   const toStr = dateRange?.to ? format(endOfDay(dateRange.to), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
@@ -222,6 +216,13 @@ export default function SalesDashboard() {
   const monthly = rawData?.monthly ?? [];
   const recent = rawData?.recent ?? [];
   const topCustomers = rawData?.topCustomers ?? [];
+
+  // Auto-select single currency
+  useEffect(() => {
+    if (availableCurrencies.length === 1 && selectedCurrency === 'all') {
+      setSelectedCurrency(availableCurrencies[0]);
+    }
+  }, [availableCurrencies, selectedCurrency]);
 
   // Realtime
   useEffect(() => {

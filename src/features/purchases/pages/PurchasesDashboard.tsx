@@ -95,12 +95,6 @@ export default function PurchasesDashboard() {
         try { localStorage.setItem('purchases_dashboard_daterange', JSON.stringify({ from: dateRange?.from?.toISOString(), to: dateRange?.to?.toISOString() })); } catch { }
     }, [dateRange]);
 
-    // Auto-select single currency
-    useEffect(() => {
-        if (availableCurrencies.length === 1 && selectedCurrency === 'all') {
-            setSelectedCurrency(availableCurrencies[0]);
-        }
-    }, [availableCurrencies, selectedCurrency]);
 
     // Display currency
     const displayCurrency = selectedCurrency === 'all' ? (baseCurrency || 'USD') : selectedCurrency;
@@ -236,6 +230,13 @@ export default function PurchasesDashboard() {
 
     // Derive stats from cached data
     const availableCurrencies = rawData?.availableCurrencies ?? [];
+
+    // Auto-select single currency
+    useEffect(() => {
+        if (availableCurrencies.length === 1 && selectedCurrency === 'all') {
+            setSelectedCurrency(availableCurrencies[0]);
+        }
+    }, [availableCurrencies, selectedCurrency]);
     const totalPurchases = rawData?.totalPurchases ?? 0;
     const totalLastMonth = rawData?.totalLastMonth ?? 0;
     const pendingOrders = rawData?.pendingOrders ?? 0;
