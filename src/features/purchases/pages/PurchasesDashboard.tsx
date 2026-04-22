@@ -1,21 +1,10 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * 📊 PurchasesDashboard — لوحة المشتريات
- * ════════════════════════════════════════════════════════════════
- *
- * Design: Follows the exact same pattern as the main Dashboard.tsx
- *   - Header bar (white bg + border)
- *   - StatsGrid + StatCard (shared components)
- *   - Grid cards with border-0 shadow-sm
- *   - ERP palette: erp-navy, erp-teal, font-cairo, font-mono
- *   - Real data from Supabase + dynamic currency filter
- *   - Exchange rate conversion for multi-currency totals
- *   - Date range filter (default: start of month → today)
- *
+ * 📊 PurchasesDashboard v2 — uses shared dashboard-kit
  * ════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCachedQuery } from '@/hooks/useCachedQuery';
 import { useLanguage } from '@/app/providers/LanguageProvider';
@@ -23,25 +12,21 @@ import { useCompany } from '@/hooks/useCompany';
 import { useCompanyCurrency, CURRENCY_META, getCurrencySymbol } from '@/hooks/useCompanyCurrency';
 import { useExchangeRateLookup } from '@/hooks/useExchangeRateLookup';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { StatsGrid, StatCard } from '@/components/shared/stats/StatCard';
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from 'react-day-picker';
 import { startOfMonth, endOfDay } from 'date-fns';
 import ReactECharts from 'echarts-for-react';
 import { useTheme } from '@/app/providers/ThemeProvider';
-import { SafeChartContainer } from '@/components/ui/SafeChartContainer';
 import {
-    ShoppingBag, Truck, FileText, Clock, AlertTriangle, Ship,
-    Star, Loader2, Coins, RefreshCw,
-    Calendar, Package, TrendingUp, Hash, BarChart3, Users,
+  DashboardHero, KpiGrid, SectionCard, ListPanel,
+  type KpiItem, type ListItem,
+} from '@/components/dashboard-kit';
+import {
+    ShoppingBag, FileText, Clock, AlertTriangle, Ship,
+    Star, Coins, TrendingUp, Hash, BarChart3, Users,
 } from 'lucide-react';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 // ─── Metadata maps ──────────────────────────────────────────────
 const STAGE_META: Record<string, { ar: string; en: string; badge: string; color: string }> = {
@@ -346,329 +331,135 @@ export default function PurchasesDashboard() {
     };
 
 
+
+    // ── Last sync tracking ──
+    const [lastSync, setLastSync] = useState<Date | null>(null);
+    useEffect(() => { if (!loading && rawData) setLastSync(new Date()); }, [rawData, loading]);
+
+    const purchasesSparkline = monthly.map(m => m.total);
+    function computeDelta(arr: number[]): number | undefined {
+      if (arr.length < 2) return undefined;
+      const prev = arr[arr.length - 2]; const curr = arr[arr.length - 1];
+      if (prev === 0) return curr > 0 ? 100 : 0;
+      return ((curr - prev) / Math.abs(prev)) * 100;
+    }
+    const bk = [{ key: displayCurrency, label: displayCurrency, pct: 100 }];
+
+    // ── KPI items ──
+    const kpis: KpiItem[] = [
+      { id: 'month', label: t('purchasesDashboard.thisMonth'), value: totalPurchases, currency: displayCurrency, icon: ShoppingBag, color: '#10B981', sparkline: purchasesSparkline, deltaPct: computeDelta(purchasesSparkline), breakdown: bk },
+      { id: 'year', label: t('purchasesDashboard.thisYear'), value: yearlyPurchases, currency: displayCurrency, icon: TrendingUp, color: '#3B82F6', breakdown: bk },
+      { id: 'avg', label: t('purchasesDashboard.avgInvoice'), value: avgInvoiceValue, currency: displayCurrency, icon: BarChart3, color: '#8B5CF6', breakdown: bk },
+      { id: 'unpaid', label: t('purchasesDashboard.unpaid'), value: unpaidBalance, currency: displayCurrency, icon: AlertTriangle, color: '#F59E0B', suffix: unpaidCount > 0 ? `${unpaidCount} ${isAr ? 'فاتورة' : 'invoices'}` : undefined, secondaryLabel: unpaidCount > 0 ? (isAr ? '⚠ تحتاج دفع' : '⚠ Needs payment') : (isAr ? '✓ لا مستحقات' : '✓ All paid'), secondaryTone: unpaidCount > 0 ? 'warning' : 'success', breakdown: bk },
+      { id: 'total', label: t('purchasesDashboard.totalInvoices'), value: totalInvoices, icon: Hash, color: '#64748b' },
+      { id: 'pending', label: t('purchasesDashboard.pendingOrders'), value: pendingOrders, icon: Clock, color: '#ea580c', secondaryLabel: pendingOrders > 0 ? (isAr ? '⚠ طلبات معلّقة' : '⚠ Pending') : (isAr ? '✓ لا طلبات' : '✓ None'), secondaryTone: pendingOrders > 0 ? 'warning' : 'success' },
+      { id: 'containers', label: t('purchasesDashboard.activeContainers'), value: inTransit, icon: Ship, color: '#0ea5e9', suffix: isAr ? 'كونتينر' : 'containers' },
+      { id: 'suppliers', label: t('purchasesDashboard.activeSuppliers'), value: activeSuppliers, icon: Users, color: '#0d9488', suffix: `/ ${totalSuppliers} ${isAr ? 'إجمالي' : 'total'}` },
+    ];
+
+    // ── List items ──
+    const recentListItems: ListItem[] = recent.map(r => ({
+      id: r.id, title: r.supplierName, subtitle: timeAgo(r.date), value: r.convertedAmount,
+      icon: FileText, iconClassName: STAGE_META[r.stage]?.badge || 'bg-stone-100 text-stone-500',
+      tags: [{ label: isAr ? (STAGE_META[r.stage]?.ar || r.stage) : (STAGE_META[r.stage]?.en || r.stage), className: STAGE_META[r.stage]?.badge || 'bg-stone-100 text-stone-600' }],
+    }));
+    const supplierListItems: ListItem[] = topSuppliers.map((s, i) => ({
+      id: `sup-${i}`, rank: i + 1, title: s.name, subtitle: `${s.count} ${isAr ? 'فاتورة' : 'invoices'}`, value: s.total,
+      valueSub: `${sym} ${Math.round(s.total).toLocaleString()}`,
+    }));
+
+    // ── Hero ──
+    const fromLabel = fromDateStr; const toLabel = toDateStr;
+    const heroConfig = {
+      label: t('purchasesDashboard.title'), value: totalInvoices,
+      valueSuffix: isAr ? 'فاتورة مشتريات' : 'purchase invoices',
+      badges: [
+        { label: `${sym} ${totalPurchases.toLocaleString()} ${isAr ? 'هذا الشهر' : 'this month'}`, tone: 'success' as const },
+        ...(inTransit > 0 ? [{ label: `${inTransit} ${isAr ? 'كونتينر نشط' : 'active containers'}`, tone: 'info' as const }] : []),
+        ...(pendingOrders > 0 ? [{ label: `${pendingOrders} ${isAr ? 'معلّقة' : 'pending'}`, tone: 'warning' as const }] : []),
+      ],
+      secondaryLabel: isAr ? 'الفترة' : 'Period', secondaryValue: `${fromLabel} → ${toLabel}`,
+      lastSync, isFetching: loading,
+      actions: (
+        <>
+          <DateRangePicker date={dateRange} setDate={setDateRange} align="end" className="w-full lg:w-auto [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-stone-700 [&_button]:text-white [&_button]:hover:bg-white/15" />
+          <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
+            <SelectTrigger className="w-full lg:w-[175px] bg-white/10 backdrop-blur-sm h-10 text-sm border-stone-700 text-white hover:bg-white/15 transition-colors">
+              <Coins className="w-4 h-4 me-2 text-teal-400" /><SelectValue placeholder={t('purchasesDashboard.allCurrencies')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🌍 {t('purchasesDashboard.allConverted')}</SelectItem>
+              {availableCurrencies.map((c: string) => { const m = CURRENCY_META[c]; return (<SelectItem key={c} value={c}>{m?.flag || '🏳️'} {language === 'ar' ? m?.nameAr : m?.nameEn} ({c})</SelectItem>); })}
+            </SelectContent>
+          </Select>
+        </>
+      ),
+    };
+
+    // ── Stages for SectionCard ──
+    const stagesSection = stages.length > 0 ? (
+      <div className="space-y-3">
+        {stages.map(s => { const max = Math.max(...stages.map(x => x.total), 1); return (
+          <div key={s.stage}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="text-sm text-stone-700 dark:text-stone-300">{s.label}</span>
+                <span className="text-[10px] font-mono text-stone-400 bg-stone-50 dark:bg-stone-800 px-1.5 rounded">{s.count}</span>
+              </div>
+              <span className="text-xs font-mono text-stone-500">{sym} {s.total.toLocaleString()}</span>
+            </div>
+            <div className="h-2 rounded-full bg-stone-100 dark:bg-stone-800 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${(s.total / max) * 100}%`, backgroundColor: s.color }} />
+            </div>
+          </div>
+        ); })}
+      </div>
+    ) : <div className="h-48 flex items-center justify-center text-sm text-stone-400">{isAr ? 'لا توجد فواتير' : 'No invoices'}</div>;
+
     // ═════════════════════════════════════════════════════════════
     return (
-        <div className="space-y-6" dir={direction}>
-            {/* ─ Header Bar — Glass Gradient ── */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-erp-navy via-indigo-800 to-erp-navy p-6 rounded-2xl shadow-lg">
-                {/* Decorative glass circles */}
-                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-erp-teal/10 blur-2xl" />
-                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-indigo-400/10 blur-2xl" />
-                <div className="absolute top-1/2 right-1/4 w-20 h-20 rounded-full bg-white/5 blur-xl" />
+        <div className="space-y-5" dir={direction}>
+            <DashboardHero config={heroConfig} loading={loading && !rawData} />
+            <KpiGrid kpis={kpis} loading={loading && !rawData} cols={4} />
 
-                <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
-                                <ShoppingBag className="w-6 h-6 text-erp-teal" />
-                            </div>
-                            <h1 className="text-2xl font-bold text-white font-cairo">
-                                {t('purchasesDashboard.title')}
-                            </h1>
-                            {isLive && (
-                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-sm text-emerald-300 text-[11px] font-medium border border-emerald-500/30">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    LIVE
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-sm text-indigo-200/80 font-tajawal ps-12">
-                            {t('purchasesDashboard.subtitle')}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        {/* Date Range Filter */}
-                        <DateRangePicker
-                            date={dateRange}
-                            setDate={setDateRange}
-                            className="w-full lg:w-auto [&_button]:bg-white/10 [&_button]:backdrop-blur-sm [&_button]:border-white/20 [&_button]:text-white [&_button]:hover:bg-white/20"
-                            align="end"
-                        />
-
-                        {/* Currency Filter */}
-                        <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>
-                            <SelectTrigger className="w-full lg:w-[175px] bg-white/10 backdrop-blur-sm h-10 text-sm border-white/20 text-white hover:bg-white/20 transition-colors">
-                                <Coins className="w-4 h-4 me-2 text-erp-teal" />
-                                <SelectValue placeholder={t('purchasesDashboard.allCurrencies')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">
-                                    🌍 {t('purchasesDashboard.allConverted')}
-                                </SelectItem>
-                                {availableCurrencies.map(c => {
-                                    const m = CURRENCY_META[c];
-                                    return (
-                                        <SelectItem key={c} value={c}>
-                                            {m?.flag || '🏳️'} {language === 'ar' ? m?.nameAr : m?.nameEn} ({c})
-                                        </SelectItem>
-                                    );
-                                })}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
+            {/* Chart + Stages */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <SectionCard title={`📈 ${t('purchasesDashboard.monthlyPurchases')}`} className="lg:col-span-2">
+                <ReactECharts option={mainChartOption} style={{ height: '300px', width: '100%' }} opts={{ renderer: 'canvas' }} notMerge />
+              </SectionCard>
+              <SectionCard title={isAr ? 'حالة الفواتير' : 'Invoice Status'}>
+                {stagesSection}
+              </SectionCard>
             </div>
 
-            {/* ─ Stats Grid Row 1 — Financial KPIs (Glass Cards) ── */}
-            <StatsGrid cols={4}>
-                <StatCard
-                    label={t('purchasesDashboard.thisMonth')}
-                    value={totalPurchases}
-                    type="positive"
-                    change={pctChange ? Number(pctChange.toFixed(1)) : undefined}
-                    changeLabel={t('purchasesDashboard.vsLastMonth')}
-                    icon={ShoppingBag}
-                    formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
-                    className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 backdrop-blur-sm border border-emerald-100/50 dark:border-emerald-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-                <StatCard
-                    label={t('purchasesDashboard.thisYear')}
-                    value={yearlyPurchases}
-                    type="info"
-                    change={yearlyPctChange ? Number(yearlyPctChange.toFixed(1)) : undefined}
-                    changeLabel={t('purchasesDashboard.vsLastYear')}
-                    icon={TrendingUp}
-                    formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
-                    className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 backdrop-blur-sm border border-blue-100/50 dark:border-blue-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-                <StatCard
-                    label={t('purchasesDashboard.avgInvoice')}
-                    value={avgInvoiceValue}
-                    type="neutral"
-                    icon={BarChart3}
-                    formatValue={(val) => `${sym} ${Math.round(Number(val)).toLocaleString()}`}
-                    className="bg-gradient-to-br from-violet-50/80 to-purple-50/50 dark:from-violet-950/30 dark:to-purple-950/20 backdrop-blur-sm border border-violet-100/50 dark:border-violet-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-                <StatCard
-                    label={t('purchasesDashboard.unpaid')}
-                    value={unpaidBalance}
-                    type={unpaidBalance > 0 ? 'negative' : 'neutral'}
-                    icon={AlertTriangle}
-                    formatValue={(val) => `${sym} ${Number(val).toLocaleString()}`}
-                    suffix={unpaidCount > 0 ? `(${unpaidCount})` : ''}
-                    className="bg-gradient-to-br from-amber-50/80 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 backdrop-blur-sm border border-amber-100/50 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-            </StatsGrid>
-
-            {/* ─ Stats Grid Row 2 — Operational KPIs (Glass Cards) ── */}
-            <StatsGrid cols={4}>
-                <StatCard
-                    label={t('purchasesDashboard.totalInvoices')}
-                    value={totalInvoices}
-                    type="neutral"
-                    icon={Hash}
-                    className="bg-gradient-to-br from-slate-50/80 to-gray-50/50 dark:from-slate-950/30 dark:to-gray-950/20 backdrop-blur-sm border border-slate-100/50 dark:border-slate-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-                <StatCard
-                    label={t('purchasesDashboard.pendingOrders')}
-                    value={pendingOrders}
-                    type="warning"
-                    icon={Clock}
-                    className="bg-gradient-to-br from-yellow-50/80 to-amber-50/50 dark:from-yellow-950/30 dark:to-amber-950/20 backdrop-blur-sm border border-yellow-100/50 dark:border-yellow-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-                <StatCard
-                    label={t('purchasesDashboard.activeContainers')}
-                    value={inTransit}
-                    type="info"
-                    icon={Ship}
-                    suffix={t('purchasesDashboard.containers')}
-                    className="bg-gradient-to-br from-sky-50/80 to-cyan-50/50 dark:from-sky-950/30 dark:to-cyan-950/20 backdrop-blur-sm border border-sky-100/50 dark:border-sky-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-                <StatCard
-                    label={t('purchasesDashboard.activeSuppliers')}
-                    value={`${activeSuppliers}/${totalSuppliers}`}
-                    type="positive"
-                    icon={Users}
-                    className="bg-gradient-to-br from-teal-50/80 to-emerald-50/50 dark:from-teal-950/30 dark:to-emerald-950/20 backdrop-blur-sm border border-teal-100/50 dark:border-teal-800/30 shadow-sm hover:shadow-md transition-all"
-                />
-            </StatsGrid>
-
-            {/* ─ Charts Row (Glass) ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Monthly Trend — 2 cols */}
-                <Card className="lg:col-span-2 border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
-                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-erp-teal" />
-                            {t('purchasesDashboard.monthlyPurchases')}
-                            {selectedCurrency === 'all' && (
-                                <span className="text-[10px] text-gray-400 font-normal font-tajawal">
-                                    ({t('purchasesDashboard.convertedTo')} {displayCurrency})
-                                </span>
-                            )}
-                        </CardTitle>
-                        <span className="text-xs text-gray-400 font-tajawal">{isAr ? 'آخر 6 أشهر' : 'Last 6 months'}</span>
-                    </CardHeader>
-                    <CardContent className="pt-4 flex flex-col items-center">
-                        <div className="w-full min-h-[280px]">
-                            {monthly.length === 0 ? (
-                                    <div className="h-full flex items-center justify-center text-sm text-gray-300 font-tajawal">
-                                        {t('purchasesDashboard.loadingData')}
-                                    </div>
-                            ) : (
-                                <ReactECharts
-                                    option={mainChartOption}
-                                    style={{ height: '320px', width: '100%' }}
-                                    opts={{ renderer: 'canvas' }}
-                                    notMerge={true}
-                                />
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Stages Breakdown — 1 col */}
-                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
-                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
-                            <Package className="w-4 h-4 text-erp-teal" />
-                            {t('purchasesDashboard.invoiceStatus')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                        {stages.length > 0 ? (
-                            <div className="space-y-3">
-                                {stages.map((s) => {
-                                    const max = Math.max(...stages.map(x => x.total), 1);
-                                    return (
-                                        <div key={s.stage}>
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                                                    <span className="text-sm font-tajawal text-gray-700 dark:text-gray-300">{s.label}</span>
-                                                    <span className="text-[10px] font-mono text-gray-400 bg-gray-50 dark:bg-gray-800 px-1.5 rounded">{s.count}</span>
-                                                </div>
-                                                <span className="text-xs font-mono text-gray-500">{sym} {s.total.toLocaleString()}</span>
-                                            </div>
-                                            <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full transition-all duration-700 ease-out"
-                                                    style={{ width: `${(s.total / max) * 100}%`, backgroundColor: s.color }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="h-48 flex items-center justify-center text-sm text-gray-400 font-tajawal">
-                                {t('purchasesDashboard.noInvoices')}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+            {/* Recent + Top Suppliers */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <SectionCard title={t('purchasesDashboard.recentPurchases')} className="lg:col-span-2" noPadding
+                action={<span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-300">{totalInvoices}</span>}>
+                <ListPanel items={recentListItems} loading={loading && !rawData} showRank={false} currency={displayCurrency} emptyTitle={isAr ? 'لا توجد مشتريات' : 'No purchases'} />
+              </SectionCard>
+              <SectionCard title={isAr ? '⭐ أفضل الموردين' : '⭐ Top Suppliers'} noPadding
+                action={<span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-300">{topSuppliers.length}</span>}>
+                <ListPanel items={supplierListItems} loading={loading && !rawData} currency={displayCurrency} emptyTitle={isAr ? 'لا توجد بيانات' : 'No data'} />
+              </SectionCard>
             </div>
 
-            {/* ─ Bottom Row ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Recent Purchases */}
-                <Card className="lg:col-span-2 border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
-                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-erp-teal" />
-                            {t('purchasesDashboard.recentPurchases')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="space-y-2">
-                            {recent.map((r) => (
-                                <div
-                                    key={r.id}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
-                                            <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900 dark:text-white text-sm font-tajawal">{r.supplierName}</p>
-                                            <p className="text-xs text-gray-400 font-tajawal">{timeAgo(r.date)}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <Badge className={cn('px-2 py-0.5 text-xs border-0', STAGE_META[r.stage]?.badge || 'bg-gray-100 text-gray-700')}>
-                                            {language === 'ar' ? (STAGE_META[r.stage]?.ar || r.stage) : (STAGE_META[r.stage]?.en || r.stage)}
-                                        </Badge>
-                                        <div className="text-end min-w-[100px]">
-                                            <span className="font-semibold text-erp-navy dark:text-white font-mono text-sm block" dir="ltr">
-                                                {sym} {r.convertedAmount.toLocaleString()}
-                                            </span>
-                                            {r.currency !== displayCurrency && (
-                                                <span className="text-[10px] text-gray-400 font-mono block" dir="ltr">
-                                                    {getCurrencySymbol(r.currency)} {r.amount.toLocaleString()}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                            {recent.length === 0 && (
-                                <div className="py-8 text-center text-sm text-gray-400 font-tajawal">
-                                    {t('purchasesDashboard.noTransactions')}
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Top Suppliers */}
-                <Card className="border-0 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 rounded-2xl">
-                    <CardHeader className="pb-2 flex flex-row items-center justify-between border-b border-gray-100/50 dark:border-gray-800/50">
-                        <CardTitle className="text-base font-cairo text-erp-navy dark:text-white flex items-center gap-2">
-                            <Star className="w-4 h-4 text-amber-500" />
-                            {t('purchasesDashboard.topSuppliers')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="space-y-2">
-                            {topSuppliers.map((s, i) => (
-                                <div
-                                    key={`supplier-${i}-${s.name}`}
-                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer group"
-                                >
-                                    <div className={cn(
-                                        "flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs",
-                                        i === 0 ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600" :
-                                            i === 1 ? "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300" :
-                                                i === 2 ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600" :
-                                                    "bg-blue-100 dark:bg-blue-900/30 text-blue-600"
-                                    )}>
-                                        {i + 1}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-gray-900 dark:text-white truncate text-sm font-tajawal">{s.name}</p>
-                                        <p className="text-xs text-gray-500 font-tajawal">{s.count} {t('purchasesDashboard.invoice')}</p>
-                                    </div>
-                                    <p className="font-semibold text-erp-teal font-mono text-sm" dir="ltr">
-                                        {sym} {s.total.toLocaleString()}
-                                    </p>
-                                </div>
-                            ))}
-                            {topSuppliers.length === 0 && (
-                                <div className="py-8 text-center text-sm text-gray-400 font-tajawal">
-                                    {t('purchasesDashboard.noData')}
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Container chips (if any) */}
+            {/* Container chips */}
             {containerStatuses.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3 p-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm rounded-2xl border border-gray-100/50 dark:border-gray-800/50 shadow-sm">
-                    <Ship className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-tajawal text-gray-500">{isAr ? 'الكونتينرات:' : 'Containers:'}</span>
-                    {containerStatuses.map(cs => (
-                        <div key={cs.label} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cs.color }} />
-                            <span className="text-xs font-tajawal text-gray-600 dark:text-gray-300">{cs.label}</span>
-                            <span className="text-xs font-mono font-bold text-erp-navy dark:text-white">{cs.count}</span>
-                        </div>
-                    ))}
-                </div>
+              <div className="flex flex-wrap items-center gap-3 p-4 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
+                <Ship className="w-4 h-4 text-stone-400" />
+                <span className="text-sm text-stone-500">{isAr ? 'الكونتينرات:' : 'Containers:'}</span>
+                {containerStatuses.map(cs => (
+                  <div key={cs.label} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cs.color }} />
+                    <span className="text-xs text-stone-600 dark:text-stone-300">{cs.label}</span>
+                    <span className="text-xs font-mono font-bold text-stone-900 dark:text-white">{cs.count}</span>
+                  </div>
+                ))}
+              </div>
             )}
         </div>
     );
 }
+

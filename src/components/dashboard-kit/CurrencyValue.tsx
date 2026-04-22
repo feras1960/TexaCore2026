@@ -23,14 +23,14 @@ export function CurrencyValue({
 
   if (!animate || reducedMotion) {
     return (
-      <span className={`font-medium tabular-nums ${sizeClass}`}>
+      <span className={`font-bold tabular-nums ${sizeClass}`}>
         {formatCurrency(value, currency)}
       </span>
     );
   }
 
   return (
-    <span className={`font-medium tabular-nums ${sizeClass}`}>
+    <span className={`font-bold tabular-nums ${sizeClass}`}>
       <CountUp
         end={value}
         duration={0.8}

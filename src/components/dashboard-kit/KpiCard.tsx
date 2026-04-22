@@ -58,9 +58,9 @@ export function KpiCard({ kpi, index = 0 }: { kpi: KpiItem; index?: number }) {
       {/* Row 2: Value */}
       <div className="mt-3">
         {isCurrency ? (
-          <CurrencyValue value={kpi.value} currency={kpi.currency} size="md" />
+          <CurrencyValue value={kpi.value} currency={kpi.currency} size="lg" />
         ) : (
-          <span className="text-xl font-medium tabular-nums text-stone-900 dark:text-stone-100">
+          <span className="text-2xl font-bold tabular-nums text-stone-900 dark:text-stone-100">
             <CountUp end={kpi.value} duration={0.7} separator="," />
           </span>
         )}
