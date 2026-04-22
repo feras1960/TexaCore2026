@@ -100,7 +100,13 @@ export function DashboardHero({ config, loading }: { config?: HeroConfig; loadin
                 <p className="text-xs uppercase tracking-wider text-stone-400">{secondaryLabel}</p>
                 <p className="mt-2 text-2xl font-medium tabular-nums">
                   {typeof secondaryValue === 'number' ? (
-                    <>$<CountUp end={secondaryValue} duration={0.8} separator="," /></>
+                    <CountUp
+                      end={secondaryValue}
+                      duration={0.8}
+                      separator=","
+                      prefix={currency === 'USD' ? '$' : ''}
+                      suffix={currency && currency !== 'USD' ? ` ${currency}` : ''}
+                    />
                   ) : secondaryValue}
                 </p>
                 {secondarySubLabel && <p className="mt-1 text-xs text-stone-400">{secondarySubLabel}</p>}

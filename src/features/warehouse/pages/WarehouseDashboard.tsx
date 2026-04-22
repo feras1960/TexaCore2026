@@ -41,6 +41,13 @@ export default function WarehouseDashboard() {
   // ─── Warehouse filter ──────────────────────────────────
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
 
+  // ─── Date range filter (default: start of month → today) ──
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  const [dateFrom, setDateFrom] = useState(fmt(monthStart));
+  const [dateTo, setDateTo] = useState(fmt(today));
+
   const { data: warehouses = [] } = useCachedQuery({
     queryKey: ['warehouse', 'list', companyId],
     queryFn: async () => {
@@ -62,7 +69,7 @@ export default function WarehouseDashboard() {
   const {
     stats, lowStockItems, warehouseCapacity, recentActivity,
     loading, error, refetch: refetchDashboard,
-  } = useWarehouseDashboard(warehouseId);
+  } = useWarehouseDashboard(warehouseId, dateFrom, dateTo);
 
   // ─── Last sync tracking ───────────────────────────────
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -102,6 +109,10 @@ export default function WarehouseDashboard() {
     return Object.values(groups);
   })();
 
+  // Total meters for hero
+  const totalMovedMeters = groupedActivity.reduce((sum, g) => sum + g.totalQty, 0);
+  const totalRollsMoved = recentActivity.length;
+
   // ─── Hero Config ──────────────────────────────────────
   const heroConfig: HeroConfig | undefined = stats ? {
     label: isAr ? 'إجمالي المواد' : 'Total Materials',
@@ -112,28 +123,50 @@ export default function WarehouseDashboard() {
       { label: `${stats.totalWarehouses} ${isAr ? 'مستودع' : 'warehouses'}`, tone: 'success' as const },
       ...(stats.lowStockItems > 0 ? [{ label: `${stats.lowStockItems} ${isAr ? 'منخفض' : 'low'}`, tone: 'warning' as const }] : []),
     ],
-    secondaryLabel: isAr ? 'الحركات الأخيرة' : 'Recent Movements',
-    secondaryValue: groupedActivity.length,
-    secondarySubLabel: isAr ? `${recentActivity.length} حركة رولون` : `${recentActivity.length} roll movements`,
+    secondaryLabel: isAr ? 'حركات الفترة' : 'Period Movements',
+    secondaryValue: `${groupedActivity.length} ${isAr ? 'حركة' : 'mov'}`,
+    secondarySubLabel: `${totalRollsMoved} ${isAr ? 'رولون' : 'rolls'} · ${totalMovedMeters.toLocaleString()}m`,
     lastSync,
     isFetching: loading,
     actions: (
-      <div>
-        <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'المستودع' : 'Warehouse'}</label>
-        <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
-          <SelectTrigger className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border-stone-700 text-white hover:bg-white/15 transition-colors">
-            <Warehouse className="w-3.5 h-3.5 me-1.5 text-teal-400" />
-            <SelectValue placeholder={isAr ? 'كل المستودعات' : 'All Warehouses'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">🏭 {isAr ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
-            {warehouses.map((w: any) => (
-              <SelectItem key={w.id} value={w.id}>
-                📦 {isAr ? w.name_ar : w.name_en}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-2">
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'المستودع' : 'Warehouse'}</label>
+          <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+            <SelectTrigger className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border-stone-700 text-white hover:bg-white/15 transition-colors">
+              <Warehouse className="w-3.5 h-3.5 me-1.5 text-teal-400" />
+              <SelectValue placeholder={isAr ? 'كل المستودعات' : 'All Warehouses'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🏭 {isAr ? 'كل المستودعات' : 'All Warehouses'}</SelectItem>
+              {warehouses.map((w: any) => (
+                <SelectItem key={w.id} value={w.id}>
+                  📦 {isAr ? w.name_ar : w.name_en}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'من' : 'From'}</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border border-stone-700 text-white rounded-md px-2 hover:bg-white/15 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-stone-400 mb-1">{isAr ? 'إلى' : 'To'}</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full bg-white/10 backdrop-blur-sm h-9 text-xs border border-stone-700 text-white rounded-md px-2 hover:bg-white/15 transition-colors"
+            />
+          </div>
+        </div>
       </div>
     ),
   } : undefined;
@@ -175,6 +208,7 @@ export default function WarehouseDashboard() {
     {
       id: 'activity', label: isAr ? 'حركات أخيرة' : 'Recent Activity',
       value: groupedActivity.length, icon: Activity, color: '#64748b',
+      suffix: isAr ? 'حركة' : 'mov',
     },
   ] : undefined;
 

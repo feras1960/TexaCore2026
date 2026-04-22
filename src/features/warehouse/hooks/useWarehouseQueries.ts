@@ -204,7 +204,7 @@ export function useMaterialGroups() {
 // ═══════════════════════════════════════════════
 // 4. Dashboard Stats
 // ═══════════════════════════════════════════════
-export function useWarehouseDashboard(warehouseId?: string) {
+export function useWarehouseDashboard(warehouseId?: string, dateFrom?: string, dateTo?: string) {
     const { companyId } = useAuth();
     const queryClient = useQueryClient();
 
@@ -256,12 +256,16 @@ export function useWarehouseDashboard(warehouseId?: string) {
         gcTime: GC_TIME,
     });
 
-    // Recent activity — fetch enough to group by invoice (not per-roll)
+    // Recent activity — filtered by date range, fetch enough to group by invoice
     const activityQuery = useCachedQuery({
-        queryKey: ['warehouse', 'recent-activity', companyId],
+        queryKey: ['warehouse', 'recent-activity', companyId, dateFrom || '', dateTo || ''],
         queryFn: async () => {
             try {
-                return await warehouseService.getInventoryMovements(companyId!, { limit: 100 });
+                return await warehouseService.getInventoryMovements(companyId!, {
+                    limit: 200,
+                    dateFrom: dateFrom || undefined,
+                    dateTo: dateTo || undefined,
+                });
             } catch (err: any) {
                 if (err?.name === 'AbortError') throw err;
                 throw err;
