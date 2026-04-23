@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProviders } from '@/app/providers';
 import MainLayout from '@/components/layout/MainLayout';
@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import PageLoader from '@/components/common/PageLoader';
 import { initArabicNumeralNormalizer } from '@/lib/arabicNumeralNormalizer';
 import { LicenseExpiryBanner } from '@/components/LicenseExpiryBanner';
+import { initSessionGuard, isSelfHosted } from '@/services/sessionGuardService';
 
 // Import AuthGuard directly (not lazy) for better auth flow
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -100,12 +101,65 @@ function AppRoutes() {
   );
 }
 
+// ─── Session Blocked Screen ─────────────────────────────────────
+function SessionBlockedScreen({ sessionsMax }: { sessionsMax?: number }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-md mx-auto text-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-800">
+        <div className="w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+          <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+          Session Limit Reached
+        </h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-4">
+          Maximum {sessionsMax || 1} concurrent session{(sessionsMax || 1) > 1 ? 's' : ''} allowed for your plan.
+          Please close another session first.
+        </p>
+        <p className="text-sm text-gray-400">
+          تم الوصول للحد الأقصى من الجلسات المتزامنة. أغلق جلسة أخرى أولاً.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Retry / إعادة المحاولة
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
+  const [sessionBlocked, setSessionBlocked] = useState(false);
+  const [sessionsMax, setSessionsMax] = useState<number | undefined>();
+
   // 🔢 Auto-convert Arabic/Persian numerals to English globally
   useEffect(() => {
     const cleanup = initArabicNumeralNormalizer();
     return cleanup;
   }, []);
+
+  // 🔒 Session Guard — only for self-hosted mode
+  useEffect(() => {
+    if (!isSelfHosted()) return;
+
+    initSessionGuard().then((result) => {
+      if (!result.allowed) {
+        console.warn('[SessionGuard] Blocked:', result.error);
+        setSessionBlocked(true);
+        setSessionsMax(result.sessions_max);
+      } else {
+        console.log(`[SessionGuard] ✅ Session registered (${result.sessions_used}/${result.sessions_max})`);
+      }
+    });
+  }, []);
+
+  if (sessionBlocked) {
+    return <SessionBlockedScreen sessionsMax={sessionsMax} />;
+  }
 
   return (
     <ErrorBoundary>
