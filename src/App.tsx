@@ -7,6 +7,7 @@ import { useLanguage } from '@/app/providers/LanguageProvider';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import PageLoader from '@/components/common/PageLoader';
 import { initArabicNumeralNormalizer } from '@/lib/arabicNumeralNormalizer';
+import { LicenseExpiryBanner } from '@/components/LicenseExpiryBanner';
 
 // Import AuthGuard directly (not lazy) for better auth flow
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -109,6 +110,7 @@ function App() {
   return (
     <ErrorBoundary>
       <AppProviders>
+        <LicenseExpiryBanner />
         <AppRoutes />
       </AppProviders>
     </ErrorBoundary>

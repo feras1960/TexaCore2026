@@ -97,7 +97,7 @@ const generateWarehouseCode = (existingWarehouses: WarehouseItem[]) => {
     const prefix = 'WH';
     const existingCodes = existingWarehouses
         .map(wh => wh.code)
-        .filter(code => code.startsWith(prefix))
+        .filter((code): code is string => typeof code === 'string' && code.startsWith(prefix))
         .map(code => parseInt(code.replace(prefix + '-', ''), 10))
         .filter(num => !isNaN(num));
     const maxNum = existingCodes.length > 0 ? Math.max(...existingCodes) : 0;

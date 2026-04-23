@@ -1,11 +1,56 @@
 import { createClient } from '@supabase/supabase-js';
 // import type { Database } from '@/types/supabase'; // TODO: Update Database types from Supabase
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// ════════════════════════════════════════════════════════════════
+// 🔧 Dynamic Config — supports both SaaS and Self-Hosted modes
+// ════════════════════════════════════════════════════════════════
+// Priority:
+//   1. window.__TEXACORE_CONFIG__  → Self-Hosted (injected by Docker/Nginx)
+//   2. import.meta.env             → SaaS (from .env file)
+// ════════════════════════════════════════════════════════════════
+
+interface TexaCoreConfig {
+  supabaseUrl: string;
+  supabaseKey: string;
+  mode: 'saas' | 'selfhosted';
+  licensingUrl?: string;   // URL لسيرفر التراخيص (Cloud)
+  version?: string;        // إصدار التطبيق
+}
+
+declare global {
+  interface Window {
+    __TEXACORE_CONFIG__?: Partial<TexaCoreConfig>;
+  }
+}
+
+function getConfig(): TexaCoreConfig {
+  const windowConfig = typeof window !== 'undefined' ? window.__TEXACORE_CONFIG__ : undefined;
+
+  const supabaseUrl = windowConfig?.supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '';
+  const supabaseKey = windowConfig?.supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const mode = windowConfig?.mode || (import.meta.env.VITE_TEXACORE_MODE as 'saas' | 'selfhosted') || 'saas';
+
+  return {
+    supabaseUrl,
+    supabaseKey,
+    mode,
+    licensingUrl: windowConfig?.licensingUrl || import.meta.env.VITE_LICENSING_URL || '',
+    version: windowConfig?.version || import.meta.env.VITE_APP_VERSION || '0.0.0',
+  };
+}
+
+const config = getConfig();
+const supabaseUrl = config.supabaseUrl;
+const supabaseAnonKey = config.supabaseKey;
+
+/** Whether the app is running in Self-Hosted mode */
+export const isSelfHosted = config.mode === 'selfhosted';
+
+/** App configuration (read-only) */
+export const appConfig = Object.freeze(config);
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ Supabase URL or Anon Key is missing. Please check your .env file.');
+  console.warn('⚠️ Supabase URL or Anon Key is missing. Please check your .env file or __TEXACORE_CONFIG__.');
 }
 
 // Create Supabase client with proper auth configuration

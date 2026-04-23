@@ -1,0 +1,118 @@
+# ════════════════════════════════════════════════════════════════
+# 🐳 TexaCore Self-Hosted — Docker Compose
+# ════════════════════════════════════════════════════════════════
+# Services:
+#   1. db        — PostgreSQL 16 (بيانات العميل المحلية)
+#   2. web       — OpenResty + React App + License Guard
+#   3. backup    — نسخ احتياطي تلقائي يومي
+# ════════════════════════════════════════════════════════════════
+
+services:
+  # ─── PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: texacore-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-texacore}
+      POSTGRES_USER: ${POSTGRES_USER:-texacore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password is required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-texacore} -d ${POSTGRES_DB:-texacore}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - texacore-net
+
+  # ─── Web App (OpenResty + React) ────────────────────────────
+  web:
+    image: ${TEXACORE_IMAGE:-ghcr.io/feras1960/texacore-web:latest}
+    container_name: texacore-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # ── Supabase Local
+      SUPABASE_URL: http://db:5432
+      TEXACORE_DB_HOST: db
+      TEXACORE_DB_PORT: 5432
+      TEXACORE_DB_NAME: ${POSTGRES_DB:-texacore}
+      TEXACORE_DB_USER: ${POSTGRES_USER:-texacore}
+      TEXACORE_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      # ── License
+      LICENSE_KEY: ${LICENSE_KEY:?License key is required}
+      LICENSING_SERVER_URL: ${LICENSING_SERVER_URL:-https://wzkklenfsaepegymfxfz.supabase.co/functions/v1}
+      
+      # ── App Config
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      APP_PORT: ${APP_PORT:-80}
+      NODE_ENV: production
+    ports:
+      - "${APP_PORT:-80}:80"
+    volumes:
+      - ./license.json:/etc/texacore/license.json:ro
+      - uploads:/var/lib/texacore/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - texacore-net
+
+  # ─── Automated Backup ──────────────────────────────────────
+  backup:
+    image: postgres:16-alpine
+    container_name: texacore-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-texacore}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-texacore}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - backups:/backups
+      - ./docker/scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "🗄️ Backup service started"
+        chmod +x /backup.sh
+        # Run backup every day at 2 AM
+        while true; do
+          CURRENT_HOUR=$$(date +%H)
+          if [ "$$CURRENT_HOUR" = "02" ]; then
+            /backup.sh
+            sleep 3600
+          fi
+          sleep 300
+        done
+    networks:
+      - texacore-net
+
+volumes:
+  pgdata:
+    name: texacore-pgdata
+  uploads:
+    name: texacore-uploads
+  backups:
+    name: texacore-backups
+
+networks:
+  texacore-net:
+    name: texacore-network
+    driver: bridge

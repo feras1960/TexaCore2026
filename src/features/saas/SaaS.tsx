@@ -21,12 +21,14 @@ import {
   Settings,
   Crown,
   Megaphone,
+  Key,
 } from 'lucide-react';
 
 // Direct imports for instant switching
 import { SaaSDashboard } from './SaaSDashboard';
 import PlatformsTab from './PlatformsTab';
 import PlatformAnnouncementsTab from './PlatformAnnouncementsTab';
+import LicensingTab from './LicensingTab';
 import SaaSSettings from './Settings';
 
 interface TabConfig {
@@ -48,6 +50,7 @@ export default function SaaS() {
       if (path === '/saas' || path === '/saas/') return 'dashboard';
       if (path.includes('/platforms')) return 'platforms';
       if (path.includes('/announcements')) return 'announcements';
+      if (path.includes('/licensing')) return 'licensing';
       if (path.includes('/settings') || path.includes('/webhooks')) return 'settings';
       return 'dashboard';
     }
@@ -70,6 +73,7 @@ export default function SaaS() {
     { id: 'dashboard', labelKey: 'saas.dashboard.label', icon: LayoutDashboard, component: SaaSDashboard },
     { id: 'platforms', labelKey: 'saas.platforms', icon: Layers, component: PlatformsTab },
     { id: 'announcements', labelKey: 'saas.announcements', icon: Megaphone, component: PlatformAnnouncementsTab },
+    { id: 'licensing', labelKey: 'saas.licensing', icon: Key, component: LicensingTab },
     { id: 'settings', labelKey: 'saas.settings', icon: Settings, component: SaaSSettings },
   ], [language]);
 

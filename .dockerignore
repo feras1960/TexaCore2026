@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build output (rebuilds inside Docker)
+dist
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+
+# Keys (private key MUST NOT be in image)
+keys/private.pem
+
+# Docker
+docker-compose.yml
+.env.selfhosted
+
+# Docs & Tests
+docs
+*.md
+LICENSE
+coverage
+
+# Supabase local
+supabase/.temp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gemini
+.gemini

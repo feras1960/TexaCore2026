@@ -98,3 +98,6 @@ test-trade.ts
 test-trade2.ts
 wipe_script.py
 
+
+# RSA License Keys
+keys/private.pem
