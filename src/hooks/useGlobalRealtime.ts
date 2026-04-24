@@ -39,6 +39,7 @@ export const REALTIME_SUBSCRIPTIONS = [
             ['accounting', 'journal-entries'],
             ['accounts'],
             ['account_ledger'],
+            ['dashboard-v11'],  // ← Dashboard: KPIs, Net Position, Cash Flow
         ],
     },
     {
@@ -50,6 +51,7 @@ export const REALTIME_SUBSCRIPTIONS = [
             ['customer_balances_subledger'],
             ['party_balances_supplier_purchases'],
             ['sales_payments_list'],
+            ['dashboard-v11'],  // ← Dashboard: KPIs, Net Position, Cash Flow
         ],
     },
     {
@@ -67,6 +69,7 @@ export const REALTIME_SUBSCRIPTIONS = [
             ['sales_transactions_list'],
             ['customers_sales_stats'],
             ['warehouse', 'pending-receipts'],  // ← أذون التسليم تتحدث فورياً عند تأكيد فاتورة مبيعات
+            ['dashboard-v11'],  // ← Dashboard: KPIs, Top Customers, Attention, Recent Activity
         ],
     },
     {
@@ -75,6 +78,7 @@ export const REALTIME_SUBSCRIPTIONS = [
             ['parties_customers'],
             ['customers_list'],
             ['customers_map'],
+            ['dashboard-v11'],  // ← Dashboard: Top Customers
         ],
     },
     {
@@ -92,6 +96,7 @@ export const REALTIME_SUBSCRIPTIONS = [
             ['purchase_cycle_full'],
             ['suppliers_purchase_stats'],
             ['warehouse', 'pending-receipts'],  // ← أذون الاستلام تتحدث فورياً عند تأكيد فاتورة مشتريات
+            ['dashboard-v11'],  // ← Dashboard: KPIs, Attention, Recent Activity
         ],
     },
     {

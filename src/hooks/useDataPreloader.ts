@@ -262,7 +262,97 @@ export function useDataPreloader() {
         // 🟡 Tier 2: Important — Load after 1 second delay
         // ═══════════════════════════════════════════════
         const tier2Timeout = setTimeout(() => {
+            // ─── Resolve dashboard currency for preload ───
+            // Default to USD; the page may switch later, but this covers the common case
+            const dashCurrency = localStorage.getItem('texacore_dashboard_currency') || 'USD';
+
             Promise.allSettled([
+                // ═══ 📊 DASHBOARD — Critical: first page user sees ═══
+
+                // 1. Net Position (Hero section)
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'net-position', dashCurrency],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_net_position', { p_company_id: companyId, p_base_currency: dashCurrency });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 2. KPI Summary (4 KPI cards)
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'kpi', dashCurrency],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_kpis', { p_company_id: companyId, p_base_currency: dashCurrency });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 3. Cash Flow (30-day chart)
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'cash-flow', dashCurrency, 30],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_cash_flow', { p_company_id: companyId, p_base_currency: dashCurrency, p_days: 30 });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 4. Attention Items
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'attention'],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_attention_items', { p_company_id: companyId });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 5. Top Customers
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'top-customers'],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_top_customers', { p_company_id: companyId, p_base_currency: dashCurrency });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 6. Recent Activity
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'recent-activity'],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_recent_activity', { p_company_id: companyId });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
+                // 7. Currency Exposure
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-v11', companyId, 'currency-exposure'],
+                    queryFn: async () => {
+                        const { data, error } = await supabase.rpc('get_dashboard_currency_exposure', { p_company_id: companyId });
+                        if (error) throw error;
+                        return data;
+                    },
+                    staleTime: DYNAMIC,
+                    gcTime: GC_TIME,
+                }),
+
                 // Dashboard stats
                 queryClient.prefetchQuery({
                     queryKey: ['warehouse', 'dashboard-stats', companyId],
