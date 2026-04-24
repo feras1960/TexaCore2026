@@ -151,6 +151,13 @@ export function Sidebar({ className }: SidebarProps) {
                 <TooltipTrigger asChild>
                   <Link
                     to={module.path}
+                    data-tour={`nav-${
+                      module.code === 'inventory' ? 'warehouse' :
+                      module.code === 'system_config' ? 'settings' :
+                      module.code === 'ai_analytics' ? 'ai' :
+                      module.code === 'crm' ? 'customers' :
+                      module.code
+                    }`}
                     onClick={(e) => {
                       // Ensure navigation happens immediately
                       e.stopPropagation();

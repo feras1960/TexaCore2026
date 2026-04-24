@@ -3,13 +3,14 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useAuth } from '@/hooks/useAuth';
+import { useTour } from '@/components/tour/InteractiveTour';
 import {
-  Building2, Package, Users, ShoppingCart, Receipt, Warehouse,
-  CheckCircle2, ArrowRight, ArrowLeft, X, Sparkles, ChevronRight,
-  FileText, CircleDollarSign, Settings, BarChart3, Rocket
+  Building2, Package, Users, Receipt, Warehouse,
+  CheckCircle2, ArrowRight, ArrowLeft, X, Sparkles, ChevronLeft, ChevronRight,
+  CircleDollarSign, Settings, Rocket
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -20,90 +21,80 @@ interface OnboardingStep {
   icon: any;
   color: string;
   route: string;
-  isCompleted?: () => boolean;
 }
 
 // ─── Translations ────────────────────────────────────────────
 const OB_TEXT: Record<string, Record<string, string>> = {
-  welcome_title: {
-    ar: '👋 مرحباً بك في TexaCore ERP',
-    en: '👋 Welcome to TexaCore ERP',
-  },
-  welcome_subtitle: {
-    ar: 'دعنا نساعدك في إعداد نظامك خطوة بخطوة',
-    en: "Let's help you set up your system step by step",
-  },
   step: { ar: 'خطوة', en: 'Step' },
   of: { ar: 'من', en: 'of' },
   skip: { ar: 'تخطي', en: 'Skip' },
   next: { ar: 'التالي', en: 'Next' },
   prev: { ar: 'السابق', en: 'Previous' },
-  go_to: { ar: 'ابدأ الآن', en: 'Go to' },
   finish: { ar: '🎉 ابدأ العمل', en: '🎉 Start Working' },
   completed: { ar: 'مكتمل', en: 'Completed' },
   dont_show: { ar: 'لا تظهر مرة أخرى', en: "Don't show again" },
 
-  // Steps
-  step1_title: { ar: '🏢 إعداد الشركة', en: '🏢 Company Setup' },
+  // Steps — reordered: warehouses first, settings last
+  step1_title: { ar: '🏪 إنشاء المستودعات', en: '🏪 Create Warehouses' },
   step1_desc: {
-    ar: 'أضف معلومات شركتك الأساسية: الاسم، الشعار، العملة الافتراضية، وبيانات الضريبة.',
-    en: 'Add your basic company info: name, logo, default currency, and tax details.',
-  },
-  step1_action: { ar: 'إعدادات الشركة', en: 'Company Settings' },
-
-  step2_title: { ar: '🏪 إنشاء المستودعات', en: '🏪 Create Warehouses' },
-  step2_desc: {
     ar: 'أنشئ مستودعاتك لتتبع المخزون. يمكنك إضافة مستودع رئيسي ومستودعات فرعية.',
     en: 'Create your warehouses to track inventory. Add a main warehouse and sub-warehouses.',
   },
-  step2_action: { ar: 'المستودعات', en: 'Warehouses' },
+  step1_action: { ar: 'المستودعات', en: 'Warehouses' },
 
-  step3_title: { ar: '📦 إضافة المواد', en: '📦 Add Materials' },
-  step3_desc: {
+  step2_title: { ar: '📦 إضافة المواد', en: '📦 Add Materials' },
+  step2_desc: {
     ar: 'أضف منتجاتك وموادك مع الأسعار والألوان والمقاسات. يمكنك الاستيراد من Excel أيضاً.',
     en: 'Add your products with prices, colors, and sizes. You can also import from Excel.',
   },
-  step3_action: { ar: 'المواد', en: 'Materials' },
+  step2_action: { ar: 'المواد', en: 'Materials' },
 
-  step4_title: { ar: '👥 إضافة العملاء والموردين', en: '👥 Add Customers & Suppliers' },
-  step4_desc: {
+  step3_title: { ar: '👥 إضافة العملاء والموردين', en: '👥 Add Customers & Suppliers' },
+  step3_desc: {
     ar: 'أضف عملاءك ومورديك لتتمكن من إنشاء الفواتير وتتبع الحسابات.',
     en: 'Add your customers and suppliers to create invoices and track accounts.',
   },
-  step4_action: { ar: 'العملاء', en: 'Customers' },
+  step3_action: { ar: 'العملاء', en: 'Customers' },
 
-  step5_title: { ar: '💰 إعداد الصناديق', en: '💰 Setup Cash Funds' },
-  step5_desc: {
+  step4_title: { ar: '💰 إعداد الصناديق', en: '💰 Setup Cash Funds' },
+  step4_desc: {
     ar: 'أنشئ صناديقك النقدية وحساباتك البنكية لتسجيل المقبوضات والمصروفات.',
     en: 'Create cash funds and bank accounts to record receipts and payments.',
   },
-  step5_action: { ar: 'الصناديق', en: 'Funds' },
+  step4_action: { ar: 'الصناديق', en: 'Funds' },
 
-  step6_title: { ar: '📄 أول فاتورة مبيعات', en: '📄 First Sales Invoice' },
-  step6_desc: {
+  step5_title: { ar: '📄 أول فاتورة مبيعات', en: '📄 First Sales Invoice' },
+  step5_desc: {
     ar: 'أنشئ أول فاتورة مبيعات لعميل. يتم ترحيل القيد المحاسبي تلقائياً.',
     en: 'Create your first sales invoice. The accounting entry is auto-posted.',
   },
-  step6_action: { ar: 'فاتورة مبيعات', en: 'Sales Invoice' },
+  step5_action: { ar: 'فاتورة مبيعات', en: 'Sales Invoice' },
+
+  step6_title: { ar: '⚙️ إعدادات النظام', en: '⚙️ System Settings' },
+  step6_desc: {
+    ar: 'راجع إعدادات النظام: العملات، الضرائب، والتفضيلات. يمكنك تخصيصها لاحقاً.',
+    en: 'Review system settings: currencies, taxes, and preferences. Customize anytime.',
+  },
+  step6_action: { ar: 'الإعدادات', en: 'Settings' },
 
   step7_title: { ar: '🚀 جاهز للعمل!', en: '🚀 Ready to Go!' },
   step7_desc: {
     ar: 'تهانينا! نظامك جاهز. يمكنك دائماً الوصول للمساعدة من أيقونة الذكاء الاصطناعي.',
-    en: "Congratulations! Your system is ready. You can always access help from the AI assistant icon.",
+    en: "Congratulations! Your system is ready. Access help anytime from the AI assistant icon.",
   },
   step7_action: { ar: 'لوحة التحكم', en: 'Dashboard' },
 };
 
 const t = (key: string, lang: string) => OB_TEXT[key]?.[lang] || OB_TEXT[key]?.en || key;
 
-// ─── Steps Config ────────────────────────────────────────────
+// ─── Steps Config (reordered: settings before ready) ─────────
 const STEPS: OnboardingStep[] = [
-  { id: 'company', icon: Building2, color: '#0ea5e9', route: '/settings' },
   { id: 'warehouses', icon: Warehouse, color: '#8b5cf6', route: '/warehouse/warehouses' },
   { id: 'materials', icon: Package, color: '#f59e0b', route: '/warehouse/materials' },
   { id: 'customers', icon: Users, color: '#10b981', route: '/accounting/customers' },
   { id: 'funds', icon: CircleDollarSign, color: '#ec4899', route: '/accounting/funds' },
   { id: 'invoice', icon: Receipt, color: '#6366f1', route: '/sales' },
+  { id: 'settings', icon: Settings, color: '#0ea5e9', route: '/system-config' },
   { id: 'ready', icon: Rocket, color: '#22c55e', route: '/' },
 ];
 
@@ -127,28 +118,30 @@ export function useOnboarding() {
   const [state, setState] = useState(getOnboardingState);
   const { user } = useAuth();
 
-  const isNewUser = useMemo(() => {
+  const shouldShowWizard = useMemo(() => {
     if (!user) return false;
+    if (localStorage.getItem('texacore_force_onboarding') === 'true') return true;
+    if (state.completedSteps.length === 0) return true;
     const created = new Date(user.created_at);
-    const now = new Date();
-    const daysSinceCreation = (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
-    return daysSinceCreation < 30; // Show for users created within 30 days
-  }, [user]);
+    const daysSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSinceCreation < 30;
+  }, [user, state.completedSteps.length]);
 
-  const shouldShow = !state.dismissed && isNewUser;
+  const shouldShow = !state.dismissed && shouldShowWizard;
 
   const completeStep = useCallback((stepId: string) => {
     setState(prev => {
-      const newState = {
-        ...prev,
-        completedSteps: [...new Set([...prev.completedSteps, stepId])],
-      };
+      const newSteps = prev.completedSteps.includes(stepId)
+        ? prev.completedSteps
+        : [...prev.completedSteps, stepId];
+      const newState = { ...prev, completedSteps: newSteps };
       saveOnboardingState(newState);
       return newState;
     });
   }, []);
 
   const dismiss = useCallback(() => {
+    localStorage.removeItem('texacore_force_onboarding');
     setState(prev => {
       const newState = { ...prev, dismissed: true };
       saveOnboardingState(newState);
@@ -171,18 +164,25 @@ export function OnboardingWizard() {
   const lang = language || 'en';
   const isRTL = dir === 'rtl';
   const navigate = useNavigate();
+  const location = useLocation();
   const { shouldShow, state, completeStep, dismiss } = useOnboarding();
   const [currentStep, setCurrentStep] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const tour = useTour();
+
+  // Only show on dashboard
+  const isOnDashboard = location.pathname === '/' || location.pathname === '/dashboard';
 
   useEffect(() => {
-    if (shouldShow) {
-      const timer = setTimeout(() => setIsVisible(true), 500);
+    if (shouldShow && isOnDashboard) {
+      const timer = setTimeout(() => setIsVisible(true), 800);
       return () => clearTimeout(timer);
+    } else {
+      setIsVisible(false);
     }
-  }, [shouldShow]);
+  }, [shouldShow, isOnDashboard]);
 
-  if (!shouldShow || !isVisible) return null;
+  if (!shouldShow || !isVisible || !isOnDashboard) return null;
 
   const step = STEPS[currentStep];
   const StepIcon = step.icon;
@@ -192,9 +192,14 @@ export function OnboardingWizard() {
   const totalCompleted = state.completedSteps.length;
   const progress = (totalCompleted / (STEPS.length - 1)) * 100;
 
+  // RTL: forward = left, backward = right
+  const ForwardArrow = isRTL ? ArrowLeft : ArrowRight;
+  const BackwardArrow = isRTL ? ArrowRight : ArrowLeft;
+  const ActionChevron = isRTL ? ChevronLeft : ChevronRight;
+
   const handleGoTo = () => {
     completeStep(step.id);
-    dismiss(); // Close wizard
+    dismiss();
     navigate(step.route);
   };
 
@@ -221,13 +226,13 @@ export function OnboardingWizard() {
           {/* Close Button */}
           <button
             onClick={dismiss}
-            className="absolute top-4 end-4 p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            className="absolute top-4 start-4 p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
 
           {/* Step Counter */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center justify-end gap-2 mb-4">
             <Sparkles className="w-4 h-4" style={{ color: step.color }} />
             <span className="text-sm font-semibold" style={{ color: step.color }}>
               {t('step', lang)} {currentStep + 1} {t('of', lang)} {STEPS.length}
@@ -238,7 +243,13 @@ export function OnboardingWizard() {
           <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-6 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-700 ease-out"
-              style={{ width: `${progress}%`, backgroundColor: step.color }}
+              style={{
+                width: `${progress}%`,
+                backgroundColor: step.color,
+                marginInlineStart: isRTL ? 'auto' : undefined,
+                marginInlineEnd: isRTL ? '0' : undefined,
+                float: isRTL ? 'right' : 'left',
+              }}
             />
           </div>
 
@@ -253,9 +264,7 @@ export function OnboardingWizard() {
                   onClick={() => setCurrentStep(i)}
                   className={cn(
                     'relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300',
-                    isActive
-                      ? 'scale-110 shadow-lg'
-                      : 'hover:scale-105'
+                    isActive ? 'scale-110 shadow-lg' : 'hover:scale-105'
                   )}
                   style={{
                     backgroundColor: isActive ? step.color : isDone ? `${s.color}25` : '#e5e7eb',
@@ -275,7 +284,6 @@ export function OnboardingWizard() {
 
         {/* ── Content ─── */}
         <div className="px-8 py-6">
-          {/* Icon + Title */}
           <div className="flex items-start gap-4 mb-4">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -293,7 +301,6 @@ export function OnboardingWizard() {
             </div>
           </div>
 
-          {/* Completed Badge */}
           {isCompleted && (
             <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 rounded-xl mb-4">
               <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -304,41 +311,33 @@ export function OnboardingWizard() {
           )}
         </div>
 
-        {/* ── Actions ─── */}
-        <div className="px-8 pb-6 flex items-center justify-between gap-3">
-          {/* Left side */}
-          <div className="flex items-center gap-2">
-            {!isFirst && (
-              <Button
-                variant="ghost"
-                onClick={() => setCurrentStep(currentStep - 1)}
-                className="gap-2"
-              >
-                {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-                {t('prev', lang)}
-              </Button>
-            )}
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={dismiss}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              {t('skip', lang)}
-            </Button>
-
+        {/* ── Actions — RTL-aware ─── */}
+        <div className="px-8 pb-6">
+          {/* Primary row: action buttons aligned to end (right in RTL) */}
+          <div className="flex items-center justify-end gap-2 mb-3">
             {isLast ? (
-              <Button
-                onClick={handleFinish}
-                className="gap-2 px-6 text-white font-bold rounded-xl shadow-lg"
-                style={{ backgroundColor: step.color }}
-              >
-                {t('finish', lang)}
-                <Rocket className="w-4 h-4" />
-              </Button>
+              <div className="flex flex-col gap-2 w-full">
+                <Button
+                  onClick={() => {
+                    completeStep(step.id);
+                    dismiss();
+                    tour.startTour();
+                  }}
+                  className="gap-2 px-6 text-white font-bold rounded-xl shadow-lg w-full"
+                  style={{ backgroundColor: '#6366f1' }}
+                >
+                  {lang === 'ar' ? '🎓 بدء الجولة التفاعلية' : '🎓 Start Interactive Tour'}
+                  <Sparkles className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={handleFinish}
+                  variant="ghost"
+                  className="gap-2 text-gray-500"
+                >
+                  {t('finish', lang)}
+                  <Rocket className="w-4 h-4" />
+                </Button>
+              </div>
             ) : (
               <>
                 <Button
@@ -348,20 +347,43 @@ export function OnboardingWizard() {
                   style={{ borderColor: step.color, color: step.color }}
                 >
                   {t(`step${currentStep + 1}_action`, lang)}
-                  <ChevronRight className={cn('w-4 h-4', isRTL && 'rotate-180')} />
+                  <ActionChevron className="w-4 h-4" />
                 </Button>
                 <Button
-                  onClick={() => {
-                    setCurrentStep(currentStep + 1);
-                  }}
+                  onClick={() => setCurrentStep(currentStep + 1)}
                   className="gap-2 text-white font-semibold rounded-xl"
                   style={{ backgroundColor: step.color }}
                 >
                   {t('next', lang)}
-                  {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                  <ForwardArrow className="w-4 h-4" />
                 </Button>
               </>
             )}
+          </div>
+
+          {/* Secondary row: navigation + skip */}
+          <div className="flex items-center justify-between">
+            <div>
+              {!isFirst && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentStep(currentStep - 1)}
+                  className="gap-1 text-gray-500"
+                >
+                  <BackwardArrow className="w-3.5 h-3.5" />
+                  {t('prev', lang)}
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={dismiss}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              {t('skip', lang)}
+            </Button>
           </div>
         </div>
 
@@ -384,10 +406,8 @@ export function OnboardingChecklist() {
   const { language } = useLanguage();
   const lang = language || 'en';
   const navigate = useNavigate();
-  const { state, completeStep, dismiss } = useOnboarding();
+  const { state, completeStep } = useOnboarding();
 
-  // Don't show if dismissed or all steps completed
-  if (state.dismissed && state.completedSteps.length >= STEPS.length - 1) return null;
   if (state.completedSteps.length >= STEPS.length - 1) return null;
 
   const remaining = STEPS.slice(0, -1).filter(s => !state.completedSteps.includes(s.id));
@@ -442,6 +462,20 @@ export function OnboardingChecklist() {
           );
         })}
       </div>
+
+      {/* Start Tour button */}
+      <button
+        onClick={() => {
+          try {
+            const event = new CustomEvent('texacore:start-tour');
+            window.dispatchEvent(event);
+          } catch {}
+        }}
+        className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        {lang === 'ar' ? 'بدء الجولة التعريفية' : 'Start Guided Tour'}
+      </button>
     </div>
   );
 }
