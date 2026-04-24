@@ -1,0 +1,10 @@
+export { default as DesktopSetupWizard } from './DesktopSetupWizard';
+export { StepLanguage } from './steps/StepLanguage';
+export { StepCompany } from './steps/StepCompany';
+export { StepCurrencies } from './steps/StepCurrencies';
+export { StepAdmin } from './steps/StepAdmin';
+export { StepAccounts } from './steps/StepAccounts';
+export { StepTaxes } from './steps/StepTaxes';
+export { StepStorage } from './steps/StepStorage';
+export { StepGoogleDrive } from './steps/StepGoogleDrive';
+export * from './types';
