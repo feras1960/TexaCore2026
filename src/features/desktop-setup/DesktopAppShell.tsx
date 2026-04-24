@@ -7,13 +7,16 @@
 //  3. No active company? → show Company Selector
 //  4. Company active → load main app (same as cloud)
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isFirstRun, getActiveCompany, type CompanyFile } from './services/companyFileManager';
 import { checkDockerHealth, waitForDocker, injectDesktopConfig } from './services/desktopConfig';
 import { initBackupSystem } from './services/backupEngine';
+
+const DesktopSetupWizard = lazy(() => import('./DesktopSetupWizard'));
+const CompanySelectorLazy = lazy(() => import('./CompanySelector'));
 
 type AppState = 'checking' | 'docker-starting' | 'docker-error' | 'setup-wizard' | 'company-selector' | 'ready';
 
@@ -31,32 +34,23 @@ export default function DesktopAppShell({ children }: Props) {
     let cancelled = false;
 
     async function init() {
-      // Inject desktop config
       injectDesktopConfig();
-
-      // Check Docker
       setState('checking');
       const { healthy } = await checkDockerHealth();
 
       if (!healthy) {
         setState('docker-starting');
-        // Start Docker via Electron
         if ((window as any).electronAPI?.startDocker) {
           await (window as any).electronAPI.startDocker();
         }
-        // Wait for it
         const ok = await waitForDocker(30, 2000, (attempt, max) => {
           if (!cancelled) setDockerProgress(`${Math.round((attempt / max) * 100)}%`);
         });
-        if (!ok && !cancelled) {
-          setState('docker-error');
-          return;
-        }
+        if (!ok && !cancelled) { setState('docker-error'); return; }
       }
 
       if (cancelled) return;
 
-      // Docker is ready — what's next?
       if (isFirstRun()) {
         setState('setup-wizard');
       } else if (!getActiveCompany()) {
@@ -71,12 +65,17 @@ export default function DesktopAppShell({ children }: Props) {
     return () => { cancelled = true; };
   }, [dockerRetry]);
 
+  const LoadingFallback = (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-teal-400" />
+    </div>
+  );
+
   // ─── Loading screen ─────────────────────────────
   if (state === 'checking' || state === 'docker-starting') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="text-center space-y-6">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center space-y-6">
           <div className="inline-flex items-center gap-1">
             <span className="text-4xl font-black text-teal-400">Texa</span>
             <span className="text-4xl font-black text-amber-400">Core</span>
@@ -125,22 +124,26 @@ export default function DesktopAppShell({ children }: Props) {
 
   // ─── Setup Wizard ───────────────────────────────
   if (state === 'setup-wizard') {
-    const DesktopSetupWizard = require('./DesktopSetupWizard').default;
-    return <DesktopSetupWizard />;
+    return (
+      <Suspense fallback={LoadingFallback}>
+        <DesktopSetupWizard />
+      </Suspense>
+    );
   }
 
   // ─── Company Selector ───────────────────────────
   if (state === 'company-selector') {
-    const CompanySelector = require('./CompanySelector').default;
     return (
-      <CompanySelector
-        lang={localStorage.getItem('texacore_language') || 'en'}
-        onCompanySelected={(company: CompanyFile) => {
-          initBackupSystem();
-          setState('ready');
-        }}
-        onCreateNew={() => setState('setup-wizard')}
-      />
+      <Suspense fallback={LoadingFallback}>
+        <CompanySelectorLazy
+          lang={localStorage.getItem('texacore_language') || 'en'}
+          onCompanySelected={(company: CompanyFile) => {
+            initBackupSystem();
+            setState('ready');
+          }}
+          onCreateNew={() => setState('setup-wizard')}
+        />
+      </Suspense>
     );
   }
 
