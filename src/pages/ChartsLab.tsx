@@ -1,12 +1,52 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback, ReactNode } from 'react';
 import { useLanguage } from '@/app/providers/LanguageProvider';
 import { useTheme } from '@/app/providers/ThemeProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DevLabNav } from '@/features/componentLab/DevLabNav';
 import { SafeChartContainer } from '@/components/ui/SafeChartContainer';
 
-// 1. Recharts
-import { AreaChart as RechartsAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+// 1. Recharts — NO ResponsiveContainer (causes width(-1) warning in KeepAlive)
+import { AreaChart as RechartsAreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+
+/**
+ * SafeResponsiveChart — Replaces ResponsiveContainer with self-measured dimensions.
+ * Prevents the "width(-1) height(-1)" Recharts warning when KeepAlive hides this page.
+ */
+function SafeResponsiveChart({ children, className = 'h-[250px] w-full' }: { children: (dims: { width: number; height: number }) => ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState<{ width: number; height: number } | null>(null);
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 1 && rect.height > 1) {
+      setDims({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rafId = requestAnimationFrame(measure);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width: w, height: h } = entry.contentRect;
+        if (w > 1 && h > 1) {
+          setDims({ width: Math.floor(w), height: Math.floor(h) });
+        }
+      }
+    });
+    observer.observe(el);
+    return () => { cancelAnimationFrame(rafId); observer.disconnect(); };
+  }, [measure]);
+
+  return (
+    <div ref={ref} className={className}>
+      {dims ? children(dims) : null}
+    </div>
+  );
+}
 
 // 2. ECharts
 import ReactECharts from 'echarts-for-react';
@@ -318,21 +358,23 @@ export default function ChartsLabPage() {
                 </CardHeader>
                 <CardContent>
                   <SafeChartContainer className="h-[250px] w-full mt-4 text-xs" fallbackHeight="250px">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsAreaChart data={monthlyData}>
-                        <defs>
-                          <linearGradient id="colorRechart" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                        <XAxis dataKey="name" stroke={textColor} tickLine={false} axisLine={false} />
-                        <YAxis stroke={textColor} tickLine={false} axisLine={false} />
-                        <RechartsTooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${gridColor}`, borderRadius: '8px' }} />
-                        <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRechart)" />
-                      </RechartsAreaChart>
-                    </ResponsiveContainer>
+                    <SafeResponsiveChart className="h-full w-full">
+                      {(dims) => (
+                        <RechartsAreaChart width={dims.width} height={dims.height} data={monthlyData}>
+                          <defs>
+                            <linearGradient id="colorRechart" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                          <XAxis dataKey="name" stroke={textColor} tickLine={false} axisLine={false} />
+                          <YAxis stroke={textColor} tickLine={false} axisLine={false} />
+                          <RechartsTooltip contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${gridColor}`, borderRadius: '8px' }} />
+                          <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorRechart)" />
+                        </RechartsAreaChart>
+                      )}
+                    </SafeResponsiveChart>
                   </SafeChartContainer>
                 </CardContent>
               </Card>
@@ -344,15 +386,17 @@ export default function ChartsLabPage() {
                 </CardHeader>
                 <CardContent>
                   <SafeChartContainer className="h-[250px] w-full mt-4 text-xs" fallbackHeight="250px">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={monthlyData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                        <XAxis dataKey="name" stroke={textColor} tickLine={false} axisLine={false} />
-                        <YAxis stroke={textColor} tickLine={false} axisLine={false} />
-                        <RechartsTooltip cursor={{fill: gridColor}} contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${gridColor}`, borderRadius: '8px' }} />
-                        <Bar dataKey="secondary" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <SafeResponsiveChart className="h-full w-full">
+                      {(dims) => (
+                        <BarChart width={dims.width} height={dims.height} data={monthlyData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                          <XAxis dataKey="name" stroke={textColor} tickLine={false} axisLine={false} />
+                          <YAxis stroke={textColor} tickLine={false} axisLine={false} />
+                          <RechartsTooltip cursor={{fill: gridColor}} contentStyle={{ backgroundColor: tooltipBg, color: tooltipText, border: `1px solid ${gridColor}`, borderRadius: '8px' }} />
+                          <Bar dataKey="secondary" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      )}
+                    </SafeResponsiveChart>
                   </SafeChartContainer>
                 </CardContent>
               </Card>
@@ -426,11 +470,13 @@ export default function ChartsLabPage() {
                 <div className="mt-4">
                   {/* Decorative mini sparkline using Recharts */}
                   <SafeChartContainer className="h-10 w-full opacity-60" fallbackHeight="40px">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsAreaChart data={monthlyData.slice(-4)}>
-                        <Area type="monotone" dataKey="value" stroke={isDark ? '#10b981' : '#047857'} strokeWidth={2} fillOpacity={0.2} fill={isDark ? '#10b981' : '#047857'} />
-                      </RechartsAreaChart>
-                    </ResponsiveContainer>
+                    <SafeResponsiveChart className="h-full w-full">
+                      {(dims) => (
+                        <RechartsAreaChart width={dims.width} height={dims.height} data={monthlyData.slice(-4)}>
+                          <Area type="monotone" dataKey="value" stroke={isDark ? '#10b981' : '#047857'} strokeWidth={2} fillOpacity={0.2} fill={isDark ? '#10b981' : '#047857'} />
+                        </RechartsAreaChart>
+                      )}
+                    </SafeResponsiveChart>
                   </SafeChartContainer>
                 </div>
               </div>

@@ -1,8 +1,14 @@
 /**
  * SafeChartContainer — Only renders children (charts) when the container
  * is visible AND has positive dimensions.
- * Prevents Recharts "width(-1) height(-1)" warnings when KeepAlive hides
- * components or when CSS animations haven't completed layout yet.
+ *
+ * Prevents Recharts "width(-1) height(-1)" warnings caused by:
+ * 1. KeepAlive hiding pages with `contentVisibility: hidden`
+ * 2. CSS animations not yet completing layout
+ * 3. ResponsiveContainer's internal ResizeObserver measuring hidden containers
+ *
+ * Strategy: unmount children when the container leaves the viewport,
+ * so ResponsiveContainer's internal observer is destroyed.
  */
 import { useRef, useState, useEffect, ReactNode } from 'react';
 
@@ -22,7 +28,7 @@ export function SafeChartContainer({ children, className = 'h-64', fallbackHeigh
 
     let rafId: number;
 
-    // Check that the element both intersects AND has positive dimensions
+    // Check that the element has positive dimensions after becoming visible
     const checkReady = () => {
       const rect = el.getBoundingClientRect();
       if (rect.width > 1 && rect.height > 1) {
@@ -32,13 +38,16 @@ export function SafeChartContainer({ children, className = 'h-64', fallbackHeigh
       }
     };
 
-    // Use IntersectionObserver for initial visibility detection
+    // Use IntersectionObserver for visibility detection
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          // Visible — now verify dimensions are positive
+          // Visible — verify dimensions are positive before rendering
           checkReady();
         } else {
+          // Hidden (KeepAlive switched page, scrolled out, etc.)
+          // UNMOUNT children so ResponsiveContainer's internal ResizeObserver
+          // is destroyed and can't fire with -1 dimensions
           setIsReady(false);
           cancelAnimationFrame(rafId);
         }
@@ -59,4 +68,3 @@ export function SafeChartContainer({ children, className = 'h-64', fallbackHeigh
     </div>
   );
 }
-

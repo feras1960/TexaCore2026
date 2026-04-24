@@ -1,6 +1,15 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { LineChart, Line } from 'recharts';
 
+/**
+ * MiniSparkline — Tiny inline sparkline chart
+ *
+ * ⚠️ Does NOT use Recharts' ResponsiveContainer to avoid the
+ *    "width(-1) height(-1)" warning that fires when KeepAlive
+ *    hides the page with `contentVisibility: hidden`.
+ *    Instead, we measure the container ourselves via ResizeObserver
+ *    and pass explicit pixel width/height to LineChart.
+ */
 export function MiniSparkline({
   data,
   color = '#0D9488',
@@ -12,53 +21,47 @@ export function MiniSparkline({
 }) {
   const chartData = useMemo(() => data.map((value, i) => ({ i, value })), [data]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isReady, setIsReady] = useState(false);
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
-  // Only render the chart once the container has stable positive dimensions
+  const updateDims = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 1 && rect.height > 1) {
+      setDims({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
+    }
+  }, []);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    let rafId: number;
-    const checkSize = () => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 1 && rect.height > 1) {
-        setIsReady(true);
-      } else {
-        rafId = requestAnimationFrame(checkSize);
-      }
-    };
+    // Initial measurement via rAF (waits for layout)
+    const rafId = requestAnimationFrame(updateDims);
 
-    // Use ResizeObserver + rAF fallback for reliable detection
+    // Track resize for responsive behavior
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width: w, height: h } = entry.contentRect;
         if (w > 1 && h > 1) {
-          setIsReady(true);
-          observer.disconnect();
-          return;
+          setDims({ w: Math.floor(w), h: Math.floor(h) });
         }
+        // If dimensions become 0 (e.g. KeepAlive hiding), keep last valid dims
+        // to avoid re-render with bad values
       }
     });
     observer.observe(el);
 
-    // Fallback: poll via rAF in case ResizeObserver fires before layout
-    rafId = requestAnimationFrame(checkSize);
-
     return () => {
-      observer.disconnect();
       cancelAnimationFrame(rafId);
+      observer.disconnect();
     };
-  }, []);
-
-  if (!isReady || chartData.length === 0) {
-    return <div ref={containerRef} style={{ height, width: '100%', minWidth: 20 }} aria-hidden="true" />;
-  }
+  }, [updateDims]);
 
   return (
     <div ref={containerRef} style={{ height, width: '100%', minWidth: 20 }} aria-hidden="true">
-      <ResponsiveContainer width="100%" height="100%" minWidth={20} minHeight={height}>
-        <LineChart data={chartData}>
+      {dims && chartData.length > 0 && (
+        <LineChart width={dims.w} height={dims.h} data={chartData}>
           <Line
             type="monotone"
             dataKey="value"
@@ -68,7 +71,7 @@ export function MiniSparkline({
             isAnimationActive={false}
           />
         </LineChart>
-      </ResponsiveContainer>
+      )}
     </div>
   );
 }
