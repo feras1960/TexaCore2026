@@ -14,6 +14,7 @@ import { TopCustomersPanel } from './_components/TopCustomersPanel';
 import { RecentActivityPanel } from './_components/RecentActivityPanel';
 import { CurrencyExposurePanel } from './_components/CurrencyExposurePanel';
 import { QuickActionsBar } from './_components/QuickActionsBar';
+import { OnboardingChecklist } from '@/components/onboarding/OnboardingWizard';
 
 // ── icon/color injection for dashboard-kit compatibility ──
 import { Wallet, Receipt, CircleDollarSign, Package } from 'lucide-react';
@@ -128,6 +129,7 @@ export default function DashboardPage() {
           </div>
           
           {/* The smaller panels will flow naturally into the remaining grid slots */}
+          <OnboardingChecklist />
           <AttentionPanel items={attnQuery.data} loading={attnQuery.isLoading} />
           <TopCustomersPanel items={custQuery.data} loading={custQuery.isLoading} />
           <RecentActivityPanel items={actQuery.data} loading={actQuery.isLoading} />

@@ -9,6 +9,7 @@ import PageLoader from '@/components/common/PageLoader';
 import { initArabicNumeralNormalizer } from '@/lib/arabicNumeralNormalizer';
 import { LicenseExpiryBanner } from '@/components/LicenseExpiryBanner';
 import { initSessionGuard, isSelfHosted } from '@/services/sessionGuardService';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
 // Import AuthGuard directly (not lazy) for better auth flow
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -165,6 +166,7 @@ function App() {
     <ErrorBoundary>
       <AppProviders>
         <LicenseExpiryBanner />
+        <OnboardingWizard />
         <AppRoutes />
       </AppProviders>
     </ErrorBoundary>
