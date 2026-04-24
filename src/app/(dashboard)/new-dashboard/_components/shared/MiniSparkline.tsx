@@ -12,40 +12,63 @@ export function MiniSparkline({
 }) {
   const chartData = useMemo(() => data.map((value, i) => ({ i, value })), [data]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
-  // Only render the chart once the container is actually visible with positive dimensions
+  // Only render the chart once the container has stable positive dimensions
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    let rafId: number;
+    const checkSize = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 1 && rect.height > 1) {
+        setIsReady(true);
+      } else {
+        rafId = requestAnimationFrame(checkSize);
+      }
+    };
+
+    // Use ResizeObserver + rAF fallback for reliable detection
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const { width, height: h } = entry.contentRect;
-        if (width > 0 && h > 0) {
-          setIsVisible(true);
+        const { width: w, height: h } = entry.contentRect;
+        if (w > 1 && h > 1) {
+          setIsReady(true);
           observer.disconnect();
+          return;
         }
       }
     });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    observer.observe(el);
+
+    // Fallback: poll via rAF in case ResizeObserver fires before layout
+    rafId = requestAnimationFrame(checkSize);
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
+  if (!isReady || chartData.length === 0) {
+    return <div ref={containerRef} style={{ height, width: '100%', minWidth: 20 }} aria-hidden="true" />;
+  }
+
   return (
-    <div ref={containerRef} style={{ height, width: '100%' }} aria-hidden="true">
-      {isVisible && chartData.length > 0 && (
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke={color}
-              strokeWidth={1.5}
-              dot={false}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
+    <div ref={containerRef} style={{ height, width: '100%', minWidth: 20 }} aria-hidden="true">
+      <ResponsiveContainer width="100%" height="100%" minWidth={20} minHeight={height}>
+        <LineChart data={chartData}>
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={color}
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
