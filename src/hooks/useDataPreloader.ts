@@ -210,8 +210,9 @@ export function useDataPreloader() {
             }),
 
             // 14. 📊 Stock Movements — preload for instant /warehouse/stockMovements access
+            // 🔑 queryKey MUST match useStockMovements normalizedFilters shape EXACTLY
             queryClient.prefetchQuery({
-                queryKey: ['warehouse', 'stock-movements', companyId, { dateFrom: undefined, dateTo: undefined, warehouse: undefined }],
+                queryKey: ['warehouse', 'stock-movements', companyId, { warehouse: undefined, movementType: undefined, dateFrom: undefined, dateTo: undefined }],
                 queryFn: async () => {
                     return await warehouseService.getInventoryMovements(companyId!, { limit: 500 });
                 },
