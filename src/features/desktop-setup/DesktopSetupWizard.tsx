@@ -102,36 +102,23 @@ export default function DesktopSetupWizard() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      // Phase 1: Create PostgreSQL database
-      setSubmitPhase(isAr ? 'جاري إنشاء قاعدة البيانات...' : 'Creating database...');
-      if ((window as any).electronAPI?.createCompany) {
-        await (window as any).electronAPI.createCompany(data);
+      const { executeDesktopSetup } = await import('./services/companySetup');
+      
+      const result = await executeDesktopSetup(data, (phase, message) => {
+        setSubmitPhase(message);
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Setup failed');
       }
 
-      // Phase 2: Apply migrations
-      setSubmitPhase(isAr ? 'جاري تطبيق الهيكل...' : 'Applying schema...');
-      await new Promise(r => setTimeout(r, 500));
+      // Initialize backup system
+      const { initBackupSystem } = await import('./services/backupEngine');
+      initBackupSystem();
 
-      // Phase 3: Create admin user
-      setSubmitPhase(isAr ? 'جاري إنشاء المستخدم المدير...' : 'Creating admin user...');
-      await new Promise(r => setTimeout(r, 500));
-
-      // Phase 4: Apply chart of accounts
-      setSubmitPhase(isAr ? 'جاري إعداد شجرة الحسابات...' : 'Setting up accounts...');
-      await new Promise(r => setTimeout(r, 500));
-
-      // Phase 5: Configure backup
-      setSubmitPhase(isAr ? 'جاري إعداد النسخ الاحتياطي...' : 'Configuring backup...');
-      await new Promise(r => setTimeout(r, 300));
-
-      // Done!
-      setSubmitPhase(isAr ? '✅ تم بنجاح!' : '✅ Complete!');
       toast.success(isAr ? 'تم إنشاء شركتك بنجاح!' : 'Company created successfully!');
-
-      // Save setup state
       localStorage.setItem('texacore_desktop_setup', JSON.stringify({ completed: true, data }));
 
-      // Redirect after delay
       setTimeout(() => { window.location.href = '/'; }, 1500);
     } catch (err: any) {
       console.error('Setup error:', err);
