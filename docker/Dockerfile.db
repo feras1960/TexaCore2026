@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════
+# TexaCore ERP — Custom PostgreSQL Image with Migrations
+# ═══════════════════════════════════════════════════════════
+# This builds a custom Postgres image that includes:
+#   - All 172+ application migrations pre-baked
+#   - Supabase roles, JWT helpers, realtime schema
+#   - Auto-applies on first run (no manual migration step)
+#
+# Build:
+#   docker build -t texacore/erp-db:latest -f Dockerfile.db .
+#
+# Usage (replaces db service in docker-compose.yml):
+#   db:
+#     image: texacore/erp-db:latest
+# ═══════════════════════════════════════════════════════════
+
+FROM supabase/postgres:17.2.0
+
+# Copy Supabase infrastructure scripts
+COPY volumes/db/roles.sql      /docker-entrypoint-initdb.d/migrations/99-roles.sql
+COPY volumes/db/jwt.sql        /docker-entrypoint-initdb.d/init-scripts/98-jwt.sql
+COPY volumes/db/realtime.sql   /docker-entrypoint-initdb.d/migrations/99-realtime.sql
+COPY volumes/db/webhooks.sql   /docker-entrypoint-initdb.d/migrations/99-webhooks.sql
+
+# Copy all application migrations (172+ files)
+COPY ../supabase/migrations /app-migrations
+
+# Copy migration init script
+COPY migrations-init.sh /docker-entrypoint-initdb.d/init-scripts/99-app-migrations.sh
+RUN chmod +x /docker-entrypoint-initdb.d/init-scripts/99-app-migrations.sh
+
+# Labels
+LABEL maintainer="TexaCore Team"
+LABEL description="TexaCore ERP Database with pre-baked migrations"
+LABEL version="1.0.0"
