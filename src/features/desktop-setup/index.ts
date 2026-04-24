@@ -1,4 +1,6 @@
 export { default as DesktopSetupWizard } from './DesktopSetupWizard';
+export { default as DesktopAppShell } from './DesktopAppShell';
+export { default as CompanySelector } from './CompanySelector';
 export { StepLanguage } from './steps/StepLanguage';
 export { StepCompany } from './steps/StepCompany';
 export { StepCurrencies } from './steps/StepCurrencies';
@@ -8,3 +10,9 @@ export { StepTaxes } from './steps/StepTaxes';
 export { StepStorage } from './steps/StepStorage';
 export { StepGoogleDrive } from './steps/StepGoogleDrive';
 export * from './types';
+export * from './services/companyFileManager';
+export * from './services/localAuth';
+export * from './services/desktopConfig';
+export * from './services/backupEngine';
+export * from './services/googleDrive';
+export * from './services/companySetup';

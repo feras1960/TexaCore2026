@@ -1,0 +1,64 @@
+{
+  "name": "texacore-desktop",
+  "version": "1.0.0",
+  "description": "TexaCore ERP — Desktop Edition",
+  "main": "electron/main.js",
+  "author": "TexaCore Team",
+  "license": "Commercial",
+  "scripts": {
+    "electron:dev": "electron .",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:linux": "npm run build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.texacore.desktop",
+    "productName": "TexaCore ERP",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "docker/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "docker",
+        "to": "docker",
+        "filter": ["**/*"]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "texacore",
+        "name": "TexaCore Company File",
+        "description": "TexaCore ERP Company Database",
+        "role": "Editor",
+        "icon": "electron/icon"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "icon": "electron/icon.icns",
+      "target": ["dmg", "zip"],
+      "hardenedRuntime": true
+    },
+    "win": {
+      "icon": "electron/icon.ico",
+      "target": ["nsis"],
+      "publisherName": "TexaCore"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "electron/icon.ico",
+      "uninstallerIcon": "electron/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "icon": "electron/icon.png",
+      "target": ["AppImage", "deb"],
+      "category": "Office"
+    }
+  }
+}
