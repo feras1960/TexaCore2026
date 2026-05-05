@@ -375,7 +375,7 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex flex-row-reverse"
+      className="min-h-screen flex flex-row-reverse force-light"
       dir={direction}
     >
 
