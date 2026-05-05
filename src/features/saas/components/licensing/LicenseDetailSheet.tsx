@@ -1,6 +1,6 @@
 /**
- * 🔑 License Detail Sheet — Opens when clicking a license row
- * Shows: info, device, activations, heartbeats, and admin actions
+ * 🔑 License Detail Sheet — Full monitoring dashboard per license
+ * Shows: info, subscription/domain, device, heartbeats, backups, actions
  */
 import { useState } from 'react';
 import { useLanguage } from '@/hooks';
@@ -15,8 +15,9 @@ import {
   Key, Monitor, Activity, History, Shield, Copy, Ban, Mail,
   RefreshCw, CheckCircle2, XCircle, Clock, MapPin,
   Cpu, HardDrive, Wifi, ArrowUpCircle, CalendarPlus,
+  Globe, Server, Download, Database, BarChart3,
 } from 'lucide-react';
-import { License, licensingService, TIER_DEFAULTS } from '@/services/saas/licensingService';
+import { License, licensingService, TIER_DEFAULTS, CloudBackup } from '@/services/saas/licensingService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 
@@ -54,7 +55,7 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
   const [upgradeTarget, setUpgradeTarget] = useState<string>('');
   const [extendDays, setExtendDays] = useState(365);
 
-  // Load activations for this license
+  // Load activations
   const { data: activationsRaw } = useCachedQuery({
     queryKey: ['licensing', 'activations', license?.id],
     queryFn: () => licensingService.getActivations(20),
@@ -62,20 +63,32 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
     staleTime: 30_000,
   });
 
+  // Load heartbeats for this license
   const { data: heartbeatsRaw } = useCachedQuery({
-    queryKey: ['licensing', 'heartbeats', license?.id],
-    queryFn: () => licensingService.getHeartbeats(20),
+    queryKey: ['licensing', 'heartbeats-detail', license?.license_key],
+    queryFn: () => licensingService.getHeartbeatsForLicense(license!.license_key, 30),
     enabled: !!license && open,
-    staleTime: 30_000,
+    staleTime: 15_000,
+  });
+
+  // Load cloud backups
+  const { data: backupsRaw } = useCachedQuery({
+    queryKey: ['licensing', 'backups', license?.license_key],
+    queryFn: () => licensingService.getCloudBackups(license!.license_key),
+    enabled: !!license && open,
+    staleTime: 60_000,
   });
 
   const activations = (activationsRaw || []).filter((a: any) => a.license_key === license?.license_key);
-  const heartbeats = (heartbeatsRaw || []).filter((h: any) => h.license_key === license?.license_key);
+  const heartbeats = heartbeatsRaw || [];
+  const backups: CloudBackup[] = backupsRaw || [];
 
   if (!license) return null;
 
   const isExpired = new Date(license.expires_at) < new Date();
   const daysLeft = Math.ceil((new Date(license.expires_at).getTime() - Date.now()) / 86400000);
+  const isOnline = licensingService.isOnline(license.last_heartbeat_at);
+  const latestHb = heartbeats[0];
 
   const copyKey = () => {
     navigator.clipboard.writeText(license.license_key);
@@ -84,17 +97,12 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
 
   const sendEmail = async () => {
     const email = (license as any).customer_email;
-    if (!email) {
-      toast.error(isAr ? 'لا يوجد بريد إلكتروني للعميل' : 'No customer email found');
-      return;
-    }
+    if (!email) { toast.error(isAr ? 'لا يوجد بريد إلكتروني' : 'No email'); return; }
     setActionLoading(true);
     try {
       await licensingService.sendLicenseEmail(license, email, (license as any).customer_name);
-      toast.success(isAr ? `تم إرسال المفتاح إلى ${email}` : `Key sent to ${email}`);
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+      toast.success(isAr ? `تم الإرسال إلى ${email}` : `Sent to ${email}`);
+    } catch (err: any) { toast.error(err.message); }
     setActionLoading(false);
   };
 
@@ -103,12 +111,16 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
     try {
       await licensingService.updateLicenseStatus(license.id, newStatus as any);
       toast.success(isAr ? 'تم تحديث الحالة' : 'Status updated');
-      onRefresh();
-      onClose();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+      onRefresh(); onClose();
+    } catch (err: any) { toast.error(err.message); }
     setActionLoading(false);
+  };
+
+  const handleDownloadBackup = async (backup: CloudBackup) => {
+    try {
+      const url = await licensingService.downloadBackup(backup.file_path);
+      if (url) window.open(url, '_blank');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const fmt = (d: string) => d ? new Date(d).toLocaleString(isAr ? 'ar-SA' : 'en-US', {
@@ -134,147 +146,161 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
           </SheetTitle>
         </SheetHeader>
 
-        {/* Key + Copy */}
-        <div className="flex items-center gap-2 mb-4 p-3 bg-muted rounded-lg">
-          <code className="flex-1 text-sm font-mono tracking-wider">{license.license_key}</code>
-          <Button size="sm" variant="ghost" onClick={copyKey} title={isAr ? 'نسخ' : 'Copy'}><Copy className="h-4 w-4" /></Button>
-          <Button size="sm" variant="ghost" onClick={sendEmail} disabled={actionLoading} title={isAr ? 'إرسال بالبريد' : 'Send Email'}><Mail className="h-4 w-4" /></Button>
+        {/* Key + Copy + Online Status */}
+        <div className="flex items-center gap-2 mb-3 p-3 bg-muted rounded-lg">
+          <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+          <code className="flex-1 text-sm font-mono tracking-wider truncate">{license.license_key}</code>
+          <Button size="sm" variant="ghost" onClick={copyKey}><Copy className="h-4 w-4" /></Button>
+          <Button size="sm" variant="ghost" onClick={sendEmail} disabled={actionLoading}><Mail className="h-4 w-4" /></Button>
         </div>
 
-        {/* Quick Info */}
+        {/* Quick Badges */}
         <div className="flex gap-2 mb-4 flex-wrap">
           <Badge className={`text-xs ${license.tier === 'pro' ? 'bg-emerald-100 text-emerald-700' : license.tier === 'enterprise' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
             {TIER_LABELS[license.tier]?.[isAr ? 'ar' : 'en'] || license.tier}
           </Badge>
-          <Badge variant={license.status === 'active' ? 'default' : 'destructive'}>
-            {license.status}
+          <Badge variant={license.status === 'active' ? 'default' : 'destructive'}>{license.status}</Badge>
+          <Badge variant={isOnline ? 'default' : 'outline'} className={`text-xs ${isOnline ? 'bg-green-100 text-green-700' : ''}`}>
+            {isOnline ? (isAr ? '🟢 متصل' : '🟢 Online') : (isAr ? '⚫ غير متصل' : '⚫ Offline')}
           </Badge>
           {isExpired ? (
-            <Badge variant="destructive">{isAr ? 'منتهي الصلاحية' : 'Expired'}</Badge>
+            <Badge variant="destructive">{isAr ? 'منتهي' : 'Expired'}</Badge>
           ) : (
-            <Badge variant="outline" className="text-xs">
-              {daysLeft} {isAr ? 'يوم متبقي' : 'days left'}
-            </Badge>
+            <Badge variant="outline" className="text-xs">{daysLeft} {isAr ? 'يوم' : 'days'}</Badge>
           )}
         </div>
 
         {/* Tabs */}
         <Tabs defaultValue="info" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="info">{isAr ? 'المعلومات' : 'Info'}</TabsTrigger>
             <TabsTrigger value="device">{isAr ? 'الجهاز' : 'Device'}</TabsTrigger>
-            <TabsTrigger value="history">{isAr ? 'السجل' : 'History'}</TabsTrigger>
+            <TabsTrigger value="heartbeats">{isAr ? 'النبضات' : 'Pulse'}</TabsTrigger>
+            <TabsTrigger value="backups">{isAr ? 'النسخ' : 'Backups'}</TabsTrigger>
             <TabsTrigger value="actions">{isAr ? 'إجراءات' : 'Actions'}</TabsTrigger>
           </TabsList>
 
-          {/* Info Tab */}
+          {/* ══════ Info Tab ══════ */}
           <TabsContent value="info">
+            {/* Customer */}
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">{isAr ? 'معلومات العميل' : 'Customer Info'}</CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">{isAr ? 'العميل' : 'Customer'}</CardTitle></CardHeader>
               <CardContent className="space-y-0">
                 <InfoRow label={isAr ? 'الشركة' : 'Company'} value={(license as any).customer_name || '—'} />
                 <InfoRow label={isAr ? 'البريد' : 'Email'} value={(license as any).customer_email || '—'} />
               </CardContent>
             </Card>
 
+            {/* Subscription & Domain */}
             <Card className="mt-3">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">{isAr ? 'حدود الباقة' : 'Plan Limits'}</CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Globe className="h-4 w-4 text-blue-500" />{isAr ? 'الاشتراك والدومين' : 'Subscription & Domain'}</CardTitle></CardHeader>
+              <CardContent className="space-y-0">
+                <InfoRow label={isAr ? 'السب دومين' : 'Subdomain'} value={
+                  license.subdomain
+                    ? <a href={`https://${license.subdomain}.texacore.ai`} target="_blank" rel="noopener" className="text-blue-600 hover:underline">{license.subdomain}.texacore.ai</a>
+                    : <span className="text-muted-foreground">{isAr ? 'غير مسجل' : 'Not registered'}</span>
+                } icon={Globe} />
+                <InfoRow label={isAr ? 'اسم الجهاز' : 'Hostname'} value={license.hostname || '—'} icon={Server} />
+                <InfoRow label={isAr ? 'الإصدار' : 'Version'} value={license.app_version || '—'} />
+              </CardContent>
+            </Card>
+
+            {/* Plan Limits */}
+            <Card className="mt-3">
+              <CardHeader className="pb-2"><CardTitle className="text-sm">{isAr ? 'حدود الباقة' : 'Plan Limits'}</CardTitle></CardHeader>
               <CardContent className="space-y-0">
                 <InfoRow label={isAr ? 'المستخدمين' : 'Max Users'} value={license.max_users} icon={Key} />
                 <InfoRow label={isAr ? 'الشركات' : 'Companies'} value={license.max_companies} />
                 <InfoRow label={isAr ? 'المخازن' : 'Warehouses'} value={license.max_warehouses} />
                 <InfoRow label={isAr ? 'التخزين' : 'Storage'} value={`${license.max_storage_gb} GB`} icon={HardDrive} />
                 <InfoRow label={isAr ? 'ينتهي' : 'Expires'} value={fmt(license.expires_at)} icon={Clock} />
-                <InfoRow label={isAr ? 'أنشئ' : 'Created'} value={fmt(license.created_at)} />
               </CardContent>
             </Card>
 
+            {/* Modules */}
             <Card className="mt-3">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">{isAr ? 'الوحدات المفعّلة' : 'Enabled Modules'}</CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">{isAr ? 'الوحدات المفعّلة' : 'Modules'}</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-1.5">
                   {(license.enabled_modules || []).map(m => (
-                    <Badge key={m} variant="outline" className="text-xs">
-                      {MODULE_LABELS[m]?.[isAr ? 'ar' : 'en'] || m}
-                    </Badge>
+                    <Badge key={m} variant="outline" className="text-xs">{MODULE_LABELS[m]?.[isAr ? 'ar' : 'en'] || m}</Badge>
                   ))}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Device Tab */}
+          {/* ══════ Device Tab ══════ */}
           <TabsContent value="device">
             <Card>
               <CardContent className="pt-4 space-y-0">
-                <InfoRow
-                  label={isAr ? 'حالة الربط' : 'Binding Status'}
-                  value={license.hardware_id
+                <InfoRow label={isAr ? 'حالة الاتصال' : 'Connection'} value={
+                  isOnline
+                    ? <span className="text-green-600 flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500 animate-pulse inline-block" /> {isAr ? 'متصل الآن' : 'Online'}</span>
+                    : <span className="text-muted-foreground">{isAr ? 'غير متصل' : 'Offline'} — {license.last_heartbeat_at ? fmt(license.last_heartbeat_at) : isAr ? 'لم يتصل أبداً' : 'Never'}</span>
+                } icon={Wifi} />
+                <InfoRow label={isAr ? 'الربط' : 'Binding'} value={
+                  license.hardware_id
                     ? <span className="text-green-600 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {isAr ? 'مربوط' : 'Bound'}</span>
                     : <span className="text-muted-foreground">{isAr ? 'غير مربوط' : 'Not bound'}</span>
-                  }
-                  icon={Cpu}
-                />
-                {license.hardware_id && (
-                  <InfoRow label="Hardware ID" value={<code className="text-xs">{license.hardware_id}</code>} icon={Monitor} />
-                )}
+                } icon={Cpu} />
+                {license.hardware_id && <InfoRow label="Hardware ID" value={<code className="text-xs">{license.hardware_id}</code>} icon={Monitor} />}
                 <InfoRow label={isAr ? 'التفعيل' : 'Activated'} value={license.activated_at ? fmt(license.activated_at) : '—'} icon={CheckCircle2} />
-                <InfoRow label={isAr ? 'عدد النقل' : 'Transfers'} value={`${license.transfer_count} / ${license.max_transfers}`} icon={RefreshCw} />
+                <InfoRow label={isAr ? 'النقل' : 'Transfers'} value={`${license.transfer_count} / ${license.max_transfers}`} icon={RefreshCw} />
               </CardContent>
             </Card>
 
-            {/* Last heartbeat */}
-            {heartbeats.length > 0 && (
+            {/* Live Resources from latest heartbeat */}
+            {latestHb && (
               <Card className="mt-3">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-green-500" />
-                    {isAr ? 'آخر نبضة' : 'Last Heartbeat'}
-                  </CardTitle>
-                </CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4 text-orange-500" />{isAr ? 'موارد الجهاز' : 'Resources'}</CardTitle></CardHeader>
                 <CardContent className="space-y-0">
-                  <InfoRow label={isAr ? 'آخر اتصال' : 'Last Seen'} value={fmt(heartbeats[0].created_at)} icon={Wifi} />
-                  <InfoRow label={isAr ? 'إصدار' : 'Version'} value={heartbeats[0].app_version || '—'} />
+                  {latestHb.cpu_percent != null && <InfoRow label="CPU" value={`${latestHb.cpu_percent}%`} icon={Cpu} />}
+                  {latestHb.ram_used_gb != null && <InfoRow label="RAM" value={`${latestHb.ram_used_gb} / ${latestHb.ram_total_gb} GB`} />}
+                  {latestHb.disk_used_percent != null && <InfoRow label={isAr ? 'القرص' : 'Disk'} value={`${latestHb.disk_used_percent}%`} icon={HardDrive} />}
+                  <InfoRow label={isAr ? 'حجم القاعدة' : 'DB Size'} value={`${latestHb.db_size_mb} MB`} icon={Database} />
+                  <InfoRow label={isAr ? 'المستخدمين' : 'Active Users'} value={latestHb.users_active} />
+                  <InfoRow label={isAr ? 'الشركات' : 'Companies'} value={latestHb.companies_count} />
+                  <InfoRow label={isAr ? 'الفواتير' : 'Invoices'} value={latestHb.invoices_count} />
                 </CardContent>
               </Card>
             )}
           </TabsContent>
 
-          {/* History Tab */}
-          <TabsContent value="history">
+          {/* ══════ Heartbeats Tab ══════ */}
+          <TabsContent value="heartbeats">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <History className="h-4 w-4" />
-                  {isAr ? 'سجل التفعيلات' : 'Activation Log'} ({activations.length})
+                  <Activity className="h-4 w-4 text-green-500" />
+                  {isAr ? 'سجل النبضات' : 'Heartbeat Log'} ({heartbeats.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {activations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    {isAr ? 'لا توجد تفعيلات' : 'No activations yet'}
-                  </p>
+                {heartbeats.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{isAr ? 'لا توجد نبضات بعد' : 'No heartbeats yet'}</p>
                 ) : (
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {activations.map((a: any, i: number) => (
-                      <div key={i} className="flex items-start gap-3 p-2 rounded bg-muted/30 text-xs">
-                        <div className={`mt-0.5 ${a.action === 'activate' ? 'text-green-500' : a.action === 'deactivate' ? 'text-red-500' : 'text-blue-500'}`}>
-                          {a.action === 'activate' ? <CheckCircle2 className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {heartbeats.map((h: any, i: number) => (
+                      <div key={i} className="p-2.5 rounded bg-muted/30 text-xs border border-border/30">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
+                            {h.app_version || 'v?'}
+                          </span>
+                          <span className="text-muted-foreground">{fmt(h.created_at)}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium">{a.action} — {a.hostname || '—'}</div>
-                          <div className="text-muted-foreground">{a.os_info}</div>
-                          <div className="text-muted-foreground flex items-center gap-1">
-                            <MapPin className="h-3 w-3" /> {a.ip_address || '—'}
-                          </div>
+                        <div className="grid grid-cols-3 gap-1 text-muted-foreground mt-1">
+                          <span>👥 {h.users_active}</span>
+                          <span>🏢 {h.companies_count}</span>
+                          <span>📄 {h.invoices_count}</span>
+                          {h.cpu_percent != null && <span>⚡ CPU {h.cpu_percent}%</span>}
+                          {h.ram_used_gb != null && <span>💾 {h.ram_used_gb}GB</span>}
+                          <span>📊 {h.db_size_mb}MB</span>
                         </div>
-                        <span className="text-muted-foreground whitespace-nowrap">{fmt(a.created_at)}</span>
+                        <div className="text-muted-foreground mt-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3" /> {h.ip_address || '—'}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -283,115 +309,100 @@ export function LicenseDetailSheet({ license, open, onClose, onRefresh }: Props)
             </Card>
           </TabsContent>
 
-          {/* Actions Tab */}
-          <TabsContent value="actions">
-            {/* Upgrade Tier */}
+          {/* ══════ Backups Tab ══════ */}
+          <TabsContent value="backups">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <ArrowUpCircle className="h-4 w-4 text-blue-500" />
-                  {isAr ? 'تغيير الباقة' : 'Change Tier'}
+                  <Database className="h-4 w-4 text-blue-500" />
+                  {isAr ? 'النسخ الاحتياطية السحابية' : 'Cloud Backups'} ({backups.length})
                 </CardTitle>
               </CardHeader>
+              <CardContent>
+                {backups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{isAr ? 'لا توجد نسخ احتياطية بعد' : 'No backups yet'}</p>
+                ) : (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {backups.map((b, i) => (
+                      <div key={i} className="flex items-center gap-3 p-2.5 rounded bg-muted/30 text-xs border border-border/30">
+                        <Database className="h-4 w-4 text-blue-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">{fmt(b.uploaded_at)}</div>
+                          <div className="text-muted-foreground">{b.file_size_mb} MB — {b.companies_count} {isAr ? 'شركة' : 'co.'} — {b.invoices_count} {isAr ? 'فاتورة' : 'inv.'}</div>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => handleDownloadBackup(b)}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ══════ Actions Tab ══════ */}
+          <TabsContent value="actions">
+            {/* Upgrade */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><ArrowUpCircle className="h-4 w-4 text-blue-500" />{isAr ? 'تغيير الباقة' : 'Change Tier'}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex gap-2">
                   <Select value={upgradeTarget} onValueChange={setUpgradeTarget}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder={isAr ? 'اختر الباقة...' : 'Select tier...'} /></SelectTrigger>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder={isAr ? 'اختر...' : 'Select...'} /></SelectTrigger>
                     <SelectContent>
                       {['trial', 'basic', 'starter', 'pro', 'enterprise'].filter(t => t !== license.tier).map(t => (
-                        <SelectItem key={t} value={t}>
-                          {TIER_LABELS[t]?.[isAr ? 'ar' : 'en'] || t} — {(TIER_DEFAULTS as any)[t]?.max_users || '?'} {isAr ? 'مستخدم' : 'users'}
-                        </SelectItem>
+                        <SelectItem key={t} value={t}>{TIER_LABELS[t]?.[isAr ? 'ar' : 'en'] || t}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
-                    disabled={!upgradeTarget || actionLoading}
-                    onClick={async () => {
-                      setActionLoading(true);
-                      try {
-                        await licensingService.upgradeTier(license.id, upgradeTarget as any);
-                        toast.success(isAr ? 'تم تغيير الباقة!' : 'Tier updated!');
-                        onRefresh(); onClose();
-                      } catch (err: any) { toast.error(err.message); }
-                      setActionLoading(false);
-                    }}
-                  >
-                    {isAr ? 'تطبيق' : 'Apply'}
-                  </Button>
+                  <Button disabled={!upgradeTarget || actionLoading} onClick={async () => {
+                    setActionLoading(true);
+                    try { await licensingService.upgradeTier(license.id, upgradeTarget as any); toast.success(isAr ? 'تم!' : 'Done!'); onRefresh(); onClose(); } catch (e: any) { toast.error(e.message); }
+                    setActionLoading(false);
+                  }}>{isAr ? 'تطبيق' : 'Apply'}</Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {isAr ? 'التغيير ينعكس فوراً على جهاز المستخدم' : 'Changes apply immediately to the user\'s device'}
-                </p>
               </CardContent>
             </Card>
 
-            {/* Extend License */}
+            {/* Extend */}
             <Card className="mt-3">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <CalendarPlus className="h-4 w-4 text-emerald-500" />
-                  {isAr ? 'تمديد الترخيص' : 'Extend License'}
-                </CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CalendarPlus className="h-4 w-4 text-emerald-500" />{isAr ? 'تمديد' : 'Extend'}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex gap-2 items-center">
-                  <Input
-                    type="number" dir="ltr" min={1} max={3650}
-                    value={extendDays} onChange={e => setExtendDays(+e.target.value)}
-                    className="w-24"
-                  />
+                  <Input type="number" dir="ltr" min={1} max={3650} value={extendDays} onChange={e => setExtendDays(+e.target.value)} className="w-24" />
                   <span className="text-sm text-muted-foreground">{isAr ? 'يوم' : 'days'}</span>
-                  <div className="flex gap-1">
-                    {[30, 90, 365].map(d => (
-                      <Button key={d} size="sm" variant={extendDays === d ? 'default' : 'outline'}
-                        onClick={() => setExtendDays(d)} className="text-xs">
-                        {d === 30 ? (isAr ? 'شهر' : '1M') : d === 90 ? (isAr ? '3 أشهر' : '3M') : (isAr ? 'سنة' : '1Y')}
-                      </Button>
-                    ))}
-                  </div>
+                  {[30, 90, 365].map(d => (
+                    <Button key={d} size="sm" variant={extendDays === d ? 'default' : 'outline'} onClick={() => setExtendDays(d)} className="text-xs">
+                      {d === 30 ? '1M' : d === 90 ? '3M' : '1Y'}
+                    </Button>
+                  ))}
                 </div>
-                <Button
-                  className="w-full gap-2" variant="outline"
-                  disabled={actionLoading || extendDays < 1}
-                  onClick={async () => {
-                    setActionLoading(true);
-                    try {
-                      const res = await licensingService.extendLicense(license.id, extendDays);
-                      toast.success(isAr ? `تم التمديد ${extendDays} يوم` : `Extended by ${extendDays} days`);
-                      onRefresh(); onClose();
-                    } catch (err: any) { toast.error(err.message); }
-                    setActionLoading(false);
-                  }}
-                >
-                  <CalendarPlus className="h-4 w-4" />
-                  {isAr ? 'تمديد' : 'Extend'}
-                </Button>
+                <Button className="w-full gap-2" variant="outline" disabled={actionLoading || extendDays < 1} onClick={async () => {
+                  setActionLoading(true);
+                  try { await licensingService.extendLicense(license.id, extendDays); toast.success(isAr ? `تم التمديد ${extendDays} يوم` : `Extended ${extendDays} days`); onRefresh(); onClose(); } catch (e: any) { toast.error(e.message); }
+                  setActionLoading(false);
+                }}><CalendarPlus className="h-4 w-4" />{isAr ? 'تمديد' : 'Extend'}</Button>
               </CardContent>
             </Card>
 
-            {/* Status Management */}
+            {/* Status */}
             <Card className="mt-3">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">{isAr ? 'إدارة الحالة' : 'Status Management'}</CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">{isAr ? 'إدارة الحالة' : 'Status'}</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {license.status === 'active' && (
-                  <Button variant="outline" className="w-full justify-start gap-2 text-orange-600" disabled={actionLoading}
-                    onClick={() => handleStatusChange('suspended')}>
-                    <Ban className="h-4 w-4" /> {isAr ? 'إيقاف الترخيص' : 'Suspend License'}
+                  <Button variant="outline" className="w-full justify-start gap-2 text-orange-600" disabled={actionLoading} onClick={() => handleStatusChange('suspended')}>
+                    <Ban className="h-4 w-4" /> {isAr ? 'إيقاف' : 'Suspend'}
                   </Button>
                 )}
                 {license.status === 'suspended' && (
-                  <Button variant="outline" className="w-full justify-start gap-2 text-green-600" disabled={actionLoading}
-                    onClick={() => handleStatusChange('active')}>
+                  <Button variant="outline" className="w-full justify-start gap-2 text-green-600" disabled={actionLoading} onClick={() => handleStatusChange('active')}>
                     <CheckCircle2 className="h-4 w-4" /> {isAr ? 'إعادة التفعيل' : 'Reactivate'}
                   </Button>
                 )}
                 {license.status !== 'revoked' && (
-                  <Button variant="outline" className="w-full justify-start gap-2 text-red-600" disabled={actionLoading}
-                    onClick={() => handleStatusChange('revoked')}>
-                    <XCircle className="h-4 w-4" /> {isAr ? 'إلغاء نهائي' : 'Revoke License'}
+                  <Button variant="outline" className="w-full justify-start gap-2 text-red-600" disabled={actionLoading} onClick={() => handleStatusChange('revoked')}>
+                    <XCircle className="h-4 w-4" /> {isAr ? 'إلغاء نهائي' : 'Revoke'}
                   </Button>
                 )}
               </CardContent>

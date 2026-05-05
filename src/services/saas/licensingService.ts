@@ -33,12 +33,21 @@ export interface License {
   cloud_backup: boolean;
   api_access: boolean;
   hardware_id: string | null;
+  stable_fingerprint: string | null;
+  subdomain: string | null;
+  cloud_tunnel_id: string | null;
+  hostname: string | null;
+  last_heartbeat_at: string | null;
+  app_version: string | null;
   activated_at: string | null;
   expires_at: string;
   transfer_count: number;
   max_transfers: number;
   created_at: string;
   customer?: LicenseCustomer;
+  // Joined fields
+  customer_name?: string;
+  customer_email?: string;
 }
 
 export interface LicenseActivation {
@@ -55,10 +64,36 @@ export interface LicenseActivation {
 export interface LicenseHeartbeat {
   id: string;
   license_id: string;
+  license_key: string;
   hardware_id: string;
   app_version: string;
-  last_seen: string;
+  ip_address: string;
+  users_active: number;
+  companies_count: number;
+  invoices_count: number;
+  db_size_mb: number;
+  storage_used_mb: number;
+  cpu_percent: number | null;
+  ram_used_gb: number | null;
+  ram_total_gb: number | null;
+  disk_used_percent: number | null;
+  services_status: Record<string, any>;
+  errors: any[];
   created_at: string;
+}
+
+export interface CloudBackup {
+  id: string;
+  license_id: string;
+  license_key: string;
+  file_path: string;
+  file_size_mb: number;
+  db_size_mb: number;
+  companies_count: number;
+  invoices_count: number;
+  checksum: string | null;
+  backup_type: 'auto' | 'manual';
+  uploaded_at: string;
 }
 
 export interface LicensingStats {
@@ -71,6 +106,8 @@ export interface LicensingStats {
   tierBreakdown: { tier: string; count: number }[];
   recentActivations: LicenseActivation[];
   activeHeartbeats: number;
+  onlineNow: number;
+  totalBackups: number;
 }
 
 // ─── Tier Defaults ───────────────────────────────────────────
@@ -168,6 +205,12 @@ export const licensingService = {
       (h: any) => new Date(h.created_at) > twoDaysAgo
     ).length;
 
+    // Online now (last 10 minutes heartbeat)
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const onlineNow = licenses.filter(
+      (l: any) => l.last_heartbeat_at && new Date(l.last_heartbeat_at) > tenMinAgo
+    ).length;
+
     return {
       totalCustomers: customers.length,
       totalLicenses: licenses.length,
@@ -178,6 +221,8 @@ export const licensingService = {
       tierBreakdown,
       recentActivations: activations,
       activeHeartbeats,
+      onlineNow,
+      totalBackups: 0, // will be populated when cloud_backups table has data
     };
   },
 
@@ -253,6 +298,42 @@ export const licensingService = {
     const { data, error } = await supabase.rpc('licensing_get_heartbeats', { p_limit: limit });
     if (error) throw error;
     return data || [];
+  },
+
+  // ─── Heartbeats for a specific license ──────────────────
+  async getHeartbeatsForLicense(licenseKey: string, limit = 50): Promise<LicenseHeartbeat[]> {
+    const { data, error } = await supabase.rpc('licensing_get_heartbeats', { p_limit: limit });
+    if (error) throw error;
+    return (data || []).filter((h: any) => h.license_key === licenseKey);
+  },
+
+  // ─── Cloud Backups ──────────────────────────────────────
+  async getCloudBackups(licenseKey: string): Promise<CloudBackup[]> {
+    const { data, error } = await supabase.rpc('licensing_get_cloud_backups', {
+      p_license_key: licenseKey,
+    });
+    if (error) {
+      // RPC may not exist yet, return empty
+      console.warn('Cloud backups RPC not available:', error.message);
+      return [];
+    }
+    return data || [];
+  },
+
+  // ─── Download Backup ────────────────────────────────────
+  async downloadBackup(filePath: string): Promise<string | null> {
+    const { data, error } = await supabase.storage
+      .from('license-backups')
+      .createSignedUrl(filePath, 3600); // 1 hour expiry
+    if (error) throw error;
+    return data?.signedUrl || null;
+  },
+
+  // ─── Connection Status Helper ───────────────────────────
+  isOnline(lastHeartbeat: string | null): boolean {
+    if (!lastHeartbeat) return false;
+    const tenMinAgo = Date.now() - 10 * 60 * 1000;
+    return new Date(lastHeartbeat).getTime() > tenMinAgo;
   },
 
   // ─── Key Generator ───────────────────────────────────────
