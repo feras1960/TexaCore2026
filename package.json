@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 5173 --mode cloud",
     "dev:local": "node scripts/api-proxy.cjs & vite --port 5174 --mode selfhosted",
-    "build": "vite build && rsync -a --delete dist/ texacore-installer/frontend/",
+    "build": "vite build",
     "build:only": "vite build",
     "build:check": "tsc && vite build",
     "preview": "vite preview",
@@ -21,7 +21,8 @@
     "prepare": "husky install || true",
     "pre-commit": "npm run validate",
     "types:supabase": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts",
-    "dev:desktop": "VITE_IS_DESKTOP=true vite --port 5174"
+    "dev:desktop": "VITE_IS_DESKTOP=true vite --port 5174",
+    "build:installer": "vite build && rsync -a --delete dist/ texacore-installer/frontend/"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

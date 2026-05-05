@@ -1,0 +1,3 @@
+[submodule "texacore-installer"]
+	path = texacore-installer
+	url = https://github.com/feras1960/TexaCore-Installer.git
